@@ -78,20 +78,26 @@ def zigzag_trajectory(step, maneuver_time, diameter, direction, initial_alt, ste
 
 
 
-
 def heart_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time):
     t = step * step_time
     theta = 2 * direction * math.pi * t / maneuver_time
 
-    x = diameter * (16 * math.sin(theta) ** 3)
-    y = diameter * (13 * math.cos(theta) - 5 * math.cos(2 * theta) - 2 * math.cos(3 * theta) - math.cos(4 * theta)) / 15
+    radius = diameter / 2
+    scale_factor = 30 / 400  # Adjust the scale factor to match the desired ratio
+
+    x = scale_factor * radius * 16 * math.sin(theta) ** 3
+    y = radius * (13 * math.cos(theta) - 5 * math.cos(2 * theta) - 2 * math.cos(3 * theta) - math.cos(4 * theta)) / 13
     z = -1 * initial_alt
 
-    vx = diameter * (48 * math.pi * math.sin(theta) ** 2 * math.cos(theta)) / maneuver_time
-    vy = diameter * ((13 * math.sin(theta) - 10 * math.sin(2 * theta) - 6 * math.sin(3 * theta) - 4 * math.sin(4 * theta)) * 2 * math.pi / (15 * maneuver_time))
+    vx = scale_factor * radius * 48 * math.pi * math.sin(theta) ** 2 * math.cos(theta) / maneuver_time
+    vy = radius * (13 * math.sin(theta) - 10 * math.sin(2 * theta) - 6 * math.sin(3 * theta) - 4 * math.sin(4 * theta)) * 2 * math.pi / (13 * maneuver_time)
     vz = 0
 
     return x, y, z, vx, vy, vz
+
+
+
+
 
 
 
