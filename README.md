@@ -1,18 +1,17 @@
-# mavsdk_drone_show
-Single Drone Show Basics using MAVSDK Offboard Control
 
 
-<h2>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h2>
+
+<h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
 
 This repository provides a tutorial on creating a captivating drone show with custom shapes using MAVSDK's offboard control. The tutorial showcases the basics of offboard mode in PX4 and demonstrates its capabilities with a single drone. Please note that the current implementation in MAVSDK does not support feedforwarding acceleration while setting position and velocity in offboard mode. However, this tutorial serves as a starting point to understand offboard control and its potential for coordinating drone shows.
 
-**Introduction:
+<h2>Introduction:</h2>
 MAVSDK (MAVLink SDK) is a powerful tool for interacting with drones using the MAVLink communication protocol. This tutorial focuses on the offboard mode in PX4, which enables external systems to directly control a drone's position and velocity. Offboard mode allows for autonomous flight and finds applications in research, development, and testing scenarios.
 
 https://mavsdk.mavlink.io/main/en/
 
 
-**Prerequisites:
+<h2>Prerequisites:</h2>
 To run the code and follow along with the tutorial, ensure that you have the following prerequisites in place:
 
 Python: Install Python and the required dependencies for running the scripts.
@@ -32,13 +31,13 @@ Youtube Tutorial on how to install and start with MAVSDK:
 https://www.youtube.com/watch?v=SM0WtREzqqE
 
 
-my PX4 Development Youtube Playlist:
+My PX4 Development Youtube Playlist:
 https://www.youtube.com/watch?v=p0WAPgaa7Rs&list=PLVZvZdBQdm_67sRE_2xUMxYhM41z00Ciz
 
 
-[Usage:
-](https://www.youtube.com/watch?v=p0WAPgaa7Rs&list=PLVZvZdBQdm_67sRE_2xUMxYhM41z00Ciz)Follow the Youtube Tutorial for this project:
-Link will be published soon!!
+<h2>Usage:</h2>
+Follow the Youtube Tutorial for this project:
+Link will be published soon
 
 you can use csvCreator.py to create differnt shape setpoints. active.csv and a screenshot of drone 3D trajectory will be saved to shapes folder.
 next step is to run offboard_from_csv.py and see the drone following the actions.
@@ -46,5 +45,5 @@ next step is to run offboard_from_csv.py and see the drone following the actions
 
 
 
-**Disclaimer:
+<h2>Disclaimer:</h2>
 **Using offboard mode with a real drone involves risks and should be approached with caution. Understand the safety implications, consider failsafe scenarios, and ensure you have the necessary expertise before using offboard mode in a real-world setting.
