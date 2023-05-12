@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</title>
-</head>
+
 <body>
   <h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
   <p>This repository provides a tutorial on creating a captivating drone show with custom shapes using MAVSDK's offboard control. The tutorial showcases the basics of offboard mode in PX4 and demonstrates its capabilities with a single drone. Please note that the current implementation in MAVSDK does not support feedforwarding acceleration while setting position and velocity in offboard mode. However, this tutorial serves as a starting point to understand offboard control and its potential for coordinating drone shows.</p>
