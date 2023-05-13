@@ -31,8 +31,7 @@
   <h2>Usage:</h2>
   <p>Follow the YouTube Tutorial for this project:</p>
   <ul>
-        <li><a href=" https://www.youtube.com/watch?v=dg5jyhV15S8"> Youtube Demo for this Repository</a></li>
-
+        <li><a href="https://www.youtube.com/watch?v=dg5jyhV15S8">Youtube Demo for this Repository</a></li>
   </ul>
 
   <p>You can use csvCreator.py to create different shape setpoints. active.csv and a screenshot of the drone's 3D trajectory will be saved to the shapes folder. The next step is to run offboard_from_csv.py and see the drone following the actions.</p>
