@@ -47,14 +47,33 @@ Note:
 
 import asyncio
 import csv
+import os
 
 from mavsdk import System
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, OffboardError
+from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed , OffboardError
 from mavsdk.telemetry import LandedState
+import subprocess
+import signal
 
 
 async def run():
-    drone = System()
+    
+    # Define a dictionary to map mode codes to their descriptions
+    mode_descriptions = {
+    0: "On the ground",
+    10: "Initial climbing state",
+    20: "Initial holding after climb",
+    30: "Moving to start point",
+    40: "Holding at start point",
+    50: "Moving to maneuvering start point",
+    60: "Holding at maneuver start point",
+    70: "Maneuvering (trajectory)",
+    80: "Holding at the end of the trajectory coordinate",
+    90: "Returning to home coordinate",
+    100: "Landing"
+    }
+    grpc_port = 50040
+    drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
     await drone.connect(system_address="udp://:14540")
 
     print("Waiting for drone to connect...")
@@ -97,13 +116,19 @@ async def run():
             vx = float(row["vx"])
             vy = float(row["vy"])
             vz = float(row["vz"])
+            ax = float(row["ax"])
+            ay = float(row["ay"])
+            az = float(row["az"])
             yaw = float(row["yaw"])
-            waypoints.append((t, px, py, pz, vx, vy, vz))
+            mode_code = int(row["mode"])  # Assuming the mode code is in a column named "mode"
+        
+        
+            waypoints.append((t, px, py, pz, vx, vy, vz,ax,ay,az,mode_code))
 
     print("-- Performing trajectory")
     total_duration = waypoints[-1][0]  # Total duration is the time of the last waypoint
     t = 0  # Time variable
-
+    last_mode = 0
     while t <= total_duration:
         # Find the current waypoint based on time
         current_waypoint = None
@@ -118,7 +143,18 @@ async def run():
 
         position = current_waypoint[1:4]  # Extract position (px, py, pz)
         velocity = current_waypoint[4:7]  # Extract velocity (vx, vy, vz)
-
+        acceleration = current_waypoint[7:10]  # Extract velocity (ax, ay, az)
+        mode_code = current_waypoint[-1]
+        if last_mode != mode_code:
+                # Print the mode number and its description
+                print(f" Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
+                last_mode = mode_code
+                
+        # await drone.offboard.set_position_velocity_acceleration_ned(
+        #     PositionNedYaw(*position, yaw),
+        #     VelocityNedYaw(*velocity, yaw),
+        #     AccelerationNed(*acceleration)
+        # )
         await drone.offboard.set_position_velocity_ned(
             PositionNedYaw(*position, yaw),
             VelocityNedYaw(*velocity, yaw),
@@ -152,7 +188,24 @@ async def run():
     # print("-- Changing flight mode")
     # await drone.action.set_flight_mode("MANUAL")
 
+async def main():
+
+    udp_port = 14540 
+
+    # Start mavsdk_server 
+    grpc_port = 50040 
+    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    # await asyncio.sleep(1)
+
+    tasks = []
+    tasks.append(asyncio.create_task(run()))
+
+    await asyncio.gather(*tasks)
+
+    # Kill  mavsdk_server 
+    os.kill(mavsdk_server.pid, signal.SIGTERM)
+
+    print("All tasks completed. Exiting program.")
 
 if __name__ == "__main__":
-    # Run the asyncio loop
-    asyncio.run(run())
+    asyncio.run(main())

@@ -42,10 +42,26 @@ The CSV file created by `csvCreator.py` follows a specific structure, where each
 - `ax`: Drone's acceleration in the X-axis.
 - `ay`: Drone's acceleration in the Y-axis.
 - `az`: Drone's acceleration in the Z-axis.
-- `yaw`: Drone's yaw angle.
+- `yaw`: Drone's yaw angle.\
+- 'mode' : Flight Phase Mode
 - `ledr`: Red component value for the drone's LED color.
 - `ledg`: Green component value for the drone's LED color.
 - `ledb`: Blue component value for the drone's LED color.
+
+Flight Modes and Codes:
+- 0: On the ground
+- 10: Initial climbing state
+- 20: Initial holding after climb
+- 30: Moving to start point
+- 40: Holding at start point
+- 50: Moving to maneuvering start point
+- 60: Holding at maneuver start point
+- 70: Maneuvering (trajectory)
+- 80: Holding at the end of the trajectory coordinate
+- 90: Returning to home coordinate
+- 100: Landing
+
+Each flight mode is represented by an integer code. These codes are used to indicate the different phases of the flight in the CSV file.
 
 To create a valid CSV file for offboard control, make sure to adhere to the structure described above. Each row should represent a specific time step with the corresponding position, velocity, acceleration, and LED color values.
 
@@ -61,7 +77,7 @@ from functions.trajectories import *
 from functions.create_active_csv import create_active_csv
 
 # Example usage
-shape_name="heart_shape"
+shape_name="eight_shape"
 diameter = 30.0
 direction = 1
 maneuver_time = 60.0
@@ -70,7 +86,7 @@ start_y = 0
 initial_altitude = 10
 climb_rate = 1.0
 move_speed = 2.0  # m/s
-hold_time = 2.0 #s
+hold_time = 4.0 #s
 step_time = 0.1 #s
 output_file = "shapes/active.csv"
 
