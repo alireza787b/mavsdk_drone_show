@@ -2,7 +2,7 @@ import time
 import math
 
 
-def sine_wave_trajectory(step, maneuver_time, diameter, direction, initial_alt , step_time, turns):
+def sine_wave_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time, turns):
     t = step * step_time
     theta = 2 * direction * math.pi * t / maneuver_time * turns
 
@@ -14,7 +14,12 @@ def sine_wave_trajectory(step, maneuver_time, diameter, direction, initial_alt ,
     vy = diameter * math.cos(theta) * 2 * direction * math.pi * turns / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -diameter * math.sin(theta) * 2 * direction * math.pi * turns / maneuver_time ** 2
+    ay = diameter * math.cos(theta) * 4 * direction * math.pi * turns ** 2 / maneuver_time ** 2
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
+
 
 
 
@@ -30,7 +35,12 @@ def infinity_shape_trajectory(step, maneuver_time, diameter, direction, initial_
     vy = direction * (diameter / 4) * math.cos(2 * theta) * 4 * direction * math.pi / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -(diameter / 2) * math.sin(theta) * 4 * direction * math.pi * math.cos(theta) / maneuver_time ** 2
+    ay = -direction * (diameter / 4) * math.sin(2 * theta) * 8 * direction * math.pi * math.cos(2 * theta) / maneuver_time ** 2
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
+
 
 def spiral_square_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time, turns):
     t = step * step_time
@@ -45,7 +55,11 @@ def spiral_square_trajectory(step, maneuver_time, diameter, direction, initial_a
     vy = diameter * (math.sin(theta) + t * math.cos(theta)) / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -diameter * math.sin(theta) * 2 * direction * math.pi * turns / maneuver_time ** 2
+    ay = diameter * math.cos(theta) * 4 * direction * math.pi * turns ** 2 / maneuver_time ** 2
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
 
 def star_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time, points):
     t = step * step_time
@@ -60,7 +74,12 @@ def star_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt,
     vy = diameter * (math.sin(theta) - points * math.sin(points * theta)) / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -diameter * math.sin(theta) * 4 * direction * math.pi * points * math.cos(theta) / maneuver_time ** 2
+    ay = -diameter * math.sin(2 * theta) * 8 * direction * math.pi * points * math.cos(2 * theta) / maneuver_time ** 2
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
+
 
 def zigzag_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time, turns):
     t = step * step_time
@@ -74,9 +93,11 @@ def zigzag_trajectory(step, maneuver_time, diameter, direction, initial_alt, ste
     vy = diameter * math.cos(theta) * 2 * direction * math.pi * turns / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -diameter * math.sin(theta) * 2 * direction * math.pi * turns / maneuver_time ** 2
+    ay = diameter * math.cos(theta) * 4 * direction * math.pi * turns ** 2 / maneuver_time ** 2
+    az = 0
 
-
+    return x, y, z, vx, vy, vz, ax, ay, az
 
 def heart_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time):
     t = step * step_time
@@ -93,16 +114,18 @@ def heart_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt
     vy = radius * (13 * math.sin(theta) - 10 * math.sin(2 * theta) - 6 * math.sin(3 * theta) - 4 * math.sin(4 * theta)) * 2 * math.pi / (13 * maneuver_time)
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -scale_factor * radius * 48 * math.pi * math.sin(theta) ** 3 * math.cos(theta) / maneuver_time ** 2
+    ay = -radius * (13 * math.cos(theta) - 10 * math.cos(2 * theta) - 6 * math.cos(3 * theta) - 4 * math.cos(4 * theta)) * 4 * math.pi ** 2 / (13 * maneuver_time ** 2)
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
 
 
 
 
 
 
-
-
-def helix_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time,end_altitude, turns):
+def helix_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time, end_altitude, turns):
     t = step * step_time
     theta = 2 * direction * math.pi * t / maneuver_time * turns
 
@@ -114,7 +137,12 @@ def helix_trajectory(step, maneuver_time, diameter, direction, initial_alt, step
     vy = (diameter / 2) * math.cos(theta) * 2 * direction * math.pi * turns / maneuver_time
     vz = -1 * (initial_alt - end_altitude) / maneuver_time
 
-    return x, y, z, vx, vy, vz
+    ax = -(diameter / 2) * math.cos(theta) * 4 * direction * math.pi * turns ** 2 / maneuver_time ** 2
+    ay = -(diameter / 2) * math.sin(theta) * 4 * direction * math.pi * turns ** 2 / maneuver_time ** 2
+    az = -1 * (initial_alt - end_altitude) / maneuver_time ** 2
+
+    return x, y, z, vx, vy, vz, ax, ay, az
+
 
 
 
@@ -130,7 +158,11 @@ def eight_shape_trajectory(step, maneuver_time, diameter, direction,initial_alt,
     vy = direction * (diameter / 4) * math.cos(2 * theta) * 4 * direction * math.pi / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -(diameter / 2) * math.sin(theta) * 4 * direction * math.pi **2 / maneuver_time **2
+    ay = -direction * (diameter / 4) * math.sin(2 * theta) * 8 * direction * math.pi **2 / maneuver_time **2
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
 
 
 def circle_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time):
@@ -145,10 +177,13 @@ def circle_trajectory(step, maneuver_time, diameter, direction, initial_alt, ste
     vy = (diameter / 2) * math.cos(theta) * 2 * direction * math.pi / maneuver_time
     vz = 0
 
-    return x, y, z, vx, vy, vz
+    ax = -(diameter / 2) * math.cos(theta) * 4 * direction * math.pi ** 2 / maneuver_time ** 2
+    ay = -(diameter / 2) * math.sin(theta) * 4 * direction * math.pi ** 2 / maneuver_time ** 2
+    az = 0
 
+    return x, y, z, vx, vy, vz, ax, ay, az
 
-def square_trajectory(step, maneuver_time, diameter, direction,initial_alt, step_time):
+def square_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time):
     t = step * step_time
     side_length = diameter / math.sqrt(2)
     side_time = maneuver_time / 4
@@ -182,4 +217,8 @@ def square_trajectory(step, maneuver_time, diameter, direction,initial_alt, step
     if direction == -1:
         vx, vy = vy, vx
 
-    return x, y, z, vx, vy, vz
+    ax = -side_length / side_time ** 2 * math.sin(2 * direction * math.pi * t / maneuver_time) if (current_side == 0 or current_side == 2) else 0
+    ay = -side_length / side_time ** 2 * math.cos(2 * direction * math.pi * t / maneuver_time) if (current_side == 1 or current_side == 3) else 0
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
