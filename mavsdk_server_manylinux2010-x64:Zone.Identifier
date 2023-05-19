@@ -1,0 +1,4 @@
+[ZoneTransfer]
+ZoneId=3
+ReferrerUrl=https://github.com/mavlink/MAVSDK/releases
+HostUrl=https://objects.githubusercontent.com/github-production-release-asset-2e65be/94815442/bdff3815-923d-49c6-8b64-f5da30742f82?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIWNJYAX4CSVEH53A%2F20230519%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20230519T075958Z&X-Amz-Expires=300&X-Amz-Signature=0efdb21d83323951ab96d9b3d3ce926da7928846ebf8ce83abfe44818c8f53d6&X-Amz-SignedHeaders=host&actor_id=30341941&key_id=0&repo_id=94815442&response-content-disposition=attachment%3B%20filename%3Dmavsdk_server_manylinux2010-x64&response-content-type=application%2Foctet-stream
