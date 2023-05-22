@@ -9,7 +9,7 @@ import os
 import asyncio
 from mavsdk import System
 import csv
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, OffboardError
+from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed, OffboardError
 from mavsdk.telemetry import LandedState
 from mavsdk.action import ActionError
 from mavsdk.telemetry import *
@@ -99,11 +99,14 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
             vx = float(row["vx"])
             vy = float(row["vy"])
             vz = float(row["vz"])
+            ax = float(row["ax"])
+            ay = float(row["ay"])
+            az = float(row["az"])
             yaw = float(row["yaw"])
             mode_code = int(row["mode"])  # Assuming the mode code is in a column named "mode"
             
         
-            waypoints.append((t, px, py, pz, vx, vy, vz,mode_code))
+            waypoints.append((t, px, py, pz, vx, vy, vz,ax,ay,az,mode_code))
 
     print(f"-- Performing trajectory {drone_id}")
     total_duration = waypoints[-1][0]  # Total duration is the time of the last waypoint
@@ -125,15 +128,17 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
 
         position = current_waypoint[1:4]  # Extract position (px, py, pz)
         velocity = current_waypoint[4:7]  # Extract velocity (vx, vy, vz)
+        acceleration = current_waypoint[7:10]  # Extract acceleration (ax, ay, az)
         mode_code = current_waypoint[-1]
         if last_mode != mode_code:
                 # Print the mode number and its description
                 print(f"Drone id: {drone_id}: Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
                 last_mode = mode_code
                 
-        await drone.offboard.set_position_velocity_ned(
+        await drone.offboard.set_position_velocity_acceleration_ned(
             PositionNedYaw(*position, yaw),
             VelocityNedYaw(*velocity, yaw),
+            AccelerationNed(*acceleration)
         )
 
         await asyncio.sleep(0.1)  # Time resolution of 0.1 seconds
@@ -141,9 +146,9 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
 
     print(f"-- Shape completed {drone_id}")
 
-    print(f"-- Returning to home {drone_id}")
-    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -10.0, 0.0))
-    await asyncio.sleep(5)  # Adjust as needed for a stable hover
+    # print(f"-- Returning to home {drone_id}")
+    # await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -10.0, 0.0))
+    # await asyncio.sleep(5)  # Adjust as needed for a stable hover
 
     print(f"-- Landing {drone_id}")
     await drone.action.land()
@@ -162,7 +167,7 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
     await drone.action.disarm()
 
 async def main():
-    num_drones = 5
+    num_drones = 4 +1
     time_offset = 1
 
     # Define altitude offsets for each drone
