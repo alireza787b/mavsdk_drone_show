@@ -1,3 +1,5 @@
+![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
+
 <!DOCTYPE html>
 <html>
 
@@ -28,7 +30,10 @@
   </ul>
   <h2>Usage:</h2>
   <p>Follow the YouTube Tutorial for this project:</p>
-  <p>Link will be published soon</p>
+  <ul>
+        <li><a href="https://www.youtube.com/watch?v=dg5jyhV15S8">Youtube Demo for this Repository</a></li>
+  </ul>
+
   <p>You can use csvCreator.py to create different shape setpoints. active.csv and a screenshot of the drone's 3D trajectory will be saved to the shapes folder. The next step is to run offboard_from_csv.py and see the drone following the actions.</p>
   <h2>Disclaimer:</h2>
   <p><strong>Using offboard mode with a real drone involves risks and should be approached with caution.</strong> Understand the safety implications, consider failsafe scenarios, and ensure you have the necessary expertise before using offboard mode in a real-world setting.</p>

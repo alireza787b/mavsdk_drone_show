@@ -73,17 +73,18 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pandas as pd
+from functions.export_and_plot_shape import export_and_plot_shape
 from functions.trajectories import *
 from functions.create_active_csv import create_active_csv
 
 # Example usage
-shape_name="eight_shape"
+shape_name="heart_shape"
 diameter = 30.0
 direction = 1
-maneuver_time = 60.0
+maneuver_time = 90.0
 start_x = 0
 start_y = 0
-initial_altitude = 10
+initial_altitude = 15
 climb_rate = 1.0
 move_speed = 2.0  # m/s
 hold_time = 4.0 #s
@@ -105,27 +106,6 @@ create_active_csv(
     output_file = output_file,
 )
 
-# Load the data from the active.csv file
-data = pd.read_csv(output_file)
+output_file = "shapes/active.csv"
+export_and_plot_shape(output_file)
 
-# Extract the position coordinates
-x = data['px']
-y = data['py']
-z = -1*data['pz']
-
-# Create a 3D plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-# Plot the trajectory
-ax.plot(x, y, z)
-
-# Set labels and title
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-ax.set_title('Drone Trajectory')
-
-# Show the plot
-plt.show()
-plt.savefig('shapes/trajectory_plot.png')
