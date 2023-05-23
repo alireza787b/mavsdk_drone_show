@@ -22,6 +22,10 @@
   
   <p>You can also find a step-by-step video tutorial on how to run a Gazebo environment with multiple drones and connect to them individually using MAVSDK and MAVSDK_Server. The video will also provide a demonstration of a drone show with 5 drones. Stay tuned for the link to the video tutorial.</p>
 
+  <ul>
+    <li><a href="https://youtu.be/Wtxsv9mLkEU">Multiple Drone Show Youtube Demo</a></li>
+  </ul>
+  
   <p>Please note that version 0.1 of the project, which focuses on single drone shows, is still functional and does not require the custom build of MAVSDK Python.</p>
 
   <p>As always, exercise caution and ensure you have the necessary expertise before using offboard mode in a real-world setting. Happy drone programming!</p>
@@ -47,6 +51,7 @@
     <li><a href="https://www.youtube.com/watch?v=iVU8ZNoMn_U">YouTube Tutorial on how to build your WSL-2 PX4 Development Environment</a></li>
     <li><a href="https://www.youtube.com/watch?v=SM0WtREzqqE">YouTube Tutorial on how to install and start with MAVSDK</a></li>
     <li><a href="https://www.youtube.com/watch?v=p0WAPgaa7Rs&list=PLVZvZdBQdm_67sRE_2xUMxYhM41z00Ciz">My PX4 Development YouTube Playlist</a></li>
+    <li><a href="https://youtu.be/Wtxsv9mLkEU">Multiple Drone Show Youtube Demo</a></li>
 
   </ul>
   <h2>Usage:</h2>
