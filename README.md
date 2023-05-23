@@ -1,11 +1,33 @@
 ![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
 
+
+
+
+
 <!DOCTYPE html>
 <html>
 
 <body>
   <h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
   <p>This repository provides a tutorial on creating a captivating drone show with custom shapes using MAVSDK's offboard control. The tutorial showcases the basics of offboard mode in PX4 and demonstrates its capabilities with a single drone. Please note that the current implementation in MAVSDK does not support feedforwarding acceleration while setting position and velocity in offboard mode. However, this tutorial serves as a starting point to understand offboard control and its potential for coordinating drone shows.</p>
+
+  <h2>Version 0.2: Multiple Drone Show with Custom MAVSDK Build</h2>
+  <p>With this new version, we have expanded the project to include a multiple drone show using MAVSDK. This update requires a custom build of MAVSDK Python, which includes a new offboard function, 'set_position_velocity_acceleration_ned' that is not yet part of the official MAVSDK as of May 2023. If you find that this function is not defined and you are encountering errors with your MAVSDK installation, it means that it has not yet been implemented and you will need to build MAVSDK Python yourself.</p>
+
+  <p>For guidance, you can check out my forked versions of MAVSDK and MAVSDK-Proto:</p>
+  <ul>
+    <li><a href="https://github.com/alireza787b/MAVSDK">MAVSDK</a></li>
+    <li><a href="https://github.com/alireza787b/MAVSDK-Proto">MAVSDK-Proto</a></li>
+  </ul>
+  
+  <p>You can also find a step-by-step video tutorial on how to run a Gazebo environment with multiple drones and connect to them individually using MAVSDK and MAVSDK_Server. The video will also provide a demonstration of a drone show with 5 drones. Stay tuned for the link to the video tutorial.</p>
+
+  <p>Please note that version 0.1 of the project, which focuses on single drone shows, is still functional and does not require the custom build of MAVSDK Python.</p>
+
+  <p>As always, exercise caution and ensure you have the necessary expertise before using offboard mode in a real-world setting. Happy drone programming!</p>
+
+  <img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080" alt="MAVSDK Basic Drone Show">
+
   <h2>Introduction:</h2>
   <p>MAVSDK (MAVLink SDK) is a powerful tool for interacting with drones using the MAVLink communication protocol. This tutorial focuses on the offboard mode in PX4, which enables external systems to directly control a drone's position and velocity. Offboard mode allows for autonomous flight and finds applications in research, development, and testing scenarios.</p>
 <a href="https://mavsdk.mavlink.io/main/en/">MAVSDK Documentation</a>
