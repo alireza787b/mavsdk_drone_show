@@ -78,10 +78,10 @@ from functions.trajectories import *
 from functions.create_active_csv import create_active_csv
 
 # Example usage
-shape_name="spiral_square"
+shape_name="heart_shape"
 diameter = 30.0
 direction = 1
-maneuver_time = 60.0
+maneuver_time = 90.0
 start_x = 0
 start_y = 0
 initial_altitude = 15

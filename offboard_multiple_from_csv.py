@@ -167,7 +167,7 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
     await drone.action.disarm()
 
 async def main():
-    num_drones = 4 +1
+    num_drones = 5 + 1
     time_offset = 1
 
     # Define altitude offsets for each drone
