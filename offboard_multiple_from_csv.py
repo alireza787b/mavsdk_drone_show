@@ -171,7 +171,7 @@ async def main():
     time_offset = 1
 
     # Define altitude offsets for each drone
-    altitude_steps = 0.5
+    altitude_steps = 1
     altitude_offsets = [altitude_steps*i for i in range(num_drones)]
 
     #relative to drone 0
