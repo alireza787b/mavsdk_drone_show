@@ -24,7 +24,9 @@ def map_shape_to_code(shape_name):
         "spiral_square": (6, spiral_square_trajectory, (3,)),  # Spiral square trajectory requires additional argument for number of turns
         "star_shape": (7, star_shape_trajectory, (5,)),  # Star shape trajectory requires additional argument for number of points
         "zigzag": (8, zigzag_trajectory, (3,)),  # Zigzag trajectory requires additional argument for number of turns
-        "sine_wave": (9, sine_wave_trajectory, (3,))  # Sine wave trajectory requires additional argument for number of turns
+        "sine_wave": (9, sine_wave_trajectory, (3,)),  # Sine wave trajectory requires additional argument for number of turns
+        "stationary": (10, stationary_trajectory, ())  # Stationary trajectory requires additional arguments for position and duration
+
     }
     
     # Check if the shape_name exists in the dictionary
@@ -151,6 +153,23 @@ def heart_shape_trajectory(step, maneuver_time, diameter, direction, initial_alt
 
     ax = -scale_factor * radius * 48 * math.pi * math.sin(theta) ** 3 * math.cos(theta) / maneuver_time ** 2
     ay = -radius * (13 * math.cos(theta) - 10 * math.cos(2 * theta) - 6 * math.cos(3 * theta) - 4 * math.cos(4 * theta)) * 4 * math.pi ** 2 / (13 * maneuver_time ** 2)
+    az = 0
+
+    return x, y, z, vx, vy, vz, ax, ay, az
+
+
+def stationary_trajectory(step, maneuver_time, diameter, direction, initial_alt, step_time):
+
+    x = 0
+    y = 0
+    z = -1 * initial_alt
+
+    vx =0
+    vy =0
+    vz = 0
+
+    ax = 0
+    ay =0
     az = 0
 
     return x, y, z, vx, vy, vz, ax, ay, az
