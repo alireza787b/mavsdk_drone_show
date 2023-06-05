@@ -81,11 +81,270 @@ import numpy as np
 import pandas as pd
 from functions.trajectories import *
 
+def takeoff_and_initial_climb(initial_altitude, climb_rate, step_time, writer, last_time=0, last_step=0, last_coordinates=(0, 0, 0)):
+    """
+    This function simulates the takeoff and initial climb phase of a drone's flight.
+
+    Parameters:
+    initial_altitude (float): The initial altitude that the drone should climb to.
+    climb_rate (float): The climb rate of the drone.
+    step_time (float): The simulation step time.
+    writer (object): A CSV writer object to write the simulation data.
+    last_time (float): The time at the end of the last simulation phase.
+    last_step (int): The step at the end of the last simulation phase.
+    last_coordinates (tuple): The (x, y, z) position at the end of the last simulation phase.
+
+    Returns:
+    float: The simulation time at the end of this phase.
+    int: The simulation step at the end of this phase.
+    tuple: The (x, y, z) position at the end of this phase.
+    """
+    climb_time = initial_altitude / climb_rate
+    climb_steps = int(climb_time / step_time)
+
+    for i in range(climb_steps):
+        idx = last_step + i
+        t = last_time + i * step_time
+        x, y, _ = last_coordinates
+        z = -1 * (climb_rate * t)
+        vx = 0.0
+        vy = 0.0
+        vz = -climb_rate
+        ax = 0
+        ay = 0
+        az = 0
+        yaw = 0
+        mode = 10
+        ledr = 0
+        ledg = 0
+        ledb = 0
+        row = [idx, t, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb]
+        writer.writerow(row)
+    
+    return t, idx, (x, y, z)
+
+def hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates, mode=20, rgb=(0,0,0)):
+    """
+    This function writes a set of steps to a csv file to hold the drone at its current position for a certain time.
+
+    Parameters:
+    hold_time: The duration for which the drone should hold its position.
+    step_time: The duration of each step.
+    writer: The csv writer object to write the steps to.
+    last_time: The time at the end of the last step.
+    last_step: The index of the last step.
+    last_coordinates: A tuple (x, y, z) indicating the drone's current coordinates.
+    mode: The flight mode. Default is 20.
+    rgb: The color of the LED lights.
+
+    Returns:
+    last_time: The time at the end of the last written step.
+    last_step: The index of the last written step.
+    last_coordinates: The drone's coordinates at the end of the last written step.
+    """
+    hold_steps = int(hold_time / step_time)
+
+    for i in range(hold_steps):
+        t = last_time + i * step_time
+        x, y, z = last_coordinates
+        vx = vy = vz = 0
+        ax = ay = az = 0
+        yaw = 0
+        row = [last_step + i, t, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, *rgb]
+        writer.writerow(row)
+
+    last_time += hold_time
+    last_step += hold_steps
+
+    return last_time, last_step, last_coordinates
+
+def move_to(target_coordinates, move_speed, step_time, writer, last_time, last_step, last_coordinates, mode=30, rgb=(0,0,0)):
+    """
+    This function writes a set of steps to a csv file to move the drone to target coordinates at a given speed.
+
+    Parameters:
+    target_coordinates: A tuple (x, y, z) indicating the target coordinates to move to.
+    move_speed: The speed at which the drone should move.
+    step_time: The duration of each step.
+    writer: The csv writer object to write the steps to.
+    last_time: The time at the end of the last step.
+    last_step: The index of the last step.
+    last_coordinates: A tuple (x, y, z) indicating the drone's current coordinates.
+    mode: The flight mode. Default is 30.
+    rgb: The color of the LED lights.
+
+    Returns:
+    last_time: The time at the end of the last written step.
+    last_step: The index of the last written step.
+    last_coordinates: The drone's coordinates at the end of the last written step.
+    """
+    # Calculate the distance and time to move to the target
+    distance = math.sqrt((target_coordinates[0] - last_coordinates[0])**2 +
+                         (target_coordinates[1] - last_coordinates[1])**2 +
+                         (target_coordinates[2] - last_coordinates[2])**2)
+    
+    move_time = distance / move_speed
+    move_steps = int(move_time / step_time)
+    
+    for i in range(move_steps):
+        t = last_time + i * step_time
+        ratio = i / move_steps
+        x = last_coordinates[0] + (target_coordinates[0] - last_coordinates[0]) * ratio
+        y = last_coordinates[1] + (target_coordinates[1] - last_coordinates[1]) * ratio
+        z = last_coordinates[2] + (target_coordinates[2] - last_coordinates[2]) * ratio
+        vx = move_speed * (target_coordinates[0] - last_coordinates[0]) / distance
+        vy = move_speed * (target_coordinates[1] - last_coordinates[1]) / distance
+        vz = move_speed * (target_coordinates[2] - last_coordinates[2]) / distance
+        ax = 0
+        ay = 0
+        az = 0
+        yaw = 0
+        row = [last_step + i, t, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, *rgb]
+        writer.writerow(row)
+    
+    last_time += move_time
+    last_step += move_steps
+    last_coordinates = target_coordinates
+
+    return last_time, last_step, last_coordinates
+
+def move_to_maneuver_start(shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, last_time, last_step, last_coordinates, hold_time, move_speed, mode_move=50, mode_hold=60, rgb=(0,0,0)):
+    """
+    This function checks if the drone's current position is different from the first setpoint of the maneuver.
+    If they are different, it moves the drone to the first setpoint of the maneuver and holds it there.
+    It then calculates the start time after the maneuver start.
+
+    Parameters:
+    shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args: These are used to get the first setpoint of the maneuver.
+    writer: The csv writer object to write the steps to.
+    last_time: The time at the end of the last step.
+    last_step: The index of the last step.
+    last_coordinates: A tuple (x, y, z) indicating the drone's current coordinates.
+    hold_time: The duration for which the drone should hold its position.
+    move_speed: The speed at which the drone should move to the first setpoint.
+    mode_move: The flight mode while moving. Default is 50.
+    mode_hold: The flight mode while holding. Default is 60.
+    rgb: The color of the LED lights.
+
+    Returns:
+    last_time: The time at the end of the last written step.
+    last_step: The index of the last written step.
+    last_coordinates: The drone's coordinates at the end of the last written step.
+    start_time: The start time after the maneuver start.
+    """
+    start_x, start_y, _ = last_coordinates
+    maneuver_start_x, maneuver_start_y = shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[:2]
+    
+    
+    if 0 != maneuver_start_x or 0 != maneuver_start_y:
+        # Move drone to first setpoint of maneuver
+        target_coordinates=(start_x + maneuver_start_x, start_y + maneuver_start_y, last_coordinates[2])
+        #last_coordinates = (sta, maneuver_start_y, last_coordinates[2])
+        last_time, last_step, last_coordinates = move_to(
+            target_coordinates, 
+            move_speed=move_speed, 
+            step_time=step_time, 
+            writer=writer, 
+            last_time=last_time, 
+            last_step=last_step, 
+            last_coordinates=last_coordinates, 
+            mode=mode_move, 
+            rgb=rgb
+        )
+
+        # Hold drone at first setpoint
+        last_time, last_step, last_coordinates = hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates, mode=mode_hold, rgb=rgb)
+
+        # Calculate the start time after maneuver start
+        start_time = last_time
+    else:
+        # Calculate the start time after maneuver start
+        start_time = last_time
+
+    return last_time, last_step, last_coordinates, start_time
+
+def perform_maneuver(shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, start_time, last_step, start_coordinates, mode=70, rgb=(0,0,0)):
+    """
+    This function makes the drone perform the maneuver described by shape_fcn.
+    
+    Parameters:
+    shape_fcn: A function that given the maneuver parameters, returns the drone's target position and velocity.
+    maneuver_time, diameter, direction, initial_altitude, step_time, shape_args: The parameters for shape_fcn.
+    writer: The csv writer object to write the steps to.
+    start_time: The time at the start of the maneuver.
+    last_step: The index of the last step before the maneuver starts.
+    start_coordinates: The drone's coordinates at the start of the maneuver.
+    mode: The flight mode during the maneuver. Default is 70.
+    rgb: The color of the LED lights.
+    
+    Returns:
+    last_time: The time at the end of the last step in the maneuver.
+    last_step: The index of the last step in the maneuver.
+    last_coordinates: The drone's coordinates at the end of the maneuver.
+    """
+    start_x, start_y, start_z = start_coordinates
+    move_steps = int(maneuver_time / step_time)
+    maneuver_start_x, maneuver_start_y = shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[:2]
+
+    for step in range(move_steps):
+        x, y, z, vx, vy, vz, ax, ay, az = shape_fcn(step, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)
+        x += start_x
+        y += start_y
+        x -= maneuver_start_x
+        y -= maneuver_start_y
+        yaw = 0
+        missionTime = start_time + step * step_time
+        row = [last_step + step, missionTime, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, *rgb]
+        writer.writerow(row)
+
+    last_step += move_steps
+    last_time = start_time + move_steps * step_time
+    last_coordinates = (x, y, z)
+
+    return last_time, last_step, last_coordinates
+
+def repeat_maneuver(num_repeats, shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, last_time, last_step, last_coordinates, hold_time, move_speed, start_coordinates, mode_move=100, mode_hold=80):
+    """
+    This function makes the drone repeat the maneuver described by shape_fcn for a specified number of times.
+    
+    Parameters:
+    num_repeats: The number of times to repeat the maneuver.
+    shape_fcn: A function that given the maneuver parameters, returns the drone's target position and velocity.
+    maneuver_time, diameter, direction, initial_altitude, step_time, shape_args: The parameters for shape_fcn.
+    writer: The csv writer object to write the steps to.
+    last_time, last_step, last_coordinates: The time, step number, and coordinates at the end of the last maneuver.
+    hold_time: The time to hold the position after each maneuver.
+    move_speed: The speed to move back to the start of the maneuver.
+    start_coordinates: The drone's coordinates at the start of the maneuver.
+    mode_move: The flight mode during the movement back to the start. Default is 50.
+    mode_hold: The flight mode during the hold. Default is 60.
+    
+    Returns:
+    last_time: The time at the end of the last repetition.
+    last_step: The index of the last step in the last repetition.
+    last_coordinates: The drone's coordinates at the end of the last repetition.
+    """
+
+    for _ in range(num_repeats):
+        # Call the move_to_maneuver_start function
+        last_time, last_step, last_coordinates, start_time = move_to_maneuver_start(shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, last_time, last_step, last_coordinates, hold_time, move_speed)
+
+        # Call the maneuver function
+        last_time, last_step, last_coordinates = perform_maneuver(shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, start_time, last_step, last_coordinates)
+
+        # Hold at the end of the maneuver
+        last_time, last_step, last_coordinates = hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates, mode=60)
+
+        # If this was not the last repetition, move drone back to the start of the maneuver
+        if _ < num_repeats - 1:
+            last_time, last_step, last_coordinates = move_to(start_coordinates, move_speed, step_time, writer, last_time, last_step, last_coordinates, mode=50)
+
+    return last_time, last_step, last_coordinates
 
 
 
 
-def create_active_csv(shape_name,diameter, direction, maneuver_time, start_x, start_y, initial_altitude, climb_rate,move_speed, hold_time , step_time, output_file="active.csv"):
+def create_active_csv(shape_name,num_repeats, diameter, direction, maneuver_time, start_x, start_y, initial_altitude, climb_rate,move_speed, hold_time , step_time, output_file="active.csv"):
 
     map_shape_to_code(shape_name)
     shape_code, shape_fcn, shape_args = map_shape_to_code(shape_name)
@@ -102,206 +361,43 @@ def create_active_csv(shape_name,diameter, direction, maneuver_time, start_x, st
         writer = csv.writer(file)
         writer.writerow(header)
 
+        # Initialize variables
+        last_time = 0.0
+        last_step = 0
+        last_coordinates = (0, 0, 0)
+        
 
+        # Call the takeoff_and_initial_climb function at the beginning
+        last_time, last_step, last_coordinates = takeoff_and_initial_climb(initial_altitude, climb_rate, step_time, writer)
 
-        # Calculate climb time and steps
-        climb_time = initial_altitude / climb_rate
-        climb_steps = int(climb_time / step_time)
-        # Write climb trajectory
-        for i in range(climb_steps):
-            t = i * step_time
-            x = 0
-            y = 0
-            z = (climb_rate * t) * -1
-            vx = 0.0
-            vy = 0.0
-            vz = -climb_rate
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode =10
-            row = [i, t, x, y, z, vx, vy, vz, ax, ay, az, yaw,mode, "nan", "nan", "nan"]
-            writer.writerow(row)
+        # Call the hold_position function after the climb
+        last_time, last_step, last_coordinates = hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates,mode = 20)
 
+        # Initialize start coordinates
+        start_coordinates = (start_x, start_y, -1*initial_altitude)
 
-        # Hold at intial altitude
-        hold_steps = int(hold_time / step_time)
-
-        for i in range(hold_steps):
-            t = climb_time + i * step_time
-            x = 0
-            y = 0
-            z = -1 * initial_altitude
-            vx = 0.0
-            vy = 0.0
-            vz = 0.0
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode = 20
-            row = [climb_steps + i, t, x, y, z, vx, vy, vz, 0,0,0, yaw,mode, "nan", "nan", "nan"]
-            writer.writerow(row)  
-
-    # Move to start position
-        move_start_distance = math.sqrt(start_x**2 + start_y**2)
-        move_start_time = move_start_distance / move_speed
-        move_start_steps = int(move_start_time / step_time)
-
-        for i in range(move_start_steps):
-            t = climb_time + hold_time+ i * step_time
-            ratio = i / move_start_steps
-            x = start_x * ratio
-            y = start_y * ratio
-            z = -1 * initial_altitude
-            vx = move_speed * (start_x / move_start_distance)
-            vy = move_speed * (start_y / move_start_distance)
-            vz = 0.0
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode = 30
-            row = [climb_steps + hold_steps + i, t, x, y, z, vx, vy, vz, 0 , 0 ,0, yaw,mode, "nan", "nan", "nan"]
-            writer.writerow(row)
-
-    # Hold start position for n seconds
-        hold_steps = int(hold_time / step_time)
-
-        for i in range(hold_steps):
-            t = climb_time + hold_time +move_start_time + i * step_time
-            x = start_x
-            y = start_y
-            z = -1 * initial_altitude
-            vx = 0.0
-            vy = 0.0
-            vz = 0.0
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode = 40
-            row = [climb_steps + hold_steps + move_start_steps + i, t, x, y, z, vx, vy, vz, 0, 0, 0, yaw,mode, "nan", "nan", "nan"]
-            writer.writerow(row)    
-
-        # Check if start position is different from first setpoint of maneuver
-        if 0 != shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[0] or 0 != shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[1]:
-            print("different Start and Manuever")
-            maneuver_start_x = shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[0];
-            maneuver_start_y = shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[1];
-            
-            print(f"Origin Start: {start_x} , {start_y}")
-            print(f"Manuever Start: {maneuver_start_x} , {maneuver_start_y}")
-
-            # Calculate distance and time required to move to first setpoint of maneuver
-            move_distance = math.sqrt(( maneuver_start_x)**2 + ( maneuver_start_y)**2)
-            move_time = move_distance / 2.0
-            move_steps = int(move_time / step_time)
-
-            # Move drone to first setpoint of maneuver at 2 m/s
-            for i in range(move_steps):
-                t = climb_time + move_start_time + hold_time + hold_time + i * step_time
-                ratio = i / move_steps
-                x = start_x + (maneuver_start_x  ) * ratio
-                y = start_y + (maneuver_start_y ) * ratio
-                z = -1 * initial_altitude
-                vx = move_speed * (maneuver_start_x ) / move_distance
-                vy = move_speed * (maneuver_start_y ) / move_distance
-                vz = 0.0
-                ax = 0
-                ay = 0
-                az = 0
-                yaw = 0
-                
-                mode = 50
-                row = [climb_steps + hold_steps + move_start_steps + hold_steps  + i, t, x, y, z, vx, vy, vz,0,0,0, yaw,mode, "nan", "nan", "nan"]
-                writer.writerow(row)
-
-            # Hold drone at first setpoint for 2 seconds
-            for i in range(hold_steps):
-                t = climb_time + hold_time + move_start_time + move_time + hold_time + i * step_time
-                x =  start_x + shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[0]
-                y = start_y + shape_fcn(0, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)[1]
-                z = -1 * initial_altitude
-                vx = 0.0
-                vy = 0.0
-                vz = 0.0
-                ax = 0
-                ay = 0
-                az = 0
-                yaw = 0
-                mode = 60
-                row = [climb_steps + hold_steps + move_steps + move_start_steps + hold_steps  + i, t, x, y, z, vx, vy, vz, 0 ,0,0, yaw,mode, "nan", "nan", "nan"]
-                writer.writerow(row)
-
-            # Calculate the start time after maneuver start
-            start_time = climb_time + hold_time + move_start_time + move_time + hold_time  + hold_time
-        else:
-            # Calculate the start time after maneuver start
-            start_time = climb_time + hold_time + move_start_time + hold_time
-            move_distance=0
-            move_steps =0
-            move_time=0
-
-        # Calculate the total duration of the trajectory after maneuver start
-        total_duration = maneuver_time + start_time
-        total_steps = int(total_duration / step_time)
-        maneuver_steps = int(maneuver_time / step_time)
-
+        # Call the move_to start points function
+        last_time, last_step, last_coordinates = move_to(start_coordinates, move_speed, step_time, writer, last_time, last_step, last_coordinates)
     
 
-        # Fly the shape trajectory
-        last_x, last_y, last_z = 0, 0, 0  # Initialize variables to store the last position
+        # Call the hold_position function
+        last_time, last_step, last_coordinates = hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates, mode=40)
+        
 
-        for step in range(maneuver_steps):
-            x, y, z, vx, vy, vz, ax, ay, az = shape_fcn(step, maneuver_time, diameter, direction, initial_altitude, step_time, *shape_args)
-            x += start_x
-            y += start_y
-            yaw = 0
-            missionTime = start_time + step * step_time
-            mode = 70
-            row = [climb_steps + hold_steps + move_steps + hold_steps + move_steps + hold_steps + step, missionTime, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, "nan", "nan", "nan"]
-            writer.writerow(row)
-            last_x, last_y, last_z = x, y, z  # Update the last position
+        # Call the repeat_maneuver function
+        last_time, last_step, last_coordinates = repeat_maneuver(num_repeats, shape_fcn, maneuver_time, diameter, direction, initial_altitude, step_time, shape_args, writer, last_time, last_step, last_coordinates, hold_time, move_speed, start_coordinates)
+        
+        #Hold at the end of the menuver
+        last_time, last_step, last_coordinates = hold_position(hold_time, step_time, writer, last_time, last_step, last_coordinates, mode=80)
 
-           
-        # Hold drone at last maneuver setpoint for hold_time
-        for i in range(hold_steps):
-            t = start_time + maneuver_time + i * step_time
-            x, y, z = last_x, last_y, last_z  # Use the last position
-            vx = 0.0
-            vy = 0.0
-            vz = 0.0
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode = 80
-            row = [climb_steps + hold_steps + move_steps + hold_steps + move_steps + hold_steps + step + i, t, x, y, z, vx, vy, vz, ax, ay, az, yaw, mode, "nan", "nan", "nan"]
-            writer.writerow(row)
 
-        # Return to origin (0, 0, -initial_altitude)
-        return_distance = math.sqrt(last_x**2 + last_y**2 + ((-1 * initial_altitude) - last_z)**2)  # Use the last position
-        return_time = return_distance / move_speed
-        return_steps = int(return_time / step_time)
+        # Define the target coordinates for returning to launch point
+        return_coordinates = (0, 0, -initial_altitude)
 
-        for i in range(return_steps):
-            t = start_time + maneuver_time + hold_time + i * step_time
-            ratio = i / return_steps
-            x_home = last_x * (1 - ratio)  # Use the last position
-            y_home = last_y * (1 - ratio)  # Use the last position
-            z_home = last_z + ((-1 * initial_altitude) - last_z) * ratio  # Use the last position
-            vx = - move_speed * last_x / return_distance  # Use the last position
-            vy = - move_speed * last_y / return_distance  # Use the last position
-            vz = ((-1 * initial_altitude) - last_z) / return_time  # Use the last position
-            ax = 0
-            ay = 0
-            az = 0
-            yaw = 0
-            mode = 90
-            row = [climb_steps + hold_steps + move_steps + hold_steps + move_steps + hold_steps + step + i + return_steps, t, x_home, y_home, z_home, vx, vy, vz, ax , ay , az, yaw,mode, "nan", "nan", "nan"]
-            writer.writerow(row)
+        # Call the move_to function
+        last_time, last_step, last_coordinates = move_to(return_coordinates, move_speed, step_time, writer, last_time, last_step, last_coordinates, mode=90)
+
+        
             
             
         print(f"Created {output_file} with the {shape_name}.")

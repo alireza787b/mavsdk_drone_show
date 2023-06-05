@@ -42,7 +42,7 @@ The CSV file created by `csvCreator.py` follows a specific structure, where each
 - `ax`: Drone's acceleration in the X-axis.
 - `ay`: Drone's acceleration in the Y-axis.
 - `az`: Drone's acceleration in the Z-axis.
-- `yaw`: Drone's yaw angle.\
+- `yaw`: Drone's yaw angle.
 - 'mode' : Flight Phase Mode
 - `ledr`: Red component value for the drone's LED color.
 - `ledg`: Green component value for the drone's LED color.
@@ -78,25 +78,24 @@ from functions.trajectories import *
 from functions.create_active_csv import create_active_csv
 
 # Example usage
-<<<<<<< HEAD
-shape_name="spiral_square"
-=======
-shape_name="heart_shape"
->>>>>>> 1ac8e14f64c23d4746ca33353ee24995b825364c
+
+shape_name="eight_shape"
+num_repeats = 3
 diameter = 30.0
 direction = 1
-maneuver_time = 90.0
+maneuver_time = 60.0
 start_x = 0
 start_y = 0
 initial_altitude = 15
 climb_rate = 1.0
 move_speed = 2.0  # m/s
 hold_time = 4.0 #s
-step_time = 0.1 #s
+step_time = 0.05 #s
 output_file = "shapes/active.csv"
 
 create_active_csv(
     shape_name=shape_name,
+    num_repeats=num_repeats,
     diameter=diameter,
     direction=direction,
     maneuver_time=maneuver_time,
