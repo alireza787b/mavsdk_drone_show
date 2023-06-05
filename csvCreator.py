@@ -79,8 +79,8 @@ from functions.create_active_csv import create_active_csv
 
 # Example usage
 
-shape_name="eight_shape"
 num_repeats = 3
+shape_name="heart_shape"
 diameter = 30.0
 direction = 1
 maneuver_time = 60.0
