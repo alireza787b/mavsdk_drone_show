@@ -80,12 +80,12 @@ from functions.create_active_csv import create_active_csv
 # Example usage
 
 num_repeats = 1
-shape_name="helix"
+shape_name="heart_shape"
 diameter = 30.0
 direction = 1
 maneuver_time = 60.0
-start_x = 5
-start_y = 10
+start_x = 0
+start_y = 0
 initial_altitude = 15
 climb_rate = 1.0
 move_speed = 2.0  # m/s
