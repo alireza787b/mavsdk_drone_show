@@ -165,6 +165,12 @@ import struct
 def send_drone_state():
     # Sends the drone state to the ground station over UDP debug port at a fixed interval (2 seconds)
     # This state includes the same data as get_drone_state
+    udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
+    udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
+
+    sock = socket.socket(socket.AF_INET,  # Internet
+                         socket.SOCK_DGRAM)  # UDP
+
     while True:
         drone_state = get_drone_state()
 
@@ -177,18 +183,13 @@ def send_drone_state():
         # The terminator is 1 byte (88)
         # Therefore, the total packet size is 9 bytes
         packet = struct.pack('BBBBIB',
-                              77,
-                              int(drone_state['hw_id']),
-                              int(drone_state['pos_id']),
-                              int(drone_state['state']),
-                              int(drone_state['trigger_time']),
-                              88)
+                             77,
+                             int(drone_state['hw_id']),
+                             int(drone_state['pos_id']),
+                             int(drone_state['state']),
+                             int(drone_state['trigger_time']),
+                             88)
 
-        udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
-        udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
-
-        sock = socket.socket(socket.AF_INET,  # Internet
-                             socket.SOCK_DGRAM)  # UDP
         sock.sendto(packet, (udp_ip, udp_port))
 
         print(f"Sent telemetry data to GCS: {packet}")
@@ -197,18 +198,16 @@ def send_drone_state():
         time.sleep(2)  # send telemetry data every 2 seconds
 
 
+
 # Function to read and decode new commands
 def read_commands():
     # Reads and decodes new commands from the ground station over the debug vector
     # The commands include the hw_id, pos_id, state, and trigger time
-    # The structure is similar to the one used in get_drone_state
-
-    udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
     udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
 
     sock = socket.socket(socket.AF_INET,  # Internet
                          socket.SOCK_DGRAM)  # UDP
-    sock.bind((udp_ip, udp_port))
+    sock.bind(('0.0.0.0', udp_port))
 
     while True:
         data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
@@ -227,6 +226,7 @@ def read_commands():
                 # You can add additional logic here to handle the received command
 
         time.sleep(1)  # check for commands every second
+
 
 # Function to synchronize time with a reliable internet source
 def synchronize_time():

@@ -42,7 +42,8 @@ import time
 import threading
 
 # Variables
-gcs_ip = '172.22.141.34'  # IP of the GCS
+gcs_ip = '172.22.128.1'  # IP of the GCS
+coordinator_ip = '172.22.141.34'  # IP of the coordinator
 debug_port = 13543  # Port of the GCS
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((gcs_ip, debug_port))
@@ -57,19 +58,27 @@ def handle_telemetry():
         # Receive telemetry data
         data, addr = sock.recvfrom(1024)
         
-        # Decode the data
-        header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('=B B B B I B', data)
-        
-        # Print the received and decoded data if the flag is set
-        if print_telemetry:
-            print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+        # Ensure we received a correctly sized packet
+        if len(data) == 9:
+            # Decode the data
+            header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('=BBBBIB', data)
+            
+            # Check if header and terminator are as expected
+            if header == 77 and terminator == 88:
+                # Print the received and decoded data if the flag is set
+                if print_telemetry:
+                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+            else:
+                print("Invalid header or terminator received in telemetry data.")
+        else:
+            print(f"Received packet of incorrect size. Expected 9, got {len(data)}.")
 
 # Function to send commands
 def send_command(n):
     # Prepare the command data
     header = 55
-    hw_id = 1
-    pos_id = 1
+    hw_id = 3
+    pos_id = 3
     state = 1
     trigger_time = int(time.time()) + n
     terminator = 66
@@ -78,7 +87,7 @@ def send_command(n):
     data = struct.pack('=B B B B I B', header, hw_id, pos_id, state, trigger_time, terminator)
 
     # Send the command data
-    sock.sendto(data, (gcs_ip, debug_port))
+    sock.sendto(data, (coordinator_ip, debug_port))
     print(f"Sent command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
 
 # Start the telemetry thread
