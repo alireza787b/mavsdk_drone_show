@@ -44,7 +44,7 @@ import threading
 # Variables
 gcs_ip = '172.22.128.1'  # IP of the GCS
 coordinator_ip = '172.22.141.34'  # IP of the coordinator
-debug_port = 13543  # Port of the GCS
+debug_port = 13541  # Port of the GCS
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((gcs_ip, debug_port))
 
@@ -77,8 +77,8 @@ def handle_telemetry():
 def send_command(n):
     # Prepare the command data
     header = 55
-    hw_id = 3
-    pos_id = 3
+    hw_id = 1
+    pos_id = 1
     state = 1
     trigger_time = int(time.time()) + n
     terminator = 66

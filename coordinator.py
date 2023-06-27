@@ -194,7 +194,8 @@ def send_drone_state():
 
         print(f"Sent telemetry data to GCS: {packet}")
         print(f"Values: hw_id: {drone_state['hw_id']}, pos_id: {drone_state['pos_id']}, state: {drone_state['state']}, trigger_time: {drone_state['trigger_time']}")
-
+        current_time = int(time.time())
+        print(f"Current system time: {current_time}")
         time.sleep(2)  # send telemetry data every 2 seconds
 
 
@@ -220,7 +221,7 @@ def read_commands():
                 print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
                 drone_config.hw_id = hw_id
                 drone_config.pos_id = pos_id
-                drone_config.state = state
+                drone_config.config['state'] = state
                 drone_config.trigger_time = trigger_time
 
                 # You can add additional logic here to handle the received command
@@ -260,15 +261,17 @@ def schedule_mission():
     # If it's time to trigger, it opens the offboard_from_csv_multiple.py separately
 
     current_time = int(time.time())
-    if drone_config.state == 1 and current_time >= drone_config.trigger_time:
+    #print(f"Current system time: {current_time}")
+    #print(f"Target Trigger Time: {drone_config.trigger_time}")
+    
+    if drone_config.config['state'] == 1 and current_time >= drone_config.trigger_time:
         print("Trigger time reached. Starting drone mission...")
-
         # Reset the state and trigger time
-        drone_config.state = 0
+        drone_config.config['state'] = 2
         drone_config.trigger_time = 0
 
         # Run the mission script in a new process
-        mission_process = subprocess.Popen(["python3", "offboard_from_csv_multiple.py"])
+        mission_process = subprocess.Popen(["python3", "offboard_multiple_from_csv.py"])
         
         # Note: Replace "offboard_from_csv_multiple.py" with the actual script for the drone mission
 
