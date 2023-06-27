@@ -80,7 +80,7 @@ from functions.create_active_csv import create_active_csv
 # Example usage
 
 num_repeats = 1
-shape_name="stationary"
+shape_name="helix"
 diameter = 30.0
 direction = 1
 maneuver_time = 60.0

@@ -29,14 +29,22 @@ def read_hw_id():
 # Constants
 STEP_TIME = 0.05
 DEFAULT_Z = 0.83
-GRPC_PORT_BASE = 50040
-UDP_PORT_BASE = 14540
-SHOW_DEVIATIONS = True
+GRPC_PORT_BASE = 50041
+#UDP_PORT_BASE = 14541
+SHOW_DEVIATIONS = False
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
-SIM_MODE = False  #if set to false each drone will read irs own HW_ID and initialize its offboard, otherwise all droness are being commanded
+SIM_MODE = False
+#if set to false each drone will read its own HW_ID and initialize its offboard, otherwise all droness are being commanded
+#set to False when uploaded to the companion computer to run in real world or doing HITL
+#set to True for just visulizing all drones in one PC for SITL
+
+SEPERATE_CSV = True 
+#if set to false, its used for sim that alld drones are simulated in this pc with same csv file, if set to true, 
+# its for real world each drone has seperated csv
+# active.csv will be used if seperate csv is false and then we can use offsets
+# drone i.csv in shapes/swarm/processed will be used if seperate.csv is True
+
 HW_ID = read_hw_id()
-
-
 
 
 def read_config(filename):
@@ -47,7 +55,11 @@ def read_config(filename):
         next(reader, None)  # Skip the header
         for row in reader:
             hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
-            if SIM_MODE or int(hw_id) == HW_ID:
+            if SIM_MODE==False and int(hw_id) == HW_ID:
+                drone = Drone(hw_id, pos_id, float(x), float(y), ip, mavlink_port, debug_port, gcs_ip)
+                dronesConfig.append(drone)
+                break
+            if SIM_MODE:
                 drone = Drone(hw_id, pos_id, float(x), float(y), ip, mavlink_port, debug_port, gcs_ip)
                 dronesConfig.append(drone)
 
@@ -89,7 +101,7 @@ async def get_global_position_telemetry(drone_id, drone):
 
 
 
-async def perform_trajectory(drone_id, drone, waypoints, home_position, global_position_telemetry, mode_descriptions):
+async def perform_trajectory(drone_id, drone, waypoints, home_position,home_position_NED, global_position_telemetry, mode_descriptions):
     print(f"-- Performing trajectory {drone_id}")
     total_duration = waypoints[-1][0]
     t = 0
@@ -107,16 +119,18 @@ async def perform_trajectory(drone_id, drone, waypoints, home_position, global_p
                 last_waypoint_index = i
                 break
 
-        if current_waypoint is None:
-            break
+        if (SEPERATE_CSV == True):
+            position = tuple(a-b for a, b in zip(current_waypoint[1:4], home_position_NED))
+        else:
+            position = current_waypoint[1:4]
 
-        position = current_waypoint[1:4]
+        
         velocity = current_waypoint[4:7]
         acceleration = current_waypoint[7:10]
         yaw = current_waypoint[10]
         mode_code = current_waypoint[-1]
         if last_mode != mode_code:
-            print(f"Drone id: {drone_id}: Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
+            print(f"Drone id: {drone_id+1}: Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
             last_mode = mode_code
                 
         await drone.offboard.set_position_velocity_acceleration_ned(
@@ -131,15 +145,18 @@ async def perform_trajectory(drone_id, drone, waypoints, home_position, global_p
         if int(t/STEP_TIME) % 100 == 0:
             deviation = [(a - b) for a, b in zip(position, [local_ned_position.north_m, local_ned_position.east_m, local_ned_position.down_m])]
             if SHOW_DEVIATIONS == True:
-                print(f"Drone {drone_id} Deviations: {round(deviation[0], 1)} {round(deviation[1], 1)} {round(deviation[2], 1)}")
+                print(f"Drone {drone_id+1} Deviations: {round(deviation[0], 1)} {round(deviation[1], 1)} {round(deviation[2], 1)}")
 
 
-    print(f"-- Shape completed {drone_id}")
+    print(f"-- Shape completed {drone_id+1}")
 
 
 async def initial_setup_and_connection(drone_id, udp_port):
     dronesConfig = read_config('config.csv')
-    grpc_port = GRPC_PORT_BASE + drone_id
+    if (SIM_MODE==True):
+        grpc_port = GRPC_PORT_BASE + drone_id
+    else:
+        grpc_port = GRPC_PORT_BASE - 1
     home_position = None
     
     mode_descriptions = {
@@ -166,7 +183,7 @@ async def initial_setup_and_connection(drone_id, udp_port):
     # Check if the drone is connected
     async for state in drone.core.connection_state():
         if state.is_connected:
-            print(f"Drone id {drone_id} connected on Port: {udp_port} and grpc Port: {grpc_port}")
+            print(f"Drone id {drone_id+1} connected on Port: {udp_port} and grpc Port: {grpc_port}")
             break
 
     return drone, mode_descriptions, home_position
@@ -176,30 +193,30 @@ async def pre_flight_checks(drone_id, drone):
     # Wait for the drone to have a global position estimate
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
-            print(f"Global position estimate ok {drone_id}")
+            print(f"Global position estimate ok {drone_id+1}")
             home_position = global_position_telemetry[drone_id]
-            print(f"Home Position of {drone_id} set to: {home_position}")
+            print(f"Home Position of {drone_id+1} set to: {home_position}")
             break
 
     return home_position
 
 
 async def arming_and_starting_offboard_mode(drone_id, drone):
-    print(f"-- Arming {drone_id}")
+    print(f"-- Arming {drone_id+1}")
     await drone.action.arm()
-    print(f"-- Setting initial setpoint {drone_id}")
+    print(f"-- Setting initial setpoint {drone_id+1}")
     await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
-    print(f"-- Starting offboard {drone_id}")
+    print(f"-- Starting offboard {drone_id+1}")
     try:
         await drone.offboard.start()
     except OffboardError as error:
-        print(f"-- Disarming {drone_id}")
+        print(f"-- Disarming {drone_id+1}")
         await drone.action.disarm()
         return
 
 
 async def perform_landing(drone_id, drone):
-    print(f"-- Landing {drone_id}")
+    print(f"-- Landing {drone_id+1}")
     await drone.action.land()
 
     async for state in drone.telemetry.landed_state():
@@ -207,43 +224,54 @@ async def perform_landing(drone_id, drone):
             break
 
 async def stop_offboard_mode(drone_id, drone):
-    print(f"-- Stopping offboard {drone_id}")
+    print(f"-- Stopping offboard {drone_id+1}")
     try:
         await drone.offboard.stop()
     except Exception as error:
         print(f"Stopping offboard mode failed with error: {error}")
 
 async def disarm_drone(drone_id, drone):
-    print(f"-- Disarming {drone_id}")
+    print(f"-- Disarming {drone_id+1}")
     await drone.action.disarm()
 
 
 
 async def create_drone_configurations(num_drones, time_offset):
     # Define altitude offsets for each drone
-    altitude_steps = 1
+    altitude_steps = 0
     altitude_offsets = [altitude_steps*i for i in range(num_drones)]
 
     #relative to drone 0
     home_positions = [(drone.x, drone.y, DEFAULT_Z) for drone in dronesConfig]
     traejctory_offset = [(0, 0, 0) for i in range(num_drones)]
-    udp_ports = [UDP_PORT_BASE + i for i in range(num_drones)]
-    
+    #udp_ports = [UDP_PORT_BASE + i for i in range(num_drones)]
+    if (SIM_MODE == False):
+        udp_ports = []
+        udp_ports.append(14540) #default api connection on same hardware
+    else:    
+        udp_ports = [drone.mavlink_port for drone in dronesConfig]
     return home_positions, traejctory_offset, udp_ports, altitude_offsets
 
 def start_mavsdk_servers(num_drones, udp_ports):
     # Start mavsdk_server instances for each drone
     mavsdk_servers = []
     for i in range(num_drones):
-        port = GRPC_PORT_BASE + i
+        if (SIM_MODE == True):
+            port = GRPC_PORT_BASE + i
+        else:
+            port = 50040
         mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(port), f"udp://:{udp_ports[i]}"])
         mavsdk_servers.append(mavsdk_server)
     return mavsdk_servers
 
-async def run_all_drones(num_drones, traejctory_offset, udp_ports, time_offset, altitude_offsets):
+async def run_all_drones(num_drones,home_positions, traejctory_offset, udp_ports, time_offset, altitude_offsets):
     tasks = []
     for i in range(num_drones):
-        tasks.append(asyncio.create_task(run_drone(i, traejctory_offset[i], udp_ports[i], i*time_offset, altitude_offsets[i])))
+        if (SIM_MODE == True):
+            drone_id = i
+        else:
+            drone_id = HW_ID
+        tasks.append(asyncio.create_task(run_drone(drone_id,home_positions[i], traejctory_offset[i], udp_ports[i], i*time_offset, altitude_offsets[i])))
     await asyncio.gather(*tasks)
 
 def stop_all_mavsdk_servers(mavsdk_servers):
@@ -252,8 +280,9 @@ def stop_all_mavsdk_servers(mavsdk_servers):
         os.kill(mavsdk_server.pid, signal.SIGTERM)
 
 
-async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude_offset):
-    
+async def run_drone(drone_id,home_position_NED, trajectory_offset, udp_port, time_offset, altitude_offset):
+    if (SIM_MODE == False):
+        drone_id = 0
     # Call the initial setup and connection function
     drone, mode_descriptions, home_position = await initial_setup_and_connection(drone_id, udp_port)
     
@@ -267,10 +296,17 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
     # Arm the drone and start offboard mode
     await arming_and_starting_offboard_mode(drone_id, drone)
 
-    waypoints = read_trajectory_file("shapes/active.csv", trajectory_offset, altitude_offset)
-
+    if SEPERATE_CSV:
+            if (SIM_MODE == False):
+                filename = "shapes/swarm/processed/Drone " + str(HW_ID) + ".csv"
+            else:
+                filename = "shapes/swarm/processed/Drone " + str(drone_id+1) + ".csv"    
+    else:
+        filename = "shapes/active.csv"
+        
+    waypoints = read_trajectory_file(filename, trajectory_offset, altitude_offset)
     
-    await perform_trajectory(drone_id, drone, waypoints, home_position, global_position_telemetry, mode_descriptions)
+    await perform_trajectory(drone_id, drone, waypoints, home_position, home_position_NED, global_position_telemetry, mode_descriptions)
 
     # Perform landing
     await perform_landing(drone_id, drone)
@@ -283,12 +319,12 @@ async def run_drone(drone_id, trajectory_offset, udp_port, time_offset, altitude
 
 
 async def main():
-    num_drones =  len(dronesConfig) + 1 # needed +1 for start from zero crazy stuffs :D
+    num_drones =  len(dronesConfig) 
     time_offset = 0
 
     home_positions, traejctory_offset, udp_ports, altitude_offsets = await create_drone_configurations(num_drones, time_offset)
     mavsdk_servers = start_mavsdk_servers(num_drones, udp_ports)
-    await run_all_drones(num_drones, traejctory_offset, udp_ports, time_offset, altitude_offsets)
+    await run_all_drones(num_drones,home_positions, traejctory_offset, udp_ports, time_offset, altitude_offsets)
     stop_all_mavsdk_servers(mavsdk_servers)
     print("All tasks completed. Exiting program.")
 

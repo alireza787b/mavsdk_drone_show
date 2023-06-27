@@ -35,8 +35,6 @@ function spawn_model() {
 	N=$2 #Instance Number
 	X=$3
 	Y=$4
-	X=${X:=0.0}
-	Y=${Y:=$((3*${N}))}
 
 	local coords=$(get_coords_from_csv $(($N+1)))
     X=$(echo $coords | cut -d' ' -f1)
@@ -104,6 +102,8 @@ do
 done
 
 num_vehicles=${NUM_VEHICLES:=4}
+#num_vehicles=${NUM_VEHICLES:=$(($(wc -l < ../config.csv) - 1))}
+
 world=${WORLD:=empty}
 target=${TARGET:=px4_sitl_default}
 vehicle_model=${VEHICLE_MODEL:="iris"}
