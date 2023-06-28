@@ -34,14 +34,15 @@ import socket
 import threading
 import os
 import time
+import pandas as pd
 import requests
 import urllib3
 
 # Configuration Variables
-config_url = 'config_url'  # URL for the configuration file
+config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
 sim_mode = True  # Simulation mode switch
 sleep_interval = 0.1  # Sleep interval for the main loop in seconds
-offline_config = True  # Offline configuration switch
+offline_config = False  # Offline configuration switch
 
 # Variables to aid in Mavlink connection and telemetry
 serial_mavlink = '/dev/ttyAMA0'  # Default serial for Raspberry Pi Zero
@@ -83,17 +84,36 @@ class DroneConfig:
                         print(f"Configuration for HW_ID {self.hw_id} found in local CSV file.")
                         return row
 
-        # Else, download the configuration from the provided URL and read it
+        # Else, download the configuration from the provided URL and save it as a new file
         else:
-            with urllib3.request.urlopen(config_url) as url:
-                data = json.loads(url.read().decode())
-                for config in data:
-                    if config['hw_id'] == self.hw_id:
-                        print(f"Configuration for HW_ID {self.hw_id} found in the URL.")
-                        return config
+            print("Loading configuration from online source...")
+            try:
+                print(f'Attempting to download file from: {config_url}')
+                response = requests.get(config_url)
+
+                if response.status_code != 200:
+                    print(f'Error downloading file: {response.status_code} {response.reason}')
+                    return None
+
+                # Write the content to a new file
+                with open('online_config.csv', 'w') as f:
+                    f.write(response.text)
+
+                # Read the saved file
+                with open('online_config.csv', newline='') as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        if row['hw_id'] == self.hw_id:
+                            print(f"Configuration for HW_ID {self.hw_id} found in online CSV file.")
+                            return row
+
+            except Exception as e:
+                print(f"Failed to load online configuration: {e}")
 
         print("Configuration not found.")
         return None
+
+
 
 # Initialize DroneConfig
 drone_config = DroneConfig(offline_config)
