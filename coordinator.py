@@ -42,7 +42,9 @@ import urllib3
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
 sim_mode = True  # Simulation mode switch
 sleep_interval = 0.1  # Sleep interval for the main loop in seconds
-offline_config = False  # Offline configuration switch
+offline_config = True  # Offline configuration switch
+default_sitl = False  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
+#drone sim we should set it to False so the sitl_port will be read from config.csv mavlink_port
 
 # Variables to aid in Mavlink connection and telemetry
 serial_mavlink = '/dev/ttyAMA0'  # Default serial for Raspberry Pi Zero
@@ -126,7 +128,10 @@ def initialize_mavlink():
     # Depending on the sim_mode, connect to either the SITL or the Raspberry Pi GPIO serial
     if sim_mode:
         print("Sim mode is enabled. Connecting to SITL...")
-        mavlink_source = f"0.0.0.0:{sitl_port}"
+        if (default_sitl == True):
+            mavlink_source = f"0.0.0.0:{sitl_port}"
+        else:
+            mavlink_source = f"0.0.0.0:{drone_config.config['mavlink_port']}"
     else:
         print("Real mode is enabled. Connecting to Pixhawk via serial...")
         mavlink_source = f"/dev/{serial_mavlink}:{serial_baudrate}"
