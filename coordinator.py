@@ -44,6 +44,7 @@ sim_mode = True  # Simulation mode switch
 sleep_interval = 0.1  # Sleep interval for the main loop in seconds
 offline_config = True  # Offline configuration switch
 default_sitl = False  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
+online_sync_time = False #If set to True it will check to sync time from Internet Time Servers
 #drone sim we should set it to False so the sitl_port will be read from config.csv mavlink_port
 
 # Variables to aid in Mavlink connection and telemetry
@@ -257,27 +258,32 @@ def read_commands():
 # Function to synchronize time with a reliable internet source
 def synchronize_time():
     # Report current time before sync
-    print(f"Current system time before synchronization: {datetime.datetime.now()}")
 
-    # Attempt to get the time from a reliable source
-    print("Attempting to synchronize time with a reliable internet source...")
-    response = requests.get("http://worldtimeapi.org/api/ip")
-    
-    if response.status_code == 200:
-        # Time server and result
-        server_used = response.json()["client_ip"]
-        current_time = response.json()["datetime"]
-        print(f"Time server used: {server_used}")
-        print(f"Time reported by server: {current_time}")
+    if(online_sync_time):
+        print(f"Current system time before synchronization: {datetime.datetime.now()}")
+        # Attempt to get the time from a reliable source
+        print("Attempting to synchronize time with a reliable internet source...")
+        response = requests.get("http://worldtimeapi.org/api/ip")
         
-        # Set this time as system time
-        print("Setting system time...")
-        os.system(f"sudo date -s '{current_time}'")
-        
-        # Report current time after sync
-        print(f"Current system time after synchronization: {datetime.datetime.now()}")
+        if response.status_code == 200:
+            # Time server and result
+            server_used = response.json()["client_ip"]
+            current_time = response.json()["datetime"]
+            print(f"Time server used: {server_used}")
+            print(f"Time reported by server: {current_time}")
+            
+            # Set this time as system time
+            print("Setting system time...")
+            os.system(f"sudo date -s '{current_time}'")
+            
+            # Report current time after sync
+            print(f"Current system time after synchronization: {datetime.datetime.now()}")
+        else:
+            print("Failed to sync time with an internet source.")
     else:
-        print("Failed to sync time with an internet source.")
+        print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
+
+        
 
 
 # Function to schedule the drone mission
