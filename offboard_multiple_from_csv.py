@@ -33,7 +33,7 @@ GRPC_PORT_BASE = 50041
 #UDP_PORT_BASE = 14541
 SHOW_DEVIATIONS = False
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
-SIM_MODE = False
+SIM_MODE = True
 #if set to false each drone will read its own HW_ID and initialize its offboard, otherwise all droness are being commanded
 #set to False when uploaded to the companion computer to run in real world or doing HITL
 #set to True for just visulizing all drones in one PC for SITL

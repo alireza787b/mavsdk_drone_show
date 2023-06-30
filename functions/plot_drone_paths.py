@@ -29,8 +29,8 @@ def plot_drone_paths(skybrush_dir, processed_dir, show_plots=True):
         color = color_dict[file]
 
         # Plot the SkyBrush drone path as a line and points, convert Z to height
-        skybrush_path, = ax.plot(skybrush_data['x [m]'], skybrush_data['y [m]'], -skybrush_data['z [m]'], color=color, alpha=0.2)
-        skybrush_points = ax.scatter(skybrush_data['x [m]'], skybrush_data['y [m]'], -skybrush_data['z [m]'], color=color, s=20)
+        skybrush_path, = ax.plot(skybrush_data['x [m]'], skybrush_data['y [m]'], skybrush_data['z [m]'], color=color, alpha=0.2)
+        skybrush_points = ax.scatter(skybrush_data['x [m]'], skybrush_data['y [m]'], skybrush_data['z [m]'], color=color, s=20)
 
         # Check if corresponding processed file exists
         if file in processed_files:
@@ -74,12 +74,12 @@ def plot_drone_paths(skybrush_dir, processed_dir, show_plots=True):
         # Plot the drone path as a simple line and points, convert Z to height
         path, = ax_all.plot(data['x [m]' if file in skybrush_files else 'px'], 
                             data['y [m]' if file in skybrush_files else 'py'], 
-                            -data['z [m]' if file in skybrush_files else 'pz'], 
+                            data['z [m]' if file in skybrush_files else 'pz'], 
                             color=color, 
                             alpha=0.2 if file in skybrush_files else 1.0)
         points = ax_all.scatter(data['x [m]' if file in skybrush_files else 'px'], 
                                 data['y [m]' if file in skybrush_files else 'py'], 
-                                -data['z [m]' if file in skybrush_files else 'pz'], 
+                                data['z [m]' if file in skybrush_files else 'pz'], 
                                 color=color, 
                                 s=20 if file in skybrush_files else 5, 
                                 alpha=0.5)
