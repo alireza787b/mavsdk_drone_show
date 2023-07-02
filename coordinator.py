@@ -40,10 +40,11 @@ import urllib3
 
 # Configuration Variables
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
-sim_mode = True  # Simulation mode switch
+sim_mode = False  # Simulation mode switch
+serial_mavlink = False # set true if raspbberry is connected to Pixhawk using serial. otherwise for UDP set it to False
 sleep_interval = 0.1  # Sleep interval for the main loop in seconds
 offline_config = True  # Offline configuration switch
-default_sitl = False  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
+default_sitl = True  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
 online_sync_time = False #If set to True it will check to sync time from Internet Time Servers
 #drone sim we should set it to False so the sitl_port will be read from config.csv mavlink_port
 
@@ -51,8 +52,9 @@ online_sync_time = False #If set to True it will check to sync time from Interne
 serial_mavlink = '/dev/ttyAMA0'  # Default serial for Raspberry Pi Zero
 serial_baudrate = 57600  # Default baudrate
 sitl_port = 14550  # Default SITL port
+gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
-extra_devices = ['172.22.128.1:14550']  # List of extra devices (IP:Port) to route Mavlink
+extra_devices = ['127.0.0.1:14551']  # List of extra devices (IP:Port) to route Mavlink
 
 # Define DroneConfig class
 class DroneConfig:
@@ -134,8 +136,12 @@ def initialize_mavlink():
         else:
             mavlink_source = f"0.0.0.0:{drone_config.config['mavlink_port']}"
     else:
-        print("Real mode is enabled. Connecting to Pixhawk via serial...")
-        mavlink_source = f"/dev/{serial_mavlink}:{serial_baudrate}"
+        if(serial_mavlink==True):
+            print("Real mode is enabled. Connecting to Pixhawk via serial...")
+            mavlink_source = f"/dev/{serial_mavlink}:{serial_baudrate}"
+        else:
+            print("Real mode is enabled. Connecting to Pixhawk via UDP...")
+            mavlink_source = f"0.0.0.0:{sitl_port}"
 
     # Prepare endpoints for mavlink-router
     endpoints = [f"-e {device}" for device in extra_devices]
@@ -145,7 +151,7 @@ def initialize_mavlink():
         endpoints.append(f"-e {drone_config.config['gcs_ip']}:{mavsdk_port}")
     else:
         # In real life, route the MAVLink messages to the GCS and other drones over a Zerotier network
-        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{mavsdk_port}")
+        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
 
     # Command to start mavlink-router
     mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
