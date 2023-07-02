@@ -95,10 +95,10 @@ import pandas as pd
 import os
 
 # Sim Mode
-sim_mode = True  # Set this variable to True for simulation mode
+sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
 # Single Drone
-single_drone = True  # Set this to True for single drone connection
+single_drone = False  # Set this to True for single drone connection
 
 # Read the config file
 config_df = pd.read_csv('config.csv')
