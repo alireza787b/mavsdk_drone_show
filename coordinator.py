@@ -78,7 +78,7 @@ mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
-
+local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
 
 
@@ -216,7 +216,7 @@ mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 # Function to monitor telemetry
 def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
-        msg = mav.recv_match(blocking=True)
+        msg = mav.recv_match(blocking=False)
         if msg is not None:
             if msg.get_type() == 'GLOBAL_POSITION_INT':
                 global_telemetry.update({
@@ -239,6 +239,8 @@ def mavlink_monitor(mav):
                     }
                 })
                 #logging.info("Updated battery data")
+        # Sleep for 1 second
+        time.sleep(local_mavlink_refresh_interval)
 
 # Start telemetry monitoring
 telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
