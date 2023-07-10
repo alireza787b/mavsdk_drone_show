@@ -75,7 +75,8 @@ serial_baudrate = 57600  # Default baudrate
 sitl_port = 14550  # Default SITL port
 gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
-extra_devices = ['127.0.0.1:12551']  # List of extra devices (IP:Port) to route Mavlink
+local_mavlink_port = 12550
+extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 
 broadcast_mode  = True
@@ -210,7 +211,7 @@ def stop_mavlink_routing(mavlink_router_process):
 
 
 # Create a connection to the drone
-mav = mavutil.mavlink_connection("udp:localhost:14551")
+mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
 # Function to monitor telemetry
 def mavlink_monitor(mav):
@@ -228,7 +229,8 @@ def mavlink_monitor(mav):
                         "vz": msg.vz / 1E2,  # convert from cm/s to m/s
                     }
                 })
-                logging.info("Updated position and velocity data")
+                #logging.info("Updated position and velocity data")
+                #logging.info(global_telemetry)
             elif msg.get_type() == 'BATTERY_STATUS':
                 global_telemetry.update({
                     "battery": {
@@ -236,7 +238,7 @@ def mavlink_monitor(mav):
                         "remaining_percent": msg.battery_remaining
                     }
                 })
-                logging.info("Updated battery data")
+                #logging.info("Updated battery data")
 
 # Start telemetry monitoring
 telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
