@@ -37,6 +37,7 @@ import time
 import pandas as pd
 import requests
 import urllib3
+import subprocess
 
 # Configuration Variables
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
@@ -62,7 +63,7 @@ broadcast_mode  = True
 
 # Define DroneConfig class
 class DroneConfig:
-    def __init__(self, offline_config):
+    def __init__(self):
         self.offline_config = offline_config
         self.hw_id = self.get_hw_id()
         self.trigger_time = 0
@@ -125,9 +126,8 @@ class DroneConfig:
 
 
 # Initialize DroneConfig
-drone_config = DroneConfig(offline_config)
+drone_config = DroneConfig()
 
-import subprocess
 
 
 
@@ -243,8 +243,6 @@ def send_drone_state():
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
         time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
-
-
 
 
 
