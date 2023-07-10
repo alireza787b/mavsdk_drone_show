@@ -26,6 +26,7 @@
 # -----------------------------------------------------------------------------
 
 # Importing the necessary libraries
+import asyncio
 import csv
 import datetime
 import glob
@@ -38,6 +39,9 @@ import pandas as pd
 import requests
 import urllib3
 import subprocess
+
+from mavsdk.system import System
+from mavsdk.telemetry import FixType
 
 # Configuration Variables
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
@@ -55,7 +59,7 @@ serial_baudrate = 57600  # Default baudrate
 sitl_port = 14550  # Default SITL port
 gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
-extra_devices = ['127.0.0.1:14551']  # List of extra devices (IP:Port) to route Mavlink
+extra_devices = ['127.0.0.1:12551']  # List of extra devices (IP:Port) to route Mavlink
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 
 broadcast_mode  = True
@@ -132,6 +136,7 @@ drone_config = DroneConfig()
 
 
     
+global_telemetry = {}
 
 
 
@@ -170,7 +175,48 @@ def initialize_mavlink():
     # Start mavlink-router and keep track of the process
     print(f"Starting MAVLink routing: {mavlink_router_cmd}")
     mavlink_router_process = subprocess.Popen(mavlink_router_cmd, shell=True)
+    print("Starting telemetry monitoring...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    telemetry_thread = threading.Thread(target=loop.run_until_complete, args=(mavlink_monitor(12551),))
+    telemetry_thread.start()
     return mavlink_router_process
+
+
+
+
+async def mavlink_monitor(mavlink_port):
+    drone = System()
+    await drone.connect(system_address=f"udp://localhost:{mavlink_port}")
+
+    print("Waiting for GPS fix...")
+    async for gps_info in drone.telemetry.gps_info():
+        if gps_info.fix_type == FixType.FIX_3D:
+            print("GPS position fixed.")
+            break
+
+    print("Starting telemetry monitoring...")
+    while True:
+        position = await drone.telemetry.position()
+        velocity = await drone.telemetry.ground_speed_ned()
+        battery = await drone.telemetry.battery()
+
+        global_telemetry.update({
+            "latitude": position.latitude_deg,
+            "longitude": position.longitude_deg,
+            "altitude": position.absolute_altitude_m,
+            "velocity_ned": {
+                "north_m_s": velocity.north_m_s,
+                "east_m_s": velocity.east_m_s,
+                "down_m_s": velocity.down_m_s
+            },
+            "battery": {
+                "voltage_v": battery.voltage_v,
+                "remaining_percent": battery.remaining_percent
+            }
+        })
+
+        time.sleep(1)  # update telemetry data every second
 
 
 
