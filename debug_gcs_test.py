@@ -97,6 +97,10 @@ import os
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
+
+#Telemtetery Packet Size in Bytes
+TELEM_PACKET_SIZE = 9
+
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
 
@@ -140,7 +144,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
         data, addr = sock.recvfrom(1024)
         
         # Ensure we received a correctly sized packet
-        if len(data) == 9:
+        if len(data) == TELEM_PACKET_SIZE:
             # Decode the data
             header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('=BBBBIB', data)
             
@@ -152,7 +156,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             else:
                 print("Invalid header or terminator received in telemetry data.")
         else:
-            print(f"Received packet of incorrect size. Expected 9, got {len(data)}.")
+            print(f"Received packet of incorrect size. Expected {TELEM_PACKET_SIZE}, got {len(data)}.")
 
 # Drones threads
 drones_threads = []

@@ -55,6 +55,10 @@ sitl_port = 14550  # Default SITL port
 gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 extra_devices = ['127.0.0.1:14551']  # List of extra devices (IP:Port) to route Mavlink
+TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+
+broadcast_mode  = True
+
 
 # Define DroneConfig class
 class DroneConfig:
@@ -125,6 +129,12 @@ drone_config = DroneConfig(offline_config)
 
 import subprocess
 
+
+
+    
+
+
+
 # Function to initialize MAVLink connection
 def initialize_mavlink():
 
@@ -194,27 +204,18 @@ def get_drone_state():
 
 import struct
 
-# Function to send the drone state to the ground station
+def send_packet_to_node(packet, ip, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(packet, (ip, port))
+
 def send_drone_state():
-    # Sends the drone state to the ground station over UDP debug port at a fixed interval (2 seconds)
-    # This state includes the same data as get_drone_state
     udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
     udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
 
-    sock = socket.socket(socket.AF_INET,  # Internet
-                         socket.SOCK_DGRAM)  # UDP
-
     while True:
         drone_state = get_drone_state()
-
-        # Pack the data into a binary format
-        # 'B' unsigned char (1 byte)
-        # 'I' unsigned int (4 bytes)
-        # The header is 1 byte (77)
-        # The hw_id, pos_id, and state are unsigned chars, 1 byte each
-        # The trigger time is an unsigned int, 4 bytes
-        # The terminator is 1 byte (88)
-        # Therefore, the total packet size is 9 bytes
+        
+        # Same packet as before
         packet = struct.pack('BBBBIB',
                              77,
                              int(drone_state['hw_id']),
@@ -223,17 +224,30 @@ def send_drone_state():
                              int(drone_state['trigger_time']),
                              88)
 
-        sock.sendto(packet, (udp_ip, udp_port))
+        # If broadcast_mode is True, send to all nodes
+        if broadcast_mode:
+            # Read configuration file
+            with open("config.csv", "r") as file:
+                nodes = list(csv.DictReader(file))
+
+            # Send to all other nodes
+            for node in nodes:
+                if int(node["hw_id"]) != drone_state['hw_id']:
+                    send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
+
+        # Always send to GCS
+        send_packet_to_node(packet, udp_ip, udp_port)
 
         print(f"Sent telemetry data to GCS: {packet}")
         print(f"Values: hw_id: {drone_state['hw_id']}, pos_id: {drone_state['pos_id']}, state: {drone_state['state']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
-        time.sleep(2)  # send telemetry data every 2 seconds
+        time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
 
 
 
-# Function to read and decode new commands
+
+
 def read_commands():
     # Reads and decodes new commands from the ground station over the debug vector
     # The commands include the hw_id, pos_id, state, and trigger time
@@ -248,18 +262,26 @@ def read_commands():
         if len(data) == 9:  # Packet size should be 9 bytes
             header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('BBBBIB', data)
 
-            # Check if header and terminator are as expected
+            # Check if header and terminator are as expected for a command
             if header == 55 and terminator == 66:
                 print("Received command from GCS")
                 print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
                 drone_config.hw_id = hw_id
-                drone_config.pos_id = pos_id
+                drone_config.config['pos_id'] = pos_id
                 drone_config.config['state'] = state
                 drone_config.trigger_time = trigger_time
-
                 # You can add additional logic here to handle the received command
 
+            # If it's telemetry data
+            elif header == 77 and terminator == 88:
+                print(f"Received telemetry data from node at IP address {addr[0]}")
+                print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
+                # Here you can add processing of the received telemetry data
+                
+
         time.sleep(1)  # check for commands every second
+
+
 
 
 # Function to synchronize time with a reliable internet source
