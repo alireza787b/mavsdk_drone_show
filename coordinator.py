@@ -232,7 +232,8 @@ def send_drone_state():
 
             # Send to all other nodes
             for node in nodes:
-                if int(node["hw_id"]) != drone_state['hw_id']:
+                if int(node["hw_id"]) != int(drone_state['hw_id']):
+                    #print(f"node={node['hw_id']} and drone state{drone_state['hw_id']}")
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
 
         # Always send to GCS
