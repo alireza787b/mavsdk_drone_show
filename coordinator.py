@@ -89,6 +89,11 @@ broadcast_mode  = True
 telem_packet_size = None
 command_packet_size = 9
 
+
+# Initialize an empty dictionary to store drones
+drones = {}
+
+
 class DroneConfig:
     def __init__(self):
         self.hw_id = self.get_hw_id()
@@ -460,11 +465,25 @@ def read_packets():
             # Add additional logic here to handle the received command
 
         # Check if it's a telemetry packet
+        # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
             hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode = struct.unpack('HHBBIddddddB', data[1:-1])
+            
+            if hw_id not in drones:
+                # Create a new instance for the drone
+                drones[hw_id] = DroneConfig()
+            
+            # Update the drone instance with the received telemetry data
+            drones[hw_id].state = state
+            drones[hw_id].trigger_time = trigger_time
+            drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
+            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_earth, 'vel_d': velocity_down}
+            drones[hw_id].battery = battery_voltage
+            drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
+            
             print(f"Received telemetry data from node at IP address {addr[0]}")
             print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
-            # Add processing of the received telemetry data here
+            # Add further processing of the received telemetry data here
 
         time.sleep(1)  # check for new packets every second
 
