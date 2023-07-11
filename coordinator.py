@@ -325,12 +325,12 @@ def get_drone_state():
     "pos_id": int(drone_config.config['pos_id']),
     "state": int(drone_config.state),
     "trigger_time": int(drone_config.trigger_time),
-    "position_lat": drone_config.position[0],
-    "position_long": drone_config.position[1],
-    "position_alt": drone_config.position[2],
-    "velocity_north": drone_config.velocity[0],
-    "velocity_earth": drone_config.velocity[1],
-    "velocity_down": drone_config.velocity[2],
+    "position_lat": drone_config.position['lat'],
+    "position_long": drone_config.position['long'],
+    "position_alt": drone_config.position['alt'],
+    "velocity_north": drone_config.velocity['vel_n'],
+    "velocity_earth": drone_config.velocity['vel_e'],
+    "velocity_down": drone_config.velocity['vel_d'],
     "battery_voltage": drone_config.battery,
     "follow_mode": int(drone_config.swarm['follow'])
 }
@@ -401,7 +401,8 @@ def send_drone_state():
         # Always send to GCS
         send_packet_to_node(packet, udp_ip, udp_port)
 
-        print(f"Sent telemetry data to GCS: {packet}")
+        #print(f"Sent telemetry data to GCS: {packet}")
+        print(f"Sent telemetry data to GCS")
         print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
@@ -526,7 +527,7 @@ def main():
         # Initialize MAVLink
         print("Initializing MAVLink...")
         mavlink_router_process = initialize_mavlink()
-
+        time.sleep(2)
         # Start the telemetry thread
         print("Starting telemetry thread...")
         telemetry_thread = threading.Thread(target=send_drone_state)
