@@ -270,20 +270,29 @@ def mavlink_monitor(mav, drone_config):
         if msg is not None:
             if msg.get_type() == 'GLOBAL_POSITION_INT':
                 # Update position
-                drone_config.position = [msg.lat / 1E7, msg.lon / 1E7, msg.alt / 1E3]
+                drone_config.position = {
+                    'lat': msg.lat / 1E7,
+                    'long': msg.lon / 1E7,
+                    'alt': msg.alt / 1E3
+                }
 
                 # Update velocity
-                drone_config.velocity = [msg.vx / 1E2, msg.vy / 1E2, msg.vz / 1E2]
+                drone_config.velocity = {
+                    'vel_n': msg.vx / 1E2,
+                    'vel_e': msg.vy / 1E2,
+                    'vel_d': msg.vz / 1E2
+                }
 
             elif msg.get_type() == 'BATTERY_STATUS':
                 # Update battery
                 drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
-
+                
             # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.datetime.now()
+            drone_config.last_update_timestamp = datetime.now()
 
         # Sleep for 1 second
         time.sleep(local_mavlink_refresh_interval)
+
 
 # Start telemetry monitoring
 telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav, drone_config))
