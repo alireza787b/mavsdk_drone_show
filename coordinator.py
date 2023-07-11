@@ -293,7 +293,7 @@ def mavlink_monitor(mav, drone_config):
                 drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
 
             # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.now()
+            drone_config.last_update_timestamp = datetime.datetime.now()
 
         # Sleep for 1 second
         time.sleep(local_mavlink_refresh_interval)
