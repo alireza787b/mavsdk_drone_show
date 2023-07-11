@@ -44,6 +44,11 @@ import threading
 from pymavlink import mavutil
 import logging
 
+import csv
+import glob
+import requests
+from datetime import datetime
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
@@ -61,10 +66,12 @@ run_telemetry_thread.set()
 
 # Configuration Variables
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
+swarm_url = 'https://alumsharif.org/download/swarm.csv'  # URL for the swarm file
 sim_mode = False  # Simulation mode switch
 serial_mavlink = False # set true if raspbberry is connected to Pixhawk using serial. otherwise for UDP set it to False
 sleep_interval = 0.1  # Sleep interval for the main loop in seconds
 offline_config = True  # Offline configuration switch
+offline_swarm = True
 default_sitl = True  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
 online_sync_time = False #If set to True it will check to sync time from Internet Time Servers
 #drone sim we should set it to False so the sitl_port will be read from config.csv mavlink_port
@@ -80,24 +87,26 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
+telem_packet_size = None
+command_packet_size = 9
 
-
-# Define DroneConfig class
 class DroneConfig:
     def __init__(self):
-        self.offline_config = offline_config
         self.hw_id = self.get_hw_id()
         self.trigger_time = 0
         self.config = self.read_config()
-        self.config['state'] = 0
+        self.swarm = self.read_swarm()
+        self.state = 0
+        self.position = {'lat': None, 'long': None, 'alt': None}
+        self.velocity = {'vel_n': None, 'vel_e': None, 'vel_d': None}
+        self.battery = None
+        self.last_update_timestamp = None
 
     def get_hw_id(self):
-        # Check the files in the current directory and find the hwID file
         hw_id_files = glob.glob("*.hwID")
         if hw_id_files:
             hw_id_file = hw_id_files[0]
             print(f"Hardware ID file found: {hw_id_file}")
-            # Return the hardware ID without the extension (.hwID)
             hw_id = hw_id_file.split(".")[0]
             print(f"Hardware ID: {hw_id}")
             return hw_id
@@ -105,17 +114,18 @@ class DroneConfig:
             print("Hardware ID file not found. Please check your files.")
             return None
 
-    def read_config(self):
-        # If offline_config is True, read the configuration from the local CSV file
-        if self.offline_config:
-            with open('config.csv', newline='') as csvfile:
-                reader = csv.DictReader(csvfile)
-                for row in reader:
-                    if row['hw_id'] == self.hw_id:
-                        print(f"Configuration for HW_ID {self.hw_id} found in local CSV file.")
-                        return row
+    def read_file(self, filename, source, hw_id):
+        with open(filename, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if row['hw_id'] == hw_id:
+                    print(f"Configuration for HW_ID {hw_id} found in {source}.")
+                    return row
+        return None
 
-        # Else, download the configuration from the provided URL and save it as a new file
+    def read_config(self):
+        if offline_config:
+            return self.read_file('config.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading configuration from online source...")
             try:
@@ -126,33 +136,73 @@ class DroneConfig:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
                     return None
 
-                # Write the content to a new file
                 with open('online_config.csv', 'w') as f:
                     f.write(response.text)
 
-                # Read the saved file
-                with open('online_config.csv', newline='') as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    for row in reader:
-                        if row['hw_id'] == self.hw_id:
-                            print(f"Configuration for HW_ID {self.hw_id} found in online CSV file.")
-                            return row
+                return self.read_file('online_config.csv', 'online CSV file', self.hw_id)
 
             except Exception as e:
                 print(f"Failed to load online configuration: {e}")
-
+        
         print("Configuration not found.")
         return None
+
+    def read_swarm(self):
+        """
+        Reads the swarm configuration file, which includes the list of nodes in the swarm.
+        The function supports both online and offline modes.
+        In online mode, it downloads the swarm configuration file from the specified URL.
+        In offline mode, it reads the swarm configuration file from the local disk.
+        """
+        if offline_swarm:
+            return self.read_file('swarm.csv', 'local CSV file', self.hw_id)
+        else:
+            print("Loading swarm configuration from online source...")
+            try:
+                print(f'Attempting to download file from: {swarm_url}')
+                response = requests.get(swarm_url)
+
+                if response.status_code != 200:
+                    print(f'Error downloading file: {response.status_code} {response.reason}')
+                    return None
+
+                with open('online_swarm.csv', 'w') as f:
+                    f.write(response.text)
+
+                return self.read_file('online_swarm.csv', 'online CSV file', self.hw_id)
+
+            except Exception as e:
+                print(f"Failed to load online swarm configuration: {e}")
+        
+        print("Swarm configuration not found.")
+        return None
+
+
+
+import navpy
+
+def get_NED_position(self):
+    """
+    Calculates the North-East-Down (NED) position from the current latitude, longitude, and altitude.
+    The position is relative to the home position (launch point), which is defined in the config.
+    The function returns a tuple (north, east, down).
+
+    Uses navpy library to perform the geographic to Cartesian coordinate conversion.
+
+    Returns:
+        tuple: North, East, and Down position relative to the home position (in meters)
+    """
+
+    # return north, east, down
+
+
+ 
 
 
 
 # Initialize DroneConfig
 drone_config = DroneConfig()
 
-
-
-
-    
 
 
 
@@ -211,106 +261,171 @@ def stop_mavlink_routing(mavlink_router_process):
 
 
 # Create a connection to the drone
+#we used pymavlink since another mavsdk instance will run by offboard control and runing several is not reasonable 
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
 # Function to monitor telemetry
-def mavlink_monitor(mav):
+def mavlink_monitor(mav, drone_config):
     while run_telemetry_thread.is_set():
         msg = mav.recv_match(blocking=False)
         if msg is not None:
             if msg.get_type() == 'GLOBAL_POSITION_INT':
-                global_telemetry.update({
-                    "latitude": msg.lat / 1E7,  # convert from int to float
-                    "longitude": msg.lon / 1E7,  # convert from int to float
-                    "altitude": msg.alt / 1E3,  # convert from mm to m
-                    "velocity": {
-                        "vx": msg.vx / 1E2,  # convert from cm/s to m/s
-                        "vy": msg.vy / 1E2,  # convert from cm/s to m/s
-                        "vz": msg.vz / 1E2,  # convert from cm/s to m/s
-                    }
-                })
-                #logging.info("Updated position and velocity data")
-                #logging.info(global_telemetry)
+                # Update position
+                drone_config.position = [msg.lat / 1E7, msg.lon / 1E7, msg.alt / 1E3]
+
+                # Update velocity
+                drone_config.velocity = [msg.vx / 1E2, msg.vy / 1E2, msg.vz / 1E2]
+
             elif msg.get_type() == 'BATTERY_STATUS':
-                global_telemetry.update({
-                    "battery": {
-                        "voltage_v": msg.voltages[0] / 1E3,  # convert from mV to V
-                        "remaining_percent": msg.battery_remaining
-                    }
-                })
-                #logging.info("Updated battery data")
+                # Update battery
+                drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
+
+            # Update the timestamp after each update
+            drone_config.last_update_timestamp = datetime.now()
+
         # Sleep for 1 second
         time.sleep(local_mavlink_refresh_interval)
 
 # Start telemetry monitoring
 telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
 telemetry_thread.start()
-
-
-# Function to get the current state of the drone
-def get_drone_state():
-    # Fetch the current state of the drone, including hw_id, pos_id, state, and trigger time
-    # The state variable indicates: 0 for unset trigger time, 1 for set trigger time, 2 for flying
-    # The trigger time is set to 0 if it has not been set yet
-
-    drone_state = {
-        "hw_id": drone_config.hw_id,
-        "pos_id": drone_config.config['pos_id'],
-        "state": drone_config.config['state'],
-        "trigger_time": drone_config.trigger_time
-    }
-
-    return drone_state
-
 import struct
+
 
 def send_packet_to_node(packet, ip, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(packet, (ip, port))
 
+def get_nodes():
+    # Cache nodes to avoid reading the file every time
+    if hasattr(get_nodes, "nodes"):
+        return get_nodes.nodes
+
+    with open("config.csv", "r") as file:
+        get_nodes.nodes = list(csv.DictReader(file))
+    return get_nodes.nodes
+
+# Function to get the current state of the drone
+def get_drone_state():
+    """
+    Fetches the current state of the drone, including hardware id (hw_id), 
+    position id (pos_id), current state, trigger time, position, velocity,
+    battery voltage, and follow mode.
+    
+    The state variable indicates: 
+    0 for unset trigger time, 1 for set trigger time, 2 for flying
+    The trigger time is set to 0 if it has not been set yet
+
+    Returns:
+    dict: A dictionary containing the current state of the drone
+    """
+    drone_state = {
+        "hw_id": int(drone_config.hw_id),
+        "pos_id": int(drone_config.config['pos_id']),
+        "state": int(drone_config.state),
+        "trigger_time": int(drone_config.trigger_time),
+        "position_lat": drone_config.position[0],
+        "position_long": drone_config.position[1],
+        "position_alt": drone_config.position[2],
+        "velocity_north": drone_config.velocity[0],
+        "velocity_earth": drone_config.velocity[1],
+        "velocity_down": drone_config.velocity[2],
+        "battery_voltage": drone_config.battery,
+        "follow_mode": int(drone_config.swarm['follow'])
+    }
+
+    return drone_state
+
 def send_drone_state():
+    """
+    Sends the drone state over UDP to the GCS and optionally to other drones in the swarm.
+
+    The state information includes hardware id, position id, current state, 
+    trigger time, position, velocity, battery voltage, and follow mode.
+    
+    Each state variable is packed into a binary packet and sent every `TELEM_SEND_INTERVAL` seconds.
+    If `broadcast_mode` is True, the state is also sent to all other drones in the swarm.
+
+    The structure of the packet is as follows:
+    - Start of packet (uint8)
+    - Hardware ID (uint16)
+    - Position ID (uint16)
+    - State (uint8)
+    - Trigger Time (uint32)
+    - Latitude, Longitude, Altitude (double)
+    - North, East, Down velocities (double)
+    - Battery Voltage (double)
+    - Follow Mode (uint8)
+    - End of packet (uint8)
+    """
     udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
     udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
 
     while True:
         drone_state = get_drone_state()
-        
-        # Same packet as before
-        packet = struct.pack('BBBBIB',
-                             77,
-                             int(drone_state['hw_id']),
-                             int(drone_state['pos_id']),
-                             int(drone_state['state']),
-                             int(drone_state['trigger_time']),
-                             88)
+
+        # Create a struct format string based on the data types
+        struct_fmt = 'HHBBIdddddddBB'  # update this to match your data types
+        # H is for uint16
+        # B is for uint8
+        # I is for uint32
+        # d is for double (float64)
+        # Pack the telemetry data into a binary packet
+        packet = struct.pack(struct_fmt,
+                             77,  # start of packet
+                             drone_state['hw_id'],
+                             drone_state['pos_id'],
+                             drone_state['state'],
+                             drone_state['trigger_time'],
+                             drone_state['position_lat'],
+                             drone_state['position_long'],
+                             drone_state['position_alt'],
+                             drone_state['velocity_north'],
+                             drone_state['velocity_earth'],
+                             drone_state['velocity_down'],
+                             drone_state['battery_voltage'],
+                             drone_state['follow_mode'],
+                             88)  # end of packet
 
         # If broadcast_mode is True, send to all nodes
         if broadcast_mode:
-            # Read configuration file
-            with open("config.csv", "r") as file:
-                nodes = list(csv.DictReader(file))
-
+            nodes = get_nodes()
             # Send to all other nodes
             for node in nodes:
-                if int(node["hw_id"]) != int(drone_state['hw_id']):
-                    #print(f"node={node['hw_id']} and drone state{drone_state['hw_id']}")
+                if int(node["hw_id"]) != drone_state['hw_id']:
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
 
         # Always send to GCS
         send_packet_to_node(packet, udp_ip, udp_port)
 
         print(f"Sent telemetry data to GCS: {packet}")
-        print(f"Values: hw_id: {drone_state['hw_id']}, pos_id: {drone_state['pos_id']}, state: {drone_state['state']}, trigger_time: {drone_state['trigger_time']}")
+        print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
+        
+        # Update the global variable to keep track of the packet size
+        global telem_packet_size
+        telem_packet_size = len(packet)
+
         time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
 
 
 
-def read_commands():
-    # Reads and decodes new commands from the ground station over the debug vector
-    # The commands include the hw_id, pos_id, state, and trigger time
-    udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
+
+
+def read_packets():
+    """
+    Reads and decodes new packets from the ground station over the debug vector.
+    The packets can be either commands or telemetry data, depending on the header and terminator.
+
+    For commands, the packets include the hardware id (hw_id), position id (pos_id), current state, and trigger time.
+    For telemetry data, the packets include hardware id, position id, current state, trigger time, position, velocity, 
+    battery voltage, and follow mode.
+
+    After receiving a packet, the function checks the header and terminator to determine the type of the packet.
+    Then, it unpacks the packet accordingly and processes the data.
+    """
+    udp_port = int(drone_config.config['debug_port'])  # UDP port to receive packets
 
     sock = socket.socket(socket.AF_INET,  # Internet
                          socket.SOCK_DGRAM)  # UDP
@@ -318,27 +433,28 @@ def read_commands():
 
     while True:
         data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-        if len(data) == 9:  # Packet size should be 9 bytes
-            header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('BBBBIB', data)
+        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
 
-            # Check if header and terminator are as expected for a command
-            if header == 55 and terminator == 66:
-                print("Received command from GCS")
-                print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
-                drone_config.hw_id = hw_id
-                drone_config.config['pos_id'] = pos_id
-                drone_config.config['state'] = state
-                drone_config.trigger_time = trigger_time
-                # You can add additional logic here to handle the received command
+        # Check if it's a command packet
+        if header == 55 and terminator == 66 and len(data) == command_packet_size:
+            hw_id, pos_id, state, trigger_time = struct.unpack('HHBBI', data[1:-1])
+            print("Received command from GCS")
+            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
+            drone_config.hw_id = hw_id
+            drone_config.config['pos_id'] = pos_id
+            drone_config.state = state
+            drone_config.trigger_time = trigger_time
+            # Add additional logic here to handle the received command
 
-            # If it's telemetry data
-            elif header == 77 and terminator == 88:
-                print(f"Received telemetry data from node at IP address {addr[0]}")
-                print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
-                # Here you can add processing of the received telemetry data
-                
+        # Check if it's a telemetry packet
+        elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
+            hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode = struct.unpack('HHBBIddddddB', data[1:-1])
+            print(f"Received telemetry data from node at IP address {addr[0]}")
+            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
+            # Add processing of the received telemetry data here
 
-        time.sleep(1)  # check for commands every second
+        time.sleep(1)  # check for new packets every second
+
 
 
 
@@ -383,10 +499,10 @@ def schedule_mission():
     #print(f"Current system time: {current_time}")
     #print(f"Target Trigger Time: {drone_config.trigger_time}")
     
-    if drone_config.config['state'] == 1 and current_time >= drone_config.trigger_time:
+    if drone_config.state == 1 and current_time >= drone_config.trigger_time:
         print("Trigger time reached. Starting drone mission...")
         # Reset the state and trigger time
-        drone_config.config['state'] = 2
+        drone_config.state = 2
         drone_config.trigger_time = 0
 
         # Run the mission script in a new process
@@ -415,7 +531,7 @@ def main():
 
         # Start the command reading thread
         print("Starting command reading thread...")
-        command_thread = threading.Thread(target=read_commands)
+        command_thread = threading.Thread(target=read_packets)
         command_thread.start()
 
         # Enter a loop where the application will continue running
