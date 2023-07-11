@@ -288,7 +288,7 @@ def mavlink_monitor(mav, drone_config):
                 drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
                 
             # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.now()
+            drone_config.last_update_timestamp = datetime.datetime.now()
 
         # Sleep for 1 second
         time.sleep(local_mavlink_refresh_interval)
@@ -328,7 +328,6 @@ def get_drone_state():
     Returns:
     dict: A dictionary containing the current state of the drone
     """
-    print(drone_config)
     drone_state = {
     "hw_id": int(drone_config.hw_id),
     "pos_id": int(drone_config.config['pos_id']),
@@ -406,6 +405,8 @@ def send_drone_state():
             for node in nodes:
                 if int(node["hw_id"]) != drone_state['hw_id']:
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
+                    print(f'Sent telemetry data to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
+
 
         # Always send to GCS
         send_packet_to_node(packet, udp_ip, udp_port)
