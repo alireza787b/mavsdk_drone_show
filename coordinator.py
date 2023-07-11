@@ -466,7 +466,7 @@ def read_packets():
         # Check if it's a telemetry packet
         # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            header, hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBIdddddddBB', data[1:-1])
+            header, hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBIdddddddBB', data)
             
             if hw_id not in drones:
                 # Create a new instance for the drone
