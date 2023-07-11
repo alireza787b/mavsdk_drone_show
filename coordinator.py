@@ -375,7 +375,7 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = 'HHBBIdddddddBB'  # update this to match your data types
+        struct_fmt = 'BHHBIdddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
@@ -397,7 +397,7 @@ def send_drone_state():
                              drone_state['battery_voltage'],
                              drone_state['follow_mode'],
                              88)  # end of packet
-
+        telem_packet_size = len(packet)
         # If broadcast_mode is True, send to all nodes
         if broadcast_mode:
             nodes = get_nodes()
@@ -405,21 +405,19 @@ def send_drone_state():
             for node in nodes:
                 if int(node["hw_id"]) != drone_state['hw_id']:
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
-                    print(f'Sent telemetry data to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
+                    print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
 
 
         # Always send to GCS
         send_packet_to_node(packet, udp_ip, udp_port)
 
         #print(f"Sent telemetry data to GCS: {packet}")
-        print(f"Sent telemetry data to GCS")
+        print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
         print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
         
         # Update the global variable to keep track of the packet size
-        global telem_packet_size
-        telem_packet_size = len(packet)
 
         time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
 
