@@ -96,10 +96,10 @@ class DroneConfig:
         self.config = self.read_config()
         self.swarm = self.read_swarm()
         self.state = 0
-        self.position = {'lat': None, 'long': None, 'alt': None}
-        self.velocity = {'vel_n': None, 'vel_e': None, 'vel_d': None}
-        self.battery = None
-        self.last_update_timestamp = None
+        self.position = {'lat': 0, 'long': 0, 'alt': 0}
+        self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
+        self.battery = 0
+        self.last_update_timestamp = 0
 
     def get_hw_id(self):
         hw_id_files = glob.glob("*.hwID")
@@ -280,7 +280,7 @@ def mavlink_monitor(mav, drone_config):
                 drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
 
             # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.now()
+            drone_config.last_update_timestamp = datetime.datetime.now()
 
         # Sleep for 1 second
         time.sleep(local_mavlink_refresh_interval)
@@ -319,17 +319,18 @@ def get_drone_state():
     Returns:
     dict: A dictionary containing the current state of the drone
     """
+    print(drone_config)
     drone_state = {
     "hw_id": int(drone_config.hw_id),
     "pos_id": int(drone_config.config['pos_id']),
     "state": int(drone_config.state),
     "trigger_time": int(drone_config.trigger_time),
-    "position_lat": drone_config.position['lat'],
-    "position_long": drone_config.position['long'],
-    "position_alt": drone_config.position['alt'],
-    "velocity_north": drone_config.velocity['vel_n'],
-    "velocity_earth": drone_config.velocity['vel_e'],
-    "velocity_down": drone_config.velocity['vel_d'],
+    "position_lat": drone_config.position[0],
+    "position_long": drone_config.position[1],
+    "position_alt": drone_config.position[2],
+    "velocity_north": drone_config.velocity[0],
+    "velocity_earth": drone_config.velocity[1],
+    "velocity_down": drone_config.velocity[2],
     "battery_voltage": drone_config.battery,
     "follow_mode": int(drone_config.swarm['follow'])
 }
@@ -372,6 +373,7 @@ def send_drone_state():
         # I is for uint32
         # d is for double (float64)
         # Pack the telemetry data into a binary packet
+        #print(drone_state)
         packet = struct.pack(struct_fmt,
                              77,  # start of packet
                              drone_state['hw_id'],
@@ -465,7 +467,7 @@ def synchronize_time():
     # Report current time before sync
 
     if(online_sync_time):
-        print(f"Current system time before synchronization: {datetime.now()}")
+        print(f"Current system time before synchronization: {datetime.datetime.now()}")
         # Attempt to get the time from a reliable source
         print("Attempting to synchronize time with a reliable internet source...")
         response = requests.get("http://worldtimeapi.org/api/ip")
