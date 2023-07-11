@@ -86,7 +86,7 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
-telem_packet_size = None
+telem_packet_size = 74
 command_packet_size = 9
 
 class DroneConfig:
@@ -405,7 +405,7 @@ def send_drone_state():
             for node in nodes:
                 if int(node["hw_id"]) != drone_state['hw_id']:
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
-                    print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
+                    #print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
 
 
         # Always send to GCS
@@ -461,10 +461,10 @@ def read_packets():
         # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
             header , hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator= struct.unpack('BHHBIdddddddBB', data)
-            print(f"Received telemetry data from node at IP address {addr[0]}")
+            print(f"Received telemetry data from node {hw_id}")
             print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
             # Add processing of the received telemetry data here
-
+        
         time.sleep(1)  # check for new packets every second
 
 
