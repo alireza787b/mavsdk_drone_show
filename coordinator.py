@@ -320,19 +320,20 @@ def get_drone_state():
     dict: A dictionary containing the current state of the drone
     """
     drone_state = {
-        "hw_id": int(drone_config.hw_id),
-        "pos_id": int(drone_config.config['pos_id']),
-        "state": int(drone_config.state),
-        "trigger_time": int(drone_config.trigger_time),
-        "position_lat": drone_config.position[0],
-        "position_long": drone_config.position[1],
-        "position_alt": drone_config.position[2],
-        "velocity_north": drone_config.velocity[0],
-        "velocity_earth": drone_config.velocity[1],
-        "velocity_down": drone_config.velocity[2],
-        "battery_voltage": drone_config.battery,
-        "follow_mode": int(drone_config.swarm['follow'])
-    }
+    "hw_id": int(drone_config.hw_id),
+    "pos_id": int(drone_config.config['pos_id']),
+    "state": int(drone_config.state),
+    "trigger_time": int(drone_config.trigger_time),
+    "position_lat": drone_config.position['lat'],
+    "position_long": drone_config.position['long'],
+    "position_alt": drone_config.position['alt'],
+    "velocity_north": drone_config.velocity['vel_n'],
+    "velocity_earth": drone_config.velocity['vel_e'],
+    "velocity_down": drone_config.velocity['vel_d'],
+    "battery_voltage": drone_config.battery,
+    "follow_mode": int(drone_config.swarm['follow'])
+}
+
 
     return drone_state
 
@@ -464,7 +465,7 @@ def synchronize_time():
     # Report current time before sync
 
     if(online_sync_time):
-        print(f"Current system time before synchronization: {datetime.datetime.now()}")
+        print(f"Current system time before synchronization: {datetime.now()}")
         # Attempt to get the time from a reliable source
         print("Attempting to synchronize time with a reliable internet source...")
         response = requests.get("http://worldtimeapi.org/api/ip")
