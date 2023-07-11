@@ -86,7 +86,7 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
-telem_packet_size = None
+telem_packet_size = 74
 command_packet_size = 9
 
 
@@ -333,7 +333,6 @@ def get_drone_state():
     Returns:
     dict: A dictionary containing the current state of the drone
     """
-    print(drone_config)
     drone_state = {
     "hw_id": int(drone_config.hw_id),
     "pos_id": int(drone_config.config['pos_id']),
@@ -381,7 +380,7 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = 'HHBBIdddddddBB'  # update this to match your data types
+        struct_fmt = 'BHHBIdddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
@@ -403,7 +402,7 @@ def send_drone_state():
                              drone_state['battery_voltage'],
                              drone_state['follow_mode'],
                              88)  # end of packet
-
+        telem_packet_size = len(packet)
         # If broadcast_mode is True, send to all nodes
         if broadcast_mode:
             nodes = get_nodes()
@@ -411,19 +410,19 @@ def send_drone_state():
             for node in nodes:
                 if int(node["hw_id"]) != drone_state['hw_id']:
                     send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
+                    #print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
+
 
         # Always send to GCS
         send_packet_to_node(packet, udp_ip, udp_port)
 
         #print(f"Sent telemetry data to GCS: {packet}")
-        print(f"Sent telemetry data to GCS")
+        print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
         print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
         
         # Update the global variable to keep track of the packet size
-        global telem_packet_size
-        telem_packet_size = len(packet)
 
         time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
 
@@ -455,7 +454,7 @@ def read_packets():
 
         # Check if it's a command packet
         if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            hw_id, pos_id, state, trigger_time = struct.unpack('HHBBI', data[1:-1])
+            header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('BHHBBIB', data[1:-1])
             print("Received command from GCS")
             print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
             drone_config.hw_id = hw_id
@@ -467,7 +466,7 @@ def read_packets():
         # Check if it's a telemetry packet
         # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode = struct.unpack('HHBBIddddddB', data[1:-1])
+            header, hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBIdddddddBB', data[1:-1])
             
             if hw_id not in drones:
                 # Create a new instance for the drone
@@ -481,9 +480,9 @@ def read_packets():
             drones[hw_id].battery = battery_voltage
             drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
             
-            print(f"Received telemetry data from node at IP address {addr[0]}")
+            print(f"Received telemetry data from node {hw_id}")
             print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
-            # Add further processing of the received telemetry data here
+            # Add processing of the received telemetry data here
 
         time.sleep(1)  # check for new packets every second
 
