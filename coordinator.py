@@ -47,7 +47,6 @@ import logging
 import csv
 import glob
 import requests
-from datetime import datetime
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
