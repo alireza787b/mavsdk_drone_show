@@ -286,8 +286,9 @@ def mavlink_monitor(mav, drone_config):
         time.sleep(local_mavlink_refresh_interval)
 
 # Start telemetry monitoring
-telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
+telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav, drone_config))
 telemetry_thread.start()
+
 import struct
 
 
