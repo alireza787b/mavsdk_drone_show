@@ -99,7 +99,7 @@ sim_mode = False  # Set this variable to True for simulation mode (the ip of all
 
 
 #Telemtetery Packet Size in Bytes
-TELEM_PACKET_SIZE = 74
+TELEM_PACKET_SIZE = 75
 
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
@@ -123,7 +123,7 @@ else:
     drones = [drone for _, drone in config_df.iterrows()]
 
 # Function to send commands
-def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id):
+def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission):
     # Prepare the command data
     header = 55  # Constant
     state = 1  # Constant for activating the triggered state
@@ -131,11 +131,12 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id):
     terminator = 66  # Constant
 
     # Encode the data
-    data = struct.pack('=B B B B I B', header, hw_id, pos_id, state, trigger_time, terminator)
+    data = struct.pack('=B B B B B I B', header, hw_id, pos_id, mission, state, trigger_time, terminator)
 
     # Send the command data
     sock.sendto(data, (coordinator_ip, debug_port))
-    print(f"Sent command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+    print(f"Sent {len(data)} byte command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, Mission={mission}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+
 
 # Function to handle telemetry
 def handle_telemetry(keep_running, print_telemetry, sock):
@@ -145,14 +146,14 @@ def handle_telemetry(keep_running, print_telemetry, sock):
         # Ensure we received a correctly sized packet
         if len(data) == TELEM_PACKET_SIZE:
             # Decode the data
-            struct_fmt = 'BHHBIdddddddBB'  # Updated to match the new packet format
-            header, hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            struct_fmt = 'BHHBBIdddddddBB'  # Updated to match the new packet format
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
             
             # Check if header and terminator are as expected
             if header == 77 and terminator == 88:
                 # Print the received and decoded data if the flag is set
                 if print_telemetry[0]:
-                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
+                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             else:
                 print("Invalid header or terminator received in telemetry data.")
         else:
