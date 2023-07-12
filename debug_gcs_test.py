@@ -198,23 +198,39 @@ for drone_config in drones:
 
 try:
     # Main loop for command input
+    mission = 0
     while True:
-        command = input("\n Enter 't' to send a command, 'q' to quit: \n")
+        command = input("\n Enter 't' to send a command, 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
         if command.lower() == 'q':
             break
         elif command.lower() == 't':
             n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
             if int(n) == 0:
                 continue
-            # Turn off telemetry printing while sending commands
-            for _, _, _, _, _, _ in drones_threads:
-                print_telemetry[0] = False
-            # Send command to each drone
-            for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-                send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id)
-            # Turn on telemetry printing after sending commands
-            for _, _, _, _, _, _ in drones_threads:
-                print_telemetry[0] = True
+            state = 1
+        elif command.lower() == 's':
+            mission = 2  # Setting mission to smart_swarm
+            state = 1
+        elif command.lower() == 'c':
+            mission = 1  # Setting mission to csv_droneshow
+            state = 1
+        elif command.lower() == 'n':
+            mission = 0  # Unsetting the mission
+            state = 0
+            n = 0  # Unsetting the trigger time
+        else:
+            print("Invalid command.")
+            continue
+
+        # Turn off telemetry printing while sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = False
+        # Send command to each drone
+        for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
+            send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id, mission)
+        # Turn on telemetry printing after sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = True
 except ValueError:
     print("Invalid input. Please enter a valid command.")
 except KeyboardInterrupt:
@@ -222,6 +238,7 @@ except KeyboardInterrupt:
 finally:
     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
     keep_running[0] = False
+
     for sock, telemetry_thread, _, _, _, _ in drones_threads:
         # Close the socket
         sock.close()
