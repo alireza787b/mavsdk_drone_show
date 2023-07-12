@@ -343,6 +343,7 @@ def get_drone_state():
     "hw_id": int(drone_config.hw_id),
     "pos_id": int(drone_config.config['pos_id']),
     "state": int(drone_config.state),
+    "mission": int(drone_config.mission),
     "trigger_time": int(drone_config.trigger_time),
     "position_lat": drone_config.position['lat'],
     "position_long": drone_config.position['long'],
