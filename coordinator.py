@@ -86,12 +86,15 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
-telem_packet_size = 74
-command_packet_size = 9
+telem_packet_size = 75
+command_packet_size = 12
 
 
-# Initialize an empty dictionary to store drones
+# Initialize an empty dictionary to store drones  a dict
+#example on how to access drone 4 lat      lat_drone_4 = drones[4].position['lat']
+
 drones = {}
+
 
 
 class DroneConfig:
@@ -101,6 +104,10 @@ class DroneConfig:
         self.config = self.read_config()
         self.swarm = self.read_swarm()
         self.state = 0
+        self.pos_id = self.get_hw_id()
+        self.mission = 0
+        self.trigger_time = 0
+        self.isspace()
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
         self.battery = 0
@@ -380,7 +387,7 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = 'BHHBIdddddddBB'  # update this to match your data types
+        struct_fmt = 'BHHBBIdddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
@@ -392,6 +399,7 @@ def send_drone_state():
                              drone_state['hw_id'],
                              drone_state['pos_id'],
                              drone_state['state'],
+                             drone_state['mission'],
                              drone_state['trigger_time'],
                              drone_state['position_lat'],
                              drone_state['position_long'],
@@ -447,26 +455,27 @@ def read_packets():
     sock = socket.socket(socket.AF_INET,  # Internet
                          socket.SOCK_DGRAM)  # UDP
     sock.bind(('0.0.0.0', udp_port))
-
     while True:
         data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
         header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
 
         # Check if it's a command packet
         if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            header, hw_id, pos_id, state, trigger_time, terminator = struct.unpack('BHHBBIB', data[1:-1])
+            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('B B B B B I B', data)
             print("Received command from GCS")
-            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}")
+            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
             drone_config.hw_id = hw_id
-            drone_config.config['pos_id'] = pos_id
+            drone_config.pos_id = pos_id
+            drone_config.mission = mission
             drone_config.state = state
             drone_config.trigger_time = trigger_time
             # Add additional logic here to handle the received command
 
+
         # Check if it's a telemetry packet
         # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            header, hw_id, pos_id, state, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBIdddddddBB', data)
+            header, hw_id, pos_id, state,mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBBIdddddddBB', data)
             
             if hw_id not in drones:
                 # Create a new instance for the drone
@@ -475,13 +484,14 @@ def read_packets():
             # Update the drone instance with the received telemetry data
             drones[hw_id].state = state
             drones[hw_id].trigger_time = trigger_time
+            drones[hw_id].mission = mission
             drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_earth, 'vel_d': velocity_down}
             drones[hw_id].battery = battery_voltage
             drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
             
             print(f"Received telemetry data from node {hw_id}")
-            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
+            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, mission: {mission} trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
             # Add processing of the received telemetry data here
 
         time.sleep(1)  # check for new packets every second
@@ -537,10 +547,16 @@ def schedule_mission():
         drone_config.state = 2
         drone_config.trigger_time = 0
 
-        # Run the mission script in a new process
-        mission_process = subprocess.Popen(["python3", "offboard_multiple_from_csv.py"])
-        
-        # Note: Replace "offboard_from_csv_multiple.py" with the actual script for the drone mission
+        # Check the mission code
+        if drone_config.mission == 1:  # For csv_droneshow
+            # Run the mission script in a new process
+            mission_process = subprocess.Popen(["python3", "offboard_multiple_from_csv.py"])
+            
+            # Note: Replace "offboard_from_csv_multiple.py" with the actual script for the drone mission
+        elif drone_config.mission == 2:  # For smart_swarm
+            print("Smart swarm mission should be started")
+            # You can add logic here to start the smart swarm mission
+
 
 
 # Main function
