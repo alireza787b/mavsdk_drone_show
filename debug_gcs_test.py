@@ -123,10 +123,9 @@ else:
     drones = [drone for _, drone in config_df.iterrows()]
 
 # Function to send commands
-def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission):
+def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     # Prepare the command data
     header = 55  # Constant
-    state = 1  # Constant for activating the triggered state
     trigger_time = int(time.time()) + n  # Now + n seconds
     terminator = 66  # Constant
 
@@ -136,6 +135,7 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission):
     # Send the command data
     sock.sendto(data, (coordinator_ip, debug_port))
     print(f"Sent {len(data)} byte command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, Mission={mission}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+
 
 
 # Function to handle telemetry
@@ -199,20 +199,23 @@ for drone_config in drones:
 try:
     # Main loop for command input
     mission = 0
+    state = 0
+    n = 0
     while True:
-        command = input("\n Enter 't' to send a command, 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
+        command = input("\n Enter 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
         if command.lower() == 'q':
             break
-        elif command.lower() == 't':
+        elif command.lower() == 's':
+            mission = 2  # Setting mission to smart_swarm
             n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
             if int(n) == 0:
                 continue
             state = 1
-        elif command.lower() == 's':
-            mission = 2  # Setting mission to smart_swarm
-            state = 1
         elif command.lower() == 'c':
             mission = 1  # Setting mission to csv_droneshow
+            n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
+            if int(n) == 0:
+                continue
             state = 1
         elif command.lower() == 'n':
             mission = 0  # Unsetting the mission
@@ -227,7 +230,7 @@ try:
             print_telemetry[0] = False
         # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id, mission)
+            send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
         # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
             print_telemetry[0] = True
@@ -238,6 +241,7 @@ except KeyboardInterrupt:
 finally:
     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
     keep_running[0] = False
+
 
     for sock, telemetry_thread, _, _, _, _ in drones_threads:
         # Close the socket
