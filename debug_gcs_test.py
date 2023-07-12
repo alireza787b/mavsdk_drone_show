@@ -99,7 +99,7 @@ sim_mode = False  # Set this variable to True for simulation mode (the ip of all
 
 
 #Telemtetery Packet Size in Bytes
-TELEM_PACKET_SIZE = 75
+TELEM_PACKET_SIZE = 74
 
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
