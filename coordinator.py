@@ -107,7 +107,6 @@ class DroneConfig:
         self.pos_id = self.get_hw_id()
         self.mission = 0
         self.trigger_time = 0
-        self.isspace()
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
         self.battery = 0
