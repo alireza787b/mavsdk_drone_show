@@ -141,8 +141,14 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, st
 # Function to handle telemetry
 def handle_telemetry(keep_running, print_telemetry, sock):
     while keep_running[0]:  # Loop while keep_running is True
-        # Receive telemetry data
-        data, addr = sock.recvfrom(1024)
+        try:
+            # Receive telemetry data
+            data, addr = sock.recvfrom(1024)
+            # rest of your code here...
+        except OSError as e:
+            print("Error occurred:", e)
+            print("sock is", sock)
+            break  # Or re-raise the exception with 'raise'
         # Ensure we received a correctly sized packet
         if len(data) == TELEM_PACKET_SIZE:
             # Decode the data
