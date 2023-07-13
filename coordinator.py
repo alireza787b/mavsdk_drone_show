@@ -205,13 +205,13 @@ class DroneConfig:
 
     def find_target_drone(self):
         # find which drone it should follow
-        follow_hw_id = self.swarm.get('follow', None)
+        follow_hw_id = self.swarm['follow']
         if follow_hw_id == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
         elif follow_hw_id == self.hw_id:
             print(f"Drone {self.hw_id} is set to follow itself. This is not allowed.")
         else:
-            self.target_drone = drones.get(follow_hw_id, None)
+            self.target_drone = drones[follow_hw_id]
             if self.target_drone:
                 print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
             else:
