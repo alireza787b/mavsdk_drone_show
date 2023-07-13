@@ -275,7 +275,7 @@ def stop_mavlink_routing(mavlink_router_process):
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
 # Function to monitor telemetry
-def mavlink_monitor(mav, drone_config):
+def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
         msg = mav.recv_match(blocking=False)
         if msg is not None:
@@ -301,12 +301,12 @@ def mavlink_monitor(mav, drone_config):
             # Update the timestamp after each update
             drone_config.last_update_timestamp = datetime.datetime.now()
 
-        # Sleep for 1 second
+        # Sleep for 0.5 second
         time.sleep(local_mavlink_refresh_interval)
 
 
 # Start telemetry monitoring
-telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav, drone_config))
+telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav))
 telemetry_thread.start()
 
 import struct
@@ -426,7 +426,10 @@ def send_drone_state():
 
         #print(f"Sent telemetry data to GCS: {packet}")
         print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
-        print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
+        print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']},\
+              mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']},\
+              Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']},\
+              follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         print(f"Current system time: {current_time}")
         
