@@ -293,7 +293,7 @@ def mavlink_monitor(mav):
                     'vel_e': msg.vy / 1E2,
                     'vel_d': msg.vz / 1E2
                 }
-                print(msg)
+                #print(msg)
 
             elif msg.get_type() == 'BATTERY_STATUS':
                 # Update battery
@@ -388,7 +388,7 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = 'BHHBBIdddddddBB'  # update this to match your data types
+        struct_fmt = '=BHHBBIdddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
