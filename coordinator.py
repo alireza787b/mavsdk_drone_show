@@ -99,13 +99,13 @@ drones = {}
 
 
 class DroneConfig:
-    def __init__(self):
-        self.hw_id = self.get_hw_id()
+    def __init__(self, hw_id=None):
+        self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
         self.config = self.read_config()
         self.swarm = self.read_swarm()
         self.state = 0
-        self.pos_id = self.get_hw_id()
+        self.pos_id = self.get_hw_id(hw_id)
         self.mission = 0
         self.trigger_time = 0
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
@@ -117,7 +117,10 @@ class DroneConfig:
         self.velocity_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
         self.target_drone = None
 
-    def get_hw_id(self):
+    def get_hw_id(self, hw_id=None):
+        if hw_id is not None:
+            return hw_id
+
         hw_id_files = glob.glob("*.hwID")
         if hw_id_files:
             hw_id_file = hw_id_files[0]
@@ -567,7 +570,7 @@ def read_packets():
             print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
-                drones[hw_id] = DroneConfig()
+                drones[hw_id] = DroneConfig(hw_id)
         
             # Update the drone instance with the received telemetry data
             drones[hw_id].state = state
