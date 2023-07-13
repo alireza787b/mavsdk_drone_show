@@ -307,7 +307,7 @@ def mavlink_monitor(mav):
 
 
 # Start telemetry monitoring
-telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav))
+telemetry_thread = threading.Thread(target=mavlink_monitor, mav)
 telemetry_thread.start()
 
 import struct
