@@ -426,12 +426,9 @@ def send_drone_state():
 
         #print(f"Sent telemetry data to GCS: {packet}")
         print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
-        print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']},\
-              mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']},\
-              Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']},\
-              follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
+        print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, Mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']}, Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
-        print(f"Current system time: {current_time}")
+        #print(f"Current system time: {current_time}")
         
         # Update the global variable to keep track of the packet size
 
