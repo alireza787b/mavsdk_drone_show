@@ -230,13 +230,13 @@ class DroneConfig:
         if self.target_drone:
             # Calculate new LLA with offset
             geod = Geodesic.WGS84  # define the WGS84 ellipsoid
-            g = geod.Direct(self.target_drone.position['lat'], self.target_drone.position['long'], 90, offset_e)
-            g = geod.Direct(g['lat2'], g['lon2'], 0, offset_n)
+            g = geod.Direct(float(self.target_drone.position['lat']), float(self.target_drone.position['long']), 90, float(offset_e))
+            g = geod.Direct(g['lat2'], g['lon2'], 0, float(offset_n))
 
             self.position_setpoint_LLA = {
                 'lat': g['lat2'],
                 'long': g['lon2'],
-                'alt': self.target_drone.position['alt'] - offset_alt,  # considering negative for NED
+                'alt': float(self.target_drone.position['alt']) - float(offset_alt),  # considering negative for NED
             }
 
             # The above method calculates a new LLA coordinate by moving a certain distance 
