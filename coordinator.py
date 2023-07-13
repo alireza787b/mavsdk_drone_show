@@ -559,9 +559,17 @@ def read_packets():
 
 
         # Check if it's a telemetry packet
-        # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            header, hw_id, pos_id, state,mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('BHHBBIdddddddBB', data)
+            
+                # Decode the data
+                struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
+                header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+                
+                print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
+        else:
+            print(f"Received packet of incorrect size or header.got {len(data)}.")
+                
+            header, hw_id, pos_id, state,mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('=BHHBBIdddddddBB', data)
             
             if hw_id not in drones:
                 # Create a new instance for the drone
@@ -569,6 +577,7 @@ def read_packets():
             
             # Update the drone instance with the received telemetry data
             drones[hw_id].state = state
+            drones[hw_id].mission = mission
             drones[hw_id].trigger_time = trigger_time
             drones[hw_id].mission = mission
             drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
