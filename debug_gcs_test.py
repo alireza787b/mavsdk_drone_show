@@ -99,7 +99,7 @@ sim_mode = False  # Set this variable to True for simulation mode (the ip of all
 
 
 #Telemtetery Packet Size in Bytes
-TELEM_PACKET_SIZE = 74
+TELEM_PACKET_SIZE = 69
 
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
@@ -152,7 +152,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
         # Ensure we received a correctly sized packet
         if len(data) == TELEM_PACKET_SIZE:
             # Decode the data
-            struct_fmt = 'BHHBBIdddddddBB'  # Updated to match the new packet format
+            struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
             header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
             
             # Check if header and terminator are as expected
