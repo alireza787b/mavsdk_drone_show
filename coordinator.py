@@ -435,7 +435,7 @@ def get_drone_state():
     "position_long": drone_config.position['long'],
     "position_alt": drone_config.position['alt'],
     "velocity_north": drone_config.velocity['vel_n'],
-    "velocity_earth": drone_config.velocity['vel_e'],
+    "velocity_east": drone_config.velocity['vel_e'],
     "velocity_down": drone_config.velocity['vel_d'],
     "battery_voltage": drone_config.battery,
     "follow_mode": int(drone_config.swarm['follow'])
@@ -491,7 +491,7 @@ def send_drone_state():
                              drone_state['position_long'],
                              drone_state['position_alt'],
                              drone_state['velocity_north'],
-                             drone_state['velocity_earth'],
+                             drone_state['velocity_east'],
                              drone_state['velocity_down'],
                              drone_state['battery_voltage'],
                              drone_state['follow_mode'],
@@ -561,30 +561,28 @@ def read_packets():
         # Check if it's a telemetry packet
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
             
-                # Decode the data
-                struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
-                header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-                print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
-        else:
-            print(f"Received packet of incorrect size or header.got {len(data)}.")
-                
+            # Decode the data
+            struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
                 drones[hw_id] = DroneConfig()
-            
+        
             # Update the drone instance with the received telemetry data
             drones[hw_id].state = state
             drones[hw_id].mission = mission
             drones[hw_id].trigger_time = trigger_time
             drones[hw_id].mission = mission
             drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_earth, 'vel_d': velocity_down}
+            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
             drones[hw_id].battery = battery_voltage
             drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
-            
-            print(f"Received telemetry data from node {hw_id}")
-            print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, state: {state}, mission: {mission} trigger_time: {trigger_time}, position: ({position_lat}, {position_long}, {position_alt}), velocity: ({velocity_north}, {velocity_earth}, {velocity_down}), battery_voltage: {battery_voltage}, follow_mode: {follow_mode}")
+        
             # Add processing of the received telemetry data here
+        else:
+            print(f"Received packet of incorrect size or header.got {len(data)}.")
+                
 
         time.sleep(1)  # check for new packets every second
 
