@@ -88,7 +88,7 @@ TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
 telem_packet_size = 75
-command_packet_size = 12
+command_packet_size = 10
 
 
 # Initialize an empty dictionary to store drones  a dict
