@@ -236,7 +236,7 @@ class DroneConfig:
             self.position_setpoint_LLA = {
                 'lat': g['lat2'],
                 'long': g['lon2'],
-                'alt': float(self.target_drone.position['alt']) - float(offset_alt),  # considering negative for NED
+                'alt': float(self.target_drone.position['alt']) + float(offset_alt),  
             }
 
             # The above method calculates a new LLA coordinate by moving a certain distance 
