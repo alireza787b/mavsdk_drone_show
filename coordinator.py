@@ -87,7 +87,7 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.5
 broadcast_mode  = True
-telem_packet_size = 75
+telem_packet_size = 69
 command_packet_size = 10
 
 
@@ -564,13 +564,10 @@ def read_packets():
                 # Decode the data
                 struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
                 header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-                
                 print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
         else:
             print(f"Received packet of incorrect size or header.got {len(data)}.")
                 
-            header, hw_id, pos_id, state,mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_earth, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack('=BHHBBIdddddddBB', data)
-            
             if hw_id not in drones:
                 # Create a new instance for the drone
                 drones[hw_id] = DroneConfig()
