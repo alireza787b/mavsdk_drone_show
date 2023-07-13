@@ -189,6 +189,9 @@ class DroneConfig:
 
 
 
+# Initialize DroneConfig
+drone_config = DroneConfig()
+
 import navpy
 
 def get_NED_position(self):
@@ -209,9 +212,6 @@ def get_NED_position(self):
  
 
 
-
-# Initialize DroneConfig
-drone_config = DroneConfig()
 
 
 
@@ -293,6 +293,7 @@ def mavlink_monitor(mav):
                     'vel_e': msg.vy / 1E2,
                     'vel_d': msg.vz / 1E2
                 }
+                print(msg)
 
             elif msg.get_type() == 'BATTERY_STATUS':
                 # Update battery
