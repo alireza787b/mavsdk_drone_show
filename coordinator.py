@@ -461,7 +461,7 @@ def read_packets():
 
         # Check if it's a command packet
         if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('B B B B B I B', data)
+            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
             print("Received command from GCS")
             print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
             drone_config.hw_id = hw_id
