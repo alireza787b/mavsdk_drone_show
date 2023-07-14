@@ -252,12 +252,12 @@ class DroneConfig:
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
-        def calculate_position_setpoint_NED(self):
-            if self.target_drone:
-                self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
-                print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
-            else:
-                print(f"No target drone found for drone with hw_id: {self.hw_id}")
+    def calculate_position_setpoint_NED(self):
+        if self.target_drone:
+            self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
+            print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
+        else:
+            print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
 
     def calculate_velocity_setpoint_NED(self):
