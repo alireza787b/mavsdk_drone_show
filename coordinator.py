@@ -340,7 +340,7 @@ def get_NED_position(self):
 def start_offboard_mode():
     async def start_offboard():
         drone = System()
-        await drone.connect(system_address=f"udp://127.0.0.1:{drone_config.mavsdk_server_port}")
+        await drone.connect()
 
         print("Waiting for drone to connect...")
         async for state in drone.core.connection_state():
