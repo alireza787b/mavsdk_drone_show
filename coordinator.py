@@ -112,6 +112,7 @@ class DroneConfig:
         self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
         self.battery = 0
         self.last_update_timestamp = 0
+        self.home_position = None
         self.position_setpoint_LLA = {'lat': 0, 'long': 0, 'alt': 0}
         self.position_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
         self.velocity_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
@@ -251,14 +252,13 @@ class DroneConfig:
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
-    def calculate_position_setpoint_NED(self):
-        # Conversion to local NED coordinates would go here
-        # For simplicity, let's assume we already have a function convert_LLA_to_NED() to perform this conversion
-        if self.target_drone:
-            self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
-            print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
-        else:
-            print(f"No target drone found for drone with hw_id: {self.hw_id}")
+        def calculate_position_setpoint_NED(self):
+            if self.target_drone:
+                self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
+                print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
+            else:
+                print(f"No target drone found for drone with hw_id: {self.hw_id}")
+
 
     def calculate_velocity_setpoint_NED(self):
         # velocity setpoints is exactly the same as the target drone velocity
@@ -269,8 +269,26 @@ class DroneConfig:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
     def convert_LLA_to_NED(self, LLA):
-        # Conversion code here. Returns a dictionary with 'north', 'east', 'down'
-        pass
+        if self.home_position:
+            lat = LLA['lat']
+            long = LLA['long']
+            alt = LLA['alt']
+            home_lat = self.home_position['lat']
+            home_long = self.home_position['long']
+            home_alt = self.home_position['alt']
+
+            ned = navpy.lla2ned(lat, long, alt, home_lat, home_long, home_alt)
+
+            position_NED = {
+                'north': ned[0],
+                'east': ned[1],
+                'down': ned[2]
+            }
+
+            return position_NED
+        else:
+            print("Home position is not set")
+            return None
 
 
 
@@ -365,6 +383,17 @@ def mavlink_monitor(mav):
         msg = mav.recv_match(blocking=False)
         if msg is not None:
             if msg.get_type() == 'GLOBAL_POSITION_INT':
+                # Check if home position is set
+                if drone_config.home_position is None:
+                    # Update home position with the first received position
+                    drone_config.home_position = {
+                        'lat': msg.lat / 1E7,
+                        'long': msg.lon / 1E7,
+                        'alt': msg.alt / 1E3
+                    }
+                    print(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
+                    continue
+
                 # Update position
                 drone_config.position = {
                     'lat': msg.lat / 1E7,
@@ -378,7 +407,6 @@ def mavlink_monitor(mav):
                     'vel_e': msg.vy / 1E2,
                     'vel_d': msg.vz / 1E2
                 }
-                #print(msg)
 
             elif msg.get_type() == 'BATTERY_STATUS':
                 # Update battery
@@ -386,12 +414,14 @@ def mavlink_monitor(mav):
 
             # Update the timestamp after each update
             drone_config.last_update_timestamp = datetime.datetime.now()
-        #update setpoint for following
-        if(drone_config.mission==2):
+
+        # Update setpoint for following if mission is set to 2
+        if drone_config.mission == 2:
             drone_config.calculate_setpoints()
 
         # Sleep for 0.5 second
         time.sleep(local_mavlink_refresh_interval)
+
 
 
 # Start telemetry monitoring
