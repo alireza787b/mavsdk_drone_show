@@ -380,7 +380,14 @@ mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 # Function to monitor telemetry
 def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
-        msg = mav.recv_match(blocking=True)
+        msg = None
+        # Read and discard all messages until there are no more in the buffer
+        while True:
+            new_msg = mav.recv_match(blocking=False)
+            if new_msg is None:
+                break
+            msg = new_msg
+
         if msg is not None:
             if msg.get_type() == 'GLOBAL_POSITION_INT':
                 # Check if home position is set
