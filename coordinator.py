@@ -51,7 +51,7 @@ import requests
 from geographiclib.geodesic import Geodesic
 from mavsdk import System
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
-
+import navpy
 
 
 # Set up logging
@@ -89,27 +89,12 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+TELEM_SEND_INTERVAL = 1 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
-
-
-# Remember to manually change the system ID for each Gazebo instance
-# for each drone SITL instance in different VMware nodes by following these steps:
-#
-# 1. Navigate to the PX4-Autopilot repository on your local machine.
-# 2. Locate the configuration file for the SITL instance you are using.
-#    This file is typically located in the `ROMFS/px4fmu_common/init.d-posix` directory.
-# 3. Open the configuration file `10016_iris` in a text editor.
-# 4. Look for the line that sets the SYSID_THISMAV parameter. It should look like this:
-#      param set SYSID_THISMAV 1
-# 5. Change the value `1` to the desired system ID for your drone instance.
-# 6. Save the configuration file and close the text editor.
-# 7. Run `make px4_sitl gazebo` again. The drone instance should now have the new system ID you assigned.
-#
-# Note: Ensure that the system ID is unique for each drone instance if you are running multiple instances simultaneously.
+packet_input_check_interval = 0.5
 
 
 # Initialize an empty dictionary to store drones  a dict
@@ -310,83 +295,131 @@ class DroneConfig:
         else:
             print("Home position is not set")
             return None
+        
+    def get_NED_position(self):
+        LLA = self.position
+        lat = LLA['lat']
+        long = LLA['long']
+        alt = LLA['alt']
+        home_lat = self.home_position['lat']
+        home_long = self.home_position['long']
+        home_alt = self.home_position['alt']
+
+        ned = navpy.lla2ned(lat, long, alt, home_lat, home_long, home_alt)
+
+        position_NED = {
+            'north': ned[0],
+            'east': ned[1],
+            'down': ned[2]
+        }
+
+        return position_NED
 
 
 
 # Initialize DroneConfig
 drone_config = DroneConfig()
 
-import navpy
 
-def get_NED_position(self):
-    """
-    Calculates the North-East-Down (NED) position from the current latitude, longitude, and altitude.
-    The position is relative to the home position (launch point), which is defined in the config.
-    The function returns a tuple (north, east, down).
 
-    Uses navpy library to perform the geographic to Cartesian coordinate conversion.
-
-    Returns:
-        tuple: North, East, and Down position relative to the home position (in meters)
-    """
-
-    # return north, east, down
 
 
  
 
-def start_offboard_mode():
-    async def start_offboard():
-        drone = System(mavsdk_server_address='localhost',port=50051)
-        await drone.connect()
-
-        print("Waiting for drone to connect...")
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                print(f"Drone discovered")
-                break
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-        # Set initial setpoint to the current position of the drone
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def connect_drone(drone, retries=3):
+    for i in range(retries):
+        try:
+            await drone.connect()
+            return True
+        except Exception as e:
+            logger.warning(f"Connection attempt {i + 1} failed: {e}")
+            await asyncio.sleep(1)
+
+    logger.error("Failed to connect to drone after multiple attempts")
+    return False
+
+async def start_offboard():
+    drone = System(mavsdk_server_address='localhost', port=50051)
+
+    if not await connect_drone(drone):
+        return
+
+    logger.info("Waiting for drone to connect...")
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            logger.info("Drone discovered")
+            break
+
+    # Check if the aircraft position is set
+    async for health in drone.telemetry.health():
+        if health.is_global_position_ok and health.is_home_position_ok:
+            logger.info("Global Position Ok and home position is set")
+            break
+        
+    # Check if the aircraft is in the air 
+    async for in_air in drone.telemetry.in_air():
+        if in_air:
+            logger.info("Aircraft is in the air")
+            break
+
+    # Set initial setpoint to the current position of the drone
+    try:
         await drone.offboard.set_position_ned(PositionNedYaw(
-            drone_config.position_setpoint_NED['north'], 
-            drone_config.position_setpoint_NED['east'], 
-            drone_config.position_setpoint_NED['down'], 
+            drone_config.position_setpoint_NED['north'],
+            drone_config.position_setpoint_NED['east'],
+            drone_config.position_setpoint_NED['down'],
             0.0)
         )
-        
-        print("initial setpoint")
-        # Start offboard mode
+        logger.info("Initial setpoint")
+    except Exception as e:
+        logger.error(f"Setting initial setpoint failed: {e}")
+        return
+
+    # Start offboard mode
+    try:
+        await drone.offboard.start()
+        logger.info("Offboard started")
+    except OffboardError as error:
+        logger.error(f"Starting offboard mode failed with error code: {error._result.result}")
+        return
+
+    # Continuously set position and velocity setpoints
+    while True:
+        pos_ned_yaw = PositionNedYaw(
+            drone_config.position_setpoint_NED['north'],
+            drone_config.position_setpoint_NED['east'],
+            drone_config.position_setpoint_NED['down'],
+            0.0
+        )
+
+        vel_ned_yaw = VelocityNedYaw(
+            drone_config.velocity_setpoint_NED['vel_n'],
+            drone_config.velocity_setpoint_NED['vel_e'],
+            drone_config.velocity_setpoint_NED['vel_d'],
+            0.0
+        )
+
         try:
-            await drone.offboard.start()
-            print("offboard start")                    
-
-        except OffboardError as error:
-            print(f"Starting offboard mode failed with error code: {error._result.result}")
-            return
-
-        # Continuously set position and velocity setpoints
-        while True:
-            pos_ned_yaw = PositionNedYaw(
-                drone_config.position_setpoint_NED['north'],
-                drone_config.position_setpoint_NED['east'],
-                drone_config.position_setpoint_NED['down'],
-                0.0
-            )
-
-            vel_ned_yaw = VelocityNedYaw(
-                drone_config.velocity_setpoint_NED['vel_n'],
-                drone_config.velocity_setpoint_NED['vel_e'],
-                drone_config.velocity_setpoint_NED['vel_d'],
-                0.0
-            )
-
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-            # await drone.offboard.set_position_ned(pos_ned_yaw)
-            print("setpoint updated")
-            await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
+            logger.info("Setpoint updated")
+        except Exception as e:
+            logger.warning(f"Updating setpoint failed: {e}")
+            await drone.offboard.stop()
+            await asyncio.sleep(1)
+            await drone.offboard.start()
 
-    asyncio.run(start_offboard())
+        await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
+
+asyncio.run(start_offboard())
 
 
 
@@ -639,68 +672,70 @@ def send_drone_state():
 
 
 
+def process_command_packet(hw_id, pos_id, mission, state, trigger_time):
+    # Add additional logic here to handle the received command
+    drone_config.hw_id = hw_id
+    drone_config.pos_id = pos_id
+    drone_config.mission = mission
+    drone_config.state = state
+    drone_config.trigger_time = trigger_time
+    logger.info(f"Processed command: hw_id={hw_id}, pos_id={pos_id}, mission={mission}, state={state}, trigger_time={trigger_time}")
+
+
+def process_telemetry_packet(hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt,
+                             velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode):
+    # Add processing of the received telemetry data here
+    if hw_id not in drones:
+        # Create a new instance for the drone
+        drones[hw_id] = DroneConfig(hw_id)
+
+    # Update the drone instance with the received telemetry data
+    drones[hw_id].state = state
+    drones[hw_id].mission = mission
+    drones[hw_id].trigger_time = trigger_time
+    drones[hw_id].mission = mission
+    drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
+    drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
+    drones[hw_id].battery = battery_voltage
+    drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
+    logger.info(f"Processed telemetry: hw_id={hw_id}, pos_id={pos_id}, state={state}, mission={mission}, trigger_time={trigger_time}, position_lat={position_lat}, position_long={position_long}, position_alt={position_alt}, velocity_north={velocity_north}, velocity_east={velocity_east}, velocity_down={velocity_down}, battery_voltage={battery_voltage}, follow_mode={follow_mode}")
+
+
 def read_packets():
-    """
-    Reads and decodes new packets from the ground station over the debug vector.
-    The packets can be either commands or telemetry data, depending on the header and terminator.
-
-    For commands, the packets include the hardware id (hw_id), position id (pos_id), current state, and trigger time.
-    For telemetry data, the packets include hardware id, position id, current state, trigger time, position, velocity, 
-    battery voltage, and follow mode.
-
-    After receiving a packet, the function checks the header and terminator to determine the type of the packet.
-    Then, it unpacks the packet accordingly and processes the data.
-    """
     udp_port = int(drone_config.config['debug_port'])  # UDP port to receive packets
 
     sock = socket.socket(socket.AF_INET,  # Internet
                          socket.SOCK_DGRAM)  # UDP
     sock.bind(('0.0.0.0', udp_port))
     while True:
-        data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
+        try:
+            data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
+            header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
 
-        # Check if it's a command packet
-        if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
-            print("Received command from GCS")
-            #print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
-            drone_config.hw_id = hw_id
-            drone_config.pos_id = pos_id
-            drone_config.mission = mission
-            drone_config.state = state
-            drone_config.trigger_time = trigger_time
-            # Add additional logic here to handle the received command
+            # Check if it's a command packet
+            if header == 55 and terminator == 66 and len(data) == command_packet_size:
+                header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
+                logger.info("Received command from GCS")
+                process_command_packet(hw_id, pos_id, mission, state, trigger_time)
 
+            # Check if it's a telemetry packet
+            elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
+                struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
+                header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, \
+                velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = \
+                    struct.unpack(struct_fmt, data)
+                logger.info(f"Received telemetry from Drone {hw_id}")
+                process_telemetry_packet(hw_id, pos_id, state, mission, trigger_time, position_lat, position_long,
+                                         position_alt, velocity_north, velocity_east, velocity_down, battery_voltage,
+                                         follow_mode)
+            else:
+                logger.warning(f"Received packet of incorrect size or header. Got {len(data)}.")
 
-        # Check if it's a telemetry packet
-        elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            
-            # Decode the data
-            struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-            print(f"Received telemetry from Drone {hw_id}")
-            #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
-            if hw_id not in drones:
-                # Create a new instance for the drone
-                drones[hw_id] = DroneConfig(hw_id)
-        
-            # Update the drone instance with the received telemetry data
-            drones[hw_id].state = state
-            drones[hw_id].mission = mission
-            drones[hw_id].trigger_time = trigger_time
-            drones[hw_id].mission = mission
-            drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-            drones[hw_id].battery = battery_voltage
-            drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
-        
-            # Add processing of the received telemetry data here
-        else:
-            print(f"Received packet of incorrect size or header.got {len(data)}.")
-                
+        except Exception as e:
+            logger.error(f"Error while reading packets: {e}")
 
-        time.sleep(1)  # check for new packets every second
+        time.sleep(packet_input_check_interval)  # check for new packets every second
+
 
         
         
@@ -762,7 +797,7 @@ def schedule_mission():
         elif drone_config.mission == 2:  # For smart_swarm
             print("Smart swarm mission should be started")
             # You can add logic here to start the smart swarm mission
-            start_offboard_mode()
+            start_offboard()
             
 
 
