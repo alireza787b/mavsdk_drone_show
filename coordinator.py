@@ -91,6 +91,22 @@ telem_packet_size = 69
 command_packet_size = 10
 
 
+# Remember to manually change the system ID for each Gazebo instance
+# for each drone SITL instance in different VMware nodes by following these steps:
+#
+# 1. Navigate to the PX4-Autopilot repository on your local machine.
+# 2. Locate the configuration file for the SITL instance you are using.
+#    This file is typically located in the `ROMFS/px4fmu_common/init.d-posix` directory.
+# 3. Open the configuration file `10016_iris` in a text editor.
+# 4. Look for the line that sets the SYSID_THISMAV parameter. It should look like this:
+#      param set SYSID_THISMAV 1
+# 5. Change the value `1` to the desired system ID for your drone instance.
+# 6. Save the configuration file and close the text editor.
+# 7. Run `make px4_sitl gazebo` again. The drone instance should now have the new system ID you assigned.
+#
+# Note: Ensure that the system ID is unique for each drone instance if you are running multiple instances simultaneously.
+
+
 # Initialize an empty dictionary to store drones  a dict
 #example on how to access drone 4 lat      lat_drone_4 = drones[4].position['lat']
 
@@ -346,8 +362,8 @@ def initialize_mavlink():
     else:
         # In real life, route the MAVLink messages to the GCS and other drones over a Zerotier network
         # *************** I have a doubt here . if I send from each drone to gcs_ip:14550 why GCS wont auto connect to these? temporary rverting to different port....
-        # endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
-        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
+        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
+        #endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
 
     # Command to start mavlink-router
     mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
