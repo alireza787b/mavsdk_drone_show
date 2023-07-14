@@ -26,6 +26,7 @@
 # -----------------------------------------------------------------------------
 
 # Importing the necessary libraries
+import asyncio
 import csv
 import datetime
 import glob
@@ -48,6 +49,10 @@ import csv
 import glob
 import requests
 from geographiclib.geodesic import Geodesic
+from mavsdk import System
+from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -328,9 +333,58 @@ def get_NED_position(self):
     # return north, east, down
 
 
+def send_offboard_setpoints(drone):
+    while True:
+        # Access the setpoints from the drone_config object
+        position_setpoint = drone_config.position_setpoint_NED
+        velocity_setpoint = drone_config.velocity_setpoint_NED
+
+        # Create MAVSDK Offboard setpoints
+        pos_ned_yaw = PositionNedYaw(position_setpoint['north'], 
+                                      position_setpoint['east'], 
+                                      position_setpoint['down'], 
+                                      0)
+        vel_ned_yaw = VelocityNedYaw(velocity_setpoint['north'], 
+                                      velocity_setpoint['east'], 
+                                      velocity_setpoint['down'], 
+                                      0)
+
+        try:
+            # Start offboard mode and send setpoints
+            asyncio.run(drone.offboard.start())
+            asyncio.run(drone.offboard.set_position_ned(pos_ned_yaw))
+            asyncio.run(drone.offboard.set_velocity_ned(vel_ned_yaw))
+
+        except OffboardError as err:
+            print(f"Offboard control error: {err}")
+            # If an error occurs, try to start offboard mode again
+            asyncio.run(drone.offboard.start())
+        
+        # Sleep for the desired update interval
+        time.sleep(local_mavlink_refresh_interval)
  
 
 
+def start_offboard_control():
+    # Create a MAVSDK System instance
+    drone = System()
+
+    # Connect to the drone
+    drone.connect(system_address=f"udp://localhost:{local_mavlink_port}")
+
+    # Wait until the drone is connected
+    asyncio.run(drone.is_connected())
+    print("Drone is connected.")
+
+    # Check if the drone is in air
+    if asyncio.run(drone.telemetry.in_air()):
+        print("Drone is already in air.")
+    else:
+        print("Drone is not in air.")
+
+    # Start a new thread for sending offboard setpoints
+    offboard_thread = threading.Thread(target=send_offboard_setpoints, args=(drone,))
+    offboard_thread.start()
 
 
 
@@ -440,7 +494,8 @@ def mavlink_monitor(mav):
 
         # Update setpoint for following if mission is set to 2
         if drone_config.mission == 2:
-            drone_config.calculate_setpoints()
+            if drone_config.swarm['follow'] != 0:
+                drone_config.calculate_setpoints()
 
         # Sleep for 0.5 second
         time.sleep(local_mavlink_refresh_interval)
@@ -704,6 +759,7 @@ def schedule_mission():
         elif drone_config.mission == 2:  # For smart_swarm
             print("Smart swarm mission should be started")
             # You can add logic here to start the smart swarm mission
+            start_offboard_control()
 
 
 
