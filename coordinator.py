@@ -494,8 +494,7 @@ def mavlink_monitor(mav):
 
         # Update setpoint for following if mission is set to 2
         if drone_config.mission == 2:
-            if drone_config.swarm['follow'] != 0:
-                drone_config.calculate_setpoints()
+            drone_config.calculate_setpoints()
 
         # Sleep for 0.5 second
         time.sleep(local_mavlink_refresh_interval)
