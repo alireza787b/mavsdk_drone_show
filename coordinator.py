@@ -335,7 +335,7 @@ def initialize_mavlink():
             mavlink_source = f"/dev/{serial_mavlink}:{serial_baudrate}"
         else:
             print("Real mode is enabled. Connecting to Pixhawk via UDP...")
-            mavlink_source = f"0.0.0.0:{sitl_port}"
+            mavlink_source = f"127.0.0.1:{sitl_port}"
 
     # Prepare endpoints for mavlink-router
     endpoints = [f"-e {device}" for device in extra_devices]
