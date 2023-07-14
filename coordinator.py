@@ -399,21 +399,20 @@ def mavlink_monitor(mav):
                         'alt': msg.alt / 1E3
                     }
                     print(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
-                    continue
+                else:
+                    # Update position
+                    drone_config.position = {
+                        'lat': msg.lat / 1E7,
+                        'long': msg.lon / 1E7,
+                        'alt': msg.alt / 1E3
+                    }
 
-                # Update position
-                drone_config.position = {
-                    'lat': msg.lat / 1E7,
-                    'long': msg.lon / 1E7,
-                    'alt': msg.alt / 1E3
-                }
-
-                # Update velocity
-                drone_config.velocity = {
-                    'vel_n': msg.vx / 1E2,
-                    'vel_e': msg.vy / 1E2,
-                    'vel_d': msg.vz / 1E2
-                }
+                    # Update velocity
+                    drone_config.velocity = {
+                        'vel_n': msg.vx / 1E2,
+                        'vel_e': msg.vy / 1E2,
+                        'vel_d': msg.vz / 1E2
+                    }
 
             elif msg.get_type() == 'BATTERY_STATUS':
                 # Update battery
@@ -428,6 +427,7 @@ def mavlink_monitor(mav):
 
         # Sleep for 0.5 second
         time.sleep(local_mavlink_refresh_interval)
+
 
 
 
