@@ -269,14 +269,14 @@ class DroneConfig:
             # required, one should use a more advanced method or library that can account for the 
             # curvature of the earth.
 
-            print(f"Position setpoint for drone {self.hw_id}: {self.position_setpoint_LLA}")
+            #print(f"Position setpoint for drone {self.hw_id}: {self.position_setpoint_LLA}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
     def calculate_position_setpoint_NED(self):
         if self.target_drone:
             self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
-            print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
+            #print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -285,7 +285,7 @@ class DroneConfig:
         # velocity setpoints is exactly the same as the target drone velocity
         if self.target_drone:
             self.velocity_setpoint_NED = self.target_drone.velocity
-            print(f"NED Velocity setpoint for drone {self.hw_id}: {self.velocity_setpoint_NED}")
+            #print(f"NED Velocity setpoint for drone {self.hw_id}: {self.velocity_setpoint_NED}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -349,15 +349,15 @@ def start_offboard_mode():
                 break
 
         # Fetching the drone state
-        print("Fetching the drone state...")
-        async for state in drone.telemetry.armed():
-            print(f"Drone armed state: {state}")
-            if state:
-                print("Drone is already armed. Starting offboard mode...")
-                break
-            else:
-                print("Drone is not armed. Cannot start offboard mode.")
-                return
+        # print("Fetching the drone state...")
+        # async for state in drone.telemetry.armed():
+        #     print(f"Drone armed state: {state}")
+        #     if state:
+        #         print("Drone is already armed. Starting offboard mode...")
+        #         break
+        #     else:
+        #         print("Drone is not armed. Cannot start offboard mode.")
+        #         return
 
         # Set initial setpoint to the current position of the drone
         await drone.offboard.set_position_ned(PositionNedYaw(
@@ -366,10 +366,13 @@ def start_offboard_mode():
             drone_config.position['down'], 
             0.0)
         )
-
+        
+        print("initial setpoint")
         # Start offboard mode
         try:
             await drone.offboard.start()
+            print("offboard start")                    
+
         except OffboardError as error:
             print(f"Starting offboard mode failed with error code: {error._result.result}")
             return
@@ -391,7 +394,7 @@ def start_offboard_mode():
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-
+            print("setpoint updated")
             await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
 
     loop = asyncio.get_event_loop()
