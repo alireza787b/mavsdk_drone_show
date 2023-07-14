@@ -361,9 +361,9 @@ def start_offboard_mode():
 
         # Set initial setpoint to the current position of the drone
         await drone.offboard.set_position_ned(PositionNedYaw(
-            drone_config.position['north'], 
-            drone_config.position['east'], 
-            drone_config.position['down'], 
+            drone_config.position_setpoint_NED['north'], 
+            drone_config.position_setpoint_NED['east'], 
+            drone_config.position_setpoint_NED['down'], 
             0.0)
         )
         
