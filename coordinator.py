@@ -335,8 +335,6 @@ def get_NED_position(self):
 
  
 
-
-
 def start_offboard_mode():
     async def start_offboard():
         drone = System(mavsdk_server_address='localhost',port=50051)
@@ -348,16 +346,6 @@ def start_offboard_mode():
                 print(f"Drone discovered")
                 break
 
-        # Fetching the drone state
-        # print("Fetching the drone state...")
-        # async for state in drone.telemetry.armed():
-        #     print(f"Drone armed state: {state}")
-        #     if state:
-        #         print("Drone is already armed. Starting offboard mode...")
-        #         break
-        #     else:
-        #         print("Drone is not armed. Cannot start offboard mode.")
-        #         return
 
         # Set initial setpoint to the current position of the drone
         await drone.offboard.set_position_ned(PositionNedYaw(
@@ -387,18 +375,19 @@ def start_offboard_mode():
             )
 
             vel_ned_yaw = VelocityNedYaw(
-                drone_config.velocity_setpoint_NED['north'],
-                drone_config.velocity_setpoint_NED['east'],
-                drone_config.velocity_setpoint_NED['down'],
+                drone_config.velocity_setpoint_NED['vel_n'],
+                drone_config.velocity_setpoint_NED['vel_e'],
+                drone_config.velocity_setpoint_NED['vel_d'],
                 0.0
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
+            # await drone.offboard.set_position_ned(pos_ned_yaw)
             print("setpoint updated")
             await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(start_offboard())
+    asyncio.run(start_offboard())
+
 
 
 

@@ -6,3 +6,4 @@
 /4.hwID
 /online_config.csv
 __pycache__/
+mavsdk/__pycache__/
