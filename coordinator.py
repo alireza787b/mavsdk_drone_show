@@ -44,7 +44,7 @@ import time
 import threading
 from pymavlink import mavutil
 import logging
-
+import struct
 import csv
 import glob
 import requests
