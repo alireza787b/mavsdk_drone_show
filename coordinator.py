@@ -241,6 +241,7 @@ class DroneConfig:
             self.target_drone = drones[follow_hw_id]
             if self.target_drone:
                 #print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
+                pass
             else:
                 print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
