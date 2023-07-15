@@ -460,13 +460,11 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-# Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
-mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
 # Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
 # messages from the drone, processes these messages, and updates the drone_config object accordingly.
 # When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
-local_drone_controller = LocalMavlinkController(drone_config, mav, local_mavlink_refresh_interval)
+local_drone_controller = LocalMavlinkController(drone_config, local_mavlink_port, local_mavlink_refresh_interval)
 
 
 import struct
