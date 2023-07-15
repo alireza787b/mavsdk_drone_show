@@ -471,7 +471,7 @@ def mavlink_monitor(mav):
                 logging.debug('No message received within timeout')
         except Exception as e:
             logging.error(f"An error occurred while receiving message: {e}")
-        time.sleep(local_mavlink_refresh_interval)  # Sleep for a specified interval
+        #time.sleep(local_mavlink_refresh_interval)  # Sleep for a specified interval
 
 
 def process_message(msg):
