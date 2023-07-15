@@ -797,7 +797,8 @@ def schedule_mission():
         elif drone_config.mission == 2:  # For smart_swarm
             print("Smart swarm mission should be started")
             # You can add logic here to start the smart swarm mission
-            start_offboard_mode()
+            if(int(drone_config.swarm.get('follow')) != 0): 
+                start_offboard_mode()
             
 
 
