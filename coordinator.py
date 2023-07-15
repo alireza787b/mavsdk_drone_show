@@ -240,7 +240,7 @@ class DroneConfig:
         else:
             self.target_drone = drones[follow_hw_id]
             if self.target_drone:
-                print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
+                #print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
             else:
                 print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -388,7 +388,8 @@ def start_offboard_mode():
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-            logging.info(f"Setpoint updated: {pos_ned_yaw}, {vel_ned_yaw}")
+             # find its setpoints
+            logging.info(f"Setpoint sent: {pos_ned_yaw}, {vel_ned_yaw}. following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
             await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
 
     asyncio.run(start_offboard())
