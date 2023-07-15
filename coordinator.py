@@ -39,6 +39,7 @@ import pandas as pd
 import requests
 import urllib3
 import subprocess
+import navpy
 
 import time
 import threading
