@@ -464,7 +464,7 @@ logging.basicConfig(level=logging.INFO)
 def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
         try:
-            msg = mav.recv_match(blocking=True, timeout=5)  # Block until a message is received or timeout after 5 seconds
+            msg = mav.recv_match(blocking=False)  # Block until a message is received or timeout after 5 seconds
             if msg is not None:
                 process_message(msg)
             else:
