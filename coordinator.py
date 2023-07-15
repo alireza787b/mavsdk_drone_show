@@ -95,7 +95,8 @@ broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
 income_packet_check_interval = 0.1
-
+default_GRPC_port = 50051
+offboard_follow_update_interval = 0.5
 
 # Remember to manually change the system ID for each Gazebo instance
 # for each drone SITL instance in different VMware nodes by following these steps:
@@ -342,32 +343,32 @@ def get_NED_position(self):
 
 def start_offboard_mode():
     async def start_offboard():
-        drone = System(mavsdk_server_address='localhost',port=50051)
+        drone = System(mavsdk_server_address='localhost',port=default_GRPC_port)
         await drone.connect()
 
-        print("Waiting for drone to connect...")
+        logging.info("Waiting for drone to connect...")
         async for state in drone.core.connection_state():
             if state.is_connected:
-                print(f"Drone discovered")
+                logging.info("Drone discovered")
                 break
 
-
         # Set initial setpoint to the current position of the drone
-        await drone.offboard.set_position_ned(PositionNedYaw(
+        initial_pos = PositionNedYaw(
             drone_config.position_setpoint_NED['north'], 
             drone_config.position_setpoint_NED['east'], 
             drone_config.position_setpoint_NED['down'], 
             0.0)
-        )
+        await drone.offboard.set_position_ned(initial_pos)
         
-        print("initial setpoint")
+        logging.info(f"Initial setpoint: {initial_pos}")
+        
         # Start offboard mode
         try:
             await drone.offboard.start()
-            print("offboard start")                    
+            logging.info("Offboard start")                    
 
         except OffboardError as error:
-            print(f"Starting offboard mode failed with error code: {error._result.result}")
+            logging.error(f"Starting offboard mode failed with error code: {error._result.result}")
             return
 
         # Continuously set position and velocity setpoints
@@ -387,9 +388,8 @@ def start_offboard_mode():
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-            # await drone.offboard.set_position_ned(pos_ned_yaw)
-            print("setpoint updated")
-            await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
+            logging.info(f"Setpoint updated: {pos_ned_yaw}, {vel_ned_yaw}")
+            await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
 
     asyncio.run(start_offboard())
 
@@ -505,7 +505,7 @@ def mavlink_monitor(mav):
             if drone_config.swarm['follow'] != 0:
                 drone_config.calculate_setpoints()
 
-        # Sleep for 0.5 second
+        # Sleep for 
         time.sleep(local_mavlink_refresh_interval)
 
 
