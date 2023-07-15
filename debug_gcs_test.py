@@ -97,9 +97,13 @@ import os
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
+telem_struct_fmt = '=BHHBBIddddddddBB'
+command_struct_fmt = '=B B B B B I B'
 
-#Telemtetery Packet Size in Bytes
-TELEM_PACKET_SIZE = 77
+telem_packet_size = struct.calcsize(telem_struct_fmt)
+command_packet_size = struct.calcsize(command_struct_fmt)
+
+
 
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
@@ -130,7 +134,7 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, st
     terminator = 66  # Constant
 
     # Encode the data
-    data = struct.pack('=B B B B B I B', header, hw_id, pos_id, mission, state, trigger_time, terminator)
+    data = struct.pack(command_struct_fmt, header, hw_id, pos_id, mission, state, trigger_time, terminator)
 
     # Send the command data
     sock.sendto(data, (coordinator_ip, debug_port))
@@ -161,10 +165,9 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             print("sock is", sock)
             break  # Or re-raise the exception with 'raise'
         # Ensure we received a correctly sized packet
-        if len(data) == TELEM_PACKET_SIZE:
+        if len(data) == telem_packet_size:
             # Decode the data
-            struct_fmt = '=BHHBBIddddddddBB'  # Updated to match the new packet format
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw,battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw,battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
             
             # Check if header and terminator are as expected
             if header == 77 and terminator == 88:
@@ -174,7 +177,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             else:
                 print("Invalid header or terminator received in telemetry data.")
         else:
-            print(f"Received packet of incorrect size. Expected {TELEM_PACKET_SIZE}, got {len(data)}.")
+            print(f"Received packet of incorrect size. Expected {telem_packet_size}, got {len(data)}.")
 
 
 # Drones threads
