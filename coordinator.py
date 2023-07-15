@@ -734,8 +734,9 @@ def read_packets():
         else:
             print(f"Received packet of incorrect size or header.got {len(data)}.")
                 
-
-        time.sleep(income_packet_check_interval)  # check for new packets every second
+        if(drone_config.mission==2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0 ):
+            drone_config.calculate_setpoints()
+        time.sleep(income_packet_check_interval)  # check for new packets every second 
 
         
         
