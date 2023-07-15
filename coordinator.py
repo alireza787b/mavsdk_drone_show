@@ -646,97 +646,68 @@ def send_drone_state():
 
 
 
-def read_packets(verbose=False):
+def read_packets():
     """
     Reads and decodes new packets from the ground station over the debug vector.
+    The packets can be either commands or telemetry data, depending on the header and terminator.
+
+    For commands, the packets include the hardware id (hw_id), position id (pos_id), current state, and trigger time.
+    For telemetry data, the packets include hardware id, position id, current state, trigger time, position, velocity, 
+    battery voltage, and follow mode.
+
+    After receiving a packet, the function checks the header and terminator to determine the type of the packet.
+    Then, it unpacks the packet accordingly and processes the data.
     """
     udp_port = int(drone_config.config['debug_port'])  # UDP port to receive packets
-    sock = create_socket(udp_port)
-    
-    while True:
-        try:
-            process_packets(sock, verbose)
-        except Exception as e:
-            logging.error(f"An error occurred while processing packets: {e}")
-        time.sleep(income_packet_check_interval)  # check for new packets every second
 
-
-def create_socket(udp_port):
-    """
-    Creates and returns a UDP socket bound to the given port.
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock = socket.socket(socket.AF_INET,  # Internet
+                         socket.SOCK_DGRAM)  # UDP
     sock.bind(('0.0.0.0', udp_port))
-    return sock
+    while True:
+        data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
+        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
+
+        # Check if it's a command packet
+        if header == 55 and terminator == 66 and len(data) == command_packet_size:
+            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
+            print("Received command from GCS")
+            #print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
+            drone_config.hw_id = hw_id
+            drone_config.pos_id = pos_id
+            drone_config.mission = mission
+            drone_config.state = state
+            drone_config.trigger_time = trigger_time
+            # Add additional logic here to handle the received command
 
 
-def process_packets(sock, verbose):
-    """
-    Receives and processes a packet from the given socket.
-    """
-    data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-    header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
+        # Check if it's a telemetry packet
+        elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
+            
+            # Decode the data
+            struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            #print(f"Received telemetry from Drone {hw_id}")
+            #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
+            if hw_id not in drones:
+                # Create a new instance for the drone
+                drones[hw_id] = DroneConfig(hw_id)
+        
+            # Update the drone instance with the received telemetry data
+            drones[hw_id].state = state
+            drones[hw_id].mission = mission
+            drones[hw_id].trigger_time = trigger_time
+            drones[hw_id].mission = mission
+            drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
+            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
+            drones[hw_id].battery = battery_voltage
+            drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
+        
+            # Add processing of the received telemetry data here
+        else:
+            print(f"Received packet of incorrect size or header.got {len(data)}.")
+                
 
-    if header == 55 and terminator == 66 and len(data) == command_packet_size:
-        process_command_packet(data, verbose)
-
-    elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-        process_telem_packet(data, verbose)
-    
-    else:
-        logging.warning(f"Received packet of incorrect size or header. Length: {len(data)}.")
-
-
-def process_command_packet(data, verbose):
-    """
-    Processes a command packet.
-    """
-    header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
-    
-    if verbose:
-        logging.info(f"Received command from GCS: hw_id={hw_id}, pos_id={pos_id}, mission={mission}, state={state}, trigger_time={trigger_time}")
-    
-    drone_config.hw_id = hw_id
-    drone_config.pos_id = pos_id
-    drone_config.mission = mission
-    drone_config.state = state
-    drone_config.trigger_time = trigger_time
-    # Add additional logic here to handle the received command
-
-
-def process_telem_packet(data, verbose):
-    """
-    Processes a telemetry packet.
-    """
-    struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
-    unpacked_data = struct.unpack(struct_fmt, data)
-    
-    if verbose:
-        logging.info(f"Received telemetry: {unpacked_data}")
-
-    header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = unpacked_data
-
-    if hw_id not in drones:
-        # Create a new instance for the drone
-        drones[hw_id] = DroneConfig(hw_id)
-
-    # Update the drone instance with the received telemetry data
-    update_drone_instance(drones[hw_id], state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage)
-    
-
-def update_drone_instance(drone, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage):
-    """
-    Updates a drone instance with the given telemetry data.
-    """
-    drone.state = state
-    drone.mission = mission
-    drone.trigger_time = trigger_time
-    drone.mission = mission
-    drone.position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-    drone.velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-    drone.battery = battery_voltage
-    drone.last_update_timestamp = time.time()  # Current timestamp
-    # Add processing of the received telemetry data here
+        time.sleep(income_packet_check_interval)  # check for new packets every second
 
         
         
