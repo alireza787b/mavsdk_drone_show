@@ -89,12 +89,12 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
-
+income_port_check_interval = 0.1
 
 # Remember to manually change the system ID for each Gazebo instance
 # for each drone SITL instance in different VMware nodes by following these steps:
@@ -700,7 +700,7 @@ def read_packets():
             print(f"Received packet of incorrect size or header.got {len(data)}.")
                 
 
-        time.sleep(1)  # check for new packets every second
+        time.sleep(income_port_check_interval)  # check for new packets every second
 
         
         
