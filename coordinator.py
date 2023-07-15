@@ -390,7 +390,7 @@ def start_offboard_mode():
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
              # find its setpoints
-            logging.info(f"Setpoint sent: {pos_ned_yaw}, {vel_ned_yaw}. following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
+            logging.info(f"Setpoint sent | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
             await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
 
     asyncio.run(start_offboard())
