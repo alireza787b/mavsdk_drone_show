@@ -43,6 +43,7 @@ import navpy
 
 import time
 import threading
+from local_mavlink_controller import LocalMavlinkController
 from pymavlink import mavutil
 import logging
 import struct
@@ -71,36 +72,59 @@ run_telemetry_thread.set()
 
 
 
+import struct
+
 # Configuration Variables
+# URLs
 config_url = 'https://alumsharif.org/download/config.csv'  # URL for the configuration file
 swarm_url = 'https://alumsharif.org/download/swarm.csv'  # URL for the swarm file
-sim_mode = False  # Simulation mode switch
-serial_mavlink = False # set true if raspbberry is connected to Pixhawk using serial. otherwise for UDP set it to False
-sleep_interval = 0.1  # Sleep interval for the main loop in seconds
-offline_config = True  # Offline configuration switch
-offline_swarm = True
-default_sitl = True  # If set to True, will use default 14550 port . good for real life and single drone sim. for multple 
-online_sync_time = False #If set to True it will check to sync time from Internet Time Servers
-#drone sim we should set it to False so the sitl_port will be read from config.csv mavlink_port
 
-# Variables to aid in Mavlink connection and telemetry
-serial_mavlink = '/dev/ttyAMA0'  # Default serial for Raspberry Pi Zero
+# Simulation mode switch
+sim_mode = False  # Set to True for simulation mode, False for real-life mode
+
+# Mavlink Connection
+serial_mavlink = False  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
+serial_mavlink_port = '/dev/ttyAMA0'  # Default serial port for Raspberry Pi Zero
 serial_baudrate = 57600  # Default baudrate
 sitl_port = 14550  # Default SITL port
-gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
+gcs_mavlink_port = 14550  # Port to send Mavlink messages to GCS
 mavsdk_port = 14540  # Default MAVSDK port
-local_mavlink_port = 12550
+local_mavlink_port = 12550  # Local Mavlink port
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-TELEM_SEND_INTERVAL = 1 # send telemetry data every TELEM_SEND_INTERVAL seconds
-local_mavlink_refresh_interval = 0.1
-broadcast_mode  = True
-telem_struct_fmt = '=BHHBBIddddddddBB'
-command_struct_fmt = '=B B B B B I B'
 
-telem_packet_size = struct.calcsize(telem_struct_fmt)
-command_packet_size = struct.calcsize(command_struct_fmt)
+# Sleep interval for the main loop in seconds
+sleep_interval = 0.1
+
+# Offline configuration switch
+offline_config = True  # Set to True to use offline configuration
+offline_swarm = True  # Set to True to use offline swarm
+
+# Default SITL port for single drone simulation
+default_sitl = True  # Set to True to use default 14550 port for single drone simulation
+
+# Online time synchronization switch
+online_sync_time = False  # Set to True to sync time from Internet Time Servers
+
+# Telemetry and Communication
+TELEM_SEND_INTERVAL = 1  # Send telemetry data every TELEM_SEND_INTERVAL seconds
+local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
+broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
+
+# Packet formats
+telem_struct_fmt = '=BHHBBIddddddddBB'  # Telemetry packet format
+command_struct_fmt = '=B B B B B I B'  # Command packet format
+
+# Packet sizes
+telem_packet_size = struct.calcsize(telem_struct_fmt)  # Size of telemetry packet
+command_packet_size = struct.calcsize(command_struct_fmt)  # Size of command packet
+
+# Interval for checking incoming packets
 income_packet_check_interval = 0.5
+
+# Default GRPC port
 default_GRPC_port = 50051
+
+# Offboard follow update interval
 offboard_follow_update_interval = 0.2
 
 # Remember to manually change the system ID for each Gazebo instance
@@ -436,134 +460,14 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-# Create a connection to the drone
-#we used pymavlink since another mavsdk instance will run by offboard control and runing several is not reasonable 
+# Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
+# Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
+# messages from the drone, processes these messages, and updates the drone_config object accordingly.
+# When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
+local_drone_controller = LocalMavlinkController(drone_config, mav, local_mavlink_refresh_interval)
 
-
-# Function to monitor telemetry
-def mavlink_monitor(mav):
-    while run_telemetry_thread.is_set():
-        try:
-            msg = mav.recv_match(blocking=False)  # Block until a message is received or timeout after 5 seconds
-            if msg is not None:
-                process_message(msg)
-            else:
-                logging.debug('No message received within timeout')
-        except Exception as e:
-            logging.error(f"An error occurred while receiving message: {e}")
-        #time.sleep(local_mavlink_refresh_interval)  # Sleep for a specified interval
-
-
-def process_message(msg):
-    if msg.get_type() == 'GLOBAL_POSITION_INT':
-        process_global_position_int(msg)
-    elif msg.get_type() == 'HOME_POSITION':
-        process_home_position(msg)
-    elif msg.get_type() == 'BATTERY_STATUS':
-        process_battery_status(msg)
-    elif msg.get_type() == 'ATTITUDE':
-        process_attitude(msg)
-    else:
-        logging.debug(f"Received unhandled message type: {msg.get_type()}")
-
-# processing the ATTITUDE message
-def process_attitude(msg):
-    logging.debug(f"Received ATTITUDE: {msg}")
-    valid_msg = msg.yaw is not None
-    if not valid_msg:
-        logging.error('Received ATTITUDE message with invalid data')
-        return
-
-    # Update yaw
-    drone_config.yaw = drone_config.radian_to_degrees_heading(msg.yaw)
-    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {drone_config.yaw} degrees")
-
-
-def process_home_position(msg):
-    logging.debug(f"Received HOME_POSITION: {msg}")
-    valid_msg = msg.latitude is not None and msg.longitude is not None and msg.altitude is not None
-    if not valid_msg:
-        logging.error('Received HOME_POSITION message with invalid data')
-        return
-
-
-def process_global_position_int(msg):
-    logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
-    valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
-    if not valid_msg:
-        logging.error('Received GLOBAL_POSITION_INT message with invalid data')
-
-    # Update position
-    drone_config.position = {
-        'lat': msg.lat / 1E7,
-        'long': msg.lon / 1E7,
-        'alt': msg.alt / 1E3
-    }
-
-    # Update velocity
-    drone_config.velocity = {
-        'vel_n': msg.vx / 1E2,
-        'vel_e': msg.vy / 1E2,
-        'vel_d': msg.vz / 1E2
-    }
-
-    # If home position is not set yet, use the current position as the home position
-    if drone_config.home_position is None:
-        drone_config.home_position = drone_config.position.copy()
-        logging.info(f"Home position for drone {drone_config.hw_id} is set to current position: {drone_config.home_position}")
-
-    logging.debug(f"Updated position and velocity for drone {drone_config.hw_id}")
-
-
-
-
-def set_home_position(msg):
-    # Update home position
-    drone_config.home_position = {
-        'lat': msg.latitude / 1E7,
-        'long': msg.longitude / 1E7,
-        'alt': msg.altitude / 1E3
-    }
-    logging.info(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
-
-
-def update_drone_position(msg):
-    # Update position
-    drone_config.position = {
-        'lat': msg.lat / 1E7,
-        'long': msg.lon / 1E7,
-        'alt': msg.alt / 1E3
-    }
-
-    # Update velocity
-    drone_config.velocity = {
-        'vel_n': msg.vx / 1E2,
-        'vel_e': msg.vy / 1E2,
-        'vel_d': msg.vz / 1E2
-    }
-    logging.debug(f"Updated position and velocity for drone {drone_config.hw_id}")
-
-
-def process_battery_status(msg):
-    logging.debug(f"Received BATTERY_STATUS: {msg}")
-    valid_msg = msg.voltages and len(msg.voltages) > 0
-    if not valid_msg:
-        logging.error('Received BATTERY_STATUS message with invalid data')
-        return
-
-    # Update battery
-    drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
-    logging.debug(f"Updated battery voltage for drone {drone_config.hw_id}: {drone_config.battery}V")
-
-
-
-
-
-# Start telemetry monitoring
-telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
-telemetry_thread.start()
 
 import struct
 
