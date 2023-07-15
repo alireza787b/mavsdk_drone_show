@@ -89,7 +89,11 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
+<<<<<<< HEAD
 TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
+=======
+TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+>>>>>>> parent of efd1791 (15 July Upgrading samrt swarm)
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
@@ -328,16 +332,12 @@ def get_NED_position(self):
     The function returns a tuple (north, east, down).
 
     Uses navpy library to perform the geographic to Cartesian coordinate conversion.
-    """
-    LLA = self.position
-    lat = LLA['lat']
-    long = LLA['long']
-    alt = LLA['alt']
-    home_lat = self.home_position['lat']
-    home_long = self.home_position['long']
-    home_alt = self.home_position['alt']
 
-    ned = navpy.lla2ned(lat, long, alt, home_lat, home_long, home_alt)
+    Returns:
+        tuple: North, East, and Down position relative to the home position (in meters)
+    """
+
+    # return north, east, down
 
 
  
