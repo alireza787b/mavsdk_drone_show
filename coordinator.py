@@ -477,10 +477,19 @@ def mavlink_monitor(mav):
 def process_message(msg):
     if msg.get_type() == 'GLOBAL_POSITION_INT':
         process_global_position_int(msg)
+    elif msg.get_type() == 'HOME_POSITION':
+        process_home_position(msg)
     elif msg.get_type() == 'BATTERY_STATUS':
         process_battery_status(msg)
     else:
         logging.debug(f"Received unhandled message type: {msg.get_type()}")
+
+def process_home_position(msg):
+    logging.debug(f"Received HOME_POSITION: {msg}")
+    valid_msg = msg.latitude is not None and msg.longitude is not None and msg.altitude is not None
+    if not valid_msg:
+        logging.error('Received HOME_POSITION message with invalid data')
+        return
 
 
 def process_global_position_int(msg):
@@ -498,11 +507,11 @@ def process_global_position_int(msg):
 
 
 def set_home_position(msg):
-    # Update home position with the first received position
+    # Update home position
     drone_config.home_position = {
-        'lat': msg.lat / 1E7,
-        'long': msg.lon / 1E7,
-        'alt': msg.alt / 1E3
+        'lat': msg.latitude / 1E7,
+        'long': msg.longitude / 1E7,
+        'alt': msg.altitude / 1E3
     }
     logging.info(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
 
