@@ -145,6 +145,7 @@ class DroneConfig:
         self.position_setpoint_LLA = {'lat': 0, 'long': 0, 'alt': 0}
         self.position_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
         self.velocity_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
+        self.yaw_setpoint=0
         self.target_drone = None
 
     def get_hw_id(self, hw_id=None):
@@ -231,6 +232,7 @@ class DroneConfig:
             self.calculate_position_setpoint_LLA()
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
+            self.calculate_yaw_setpoint()
             logging.info(f"Setpoint updated | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
 
         elif self.swarm.get('follow') == 0:
@@ -288,6 +290,13 @@ class DroneConfig:
         if self.target_drone:
             self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
             #print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
+        else:
+            print(f"No target drone found for drone with hw_id: {self.hw_id}")
+            
+    def calculate_yaw_setpoint(self):
+        if self.target_drone:
+            self.yaw_setpoint = self.target_drone.yaw
+            #print(f"Yaw setpoint for drone {self.hw_id}: {self.yaw_setpoint}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
