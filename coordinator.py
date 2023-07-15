@@ -89,11 +89,12 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-TELEM_SEND_INTERVAL = 0.2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
+income_packet_check_interval = 0.1
 
 
 # Remember to manually change the system ID for each Gazebo instance
@@ -630,7 +631,7 @@ def send_drone_state():
         send_packet_to_node(packet, udp_ip, udp_port)
 
         #print(f"Sent telemetry data to GCS: {packet}")
-        print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
+        #print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
         #print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, Mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']}, Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         #print(f"Current system time: {current_time}")
@@ -683,7 +684,7 @@ def read_packets():
             # Decode the data
             struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
             header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-            print(f"Received telemetry from Drone {hw_id}")
+            #print(f"Received telemetry from Drone {hw_id}")
             #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
@@ -704,7 +705,7 @@ def read_packets():
             print(f"Received packet of incorrect size or header.got {len(data)}.")
                 
 
-        time.sleep(1)  # check for new packets every second
+        time.sleep(income_packet_check_interval)  # check for new packets every second
 
         
         
