@@ -452,6 +452,10 @@ logging.basicConfig(level=logging.INFO)
 # When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
 local_drone_controller = LocalMavlinkController(drone_config, local_mavlink_port, local_mavlink_refresh_interval)
 
+# Start the CommunicationHandler
+print("Starting CommunicationHandler...")
+communication_handler = CommunicationHandling(drone_config, income_packet_check_interval, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
+
 
 import struct
 
@@ -588,8 +592,6 @@ def send_drone_state():
 
 
 
-communication_handler = CommunicationHandling(drone_config, income_packet_check_interval, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
-
         
 
 
@@ -656,6 +658,7 @@ def schedule_mission():
 
 
 
+# Main function
 def main():
     print("Starting the main function...")
 
@@ -669,15 +672,12 @@ def main():
         mavlink_router_process = initialize_mavlink()
         time.sleep(2)
         
-        # Create a connection to the drone
-        local_drone_controller = LocalMavlinkController(drone_config, local_mavlink_port, local_mavlink_refresh_interval)
-        
-        # Start the CommunicationHandler
-        print("Starting CommunicationHandler...")
-        communication_handler = CommunicationHandling(drone_config, income_packet_check_interval, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
 
         # Enter a loop where the application will continue running
         while True:
+            # Get the drone state
+            #drone_state = get_drone_state()
+
             # Schedule the drone mission if the trigger time has been reached
             schedule_mission()
 
@@ -688,12 +688,9 @@ def main():
         print(f"An error occurred: {e}")
     finally:
         # Close the threads before the application closes
-        print("Closing threads...")
-        del local_drone_controller
-        del communication_handler
+        pass
 
     print("Exiting the application...")
-
 
 if __name__ == "__main__":
     main()
