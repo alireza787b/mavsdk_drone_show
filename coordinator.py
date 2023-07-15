@@ -458,57 +458,85 @@ def stop_mavlink_routing(mavlink_router_process):
 #we used pymavlink since another mavsdk instance will run by offboard control and runing several is not reasonable 
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
 # Function to monitor telemetry
 def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
-        msg = None
-        # Read and discard all messages until there are no more in the buffer
-        while True:
-            new_msg = mav.recv_match(blocking=False)
-            if new_msg is None:
-                break
-            msg = new_msg
+        try:
+            msg = mav.recv_match(blocking=True, timeout=5)  # Block until a message is received or timeout after 5 seconds
+            if msg is not None:
+                process_message(msg)
+            else:
+                logging.debug('No message received within timeout')
+        except Exception as e:
+            logging.error(f"An error occurred while receiving message: {e}")
+        time.sleep(local_mavlink_refresh_interval)  # Sleep for a specified interval
 
-        if msg is not None:
-            if msg.get_type() == 'GLOBAL_POSITION_INT':
-                # Check if home position is set
-                if drone_config.home_position is None:
-                    # Update home position with the first received position
-                    drone_config.home_position = {
-                        'lat': msg.lat / 1E7,
-                        'long': msg.lon / 1E7,
-                        'alt': msg.alt / 1E3
-                    }
-                    print(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
-                else:
-                    # Update position
-                    drone_config.position = {
-                        'lat': msg.lat / 1E7,
-                        'long': msg.lon / 1E7,
-                        'alt': msg.alt / 1E3
-                    }
 
-                    # Update velocity
-                    drone_config.velocity = {
-                        'vel_n': msg.vx / 1E2,
-                        'vel_e': msg.vy / 1E2,
-                        'vel_d': msg.vz / 1E2
-                    }
+def process_message(msg):
+    if msg.get_type() == 'GLOBAL_POSITION_INT':
+        process_global_position_int(msg)
+    elif msg.get_type() == 'BATTERY_STATUS':
+        process_battery_status(msg)
+    else:
+        logging.debug(f"Received unhandled message type: {msg.get_type()}")
 
-            elif msg.get_type() == 'BATTERY_STATUS':
-                # Update battery
-                drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
 
-            # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.datetime.now()
+def process_global_position_int(msg):
+    logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
+    valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
+    if not valid_msg:
+        logging.error('Received GLOBAL_POSITION_INT message with invalid data')
+        return
 
-        # Update setpoint for following if mission is set to 2
-        if drone_config.mission == 2:
-            if int(drone_config.swarm['follow']) != 0:
-                drone_config.calculate_setpoints()
+    # Check if home position is set
+    if drone_config.home_position is None:
+        set_home_position(msg)
+    else:
+        update_drone_position(msg)
 
-        # Sleep for 
-        time.sleep(local_mavlink_refresh_interval)
+
+def set_home_position(msg):
+    # Update home position with the first received position
+    drone_config.home_position = {
+        'lat': msg.lat / 1E7,
+        'long': msg.lon / 1E7,
+        'alt': msg.alt / 1E3
+    }
+    logging.info(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
+
+
+def update_drone_position(msg):
+    # Update position
+    drone_config.position = {
+        'lat': msg.lat / 1E7,
+        'long': msg.lon / 1E7,
+        'alt': msg.alt / 1E3
+    }
+
+    # Update velocity
+    drone_config.velocity = {
+        'vel_n': msg.vx / 1E2,
+        'vel_e': msg.vy / 1E2,
+        'vel_d': msg.vz / 1E2
+    }
+    logging.debug(f"Updated position and velocity for drone {drone_config.hw_id}")
+
+
+def process_battery_status(msg):
+    logging.debug(f"Received BATTERY_STATUS: {msg}")
+    valid_msg = msg.voltages and len(msg.voltages) > 0
+    if not valid_msg:
+        logging.error('Received BATTERY_STATUS message with invalid data')
+        return
+
+    # Update battery
+    drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
+    logging.debug(f"Updated battery voltage for drone {drone_config.hw_id}: {drone_config.battery}V")
+
 
 
 
