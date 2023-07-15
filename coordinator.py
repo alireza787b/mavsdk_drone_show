@@ -656,7 +656,6 @@ def schedule_mission():
 
 
 
-# Main function
 def main():
     print("Starting the main function...")
 
@@ -669,21 +668,16 @@ def main():
         print("Initializing MAVLink...")
         mavlink_router_process = initialize_mavlink()
         time.sleep(2)
-        # Start the telemetry thread
-        print("Starting telemetry thread...")
-        telemetry_thread = threading.Thread(target=send_drone_state)
-        telemetry_thread.start()
-
-        # Start the command reading thread
-        print("Starting command reading thread...")
-        command_thread = threading.Thread(target=read_packets)
-        command_thread.start()
+        
+        # Create a connection to the drone
+        local_drone_controller = LocalMavlinkController(drone_config, local_mavlink_port, local_mavlink_refresh_interval)
+        
+        # Start the CommunicationHandler
+        print("Starting CommunicationHandler...")
+        communication_handler = CommunicationHandling(drone_config, income_packet_check_interval, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
 
         # Enter a loop where the application will continue running
         while True:
-            # Get the drone state
-            #drone_state = get_drone_state()
-
             # Schedule the drone mission if the trigger time has been reached
             schedule_mission()
 
@@ -695,10 +689,11 @@ def main():
     finally:
         # Close the threads before the application closes
         print("Closing threads...")
-        telemetry_thread.join()
-        command_thread.join()
+        del local_drone_controller
+        del communication_handler
 
     print("Exiting the application...")
+
 
 if __name__ == "__main__":
     main()
