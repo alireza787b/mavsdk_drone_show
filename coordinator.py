@@ -133,6 +133,7 @@ class DroneConfig:
         self.trigger_time = 0
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
+        self.yaw = 0
         self.battery = 0
         self.last_update_timestamp = 0
         self.home_position = None
@@ -356,7 +357,7 @@ def start_offboard_mode():
             drone_config.position_setpoint_NED['north'], 
             drone_config.position_setpoint_NED['east'], 
             drone_config.position_setpoint_NED['down'], 
-            0.0)
+            drone_config.yaw)
         await drone.offboard.set_position_ned(initial_pos)
         
         logging.info(f"Initial setpoint: {initial_pos}")
@@ -376,14 +377,14 @@ def start_offboard_mode():
                 drone_config.position_setpoint_NED['north'],
                 drone_config.position_setpoint_NED['east'],
                 drone_config.position_setpoint_NED['down'],
-                0.0
+                drone_config.target_drone.yaw
             )
 
             vel_ned_yaw = VelocityNedYaw(
                 drone_config.velocity_setpoint_NED['vel_n'],
                 drone_config.velocity_setpoint_NED['vel_e'],
                 drone_config.velocity_setpoint_NED['vel_d'],
-                0.0
+                drone_config.target_drone.yaw
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
@@ -481,8 +482,21 @@ def process_message(msg):
         process_home_position(msg)
     elif msg.get_type() == 'BATTERY_STATUS':
         process_battery_status(msg)
+    elif msg.get_type() == 'ATTITUDE':
+        process_attitude(msg)
     else:
         logging.debug(f"Received unhandled message type: {msg.get_type()}")
+
+# processing the ATTITUDE message
+def process_attitude(msg):
+    logging.debug(f"Received ATTITUDE: {msg}")
+    valid_msg = msg.yaw is not None
+    if not valid_msg:
+        logging.error('Received ATTITUDE message with invalid data')
+        return
+    # Update yaw
+    drone_config.yaw = msg.yaw
+    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {drone_config.yaw} rad")
 
 def process_home_position(msg):
     logging.debug(f"Received HOME_POSITION: {msg}")
@@ -497,7 +511,6 @@ def process_global_position_int(msg):
     valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
     if not valid_msg:
         logging.error('Received GLOBAL_POSITION_INT message with invalid data')
-        return
 
     # Update position
     drone_config.position = {
@@ -611,6 +624,7 @@ def get_drone_state():
     "velocity_north": drone_config.velocity['vel_n'],
     "velocity_east": drone_config.velocity['vel_e'],
     "velocity_down": drone_config.velocity['vel_d'],
+    "yaw": drone_config.yaw,
     "battery_voltage": drone_config.battery,
     "follow_mode": int(drone_config.swarm['follow'])
 }
@@ -636,6 +650,7 @@ def send_drone_state():
     - Trigger Time (uint32)
     - Latitude, Longitude, Altitude (double)
     - North, East, Down velocities (double)
+    - yaw (double)
     - Battery Voltage (double)
     - Follow Mode (uint8)
     - End of packet (uint8)
@@ -647,7 +662,7 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = '=BHHBBIdddddddBB'  # update this to match your data types
+        struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
@@ -667,6 +682,7 @@ def send_drone_state():
                              drone_state['velocity_north'],
                              drone_state['velocity_east'],
                              drone_state['velocity_down'],
+                             drone_state['yaw'],
                              drone_state['battery_voltage'],
                              drone_state['follow_mode'],
                              88)  # end of packet
@@ -736,8 +752,8 @@ def read_packets():
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
             
             # Decode the data
-            struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            struct_fmt = '=BHHBBIddddddddBB'  # Updated to match the new packet format
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw , battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
             print(f"Received telemetry from Drone {hw_id}")
             #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
@@ -751,6 +767,7 @@ def read_packets():
             drones[hw_id].mission = mission
             drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
+            drones[hw_id].yaw = yaw
             drones[hw_id].battery = battery_voltage
             drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
         
