@@ -96,7 +96,7 @@ telem_packet_size = 69
 command_packet_size = 10
 income_packet_check_interval = 0.1
 default_GRPC_port = 50051
-offboard_follow_update_interval = 0.5
+offboard_follow_update_interval = 0.2
 
 # Remember to manually change the system ID for each Gazebo instance
 # for each drone SITL instance in different VMware nodes by following these steps:
