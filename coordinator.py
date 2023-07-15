@@ -499,11 +499,28 @@ def process_global_position_int(msg):
         logging.error('Received GLOBAL_POSITION_INT message with invalid data')
         return
 
-    # Check if home position is set
+    # Update position
+    drone_config.position = {
+        'lat': msg.lat / 1E7,
+        'long': msg.lon / 1E7,
+        'alt': msg.alt / 1E3
+    }
+
+    # Update velocity
+    drone_config.velocity = {
+        'vel_n': msg.vx / 1E2,
+        'vel_e': msg.vy / 1E2,
+        'vel_d': msg.vz / 1E2
+    }
+
+    # If home position is not set yet, use the current position as the home position
     if drone_config.home_position is None:
-        set_home_position(msg)
-    else:
-        update_drone_position(msg)
+        drone_config.home_position = drone_config.position.copy()
+        logging.info(f"Home position for drone {drone_config.hw_id} is set to current position: {drone_config.home_position}")
+
+    logging.debug(f"Updated position and velocity for drone {drone_config.hw_id}")
+
+
 
 
 def set_home_position(msg):
