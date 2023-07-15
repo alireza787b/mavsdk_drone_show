@@ -94,7 +94,7 @@ local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
-income_packet_check_interval = 0.1
+income_packet_check_interval = 0.5
 default_GRPC_port = 50051
 offboard_follow_update_interval = 0.2
 
@@ -225,6 +225,7 @@ class DroneConfig:
             self.calculate_position_setpoint_LLA()
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
+            print("setpont updated")
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
         else:
@@ -386,7 +387,7 @@ def start_offboard_mode():
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
              # find its setpoints
-            #logging.info(f"Setpoint sent: {pos_ned_yaw}, {vel_ned_yaw}. following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
+            logging.info(f"Setpoint sent: {pos_ned_yaw}, {vel_ned_yaw}. following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
             await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
 
     asyncio.run(start_offboard())
@@ -710,7 +711,7 @@ def read_packets():
             # Decode the data
             struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
             header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-            #print(f"Received telemetry from Drone {hw_id}")
+            print(f"Received telemetry from Drone {hw_id}")
             #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
