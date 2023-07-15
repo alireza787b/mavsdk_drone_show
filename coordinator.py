@@ -92,8 +92,11 @@ extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP
 TELEM_SEND_INTERVAL = 1 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
-telem_packet_size = 77
-command_packet_size = 10
+telem_struct_fmt = '=BHHBBIddddddddBB'
+command_struct_fmt = '=B B B B B I B'
+
+telem_packet_size = struct.calcsize(telem_struct_fmt)
+command_packet_size = struct.calcsize(command_struct_fmt)
 income_packet_check_interval = 0.5
 default_GRPC_port = 50051
 offboard_follow_update_interval = 0.2
@@ -676,14 +679,14 @@ def send_drone_state():
         drone_state = get_drone_state()
 
         # Create a struct format string based on the data types
-        struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
+        telem_struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
         # H is for uint16
         # B is for uint8
         # I is for uint32
         # d is for double (float64)
         # Pack the telemetry data into a binary packet
         #print(drone_state)
-        packet = struct.pack(struct_fmt,
+        packet = struct.pack(telem_struct_fmt,
                              77,  # start of packet
                              drone_state['hw_id'],
                              drone_state['pos_id'],
@@ -751,7 +754,7 @@ def read_packets():
 
         # Check if it's a command packet
         if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack('=B B B B B I B', data)
+            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack(command_struct_fmt, data)
             print("Received command from GCS")
             #print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
             drone_config.hw_id = hw_id
@@ -766,8 +769,7 @@ def read_packets():
         elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
             
             # Decode the data
-            struct_fmt = '=BHHBBIddddddddBB'  # Updated to match the new packet format
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw , battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw , battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
             print(f"Received telemetry from Drone {hw_id}")
             #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
