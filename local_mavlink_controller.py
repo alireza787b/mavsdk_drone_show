@@ -1,5 +1,6 @@
 import threading
 import logging
+from pymavlink import mavutil
 
 class LocalMavlinkController:
     """

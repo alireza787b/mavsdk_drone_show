@@ -44,7 +44,6 @@ import navpy
 import time
 import threading
 from local_mavlink_controller import LocalMavlinkController
-from pymavlink import mavutil
 import logging
 import struct
 import csv
