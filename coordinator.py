@@ -486,7 +486,7 @@ def process_message(msg):
 
 def process_home_position(msg):
     logging.debug(f"Received HOME_POSITION: {msg}")
-    valid_msg = msg.lat is not None and msg.lo is not None and msg.alt is not None
+    valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
     if not valid_msg:
         logging.error('Received HOME_POSITION message with invalid data')
         return
