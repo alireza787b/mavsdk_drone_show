@@ -497,7 +497,7 @@ def process_attitude(msg):
 
     # Update yaw
     drone_config.yaw = msg.yaw
-    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {radian_to_degrees_heading(yaw)} degrees")
+    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {radian_to_degrees_heading(drone_config.yaw)} degrees")
 
 
 def process_home_position(msg):
