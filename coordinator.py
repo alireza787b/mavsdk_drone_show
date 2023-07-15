@@ -494,9 +494,11 @@ def process_attitude(msg):
     if not valid_msg:
         logging.error('Received ATTITUDE message with invalid data')
         return
+
     # Update yaw
     drone_config.yaw = msg.yaw
-    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {drone_config.yaw} rad")
+    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {radian_to_degrees_heading(yaw)} degrees")
+
 
 def process_home_position(msg):
     logging.debug(f"Received HOME_POSITION: {msg}")
@@ -583,6 +585,18 @@ telemetry_thread = threading.Thread(target=mavlink_monitor, args=(mav,))
 telemetry_thread.start()
 
 import struct
+
+import math
+
+def radian_to_degrees_heading(yaw_radians):
+    # Convert the yaw angle to degrees
+    yaw_degrees = math.degrees(yaw_radians)
+
+    # Normalize to a heading (0-360 degrees)
+    if yaw_degrees < 0:
+        yaw_degrees += 360
+
+    return yaw_degrees
 
 
 def send_packet_to_node(packet, ip, port):
