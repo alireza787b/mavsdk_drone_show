@@ -51,6 +51,7 @@ import requests
 from geographiclib.geodesic import Geodesic
 from mavsdk import System
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+from offboard_controller import OffboardController
 
 
 
@@ -325,77 +326,31 @@ class DroneConfig:
 # Initialize DroneConfig
 drone_config = DroneConfig()
 
-import navpy
 
-def get_NED_position(self):
-    """
-    Calculates the North-East-Down (NED) position from the current latitude, longitude, and altitude.
-    The position is relative to the home position (launch point), which is defined in the config.
-    The function returns a tuple (north, east, down).
-
-    Uses navpy library to perform the geographic to Cartesian coordinate conversion.
-
-    Returns:
-        tuple: North, East, and Down position relative to the home position (in meters)
-    """
-
-    # return north, east, down
 
 
  
 
 def start_offboard_mode():
-    async def start_offboard():
-        drone = System(mavsdk_server_address='localhost',port=default_GRPC_port)
-        await drone.connect()
+    """
+    This function initializes the OffboardController class and executes the necessary functions to establish
+    a connection with the drone, set the initial position, start offboard mode, and maintain position and velocity.
+    """
+    
+    # Instantiate the OffboardController class with the provided drone configuration
+    controller = OffboardController(drone_config)
 
-        logging.info("Waiting for drone to connect...")
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                logging.info("Drone discovered")
-                break
-
-        # Set initial setpoint to the current position of the drone
-        initial_pos = PositionNedYaw(
-            drone_config.position_setpoint_NED['north'], 
-            drone_config.position_setpoint_NED['east'], 
-            drone_config.position_setpoint_NED['down'], 
-            drone_config.yaw)
-        await drone.offboard.set_position_ned(initial_pos)
-        
-        logging.info(f"Initial setpoint: {initial_pos}")
-        
-        # Start offboard mode
-        try:
-            await drone.offboard.start()
-            logging.info("Offboard start")                    
-
-        except OffboardError as error:
-            logging.error(f"Starting offboard mode failed with error code: {error._result.result}")
-            return
-
-        # Continuously set position and velocity setpoints
-        while True:
-            pos_ned_yaw = PositionNedYaw(
-                drone_config.position_setpoint_NED['north'],
-                drone_config.position_setpoint_NED['east'],
-                drone_config.position_setpoint_NED['down'],
-                drone_config.target_drone.yaw
-            )
-
-            vel_ned_yaw = VelocityNedYaw(
-                drone_config.velocity_setpoint_NED['vel_n'],
-                drone_config.velocity_setpoint_NED['vel_e'],
-                drone_config.velocity_setpoint_NED['vel_d'],
-                drone_config.target_drone.yaw
-            )
-
-            await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-             # find its setpoints
-            logging.info(f"Setpoint sent | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
-            await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
-
-    asyncio.run(start_offboard())
+    # Establish a connection with the drone
+    asyncio.run(controller.connect())
+    
+    # Set the initial position of the drone
+    asyncio.run(controller.set_initial_position())
+    
+    # Start offboard mode on the drone
+    asyncio.run(controller.start_offboard())
+    
+    # Continuously maintain the drone's position and velocity
+    asyncio.run(controller.maintain_position_velocity())
 
 
 
@@ -454,15 +409,15 @@ def stop_mavlink_routing(mavlink_router_process):
     else:
         print("MAVLink routing is not running.")
 
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 # Create a connection to the drone
 #we used pymavlink since another mavsdk instance will run by offboard control and runing several is not reasonable 
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
-import logging
 
-logging.basicConfig(level=logging.INFO)
 
 # Function to monitor telemetry
 def mavlink_monitor(mav):
