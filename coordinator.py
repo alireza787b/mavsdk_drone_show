@@ -89,12 +89,14 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
+TELEM_SEND_INTERVAL = 1 # send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
-income_port_check_interval = 0.2
+income_packet_check_interval = 0.1
+default_GRPC_port = 50051
+offboard_follow_update_interval = 0.2
 
 # Remember to manually change the system ID for each Gazebo instance
 # for each drone SITL instance in different VMware nodes by following these steps:
@@ -239,6 +241,7 @@ class DroneConfig:
             self.target_drone = drones[follow_hw_id]
             if self.target_drone:
                 print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
+                pass
             else:
                 print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -337,32 +340,32 @@ def get_NED_position(self):
 
 def start_offboard_mode():
     async def start_offboard():
-        drone = System(mavsdk_server_address='localhost',port=50051)
+        drone = System(mavsdk_server_address='localhost',port=default_GRPC_port)
         await drone.connect()
 
-        print("Waiting for drone to connect...")
+        logging.info("Waiting for drone to connect...")
         async for state in drone.core.connection_state():
             if state.is_connected:
-                print(f"Drone discovered")
+                logging.info("Drone discovered")
                 break
 
-
         # Set initial setpoint to the current position of the drone
-        await drone.offboard.set_position_ned(PositionNedYaw(
+        initial_pos = PositionNedYaw(
             drone_config.position_setpoint_NED['north'], 
             drone_config.position_setpoint_NED['east'], 
             drone_config.position_setpoint_NED['down'], 
             0.0)
-        )
+        await drone.offboard.set_position_ned(initial_pos)
         
-        print("initial setpoint")
+        logging.info(f"Initial setpoint: {initial_pos}")
+        
         # Start offboard mode
         try:
             await drone.offboard.start()
-            print("offboard start")                    
+            logging.info("Offboard start")                    
 
         except OffboardError as error:
-            print(f"Starting offboard mode failed with error code: {error._result.result}")
+            logging.error(f"Starting offboard mode failed with error code: {error._result.result}")
             return
 
         # Continuously set position and velocity setpoints
@@ -382,9 +385,9 @@ def start_offboard_mode():
             )
 
             await drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-            # await drone.offboard.set_position_ned(pos_ned_yaw)
-            print("setpoint updated")
-            await asyncio.sleep(0.2)  # send setpoints every 200ms (5Hz)
+             # find its setpoints
+            #logging.info(f"Setpoint sent: {pos_ned_yaw}, {vel_ned_yaw}. following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
+            await asyncio.sleep(offboard_follow_update_interval)  # send setpoints every 200ms (5Hz)
 
     asyncio.run(start_offboard())
 
@@ -451,57 +454,85 @@ def stop_mavlink_routing(mavlink_router_process):
 #we used pymavlink since another mavsdk instance will run by offboard control and runing several is not reasonable 
 mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
 # Function to monitor telemetry
 def mavlink_monitor(mav):
     while run_telemetry_thread.is_set():
-        msg = None
-        # Read and discard all messages until there are no more in the buffer
-        while True:
-            new_msg = mav.recv_match(blocking=False)
-            if new_msg is None:
-                break
-            msg = new_msg
+        try:
+            msg = mav.recv_match(blocking=True, timeout=5)  # Block until a message is received or timeout after 5 seconds
+            if msg is not None:
+                process_message(msg)
+            else:
+                logging.debug('No message received within timeout')
+        except Exception as e:
+            logging.error(f"An error occurred while receiving message: {e}")
+        time.sleep(local_mavlink_refresh_interval)  # Sleep for a specified interval
 
-        if msg is not None:
-            if msg.get_type() == 'GLOBAL_POSITION_INT':
-                # Check if home position is set
-                if drone_config.home_position is None:
-                    # Update home position with the first received position
-                    drone_config.home_position = {
-                        'lat': msg.lat / 1E7,
-                        'long': msg.lon / 1E7,
-                        'alt': msg.alt / 1E3
-                    }
-                    print(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
-                else:
-                    # Update position
-                    drone_config.position = {
-                        'lat': msg.lat / 1E7,
-                        'long': msg.lon / 1E7,
-                        'alt': msg.alt / 1E3
-                    }
 
-                    # Update velocity
-                    drone_config.velocity = {
-                        'vel_n': msg.vx / 1E2,
-                        'vel_e': msg.vy / 1E2,
-                        'vel_d': msg.vz / 1E2
-                    }
+def process_message(msg):
+    if msg.get_type() == 'GLOBAL_POSITION_INT':
+        process_global_position_int(msg)
+    elif msg.get_type() == 'BATTERY_STATUS':
+        process_battery_status(msg)
+    else:
+        logging.debug(f"Received unhandled message type: {msg.get_type()}")
 
-            elif msg.get_type() == 'BATTERY_STATUS':
-                # Update battery
-                drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
 
-            # Update the timestamp after each update
-            drone_config.last_update_timestamp = datetime.datetime.now()
+def process_global_position_int(msg):
+    logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
+    valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
+    if not valid_msg:
+        logging.error('Received GLOBAL_POSITION_INT message with invalid data')
+        return
 
-        # Update setpoint for following if mission is set to 2
-        if drone_config.mission == 2:
-            if drone_config.swarm['follow'] != 0:
-                drone_config.calculate_setpoints()
+    # Check if home position is set
+    if drone_config.home_position is None:
+        set_home_position(msg)
+    else:
+        update_drone_position(msg)
 
-        # Sleep for 0.5 second
-        time.sleep(local_mavlink_refresh_interval)
+
+def set_home_position(msg):
+    # Update home position with the first received position
+    drone_config.home_position = {
+        'lat': msg.lat / 1E7,
+        'long': msg.lon / 1E7,
+        'alt': msg.alt / 1E3
+    }
+    logging.info(f"Home position for drone {drone_config.hw_id} is set: {drone_config.home_position}")
+
+
+def update_drone_position(msg):
+    # Update position
+    drone_config.position = {
+        'lat': msg.lat / 1E7,
+        'long': msg.lon / 1E7,
+        'alt': msg.alt / 1E3
+    }
+
+    # Update velocity
+    drone_config.velocity = {
+        'vel_n': msg.vx / 1E2,
+        'vel_e': msg.vy / 1E2,
+        'vel_d': msg.vz / 1E2
+    }
+    logging.debug(f"Updated position and velocity for drone {drone_config.hw_id}")
+
+
+def process_battery_status(msg):
+    logging.debug(f"Received BATTERY_STATUS: {msg}")
+    valid_msg = msg.voltages and len(msg.voltages) > 0
+    if not valid_msg:
+        logging.error('Received BATTERY_STATUS message with invalid data')
+        return
+
+    # Update battery
+    drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
+    logging.debug(f"Updated battery voltage for drone {drone_config.hw_id}: {drone_config.battery}V")
+
 
 
 
@@ -626,7 +657,7 @@ def send_drone_state():
         send_packet_to_node(packet, udp_ip, udp_port)
 
         #print(f"Sent telemetry data to GCS: {packet}")
-        print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
+        #print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
         #print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, Mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']}, Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
         current_time = int(time.time())
         #print(f"Current system time: {current_time}")
@@ -679,7 +710,7 @@ def read_packets():
             # Decode the data
             struct_fmt = '=BHHBBIdddddddBB'  # Updated to match the new packet format
             header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, battery_voltage, follow_mode, terminator = struct.unpack(struct_fmt, data)
-            print(f"Received telemetry from Drone {hw_id}")
+            #print(f"Received telemetry from Drone {hw_id}")
             #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
@@ -699,8 +730,9 @@ def read_packets():
         else:
             print(f"Received packet of incorrect size or header.got {len(data)}.")
                 
-
-        time.sleep(income_port_check_interval)  # check for new packets every second
+        if(drone_config.mission==2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0 ):
+            drone_config.calculate_setpoints()
+        time.sleep(income_packet_check_interval)  # check for new packets every second 
 
         
         
@@ -762,7 +794,8 @@ def schedule_mission():
         elif drone_config.mission == 2:  # For smart_swarm
             print("Smart swarm mission should be started")
             # You can add logic here to start the smart swarm mission
-            start_offboard_mode()
+            if(int(drone_config.swarm.get('follow')) != 0): 
+                start_offboard_mode()
             
 
 
