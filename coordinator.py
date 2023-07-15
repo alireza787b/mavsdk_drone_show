@@ -332,7 +332,7 @@ drone_config = DroneConfig()
 
  
 
-def start_offboard_mode():
+async def start_offboard_mode():
     """
     This function initializes the OffboardController class and executes the necessary functions to establish
     a connection with the drone, set the initial position, start offboard mode, and maintain position and velocity.
@@ -342,16 +342,20 @@ def start_offboard_mode():
     controller = OffboardController(drone_config)
 
     # Establish a connection with the drone
-    asyncio.run(controller.connect())
+    await controller.connect()
     
     # Set the initial position of the drone
-    asyncio.run(controller.set_initial_position())
+    await controller.set_initial_position()
     
     # Start offboard mode on the drone
-    asyncio.run(controller.start_offboard())
+    await controller.start_offboard()
     
     # Continuously maintain the drone's position and velocity
-    asyncio.run(controller.maintain_position_velocity())
+    await controller.maintain_position_velocity()
+
+
+# Run the async function
+asyncio.run(start_offboard_mode())
 
 
 
