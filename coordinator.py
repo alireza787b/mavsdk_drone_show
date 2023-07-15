@@ -89,15 +89,8 @@ gcs_mavlink_port = 14550 #if send on 14550 to GCS, QGC will auto connect
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
-<<<<<<< HEAD
-<<<<<<< HEAD
 TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
-=======
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
->>>>>>> parent of efd1791 (15 July Upgrading samrt swarm)
-=======
-TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
->>>>>>> parent of efd1791 (15 July Upgrading samrt swarm)
 local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
