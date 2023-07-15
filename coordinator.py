@@ -94,7 +94,7 @@ local_mavlink_refresh_interval = 0.1
 broadcast_mode  = True
 telem_packet_size = 69
 command_packet_size = 10
-income_port_check_interval = 0.1
+income_port_check_interval = 0.2
 
 # Remember to manually change the system ID for each Gazebo instance
 # for each drone SITL instance in different VMware nodes by following these steps:
