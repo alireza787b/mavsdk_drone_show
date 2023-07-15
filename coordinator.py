@@ -354,8 +354,7 @@ async def start_offboard_mode():
     await controller.maintain_position_velocity()
 
 
-# Run the async function
-asyncio.run(start_offboard_mode())
+
 
 
 
@@ -816,7 +815,8 @@ def schedule_mission():
             print("Smart swarm mission should be started")
             # You can add logic here to start the smart swarm mission
             if(int(drone_config.swarm.get('follow')) != 0): 
-                start_offboard_mode()
+                # Run the async function
+                asyncio.run(start_offboard_mode())
             
 
 
