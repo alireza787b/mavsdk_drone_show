@@ -90,7 +90,11 @@ mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
 <<<<<<< HEAD
+<<<<<<< HEAD
 TELEM_SEND_INTERVAL = 0.5 # send telemetry data every TELEM_SEND_INTERVAL seconds
+=======
+TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
+>>>>>>> parent of efd1791 (15 July Upgrading samrt swarm)
 =======
 TELEM_SEND_INTERVAL = 2 # send telemetry data every TELEM_SEND_INTERVAL seconds
 >>>>>>> parent of efd1791 (15 July Upgrading samrt swarm)
