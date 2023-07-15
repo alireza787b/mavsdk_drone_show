@@ -43,6 +43,7 @@ import navpy
 
 import time
 import threading
+from commuincation_handling import CommunicationHandling
 from local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
@@ -126,20 +127,6 @@ default_GRPC_port = 50051
 # Offboard follow update interval
 offboard_follow_update_interval = 0.2
 
-# Remember to manually change the system ID for each Gazebo instance
-# for each drone SITL instance in different VMware nodes by following these steps:
-#
-# 1. Navigate to the PX4-Autopilot repository on your local machine.
-# 2. Locate the configuration file for the SITL instance you are using.
-#    This file is typically located in the `ROMFS/px4fmu_common/init.d-posix` directory.
-# 3. Open the configuration file `10016_iris` in a text editor.
-# 4. Look for the line that sets the SYSID_THISMAV parameter. It should look like this:
-#      param set SYSID_THISMAV 1
-# 5. Change the value `1` to the desired system ID for your drone instance.
-# 6. Save the configuration file and close the text editor.
-# 7. Run `make px4_sitl gazebo` again. The drone instance should now have the new system ID you assigned.
-#
-# Note: Ensure that the system ID is unique for each drone instance if you are running multiple instances simultaneously.
 
 
 # Initialize an empty dictionary to store drones  a dict
@@ -601,72 +588,8 @@ def send_drone_state():
 
 
 
+communication_handler = CommunicationHandling(drone_config, income_packet_check_interval, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
 
-def read_packets():
-    """
-    Reads and decodes new packets from the ground station over the debug vector.
-    The packets can be either commands or telemetry data, depending on the header and terminator.
-
-    For commands, the packets include the hardware id (hw_id), position id (pos_id), current state, and trigger time.
-    For telemetry data, the packets include hardware id, position id, current state, trigger time, position, velocity, 
-    battery voltage, and follow mode.
-
-    After receiving a packet, the function checks the header and terminator to determine the type of the packet.
-    Then, it unpacks the packet accordingly and processes the data.
-    """
-    udp_port = int(drone_config.config['debug_port'])  # UDP port to receive packets
-
-    sock = socket.socket(socket.AF_INET,  # Internet
-                         socket.SOCK_DGRAM)  # UDP
-    sock.bind(('0.0.0.0', udp_port))
-    while True:
-        data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
-
-        # Check if it's a command packet
-        if header == 55 and terminator == 66 and len(data) == command_packet_size:
-            header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack(command_struct_fmt, data)
-            print("Received command from GCS")
-            #print(f"Values: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
-            drone_config.hw_id = hw_id
-            drone_config.pos_id = pos_id
-            drone_config.mission = mission
-            drone_config.state = state
-            drone_config.trigger_time = trigger_time
-            # Add additional logic here to handle the received command
-
-
-        # Check if it's a telemetry packet
-        elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
-            
-            # Decode the data
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw , battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
-            print(f"Received telemetry from Drone {hw_id}")
-            #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down},yaw={yaw} Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
-            if hw_id not in drones:
-                # Create a new instance for the drone
-                drones[hw_id] = DroneConfig(hw_id)
-        
-            # Update the drone instance with the received telemetry data
-            drones[hw_id].state = state
-            drones[hw_id].mission = mission
-            drones[hw_id].trigger_time = trigger_time
-            drones[hw_id].mission = mission
-            drones[hw_id].position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-            drones[hw_id].velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-            drones[hw_id].yaw = yaw
-            drones[hw_id].battery = battery_voltage
-            drones[hw_id].last_update_timestamp = time.time()  # Current timestamp
-        
-            # Add processing of the received telemetry data here
-        else:
-            print(f"Received packet of incorrect size or header.got {len(data)}.")
-                
-        if(drone_config.mission==2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0 ):
-            drone_config.calculate_setpoints()
-        time.sleep(income_packet_check_interval)  # check for new packets every second 
-
-        
         
 
 

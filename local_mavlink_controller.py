@@ -69,14 +69,21 @@ class LocalMavlinkController:
         if not valid_msg:
             logging.error('Received HOME_POSITION message with invalid data')
             return
-
+        
         # Update home position
         self.drone_config.home_position = {
             'lat': msg.latitude / 1E7,
             'long': msg.longitude / 1E7,
             'alt': msg.altitude / 1E3
         }
-        logging.info(f"Home position for drone {self.drone_config.hw_id} is set: {self.drone_config.home_position}")
+
+        # Check if the home position has been logged before
+        if not self.home_position_logged:
+            logging.info(f"Home position for drone {self.drone_config.hw_id} is set: {self.drone_config.home_position}")
+            # Set the flag to True to indicate that the home position has been logged
+            self.home_position_logged = True
+        else:
+            logging.debug(f"Home position for drone {self.drone_config.hw_id} is updated: {self.drone_config.home_position}")
 
     def process_global_position_int(self, msg):
         logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
