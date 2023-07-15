@@ -330,6 +330,16 @@ class DroneConfig:
         else:
             print("Home position is not set")
             return None
+        
+    def radian_to_degrees_heading(self,yaw_radians):
+        # Convert the yaw angle to degrees
+        yaw_degrees = math.degrees(yaw_radians)
+
+        # Normalize to a heading (0-360 degrees)
+        if yaw_degrees < 0:
+            yaw_degrees += 360
+
+        return yaw_degrees
 
 
 
@@ -467,8 +477,8 @@ def process_attitude(msg):
         return
 
     # Update yaw
-    drone_config.yaw = msg.yaw
-    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {radian_to_degrees_heading(drone_config.yaw)} degrees")
+    drone_config.yaw = drone_config.radian_to_degrees_heading(msg.yaw)
+    logging.debug(f"Updated yaw angle for drone {drone_config.hw_id}: {drone_config.yaw} degrees")
 
 
 def process_home_position(msg):
@@ -559,15 +569,7 @@ import struct
 
 import math
 
-def radian_to_degrees_heading(yaw_radians):
-    # Convert the yaw angle to degrees
-    yaw_degrees = math.degrees(yaw_radians)
 
-    # Normalize to a heading (0-360 degrees)
-    if yaw_degrees < 0:
-        yaw_degrees += 360
-
-    return yaw_degrees
 
 
 def send_packet_to_node(packet, ip, port):
@@ -739,7 +741,7 @@ def read_packets():
             # Decode the data
             header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw , battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
             print(f"Received telemetry from Drone {hw_id}")
-            #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
+            #print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down},yaw={yaw} Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             if hw_id not in drones:
                 # Create a new instance for the drone
                 drones[hw_id] = DroneConfig(hw_id)

@@ -142,15 +142,6 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, st
 
 import math
 
-def radian_to_degrees_heading(yaw_radians):
-    # Convert the yaw angle to degrees
-    yaw_degrees = math.degrees(yaw_radians)
-
-    # Normalize to a heading (0-360 degrees)
-    if yaw_degrees < 0:
-        yaw_degrees += 360
-
-    return yaw_degrees
 
 
 # Function to handle telemetry
@@ -173,7 +164,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             if header == 77 and terminator == 88:
                 # Print the received and decoded data if the flag is set
                 if print_telemetry[0]:
-                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Yaw={radian_to_degrees_heading(yaw)}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
+                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Yaw={yaw}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
             else:
                 print("Invalid header or terminator received in telemetry data.")
         else:
