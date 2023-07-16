@@ -57,17 +57,6 @@ import os
 import datetime
 import logging
 
-# Create 'logs' directory if it doesn't exist
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Get current datetime to use in the filename
-now = datetime.datetime.now()
-current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-
-# Set up logging
-log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 
@@ -734,7 +723,19 @@ def schedule_mission():
                 # Run the async function
                 asyncio.run(start_offboard_mode())
             
+# Create 'logs' directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 
+# Get current datetime to use in the filename
+now = datetime.datetime.now()
+current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+# Set up logging
+log_filename = os.path.join('logs', f'{current_time}.log')
+logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+telemetry_thread = threading.Thread(target=send_drone_state)
+command_thread = threading.Thread(target=read_packets)
 
 
 # Main function
@@ -752,12 +753,11 @@ def main():
         time.sleep(2)
         # Start the telemetry thread
         print("Starting telemetry thread...")
-        telemetry_thread = threading.Thread(target=send_drone_state)
         telemetry_thread.start()
 
         # Start the command reading thread
         print("Starting command reading thread...")
-        command_thread = threading.Thread(target=read_packets)
+       
         command_thread.start()
 
         # Enter a loop where the application will continue running
