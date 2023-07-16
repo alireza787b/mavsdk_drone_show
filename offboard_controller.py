@@ -62,7 +62,7 @@ class OffboardController:
                 self.drone_config.position_setpoint_NED['north'],
                 self.drone_config.position_setpoint_NED['east'],
                 self.drone_config.position_setpoint_NED['down'],
-                self.drone_config.target_drone.yaw_setpoint
+                self.drone_config.yaw_setpoint
             )
 
             vel_ned_yaw = VelocityNedYaw(
