@@ -87,12 +87,26 @@ Always ensure that you comply with all local laws and regulations when operating
 """
 
 # Imports
+import logging
 import socket
 import struct
 import threading
 import time
 import pandas as pd
 import os
+
+from enum import Enum
+
+class State(Enum):
+    IDLE = 0
+    ARMED = 1
+    TRIGGERED = 2
+
+class Mission(Enum):
+    NONE = 0
+    DRONE_SHOW_FROM_CSV = 1
+    SMART_SWARM = 2
+
 
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
@@ -103,7 +117,9 @@ command_struct_fmt = '=B B B B B I B'
 telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
-
+# Setup logger
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Single Drone
 single_drone = False  # Set this to True for single drone connection
@@ -128,47 +144,78 @@ else:
 
 # Function to send commands
 def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
-    # Prepare the command data
-    header = 55  # Constant
-    trigger_time = int(time.time()) + n  # Now + n seconds
-    terminator = 66  # Constant
+    """
+    This function prepares and sends commands.
 
-    # Encode the data
-    data = struct.pack(command_struct_fmt, header, hw_id, pos_id, mission, state, trigger_time, terminator)
+    :param n: An integer used to compute trigger_time.
+    :param sock: The socket through which data will be sent.
+    :param coordinator_ip: The IP address of the coordinator.
+    :param debug_port: The port used for sending data.
+    :param hw_id: The hardware ID.
+    :param pos_id: The position ID.
+    :param mission: The mission ID.
+    :param state: The state value.
+    """
+    try:
+        # Prepare the command data
+        header = 55  # Constant
+        trigger_time = int(time.time()) + n  # Now + n seconds
+        terminator = 66  # Constant
 
-    # Send the command data
-    sock.sendto(data, (coordinator_ip, debug_port))
-    print(f"Sent {len(data)} byte command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, Mission={mission}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+        # Encode the data
+        data = struct.pack(command_struct_fmt, header, hw_id, pos_id, mission, state, trigger_time, terminator)
+
+        # Send the command data
+        sock.sendto(data, (coordinator_ip, debug_port))
+        logger.info(f"Sent {len(data)} byte command: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, Mission={mission}, State={state}, Trigger Time={trigger_time}, Terminator={terminator}")
+
+    except (OSError, struct.error) as e:
+        # If there is an OSError or an error in packing the data, log the error
+        logger.error(f"An error occurred: {e}")
 
 import math
 
 
 
-# Function to handle telemetry
 def handle_telemetry(keep_running, print_telemetry, sock):
-    while keep_running[0]:  # Loop while keep_running is True
+    """
+    This function continuously receives and handles telemetry data.
+
+    :param keep_running: A control flag for the while loop. 
+                         When it's False, the function stops receiving data.
+    :param print_telemetry: A flag to control if the telemetry data should be printed.
+    :param sock: The socket from which data will be received.
+    """
+    while keep_running[0]:
         try:
             # Receive telemetry data
             data, addr = sock.recvfrom(1024)
-            # rest of your code here...
-        except OSError as e:
-            print("Error occurred:", e)
-            print("sock is", sock)
-            break  # Or re-raise the exception with 'raise'
-        # Ensure we received a correctly sized packet
-        if len(data) == telem_packet_size:
+
+            # If received data is not of correct size, log the error and continue
+            if len(data) != telem_packet_size:
+                logger.error(f"Received packet of incorrect size. Expected {telem_packet_size}, got {len(data)}.")
+                continue
+
             # Decode the data
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw,battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
-            
-            # Check if header and terminator are as expected
-            if header == 77 and terminator == 88:
-                # Print the received and decoded data if the flag is set
-                if print_telemetry[0]:
-                    print(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={state}, mission={mission}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt}, Velocity North={velocity_north}, Velocity East={velocity_east}, Velocity Down={velocity_down}, Yaw={yaw}, Battery Voltage={battery_voltage}, Follow Mode={follow_mode}, Terminator={terminator}")
-            else:
-                print("Invalid header or terminator received in telemetry data.")
-        else:
-            print(f"Received packet of incorrect size. Expected {telem_packet_size}, got {len(data)}.")
+            telemetry_data = struct.unpack(telem_struct_fmt, data)
+            header, terminator = telemetry_data[0], telemetry_data[-1]
+
+            # If header or terminator are not as expected, log the error and continue
+            if header != 77 or terminator != 88:
+                logger.error("Invalid header or terminator received in telemetry data.")
+                continue
+
+            # If the print_telemetry flag is True, print the decoded data
+            if print_telemetry[0]:
+                hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode = telemetry_data[1:-1]
+                # Debug log with all details
+                logger.info(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
+                
+        except (OSError, struct.error) as e:
+            # If there is an OSError or an error in unpacking the data, log the error and break the loop
+            logger.error(f"An error occurred: {e}")
+            break
+        
 
 
 # Drones threads
@@ -178,36 +225,36 @@ drones_threads = []
 # We use a list so the changes in the main thread can be seen by the telemetry threads.
 keep_running = [True]
 
-for drone_config in drones:
-    # Extract variables
-    if sim_mode:
-        coordinator_ip = '172.22.141.34'  # WSL IP
-    else:
-        coordinator_ip = drone_config['ip']
-    debug_port = int(drone_config['debug_port'])  # Debug port
-    gcs_ip = drone_config['gcs_ip']  # GCS IP
-    hw_id = drone_config['hw_id']  # Hardware ID
-    pos_id = drone_config['pos_id']  # Position ID
-
-    # Print information
-    print(f"Drone {hw_id} is listening and sending on IP {coordinator_ip} and port {debug_port}")
-
-    # Socket for communication
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((gcs_ip, debug_port))
-
-    # This flag controls whether telemetry is printed to the screen. 
-    # We use a list so the changes in the main thread can be seen by the telemetry threads.
-    print_telemetry = [True]
-
-    # Start the telemetry thread
-    telemetry_thread = threading.Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
-    telemetry_thread.start()
-
-    # Add to the drones_threads
-    drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
-
 try:
+    for drone_config in drones:
+        # Extract variables
+        if sim_mode:
+            coordinator_ip = '172.22.141.34'  # WSL IP
+        else:
+            coordinator_ip = drone_config['ip']
+        debug_port = int(drone_config['debug_port'])  # Debug port
+        gcs_ip = drone_config['gcs_ip']  # GCS IP
+        hw_id = drone_config['hw_id']  # Hardware ID
+        pos_id = drone_config['pos_id']  # Position ID
+
+        # Log information
+        logger.info(f"Drone {hw_id} is listening and sending on IP {coordinator_ip} and port {debug_port}")
+
+        # Socket for communication
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((gcs_ip, debug_port))
+
+        # This flag controls whether telemetry is printed to the screen. 
+        # We use a list so the changes in the main thread can be seen by the telemetry threads.
+        print_telemetry = [True]
+
+        # Start the telemetry thread
+        telemetry_thread = threading.Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
+        telemetry_thread.start()
+
+        # Add to the drones_threads
+        drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
+
     # Main loop for command input
     mission = 0
     state = 0
@@ -233,7 +280,7 @@ try:
             state = 0
             n = 0  # Unsetting the trigger time
         else:
-            print("Invalid command.")
+            logger.warning("Invalid command.")
             continue
 
         # Turn off telemetry printing while sending commands
@@ -245,14 +292,12 @@ try:
         # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
             print_telemetry[0] = True
-except ValueError:
-    print("Invalid input. Please enter a valid command.")
-except KeyboardInterrupt:
-    pass
+except (ValueError, OSError, KeyboardInterrupt) as e:
+    # Catch any exceptions that occur during the execution
+    logger.error(f"An error occurred: {e}")
 finally:
     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
     keep_running[0] = False
-
 
     for sock, telemetry_thread, _, _, _, _ in drones_threads:
         # Close the socket
@@ -260,4 +305,5 @@ finally:
         # Join the thread
         telemetry_thread.join()
 
-print("Exiting the application...")
+logger.info("Exiting the application...")
+

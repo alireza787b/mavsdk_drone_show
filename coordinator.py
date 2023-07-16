@@ -74,8 +74,6 @@ run_telemetry_thread.set()
 
 
 
-
-
 import struct
 
 # Configuration Variables
@@ -247,7 +245,7 @@ class DroneConfig:
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            logging.info(f"Setpoint updated | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
+            logging.debug(f"Setpoint updated | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
 
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
@@ -512,7 +510,7 @@ def process_packet(data):
     elif header == 77 and terminator == 88 and len(data) == telem_packet_size:
         # Decode the data
         header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, terminator = struct.unpack(telem_struct_fmt, data)
-        logging.info(f"Received telemetry from Drone {hw_id}")
+        logging.debug(f"Received telemetry from Drone {hw_id}")
 
         if hw_id not in drones:
             # Create a new instance for the drone
