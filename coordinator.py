@@ -528,6 +528,7 @@ def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velo
     drone.yaw = yaw
     drone.battery = battery
     drone.last_update_timestamp = last_update_timestamp
+    drone.hw_id = hw_id
     drones[hw_id] = drone
     
     if drone_config.mission == 2 and drone_config.state != 0 and drone_config.target_drone and hw_id == int(drone_config.target_drone.hw_id) and int(drone_config.swarm.get('follow')) != 0:
