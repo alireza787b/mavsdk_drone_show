@@ -25,6 +25,15 @@
 # Last updated: June 2023
 # -----------------------------------------------------------------------------
 
+
+# Set unique system ID for each PX4 SITL instance
+# Modify the rcS file in the build version of the PX4-Autopilot directory
+# File path: PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS
+# Line to modify: param set MAV_SYS_ID $((px4_instance+1))
+# Manually set a different system ID by changing the value of MAV_SYS_ID to the desired number
+# Example: param set MAV_SYS_ID 2
+
+
 # Importing the necessary libraries
 import asyncio
 import csv
@@ -35,6 +44,7 @@ import socket
 import threading
 import os
 import time
+import numpy as np
 import pandas as pd
 import requests
 import urllib3
@@ -43,6 +53,7 @@ import navpy
 
 import time
 import threading
+from kalman_filter import DroneKalmanFilter
 from local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
@@ -66,6 +77,10 @@ logging.basicConfig(level=logging.INFO)
 
 # Global variable to store telemetry
 global_telemetry = {}
+
+
+#Kalman Filter for Dorne Following
+kalman_filter = DroneKalmanFilter()
 
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
@@ -276,15 +291,27 @@ class DroneConfig:
 
         # find its target drone position
         if self.target_drone:
+            
+            
+            # Use Kalman filter to predict next position
+            self.kalman_filter.predict()
+
+            # Update Kalman filter with new measurement
+            self.kalman_filter.update(np.array([self.target_drone.position['lat'],
+                                                self.target_drone.position['long'],
+                                                self.target_drone.position['alt']]))
+
+            predicted_position = self.kalman_filter.filter.x[:3]
+            
             # Calculate new LLA with offset
             geod = Geodesic.WGS84  # define the WGS84 ellipsoid
-            g = geod.Direct(float(self.target_drone.position['lat']), float(self.target_drone.position['long']), 90, float(offset_e))
+            g = geod.Direct(float(predicted_position.position['lat']), float(predicted_position.position['long']), 90, float(offset_e))
             g = geod.Direct(g['lat2'], g['lon2'], 0, float(offset_n))
 
             self.position_setpoint_LLA = {
                 'lat': g['lat2'],
                 'long': g['lon2'],
-                'alt': float(self.target_drone.position['alt']) + float(offset_alt),  
+                'alt': float(predicted_position.position['alt']) + float(offset_alt),  
             }
 
             # The above method calculates a new LLA coordinate by moving a certain distance 
@@ -317,6 +344,14 @@ class DroneConfig:
     def calculate_velocity_setpoint_NED(self):
         # velocity setpoints is exactly the same as the target drone velocity
         if self.target_drone:
+            # Use predicted velocity from Kalman filter
+            predicted_velocity = self.kalman_filter.filter.x[3:]
+            
+            self.velocity_setpoint_NED = {
+                'vel_n': predicted_velocity[0],
+                'vel_e': predicted_velocity[1],
+                'vel_d': predicted_velocity[2]
+        }
             self.velocity_setpoint_NED = self.target_drone.velocity
             #print(f"NED Velocity setpoint for drone {self.hw_id}: {self.velocity_setpoint_NED}")
         else:
