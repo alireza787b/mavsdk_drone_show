@@ -80,7 +80,14 @@ global_telemetry = {}
 
 
 #Kalman Filter for Dorne Following
-kalman_filter = DroneKalmanFilter()
+# initial position and velocity from your drone
+initial_state = np.array([0, 0, 0, 0, 0, 0])  # replace with your actual initial state
+
+# high initial uncertainty (can be tweaked as per your requirement)
+initial_uncertainty = np.array([1000, 1000, 1000, 1000, 1000, 1000]) 
+
+kalman_filter = DroneKalmanFilter(initial_state, initial_uncertainty)
+
 
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
@@ -257,6 +264,8 @@ class DroneConfig:
         self.find_target_drone()
 
         if self.target_drone:
+            # Use Kalman filter to predict next position
+            self.kalman_filter.predict()
             self.calculate_position_setpoint_LLA()
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
@@ -291,10 +300,8 @@ class DroneConfig:
 
         # find its target drone position
         if self.target_drone:
+
             
-            
-            # Use Kalman filter to predict next position
-            self.kalman_filter.predict()
 
             # Update Kalman filter with new measurement
             self.kalman_filter.update(np.array([self.target_drone.position['lat'],
@@ -528,8 +535,11 @@ def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velo
     drone.yaw = yaw
     drone.battery = battery
     drone.last_update_timestamp = last_update_timestamp
-
     drones[hw_id] = drone
+    
+    if drone_config.mission == 2 and drone_config.state != 0 and hw_id == int(drone_config.target_drone.hw_id) and int(drone_config.swarm.get('follow')) != 0:
+        #check if we got telemtery from the drone we are following...
+        drone_config.calculate_setpoints()
 
 def process_packet(data):
     header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
@@ -693,8 +703,7 @@ def read_packets():
         data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
         process_packet(data)
 
-        if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-            drone_config.calculate_setpoints()
+        
 
         time.sleep(income_packet_check_interval)  # check for new packets every second
 
