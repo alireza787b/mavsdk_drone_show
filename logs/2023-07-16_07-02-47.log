@@ -1,0 +1,6 @@
+2023-07-16 07:02:47,626 - INFO - Home position for drone 2 is set to current position: {'lat': 47.3977419, 'long': 8.5455939, 'alt': 487.998}
+2023-07-16 07:02:47,627 - INFO - Home position for drone 2 is set: {'lat': 47.3977419, 'long': 8.5455938, 'alt': 488.01}
+2023-07-16 07:02:50,387 - INFO - Received telemetry from Drone 1
+2023-07-16 07:02:51,388 - INFO - Received telemetry from Drone 1
+2023-07-16 07:02:52,389 - INFO - Received telemetry from Drone 1
+2023-07-16 07:02:53,392 - INFO - Received telemetry from Drone 1

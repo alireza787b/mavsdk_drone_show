@@ -736,6 +736,7 @@ def synchronize_time():
 
 # Function to schedule the drone mission
 def schedule_mission():
+    global kalman_filter
     # Constantly checks the current time vs trigger time
     # If it's time to trigger, it opens the offboard_from_csv_multiple.py separately
 
