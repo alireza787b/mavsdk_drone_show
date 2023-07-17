@@ -530,7 +530,7 @@ def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velo
     drone.last_update_timestamp = last_update_timestamp
     drones[hw_id] = drone
     
-    if drone_config.mission == 2 and drone_config.state != 0 and hw_id == int(drone_config.target_drone.hw_id) and int(drone_config.swarm.get('follow')) != 0:
+    if drone_config.mission == 2 and drone_config.state != 0 and drone_config.target_drone and hw_id == int(drone_config.target_drone.hw_id) and int(drone_config.swarm.get('follow')) != 0:
         #check if we got telemtery from the drone we are following...
         drone_config.calculate_setpoints()
 
