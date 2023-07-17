@@ -7,3 +7,4 @@
 /online_config.csv
 /__pycache__/
 /mavsdk/__pycache__/
+/logs/
