@@ -92,6 +92,7 @@ sitl_port = 14550  # Default SITL port
 gcs_mavlink_port = 14550  # Port to send Mavlink messages to GCS
 mavsdk_port = 14540  # Default MAVSDK port
 local_mavlink_port = 12550  # Local Mavlink port
+shared_gcs_port = True
 extra_devices = [f"127.0.0.1:{local_mavlink_port}"]  # List of extra devices (IP:Port) to route Mavlink
 
 # Sleep interval for the main loop in seconds
@@ -418,8 +419,11 @@ def initialize_mavlink():
     else:
         # In real life, route the MAVLink messages to the GCS and other drones over a Zerotier network
         # *************** I have a doubt here . if I send from each drone to gcs_ip:14550 why GCS wont auto connect to these? temporary rverting to different port....
-        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
-        #endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
+        if(shared_gcs_port):
+            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
+        else:
+            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
+
 
     # Command to start mavlink-router
     mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
