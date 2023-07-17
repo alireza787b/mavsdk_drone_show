@@ -78,15 +78,8 @@ logging.basicConfig(level=logging.INFO)
 # Global variable to store telemetry
 global_telemetry = {}
 
-
-#Kalman Filter for Dorne Following
-# initial position and velocity from your drone
-initial_state = np.array([0, 0, 0, 0, 0, 0])  # replace with your actual initial state
-
-# high initial uncertainty (can be tweaked as per your requirement)
-initial_uncertainty = np.array([1000, 1000, 1000, 1000, 1000, 1000]) 
-
-kalman_filter = DroneKalmanFilter(initial_state, initial_uncertainty)
+#kalman Filter Object
+kalman_filter = None
 
 
 # Flag to indicate whether the telemetry thread should run
@@ -749,6 +742,22 @@ def schedule_mission():
     current_time = int(time.time())
     #print(f"Current system time: {current_time}")
     #print(f"Target Trigger Time: {drone_config.trigger_time}")
+    
+    if drone_config.state == 1 and current_time <= drone_config.trigger_time and drone_config.mission == 2 and kalman_filter is None:
+        # Get initial position and velocity from drone_config
+        initial_position = drone_config.position
+        initial_velocity = drone_config.velocity
+
+        # Construct initial state array
+        initial_state = np.array([initial_position['lat'], initial_position['long'], initial_position['alt'],
+                                initial_velocity['vel_n'], initial_velocity['vel_e'], initial_velocity['vel_d']])
+
+        # high initial uncertainty (can be tweaked as per your requirement)
+        initial_uncertainty = np.array([1000, 1000, 1000, 1000, 1000, 1000]) 
+
+        # Initialize Kalman Filter
+        kalman_filter = DroneKalmanFilter(initial_state, initial_uncertainty)
+
     
     if drone_config.state == 1 and current_time >= drone_config.trigger_time:
         print("Trigger time reached. Starting drone mission...")

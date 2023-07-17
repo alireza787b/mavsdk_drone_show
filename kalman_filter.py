@@ -23,6 +23,8 @@ class DroneKalmanFilter:
                                   [0, 1, 0, 0, 0, 0],
                                   [0, 0, 1, 0, 0, 0]])
 
+        self.initialized = False
+
         # Initial uncertainty
         self.filter.P *= initial_uncertainty
 
