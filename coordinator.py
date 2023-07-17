@@ -258,7 +258,7 @@ class DroneConfig:
 
         if self.target_drone:
             # Use Kalman filter to predict next position
-            self.kalman_filter.predict()
+            kalman_filter.predict()
             self.calculate_position_setpoint_LLA()
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
@@ -297,11 +297,11 @@ class DroneConfig:
             
 
             # Update Kalman filter with new measurement
-            self.kalman_filter.update(np.array([self.target_drone.position['lat'],
+            kalman_filter.update(np.array([self.target_drone.position['lat'],
                                                 self.target_drone.position['long'],
                                                 self.target_drone.position['alt']]))
 
-            predicted_position = self.kalman_filter.filter.x[:3]
+            predicted_position = kalman_filter.filter.x[:3]
             
             # Calculate new LLA with offset
             geod = Geodesic.WGS84  # define the WGS84 ellipsoid
@@ -345,7 +345,7 @@ class DroneConfig:
         # velocity setpoints is exactly the same as the target drone velocity
         if self.target_drone:
             # Use predicted velocity from Kalman filter
-            predicted_velocity = self.kalman_filter.filter.x[3:]
+            predicted_velocity = kalman_filter.filter.x[3:]
             
             self.velocity_setpoint_NED = {
                 'vel_n': predicted_velocity[0],
@@ -743,7 +743,7 @@ def schedule_mission():
     #print(f"Current system time: {current_time}")
     #print(f"Target Trigger Time: {drone_config.trigger_time}")
     
-    if drone_config.state == 1 and current_time <= drone_config.trigger_time and drone_config.mission == 2 and kalman_filter is None:
+    if kalman_filter is None and drone_config.state == 1 and current_time <= drone_config.trigger_time and drone_config.mission == 2 :
         # Get initial position and velocity from drone_config
         initial_position = drone_config.position
         initial_velocity = drone_config.velocity
