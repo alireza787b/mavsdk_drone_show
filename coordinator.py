@@ -145,7 +145,7 @@ drones = {}
 
 
 # Initialize DroneConfig
-drone_config = DroneConfig(drones=drones,offline_config=offline_config,offline_swarm=offline_swarm)
+drone_config = DroneConfig(drones=drones,config_url=config_url,swarm_url=swarm_url)
 
 
 
