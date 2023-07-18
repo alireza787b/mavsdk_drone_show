@@ -374,8 +374,6 @@ async def start_offboard_mode():
     controller = OffboardController(drone_config)
 
 
-    await controller.start_mavsdk_server()
-
     # Establish a connection with the drone
     await controller.connect()
     
