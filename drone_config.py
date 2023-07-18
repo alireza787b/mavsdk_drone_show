@@ -16,6 +16,8 @@ class DroneConfig:
     def __init__(self,drones,config_url,swarm_url,offline_config=True, offline_swarm=True, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
+        self.offline_config = offline_config
+        self.offline_swarm = offline_swarm
         self.config = self.read_config()
         self.swarm = self.read_swarm()
         self.state = 0
@@ -36,8 +38,7 @@ class DroneConfig:
         self.drones = drones
         self.config_url = config_url
         self.swarm_url = swarm_url
-        self.offline_config = True
-        self.offline_swarm = True
+        
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
