@@ -15,22 +15,23 @@ class OffboardController:
         The constructor for OffboardController class.
         """
         self.drone_config = drone_config
-        self.mavsdk_server_address = mavsdk_server_address
-        self.port = port
+        self.mavsdk_server_process = self.start_mavsdk_server(port)
         self.drone = System(mavsdk_server_address, port)
         self.offboard_follow_update_interval = 0.2 # 200ms, adjust to your needs
-        self.mavsdk_process = None
 
-    async def start_mavsdk_server(self):
+    def start_mavsdk_server(self, port):
         """
-        Start MAVSDK server as a separate terminal process.
+        Start the MAVSDK server
         """
-        command = f"./mavsdk_server -p {self.port}"
-        self.mavsdk_process = subprocess.Popen(command, shell=True)
-        logging.info(f"Started MAVSDK server on port {self.port}")
-        asyncio.sleep(2)
+        try:
+            mavsdk_server_process = subprocess.Popen(["./mavsdk_server", "-p", str(port)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            logging.info(f"MAVSDK Server started on port {port}")
+            return mavsdk_server_process
+        except Exception as e:
+            logging.error(f"Error starting MAVSDK Server: {e}")
+            return None
 
-    async def stop_mavsdk_server(self):
+    def stop_mavsdk_server(self):
         """
         Stop MAVSDK server process.
         """
@@ -43,6 +44,8 @@ class OffboardController:
         """
         Connect to the drone.
         """
+        # Start MAVSDK server before connecting
+        self.start_mavsdk_server()
 
         await self.drone.connect()
 
