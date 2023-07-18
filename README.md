@@ -15,7 +15,7 @@ In this release, we're stepping beyond simple drone shows and implementing real 
 <h3><a href="https://youtu.be/_W_DosoVbrU">YouTube Tutorial Demonstrating Leader Follower Swarm PX4 V0.5</a></h3>
 v0.5 Changelogs:
 <ul>
-<li></li>Node-to-node telemetry and communication using the new CDH subsystem</li>
+<li>Node-to-node telemetry and communication using the new CDH subsystem</li>
 <li>Added swarm.csv to arrange our swarm mission prototype</li>
 <li>Improved ground station data handling and reporting</li>
 <li>Improved coordinator app and bug fixes</li>
