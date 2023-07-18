@@ -18,6 +18,7 @@ class OffboardController:
         self.mavsdk_server_process = self.start_mavsdk_server(port)
         self.drone = System(mavsdk_server_address, port)
         self.offboard_follow_update_interval = 0.2 # 200ms, adjust to your needs
+        self.mavsdk_server_port = 50051
 
     def start_mavsdk_server(self, port):
         """
@@ -45,7 +46,7 @@ class OffboardController:
         Connect to the drone.
         """
         # Start MAVSDK server before connecting
-        self.start_mavsdk_server()
+        self.start_mavsdk_server(self.mavsdk_server_port)
 
         await self.drone.connect()
 
