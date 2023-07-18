@@ -5,6 +5,5 @@
 /3.hwID
 /4.hwID
 /online_config.csv
-/__pycache__/
-/mavsdk/__pycache__/
-/logs/
+/mavsdk/__pycache__/*
+/logs/*
