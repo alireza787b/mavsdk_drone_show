@@ -43,6 +43,7 @@ import navpy
 
 import time
 import threading
+from drone_communication import DroneCommunicator
 from local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
@@ -56,6 +57,9 @@ from offboard_controller import OffboardController
 import os
 import datetime
 import logging
+import struct
+
+import math
 
 
 
@@ -109,7 +113,7 @@ default_sitl = True  # Set to True to use default 14550 port for single drone si
 online_sync_time = False  # Set to True to sync time from Internet Time Servers
 
 # Telemetry and Communication
-TELEM_SEND_INTERVAL = 1  # Send telemetry data every TELEM_SEND_INTERVAL seconds
+telem_send_interval = 1  # Send telemetry data every TELEM_SEND_INTERVAL seconds
 local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
 broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
 
@@ -458,9 +462,6 @@ def stop_mavlink_routing(mavlink_router_process):
 local_drone_controller = LocalMavlinkController(drone_config, local_mavlink_port, local_mavlink_refresh_interval)
 
 
-import struct
-
-import math
 
 
 
@@ -480,7 +481,6 @@ def get_nodes():
     return get_nodes.nodes
 
    
-
 
 # Helper functions
 def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
@@ -564,85 +564,6 @@ def get_drone_state():
 
     return drone_state
 
-
-
-def send_drone_state():
-    """
-    Sends the drone state over UDP to the GCS and optionally to other drones in the swarm.
-
-    The state information includes hardware id, position id, current state, 
-    trigger time, position, velocity, battery voltage, and follow mode.
-    
-    Each state variable is packed into a binary packet and sent every `TELEM_SEND_INTERVAL` seconds.
-    If `broadcast_mode` is True, the state is also sent to all other drones in the swarm.
-
-    The structure of the packet is as follows:
-    - Start of packet (uint8)
-    - Hardware ID (uint16)
-    - Position ID (uint16)
-    - State (uint8)
-    - Trigger Time (uint32)
-    - Latitude, Longitude, Altitude (double)
-    - North, East, Down velocities (double)
-    - yaw (double)
-    - Battery Voltage (double)
-    - Follow Mode (uint8)
-    - End of packet (uint8)
-    """
-    udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
-    udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
-
-    while True:
-        drone_state = get_drone_state()
-
-        # Create a struct format string based on the data types
-        telem_struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
-        # H is for uint16
-        # B is for uint8
-        # I is for uint32
-        # d is for double (float64)
-        # Pack the telemetry data into a binary packet
-        #print(drone_state)
-        packet = struct.pack(telem_struct_fmt,
-                             77,  # start of packet
-                             drone_state['hw_id'],
-                             drone_state['pos_id'],
-                             drone_state['state'],
-                             drone_state['mission'],
-                             drone_state['trigger_time'],
-                             drone_state['position_lat'],
-                             drone_state['position_long'],
-                             drone_state['position_alt'],
-                             drone_state['velocity_north'],
-                             drone_state['velocity_east'],
-                             drone_state['velocity_down'],
-                             drone_state['yaw'],
-                             drone_state['battery_voltage'],
-                             drone_state['follow_mode'],
-                             88)  # end of packet
-        telem_packet_size = len(packet)
-        # If broadcast_mode is True, send to all nodes
-        if broadcast_mode:
-            nodes = get_nodes()
-            # Send to all other nodes
-            for node in nodes:
-                if int(node["hw_id"]) != drone_state['hw_id']:
-                    send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
-                    #print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
-
-
-        # Always send to GCS
-        send_packet_to_node(packet, udp_ip, udp_port)
-
-        #print(f"Sent telemetry data to GCS: {packet}")
-        #print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
-        #print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, Mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']}, Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
-        current_time = int(time.time())
-        #print(f"Current system time: {current_time}")
-        
-        # Update the global variable to keep track of the packet size
-
-        time.sleep(TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
 
 
 
@@ -737,8 +658,11 @@ current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 # Set up logging
 log_filename = os.path.join('logs', f'{current_time}.log')
 logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-telemetry_thread = threading.Thread(target=send_drone_state)
-command_thread = threading.Thread(target=read_packets)
+
+#setting up droneComm
+drone_comms = DroneCommunicator(drone_config, telem_send_interval, income_packet_check_interval, broadcast_mode, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt)
+drone_comms.start_threads()
+
 
 
 # Main function
