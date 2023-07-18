@@ -5,7 +5,7 @@ import struct
 import logging
 import time
 
-from coordinator import DroneConfig
+from drone_config import DroneConfig
 
 class DroneCommunicator:
     def __init__(self, drone_config, telem_send_interval, income_packet_check_interval, broadcast_mode, command_packet_size, telem_packet_size, command_struct_fmt, telem_struct_fmt):
