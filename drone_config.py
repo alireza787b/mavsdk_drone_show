@@ -1,7 +1,20 @@
 
 
+import csv
+import glob
+import logging
+import math
+
+import requests
+from geographiclib.geodesic import Geodesic
+from coordinator import config_url, swarm_url
+import navpy
+# Offline configuration switch
+offline_config = True  # Set to True to use offline configuration
+offline_swarm = True  # Set to True to use offline swarm
+
 class DroneConfig:
-    def __init__(self, hw_id=None):
+    def __init__(self,drones, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
         self.config = self.read_config()
@@ -21,6 +34,7 @@ class DroneConfig:
         self.velocity_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
         self.yaw_setpoint=0
         self.target_drone = None
+        self.drones = drones
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
@@ -107,7 +121,7 @@ class DroneConfig:
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            logging.debug(f"Setpoint updated | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
+            logging.debug(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
 
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
@@ -122,7 +136,7 @@ class DroneConfig:
         elif follow_hw_id == self.hw_id:
             print(f"Drone {self.hw_id} is set to follow itself. This is not allowed.")
         else:
-            self.target_drone = drones[follow_hw_id]
+            self.target_drone = self.drones[follow_hw_id]
             if self.target_drone:
                 print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
                 pass
