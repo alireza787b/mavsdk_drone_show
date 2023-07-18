@@ -13,19 +13,21 @@
 In this release, we're stepping beyond simple drone shows and implementing real drone swarm capabilities, like leader/follower missions, using PX4 and MAVSDK in Python. v0.5 introduces the following features and improvements:
 <a href="https://youtu.be/_W_DosoVbrU" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/69415901-1926-42fe-bde0-5cbe78a144c3" style="width=300px" /></a>
 <h3><a href="https://youtu.be/_W_DosoVbrU">YouTube Tutorial Demonstrating Leader Follower Swarm PX4 V0.5</a></h3>
-
-Node-to-node telemetry and communication using the new CDH subsystem
-Added swarm.csv to arrange our swarm mission prototype
-Improved ground station data handling and reporting
-Improved coordinator app and bug fixes
-Improved logging and debugging capabilities
-Improved Threads management in Coordinator App
-Improved error reporting and handling
-
-Limitations in v0.5:
-I haven't implemented considerations for telemetry and command acknowledgment yet. will be implemented soon.
-No Smoothing and Estimation algorithm for the following setpoints has been implemented yet. will be quickly implemented.
-
+v0.5 Changelogs:
+<ul>
+<li></li>Node-to-node telemetry and communication using the new CDH subsystem</li>
+<li>Added swarm.csv to arrange our swarm mission prototype</li>
+<li>Improved ground station data handling and reporting</li>
+<li>Improved coordinator app and bug fixes</li>
+<li>Improved logging and debugging capabilities</li>
+<li>Improved Threads management in Coordinator App</li>
+<li>Improved error reporting and handling</li>
+</ul>
+Limitations in v0.5
+<ul>
+<li>I haven't implemented considerations for telemetry and command acknowledgment yet. will be implemented soon.</li>
+<li>No Smoothing and Estimation algorithm for the following setpoints has been implemented yet. will be quickly implemented.</li>
+</ul>
 We're excited to continue developing this project and exploring the possibilities of drone swarm intelligence. As always, we welcome collaboration, suggestions, and questions from the community.
 
 ## Version 0.4: Advanced Swarm Control and Feature Enhancements
