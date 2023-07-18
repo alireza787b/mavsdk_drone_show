@@ -36,6 +36,8 @@ class DroneConfig:
         self.drones = drones
         self.config_url = config_url
         self.swarm_url = swarm_url
+        self.offline_config = offline_config
+        self.offline_swarm = offline_swarm
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
