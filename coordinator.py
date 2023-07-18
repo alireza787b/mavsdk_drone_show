@@ -462,14 +462,7 @@ def main():
         print("Initializing MAVLink...")
         mavlink_router_process = initialize_mavlink()
         time.sleep(2)
-        # Start the telemetry thread
-        print("Starting telemetry thread...")
-        telemetry_thread.start()
-
-        # Start the command reading thread
-        print("Starting command reading thread...")
        
-        command_thread.start()
 
         # Enter a loop where the application will continue running
         while True:
