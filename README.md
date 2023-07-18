@@ -1,15 +1,32 @@
 ![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
 
 
-
-
-
 <!DOCTYPE html>
 <html>
 
 <body>
    <h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
-   <p>Welcome to this repository, which provides a tutorial on creating captivating drone shows with custom shapes using MAVSDK's offboard control. This tutorial covers the basics of offboard mode in PX4 and demonstrates its capabilities with a single drone. Please note that the current implementation in MAVSDK does not support feedforwarding acceleration while setting position and velocity in offboard mode. However, these tutorials serve as a starting point for understanding offboard control and its potential for coordinating drone shows.</p>
+
+
+
+## Version 0.5: Implementing Leader Follower Swarm Mission
+In this release, we're stepping beyond simple drone shows and implementing real drone swarm capabilities, like leader/follower missions, using PX4 and MAVSDK in Python. v0.5 introduces the following features and improvements:
+<a href="https://youtu.be/_W_DosoVbrU" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/69415901-1926-42fe-bde0-5cbe78a144c3" style="width=300px" /></a>
+<h3><a href="https://youtu.be/_W_DosoVbrU">YouTube Tutorial Demonstrating Leader Follower Swarm PX4 V0.5</a></h3>
+
+Node-to-node telemetry and communication using the new CDH subsystem
+Added swarm.csv to arrange our swarm mission prototype
+Improved ground station data handling and reporting
+Improved coordinator app and bug fixes
+Improved logging and debugging capabilities
+Improved Threads management in Coordinator App
+Improved error reporting and handling
+
+Limitations in v0.5:
+I haven't implemented considerations for telemetry and command acknowledgment yet. will be implemented soon.
+No Smoothing and Estimation algorithm for the following setpoints has been implemented yet. will be quickly implemented.
+
+We're excited to continue developing this project and exploring the possibilities of drone swarm intelligence. As always, we welcome collaboration, suggestions, and questions from the community.
 
 ## Version 0.4: Advanced Swarm Control and Feature Enhancements
 
@@ -20,14 +37,14 @@ In version 0.4, we've made some major enhancements that will significantly impro
 
 - **Coordinator.py:** This Python script acts as the conductor of our drone orchestra, managing a host of tasks:
   - Synchronizes each drone's system time with a global clock.
-  - Downloads the configuration file (`config.csv`) from our web server to ensure that each drone is following the most up-to-date flight plan.
+  - Downloads the configuration file (`config.csv`) from our web server to ensure that each drone follows the most up-to-date flight plan.
   - Initiates the MAVLink-router (please ensure to download and install it separately from [here](https://github.com/mavlink-router/mavlink-router)).
   - Manages MAVLink routing between serial, UDP, GCS, and the Swarm Control app.
   - Generates telemetry packets about the state of each drone, which are sent to the Swarm Control app.
   - Listens to command packets from the ground station, which set a future trigger time for coordinated show starts.
   
 - **Debug_gcs_test.py:** This Python script provides the interface for ground control, with the following responsibilities:
-  - Listens to telemetry from all drones, decoding and displaying the packets in real-time.
+  - Listens to telemetry from all drones, decoding and displaying the packets in real time.
   - Can initiate a "trigger" command, setting a future timestamp for each drone and altering their states for coordinated maneuvers.
   - While currently a command-line app, it is designed with a future graphical user interface (GUI) in mind.
 
