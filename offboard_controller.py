@@ -21,15 +21,16 @@ class OffboardController:
         self.offboard_follow_update_interval = 0.2 # 200ms, adjust to your needs
         self.mavsdk_process = None
 
-    def start_mavsdk_server(self):
+    async def start_mavsdk_server(self):
         """
         Start MAVSDK server as a separate terminal process.
         """
         command = f"./mavsdk_server -p {self.port}"
         self.mavsdk_process = subprocess.Popen(command, shell=True)
         logging.info(f"Started MAVSDK server on port {self.port}")
+        asyncio.sleep(2)
 
-    def stop_mavsdk_server(self):
+    async def stop_mavsdk_server(self):
         """
         Stop MAVSDK server process.
         """
@@ -42,8 +43,6 @@ class OffboardController:
         """
         Connect to the drone.
         """
-        # Start MAVSDK server before connecting
-        self.start_mavsdk_server()
 
         await self.drone.connect()
 
