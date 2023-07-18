@@ -492,7 +492,7 @@ def initialize_mavlink():
         if(shared_gcs_port):
             endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
         else:
-            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{int(drone_config.config['mavlink_port'])}")
+            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
 
 
     # Command to start mavlink-router
