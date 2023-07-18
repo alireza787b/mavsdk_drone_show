@@ -25,15 +25,6 @@
 # Last updated: June 2023
 # -----------------------------------------------------------------------------
 
-
-# Set unique system ID for each PX4 SITL instance
-# Modify the rcS file in the build version of the PX4-Autopilot directory
-# File path: PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS
-# Line to modify: param set MAV_SYS_ID $((px4_instance+1))
-# Manually set a different system ID by changing the value of MAV_SYS_ID to the desired number
-# Example: param set MAV_SYS_ID 2
-
-
 # Importing the necessary libraries
 import asyncio
 import csv
@@ -44,7 +35,6 @@ import socket
 import threading
 import os
 import time
-import numpy as np
 import pandas as pd
 import requests
 import urllib3
@@ -53,7 +43,6 @@ import navpy
 
 import time
 import threading
-from kalman_filter import DroneKalmanFilter
 from local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
@@ -77,10 +66,6 @@ logging.basicConfig(level=logging.INFO)
 
 # Global variable to store telemetry
 global_telemetry = {}
-
-#kalman Filter Object
-kalman_filter = DroneKalmanFilter(6,6)
-
 
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
@@ -261,34 +246,12 @@ class DroneConfig:
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            
-            # Initialize the Kalman filter if it is not already initialized
-            if not kalman_filter.initialized:
-                # Initial state is current position and velocity
-                initial_state = np.array([self.position_setpoint_NED['north'], self.position_setpoint_NED['east'], self.position_setpoint_NED['down'], 
-                                          self.velocity_setpoint_NED['vel_n'], self.velocity_setpoint_NED['vel_e'], self.velocity_setpoint_NED['vel_d']])
-                
-                # Initial uncertainty is set to high values
-                initial_uncertainty = np.array([100, 100, 100, 10, 10, 10])
-                
-                kalman_filter.init_filter(initial_state, initial_uncertainty)
-
-            else: 
-                # Update the Kalman filter with new measurements
-                measurement = np.array([self.position_setpoint_NED['north'], self.position_setpoint_NED['east'], self.position_setpoint_NED['down'], 
-                                        self.velocity_setpoint_NED['vel_n'], self.velocity_setpoint_NED['vel_e'], self.velocity_setpoint_NED['vel_d']])
-                kalman_filter.update(measurement)
-                
-            # Predict the next state using the Kalman filter
-            kalman_filter.predict()
-
             logging.debug(f"Setpoint updated | Position: [N:{drone_config.position_setpoint_NED.get('north')}, E:{drone_config.position_setpoint_NED.get('east')}, D:{drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{drone_config.velocity_setpoint_NED.get('vel_n')}, E:{drone_config.velocity_setpoint_NED.get('vel_e')}, D:{drone_config.velocity_setpoint_NED.get('vel_d')}] | following drone {drone_config.target_drone.hw_id}, with offsets [N:{drone_config.swarm.get('offset_n', 0)},E:{drone_config.swarm.get('offset_e', 0)},Alt:{drone_config.swarm.get('offset_alt', 0)}]")
 
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
         else:
             print(f"No drone to follow for drone with hw_id: {self.hw_id}")
-
 
     def find_target_drone(self):
         # find which drone it should follow
@@ -313,25 +276,15 @@ class DroneConfig:
 
         # find its target drone position
         if self.target_drone:
-
-            
-
-            # Update Kalman filter with new measurement
-            kalman_filter.update(np.array([self.target_drone.position['lat'],
-                                                self.target_drone.position['long'],
-                                                self.target_drone.position['alt']]))
-
-            predicted_position = kalman_filter.filter.x[:3]
-            
             # Calculate new LLA with offset
             geod = Geodesic.WGS84  # define the WGS84 ellipsoid
-            g = geod.Direct(float(predicted_position.position['lat']), float(predicted_position.position['long']), 90, float(offset_e))
+            g = geod.Direct(float(self.target_drone.position['lat']), float(self.target_drone.position['long']), 90, float(offset_e))
             g = geod.Direct(g['lat2'], g['lon2'], 0, float(offset_n))
 
             self.position_setpoint_LLA = {
                 'lat': g['lat2'],
                 'long': g['lon2'],
-                'alt': float(predicted_position.position['alt']) + float(offset_alt),  
+                'alt': float(self.target_drone.position['alt']) + float(offset_alt),  
             }
 
             # The above method calculates a new LLA coordinate by moving a certain distance 
@@ -348,24 +301,10 @@ class DroneConfig:
 
     def calculate_position_setpoint_NED(self):
         if self.target_drone:
-            
-            measured_setpoint = {
-                'north': drone_config.position_setpoint_NED[0] + self.swarm.get('offset_n', 0),
-                'east': predicted_position[1] + self.swarm.get('offset_e', 0),
-                'down': predicted_position[2] + self.swarm.get('offset_alt', 0)
-            }
-            
-            # Update Kalman filter with new measurement (NED position)
-            kalman_filter.update(np.array([self.target_drone.posi['north'],
-                                                self.target_drone.position_NED['east'],
-                                                self.target_drone.position_NED['down']]))
-
-            predicted_position = kalman_filter.filter.x[:3]
-            
+            self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
             #print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
-
             
     def calculate_yaw_setpoint(self):
         if self.target_drone:
@@ -378,14 +317,6 @@ class DroneConfig:
     def calculate_velocity_setpoint_NED(self):
         # velocity setpoints is exactly the same as the target drone velocity
         if self.target_drone:
-            # Use predicted velocity from Kalman filter
-            predicted_velocity = kalman_filter.filter.x[3:]
-            
-            self.velocity_setpoint_NED = {
-                'vel_n': predicted_velocity[0],
-                'vel_e': predicted_velocity[1],
-                'vel_d': predicted_velocity[2]
-        }
             self.velocity_setpoint_NED = self.target_drone.velocity
             #print(f"NED Velocity setpoint for drone {self.hw_id}: {self.velocity_setpoint_NED}")
         else:
@@ -440,7 +371,7 @@ async def start_offboard_mode():
     """
     
     # Instantiate the OffboardController class with the provided drone configuration
-    controller = OffboardController(drone_config,kalman_filter)
+    controller = OffboardController(drone_config)
 
     # Establish a connection with the drone
     await controller.connect()
@@ -452,7 +383,6 @@ async def start_offboard_mode():
     await controller.start_offboard()
     
     # Continuously maintain the drone's position and velocity
-    
     await controller.maintain_position_velocity()
 
 
@@ -492,7 +422,7 @@ def initialize_mavlink():
         if(shared_gcs_port):
             endpoints.append(f"-e {drone_config.config['gcs_ip']}:{gcs_mavlink_port}")
         else:
-            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{drone_config.config['mavlink_port']}")
+            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{int(drone_config.config['mavlink_port'])}")
 
 
     # Command to start mavlink-router
@@ -563,12 +493,8 @@ def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velo
     drone.yaw = yaw
     drone.battery = battery
     drone.last_update_timestamp = last_update_timestamp
-    drone.hw_id = hw_id
+
     drones[hw_id] = drone
-    
-    if drone_config.mission == 2 and drone_config.state != 0 and drone_config.target_drone and hw_id == int(drone_config.target_drone.hw_id) and int(drone_config.swarm.get('follow')) != 0:
-        #check if we got telemtery from the drone we are following...
-        drone_config.calculate_setpoints()
 
 def process_packet(data):
     header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
@@ -732,7 +658,8 @@ def read_packets():
         data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
         process_packet(data)
 
-        
+        if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
+            drone_config.calculate_setpoints()
 
         time.sleep(income_packet_check_interval)  # check for new packets every second
 
@@ -772,16 +699,12 @@ def synchronize_time():
 
 # Function to schedule the drone mission
 def schedule_mission():
-    global kalman_filter
     # Constantly checks the current time vs trigger time
     # If it's time to trigger, it opens the offboard_from_csv_multiple.py separately
 
     current_time = int(time.time())
     #print(f"Current system time: {current_time}")
     #print(f"Target Trigger Time: {drone_config.trigger_time}")
-    
-
-
     
     if drone_config.state == 1 and current_time >= drone_config.trigger_time:
         print("Trigger time reached. Starting drone mission...")
