@@ -59,7 +59,7 @@ import datetime
 import logging
 import params
 import struct
-
+from drone_communicator import DroneCommunicator
 import math
 from params import Params 
 
@@ -80,8 +80,6 @@ drones = {}
 
 # Create global instance
 params = params.Params()
-
-
 
 # Initialize DroneConfig
 drone_config = DroneConfig(drones)
@@ -110,9 +108,6 @@ async def start_offboard_mode():
     
     # Continuously maintain the drone's position and velocity
     await controller.maintain_position_velocity()
-
-
-
 
 
 
@@ -179,216 +174,13 @@ def stop_mavlink_routing(mavlink_router_process):
 # Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
 # messages from the drone, processes these messages, and updates the drone_config object accordingly.
 # When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
-local_drone_controller = LocalMavlinkController(drone_config, params.local_mavlink_port, params.local_mavlink_refresh_interval)
+local_drone_controller = LocalMavlinkController(drone_config, params)
 
 
 
+drone_comms = DroneCommunicator(drone_config, params)
+drone_comms.start_communication()
 
-
-
-
-#-------------------------Start Communication Stuffs-----------------------------
- 
-def send_packet_to_node(packet, ip, port):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.sendto(packet, (ip, port))
-
-def get_nodes():
-    # Cache nodes to avoid reading the file every time
-    if hasattr(get_nodes, "nodes"):
-        return get_nodes.nodes
-
-    with open("config.csv", "r") as file:
-        get_nodes.nodes = list(csv.DictReader(file))
-    return get_nodes.nodes
-
-   
-
-
-
-def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
-    drone = drones.get(hw_id, DroneConfig(drones,hw_id))
-    drone.pos_id = pos_id
-    drone.state = state
-    drone.mission = mission
-    drone.trigger_time = trigger_time
-    drone.position = position
-    drone.velocity = velocity
-    drone.yaw = yaw
-    drone.battery = battery
-    drone.last_update_timestamp = last_update_timestamp
-
-    drones[hw_id] = drone
-
-def process_packet(data):
-    header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
-
-    # Check if it's a command packet
-    if header == 55 and terminator == 66 and len(data) == params.command_packet_size:
-        header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack(params.command_struct_fmt, data)
-        logging.info(f"Received command from GCS: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
-
-        drone_config.hw_id = hw_id
-        drone_config.pos_id = pos_id
-        drone_config.mission = mission
-        drone_config.state = state
-        drone_config.trigger_time = trigger_time
-
-        # Add additional logic here to handle the received command
-    elif header == 77 and terminator == 88 and len(data) == params.telem_packet_size:
-        # Decode the data
-        header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, terminator = struct.unpack(params.telem_struct_fmt, data)
-        logging.debug(f"Received telemetry from Drone {hw_id}")
-
-        if hw_id not in drones:
-            # Create a new instance for the drone
-            logging.info(f"Receiving Telemetry from NEW Drone ID= {hw_id}")
-            drones[hw_id] = DroneConfig(drones, hw_id)
-
-        position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-        velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-        
-        set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, time.time())
-
-        # Add processing of the received telemetry data here
-    else:
-        logging.error(f"Received packet of incorrect size or header. Got {len(data)} bytes.")
-
-# Function to get the current state of the drone
-def get_drone_state():
-    """
-    Fetches the current state of the drone, including hardware id (hw_id), 
-    position id (pos_id), current state, trigger time, position, velocity,
-    battery voltage, and follow mode.
-    
-    The state variable indicates: 
-    0 for unset trigger time, 1 for set trigger time, 2 for flying
-    The trigger time is set to 0 if it has not been set yet
-
-    Returns:
-    dict: A dictionary containing the current state of the drone
-    """
-    drone_state = {
-    "hw_id": int(drone_config.hw_id),
-    "pos_id": int(drone_config.config['pos_id']),
-    "state": int(drone_config.state),
-    "mission": int(drone_config.mission),
-    "trigger_time": int(drone_config.trigger_time),
-    "position_lat": drone_config.position['lat'],
-    "position_long": drone_config.position['long'],
-    "position_alt": drone_config.position['alt'],
-    "velocity_north": drone_config.velocity['vel_n'],
-    "velocity_east": drone_config.velocity['vel_e'],
-    "velocity_down": drone_config.velocity['vel_d'],
-    "yaw": drone_config.yaw,
-    "battery_voltage": drone_config.battery,
-    "follow_mode": int(drone_config.swarm['follow'])
-}
-
-
-    return drone_state
-
-
-
-def send_drone_state():
-    """
-    Sends the drone state over UDP to the GCS and optionally to other drones in the swarm.
-
-    The state information includes hardware id, position id, current state, 
-    trigger time, position, velocity, battery voltage, and follow mode.
-    
-    Each state variable is packed into a binary packet and sent every `TELEM_SEND_INTERVAL` seconds.
-    If `broadcast_mode` is True, the state is also sent to all other drones in the swarm.
-
-    The structure of the packet is as follows:
-    - Start of packet (uint8)
-    - Hardware ID (uint16)
-    - Position ID (uint16)
-    - State (uint8)
-    - Trigger Time (uint32)
-    - Latitude, Longitude, Altitude (double)
-    - North, East, Down velocities (double)
-    - yaw (double)
-    - Battery Voltage (double)
-    - Follow Mode (uint8)
-    - End of packet (uint8)
-    """
-    udp_ip = drone_config.config['gcs_ip']  # IP address of the ground station
-    udp_port = int(drone_config.config['debug_port'])  # UDP port to send telemetry data to
-
-    while True:
-        drone_state = get_drone_state()
-
-        # Create a struct format string based on the data types
-        telem_struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
-        # H is for uint16
-        # B is for uint8
-        # I is for uint32
-        # d is for double (float64)
-        # Pack the telemetry data into a binary packet
-        #print(drone_state)
-        packet = struct.pack(telem_struct_fmt,
-                             77,  # start of packet
-                             drone_state['hw_id'],
-                             drone_state['pos_id'],
-                             drone_state['state'],
-                             drone_state['mission'],
-                             drone_state['trigger_time'],
-                             drone_state['position_lat'],
-                             drone_state['position_long'],
-                             drone_state['position_alt'],
-                             drone_state['velocity_north'],
-                             drone_state['velocity_east'],
-                             drone_state['velocity_down'],
-                             drone_state['yaw'],
-                             drone_state['battery_voltage'],
-                             drone_state['follow_mode'],
-                             88)  # end of packet
-        telem_packet_size = len(packet)
-        # If broadcast_mode is True, send to all nodes
-        if params.broadcast_mode:
-            nodes = get_nodes()
-            # Send to all other nodes
-            for node in nodes:
-                if int(node["hw_id"]) != drone_state['hw_id']:
-                    send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
-                    #print(f'Sent telemetry {telem_packet_size} Bytes to drone {int(node["hw_id"])} with IP: {node["ip"]} ')
-
-
-        # Always send to GCS
-        send_packet_to_node(packet, udp_ip, udp_port)
-
-        #print(f"Sent telemetry data to GCS: {packet}")
-        #print(f"Sent telemetry {telem_packet_size} Bytes to GCS")
-        #print(f"Values: hw_id: {drone_state['hw_id']}, state: {drone_state['state']}, Mission: {drone_state['mission']}, Latitude: {drone_state['position_lat']}, Longitude: {drone_state['position_long']}, Altitude : {drone_state['position_alt']}, follow_mode: {drone_state['follow_mode']}, trigger_time: {drone_state['trigger_time']}")
-        current_time = int(time.time())
-        #print(f"Current system time: {current_time}")
-        
-        # Update the global variable to keep track of the packet size
-
-        time.sleep(params.TELEM_SEND_INTERVAL)  # send telemetry data every TELEM_SEND_INTERVAL seconds
-
-
-
-
-def read_packets():
-    """Reads and decodes new packets from the ground station over the debug vector..."""
-    udp_port = int(drone_config.config['debug_port'])  # UDP port to receive packets
-
-    sock = socket.socket(socket.AF_INET,  # Internet
-                         socket.SOCK_DGRAM)  # UDP
-    sock.bind(('0.0.0.0', udp_port))
-    
-    while True:
-        data, addr = sock.recvfrom(1024)  # buffer size is 1024 bytes
-        process_packet(data)
-
-        if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-            drone_config.calculate_setpoints()
-
-        time.sleep(params.income_packet_check_interval)  # check for new packets every second
-
-#-------------------------End Communication Stuffs-----------------------------
 
 
 # Function to synchronize time with a reliable internet source
@@ -420,7 +212,6 @@ def synchronize_time():
         print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
 
         
-
 
 # Function to schedule the drone mission
 def schedule_mission():

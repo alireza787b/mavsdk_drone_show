@@ -13,15 +13,15 @@ class LocalMavlinkController:
         local_mavlink_refresh_interval: The time interval in seconds between two telemetry updates.
     """
     
-    def __init__(self, drone_config, local_mavlink_port, local_mavlink_refresh_interval):
+    def __init__(self, drone_config, params):
         """
         The constructor starts a new thread which reads Mavlink messages and updates the drone_config object.
         """
         
         # Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
-        self.mav = mavutil.mavlink_connection(f"udp:localhost:{local_mavlink_port}")
+        self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
         self.drone_config = drone_config
-        self.local_mavlink_refresh_interval = local_mavlink_refresh_interval
+        self.local_mavlink_refresh_interval = params.local_mavlink_refresh_interval
         self.run_telemetry_thread = threading.Event()
         self.run_telemetry_thread.set()
 
