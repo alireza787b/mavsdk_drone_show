@@ -206,7 +206,7 @@ def get_nodes():
 
 
 
-def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
+def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery):
 
     # Get reference to global DroneConfig object
     drone = drone_config.drones.get(hw_id) 
@@ -225,7 +225,7 @@ def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position
     drone.velocity = velocity
     drone.yaw = yaw
     drone.battery = battery
-    drone.last_update_timestamp = last_update_timestamp
+    drone.last_update_timestamp = datetime.datetime.now()
 
 def process_packet(data):
     header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
