@@ -187,7 +187,7 @@ local_drone_controller = LocalMavlinkController(drone_config, config.local_mavli
 
 
 
-communicator = DroneCommunicator(config)
+communicator = DroneCommunicator()
 
 
 

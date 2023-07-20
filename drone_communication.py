@@ -6,6 +6,7 @@ import time
 from threading import Thread
 
 from drone_config import DroneConfig
+from config import Config as config
 
 class DroneCommunicator:
     """
@@ -24,7 +25,7 @@ class DroneCommunicator:
         process_packet: Decodes and handles an incoming packet.
     """
 
-    def __init__(self, config):
+    def __init__(self, config=config):
         """Initializes the drone communicator."""
         self.config = config
 
