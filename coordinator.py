@@ -292,8 +292,7 @@ def main():
     finally:
         # Close the threads before the application closes
         print("Closing threads...")
-        telemetry_thread.join()
-        command_thread.join()
+        drone_comms.stop_communication()
 
     print("Exiting the application...")
 

@@ -16,16 +16,17 @@ class DroneCommunicator:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
         self.stop_flag = threading.Event()
-
+        self.nodes = None
+        
     def send_packet_to_node(self, packet, ip, port):
         self.sock.sendto(packet, (ip, port))
 
     def get_nodes(self):
-        if hasattr(self.get_nodes, "nodes"):
-            return self.get_nodes.nodes
+        if self.nodes is not None:  # modify this line
+            return self.nodes
         with open("config.csv", "r") as file:
-            self.get_nodes.nodes = list(csv.DictReader(file))
-        return self.get_nodes.nodes
+            self.nodes = list(csv.DictReader(file))  # modify this line
+        return self.nodes
 
     def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
         drone = self.drones.get(hw_id, self.drone_config(hw_id))
