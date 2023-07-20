@@ -206,18 +206,9 @@ def get_nodes():
 
 
 
-def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery):
-
-    # Get reference to global DroneConfig object
-    drone = drone_config.drones.get(hw_id) 
-    
-    if not drone:
-        # DroneConfig doesn't exist yet, create it
-        drone = drone_config.DroneConfig(drones,hw_id)
-        drone_config.drones[hw_id] = drone
-
-    # Directly update attributes
-    drone.pos_id = pos_id  
+def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
+    drone = drones.get(hw_id, DroneConfig(hw_id))
+    drone.pos_id = pos_id
     drone.state = state
     drone.mission = mission
     drone.trigger_time = trigger_time
@@ -225,7 +216,9 @@ def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position
     drone.velocity = velocity
     drone.yaw = yaw
     drone.battery = battery
-    drone.last_update_timestamp = datetime.datetime.now()
+    drone.last_update_timestamp = last_update_timestamp
+
+    drones[hw_id] = drone
 
 def process_packet(data):
     header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
