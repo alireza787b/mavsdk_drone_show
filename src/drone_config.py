@@ -82,7 +82,7 @@ import math
 from geographiclib.geodesic import Geodesic
 import navpy
 import requests
-from params import Params as params
+from src.params import Params as params
 
 class DroneConfig:
     def __init__(self,drones, hw_id=None):

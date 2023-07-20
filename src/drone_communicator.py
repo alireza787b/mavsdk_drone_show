@@ -62,7 +62,7 @@ import time
 import csv
 import struct
 import logging
-from drone_config import DroneConfig
+from src.drone_config import DroneConfig
 
 
 class DroneCommunicator:
