@@ -29,7 +29,7 @@ class DroneCommunicator:
         return self.nodes
 
     def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
-        drone = self.drones.get(hw_id, self.drone_config(self.drones, hw_id))
+        drone = self.drones.get(hw_id, DroneConfig(self.drones, hw_id))
         drone.pos_id = pos_id
         drone.state = state
         drone.mission = mission
@@ -40,6 +40,7 @@ class DroneCommunicator:
         drone.battery = battery
         drone.last_update_timestamp = last_update_timestamp
         self.drones[hw_id] = drone
+
 
     def process_packet(self, data):
         header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
