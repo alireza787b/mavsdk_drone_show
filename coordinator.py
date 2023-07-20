@@ -252,8 +252,6 @@ current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 # Set up logging
 log_filename = os.path.join('logs', f'{current_time}.log')
 logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-telemetry_thread = threading.Thread(target=send_drone_state)
-command_thread = threading.Thread(target=read_packets)
 
 
 # Main function
