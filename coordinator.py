@@ -205,10 +205,19 @@ def get_nodes():
    
 
 
-# Helper functions
-def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
-    drone = drones.get(hw_id, DroneConfig(hw_id))
-    drone.pos_id = pos_id
+
+def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
+
+    # Get reference to global DroneConfig object
+    drone = drone_config.drones.get(hw_id) 
+    
+    if not drone:
+        # DroneConfig doesn't exist yet, create it
+        drone = drone_config.DroneConfig(hw_id)
+        drone_config.drones[hw_id] = drone
+
+    # Directly update attributes
+    drone.pos_id = pos_id  
     drone.state = state
     drone.mission = mission
     drone.trigger_time = trigger_time
@@ -217,8 +226,6 @@ def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velo
     drone.yaw = yaw
     drone.battery = battery
     drone.last_update_timestamp = last_update_timestamp
-
-    drones[hw_id] = drone
 
 def process_packet(data):
     header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
@@ -242,6 +249,7 @@ def process_packet(data):
 
         if hw_id not in drones:
             # Create a new instance for the drone
+            logging.info(f"Receiving Telemetry from NEW Drone ID= {hw_id}")
             drones[hw_id] = DroneConfig(hw_id)
 
         position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
