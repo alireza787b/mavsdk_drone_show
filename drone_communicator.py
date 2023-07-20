@@ -29,7 +29,7 @@ class DroneCommunicator:
         return self.nodes
 
     def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
-        drone = self.drones.get(hw_id, self.drone_config(hw_id))
+        drone = self.drones.get(hw_id, self.drone_config(self.drones, hw_id))
         drone.pos_id = pos_id
         drone.state = state
         drone.mission = mission
