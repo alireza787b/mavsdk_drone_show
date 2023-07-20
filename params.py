@@ -16,7 +16,7 @@ print(config.sitl_port)
 import struct
 
 
-class Config():
+class Params():
 
     # Configuration Variables
     # URLs

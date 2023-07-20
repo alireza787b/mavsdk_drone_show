@@ -5,10 +5,10 @@ import math
 from geographiclib.geodesic import Geodesic
 
 import requests
-from config import Config as config
+from params import Params as params
 
 class DroneConfig:
-    def __init__(self,drones={},config=config, hw_id=None):
+    def __init__(self,drones={},params=params, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
         self.config = self.read_config()
@@ -55,19 +55,19 @@ class DroneConfig:
         return None
 
     def read_config(self):
-        if config.offline_config:
+        if params.offline_config:
             return self.read_file('config.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading configuration from online source...")
             try:
-                print(f'Attempting to download file from: {config.config_url}')
-                response = requests.get(config.config_url)
+                print(f'Attempting to download file from: {params.config_url}')
+                response = requests.get(params.config_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
                     return None
 
-                with open('online_config.csv', 'w') as f:
+                with open('online_params.csv', 'w') as f:
                     f.write(response.text)
 
                 return self.read_file('online_config.csv', 'online CSV file', self.hw_id)
@@ -85,13 +85,13 @@ class DroneConfig:
         In online mode, it downloads the swarm configuration file from the specified URL.
         In offline mode, it reads the swarm configuration file from the local disk.
         """
-        if config.offline_swarm:
+        if params.offline_swarm:
             return self.read_file('swarm.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading swarm configuration from online source...")
             try:
-                print(f'Attempting to download file from: {config.swarm_url}')
-                response = requests.get(config.swarm_url)
+                print(f'Attempting to download file from: {params.swarm_url}')
+                response = requests.get(params.swarm_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')

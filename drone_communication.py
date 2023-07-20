@@ -25,9 +25,10 @@ class DroneCommunicator:
         process_packet: Decodes and handles an incoming packet.
     """
 
-    def __init__(self, config=config):
+    def __init__(self,drone_config, config=config):
         """Initializes the drone communicator."""
         self.config = config
+        self.drone_config = drone_config
 
         # Create UDP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -42,14 +43,14 @@ class DroneCommunicator:
 
     def send_telemetry(self):
         """Sends telemetry packets to GCS/drones."""
-        udp_ip = self.config.gcs_ip
-        udp_port = int(self.config.debug_port)
+        udp_ip = self.drone_config.config['gcs_ip']
+        udp_port = int(self.drone_config.config['debug_port'])
 
         while True:
             drone_state = self.get_drone_state()
 
             # Create a struct format string based on the data types
-            telem_struct_fmt = '=BHHBBIddddddddBB'
+            telem_struct_fmt = config.telem_struct_fmt
             # H is for uint16
             # B is for uint8
             # I is for uint32
@@ -89,7 +90,7 @@ class DroneCommunicator:
 
     def receive_commands(self):
         """Receives command packets from GCS."""
-        udp_port = int(self.config.debug_port)
+        udp_port = int(self.drone_config.config['debug_port'])
 
         self.sock.bind(('0.0.0.0', udp_port))
 
@@ -97,8 +98,8 @@ class DroneCommunicator:
             data, addr = self.sock.recvfrom(1024)
             self.process_packet(data)
 
-            if self.drone_state['mission'] == 2 and self.drone_state['state'] != 0 and int(self.drone_state['follow_mode']) != 0:
-                self.calculate_setpoints()
+            if self.drone_config.drone_state['mission'] == 2 and self.drone_config.drone_state['state'] != 0 and int(self.drone_config.drone_state['follow_mode']) != 0:
+                self.drone_config.calculate_setpoints()
 
             time.sleep(self.config.income_packet_check_interval)
 
