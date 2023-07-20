@@ -1,23 +1,16 @@
-
-
 import csv
 import glob
 import logging
 import math
+from geographiclib.geodesic import Geodesic
 
 import requests
-from geographiclib.geodesic import Geodesic
-import navpy
-# Offline configuration switch
-offline_config = True  # Set to True to use offline configuration
-offline_swarm = True  # Set to True to use offline swarm
+from config import Config as config
 
 class DroneConfig:
-    def __init__(self,drones,config_url,swarm_url,offline_config=True, offline_swarm=True, hw_id=None):
+    def __init__(self,drones={},config=config, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
-        self.offline_config = offline_config
-        self.offline_swarm = offline_swarm
         self.config = self.read_config()
         self.swarm = self.read_swarm()
         self.state = 0
@@ -36,9 +29,6 @@ class DroneConfig:
         self.yaw_setpoint=0
         self.target_drone = None
         self.drones = drones
-        self.config_url = config_url
-        self.swarm_url = swarm_url
-        
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
@@ -65,13 +55,13 @@ class DroneConfig:
         return None
 
     def read_config(self):
-        if self.offline_config:
+        if config.offline_config:
             return self.read_file('config.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading configuration from online source...")
             try:
-                print(f'Attempting to download file from: {self.config_url}')
-                response = requests.get(self.config_url)
+                print(f'Attempting to download file from: {config.config_url}')
+                response = requests.get(config.config_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
@@ -95,13 +85,13 @@ class DroneConfig:
         In online mode, it downloads the swarm configuration file from the specified URL.
         In offline mode, it reads the swarm configuration file from the local disk.
         """
-        if self.offline_swarm:
+        if config.offline_swarm:
             return self.read_file('swarm.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading swarm configuration from online source...")
             try:
-                print(f'Attempting to download file from: {self.swarm_url}')
-                response = requests.get(self.swarm_url)
+                print(f'Attempting to download file from: {config.swarm_url}')
+                response = requests.get(config.swarm_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
@@ -232,4 +222,3 @@ class DroneConfig:
             yaw_degrees += 360
 
         return yaw_degrees
-
