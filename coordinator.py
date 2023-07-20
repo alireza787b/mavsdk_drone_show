@@ -213,7 +213,7 @@ def set_drone_config(self, hw_id, pos_id, state, mission, trigger_time, position
     
     if not drone:
         # DroneConfig doesn't exist yet, create it
-        drone = drone_config.DroneConfig(hw_id)
+        drone = drone_config.DroneConfig(drones,hw_id)
         drone_config.drones[hw_id] = drone
 
     # Directly update attributes
@@ -250,7 +250,7 @@ def process_packet(data):
         if hw_id not in drones:
             # Create a new instance for the drone
             logging.info(f"Receiving Telemetry from NEW Drone ID= {hw_id}")
-            drones[hw_id] = DroneConfig(hw_id)
+            drones[hw_id] = DroneConfig(drones, hw_id)
 
         position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
         velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}

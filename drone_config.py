@@ -8,7 +8,7 @@ import requests
 from params import Params as params
 
 class DroneConfig:
-    def __init__(self,drones={},params=params, hw_id=None):
+    def __init__(self,drones, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)
         self.trigger_time = 0
         self.config = self.read_config()
