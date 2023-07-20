@@ -207,7 +207,7 @@ def get_nodes():
 
 
 def set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp):
-    drone = drones.get(hw_id, DroneConfig(hw_id))
+    drone = drones.get(hw_id, DroneConfig(drones,hw_id))
     drone.pos_id = pos_id
     drone.state = state
     drone.mission = mission
