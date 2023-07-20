@@ -94,9 +94,6 @@ config = config.Config()
 # Initialize DroneConfig
 drone_config = DroneConfig(drones)
 
-
-
-
  
 
 async def start_offboard_mode():

@@ -73,5 +73,3 @@ class Config():
     offboard_follow_update_interval = 0.2
 
 
-# Create global instance
-config = Config()
