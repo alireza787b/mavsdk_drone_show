@@ -1,17 +1,64 @@
-# config.py
-
 """
-Drone configuration and settings module.
+    A class to encapsulate various configuration parameters needed for the application. This includes connection settings,
+    timing settings, packet formats and sizes, and URL locations for the configuration files.
 
-Contains all the global configuration and constants required for the drone program.
-Settings are grouped logically and documented.
-
-To access any setting, simply import config and access it directly:
-
-from config import config
-print(config.sitl_port)
-
-"""
+    Attributes
+    ----------
+    config_url : str
+        The URL for the configuration file.
+    swarm_url : str
+        The URL for the swarm file.
+    sim_mode : bool
+        Whether to use simulation mode or not.
+    serial_mavlink : bool
+        Whether the Raspberry Pi is connected to Pixhawk using serial or UDP.
+    serial_mavlink_port : str
+        The default serial port for Raspberry Pi Zero.
+    serial_baudrate : int
+        The default baud rate for the serial connection.
+    sitl_port : int
+        The default SITL port.
+    gcs_mavlink_port : int
+        The port to send Mavlink messages to GCS.
+    mavsdk_port : int
+        The default MAVSDK port.
+    local_mavlink_port : int
+        Local Mavlink port.
+    shared_gcs_port : bool
+        Whether to share the GCS port or not.
+    extra_devices : list
+        List of extra devices (IP:Port) to route Mavlink.
+    sleep_interval : float
+        The sleep interval for the main loop in seconds.
+    offline_config : bool
+        Whether to use offline configuration or not.
+    offline_swarm : bool
+        Whether to use offline swarm or not.
+    default_sitl : bool
+        Whether to use the default 14550 port for single drone simulation.
+    online_sync_time : bool
+        Whether to sync time from Internet Time Servers.
+    TELEM_SEND_INTERVAL : int
+        Send telemetry data every TELEM_SEND_INTERVAL seconds.
+    local_mavlink_refresh_interval : float
+        Refresh interval for local Mavlink connection.
+    broadcast_mode : bool
+        Whether to use broadcast mode or not.
+    telem_struct_fmt : str
+        Telemetry packet format.
+    command_struct_fmt : str
+        Command packet format.
+    telem_packet_size : int
+        Size of telemetry packet.
+    command_packet_size : int
+        Size of command packet.
+    income_packet_check_interval : float
+        Interval for checking incoming packets.
+    default_GRPC_port : int
+        Default GRPC port.
+    offboard_follow_update_interval : float
+        Offboard follow update interval.
+    """
 
 import struct
 

@@ -1,3 +1,60 @@
+"""
+DroneCommunicator class:
+
+    Handles the communication between drones and the Ground Control Station (GCS).
+
+Variables:
+    drone_config (DroneConfig): Instance of the DroneConfig class. Holds configuration data for the drone.
+    params (dict): Parameters dictionary that includes settings like command_packet_size, telemetry_packet_size, struct_formats, etc.
+    drones (dict): Dictionary where the keys are the hardware ID of drones and the values are DroneConfig instances representing each drone.
+    sock (socket.socket): A UDP socket object for communication.
+    stop_flag (threading.Event): Event flag used to signal the threads when to stop their operation.
+    nodes (List[dict]): List of dictionaries where each dictionary represents a node's information. Each dictionary has keys like "hw_id", "ip", and "debug_port".
+
+Methods:
+    send_packet_to_node(packet, ip, port): Sends a packet (bytes) to a specified node.
+        Inputs:
+            - packet (bytes): The packet data to be sent.
+            - ip (str): The IP address of the recipient node.
+            - port (int): The port number on the recipient node to send the packet to.
+    
+    get_nodes(): Returns the list of nodes. If the list hasn't been created yet, it reads the nodes' information from a CSV file and stores them in self.nodes.
+        Outputs:
+            - nodes (List[dict]): List of nodes' information.
+
+    set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery, last_update_timestamp): Sets the configuration for a specific drone.
+        Inputs:
+            - hw_id (int): The hardware ID of the drone.
+            - pos_id (int): The positional ID of the drone.
+            - state (int): The current state of the drone.
+            - mission (int): The mission that the drone is on.
+            - trigger_time (int): The time of the trigger event.
+            - position (dict): A dictionary with keys 'lat', 'long', 'alt' for latitude, longitude, and altitude respectively.
+            - velocity (dict): A dictionary with keys 'vel_n', 'vel_e', 'vel_d' for velocities in the north, east, and down directions respectively.
+            - yaw (float): The yaw of the drone.
+            - battery (float): The battery voltage of the drone.
+            - last_update_timestamp (float): The timestamp of the last update.
+
+    process_packet(data): Processes the received packet based on its header and terminator values.
+        Inputs:
+            - data (bytes): The packet data received.
+
+    get_drone_state(): Fetches and returns the current state of the drone as a dictionary.
+        Outputs:
+            - drone_state (dict): A dictionary representing the drone's state. Keys include 'hw_id', 'pos_id', 'state', 'mission', 'trigger_time', 'position_lat', 'position_long', 'position_alt', 'velocity_north', 'velocity_east', 'velocity_down', 'yaw', 'battery_voltage', 'follow_mode'.
+    
+    send_drone_state(): Continually sends the drone's current state to the GCS and other nodes depending on the broadcast_mode flag.
+
+    read_packets(): Continually reads incoming packets from the socket, processes them, and updates drone_config if necessary.
+
+    start_communication(): Starts the threads that handle sending drone state and reading packets.
+
+    stop_communication(): Stops the threads that handle sending drone state and reading packets.
+"""
+
+
+
+
 import socket
 import threading
 import os

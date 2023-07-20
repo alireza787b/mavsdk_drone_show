@@ -43,7 +43,7 @@ import navpy
 
 import time
 import threading
-from drone_config import DroneConfig
+from src.drone_config import DroneConfig
 from local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
@@ -53,15 +53,15 @@ import requests
 from geographiclib.geodesic import Geodesic
 from mavsdk import System
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
-from offboard_controller import OffboardController
+from src.offboard_controller import OffboardController
 import os
 import datetime
 import logging
-import params
+import src.params as params
 import struct
-from drone_communicator import DroneCommunicator
+from src.drone_communicator import DroneCommunicator
 import math
-from params import Params 
+from src.params import Params 
 
 
 # Set up logging
