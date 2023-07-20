@@ -94,6 +94,7 @@ config = config.Config()
 # Initialize DroneConfig
 drone_config = DroneConfig(drones)
 
+
  
 
 async def start_offboard_mode():
@@ -129,10 +130,10 @@ async def start_offboard_mode():
 def initialize_mavlink():
 
     # Depending on the sim_mode, connect to either the SITL or the Raspberry Pi GPIO serial
-    if sim_mode:
+    if config.sim_mode:
         print("Sim mode is enabled. Connecting to SITL...")
-        if (default_sitl == True):
-            mavlink_source = f"0.0.0.0:{sitl_port}"
+        if (config.default_sitl == True):
+            mavlink_source = f"0.0.0.0:{config.sitl_port}"
         else:
             mavlink_source = f"0.0.0.0:{drone_config.config['mavlink_port']}"
     else:
@@ -144,11 +145,11 @@ def initialize_mavlink():
             mavlink_source = f"127.0.0.1:{config.sitl_port}"
 
     # Prepare endpoints for mavlink-router
-    endpoints = [f"-e {device}" for device in extra_devices]
+    endpoints = [f"-e {device}" for device in config.extra_devices]
 
-    if sim_mode:
+    if config.sim_mode:
         # In sim mode, route the MAVLink messages to the GCS locally
-        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{mavsdk_port}")
+        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{config.mavsdk_port}")
     else:
         # In real life, route the MAVLink messages to the GCS and other drones over a Zerotier network
         if(config.shared_gcs_port):
