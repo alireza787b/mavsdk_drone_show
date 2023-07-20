@@ -3,7 +3,7 @@ import glob
 import logging
 import math
 from geographiclib.geodesic import Geodesic
-
+import navpy
 import requests
 from params import Params as params
 
