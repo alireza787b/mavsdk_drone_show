@@ -44,7 +44,7 @@ import navpy
 import time
 import threading
 from src.drone_config import DroneConfig
-from local_mavlink_controller import LocalMavlinkController
+from src.local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
 import csv
