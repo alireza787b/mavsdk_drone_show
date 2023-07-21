@@ -18,6 +18,12 @@ class LocalMavlinkController:
         The constructor starts a new thread which reads Mavlink messages and updates the drone_config object.
         """
         
+        
+        # Create a dictionary to store the latest message of each type
+        self.latest_messages = {}
+        # Set the message filter
+        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE']
+        
         # Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
         self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
         self.drone_config = drone_config
@@ -30,10 +36,7 @@ class LocalMavlinkController:
         self.telemetry_thread.start()
         self.home_position_logged = False
         
-        # Create a dictionary to store the latest message of each type
-        self.latest_messages = {}
-        # Set the message filter
-        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE']
+       
 
         
     def mavlink_monitor(self):
