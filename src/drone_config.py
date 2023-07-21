@@ -252,9 +252,9 @@ class DroneConfig:
             target_position_NED = self.convert_LLA_to_NED(self.target_drone.position)
 
             # Get the offsets
-            offset_n = self.swarm.get('offset_n', 0)
-            offset_e = self.swarm.get('offset_e', 0)
-            offset_alt = self.swarm.get('offset_alt', 0)
+            offset_n = float(self.swarm.get('offset_n', 0))
+            offset_e = float(self.swarm.get('offset_e', 0))
+            offset_alt = float(self.swarm.get('offset_alt', 0))
 
             # Apply the offsets
             self.position_setpoint_NED = {
