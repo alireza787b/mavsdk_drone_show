@@ -272,8 +272,8 @@ def main():
             # Get the drone state
             #drone_state = get_drone_state()
 
-            # if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-            #     drone_config.calculate_setpoints()
+            if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
+                drone_config.calculate_setpoints()
             
             # Schedule the drone mission if the trigger time has been reached
             schedule_mission()
