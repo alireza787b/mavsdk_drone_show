@@ -98,6 +98,8 @@ class DroneCommunicator:
         drone.battery = battery
         drone.last_update_timestamp = last_update_timestamp
         self.drones[hw_id] = drone
+        self.drone_config.drone_kf.update(position, velocity)  # Update the Kalman filter with the new position and velocity
+
 
 
     def process_packet(self, data):
