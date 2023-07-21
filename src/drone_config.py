@@ -238,7 +238,7 @@ class DroneConfig:
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            logging.log(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
+            print(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
         
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
