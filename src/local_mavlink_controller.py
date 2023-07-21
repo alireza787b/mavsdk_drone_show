@@ -47,7 +47,7 @@ class LocalMavlinkController:
                 self.latest_messages[msg.get_type()] = msg
             else:
                 logging.debug('No message received within timeout')
-            time.sleep(self.local_mavlink_refresh_interval)
+            #time.sleep(self.local_mavlink_refresh_interval)
 
     def process_message(self, msg):
         # Update the latest message of the received type
