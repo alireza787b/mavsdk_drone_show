@@ -41,13 +41,14 @@ class LocalMavlinkController:
         
     def mavlink_monitor(self):
         while self.run_telemetry_thread.is_set():
-            msg = self.mav.recv_match(type=self.message_filter, blocking=False)
+            msg = self.mav.recv_match(type=self.message_filter, blocking=True, timeout=5)  # 5-second timeout
             if msg is not None:
                 self.process_message(msg)
                 self.latest_messages[msg.get_type()] = msg
             else:
-                logging.debug('No message received within timeout')
-            #time.sleep(self.local_mavlink_refresh_interval)
+                logging.warning('No MAVLink message received within timeout period')
+
+        
 
     def process_message(self, msg):
         # Update the latest message of the received type
