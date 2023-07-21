@@ -188,74 +188,33 @@ class DroneConfig:
         self.find_target_drone()
 
         if self.target_drone:
-            self.calculate_position_setpoint_LLA()
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            logging.debug(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
-
+            logging.log(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
+        
         elif self.swarm.get('follow') == 0:
             print(f"Drone {self.hw_id} is a master drone and not following anyone.")
         else:
             print(f"No drone to follow for drone with hw_id: {self.hw_id}")
 
-    def find_target_drone(self):
-        # find which drone it should follow
-        follow_hw_id = int(self.swarm['follow'])
-        if follow_hw_id == 0:
-            print(f"Drone {self.hw_id} is a master drone and not following anyone.")
-        elif follow_hw_id == self.hw_id:
-            print(f"Drone {self.hw_id} is set to follow itself. This is not allowed.")
-        else:
-            self.target_drone = self.drones[follow_hw_id]
-            if self.target_drone:
-                print(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
-                pass
-            else:
-                print(f"No target drone found for drone with hw_id: {self.hw_id}")
-
-    def calculate_position_setpoint_LLA(self):
-        # find its setpoints
-        offset_n = self.swarm.get('offset_n', 0)
-        offset_e = self.swarm.get('offset_e', 0)
-        offset_alt = self.swarm.get('offset_alt', 0)
-
-        # find its target drone position
-        if self.target_drone:
-            # Calculate new LLA with offset
-            geod = Geodesic.WGS84  # define the WGS84 ellipsoid
-            g = geod.Direct(float(self.target_drone.position['lat']), float(self.target_drone.position['long']), 90, float(offset_e))
-            g = geod.Direct(g['lat2'], g['lon2'], 0, float(offset_n))
-
-            self.position_setpoint_LLA = {
-                'lat': g['lat2'],
-                'long': g['lon2'],
-                'alt': float(self.target_drone.position['alt']) + float(offset_alt),  
-            }
-
-            # The above method calculates a new LLA coordinate by moving a certain distance 
-            # in the north (latitude) and east (longitude) direction. This is an approximation, 
-            # and it assumes that a degree of latitude and longitude represents the same distance 
-            # everywhere on the globe. For small distances, this should be a reasonable approximation, 
-            # but for larger distances, this approximation may not hold true. If more accuracy is 
-            # required, one should use a more advanced method or library that can account for the 
-            # curvature of the earth.
-
-            #print(f"Position setpoint for drone {self.hw_id}: {self.position_setpoint_LLA}")
-        else:
-            print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
     def calculate_position_setpoint_NED(self):
         if self.target_drone:
-            self.position_setpoint_NED = self.convert_LLA_to_NED(self.position_setpoint_LLA)
-            #print(f"NED Position setpoint for drone {self.hw_id}: {self.position_setpoint_NED}")
-        else:
-            print(f"No target drone found for drone with hw_id: {self.hw_id}")
-            
-    def calculate_yaw_setpoint(self):
-        if self.target_drone:
-            self.yaw_setpoint = self.target_drone.yaw
-            #print(f"Yaw setpoint for drone {self.hw_id}: {self.yaw_setpoint}")
+            # Convert the target drone's LLA to NED
+            target_position_NED = self.convert_LLA_to_NED(self.target_drone.position)
+
+            # Get the offsets
+            offset_n = self.swarm.get('offset_n', 0)
+            offset_e = self.swarm.get('offset_e', 0)
+            offset_alt = self.swarm.get('offset_alt', 0)
+
+            # Apply the offsets
+            self.position_setpoint_NED = {
+                'north': target_position_NED['north'] + offset_n,
+                'east': target_position_NED['east'] + offset_e,
+                'down': target_position_NED['down'] - offset_alt,
+            }
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -265,6 +224,13 @@ class DroneConfig:
         if self.target_drone:
             self.velocity_setpoint_NED = self.target_drone.velocity
             #print(f"NED Velocity setpoint for drone {self.hw_id}: {self.velocity_setpoint_NED}")
+        else:
+            print(f"No target drone found for drone with hw_id: {self.hw_id}")
+
+    def calculate_yaw_setpoint(self):
+        if self.target_drone:
+            self.yaw_setpoint = self.target_drone.yaw
+            #print(f"Yaw setpoint for drone {self.hw_id}: {self.yaw_setpoint}")
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
 
@@ -289,6 +255,7 @@ class DroneConfig:
         else:
             print("Home position is not set")
             return None
+
         
     def radian_to_degrees_heading(self,yaw_radians):
         # Convert the yaw angle to degrees
