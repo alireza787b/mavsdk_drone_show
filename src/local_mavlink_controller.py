@@ -30,32 +30,38 @@ class LocalMavlinkController:
         self.telemetry_thread.start()
         self.home_position_logged = False
         
+        # Create a dictionary to store the latest message of each type
+        self.latest_messages = {}
+        # Set the message filter
+        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE']
+
+        
     def mavlink_monitor(self):
         while self.run_telemetry_thread.is_set():
-            # Just read the latest message, all others will be automatically discarded
-            self.mav.recv_msg()
-            msg = self.mav.get_last_message()
-
+            msg = self.mav.recv_match(type=self.message_filter, blocking=False)
             if msg is not None:
                 self.process_message(msg)
+                self.latest_messages[msg.get_type()] = msg
             else:
                 logging.debug('No message received within timeout')
-
-            # Sleep for a fixed interval
             time.sleep(self.local_mavlink_refresh_interval)
-            
 
     def process_message(self, msg):
-        if msg.get_type() == 'GLOBAL_POSITION_INT':
+        # Update the latest message of the received type
+        msg_type = msg.get_type()
+        self.latest_messages[msg_type] = msg
+
+        if msg_type == 'GLOBAL_POSITION_INT':
             self.process_global_position_int(msg)
-        elif msg.get_type() == 'HOME_POSITION':
+        elif msg_type == 'HOME_POSITION':
             self.set_home_position(msg)
-        elif msg.get_type() == 'BATTERY_STATUS':
+        elif msg_type == 'BATTERY_STATUS':
             self.process_battery_status(msg)
-        elif msg.get_type() == 'ATTITUDE':
+        elif msg_type == 'ATTITUDE':
             self.process_attitude(msg)
         else:
             logging.debug(f"Received unhandled message type: {msg.get_type()}")
+
 
     def process_attitude(self, msg):
         logging.debug(f"Received ATTITUDE: {msg}")
