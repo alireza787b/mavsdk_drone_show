@@ -235,7 +235,7 @@ def schedule_mission():
             # Note: Replace "offboard_from_csv_multiple.py" with the actual script for the drone mission
         elif drone_config.mission == 2:  # For smart_swarm
             print("Smart swarm mission should be started")
-            # You can add logic here to start the smart swarm mission
+            #You can add logic here to start the smart swarm mission
             if(int(drone_config.swarm.get('follow')) != 0): 
                 # Run the async function
                 asyncio.run(start_offboard_mode())
@@ -266,6 +266,7 @@ def main():
         print("Initializing MAVLink...")
         mavlink_router_process = initialize_mavlink()
         time.sleep(2)
+        drone_config.drone_kf.initialize_kalman_filter()
 
         # Enter a loop where the application will continue running
         while True:
