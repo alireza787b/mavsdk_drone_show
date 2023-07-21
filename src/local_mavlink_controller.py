@@ -1,7 +1,7 @@
 import threading
 import logging
 from pymavlink import mavutil
-
+import time
 class LocalMavlinkController:
     """
     The LocalMavlinkController class is responsible for managing the telemetry data received from the local Mavlink 
@@ -32,14 +32,18 @@ class LocalMavlinkController:
         
     def mavlink_monitor(self):
         while self.run_telemetry_thread.is_set():
-            try:
-                msg = self.mav.recv_match(blocking=False)
-                if msg is not None:
-                    self.process_message(msg)
-                else:
-                    logging.debug('No message received within timeout')
-            except Exception as e:
-                logging.error(f"An error occurred while receiving message: {e}")
+            # Just read the latest message, all others will be automatically discarded
+            self.mav.recv_msg()
+            msg = self.mav.get_last_message()
+
+            if msg is not None:
+                self.process_message(msg)
+            else:
+                logging.debug('No message received within timeout')
+
+            # Sleep for a fixed interval
+            time.sleep(self.local_mavlink_refresh_interval)
+            
 
     def process_message(self, msg):
         if msg.get_type() == 'GLOBAL_POSITION_INT':
