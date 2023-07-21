@@ -98,8 +98,6 @@ class DroneCommunicator:
         drone.battery = battery
         drone.last_update_timestamp = last_update_timestamp
         self.drones[hw_id] = drone
-        self.drone_config.drone_kf.update(position, velocity)  # Update the Kalman filter with the new position and velocity
-
 
 
     def process_packet(self, data):
@@ -204,7 +202,7 @@ class DroneCommunicator:
                 data, addr = self.sock.recvfrom(1024)
                 self.process_packet(data)
             if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
-                self.drone_config.calculate_setpoints()
+                    self.drone_config.calculate_setpoints()
 
     def start_communication(self):
         self.telemetry_thread = threading.Thread(target=self.send_drone_state)
