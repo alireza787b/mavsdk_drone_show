@@ -63,7 +63,7 @@ import csv
 import struct
 import logging
 from src.drone_config import DroneConfig
-
+import select
 
 class DroneCommunicator:
     def __init__(self, drone_config, params, drones):
@@ -72,6 +72,7 @@ class DroneCommunicator:
         self.drones = drones
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
+        self.sock.setblocking(0)  # This sets the socket to non-blocking mode
         self.stop_flag = threading.Event()
         self.nodes = None
         
@@ -196,11 +197,12 @@ class DroneCommunicator:
 
     def read_packets(self):
         while not self.stop_flag.is_set():
-            data, addr = self.sock.recvfrom(1024)
-            self.process_packet(data)
+            ready = select.select([self.sock], [], [], self.params.income_packet_check_interval)
+            if ready[0]:
+                data, addr = self.sock.recvfrom(1024)
+                self.process_packet(data)
             if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
                 self.drone_config.calculate_setpoints()
-            time.sleep(self.params.income_packet_check_interval)
 
     def start_communication(self):
         self.telemetry_thread = threading.Thread(target=self.send_drone_state)

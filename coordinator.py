@@ -163,8 +163,7 @@ def stop_mavlink_routing(mavlink_router_process):
         print("Stopping MAVLink routing...")
         mavlink_router_process.terminate()
         run_telemetry_thread.clear()
-        telemetry_thread.join()  # wait for the telemetry thread to finish
-        mavlink_router_process = None
+        drone_comms.stop_communication()
     else:
         print("MAVLink routing is not running.")
 
