@@ -8,6 +8,7 @@ done
 
 # Once the .hwID file exists, continue with the rest of the script
 cd ~/mavsdk_drone_show
+git stash
 git pull
 hwid_file=$(find . -name '*.hwID')
 hwid=$(cat "$hwid_file")
