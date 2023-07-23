@@ -18,11 +18,14 @@ do
     # Create an empty .hwID file in your local directory
     touch $i.hwID
 
-    # Copy the .hwID file to the Docker container
-    docker cp $i.hwID drone-$i:/root/mavsdk_drone_show/
-
     # Run the Docker container
     docker run --name drone-$i -d drone-xv3 bash /root/mavsdk_drone_show/multiple_sitl/startup.sh
+
+    # Give Docker a moment to get the container up and running
+    sleep 5
+
+    # Copy the .hwID file to the Docker container
+    docker cp $i.hwID drone-$i:/root/mavsdk_drone_show/
 
     # Remove the local .hwID file
     rm $i.hwID
