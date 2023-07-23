@@ -41,22 +41,31 @@ import urllib3
 import subprocess
 import navpy
 
+import time
+import threading
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
+import csv
+import glob
+import requests
 from geographiclib.geodesic import Geodesic
 from mavsdk import System
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 from src.offboard_controller import OffboardController
+import os
+import datetime
+import logging
 import src.params as params
+import struct
 from src.drone_communicator import DroneCommunicator
 import math
-from src.params import Params
+from src.params import Params 
 
-# Constants for different missions
-CSV_DRONESHOW = 1
-SMART_SWARM = 2
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Global variable to store telemetry
 global_telemetry = {}
@@ -64,8 +73,9 @@ global_telemetry = {}
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
+# Initialize an empty dictionary to store drones  a dict
+#example on how to access drone 4 lat      lat_drone_4 = drones[4].position['lat']
 
-# Initialize an empty dictionary to store drones
 drones = {}
 
 # Create global instance
@@ -74,23 +84,8 @@ params = params.Params()
 # Initialize DroneConfig
 drone_config = DroneConfig(drones)
 
-# Create an instance of LocalMavlinkController. 
-local_drone_controller = LocalMavlinkController(drone_config, params)
-drone_comms = DroneCommunicator(drone_config, params, drones)
-drone_comms.start_communication()
 
-# Create 'logs' directory if it doesn't exist
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Get current datetime to use in the filename
-now = datetime.datetime.now()
-current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-
-# Set up logging
-log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+ 
 
 async def start_offboard_mode():
     """
@@ -175,6 +170,18 @@ def stop_mavlink_routing(mavlink_router_process):
 
 
 
+# Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
+# messages from the drone, processes these messages, and updates the drone_config object accordingly.
+# When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
+local_drone_controller = LocalMavlinkController(drone_config, params)
+
+
+
+drone_comms = DroneCommunicator(drone_config, params, drones)
+drone_comms.start_communication()
+
+
+
 # Function to synchronize time with a reliable internet source
 def synchronize_time():
     # Report current time before sync
@@ -233,6 +240,17 @@ def schedule_mission():
                 # Run the async function
                 asyncio.run(start_offboard_mode())
             
+# Create 'logs' directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Get current datetime to use in the filename
+now = datetime.datetime.now()
+current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+# Set up logging
+log_filename = os.path.join('logs', f'{current_time}.log')
+logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # Main function
@@ -240,24 +258,33 @@ def main():
     print("Starting the main function...")
 
     try:
+        # Synchronize time once
         print("Synchronizing time...")
         synchronize_time()
 
+        # Initialize MAVLink
         print("Initializing MAVLink...")
         mavlink_router_process = initialize_mavlink()
         time.sleep(2)
 
+        # Enter a loop where the application will continue running
         while True:
-            if drone_config.mission == SMART_SWARM and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-                drone_config.calculate_setpoints()
+            # Get the drone state
+            #drone_state = get_drone_state()
 
+            if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
+                drone_config.calculate_setpoints()
+            
+            # Schedule the drone mission if the trigger time has been reached
             schedule_mission()
 
+            # Sleep for a short interval to prevent the loop from running too fast
             time.sleep(params.sleep_interval)
 
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        print(f"An error occurred: {e}")
     finally:
+        # Close the threads before the application closes
         print("Closing threads...")
         drone_comms.stop_communication()
 
