@@ -18,6 +18,7 @@ hwid=$(cat "$hwid_file")
 
 # Start the px4_sitl gazebo process in the background
 cd ~/PX4-Autopilot
+export px4_instance $hwid
 HEADLESS=1 make px4_sitl gazebo &
 
 # Start the coordinator.py process in the background
