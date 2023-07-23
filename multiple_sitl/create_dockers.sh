@@ -22,7 +22,7 @@ do
     docker cp $i.hwID drone-$i:/root/mavsdk_drone_show/
 
     # Run the Docker container
-    docker run --name drone-$i -d drone-xv2 bash /root/mavsdk_drone_show/multiple_sitl/startup.sh
+    docker run --name drone-$i -d drone-xv3 bash /root/mavsdk_drone_show/multiple_sitl/startup.sh
 
     # Remove the local .hwID file
     rm $i.hwID
