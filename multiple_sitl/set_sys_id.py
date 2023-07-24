@@ -14,9 +14,8 @@ hwid_file = next((f for f in os.listdir(hwid_dir) if f.endswith('.hwID')), None)
 if not hwid_file:
     raise FileNotFoundError('.hwID file not found')
 
-# Read the hwid from the file
-with open(os.path.join(hwid_dir, hwid_file), 'r') as f:
-    hwid = f.read().strip()
+# Extract the hwid from the file name
+hwid = hwid_file.split('.')[0]
 
 print(f"Found .hwID file with ID: {hwid}")
 
