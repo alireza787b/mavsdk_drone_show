@@ -26,13 +26,19 @@ with open(rcs_file_path, 'r') as f:
 # Find any existing MAV_SYS_ID line(s) and remove them if not equal to the correct hwid
 rcs_content = [line for line in rcs_content if not (re.match('param set MAV_SYS_ID \d+', line) and not line.strip().endswith(hwid))]
 
-# Check if the correct line already exists
-if any(f'param set MAV_SYS_ID {hwid}' in line for line in rcs_content):
-    print(f"param set MAV_SYS_ID {hwid} is already in the file.")
+# Find the index of the "param set MAV_SYS_ID $((px4_instance+1))" line
+index = next((i for i, line in enumerate(rcs_content) if 'param set MAV_SYS_ID $((px4_instance+1))' in line), None)
+
+if index is not None:
+    # Check if the correct line already exists
+    if any(f'param set MAV_SYS_ID {hwid}' in line for line in rcs_content):
+        print(f"param set MAV_SYS_ID {hwid} is already in the file.")
+    else:
+        print(f"Adding line: param set MAV_SYS_ID {hwid} after 'param set MAV_SYS_ID $((px4_instance+1))'")
+        # Insert the correct line after the found line
+        rcs_content.insert(index + 1, f'param set MAV_SYS_ID {hwid}\n')
 else:
-    print(f"Adding line: param set MAV_SYS_ID {hwid}")
-    # Add the correct line at the end of the file
-    rcs_content.append(f'param set MAV_SYS_ID {hwid}\n')
+    raise ValueError("Couldn't find the line 'param set MAV_SYS_ID $((px4_instance+1))'")
 
 # Write the rcS file back
 with open(rcs_file_path, 'w') as f:

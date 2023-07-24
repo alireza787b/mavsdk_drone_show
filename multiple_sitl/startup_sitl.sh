@@ -26,7 +26,7 @@ echo "Starting the px4_sitl gazebo process..."
 cd ~/PX4-Autopilot
 hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
 hwid=$(echo $hwid_file | cut -d'.' -f2)
-export px4_instance=$hwid
+export px4_instance=$hwid-1
 HEADLESS=1 make px4_sitl gazebo &
 
 # Start the coordinator.py process in the background
