@@ -14,6 +14,10 @@ echo "Stashing and pulling the latest changes from the repository..."
 git stash
 git pull
 
+
+echo "Cheking Python Requirements..."
+pip install -r  requirements.txt
+
 echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
 
