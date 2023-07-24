@@ -35,10 +35,11 @@ Changelogs:
 <li>Automatic initialization of each instance for user-friendly operation</li>
 </ul>
 For demonstrations, we've run two demos:
-1. Single group, single leader 11 followers with a fixed layout arrangement.
-2. Three groups, three leaders, each group has three followers maintaining a fixed layout, and each group can be controlled independently.
+<ul>
+<li>1. Single group, single leader 11 followers with a fixed layout arrangement.</li>
+<li>2. Three groups, three leaders, each group has three followers maintaining a fixed layout, and each group can be controlled independently.</li>
 
-
+</ul>
 ## Version 0.5: Implementing Leader Follower Swarm Mission
 In this release, we're stepping beyond simple drone shows and implementing real drone swarm capabilities, like leader/follower missions, using PX4 and MAVSDK in Python. v0.5 introduces the following features and improvements:
 <a href="https://youtu.be/_W_DosoVbrU" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/69415901-1926-42fe-bde0-5cbe78a144c3" style="width=300px" /></a>
