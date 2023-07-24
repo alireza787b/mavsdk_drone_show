@@ -1,4 +1,4 @@
-![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
+![swawrm6](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/ebcea1e0-d057-4cff-8da0-050c313f09f1)![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
 
 
 <!DOCTYPE html>
@@ -7,6 +7,38 @@
 <body>
    <h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
 
+Introduction to the Project
+Welcome to our dynamic and evolving drone programming project. We've started from the ground up, initially focusing on simple offboard trajectory following and static shape generation. This foundation paved the way for multiple shape generations and then advanced sky drone shows using SkyBrush.
+
+As we progressed, we turned our attention to smart swarm missions based on multi-level leader/follower dynamics. Each version has marked a significant step in our journey, allowing us to continually push the boundaries of what's possible in the world of drone programming and swarm control.
+
+Our project is ongoing, with each new release adding another layer of complexity and sophistication. We're excited about the future, and we invite you to join us on this exciting journey! We hope that our work will contribute significantly to drone programming, the creation of drone shows, and more importantly, the community that shares our passion for this technology.
+
+Please feel free to delve into our previous versions to understand how we have evolved and where we're heading. And as always, we're keen to hear your thoughts, suggestions, and questions - they help us to keep pushing the boundaries! Enjoy exploring!
+
+
+
+
+## Version 0.6: Enhanced Complex Leader/Follower Swarm Control & Docker-Based SITL 
+As we progress in our drone programming journey, version 0.6 of our project brings more advanced features and improvements, with enhanced swarm control and dockerized SITL demonstrations. In this release, we aim to increase efficiency and automation in managing larger numbers of drones with complex mission dynamics. The demonstration of these features can be found in the link to the YouTube video below.
+<a href="https://youtube.com/testVideo" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/50542052/89415202-1927-43fe-cde0-6cbe79a155c4" style="width=300px" /></a>
+<h3><a href="https://youtube.com/testVideo">YouTube Tutorial Demonstrating Enhanced Leader/Follower Swarm Control & Docker-Based SITL V0.6</a></h3>
+
+
+![swawrm6](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6)
+
+Changelogs:
+<ul>
+<li>Improved CDH subsystem, telemetry, and command handling for supporting a larger number of drones</li>
+<li>Optimized main code and transitioned structures to classes</li>
+<li>Fixed bugs for smoother operations</li>
+<li>Automated mav_sys_id and hwID file generation</li>
+<li>Enabled Docker instances auto-creation for each drone</li>
+<li>Automatic initialization of each instance for user-friendly operation</li>
+</ul>
+For demonstrations, we've run two demos:
+1. Single group, single leader 11 followers with a fixed layout arrangement.
+2. Three groups, three leaders, each group has three followers maintaining a fixed layout, and each group can be controlled independently.
 
 
 ## Version 0.5: Implementing Leader Follower Swarm Mission
