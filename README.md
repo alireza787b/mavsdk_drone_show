@@ -1,31 +1,29 @@
-![swawrm6](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/ebcea1e0-d057-4cff-8da0-050c313f09f1)![MAVSDK Basid Drone Show (1)](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/acc6aec0-2e24-4822-86d8-9928223c8080)
-
 
 <!DOCTYPE html>
 <html>
 
 <body>
-   <h1>Drone Show Basics with Custom Shapes using MAVSDK Offboard Control</h1>
+   <h1>PX4 Based Drone Show and Smart Swarm using MAVSDK </h1>
 
 Introduction to the Project
-Welcome to our dynamic and evolving drone programming project. We've started from the ground up, initially focusing on simple offboard trajectory following and static shape generation. This foundation paved the way for multiple shape generations and then advanced sky drone shows using SkyBrush.
+Welcome to our drone programming project, a wild and ongoing journey from the simple to the complex. We started with basic offboard trajectory following and creating static drone formations in the sky. Over time, we've ramped up to creating multiple dynamic shapes and orchestrating impressive sky drone shows using SkyBrush.
 
-As we progressed, we turned our attention to smart swarm missions based on multi-level leader/follower dynamics. Each version has marked a significant step in our journey, allowing us to continually push the boundaries of what's possible in the world of drone programming and swarm control.
+Our attention then turned to developing intelligent drone swarm behaviors based on a multi-level leader/follower model. With every version, we're pushing the envelope, enhancing the world of drone programming and swarm control bit by bit.
 
-Our project is ongoing, with each new release adding another layer of complexity and sophistication. We're excited about the future, and we invite you to join us on this exciting journey! We hope that our work will contribute significantly to drone programming, the creation of drone shows, and more importantly, the community that shares our passion for this technology.
+And here's the fun part, we're far from done. Every new release peels back another layer, revealing more complexities and pushing our abilities further. We're pretty stoked about what's coming up and we hope you're too!
 
-Please feel free to delve into our previous versions to understand how we have evolved and where we're heading. And as always, we're keen to hear your thoughts, suggestions, and questions - they help us to keep pushing the boundaries! Enjoy exploring!
+We've built this project hoping it'll make a dent in the drone programming universe, enabling anyone to create breathtaking drone shows and to foster a community where we share, learn and grow together.
+
+We encourage you to check out our previous versions to get a feel for our journey so far. And hey, we absolutely love hearing from you all - your thoughts, ideas, questions - bring 'em on! They fuel our drive to keep pushing. Enjoy exploring and happy coding!
 
 
 
 
 ## Version 0.6: Enhanced Complex Leader/Follower Swarm Control & Docker-Based SITL 
 As we progress in our drone programming journey, version 0.6 of our project brings more advanced features and improvements, with enhanced swarm control and dockerized SITL demonstrations. In this release, we aim to increase efficiency and automation in managing larger numbers of drones with complex mission dynamics. The demonstration of these features can be found in the link to the YouTube video below.
-<a href="https://youtube.com/testVideo" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/50542052/89415202-1927-43fe-cde0-6cbe79a155c4" style="width=300px" /></a>
+<a href="https://youtube.com/testVideo" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6" style="width=300px" /></a>
 <h3><a href="https://youtube.com/testVideo">YouTube Tutorial Demonstrating Enhanced Leader/Follower Swarm Control & Docker-Based SITL V0.6</a></h3>
 
-
-![swawrm6](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6)
 
 Changelogs:
 <ul>
