@@ -21,8 +21,8 @@ We encourage you to check out our previous versions to get a feel for our journe
 
 ## Version 0.6: Enhanced Complex Leader/Follower Swarm Control & Docker-Based SITL 
 As we progress in our drone programming journey, version 0.6 of our project brings more advanced features and improvements, with enhanced swarm control and dockerized SITL demonstrations. In this release, we aim to increase efficiency and automation in managing larger numbers of drones with complex mission dynamics. The demonstration of these features can be found in the link to the YouTube video below.
-<a href="https://youtube.com/testVideo" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6" style="width=300px" /></a>
-<h3><a href="https://youtube.com/testVideo">YouTube Tutorial Demonstrating Enhanced Leader/Follower Swarm Control & Docker-Based SITL V0.6</a></h3>
+<a href="https://youtu.be/VTyb1E_ueIk" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6" style="width=300px" /></a>
+<h3><a href="https://youtu.be/VTyb1E_ueIk">YouTube Tutorial Demonstrating Enhanced Leader/Follower Swarm Control & Docker-Based SITL V0.6</a></h3>
 
 
 Changelogs:
