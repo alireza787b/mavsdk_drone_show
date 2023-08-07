@@ -1,14 +1,17 @@
 #!/bin/bash
 
-# Determine the location of the mavsdk_drone_show directory
-if [ -d "/root/mavsdk_drone_show" ]; then
-  DIRECTORY="/root/mavsdk_drone_show"
-  echo "Found directory at $DIRECTORY"
-else
-  USER_HOME=$(eval echo ~$USER)
-  DIRECTORY="$USER_HOME/mavsdk_drone_show"
-  echo "Found directory at $DIRECTORY"
+# Determine the user's home directory and set the mavsdk_drone_show directory path
+USER_HOME=$(eval echo ~$SUDO_USER)
+DIRECTORY="$USER_HOME/mavsdk_drone_show"
+
+# Check if the directory exists
+if [ ! -d "$DIRECTORY" ]; then
+  echo "Directory not found at $DIRECTORY. Exiting."
+  exit 1
 fi
+
+echo "Found directory at $DIRECTORY"
+
 
 # Wait for the .hwID file to exist
 while [ ! -f $DIRECTORY/*.hwID ]
