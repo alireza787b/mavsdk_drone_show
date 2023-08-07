@@ -55,7 +55,7 @@ cd ~/PX4-Autopilot
 hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
 hwid=$(echo $hwid_file | cut -d'.' -f2)
 export px4_instance=$hwid-1
-HEADLESS=$HEADLESS make px4_sitl gazebo &
+make px4_sitl gazebo &
 gazebo_pid=$!
 
 echo "Starting the coordinator.py process..."
