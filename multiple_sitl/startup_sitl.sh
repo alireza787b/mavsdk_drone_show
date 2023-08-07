@@ -11,11 +11,10 @@
 # Copy code
 # ./startup.sh
 
-
 # Function to handle SIGINT
 cleanup() {
   echo "Received interrupt, terminating background processes..."
-  kill $gazebo_pid $coordinator_pid
+  kill $gazebo_pid
   exit 0
 }
 
@@ -55,12 +54,11 @@ cd ~/PX4-Autopilot
 hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
 hwid=$(echo $hwid_file | cut -d'.' -f2)
 export px4_instance=$hwid-1
-make px4_sitl gazebo &
+HEADLESS=$HEADLESS make px4_sitl gazebo &
 gazebo_pid=$!
 
-echo "Starting the coordinator.py process..."
-cd ~/mavsdk_drone_show
-python3 ~/mavsdk_drone_show/coordinator.py &
-coordinator_pid=$!
+echo "Starting the coordinator.py process in a new terminal window..."
+gnome-terminal -- python3 ~/mavsdk_drone_show/coordinator.py
 
-tail -f /dev/null
+echo "Press Ctrl+C to stop the gazebo process."
+wait $gazebo_pid
