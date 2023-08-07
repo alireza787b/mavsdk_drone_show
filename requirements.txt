@@ -4,3 +4,4 @@ mavsdk
 asyncio
 pyfilter
 pandas
+pymavlink
