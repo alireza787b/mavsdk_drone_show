@@ -1,14 +1,9 @@
 #!/bin/bash
 
 # To run the script with graphics enabled, you would execute the script with the g argument, like this:
-
-# bash
-# Copy code
 # ./startup.sh g
-# To run without graphics, you would simply execute the script without any arguments:
 
-# bash
-# Copy code
+# To run without graphics, you would simply execute the script without any arguments:
 # ./startup.sh
 
 # Function to handle SIGINT
