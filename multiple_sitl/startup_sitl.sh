@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Function to handle SIGINT
+cleanup() {
+  echo "Received interrupt, terminating background processes..."
+  kill $gazebo_pid $coordinator_pid
+  exit 0
+}
+
+# Trap SIGINT
+trap 'cleanup' INT
+
+
 # Determine the directory path
 DIRECTORY=~/mavsdk_drone_show
 
@@ -27,16 +38,13 @@ echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 $DIRECTORY/multiple_sitl/set_sys_id.py
 
 # Start the px4_sitl gazebo process in the background
-echo "Starting the px4_sitl gazebo process..."
 cd ~/PX4-Autopilot
-hwid_file=$(find $DIRECTORY -name '*.hwID')
-hwid=$(echo $hwid_file | cut -d'.' -f2)
-export px4_instance=$((hwid-1))
 HEADLESS=1 make px4_sitl gazebo &
+gazebo_pid=$!
 
 # Start the coordinator.py process in the background
-echo "Starting the coordinator.py process..."
-cd $DIRECTORY
-python3 $DIRECTORY/coordinator.py &
+cd ~/mavsdk_drone_show
+python3 ~/mavsdk_drone_show/coordinator.py &
+coordinator_pid=$!
 
 tail -f /dev/null
