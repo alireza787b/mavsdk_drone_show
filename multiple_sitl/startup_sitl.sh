@@ -23,10 +23,10 @@ trap 'cleanup' INT
 
 # Check for the 'g' argument to enable or disable graphics
 if [[ $1 == "g" ]]; then
-  HEADLESS=0
+  GRAPHICS_COMMAND="make px4_sitl gazebo"
   echo "Graphics enabled."
 else
-  HEADLESS=1
+  GRAPHICS_COMMAND="HEADLESS=1 make px4_sitl gazebo"
   echo "Graphics disabled."
 fi
 
@@ -49,16 +49,12 @@ pip install -r requirements.txt
 echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
 
-echo "Starting the px4_sitl gazebo process..."
-cd ~/PX4-Autopilot
-hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
-hwid=$(echo $hwid_file | cut -d'.' -f2)
-export px4_instance=$hwid-1
-HEADLESS=$HEADLESS make px4_sitl gazebo &
+echo "Starting the px4_sitl gazebo process in a new terminal window..."
+gnome-terminal -- bash -c "cd ~/PX4-Autopilot; hwid_file=\$(find ~/mavsdk_drone_show -name '*.hwID'); hwid=\$(echo \$hwid_file | cut -d'.' -f2); export px4_instance=\$hwid-1; $GRAPHICS_COMMAND; bash" &
 gazebo_pid=$!
 
-echo "Starting the coordinator.py process in a new terminal window..."
-gnome-terminal -- python3 ~/mavsdk_drone_show/coordinator.py
+echo "Starting the coordinator.py process in another new terminal window..."
+gnome-terminal -- bash -c "python3 ~/mavsdk_drone_show/coordinator.py; bash" &
 
 echo "Press Ctrl+C to stop the gazebo process."
 wait $gazebo_pid
