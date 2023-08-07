@@ -95,7 +95,7 @@ class Params():
     default_sitl = True  # Set to True to use default 14550 port for single drone simulation
 
     # Online time synchronization switch
-    online_sync_time = True  # Set to True to sync time from Internet Time Servers
+    online_sync_time = False  # Set to True to sync time from Internet Time Servers
 
     # Telemetry and Communication
     TELEM_SEND_INTERVAL = 0.5  # Send telemetry data every TELEM_SEND_INTERVAL seconds
