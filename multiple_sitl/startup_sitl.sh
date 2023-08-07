@@ -12,7 +12,7 @@ trap 'cleanup' INT
 
 
 # Determine the directory path
-DIRECTORY=~/mavsdk_drone_show
+DIRECTORY=$HOME/mavsdk_drone_show
 
 # Echo the directory being searched
 echo "Looking for .hwID file in $DIRECTORY..."
@@ -38,12 +38,12 @@ echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 $DIRECTORY/multiple_sitl/set_sys_id.py
 
 # Start the px4_sitl gazebo process in the background
-cd ~/PX4-Autopilot
+cd $HOME/PX4-Autopilot
 HEADLESS=1 make px4_sitl gazebo &
 gazebo_pid=$!
 
 # Start the coordinator.py process in the background
-cd ~/mavsdk_drone_show
+cd $HOME/mavsdk_drone_show
 python3 ~/mavsdk_drone_show/coordinator.py &
 coordinator_pid=$!
 
