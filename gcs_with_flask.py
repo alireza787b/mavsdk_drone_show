@@ -152,23 +152,11 @@ else:
     drones = [drone for _, drone in config_df.iterrows()]
 
 # Function to send commands
-def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
-    """
-    This function prepares and sends commands.
-
-    :param n: An integer used to compute trigger_time.
-    :param sock: The socket through which data will be sent.
-    :param coordinator_ip: The IP address of the coordinator.
-    :param debug_port: The port used for sending data.
-    :param hw_id: The hardware ID.
-    :param pos_id: The position ID.
-    :param mission: The mission ID.
-    :param state: The state value.
-    """
+def send_command(timer_s, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     try:
         # Prepare the command data
         header = 55  # Constant
-        trigger_time = int(time.time()) + n  # Now + n seconds
+        trigger_time = int(time.time()) + timer_s  # Now + n seconds
         terminator = 66  # Constant
 
         # Encode the data
