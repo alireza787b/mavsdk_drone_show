@@ -87,9 +87,6 @@ Always ensure that you comply with all local laws and regulations when operating
 
 """
 
-# Imports
-telemetry_data_all_drones = {}
-telemetry_lock = Lock()
 
 import logging
 import socket
@@ -101,6 +98,11 @@ import pandas as pd
 import os
 import math
 from enum import Enum
+
+
+# Imports
+telemetry_data_all_drones = {}
+telemetry_lock = Lock()
 
 class State(Enum):
     IDLE = 0
@@ -245,6 +247,19 @@ drones_threads = []
 # We use a list so the changes in the main thread can be seen by the telemetry threads.
 keep_running = [True]
 
+app = Flask(__name__)
+
+@app.route('/telemetry', methods=['GET'])
+def get_telemetry():
+    with telemetry_lock:
+        return jsonify(telemetry_data_all_drones)
+def run_flask():
+    app.run(host='0.0.0.0', port=flask_telem_socket_port)
+
+flask_thread = Thread(target=run_flask)
+flask_thread.daemon = True
+flask_thread.start()
+
 try:
     for drone_config in drones:
         # Extract variables
@@ -269,8 +284,10 @@ try:
         print_telemetry = [True]
 
         # Start the telemetry thread
-        telemetry_thread = threading.Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
+        telemetry_thread = Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
+        telemetry_thread.daemon = True  # Set the thread as a daemon thread
         telemetry_thread.start()
+
 
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
@@ -317,28 +334,18 @@ except (ValueError, OSError, KeyboardInterrupt) as e:
     logger.error(f"An error occurred: {e}")
 finally:
     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
-    keep_running[0] = False
+    # keep_running[0] = False
 
-    for sock, telemetry_thread, _, _, _, _ in drones_threads:
-        # Close the socket
-        sock.close()
-        # Join the thread
-        telemetry_thread.join()
+    # for sock, telemetry_thread, _, _, _, _ in drones_threads:
+    #     # Close the socket
+    #     sock.close()
+    #     # Join the thread
+    #     telemetry_thread.join()
 
-# Join the Flask thread
-flask_thread.join()
+    # # Join the Flask thread
+    # flask_thread.join()
+    pass
 
 logger.info("Exiting the application...")
 
-app = Flask(__name__)
 
-@app.route('/telemetry', methods=['GET'])
-def get_telemetry():
-    with telemetry_lock:
-        return jsonify(telemetry_data_all_drones)
-def run_flask():
-    app.run(host='0.0.0.0', port=flask_telem_socket_port)
-
-flask_thread = Thread(target=run_flask)
-flask_thread.daemon = True
-flask_thread.start()
