@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Visualization</title>
+    
+    <style>
+        #visualization {
+            width: 800px; /* or 100% */
+            height: 600px; /* or 100% */
+        }
+    </style>
+    
+
+</head>
+<body>
+    <button id="toggleTerrain">Toggle Terrain</button>
+    <div id="visualization"></div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.144.0/build/three.module.js",
+                "three/OrbitControls": "https://unpkg.com/three@0.144.0/examples/jsm/controls/OrbitControls.js"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+    
+        var container = document.getElementById('visualization');
+        const scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(75, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+        var renderer = new THREE.WebGLRenderer();
+        renderer.setSize(container.offsetWidth, container.offsetHeight);
+        container.appendChild(renderer.domElement);
+
+        // Earth Sphere
+        var earthGeometry = new THREE.SphereGeometry(5, 32, 32);
+        var earthTexture = new THREE.TextureLoader().load('land_ocean_ice_cloud_2048.jpg'); // Replace with your texture path
+        var earthMaterial = new THREE.MeshBasicMaterial({ map: earthTexture });
+        var earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        scene.add(earth);
+
+        // Simple Terrain (Plane)
+        var planeGeometry = new THREE.PlaneGeometry(10, 10, 10, 10);
+        var planeMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+        var plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        scene.add(plane);
+
+        // Hide Plane by default
+        plane.visible = false;
+
+        // OrbitControls for interactivity
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        camera.position.z = 10;
+
+        // Toggle Terrain button
+        document.getElementById('toggleTerrain').addEventListener('click', function() {
+            earth.visible = !earth.visible;
+            plane.visible = !plane.visible;
+        });
+
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Rest of the code for fetching data and adding drones will go here
+
+    </script>
+</body>
+</html>

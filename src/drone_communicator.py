@@ -150,7 +150,8 @@ class DroneCommunicator:
         "velocity_down": self.drone_config.velocity['vel_d'],
         "yaw": self.drone_config.yaw,
         "battery_voltage": self.drone_config.battery,
-        "follow_mode": int(self.drone_config.swarm['follow'])
+        "follow_mode": int(self.drone_config.swarm['follow']),
+        "update_time": int(self.drone_config.last_update_timestamp)
         }
 
         return drone_state
@@ -163,7 +164,7 @@ class DroneCommunicator:
             drone_state = self.get_drone_state()
 
             # Create a struct format string based on the data types
-            telem_struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
+            telem_struct_fmt = '=BHHBBIddddddddBBI'  # update this to match your data types
             packet = struct.pack(telem_struct_fmt,
                                  77,
                                  drone_state['hw_id'],
@@ -180,6 +181,7 @@ class DroneCommunicator:
                                  drone_state['yaw'],
                                  drone_state['battery_voltage'],
                                  drone_state['follow_mode'],
+                                 drone_state['update_time'],
                                  88)
             telem_packet_size = len(packet)
 
