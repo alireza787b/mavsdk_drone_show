@@ -127,7 +127,7 @@ class DroneCommunicator:
 
             position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-            
+            logging.info(f"time is {int(time.time())}")
             self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, int(time.time()))
 
             # Add processing of the received telemetry data here
