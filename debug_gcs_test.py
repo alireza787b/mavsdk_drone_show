@@ -111,7 +111,7 @@ class Mission(Enum):
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
-telem_struct_fmt = '=BHHBBIddddddddBBI'
+telem_struct_fmt = '=BHHBBIddddddddBIB'
 command_struct_fmt = '=B B B B B I B'
 
 telem_packet_size = struct.calcsize(telem_struct_fmt)
@@ -209,7 +209,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             if print_telemetry[0]:
                 hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, telemetry_update_time = telemetry_data[1:-1]
                 # Debug log with all details
-                logger.info(f"Received telemetry: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
+                logger.info(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
                 
         except (OSError, struct.error) as e:
             # If there is an OSError or an error in unpacking the data, log the error and break the loop

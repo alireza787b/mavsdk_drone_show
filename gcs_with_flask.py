@@ -121,7 +121,7 @@ flask_telem_socket_port = 5000
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
-telem_struct_fmt = '=BHHBBIddddddddBBI'
+telem_struct_fmt = '=BHHBBIddddddddBIB'
 command_struct_fmt = '=B B B B B I B'
 
 telem_packet_size = struct.calcsize(telem_struct_fmt)
