@@ -92,6 +92,8 @@ import logging
 import socket
 import struct
 from flask import Flask, jsonify
+from flask import request
+
 from threading import Thread, Lock
 import time
 import pandas as pd
@@ -239,12 +241,58 @@ drones_threads = []
 keep_running = [True]
 
 app = Flask(__name__)
-CORS(app) # Enable CORS
+CORS(app)  # Enable CORS
 
 @app.route('/telemetry', methods=['GET'])
 def get_telemetry():
     with telemetry_lock:
         return jsonify(telemetry_data_all_drones)
+
+@app.route('/send_command', methods=['POST'])
+def send_command_to_all_drones():
+    try:
+        # Get the command data from the request
+        command_data = request.get_json()
+
+        # Extract the mission type and time delay
+        mission_type = command_data['missionType']
+        time_delay = int(command_data['timeDelay'])
+
+        # Convert mission type and state
+        mission, state = convert_mission_type(mission_type)
+
+        # Turn off telemetry printing while sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = False
+
+        # Send command to each drone
+        for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
+            send_command(time_delay, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+
+        # Turn on telemetry printing after sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = True
+
+        return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
+
+    except Exception as e:
+        # Log the error and return a response with an error message
+        print(f"An error occurred while sending command: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
+
+# Function to convert mission type to mission and state values
+def convert_mission_type(mission_type):
+    if mission_type == 's':
+        return 2, 1
+    elif mission_type == 'd':
+        return 1, 1
+    elif mission_type == 'n':
+        return 0, 0
+    else:
+        return 0, 0
+
+
+
 def run_flask():
     app.run(host='0.0.0.0', port=flask_telem_socket_port)
 
