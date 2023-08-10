@@ -2,40 +2,40 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const POLLING_RATE_HZ = 2; // Frequency of checking for new data (in Hz)
-const STALE_DATA_THRESHOLD_SECONDS = 3; // Threshold for considering data stale (in seconds)
+const STALE_DATA_THRESHOLD_SECONDS = 5; // Threshold for considering data stale (in seconds)
 
 const Overview = ({ setSelectedDrone }) => {
   const [drones, setDrones] = useState([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Function to update the current time
+  const updateTime = () => {
+    setCurrentTime(new Date());
+  };
+
+  // Set up an interval to update the current time every second
+  useEffect(() => {
+    const timeInterval = setInterval(updateTime, 1000);
+    return () => {
+      clearInterval(timeInterval);
+    };
+  }, []);
+
+  // Function to fetch data
   useEffect(() => {
     const url = 'http://127.0.0.1:5000/telemetry';
 
-    // Function to fetch data
     const fetchData = () => {
       axios.get(url)
         .then((response) => {
-          const dronesArray = Object.keys(response.data).map((hw_ID) => {
-            const previousData = drones.find((drone) => drone.hw_ID === hw_ID);
-            const lastUpdated = previousData && JSON.stringify(previousData) === JSON.stringify(response.data[hw_ID])
-              ? previousData.lastUpdated
-              : new Date().toLocaleString();
-            return {
-              hw_ID,
-              lastUpdated,
-              ...response.data[hw_ID],
-            };
-          });
+          const dronesArray = Object.keys(response.data).map((hw_ID) => ({
+            hw_ID,
+            ...response.data[hw_ID],
+          }));
           setDrones(dronesArray);
         })
         .catch((error) => {
-          console.error('Network Error:', error); // Log the error to the console
-
-          // Update the lastUpdated timestamp based on the current time and stale threshold
-          const updatedDrones = drones.map((drone) => ({
-            ...drone,
-            lastUpdated: new Date(new Date() - STALE_DATA_THRESHOLD_SECONDS * 1000).toLocaleString(),
-          }));
-          setDrones(updatedDrones);
+          console.error('Network Error:', error);
         });
     };
 
@@ -49,7 +49,7 @@ const Overview = ({ setSelectedDrone }) => {
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [drones]);
+  }, []);
 
   return (
     <div>
@@ -57,13 +57,13 @@ const Overview = ({ setSelectedDrone }) => {
       <ul>
         {drones.map((drone) => {
           // Determine if the data is stale
-          const isStale = (new Date() - new Date(drone.lastUpdated)) / 1000 > STALE_DATA_THRESHOLD_SECONDS;
-          
+          const isStale = (new Date() / 1000 - drone.Update_Time) > STALE_DATA_THRESHOLD_SECONDS;
+
           return (
-            <div key={drone.hw_ID} onClick={() => setSelectedDrone(drone)}>
+            <div className="drone-item" key={drone.hw_ID} onClick={() => setSelectedDrone(drone)}>
               <li>
                 <span style={{ color: isStale ? 'red' : 'green' }}>●</span> {/* Indicator */}
-                HW_ID: {drone.hw_ID}, Mission: {drone.Mission}, State: {drone.State}, Altitude: {drone.Position_Alt}
+                HW_ID: {drone.hw_ID}, Mission: {drone.Mission}, State: {drone.State}, Follow Mode: {drone.Follow_Mode === 0 ? 'LEADER' : `Follows ${drone.Follow_Mode}`}, Altitude: {drone.Position_Alt.toFixed(1)}
               </li>
             </div>
           );

@@ -109,3 +109,26 @@ class OffboardController:
         finally:
             # Ensure MAVSDK server is stopped when this function ends
             self.stop_mavsdk_server()
+            
+    async def start_offboard_follow(self):
+        """
+        This method initializes the OffboardController object and executes the necessary functions to establish
+        a connection with the drone, set the initial position, start offboard mode, and maintain position and velocity.
+        """
+        
+        # Note: Since this method is now part of the OffboardController class, 
+        # you can use "self" to refer to the current instance of the class.
+
+        # Establish a connection with the drone
+        await self.connect()
+        
+        # Set the initial position of the drone
+        await self.set_initial_position()
+        
+        # Start offboard mode on the drone
+        await self.start_offboard()
+        
+        # Continuously maintain the drone's position and velocity
+        await self.maintain_position_velocity()
+
+

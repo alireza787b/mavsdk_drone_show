@@ -28,6 +28,10 @@
   color: #61dafb;
 }
 
+.drone-item:hover {
+  cursor: pointer;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

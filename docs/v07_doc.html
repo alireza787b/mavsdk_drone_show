@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAVSDK Drone Show User Manual - Version 0.7</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        ul, ol {
+            padding-left: 20px;
+        }
+        .code {
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 10px;
+            display: block;
+            margin: 10px 0;
+        }
+        .contact-info a {
+            text-decoration: none;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>MAVSDK Drone Show User Manual - Version 0.7</h1>
+    <h2>Overview</h2>
+    <p>This guide provides step-by-step instructions to set up and run the MAVSDK Drone Show project, including a React application for displaying drone information, a Flask server for serving telemetry data, and information about working with drones' companion computers and Docker images.</p>
+    <h2>Table of Contents</h2>
+    <ol>
+        <li>Clone the Repository</li>
+        <li>Set Up the React Application</li>
+        <li>Set Up the Flask Server</li>
+        <li>Configure Drones' Companion Computers</li>
+        <li>Using Docker Images</li>
+        <li>Contact Information</li>
+    </ol>
+    <h2>Clone the Repository</h2>
+    <ol>
+        <li>Open a command prompt or terminal window.</li>
+        <li>Run the following command to clone the repository:</li>
+    </ol>
+    <code class="code">git clone https://github.com/alireza787b/mavsdk_drone_show</code>
+    <h2>Set Up the React Application</h2>
+    <ol>
+        <li>Navigate to the React application directory:</li>
+    </ol>
+    <code class="code">cd mavsdk_drone_show/app/dashboard/drone-dashboard</code>
+    <ol>
+        <li>Install the necessary dependencies for the React application:</li>
+    </ol>
+    <code class="code">npm install</code>
+    <ol>
+        <li>Start the React application:</li>
+    </ol>
+    <code class="code">npm start</code>
+    <p>The React application should now be running and accessible at <a href="http://localhost:3000/">http://localhost:3000/</a>.</p>
+    <h2>Set Up the Flask Server</h2>
+    <ol>
+        <li>Navigate to the main directory:</li>
+    </ol>
+    <code class="code">cd mavsdk_drone_show</code>
+    <ol>
+        <li>Install Python dependencies using the requirements.txt file:</li>
+    </ol>
+    <code class="code">pip install -r requirements.txt</code>
+    <ol>
+        <li>Run the Flask server:</li>
+    </ol>
+    <code class="code">python gcs_with_flask.py</code>
+    <p>The Flask server should now be running and serving data at <a href="http://127.0.0.1:5000/telemetry">http://127.0.0.1:5000/telemetry</a>.</p>
+    <h2>Configure Drones' Companion Computers</h2>
+    <ol>
+        <li>Clone the repository on the companion computer of each drone.</li>
+        <li>Set the hardware ID by taking care of the i.hwID file.</li>
+        <li>Use <code>set_sys_id.py</code> to automatically set the MAVLink ID.</li>
+        <li>Run <code>startup_sitl.sh</code> to automatically start all SITL, coordinator apps, and related components:</li>
+    </ol>
+    <code class="code">./multiple_sitl/startup_sitl.sh</code>
+    <h2>Using Docker Images</h2>
+    <p>Docker image is available on GitHub, and auto container generation script can be found at <code>multiple_sitl/create_dockers.sh</code>.</p>
+    <p>Refer to the GitHub README for additional details on using the Docker image.</p>
+    <h2>Sample Telemetry Data</h2>
+    <p>The Flask server sends data in the following format:</p>
+    <code class="code">{
+  "1": {
+    "Battery_Voltage": 16.2,
+    "Follow_Mode": 0,
+    "Pos_ID": 1,
+    "Position_Alt": 488.146,
+    ...
+  },
+  "2": {
+    ...
+  }
+}</code>
+    <h2>Contact Information</h2>
+    <div class="contact-info">
+        <p>Alireza Ghaderi</p>
+        <p>LinkedIn: <a href="https://www.linkedin.com/in/alireza787b">https://www.linkedin.com/in/alireza787b</a></p>
+        <p>GitHub: <a href="https://github.com/alireza787b">https://github.com/alireza787b</a></p>
+        <p>YouTube: <a href="https://www.youtube.com/@alirezaghaderi">https://www.youtube.com/@alirezaghaderi</a></p>
+        <p>For more detailed video tutorials and documentation, please visit the YouTube channel.</p>
+    </div>
+</body>
+</html>

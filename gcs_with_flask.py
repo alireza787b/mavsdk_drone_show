@@ -207,6 +207,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
                 telemetry_data_all_drones[hw_id] = {
                     'Pos_ID': pos_id,
                     'State': State(state).name,
+                    'Mission': Mission(mission).name,
                     'Position_Lat': position_lat,
                     'Position_Long': position_long,
                     'Position_Alt': position_alt,
