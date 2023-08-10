@@ -13,7 +13,7 @@ const Overview = ({ setSelectedDrone }) => {
   const handleDisarmDrones = () => {
     const commandData = {
       missionType: 'n', // Special mission type for disarm
-      timeDelay: '0', // No delay for disarm
+      triggerTime: '0', // No delay for disarm
     };
 
     // Send the disarm command to the server
@@ -58,7 +58,7 @@ const Overview = ({ setSelectedDrone }) => {
       // If confirmed, send the command
       const commandData = {
         missionType: missionType,
-        triggerTime: floor(triggerTime.getTime() / 1000)
+        triggerTime: Math.floor(triggerTime.getTime() / 1000)
       };
 
       // Send the command data to the server
