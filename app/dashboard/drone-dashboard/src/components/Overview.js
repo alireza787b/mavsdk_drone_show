@@ -58,7 +58,7 @@ const Overview = ({ setSelectedDrone }) => {
       // If confirmed, send the command
       const commandData = {
         missionType: missionType,
-        timeDelay: timeDelay,
+        triggerTime: floor(triggerTime.getTime() / 1000)
       };
 
       // Send the command data to the server

@@ -155,11 +155,10 @@ else:
     drones = [drone for _, drone in config_df.iterrows()]
 
 # Function to send commands
-def send_command(timer_s, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
+def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     try:
         # Prepare the command data
         header = 55  # Constant
-        trigger_time = int(time.time()) + timer_s  # Now + n seconds
         terminator = 66  # Constant
 
         # Encode the data
@@ -256,7 +255,7 @@ def send_command_to_all_drones():
 
         # Extract the mission type and time delay
         mission_type = command_data['missionType']
-        time_delay = int(command_data['timeDelay'])
+        trigger_time = int(command_data['triggerTime'])
 
         # Convert mission type and state
         mission, state = convert_mission_type(mission_type)
@@ -267,7 +266,7 @@ def send_command_to_all_drones():
 
         # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            send_command(time_delay, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
 
         # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
@@ -365,7 +364,8 @@ try:
             print_telemetry[0] = False
         # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+            trigger_time = int(time.time()) + n  # Now + n seconds
+            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
         # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
             print_telemetry[0] = True

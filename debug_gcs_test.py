@@ -143,7 +143,7 @@ else:
     drones = [drone for _, drone in config_df.iterrows()]
 
 # Function to send commands
-def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
+def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     """
     This function prepares and sends commands.
 
@@ -159,7 +159,6 @@ def send_command(n, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, st
     try:
         # Prepare the command data
         header = 55  # Constant
-        trigger_time = int(time.time()) + n  # Now + n seconds
         terminator = 66  # Constant
 
         # Encode the data
@@ -288,8 +287,9 @@ try:
             print_telemetry[0] = False
         # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            send_command(int(n), sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
-        # Turn on telemetry printing after sending commands
+            trigger_time = int(time.time()) + n  # Now + n seconds
+            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+            # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
             print_telemetry[0] = True
 except (ValueError, OSError, KeyboardInterrupt) as e:
