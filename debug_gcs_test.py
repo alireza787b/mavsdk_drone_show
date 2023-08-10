@@ -287,7 +287,7 @@ try:
             print_telemetry[0] = False
         # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            trigger_time = int(time.time()) + n  # Now + n seconds
+            trigger_time = int(time.time()) + int(n)  # Now + n seconds
             send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
             # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
