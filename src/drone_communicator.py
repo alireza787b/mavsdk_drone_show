@@ -117,7 +117,7 @@ class DroneCommunicator:
             # Add additional logic here to handle the received command
         elif header == 77 and terminator == 88 and len(data) == self.params.telem_packet_size:
             # Decode the data
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, terminator = struct.unpack(self.params.telem_struct_fmt, data)
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, update_time ,  terminator = struct.unpack(self.params.telem_struct_fmt, data)
             logging.debug(f"Received telemetry from Drone {hw_id}")
 
             if hw_id not in self.drones:
@@ -127,8 +127,7 @@ class DroneCommunicator:
 
             position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-            logging.info(f"time is {int(time.time())}")
-            self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, int(time.time()))
+            self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, update_time))
 
             # Add processing of the received telemetry data here
         else:
