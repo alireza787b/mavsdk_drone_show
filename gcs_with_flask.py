@@ -16,6 +16,24 @@ handle multiple drones simultaneously.
 
 Setup and Configuration:
 ------------------------
+Flask server runs automatically with this file, sending telemetry data in JSON format to: 
+http://localhost:5000/telemetry
+
+For the React Ground Control Station (GCS) Interface:
+- Run the 'start_dashboard.sh' script located in the 'apps' folder for linux based. 
+  Alternatively, use the terminal to navigate to 'apps/dashboard/drone-dashboard' and execute 'npm start'.
+- Once started, the GCS interface will be available at http://localhost:3000
+
+Prerequisites:
+- Ensure Flask, Node.js, and Python are installed on your system.
+
+Additional Information:
+- Detailed documentation is available in the 'docs' folder.
+- For more insights and code details, refer to the GitHub repository: https://github.com/alireza787b/mavsdk_drone_show
+- Video tutorials and demonstrations are available on the associated YouTube channel.
+
+
+
 The script is set up to read its configuration from a .csv file named 'config.csv' which should be located in the same directory as the script. The columns
 in 'config.csv' should be as follows: hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip.
 

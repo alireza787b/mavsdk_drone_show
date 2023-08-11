@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import DroneDetail from './DroneDetail';  // Import the DroneDetail component
+import GlobeView from './components/GlobeView';
+
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -119,6 +121,9 @@ const Overview = ({ setSelectedDrone }) => {
 
   return (
     <div>
+
+      <GlobeView />
+
       <h1>Connected Drones</h1>
       <div>
         <label>
