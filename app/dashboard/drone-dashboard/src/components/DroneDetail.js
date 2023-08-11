@@ -4,7 +4,7 @@ import axios from 'axios';
 const POLLING_RATE_HZ = 2; // Frequency of checking for new data (in Hz)
 const STALE_DATA_THRESHOLD_SECONDS = 5; // Threshold for considering data stale (in seconds)
 
-const DroneDetail = ({ drone, goBack }) => {
+const DroneDetail = ({ drone, goBack, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
   const [isStale, setIsStale] = useState(false);
 
@@ -46,13 +46,18 @@ const DroneDetail = ({ drone, goBack }) => {
 
   return (
     <div>
-      <button onClick={goBack}>Return to Overview</button> {/* Button to go back */}
-      <h1>
-        Drone Detail for HW_ID: {detailedDrone.hw_ID}{' '}
-        <span style={{ color: isStale ? 'red' : 'green' }}>
-          ●
-        </span>
-      </h1>
+      
+      {!isAccordionView && (
+        <>
+          <button onClick={goBack}>Return to Overview</button>
+          <h1>
+            Drone Detail for HW_ID: {detailedDrone.hw_ID}
+            <span style={{ color: isStale ? 'red' : 'green' }}>
+              ●
+            </span>
+          </h1>
+        </>
+      )}
       <p>Update Time (UNIX): {detailedDrone.Update_Time}</p>
       <p>Update Time (Local): {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
       <p>Mission: {detailedDrone.Mission}</p>

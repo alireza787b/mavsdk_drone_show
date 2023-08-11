@@ -32,6 +32,10 @@
   cursor: pointer;
 }
 
+.drone-item li {
+  font-weight: bold;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

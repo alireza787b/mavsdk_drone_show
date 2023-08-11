@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import DroneDetail from './DroneDetail';  // Import the DroneDetail component
 
-const POLLING_RATE_HZ = 2; // Frequency of checking for new data (in Hz)
-const STALE_DATA_THRESHOLD_SECONDS = 5; // Threshold for considering data stale (in seconds)
+const POLLING_RATE_HZ = 2;
+const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 const Overview = ({ setSelectedDrone }) => {
   const [drones, setDrones] = useState([]);
-  const [missionType, setMissionType] = useState(''); // State for selected mission type
-  const [timeDelay, setTimeDelay] = useState('10'); // Initialize with default value of 10 seconds
+  const [missionType, setMissionType] = useState('');
+  const [timeDelay, setTimeDelay] = useState('10');
+  const [expandedDrone, setExpandedDrone] = useState(null);
 
   // Function to handle sending the disarm command
   const handleDisarmDrones = () => {
@@ -107,6 +109,14 @@ const Overview = ({ setSelectedDrone }) => {
     };
   }, []);
 
+  const toggleDroneDetails = (drone) => {
+    if (expandedDrone && expandedDrone.hw_ID === drone.hw_ID) {
+      setExpandedDrone(null);
+    } else {
+      setExpandedDrone(drone);
+    }
+  };
+
   return (
     <div>
       <h1>Connected Drones</h1>
@@ -124,19 +134,21 @@ const Overview = ({ setSelectedDrone }) => {
           <input type="number" value={timeDelay} onChange={(e) => setTimeDelay(e.target.value)} />
         </label>
         <button onClick={handleSendCommand}>Send Command</button>
-        <button onClick={handleDisarmDrones}>Disarm Drones</button> {/* Button to disarm */}
+        <button onClick={handleDisarmDrones}>Disarm Drones</button>
       </div>
       <ul>
         {drones.map((drone) => {
-          // Determine if the data is stale
           const isStale = (new Date() / 1000 - drone.Update_Time) > STALE_DATA_THRESHOLD_SECONDS;
-
           return (
-            <div className="drone-item" key={drone.hw_ID} onClick={() => setSelectedDrone(drone)}>
-              <li>
-                <span style={{ color: isStale ? 'red' : 'green' }}>●</span> {/* Indicator */}
-                HW_ID: {drone.hw_ID}, Mission: {drone.Mission}, State: {drone.State}, Follow Mode: {drone.Follow_Mode === 0 ? 'LEADER' : `Follows ${drone.Follow_Mode}`}, Altitude: {drone.Position_Alt.toFixed(1)}
+            <div className="drone-item" key={drone.hw_ID}>
+              <li onClick={() => toggleDroneDetails(drone)}>
+                <span style={{ color: isStale ? 'red' : 'green' }}>●</span>
+                HW_ID: {drone.hw_ID}, Mission: {drone.Mission}, State: {drone.State},
+                Follow Mode: {drone.Follow_Mode === 0 ? 'LEADER' : `Follows ${drone.Follow_Mode}`},
+                Altitude: {drone.Position_Alt.toFixed(1)}
+                <span onClick={(e) => { e.stopPropagation(); setSelectedDrone(drone); }}>🔗</span> {/* External view icon/link */}
               </li>
+              {expandedDrone && expandedDrone.hw_ID === drone.hw_ID && <DroneDetail drone={drone} isAccordionView={true} />}
             </div>
           );
         })}
@@ -144,5 +156,6 @@ const Overview = ({ setSelectedDrone }) => {
     </div>
   );
 };
+
 
 export default Overview;
