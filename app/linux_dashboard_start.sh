@@ -1,6 +1,9 @@
 #!/bin/bash
+
+# Clear the screen
 clear
 
+# Welcome message
 echo "Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
 echo "MAVSDK_Drone_Show Version 0.7"
 echo ""
@@ -12,20 +15,24 @@ echo ""
 echo "Please wait as the script checks and initializes the necessary components..."
 echo ""
 
+# Get the directory of the current script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 # Check if the server is running
-if curl --output /dev/null --silent --head --fail "http://localhost:3000"; then
-    echo "Drone Dashboard server is already running!"
-else
+curl -s -o /dev/null http://localhost:3000
+
+if [ $? -ne 0 ]; then
     echo "Starting the Drone Dashboard server..."
-    cd dashboard/drone-dashboard
-    npm start & # The ampersand will run the command in the background
-    sleep 5 # Giving it some time to start
+    cd "$SCRIPT_DIR/dashboard/drone-dashboard"
+    gnome-terminal -- npm start &
     echo "Drone Dashboard server started successfully!"
-    cd ../.. # Navigate back to root directory
+else
+    echo "Drone Dashboard server is already running!"
 fi
 
 echo "Now starting the GCS Terminal App with Flask..."
-python3 ./gcs_with_flask.py & # Running the Python app in the background
+cd "$SCRIPT_DIR/.."
+gnome-terminal -- python3 gcs_with_flask.py &
 echo "GCS Terminal App started successfully!"
 
 echo ""
@@ -33,4 +40,4 @@ echo "For more details, please check the documentation in the 'docs' folder."
 echo "You can also refer to Alireza Ghaderi's GitHub repo: https://github.com/alireza787b/mavsdk_drone_show"
 echo "For tutorials and additional content, visit Alireza Ghaderi's YouTube channel: https://www.youtube.com/@alirezaghaderi"
 echo ""
-read -p "Press any key to close this script..."
+read -n 1 -s -r -p "Press any key to close this script..."
