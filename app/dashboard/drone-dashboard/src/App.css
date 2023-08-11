@@ -34,6 +34,8 @@
 
 .drone-item li {
   font-weight: bold;
+  margin-top: 50px;
+  list-style: none;
 }
 
 @keyframes App-logo-spin {

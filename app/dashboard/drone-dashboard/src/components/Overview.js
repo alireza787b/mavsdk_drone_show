@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import DroneDetail from './DroneDetail';  // Import the DroneDetail component
-import GlobeView from './components/GlobeView';
+import Globe from './Globe';
 
 
 const POLLING_RATE_HZ = 2;
@@ -93,6 +93,8 @@ const Overview = ({ setSelectedDrone }) => {
             ...response.data[hw_ID],
           }));
           setDrones(dronesArray);
+          //console.log("Transformed Drones Data:", dronesArray);  // Add this line
+
         })
         .catch((error) => {
           console.error('Network Error:', error);
@@ -122,10 +124,8 @@ const Overview = ({ setSelectedDrone }) => {
   return (
     <div>
 
-      <GlobeView />
-
-      <h1>Connected Drones</h1>
-      <div>
+<h2>Mission Trigger</h2>
+<div>
         <label>
           Mission Type:
           <select value={missionType} onChange={(e) => setMissionType(e.target.value)}>
@@ -139,8 +139,11 @@ const Overview = ({ setSelectedDrone }) => {
           <input type="number" value={timeDelay} onChange={(e) => setTimeDelay(e.target.value)} />
         </label>
         <button onClick={handleSendCommand}>Send Command</button>
-        <button onClick={handleDisarmDrones}>Disarm Drones</button>
+        <button onClick={handleDisarmDrones}>Cancel Mission</button>
       </div>
+
+      <h2>Connected Drones</h2>
+      
       <ul>
         {drones.map((drone) => {
           const isStale = (new Date() / 1000 - drone.Update_Time) > STALE_DATA_THRESHOLD_SECONDS;
@@ -158,6 +161,15 @@ const Overview = ({ setSelectedDrone }) => {
           );
         })}
       </ul>
+
+      <Globe drones={drones.map(drone => ({
+      hw_ID: drone.hw_ID,
+      position: [drone.Position_Lat, drone.Position_Long, drone.Position_Alt],
+      state: drone.State,
+      follow_mode: drone.Follow_Mode,
+      altitude: drone.Position_Alt
+    }))} />
+
     </div>
   );
 };

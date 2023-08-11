@@ -1,44 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 
-const POLLING_RATE_HZ = 2; // Frequency of checking for new data (in Hz)
-const STALE_DATA_THRESHOLD_SECONDS = 5; // Threshold for considering data stale (in seconds)
+const POLLING_RATE_HZ = 2;
+const STALE_DATA_THRESHOLD_SECONDS = 5;
+
+const droneIcon = new L.Icon({
+  iconUrl: '/drone-marker.png',
+  iconSize: [40, 50],
+});
 
 const DroneDetail = ({ drone, goBack, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
   const [isStale, setIsStale] = useState(false);
+  const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
 
-  // Function to fetch data
   useEffect(() => {
     const url = 'http://127.0.0.1:5000/telemetry';
-
     const fetchData = () => {
-      axios.get(url)
-        .then((response) => {
-          const droneData = response.data[drone.hw_ID];
-          if (droneData) {
-            setDetailedDrone({
-              hw_ID: drone.hw_ID,
-              ...droneData,
-            });
-
-            const currentTime = Math.floor(Date.now() / 1000);
-            const isDataStale = currentTime - droneData.Update_Time > STALE_DATA_THRESHOLD_SECONDS;
-            setIsStale(isDataStale);
-          }
-        })
-        .catch((error) => {
-          console.error('Network Error:', error);
-        });
+      axios.get(url).then((response) => {
+        const droneData = response.data[drone.hw_ID];
+        if (droneData) {
+          setDetailedDrone({
+            hw_ID: drone.hw_ID,
+            ...droneData,
+          });
+          const currentTime = Math.floor(Date.now() / 1000);
+          const isDataStale = currentTime - droneData.Update_Time > STALE_DATA_THRESHOLD_SECONDS;
+          setIsStale(isDataStale);
+        }
+      }).catch((error) => {
+        console.error('Network Error:', error);
+      });
     };
-
-    // Initial fetch
     fetchData();
-
-    // Set up polling
     const pollingInterval = setInterval(fetchData, 1000 / POLLING_RATE_HZ);
-
-    // Clean up interval when component unmounts
     return () => {
       clearInterval(pollingInterval);
     };
@@ -46,7 +44,6 @@ const DroneDetail = ({ drone, goBack, isAccordionView }) => {
 
   return (
     <div>
-      
       {!isAccordionView && (
         <>
           <button onClick={goBack}>Return to Overview</button>
@@ -72,6 +69,49 @@ const DroneDetail = ({ drone, goBack, isAccordionView }) => {
       <p>Battery Voltage: {detailedDrone.Battery_Voltage.toFixed(1)}</p>
       <p>Follow Mode: {detailedDrone.Follow_Mode}</p>
       {/* Add more details as needed */}
+
+      <div style={{ height: '300px', width: '300px' }}>
+        <select value={currentTileLayer} onChange={(e) => setCurrentTileLayer(e.target.value)}>
+          <option value="OSM">OpenStreetMap</option>
+          <option value="OTM">OpenTopoMap</option>
+          <option value="ESRI">Esri WorldStreetMap</option>
+          <option value="STAMEN">Stamen Toner</option>
+        </select>
+        <MapContainer 
+          center={[detailedDrone.Position_Lat, detailedDrone.Position_Long]} 
+          zoom={13} 
+          style={{ height: '100%', width: '100%' }}
+        >
+          {currentTileLayer === 'OSM' && (
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+          )}
+          {currentTileLayer === 'OTM' && (
+            <TileLayer
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution='&copy; OpenTopoMap contributors'
+            />
+          )}
+          {currentTileLayer === 'ESRI' && (
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+              attribution='&copy; Esri'
+            />
+          )}
+          {currentTileLayer === 'STAMEN' && (
+            <TileLayer
+              url="https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png"
+              attribution='Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap'
+            />
+          )}
+          <Marker 
+            position={[detailedDrone.Position_Lat, detailedDrone.Position_Long]} 
+            icon={droneIcon}
+          />
+        </MapContainer>
+      </div>
     </div>
   );
 };

@@ -23,8 +23,8 @@ const App = () => {
 
   return (
     <div>
-      <p>System Time (UNIX): {Math.floor(currentTime / 1000)}</p>
-      <p>System Time (Local): {currentTime.toLocaleString()}</p>
+      <p>
+      System Local Time: {currentTime.toLocaleString()} | System UNIX Time: {Math.floor(currentTime / 1000)}</p>
       {selectedDrone ? (
         <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
       ) : (
