@@ -3,6 +3,7 @@ import axios from 'axios';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import '../styles/DroneDetail.css';
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -12,7 +13,7 @@ const droneIcon = new L.Icon({
   iconSize: [40, 50],
 });
 
-const DroneDetail = ({ drone, goBack, isAccordionView }) => {
+const DroneDetail = ({ drone, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
   const [isStale, setIsStale] = useState(false);
   const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
@@ -44,39 +45,45 @@ const DroneDetail = ({ drone, goBack, isAccordionView }) => {
 
   return (
     <div>
-      {!isAccordionView && (
-        <>
-          <button onClick={goBack}>Return to Overview</button>
-          <h1>
-            Drone Detail for HW_ID: {detailedDrone.hw_ID}
-            <span style={{ color: isStale ? 'red' : 'green' }}>
-              ●
-            </span>
-          </h1>
-        </>
-      )}
-      <p>Update Time (UNIX): {detailedDrone.Update_Time}</p>
-      <p>Update Time (Local): {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
-      <p>Mission: {detailedDrone.Mission}</p>
-      <p>State: {detailedDrone.State}</p>
-      <p>Altitude: {detailedDrone.Position_Alt.toFixed(1)}</p>
-      <p>Latitude: {detailedDrone.Position_Lat}</p>
-      <p>Longitude: {detailedDrone.Position_Long}</p>
-      <p>Velocity North: {detailedDrone.Velocity_North.toFixed(1)}</p>
-      <p>Velocity East: {detailedDrone.Velocity_East.toFixed(1)}</p>
-      <p>Velocity Down: {detailedDrone.Velocity_Down.toFixed(1)}</p>
-      <p>Yaw: {detailedDrone.Yaw.toFixed(0)}</p>
-      <p>Battery Voltage: {detailedDrone.Battery_Voltage.toFixed(1)}</p>
-      <p>Follow Mode: {detailedDrone.Follow_Mode}</p>
-      {/* Add more details as needed */}
+        {!isAccordionView && (
+            <h1>
+                Drone Detail for HW_ID: {detailedDrone.hw_ID}
+                <span style={{ color: isStale ? 'red' : 'green' }}>●</span>
+            </h1>
+        )}
 
-      <div style={{ height: '300px', width: '300px' }}>
+        {/* Identifiers & Time */}
+        <p>HW_ID: {detailedDrone.hw_ID}</p>
+        <p>Update Time (UNIX): {detailedDrone.Update_Time}</p>
+        <p>Update Time (Local): {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
+
+        {/* Mission & Status Information */}
+        <p>Mission: {detailedDrone.Mission}</p>
+        <p>State: {detailedDrone.State}</p>
+        <p>Follow Mode: {detailedDrone.Follow_Mode}</p>
+
+        {/* Positional Information */}
+        <p>Altitude: {detailedDrone.Position_Alt.toFixed(1)}m</p>
+        <p>Latitude: {detailedDrone.Position_Lat}</p>
+        <p>Longitude: {detailedDrone.Position_Long}</p>
+
+            {/* Movement & Direction */}
+        <p>Velocity North: {detailedDrone.Velocity_North.toFixed(1)}m/s</p>
+        <p>Velocity East: {detailedDrone.Velocity_East.toFixed(1)}m/s</p>
+        <p>Velocity Down: {detailedDrone.Velocity_Down.toFixed(1)}m/s</p>
+        <p>Yaw: {detailedDrone.Yaw.toFixed(0)}°</p>
+
+           {/* Battery & System Health */}
+        <p>Battery Voltage: {detailedDrone.Battery_Voltage.toFixed(1)}V</p>
         <select value={currentTileLayer} onChange={(e) => setCurrentTileLayer(e.target.value)}>
           <option value="OSM">OpenStreetMap</option>
           <option value="OTM">OpenTopoMap</option>
           <option value="ESRI">Esri WorldStreetMap</option>
           <option value="STAMEN">Stamen Toner</option>
         </select>
+        <div style={{ height: '300px', width: '300px' }}>
+        
+
         <MapContainer 
           center={[detailedDrone.Position_Lat, detailedDrone.Position_Long]} 
           zoom={13} 
@@ -111,9 +118,16 @@ const DroneDetail = ({ drone, goBack, isAccordionView }) => {
             icon={droneIcon}
           />
         </MapContainer>
-      </div>
+        </div>
+
+        
+
+       
     </div>
-  );
-};
+);
+          };
+
+
+    
 
 export default DroneDetail;

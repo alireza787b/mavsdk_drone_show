@@ -1,0 +1,93 @@
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* This will push the time-details to the bottom */
+    width: 11%;
+    height: 100vh;
+    background-color: #333;
+    color: white;
+    padding: 20px;
+    box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.1);
+    z-index: 999;
+}
+
+.sidebar h2 {
+    margin-top: 0;
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.sidebar ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0; /* Ensure no margin */
+}
+
+.sidebar li {
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.sidebar li:hover {
+    color: #aaa;
+}
+
+.time-details {
+    border-top: 1px solid #555;
+    padding-top: 20px;
+    margin-bottom: 30px; /* Ensure no bottom margin */
+}
+
+.time-details p {
+    margin: 5px 0;
+}
+
+.developer-info {
+    border-top: 1px solid #555;
+    padding-top: 20px;
+    margin-bottom: 30px; /* Ensure no bottom margin */
+}
+
+.developer-info p {
+    margin: 5px 0;
+}
+/* Existing Code */
+.sidebar {
+    background-color: #333;
+    width: 200px;
+    height: 100vh; /* Adjusting this */
+    padding: 20px;
+    box-shadow: 2px 0px 5px rgba(0,0,0,0.5);
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow-y: auto; /* Adding this for scrolling */
+  }
+  
+  /* Existing Code */
+  .sidebar .system-time {
+    margin-bottom: 20px; /* Giving some space before the developer info */
+  }
+  
+  /* New styles */
+  .developer-info {
+    font-size: 0.85em;
+    margin-top: 20px;
+    color: #aaa;
+  }
+  
+  .developer-info a {
+    color: #aaa;
+    text-decoration: underline;
+  }
+  .sidebar a {
+    color: inherit; /* Use the color of the parent element */
+    text-decoration: none; /* Remove the underline */
+  }
+  
+  .sidebar a:hover {
+    /* Add any hover styles here, e.g., underline or color change */
+    text-decoration: underline;
+  }
+  

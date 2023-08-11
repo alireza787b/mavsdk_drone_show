@@ -5,6 +5,8 @@ import { Color, PlaneGeometry } from 'three';
 import { useState, useRef, useEffect } from 'react';
 import { Html } from '@react-three/drei';
 import { MeshLambertMaterial } from 'three';
+import { Stars } from '@react-three/drei';
+
 
 function Environment() {
   const world_size = 50;
@@ -40,27 +42,29 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
 
+
+
   useEffect(() => {
     if (isHovered) {
       setOpacity(1);
     } else {
-      const timeout = setTimeout(() => setOpacity(0), 150);  // wait for 300ms before hiding
+      const timeout = setTimeout(() => setOpacity(0), 150);  // wait for 150ms before hiding
       return () => clearTimeout(timeout);
     }
   }, [isHovered]);
 
   return (
     <mesh
-  position={position}
-  onPointerOver={(e) => {
-    e.stopPropagation();
-    setIsHovered(true);
-  }}
-  onPointerOut={(e) => {
-    setIsHovered(false);
-  }}
->
-      <boxGeometry args={[0.5, 0.4, 0.5]} />
+      position={position}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setIsHovered(true);
+      }}
+      onPointerOut={(e) => {
+        setIsHovered(false);
+      }}
+    >
+      <sphereGeometry args={[0.5]} />  {/* Adjusted geometry to sphere with radius of 0.5 */}
       <meshStandardMaterial color={isHovered ? new Color('orange') : new Color('yellow')} />
       <Html>
         <div
@@ -70,7 +74,7 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
             borderRadius: '5px',
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
-            opacity: opacity,  // Adjusted opacity
+            opacity: opacity,
             transition: 'opacity 0.3s'
           }}
         >
@@ -85,6 +89,7 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
     </mesh>
   );
 }
+
 
 
 
@@ -129,26 +134,35 @@ function llaToLocal(lat, lon, alt, reference) {
   return [north, up, east];
 }
 
-
+const handleFullScreen = () => {
+  const canvas = document.querySelector('canvas');
+  if (canvas.requestFullscreen) {
+    canvas.requestFullscreen();
+  }
+};
 
 
 export default function Globe({ drones }) {
-  if (!drones || drones.length === 0) {
-    return <div>Loading...</div>; // Display a loading message until at least one drone's data is available
+  const [referencePoint, setReferencePoint] = useState(null);
+
+  useEffect(() => {
+    if (drones && drones.length > 0 && !referencePoint) {
+      const refDrone = drones[0];
+      setReferencePoint([refDrone.position[0], refDrone.position[1], refDrone.position[2]]);
+    }
+  }, [drones]);
+
+  if (!drones || drones.length === 0 || !referencePoint) {
+    return <div>Loading...</div>;
   }
 
-  const referenceDrone = drones[0];
-  const referencePoint = [referenceDrone.position[0], referenceDrone.position[1], referenceDrone.position[2]];
-
-  const convertedDrones = drones.map(drone => {
-    return {
-      hw_ID: drone.hw_ID,
-      position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
-      state: drone.state,
-      altitude : drone.altitude,
-      follow_mode : drone.follow_mode
-    };
-  });
+  const convertedDrones = drones.map(drone => ({
+    hw_ID: drone.hw_ID,
+    position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
+    state: drone.state,
+    altitude: drone.altitude,
+    follow_mode: drone.follow_mode
+  }));
 
   // Adjust the initial camera position to be 10 meters higher and southeast of the first drone
   const initialCameraPosition = [
@@ -157,27 +171,39 @@ export default function Globe({ drones }) {
     convertedDrones[0].position[2] + 10   // East
   ];
 
-  // console.log("Reference Drone: ", referenceDrone);
-  // console.log("Converted Drones data: ", convertedDrones);
-  // console.log("Initial Camera Position: ", initialCameraPosition);
-
-  const handleFullScreen = () => {
-    const canvas = document.querySelector('canvas');
-    if (canvas.requestFullscreen) {
-      canvas.requestFullscreen();
-    }
-  };
-
   return (
-    <div style={{ width: '100%', height: '70vh' }}>
+    <div style={{ width: '100%', height: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Canvas camera={{ position: initialCameraPosition, up: [0, 1, 0] }}>
+        <Stars radius={200} depth={60} count={5000} factor={7} saturation={0.5} fade={true} />
         <Environment />
         {convertedDrones && convertedDrones.map(drone => (
-          <Drone key={drone.hw_ID} position={drone.position} hw_ID={drone.hw_ID} state={drone.state} follow_mode={drone.follow_mode} altitude = {drone.altitude} />
+          <Drone key={drone.hw_ID} position={drone.position} hw_ID={drone.hw_ID} state={drone.state} follow_mode={drone.follow_mode} altitude={drone.altitude} />
         ))}
         <OrbitControls />
       </Canvas>
-      <button onClick={handleFullScreen}>Full Screen</button>
+      <button 
+        onClick={handleFullScreen} 
+        style={{
+          position: 'absolute',
+          right: '10px',
+          bottom: '10px',
+          padding: '8px 12px',
+          backgroundColor: '#333',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          opacity: '0.8',
+          transition: 'opacity 0.3s',
+          zIndex: 10,
+          boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.3)'
+        }}
+        onMouseEnter={(e) => e.target.style.opacity = '1'}
+        onMouseLeave={(e) => e.target.style.opacity = '0.8'}
+      >
+        Full Screen
+      </button>
     </div>
   );
 }
+

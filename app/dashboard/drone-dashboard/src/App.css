@@ -46,3 +46,22 @@
     transform: rotate(360deg);
   }
 }
+
+body {
+  font-family: 'Roboto', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', sans-serif;
+}
+.app-container {
+  flex: 1 1;
+    padding: 20px;
+    margin-left: 13%;
+    width: 75%;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+}

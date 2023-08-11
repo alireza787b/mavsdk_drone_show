@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Overview from './components/Overview';
 import Detail from './components/DroneDetail';
-import './App.css';
+import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 
+import './App.css';
 
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
@@ -21,17 +23,21 @@ const App = () => {
     };
   }, []);
 
+
   return (
-    <div>
-      <p>
-      System Local Time: {currentTime.toLocaleString()} | System UNIX Time: {Math.floor(currentTime / 1000)}</p>
-      {selectedDrone ? (
-        <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
-      ) : (
-        <Overview setSelectedDrone={setSelectedDrone} />
-      )}
+    <div className="app-container">
+      <Sidebar currentTime={currentTime} />
+      <div className="content">
+        {selectedDrone ? (
+          <Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />
+        ) : (
+          <Overview setSelectedDrone={setSelectedDrone} />
+        )}
+      </div>
     </div>
   );
 };
+
+
 
 export default App;

@@ -1,0 +1,31 @@
+/* Day Mode Colors */
+:root {
+    --bg-day: #FFFFFF;
+    --text-day: #333333;
+    --primary-day: #007BFF;
+    --secondary-day: #6C757D;
+    --border-day: #E0E0E0;
+  }
+  
+  /* Night Mode Colors */
+  [data-theme='night'] {
+    --bg: #181818;
+    --text: #E0E0E0;
+    --primary: #0A74DA;
+    --secondary: #515151;
+    --border: #333333;
+  }
+  [data-theme="day"] {
+    background-color: #f5f5f5;
+    color: #333;
+    transition: background-color 0.5s, color 0.5s;
+
+  }
+  
+  [data-theme="night"] {
+    background-color: #333;
+    color: #f5f5f5;
+    transition: background-color 0.5s, color 0.5s;
+
+  }
+  
