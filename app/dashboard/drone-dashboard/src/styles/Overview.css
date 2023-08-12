@@ -8,12 +8,14 @@
     background-color: #f5f5f5;
     padding: 15px;
     border-radius: 8px;
-    width: calc(33.33% - 20px);  /* 3 cards per row with a gap of 20px */
+    width: calc(30% - 20px);  /* 3 cards per row with a gap of 20px */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
     transition: background-color 0.3s, transform 0.2s;
 }
+.drone-card h3{
+    cursor: pointer;
 
+}
 .drone-card:hover {
     background-color: #eaeaea;
     transform: translateY(-5px);  /* slight lift effect on hover */

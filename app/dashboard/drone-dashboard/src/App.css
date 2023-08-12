@@ -58,10 +58,11 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1 1;
     padding: 20px;
     margin-left: 13%;
-    width: 75%;
+    width: 85%;
 }
 
 .content {
   flex: 1;
   padding: 20px;
 }
+

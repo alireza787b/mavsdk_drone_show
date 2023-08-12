@@ -55,7 +55,7 @@
 /* Existing Code */
 .sidebar {
     background-color: #333;
-    width: 200px;
+    width: 11%;
     height: 100vh; /* Adjusting this */
     padding: 20px;
     box-shadow: 2px 0px 5px rgba(0,0,0,0.5);

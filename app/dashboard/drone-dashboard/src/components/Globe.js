@@ -6,33 +6,43 @@ import { useState, useRef, useEffect } from 'react';
 import { Html } from '@react-three/drei';
 import { MeshLambertMaterial } from 'three';
 import { Stars } from '@react-three/drei';
+import axios from 'axios';
+import { RepeatWrapping } from 'three';
 
+
+import { useLoader } from '@react-three/fiber';
+import { TextureLoader } from 'three';
 
 function Environment() {
-  const world_size = 50;
+  const world_size = 400;
+  const textureRepeat = 10; // Adjust based on your texture's appearance and the scale you want
+  
+  // Load the grass texture
+  const grassTexture = useLoader(TextureLoader, '/grass1.jpg');
+  grassTexture.wrapS = grassTexture.wrapT = RepeatWrapping;
+  grassTexture.repeat.set(textureRepeat, textureRepeat);
+
   return (
     <>
-      {/* Ground */}
+      {/* Ground with Texture */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow castShadow>
         <planeGeometry attach="geometry" args={[world_size, world_size]} />
-        <meshLambertMaterial 
-          attach="material" 
-          color="#90EE90"  // Slightly darker green to mimic grass
-          side={2}  // Double-sided: FRONT_AND_BACK
-        />
+        <meshStandardMaterial map={grassTexture} attach="material" side={2} />
       </mesh>
 
-      {/* Grid on the ground */}
-      <gridHelper args={[world_size, world_size, '#286328', '#0B340B']} />
+      {/* Enhanced Grid on the ground */}
+      {/* <gridHelper args={[world_size, world_size / 5, '#286328', '#0B340B']} /> */}
 
       {/* Ambient light */}
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.6} />
 
-      {/* Point light to mimic morning sunlight */}
-      <pointLight position={[0, 50, 0]} intensity={1} castShadow />
+      <hemisphereLight skyColor={'#ffffff'} groundColor={'#000000'} intensity={1} />
+
     </>
   );
 }
+
+
 
 
 
@@ -53,6 +63,7 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
     }
   }, [isHovered]);
 
+  
   return (
     <mesh
       position={position}
@@ -64,18 +75,26 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
         setIsHovered(false);
       }}
     >
-      <sphereGeometry args={[0.5]} />  {/* Adjusted geometry to sphere with radius of 0.5 */}
-      <meshStandardMaterial color={isHovered ? new Color('orange') : new Color('yellow')} />
+      <sphereGeometry args={[1]} />
+      <meshStandardMaterial 
+        color={isHovered ? new Color('orange') : new Color('#1E4D8C')}  // Changed to deep blue
+        emissive={isHovered ? new Color('orange') : new Color('#1E4D8C')} // Soft glow
+        emissiveIntensity={0.5}
+        metalness={0.6}
+        roughness={0.4}
+      />
       <Html>
         <div
           style={{
-            background: 'white',
+            background: 'rgba(255, 255, 255, 0.8)',  // Semi-transparent background
             padding: '5px',
             borderRadius: '5px',
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
             opacity: opacity,
-            transition: 'opacity 0.3s'
+            transition: 'opacity 0.3s',
+            boxShadow: '2px 2px 8px rgba(0,0,0,0.2)',
+            fontWeight: '500'
           }}
         >
           <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
@@ -89,7 +108,6 @@ function Drone({ position, hw_ID, state, follow_mode, altitude }) {
     </mesh>
   );
 }
-
 
 
 
@@ -145,16 +163,44 @@ const handleFullScreen = () => {
 export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
 
-  useEffect(() => {
+  
+
+  
+async function getElevation(lat, lon) {
+  try {
+    const response = await axios.get(`http://localhost:5001/elevation?lat=${lat}&lon=${lon}`, {
+      timeout: 25000, // Set a timeout of 25 seconds
+    });
+    return response.data.results[0].elevation;
+  } catch (error) {
+    console.error('Error fetching elevation:', error);
+    return null;
+  }
+}
+
+useEffect(() => {
+  async function setInitialReferencePoint() {
     if (drones && drones.length > 0 && !referencePoint) {
       const refDrone = drones[0];
-      setReferencePoint([refDrone.position[0], refDrone.position[1], refDrone.position[2]]);
+      const elevation = await getElevation(refDrone.position[0], refDrone.position[1]);
+      if (elevation !== null) {
+        setReferencePoint([refDrone.position[0], refDrone.position[1], elevation]);
+        console.log(elevation);
+      } else {
+        setReferencePoint([refDrone.position[0], refDrone.position[1], refDrone.position[2]]);
+      }
     }
-  }, [drones]);
-
-  if (!drones || drones.length === 0 || !referencePoint) {
-    return <div>Loading...</div>;
   }
+
+  // Call setInitialReferencePoint only once during initialization
+  if (!referencePoint) {
+    setInitialReferencePoint();
+  }
+}, [drones, referencePoint]);
+
+if (!drones || drones.length === 0 || !referencePoint) {
+  return <div>Loading...</div>;
+}
 
   const convertedDrones = drones.map(drone => ({
     hw_ID: drone.hw_ID,
