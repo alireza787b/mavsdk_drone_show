@@ -117,7 +117,7 @@ class DroneCommunicator:
             # Add additional logic here to handle the received command
         elif header == 77 and terminator == 88 and len(data) == self.params.telem_packet_size:
             # Decode the data
-            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, terminator = struct.unpack(self.params.telem_struct_fmt, data)
+            header, hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, update_time ,  terminator = struct.unpack(self.params.telem_struct_fmt, data)
             logging.debug(f"Received telemetry from Drone {hw_id}")
 
             if hw_id not in self.drones:
@@ -127,8 +127,7 @@ class DroneCommunicator:
 
             position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
-            
-            self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, time.time())
+            self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, update_time)
 
             # Add processing of the received telemetry data here
         else:
@@ -150,7 +149,8 @@ class DroneCommunicator:
         "velocity_down": self.drone_config.velocity['vel_d'],
         "yaw": self.drone_config.yaw,
         "battery_voltage": self.drone_config.battery,
-        "follow_mode": int(self.drone_config.swarm['follow'])
+        "follow_mode": int(self.drone_config.swarm['follow']),
+        "update_time": int(self.drone_config.last_update_timestamp)
         }
 
         return drone_state
@@ -163,7 +163,7 @@ class DroneCommunicator:
             drone_state = self.get_drone_state()
 
             # Create a struct format string based on the data types
-            telem_struct_fmt = '=BHHBBIddddddddBB'  # update this to match your data types
+            telem_struct_fmt = '=BHHBBIddddddddBIB'  # update this to match your data types
             packet = struct.pack(telem_struct_fmt,
                                  77,
                                  drone_state['hw_id'],
@@ -180,6 +180,7 @@ class DroneCommunicator:
                                  drone_state['yaw'],
                                  drone_state['battery_voltage'],
                                  drone_state['follow_mode'],
+                                 drone_state['update_time'],
                                  88)
             telem_packet_size = len(packet)
 

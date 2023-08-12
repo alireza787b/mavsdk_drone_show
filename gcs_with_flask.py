@@ -1,12 +1,13 @@
+
 """
 Author: Alireza Ghaderi
 Email: p30planets@gmail.com
 GitHub: alireza787b
 Repository: github.com/alireza787b/mavsdk_drone_show
-Date: June 2023
+Date: August 2023
 ---------------------------------------------------------------------------
 
-Ground Control Station (GCS) Script for Drone Telemetry and Command Control
+Ground Control Station (GCS) Script for Drone Telemetry and Command Control + flask web socket
 ---------------------------------------------------------------------------
 
 This script is designed to function as a Ground Control Station (GCS) in a drone network, providing functionality for receiving telemetry data from drones and
@@ -15,6 +16,24 @@ handle multiple drones simultaneously.
 
 Setup and Configuration:
 ------------------------
+Flask server runs automatically with this file, sending telemetry data in JSON format to: 
+http://localhost:5000/telemetry
+
+For the React Ground Control Station (GCS) Interface:
+- Run the 'start_dashboard.sh' script located in the 'apps' folder for linux based. 
+  Alternatively, use the terminal to navigate to 'apps/dashboard/drone-dashboard' and execute 'npm start'.
+- Once started, the GCS interface will be available at http://localhost:3000
+
+Prerequisites:
+- Ensure Flask, Node.js, and Python are installed on your system.
+
+Additional Information:
+- Detailed documentation is available in the 'docs' folder.
+- For more insights and code details, refer to the GitHub repository: https://github.com/alireza787b/mavsdk_drone_show
+- Video tutorials and demonstrations are available on the associated YouTube channel.
+
+
+
 The script is set up to read its configuration from a .csv file named 'config.csv' which should be located in the same directory as the script. The columns
 in 'config.csv' should be as follows: hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip.
 
@@ -86,16 +105,25 @@ Always ensure that you comply with all local laws and regulations when operating
 
 """
 
-# Imports
+
 import logging
 import socket
 import struct
-import threading
+from flask import Flask, jsonify
+from flask import request
+
+from threading import Thread, Lock
 import time
 import pandas as pd
 import os
-
+import math
 from enum import Enum
+from flask_cors import CORS
+
+
+# Imports
+telemetry_data_all_drones = {}
+telemetry_lock = Lock()
 
 class State(Enum):
     IDLE = 0
@@ -107,6 +135,8 @@ class Mission(Enum):
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
 
+
+flask_telem_socket_port = 5000
 
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
@@ -144,18 +174,6 @@ else:
 
 # Function to send commands
 def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
-    """
-    This function prepares and sends commands.
-
-    :param n: An integer used to compute trigger_time.
-    :param sock: The socket through which data will be sent.
-    :param coordinator_ip: The IP address of the coordinator.
-    :param debug_port: The port used for sending data.
-    :param hw_id: The hardware ID.
-    :param pos_id: The position ID.
-    :param mission: The mission ID.
-    :param state: The state value.
-    """
     try:
         # Prepare the command data
         header = 55  # Constant
@@ -171,8 +189,6 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
     except (OSError, struct.error) as e:
         # If there is an OSError or an error in packing the data, log the error
         logger.error(f"An error occurred: {e}")
-
-import math
 
 
 
@@ -198,15 +214,33 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # Decode the data
             telemetry_data = struct.unpack(telem_struct_fmt, data)
             header, terminator = telemetry_data[0], telemetry_data[-1]
+            hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode,telemetry_update_time = telemetry_data[1:-1]
 
             # If header or terminator are not as expected, log the error and continue
             if header != 77 or terminator != 88:
                 logger.error("Invalid header or terminator received in telemetry data.")
                 continue
 
+            global telemetry_data_all_drones
+            with telemetry_lock:
+                telemetry_data_all_drones[hw_id] = {
+                    'Pos_ID': pos_id,
+                    'State': State(state).name,
+                    'Mission': Mission(mission).name,
+                    'Position_Lat': position_lat,
+                    'Position_Long': position_long,
+                    'Position_Alt': position_alt,
+                    'Velocity_North': velocity_north,
+                    'Velocity_East': velocity_east,
+                    'Velocity_Down': velocity_down,
+                    'Yaw': yaw,
+                    'Battery_Voltage': battery_voltage,
+                    'Follow_Mode': follow_mode,
+                    'Update_Time': telemetry_update_time
+                }
+
             # If the print_telemetry flag is True, print the decoded data
             if print_telemetry[0]:
-                hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, telemetry_update_time = telemetry_data[1:-1]
                 # Debug log with all details
                 logger.info(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
                 
@@ -214,7 +248,6 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # If there is an OSError or an error in unpacking the data, log the error and break the loop
             logger.error(f"An error occurred: {e}")
             break
-        
 
 
 # Drones threads
@@ -223,6 +256,66 @@ drones_threads = []
 # This flag indicates if the telemetry threads should keep running.
 # We use a list so the changes in the main thread can be seen by the telemetry threads.
 keep_running = [True]
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS
+
+@app.route('/telemetry', methods=['GET'])
+def get_telemetry():
+    with telemetry_lock:
+        return jsonify(telemetry_data_all_drones)
+
+@app.route('/send_command', methods=['POST'])
+def send_command_to_all_drones():
+    try:
+        # Get the command data from the request
+        command_data = request.get_json()
+
+        # Extract the mission type and time delay
+        mission_type = command_data['missionType']
+        trigger_time = int(command_data['triggerTime'])
+
+        # Convert mission type and state
+        mission, state = convert_mission_type(mission_type)
+
+        # Turn off telemetry printing while sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = False
+
+        # Send command to each drone
+        for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
+            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+
+        # Turn on telemetry printing after sending commands
+        for _, _, _, _, _, _ in drones_threads:
+            print_telemetry[0] = True
+
+        return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
+
+    except Exception as e:
+        # Log the error and return a response with an error message
+        print(f"An error occurred while sending command: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
+
+# Function to convert mission type to mission and state values
+def convert_mission_type(mission_type):
+    if mission_type == 's':
+        return 2, 1
+    elif mission_type == 'd':
+        return 1, 1
+    elif mission_type == 'n':
+        return 0, 0
+    else:
+        return 0, 0
+
+
+
+def run_flask():
+    app.run(host='0.0.0.0', port=flask_telem_socket_port)
+
+flask_thread = Thread(target=run_flask)
+flask_thread.daemon = True
+flask_thread.start()
 
 try:
     for drone_config in drones:
@@ -248,8 +341,10 @@ try:
         print_telemetry = [True]
 
         # Start the telemetry thread
-        telemetry_thread = threading.Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
+        telemetry_thread = Thread(target=handle_telemetry, args=(keep_running, print_telemetry, sock))
+        telemetry_thread.daemon = True  # Set the thread as a daemon thread
         telemetry_thread.start()
+
 
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
@@ -289,7 +384,7 @@ try:
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
             trigger_time = int(time.time()) + int(n)  # Now + n seconds
             send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
-            # Turn on telemetry printing after sending commands
+        # Turn on telemetry printing after sending commands
         for _, _, _, _, _, _ in drones_threads:
             print_telemetry[0] = True
 except (ValueError, OSError, KeyboardInterrupt) as e:
@@ -297,13 +392,18 @@ except (ValueError, OSError, KeyboardInterrupt) as e:
     logger.error(f"An error occurred: {e}")
 finally:
     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
-    keep_running[0] = False
+    # keep_running[0] = False
 
-    for sock, telemetry_thread, _, _, _, _ in drones_threads:
-        # Close the socket
-        sock.close()
-        # Join the thread
-        telemetry_thread.join()
+    # for sock, telemetry_thread, _, _, _, _ in drones_threads:
+    #     # Close the socket
+    #     sock.close()
+    #     # Join the thread
+    #     telemetry_thread.join()
+
+    # # Join the Flask thread
+    # flask_thread.join()
+    pass
 
 logger.info("Exiting the application...")
+
 

@@ -3,3 +3,5 @@ geographiclib
 mavsdk
 asyncio
 pyfilter
+pandas
+pymavlink

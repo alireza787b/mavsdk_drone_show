@@ -1,0 +1,28 @@
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: #007BFF;
+    color: #fff;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;  /* Ensures the header is always on top */
+  }
+  
+  .app-header button {
+    background: none;
+    border: 1px solid #fff;
+    padding: 0.5rem 1rem;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+  }
+  
+  .app-header button:hover {
+    background-color: #fff;
+    color: #007BFF;
+  }
+  

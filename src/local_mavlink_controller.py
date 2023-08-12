@@ -120,6 +120,9 @@ class LocalMavlinkController:
             'vel_e': msg.vy / 1E2,
             'vel_d': msg.vz / 1E2
         }
+        
+        # Update the Update Time
+        self.drone_config.last_update_timestamp = int(time.time())
 
         # If home position is not set yet, use the current position as the home position
         if self.drone_config.home_position is None:

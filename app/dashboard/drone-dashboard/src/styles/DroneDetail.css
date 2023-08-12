@@ -1,0 +1,27 @@
+.drone-detail {
+    margin-top: 15px;
+    background-color: #eaeaea;
+    padding: 10px;
+    border-radius: 8px;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+}
+
+.detail-group {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+/* Animation for the accordion effect (expansion and contraction) */
+.drone-detail-entering,
+.drone-detail-exiting,
+.drone-detail-exited {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.drone-detail-entered {
+    max-height: 400px;  /* Adjust based on your content size */
+    opacity: 1;
+}

@@ -103,7 +103,7 @@ class Params():
     broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
 
     # Packet formats
-    telem_struct_fmt = '=BHHBBIddddddddBB'  # Telemetry packet format
+    telem_struct_fmt = '=BHHBBIddddddddBIB'  # Telemetry packet format
     command_struct_fmt = '=B B B B B I B'  # Command packet format
 
     # Packet sizes
