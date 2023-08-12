@@ -17,7 +17,24 @@ We've built this project hoping it'll make a dent in the drone programming unive
 We encourage you to check out our previous versions to get a feel for our journey so far. And hey, we absolutely love hearing from you all - your thoughts, ideas, questions - bring 'em on! They fuel our drive to keep pushing. Enjoy exploring and happy coding!
 
 
+## Version 0.7: React GUI for Swarm Monitoring & Docker Environment Improvements
 
+In version 0.7, we have implemented a React-based graphical user interface (GUI) for real-time drone swarm monitoring. This allows for an intuitive centralized dashboard to track and command multiple drones in a swarm. 
+
+Additionally, we have further optimized and automated the PX4 Docker environment startup and configuration. These improvements enhance the user experience and streamline swarm orchestration.
+
+<a href="https://youtu.be/VTyb1E_ueIk" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6" style="width=300px" /></a>
+
+<h3><a href="https://youtu.be/VTyb1E_ueIk">YouTube Demo of Version 0.7</a></h3>
+
+**New Features:**
+
+- Implemented React GUI for real-time swarm monitoring
+- Automated PX4 Docker environment startup and configuration 
+- Optimized codebase and fixed bugs
+- Added documentation
+
+As always, we welcome your feedback, suggestions, and contributions!
 
 ## Version 0.6: Enhanced Complex Leader/Follower Swarm Control & Docker-Based SITL 
 As we progress in our drone programming journey, version 0.6 of our project brings more advanced features and improvements, with enhanced swarm control and dockerized SITL demonstrations. In this release, we aim to increase efficiency and automation in managing larger numbers of drones with complex mission dynamics. The demonstration of these features can be found in the link to the YouTube video below.
