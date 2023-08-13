@@ -3,7 +3,7 @@
 <html>
 
 <body>
-   <h1>PX4 Based Drone Show and Smart Swarm using MAVSDK </h1>
+   <h1>PX4 Based Drone Show and Smart Swarm cooperative missions using MAVSDK </h1>
 
 Introduction to the Project
 Welcome to our drone programming project, a wild and ongoing journey from the simple to the complex. We started with basic offboard trajectory following and creating static drone formations in the sky. Over time, we've ramped up to creating multiple dynamic shapes and orchestrating impressive sky drone shows using SkyBrush.
@@ -12,7 +12,7 @@ Our attention then turned to developing intelligent drone swarm behaviors based 
 
 And here's the fun part, we're far from done. Every new release peels back another layer, revealing more complexities and pushing our abilities further. We're pretty stoked about what's coming up and we hope you're too!
 
-We've built this project hoping it'll make a dent in the drone programming universe, enabling anyone to create breathtaking drone shows and to foster a community where we share, learn and grow together.
+We've built this project hoping it'll make a dent in the drone programming universe, enabling anyone to create breathtaking drone shows and foster a community where we share, learn, and grow together.
 
 We encourage you to check out our previous versions to get a feel for our journey so far. And hey, we absolutely love hearing from you all - your thoughts, ideas, questions - bring 'em on! They fuel our drive to keep pushing. Enjoy exploring and happy coding!
 
@@ -23,9 +23,10 @@ In version 0.7, we have implemented a React-based graphical user interface (GUI)
 
 Additionally, we have further optimized and automated the PX4 Docker environment startup and configuration. These improvements enhance the user experience and streamline swarm orchestration.
 
-<a href="https://youtu.be/VTyb1E_ueIk" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/b83db91f-25bc-4e5b-bb4e-e108a12abaf6" style="width=300px" /></a>
+<a href="https://youtu.be/II7JxeEIBso" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/0d5d3630-e843-49c5-8bab-159a2bdeb81e" style="width=300px" /></a>
 
-<h3><a href="https://youtu.be/VTyb1E_ueIk">YouTube Demo of Version 0.7</a></h3>
+
+<h3><a href="https://youtu.be/II7JxeEIBso">YouTube Demo of Version 0.7</a></h3>
 
 **New Features:**
 
