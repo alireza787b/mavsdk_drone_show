@@ -17,7 +17,7 @@ We've built this project hoping it'll make a dent in the drone programming unive
 We encourage you to check out our previous versions to get a feel for our journey so far. And hey, we absolutely love hearing from you all - your thoughts, ideas, questions - bring 'em on! They fuel our drive to keep pushing. Enjoy exploring and happy coding!
 
 
-## Version 0.7: React GUI for Swarm Monitoring & Docker Environment Improvements
+## Version 0.7: React GUI for Swarm Monitoring & Real-World and SITL Environment Scenario Automization Improvements
 
 In version 0.7, we have implemented a React-based graphical user interface (GUI) for real-time drone swarm monitoring. This allows for an intuitive centralized dashboard to track and command multiple drones in a swarm. 
 
@@ -31,7 +31,8 @@ Additionally, we have further optimized and automated the PX4 Docker environment
 **New Features:**
 
 - Implemented React GUI for real-time swarm monitoring
-- Automated PX4 Docker environment startup and configuration 
+- Automated PX4 Docker and virtual machine environment startup and configuration
+- Automized scenario with startup scripts both for SITL environment and Real Drone Hardware
 - Optimized codebase and fixed bugs
 - Added documentation
 
