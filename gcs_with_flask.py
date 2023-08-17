@@ -106,6 +106,7 @@ Always ensure that you comply with all local laws and regulations when operating
 """
 
 
+import csv
 import logging
 import socket
 import struct
@@ -296,6 +297,21 @@ def send_command_to_all_drones():
         # Log the error and return a response with an error message
         print(f"An error occurred while sending command: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
+    
+    
+@app.route('/get-swarm-data', methods=['GET'])
+def get_swarm_data():
+    with open('swarm.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return jsonify(data)
+
+@app.route('/get-config-data', methods=['GET'])
+def get_config_data():
+    with open('config.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return jsonify(data)
 
 # Function to convert mission type to mission and state values
 def convert_mission_type(mission_type):

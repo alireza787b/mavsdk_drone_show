@@ -1,5 +1,6 @@
 import React from 'react';
 import '../styles/Sidebar.css';
+import { Link } from 'react-router-dom';
 
 const Sidebar = ({ currentTime }) => {
     return (
@@ -19,6 +20,8 @@ const Sidebar = ({ currentTime }) => {
       <li>
   <a href="/">Overview</a>
 </li>
+<Link to="/swarm-design">Swarm Design</Link>
+
         <li>Details</li>
         <li>Settings</li>
       </ul>
