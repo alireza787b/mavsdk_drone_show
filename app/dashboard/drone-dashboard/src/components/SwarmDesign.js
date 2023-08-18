@@ -3,6 +3,8 @@ import axios from 'axios';
 import Papa from 'papaparse';
 import '../styles/SwarmDesign.css';
 import DroneGraph from './DroneGraph';
+import SwarmPlots from './SwarmPlots';
+
 
 const transformToGraphData = (swarmData) => {
     const nodes = swarmData.map(drone => ({
@@ -52,6 +54,8 @@ function isEqual(arr1, arr2) {
 
 
 function SwarmDesign() {
+    console.log("SwarmDesign rendered");
+
     const [swarmData, setSwarmData] = useState([]);
     const [configData, setConfigData] = useState([]);
     const { topLeaders, intermediateLeaders } = categorizeDrones(swarmData);
@@ -117,6 +121,10 @@ function SwarmDesign() {
         </div>
         <div className="swarm-graph-container">
         <DroneGraph swarmData={swarmData} onSelectDrone={setSelectedDroneId} />
+
+        </div>
+        <div className="swarm-plots-container">
+        <SwarmPlots swarmData={swarmData} />
 
         </div>
     </div>

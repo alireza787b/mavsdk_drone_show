@@ -9,25 +9,15 @@ import './App.css';
 const App = () => {
   
   const [selectedDrone, setSelectedDrone] = useState(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Function to update the current time
-  const updateTime = () => {
-    setCurrentTime(new Date());
-  };
 
-  // Set up an interval to update the current time every second
-  useEffect(() => {
-    const timeInterval = setInterval(updateTime, 1000);
-    return () => {
-      clearInterval(timeInterval);
-    };
-  }, []);
+
+
 
   return (
     <Router>
       <div className="app-container">
-        <Sidebar currentTime={currentTime} />
+        <Sidebar />
         <div className="content">
           <Routes>
             <Route path="/swarm-design" element={<SwarmDesign />} />

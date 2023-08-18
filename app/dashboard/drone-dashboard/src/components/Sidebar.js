@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/Sidebar.css';
 import { Link } from 'react-router-dom';
 
-const Sidebar = ({ currentTime }) => {
+const Sidebar = () => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Function to update the current time
+  const updateTime = () => {
+    setCurrentTime(new Date());
+};
+// Set up an interval to update the current time every second
+useEffect(() => {
+  const timeInterval = setInterval(updateTime, 1000);
+  return () => {
+      clearInterval(timeInterval);
+  };
+}, []);
     return (
     <div className="sidebar">
       <h2>Swarm Dashboard</h2>
@@ -20,9 +33,9 @@ const Sidebar = ({ currentTime }) => {
       <li>
   <a href="/">Overview</a>
 </li>
+<li>
 <Link to="/swarm-design">Swarm Design</Link>
-
-        <li>Details</li>
+</li>
         <li>Settings</li>
       </ul>
      

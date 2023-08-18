@@ -1,0 +1,25 @@
+.swarm-plots-container {
+    padding: 20px;
+    background-color: #f7f7f7; /* light gray background */
+    margin-top: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.cluster-selection {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.cluster-selection label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.cluster-selection select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}

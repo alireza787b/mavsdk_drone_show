@@ -89,11 +89,14 @@ const Overview = ({ setSelectedDrone }) => {
     const fetchData = () => {
       axios.get(url)
         .then((response) => {
+          
           const dronesArray = Object.keys(response.data).map((hw_ID) => ({
             hw_ID,
             ...response.data[hw_ID],
           }));
           setDrones(dronesArray);
+          console.log("Updated drones state:", dronesArray);
+
           //console.log("Transformed Drones Data:", dronesArray);  // Add this line
 
         })
