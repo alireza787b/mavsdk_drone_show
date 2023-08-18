@@ -1,0 +1,113 @@
+.swarm-design-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+}
+
+.swarm-container {
+    flex: 1; /* Allow it to grow */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+
+
+.swarm-drone-card {
+    width: 100%; /* ensure card takes full width */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease; /* Affect all properties with a 0.3s duration */
+    overflow: hidden; /* Prevents any child element from overflowing the card */
+}
+
+
+.swarm-drone-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    cursor: pointer;
+}
+
+.leader .role {
+    background-color: #4caf50;
+    color: white;
+}
+
+.follower .role {
+    background-color: #2196f3;
+    color: white;
+}
+
+.role {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-weight: 500;
+}
+
+.collapsible-details {
+    max-height: 0;          /* Initially, the details have no height */
+    opacity: 0;             /* Initially transparent */
+    transition: opacity 0.3s ease, max-height 0.3s ease; /* Smooth transition for both properties */
+    overflow: hidden;       /* Hide any overflowing content */
+}
+
+.swarm-drone-card:hover .collapsible-details {
+    max-height: 200px;      /* Accommodate the height of the content */
+    opacity: 1;             /* Fully visible */
+}
+
+.position-icon,
+.ip-icon,
+.port-icon {
+    margin-right: 5px;
+}
+.top-leader .role {
+    background-color: #4caf50;
+    color: white;
+}
+
+.intermediate-leader .role {
+    background-color: #ffcc00; /* Yellow color for Intermediate Leaders */
+    color: black;
+}
+
+.follower .role {
+    background-color: #2196f3;
+    color: white;
+}
+
+/* Styling for the drones following the leader */
+.swarm-drone-card p {
+    margin: 0;
+}
+
+.swarm-drone-card > p:nth-child(3) {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: #525252;
+}
+
+
+
+.swarm-cards-container {
+    flex: 1; /* Take up all available space */
+    max-width: calc(40% - 10px); /* 60% of parent width minus half the gap */
+}
+
+
+@media (max-width: 768px) {
+    .swarm-container, .swarm-graph-container {
+        flex-basis: 100%;
+    }
+}
+.selected-drone {
+    border: 2px solid blue;
+    background-color: #f7f7f7;
+}
