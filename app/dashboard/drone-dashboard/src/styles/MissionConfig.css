@@ -87,3 +87,16 @@ button.revert:hover {
 .initial-launch-plot {
     max-width: calc(60% - 1rem);
 }
+button.edit {
+    background-color: #f39c12; /* orange color for edit */
+}
+
+button.remove {
+    background-color: #e74c3c; /* red color for remove */
+}
+.initial-launch-plot {
+    overflow-y: auto; /* Enables vertical scrolling */
+}
+.js-plotly-plot {
+    position: fixed;
+}

@@ -37,8 +37,9 @@ function MissionConfig() {
         }, []);
 
         // This will map through the configData and generate a card for each drone's configuration
-        const droneCards = configData.map(drone => (
-<div className="drone-config-card droneCard" key={drone.hw_id} data-hw-id={drone.hw_id}>
+        const sortedConfigData = [...configData].sort((a, b) => a.hw_id - b.hw_id);
+        const droneCards = sortedConfigData.map(drone => (
+        <div className="drone-config-card droneCard" key={drone.hw_id} data-hw-id={drone.hw_id}>
                 <h4>Drone {drone.hw_id}</h4>
                 <hr />
                 {editingDroneId === drone.hw_id ? (
@@ -94,8 +95,9 @@ function MissionConfig() {
                         <p><strong>Position ID:</strong> {drone.pos_id}</p>
         
                         <div>
-                            <button onClick={() => startEditing(drone.hw_id)}>Edit</button>
-                            <button onClick={() => removeDrone(drone.hw_id)}>Remove</button>
+                        <button className="edit" onClick={() => startEditing(drone.hw_id)}>Edit</button>
+<button className="remove" onClick={() => removeDrone(drone.hw_id)}>Remove</button>
+
                         </div>
                     </>
                 )}
@@ -148,10 +150,21 @@ function MissionConfig() {
         };
 
         const removeDrone = (hw_id) => {
-            setConfigData(prevConfig => prevConfig.filter(drone => drone.hw_id !== hw_id));
-        };
+            
+            if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
+                setConfigData(prevConfig => prevConfig.filter(drone => drone.hw_id !== hw_id));
+            }
+                    };
         
         const handleSaveChangesToServer = () => {
+            const maxId = Math.max(...configData.map(drone => parseInt(drone.hw_id)));
+for (let i = 1; i <= maxId; i++) {
+    if (!configData.some(drone => parseInt(drone.hw_id) === i)) {
+        alert(`Missing Drone ID: ${i}. Please create the missing drone before saving.`);
+        return;
+    }
+}
+
             axios.post('http://localhost:5000/save-config-data', configData)
                 .then(response => {
                     alert(response.data.message);
