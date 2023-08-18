@@ -299,6 +299,23 @@ def send_command_to_all_drones():
         return jsonify({'status': 'error', 'message': str(e)})
     
     
+@app.route('/save-swarm-data', methods=['POST'])
+def save_swarm_data():
+    try:
+        data = request.json
+        # Convert the JSON data to CSV format
+        csv_data = "follow,hw_id,offset_n,offset_e,offset_alt\n"
+        for drone in data:
+            csv_data += f"{drone['follow']},{drone['hw_id']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
+        
+        # Save to swarm.csv
+        with open('swarm.csv', 'w') as file:
+            file.write(csv_data)
+        
+        return {"message": "Data saved successfully"}, 200
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}, 500
+    
 @app.route('/get-swarm-data', methods=['GET'])
 def get_swarm_data():
     with open('swarm.csv', 'r') as f:

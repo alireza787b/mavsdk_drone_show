@@ -52,6 +52,8 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             cyRef.current.on('tap', 'node', function (evt) {
                 const clickedNodeId = evt.target.id();
                 onSelectDrone(clickedNodeId);
+                //console.log("Clicked Node ID:", clickedNodeId);
+
             });
     
             // Cleanup on unmount

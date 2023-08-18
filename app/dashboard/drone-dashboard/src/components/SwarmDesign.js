@@ -4,6 +4,8 @@ import Papa from 'papaparse';
 import '../styles/SwarmDesign.css';
 import DroneGraph from './DroneGraph';
 import SwarmPlots from './SwarmPlots';
+import DroneCard from './DroneCard';
+
 
 
 const transformToGraphData = (swarmData) => {
@@ -60,6 +62,11 @@ function SwarmDesign() {
     const [configData, setConfigData] = useState([]);
     const { topLeaders, intermediateLeaders } = categorizeDrones(swarmData);
     const [selectedDroneId, setSelectedDroneId] = useState(null); // 1. Added state for selected drone ID
+
+    const handleSaveChanges = (hw_id, updatedDroneData) => {
+        setSwarmData(prevDrones => prevDrones.map(drone => drone.hw_id === hw_id ? updatedDroneData : drone));
+    };
+
     
     const handleDroneCardClick = (droneId) => {
         setSelectedDroneId(droneId);
@@ -87,47 +94,85 @@ function SwarmDesign() {
         return swarmData.filter(drone => drone.follow === leaderId).map(drone => drone.hw_id);
     };
 
+    const handleSaveChangesToServer = () => {
+        const changesSummary = swarmData.map(drone => {
+            const role = drone.follow === '0' ? 'Top Leader' : 
+                        (dronesFollowing(drone.hw_id).length ? 'Intermediate Leader' : 'Follower');
+            return `Drone ${drone.hw_id}: ${role} ${role !== 'Top Leader' ? `(Follows Drone ${drone.follow})` : ''} with Offsets (m) North:${drone.offset_n} East:${drone.offset_e} Altitude:${drone.offset_alt}`;
+        }).join('\n');
+    
+        const isConfirmed = window.confirm(`Are you sure you want to save the following changes?\n\n${changesSummary}`);
+        if (isConfirmed) {
+            saveUpdatedSwarmData();
+        }
+    };
+    
+    
+    const handleRevertChanges = () => {
+        if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
+            fetchOriginalSwarmData();
+        }
+    };
+    
+
+    const fetchOriginalSwarmData = () => {
+    axios.get('http://localhost:5000/get-swarm-data')
+        .then(response => {
+            setSwarmData(response.data);
+        })
+        .catch(error => {
+            console.error("Error fetching original swarm data:", error);
+        });
+};
+
+const saveUpdatedSwarmData = () => {
+    axios.post('http://localhost:5000/save-swarm-data', swarmData)
+        .then(response => {
+            if (response.status === 200) {
+                alert(response.data.message);
+            } else {
+                alert('Error saving data.');
+            }
+        })
+        .catch(error => {
+            console.error("Error saving updated swarm data:", error);
+            alert('Error saving data.');
+        });
+};
+
+//console.log("Current Selected Drone:", selectedDroneId);
+
     return (
-
         <div className="swarm-design-container">
-
-        <div className="swarm-container">
-        
-        {swarmData.length ? swarmData.map(drone => (
-                    <div 
-                        className={`swarm-drone-card ${drone.hw_id === selectedDroneId ? 'selected-drone' : ''} ${topLeaders.includes(drone) ? 'top-leader' : intermediateLeaders.includes(drone) ? 'intermediate-leader' : 'follower'}`} 
-                        key={drone.hw_id}
-                        onClick={() => handleDroneCardClick(drone.hw_id)} // Added onClick handler
-                    >
-                    <h3>Drone ID: {drone.hw_id}</h3>
-                    <p>
-                        {drone.follow === '0' ? 
-                            <span className="role leader">Top Leader</span> : 
-                            intermediateLeaders.includes(drone) ? 
-                            <span className="role intermediate">Intermediate Leader (Follows Drone {drone.follow})</span> :
-                            <span className="role follower">Follows Drone {drone.follow}</span>
-                        }
-                    </p>
-                    {(topLeaders.includes(drone) || intermediateLeaders.includes(drone)) && (
-                        <p>Followed by: {dronesFollowing(drone.hw_id).join(', ')}</p>
-                    )}
-                    <div className="collapsible-details">
-                        <p><i className="position-icon"></i> Position Offset (m): North: {drone.offset_n}, East: {drone.offset_e}</p>
-                        <p><i className="ip-icon"></i> Altitude Offset: {drone.offset_alt}</p>
-                        {/* Add other properties as needed */}
-                    </div>
-                </div>
-            )) : <p>No data available for swarm configuration.</p>}
+    
+            <div className="control-buttons">
+            <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
+                <button className="revert" onClick={handleRevertChanges}>Revert</button>
+            </div>
+    
+            <div className="swarm-container">
+                {swarmData.length ? swarmData.map(drone => (
+                   <DroneCard 
+                   key={drone.hw_id}
+                   drone={drone}
+                   allDrones={swarmData}
+                   onSaveChanges={handleSaveChanges}
+                   isSelected={selectedDroneId === drone.hw_id}  // Add this line
+               />
+               
+                
+                )) : <p>No data available for swarm configuration.</p>}
+            </div>
+            
+            <div className="swarm-graph-container">
+            <DroneGraph swarmData={swarmData} onSelectDrone={setSelectedDroneId} />
+            </div>
+            
+            <div className="swarm-plots-container">
+                <SwarmPlots swarmData={swarmData} />
+            </div>
+            
         </div>
-        <div className="swarm-graph-container">
-        <DroneGraph swarmData={swarmData} onSelectDrone={setSelectedDroneId} />
-
-        </div>
-        <div className="swarm-plots-container">
-        <SwarmPlots swarmData={swarmData} />
-
-        </div>
-    </div>
     );
 }
 

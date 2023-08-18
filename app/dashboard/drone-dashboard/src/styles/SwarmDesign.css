@@ -111,3 +111,62 @@
     border: 2px solid blue;
     background-color: #f7f7f7;
 }
+.control-buttons {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    margin-bottom: 20px;  /* Optional: To separate the buttons from the content */
+}
+
+.control-buttons button {
+    padding: 10px 15px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    transition: background-color 0.3s;
+}
+
+.control-buttons button:hover {
+    background-color: #45a049;
+}
+
+/* ... Your existing CSS ... */
+
+.swarm-design-container {
+    /* ... existing styles ... */
+    align-items: flex-start; /* Align its items to the start */
+}
+
+.control-buttons {
+    display: flex;
+    justify-content: flex-end; /* Align to the right */
+    padding: 10px 0;
+    margin-bottom: 20px;  
+    width: 100%; /* Ensure it spans the full width */
+}
+
+.control-buttons button {
+    padding: 10px 15px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    margin-left: 10px; /* Add space between buttons */
+    background-color: #4CAF50;
+    color: white;
+    transition: background-color 0.3s;
+}
+
+.control-buttons button:hover {
+    background-color: #45a049;
+}
+
+.control-buttons button.revert {
+    background-color: #f44336; /* Red for revert */
+}
+
+.control-buttons button.revert:hover {
+    background-color: #d32f2f; /* Darker red on hover */
+}
+
