@@ -316,6 +316,30 @@ def save_swarm_data():
     except Exception as e:
         return {"message": f"Error: {str(e)}"}, 500
     
+    
+@app.route('/save-config-data', methods=['POST'])
+def save_config_data():
+    data = request.json
+    try:
+        # Ensure that all drones have essential properties before writing to CSV
+        if not all('hw_id' in drone for drone in data):
+            return jsonify({"message": "Incomplete data received. Every drone must have an 'hw_id'."}), 400
+
+        # Specify column order
+        column_order = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"]
+
+        with open('config.csv', 'w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=column_order)
+            writer.writeheader()
+            for drone in data:
+                writer.writerow({col: drone.get(col, "") for col in column_order})
+
+        return jsonify({"message": "Configuration saved successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error saving configuration!", "error": str(e)}), 500
+
+    
+    
 @app.route('/get-swarm-data', methods=['GET'])
 def get_swarm_data():
     with open('swarm.csv', 'r') as f:

@@ -34,6 +34,9 @@ useEffect(() => {
   <a href="/">Overview</a>
 </li>
 <li>
+<Link to="/mission-config">Mission Config</Link>
+</li>
+<li>
 <Link to="/swarm-design">Swarm Design</Link>
 </li>
         <li>Settings</li>
