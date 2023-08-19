@@ -62,6 +62,7 @@ function SwarmDesign() {
     const [configData, setConfigData] = useState([]);
     const { topLeaders, intermediateLeaders } = categorizeDrones(swarmData);
     const [selectedDroneId, setSelectedDroneId] = useState(null); // 1. Added state for selected drone ID
+    const [changes, setChanges] = useState({ added: [], removed: [] });
 
     const handleSaveChanges = (hw_id, updatedDroneData) => {
         setSwarmData(prevDrones => prevDrones.map(drone => drone.hw_id === hw_id ? updatedDroneData : drone));
@@ -72,22 +73,55 @@ function SwarmDesign() {
         setSelectedDroneId(droneId);
     };
 
-    useEffect(() => {
-        // Fetch swarm data
-        const fetchSwarmData = axios.get('http://localhost:5000/get-swarm-data');
-        // Fetch config data
-        const fetchConfigData = axios.get('http://localhost:5000/get-config-data');
-    
-        Promise.all([fetchSwarmData, fetchConfigData])
-            .then(([swarmResponse, configResponse]) => {
-                setSwarmData(swarmResponse.data);
-                setConfigData(configResponse.data);
-            })
-            .catch(error => {
-                console.error("Error fetching data:", error);
+// useEffect for fetching data
+useEffect(() => {
+    const fetchSwarmData = axios.get('http://localhost:5000/get-swarm-data');
+    const fetchConfigData = axios.get('http://localhost:5000/get-config-data');
+
+    Promise.all([fetchSwarmData, fetchConfigData])
+        .then(([swarmResponse, configResponse]) => {
+            setSwarmData(swarmResponse.data);
+            setConfigData(configResponse.data);
+        })
+        .catch(error => {
+            console.error("Error fetching data:", error);
+        });
+
+}, []);  // Run only once on component mount
+
+// useEffect for synchronizing swarmData based on configData
+useEffect(() => {
+    if (swarmData.length === 0 || configData.length === 0) return; // Ensure we have data
+
+    let updatedSwarmData = [...swarmData];
+// Update changes
+const addedDrones = configData.filter(configDrone => !swarmData.some(drone => drone.hw_id === configDrone.hw_id)).map(drone => drone.hw_id);
+const removedDrones = swarmData.filter(swarmDrone => !configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)).map(drone => drone.hw_id);
+setChanges({ added: addedDrones, removed: removedDrones });
+    // Add missing drones to swarmData
+    configData.forEach(configDrone => {
+        if (!swarmData.some(drone => drone.hw_id === configDrone.hw_id)) {
+            updatedSwarmData.push({
+                hw_id: configDrone.hw_id,
+                follow: '0',
+                offset_n: '0',
+                offset_e: '0',
+                offset_alt: '0'
             });
-    
-    }, []); // Empty dependency array ensures this runs once on component mount
+        }
+    });
+
+    // Remove extra drones from swarmData
+    updatedSwarmData = updatedSwarmData.filter(swarmDrone =>
+        configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)
+    );
+
+    if (!isEqual(swarmData, updatedSwarmData)) {
+        setSwarmData(updatedSwarmData);
+    }
+
+}, [configData]);  // Run whenever configData changes
+
     
 
     const dronesFollowing = (leaderId) => {
@@ -116,40 +150,76 @@ function SwarmDesign() {
     
 
     const fetchOriginalSwarmData = () => {
-    axios.get('http://localhost:5000/get-swarm-data')
-        .then(response => {
-            setSwarmData(response.data);
-        })
-        .catch(error => {
-            console.error("Error fetching original swarm data:", error);
-        });
-};
+        // Fetch swarm data
+        const fetchSwarmData = axios.get('http://localhost:5000/get-swarm-data');
+        // Fetch config data
+        const fetchConfigData = axios.get('http://localhost:5000/get-config-data');
+    
+        Promise.all([fetchSwarmData, fetchConfigData])
+            .then(([swarmResponse, configResponse]) => {
+                setSwarmData(swarmResponse.data);
+                setConfigData(configResponse.data);
+            })
+            .catch(error => {
+                console.error("Error fetching data:", error);
+            });
+    };
+    
 
-const saveUpdatedSwarmData = () => {
-    axios.post('http://localhost:5000/save-swarm-data', swarmData)
-        .then(response => {
-            if (response.status === 200) {
-                alert(response.data.message);
-            } else {
+    const saveUpdatedSwarmData = () => {
+        axios.post('http://localhost:5000/save-swarm-data', swarmData)
+            .then(response => {
+                if (response.status === 200) {
+                    alert(response.data.message);
+                    // Refetch the data after a successful save:
+                    fetchOriginalSwarmData();
+                } else {
+                    alert('Error saving data.');
+                }
+            })
+            .catch(error => {
+                console.error("Error saving updated swarm data:", error);
                 alert('Error saving data.');
-            }
-        })
-        .catch(error => {
-            console.error("Error saving updated swarm data:", error);
-            alert('Error saving data.');
-        });
-};
+            });
+    };
+    
 
 //console.log("Current Selected Drone:", selectedDroneId);
 
     return (
         <div className="swarm-design-container">
     
-            <div className="control-buttons">
-            <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
-                <button className="revert" onClick={handleRevertChanges}>Revert</button>
-            </div>
-    
+    <div className={`control-buttons ${changes.added.length > 0 || changes.removed.length > 0 ? 'show-notification' : ''}`}>
+    {changes.added.length > 0 && 
+        <div className="notification-container">
+            <span className="notification-icon">⚠️</span>
+            <p className="notification-text">
+                Drone(s) {changes.added.join(', ')} do not exist in swarm data and have been added.
+            </p>
+        </div>
+    }
+
+    {changes.removed.length > 0 && 
+        <div className="notification-container">
+            <span className="notification-icon">⚠️</span>
+            <p className="notification-text">
+                Drone(s) {changes.removed.join(', ')} exist in swarm data but not in config and have been removed.
+            </p>
+        </div>
+    }
+
+    <button 
+        className={`save ${changes.added.length > 0 || changes.removed.length > 0 ? 'pending-changes' : ''}`} 
+        onClick={handleSaveChangesToServer}
+    >
+        Save Changes
+    </button>
+    <button className="revert" onClick={handleRevertChanges}>Revert</button>
+</div>
+
+
+            
+
             <div className="swarm-container">
                 {swarmData.length ? swarmData.map(drone => (
                    <DroneCard 

@@ -14,6 +14,9 @@
     gap: 15px;
 }
 
+.notification-container {
+    display: none; /* Initially hidden */
+}
 
 
 .swarm-drone-card {
@@ -156,6 +159,8 @@
     background-color: #4CAF50;
     color: white;
     transition: background-color 0.3s;
+    font-weight: bold;
+    font-size: 1em;
 }
 
 .control-buttons button:hover {
@@ -170,3 +175,47 @@
     background-color: #d32f2f; /* Darker red on hover */
 }
 
+.notification-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ffa500;
+    background-color: #fff3e0;
+    border-radius: 5px;
+}
+
+.notification-text {
+    margin: 0;
+    color: #ff5722;
+    font-weight: 500;
+}
+
+.notification-icon {
+    margin-right: 5px;
+    color: #ff5722;
+}
+.save.pending-changes {
+    background-color: #ffa500;
+    transition: background-color 0.3s ease;
+}
+
+.save.pending-changes:hover {
+    background-color: #ff8c00;
+}
+.show-notification .notification-container {
+    display: flex;
+}
+.save.pending-changes {
+    background-color: #ffa500;
+    color: #63230f; /* Black text for better readability */
+    font-weight: bold; /* Bold text */
+    font-size: 1.1em; /* Bigger text */
+    padding: 12px 20px; /* Increase padding */
+    transition: background-color 0.3s ease;
+}
+
+.save.pending-changes:hover {
+    background-color: #ff8c00;
+}
