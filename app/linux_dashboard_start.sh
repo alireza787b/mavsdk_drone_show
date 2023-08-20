@@ -43,7 +43,7 @@ fi
 # Start the getElevation server if not running
 if ! port_in_use 5001; then
     echo "Starting the getElevation server..."
-    (cd "$SCRIPT_DIR/../getElevation" && node server.js &)
+    (cd "$SCRIPT_DIR/dashboard/getElevation" && node server.js &)
     sleep 5
 else
     echo "getElevation server is already running!"
@@ -53,11 +53,6 @@ fi
 echo "Now starting the GCS Terminal App with Flask..."
 # Navigate to the correct directory and run the Python script
 (cd "$SCRIPT_DIR/.." && $PYTHON_CMD gcs_with_flask.py)
-
-# Check for i.hwID file
-if [ ! -f "$SCRIPT_DIR/../i.hwID" ]; then
-    echo "WARNING: It seems like the i.hwID file is missing from the root directory of the repo. Please ensure you create this file."
-fi
 
 echo ""
 echo "For more details, please check the documentation in the 'docs' folder."

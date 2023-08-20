@@ -15,6 +15,8 @@ echo.
 
 REM Get the directory of the current script
 set SCRIPT_DIR=%~dp0
+set REPO_ROOT=%SCRIPT_DIR%\..
+
 
 REM Check if the Drone Dashboard server is running
 powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -ErrorAction Stop; exit 0 } catch { exit 1 }"
@@ -41,7 +43,7 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 echo Now starting the GCS Terminal App with Flask...
-cd "%SCRIPT_DIR%\.."
+cd "%REPO_ROOT%"
 start cmd /k python gcs_with_flask.py
 echo GCS Terminal App started successfully!
 
