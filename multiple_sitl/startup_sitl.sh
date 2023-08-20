@@ -91,8 +91,26 @@ NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / (111111 * c($DEFAULT_LAT * a(1) / 57.
 
 echo "DEBUG: Calculated LAT = $NEW_LAT, LON = $NEW_LON"
 
-# Modify the SIMULATION_COMMAND to initialize the drone at the calculated position
-SIMULATION_COMMAND="$SIMULATION_COMMAND -l $NEW_LAT,$NEW_LON,$DEFAULT_ALT"
+# Export environment variables for PX4 SITL
+export PX4_HOME_LAT="$NEW_LAT"
+export PX4_HOME_LON="$NEW_LON"
+export PX4_HOME_ALT="$DEFAULT_ALT"
+
+# Continue with the simulation command
+case $1 in
+  g)
+    SIMULATION_COMMAND="make px4_sitl gazebo"
+    echo "Graphics enabled."
+    ;;
+  j)
+    SIMULATION_COMMAND="make px4_sitl jmavsim"
+    echo "Using jmavsim."
+    ;;
+  h|*)
+    SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
+    echo "Graphics disabled."
+    ;;
+esac
 
 echo "DEBUG: SIMULATION_COMMAND = $SIMULATION_COMMAND"
 
