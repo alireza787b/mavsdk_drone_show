@@ -53,7 +53,7 @@ DEFAULT_LON=51.3036
 DEFAULT_ALT=1208
 
 # Read hwID from the file
-while [ ! -f ~/mavsdk_drone_show/i.hwID ]; do
+while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
   echo "Waiting for hwID file..."
   sleep 1
 done
