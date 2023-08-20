@@ -52,6 +52,7 @@ DEFAULT_LAT=35.6857
 DEFAULT_LON=51.3036
 DEFAULT_ALT=1208
 
+
 # Read hwID from the file
 while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
   echo "Waiting for hwID file..."
@@ -61,7 +62,14 @@ done
 HWID=$(basename ~/mavsdk_drone_show/*.hwID .hwID)  # Extract hwID without extension
 
 # Fetch offsets for the current drone from config.csv
-CONFIG_PATH="~/mavsdk_drone_show/config.csv"
+SCRIPT_DIR="$(dirname "$0")"
+CONFIG_PATH="$SCRIPT_DIR/../config.csv"
+
+# Check if the config file exists
+if [ ! -f "$CONFIG_PATH" ]; then
+    echo "ERROR: Cannot find config.csv at $CONFIG_PATH"
+    exit 1
+fi
 
 # Initialize offsets with default values
 OFFSET_X=0
@@ -73,7 +81,7 @@ while IFS=, read -r hw_id pos_id x y ip mavlink_port debug_port gcs_ip; do
         OFFSET_Y=$y
         break
     fi
-done < $CONFIG_PATH
+done < "$CONFIG_PATH"
 
 echo "DEBUG: Offset X = $OFFSET_X, Offset Y = $OFFSET_Y"
 
