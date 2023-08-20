@@ -1,0 +1,103 @@
+.drone-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.drone-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.drone-card h3 {
+    cursor: pointer;
+}
+
+.drone-card p {
+    margin: 0;
+    margin-top: 8px;
+}
+
+.role, .followed-by-text {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-weight: 500;
+    margin-right: 10px;
+}
+
+.drone-card .leader {
+    background-color: #4caf50;
+    color: white;
+}
+
+.drone-card .follower {
+    background-color: #2196f3;
+    color: white;
+}
+
+.drone-card .intermediate {
+    background-color: #ffcc00;
+    color: black;
+}
+
+.collapsible-details {
+    font-size: 0.85em;
+    color: #525252;
+    overflow: hidden;
+    margin-top: 10px;
+    max-height: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+}
+
+.drone-card input, .drone-card select, .drone-card button {
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+    border: 1px solid #ccc;
+}
+
+.drone-card input:hover, .drone-card select:hover {
+    border-color: #999;
+}
+
+.drone-card button {
+    background-color: #4caf50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.drone-card button:hover {
+    background-color: #45a049;
+}
+
+.selected {
+    border: 2px solid blue;
+    background-color: #f7f7f7;
+}
+
+.form-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.form-group label {
+    flex: 1;
+    font-weight: bold;
+    min-width: 100px;  /* This ensures labels are uniformly aligned */
+}
+
+.form-group select, .form-group input {
+    flex: 2;
+}

@@ -106,6 +106,7 @@ Always ensure that you comply with all local laws and regulations when operating
 """
 
 
+import csv
 import logging
 import socket
 import struct
@@ -296,6 +297,62 @@ def send_command_to_all_drones():
         # Log the error and return a response with an error message
         print(f"An error occurred while sending command: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
+    
+    
+@app.route('/save-swarm-data', methods=['POST'])
+def save_swarm_data():
+    try:
+        data = request.json
+        # Convert the JSON data to CSV format
+        csv_data = "follow,hw_id,offset_n,offset_e,offset_alt\n"
+        for drone in data:
+            csv_data += f"{drone['follow']},{drone['hw_id']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
+        
+        # Save to swarm.csv
+        with open('swarm.csv', 'w') as file:
+            file.write(csv_data)
+        
+        return {"message": "Data saved successfully"}, 200
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}, 500
+    
+    
+@app.route('/save-config-data', methods=['POST'])
+def save_config_data():
+    data = request.json
+    try:
+        # Ensure that all drones have essential properties before writing to CSV
+        if not all('hw_id' in drone for drone in data):
+            return jsonify({"message": "Incomplete data received. Every drone must have an 'hw_id'."}), 400
+
+        # Specify column order
+        column_order = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"]
+
+        with open('config.csv', 'w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=column_order)
+            writer.writeheader()
+            for drone in data:
+                writer.writerow({col: drone.get(col, "") for col in column_order})
+
+        return jsonify({"message": "Configuration saved successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error saving configuration!", "error": str(e)}), 500
+
+    
+    
+@app.route('/get-swarm-data', methods=['GET'])
+def get_swarm_data():
+    with open('swarm.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return jsonify(data)
+
+@app.route('/get-config-data', methods=['GET'])
+def get_config_data():
+    with open('config.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return jsonify(data)
 
 # Function to convert mission type to mission and state values
 def convert_mission_type(mission_type):
@@ -334,7 +391,7 @@ try:
 
         # Socket for communication
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind((gcs_ip, debug_port))
+        sock.bind(('0.0.0.0', debug_port))
 
         # This flag controls whether telemetry is printed to the screen. 
         # We use a list so the changes in the main thread can be seen by the telemetry threads.

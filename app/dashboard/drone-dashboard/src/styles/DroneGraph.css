@@ -1,0 +1,7 @@
+.swarm-graph-container {
+    flex: 1; /* Allow it to grow */
+    padding: 20px;
+    height: 100vh;
+
+
+}
