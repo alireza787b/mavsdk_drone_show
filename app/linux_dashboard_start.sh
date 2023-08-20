@@ -16,6 +16,10 @@ echo ""
 port_in_use() {
    netstat -tln | grep $1 > /dev/null
 }
+
+# Get the directory of the current script
+SCRIPT_DIR="$(dirname "$0")"
+
 # Check Python version and set appropriate alias
 PYTHON_CMD=python
 if command -v python3 &>/dev/null; then
@@ -25,17 +29,21 @@ fi
 # Start the Drone Dashboard server if not running
 if ! port_in_use 3000; then
     echo "Starting the Drone Dashboard server..."
-    (cd dashboard/drone-dashboard && npm start &) 
-
+    (cd "$SCRIPT_DIR/dashboard/drone-dashboard" && npm start &)
     sleep 5
 else
     echo "Drone Dashboard server is already running!"
 fi
 
+# Check for first-time setup for React app
+if [ ! -d "$SCRIPT_DIR/dashboard/drone-dashboard/node_modules" ]; then
+    echo "WARNING: It seems like you haven't done 'npm install' in the React app directory. Please navigate to $SCRIPT_DIR/dashboard/drone-dashboard and run 'npm install' before proceeding."
+fi
+
 # Start the getElevation server if not running
 if ! port_in_use 5001; then
     echo "Starting the getElevation server..."
-    (cd ../getElevation &&  node server.js &) 
+    (cd "$SCRIPT_DIR/../getElevation" && node server.js &)
     sleep 5
 else
     echo "getElevation server is already running!"
@@ -44,8 +52,12 @@ fi
 # Start the GCS Terminal App with Flask
 echo "Now starting the GCS Terminal App with Flask..."
 # Navigate to the correct directory and run the Python script
-(cd .. && $PYTHON_CMD gcs_with_flask.py)  # replace `gcs...` with the actual filename
+(cd "$SCRIPT_DIR/.." && $PYTHON_CMD gcs_with_flask.py)
 
+# Check for i.hwID file
+if [ ! -f "$SCRIPT_DIR/../i.hwID" ]; then
+    echo "WARNING: It seems like the i.hwID file is missing from the root directory of the repo. Please ensure you create this file."
+fi
 
 echo ""
 echo "For more details, please check the documentation in the 'docs' folder."
