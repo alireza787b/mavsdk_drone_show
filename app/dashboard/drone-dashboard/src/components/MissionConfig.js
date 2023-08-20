@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
 import InitialLaunchPlot from './InitialLaunchPlot';
+import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
 
 
 
@@ -16,7 +17,8 @@ function MissionConfig() {
 
     useEffect(() => {
         // Fetch config data
-        axios.get('http://localhost:5000/get-config-data')
+        const backendURL = getBackendURL();
+                axios.get(`${backendURL}/get-config-data`)
             .then(response => {
                 setConfigData(response.data);
             })
@@ -26,8 +28,8 @@ function MissionConfig() {
     }, []);
 
         useEffect(() => {
-            // Fetch config data
-            axios.get('http://localhost:5000/get-config-data')
+            const backendURL = getBackendURL();
+                axios.get(`${backendURL}/get-config-data`)
                 .then(response => {
                     setConfigData(response.data);
                 })
@@ -172,7 +174,8 @@ for (let i = 1; i <= maxId; i++) {
     }
 }
 
-            axios.post('http://localhost:5000/save-config-data', configData)
+const backendURL = getBackendURL();
+axios.post(`${backendURL}/save-config-data`, configData)
                 .then(response => {
                     alert(response.data.message);
                 })
@@ -190,8 +193,9 @@ for (let i = 1; i <= maxId; i++) {
         const handleRevertChanges = () => {
             if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
                 // Fetch the original config data
-                axios.get('http://localhost:5000/get-config-data')
-                    .then(response => {
+                const backendURL = getBackendURL();
+                axios.get(`${backendURL}/get-config-data`)
+                                    .then(response => {
                         setConfigData(response.data);
                     })
                     .catch(error => {

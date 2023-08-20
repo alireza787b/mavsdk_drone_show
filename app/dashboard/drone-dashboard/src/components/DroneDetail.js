@@ -4,6 +4,8 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import '../styles/DroneDetail.css';
+import { getBackendURL } from '../utilities'; // Adjust the path if needed
+
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -19,8 +21,9 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
 
   useEffect(() => {
-    const url = 'http://127.0.0.1:5000/telemetry';
-    const fetchData = () => {
+    const backendURL = getBackendURL(); // Get the dynamic backend URL
+    const url = `${backendURL}/telemetry`;
+        const fetchData = () => {
       axios.get(url).then((response) => {
         const droneData = response.data[drone.hw_ID];
         if (droneData) {

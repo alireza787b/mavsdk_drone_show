@@ -122,6 +122,9 @@ from enum import Enum
 from flask_cors import CORS
 
 
+FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
+
+
 # Imports
 telemetry_data_all_drones = {}
 telemetry_lock = Lock()
@@ -221,6 +224,15 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             if header != 77 or terminator != 88:
                 logger.error("Invalid header or terminator received in telemetry data.")
                 continue
+            
+            # Forwarding the received telemetry data to the specified IPs
+            for ip in FORWARDING_IPS:
+                try:
+                    sock.sendto(data, (ip, sock.getsockname()[1]))  # Using the same port as the receiving port
+                except Exception as e:
+                    logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
+
+
 
             global telemetry_data_all_drones
             with telemetry_lock:

@@ -12,6 +12,9 @@ import { RepeatWrapping } from 'three';
 
 import { useLoader } from '@react-three/fiber';
 import { TextureLoader } from 'three';
+import { getBackendURL } from '../utilities'; // Adjust the path if needed
+
+
 
 function Environment() {
   const world_size = 400;
@@ -166,17 +169,20 @@ export default function Globe({ drones }) {
   
 
   
-async function getElevation(lat, lon) {
-  try {
-    const response = await axios.get(`http://localhost:5001/elevation?lat=${lat}&lon=${lon}`, {
-      timeout: 25000, // Set a timeout of 25 seconds
-    });
-    return response.data.results[0].elevation;
-  } catch (error) {
-    console.error('Error fetching elevation:', error);
-    return null;
+  async function getElevation(lat, lon) {
+    const backendURL = getBackendURL(); // Get the dynamic backend URL
+  
+    try {
+      const response = await axios.get(`${backendURL}:5001/elevation?lat=${lat}&lon=${lon}`, {
+        timeout: 25000, // Set a timeout of 25 seconds
+      });
+      return response.data.results[0].elevation;
+    } catch (error) {
+      console.error('Error fetching elevation:', error);
+      return null;
+    }
   }
-}
+  
 
 useEffect(() => {
   async function setInitialReferencePoint() {

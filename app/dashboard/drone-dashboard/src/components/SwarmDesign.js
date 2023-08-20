@@ -5,6 +5,7 @@ import '../styles/SwarmDesign.css';
 import DroneGraph from './DroneGraph';
 import SwarmPlots from './SwarmPlots';
 import DroneCard from './DroneCard';
+import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
 
 
 
@@ -75,8 +76,9 @@ function SwarmDesign() {
 
 // useEffect for fetching data
 useEffect(() => {
-    const fetchSwarmData = axios.get('http://localhost:5000/get-swarm-data');
-    const fetchConfigData = axios.get('http://localhost:5000/get-config-data');
+    const fetchSwarmData = axios.get(`${getBackendURL()}/get-swarm-data`);
+const fetchConfigData = axios.get(`${getBackendURL()}/get-config-data`);
+
 
     Promise.all([fetchSwarmData, fetchConfigData])
         .then(([swarmResponse, configResponse]) => {
@@ -150,11 +152,12 @@ setChanges({ added: addedDrones, removed: removedDrones });
     
 
     const fetchOriginalSwarmData = () => {
-        // Fetch swarm data
-        const fetchSwarmData = axios.get('http://localhost:5000/get-swarm-data');
-        // Fetch config data
-        const fetchConfigData = axios.get('http://localhost:5000/get-config-data');
+     
     
+        const fetchSwarmData = axios.get(`${getBackendURL()}/get-swarm-data`);
+        const fetchConfigData = axios.get(`${getBackendURL()}/get-config-data`);
+        
+
         Promise.all([fetchSwarmData, fetchConfigData])
             .then(([swarmResponse, configResponse]) => {
                 setSwarmData(swarmResponse.data);
@@ -167,8 +170,9 @@ setChanges({ added: addedDrones, removed: removedDrones });
     
 
     const saveUpdatedSwarmData = () => {
-        axios.post('http://localhost:5000/save-swarm-data', swarmData)
-            .then(response => {
+        const backendURL = getBackendURL();
+        axios.post(`${backendURL}/save-swarm-data`, swarmData)
+                    .then(response => {
                 if (response.status === 200) {
                     alert(response.data.message);
                     // Refetch the data after a successful save:

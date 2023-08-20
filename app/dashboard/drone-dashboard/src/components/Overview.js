@@ -3,7 +3,7 @@ import axios from 'axios';
 import DroneDetail from './DroneDetail';  // Import the DroneDetail component
 import Globe from './Globe';
 import '../styles/Overview.css';
-
+import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -22,8 +22,8 @@ const Overview = ({ setSelectedDrone }) => {
     };
 
     // Send the disarm command to the server
-    axios.post('http://127.0.0.1:5000/send_command', commandData)
-      .then((response) => {
+    axios.post(`${getBackendURL()}/send_command`, commandData)
+    .then((response) => {
         if (response.data.status === 'success') {
           alert('Drones disarmed successfully!');
         } else {
@@ -67,8 +67,8 @@ const Overview = ({ setSelectedDrone }) => {
       };
 
       // Send the command data to the server
-      axios.post('http://127.0.0.1:5000/send_command', commandData)
-        .then((response) => {
+      axios.post(`${getBackendURL()}/send_command`, commandData)
+      .then((response) => {
           if (response.data.status === 'success') {
             alert('Command sent successfully!');
           } else {
@@ -84,7 +84,7 @@ const Overview = ({ setSelectedDrone }) => {
 
   // Function to fetch data
   useEffect(() => {
-    const url = 'http://127.0.0.1:5000/telemetry';
+    const url = `${getBackendURL()}/telemetry`;
 
     const fetchData = () => {
       axios.get(url)
