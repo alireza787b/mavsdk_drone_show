@@ -58,16 +58,22 @@ while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
   sleep 1
 done
 
-HWID=$(basename ~/mavsdk_drone_show/*.hwID)
+HWID=$(basename ~/mavsdk_drone_show/*.hwID .hwID)  # Extract hwID without extension
 
 # Fetch offsets for the current drone from config.csv
+CONFIG_PATH="~/mavsdk_drone_show/config.csv"
+
+# Initialize offsets with default values
+OFFSET_X=0
+OFFSET_Y=0
+
 while IFS=, read -r hw_id pos_id x y ip mavlink_port debug_port gcs_ip; do
     if [ "$hw_id" == "$HWID" ]; then
         OFFSET_X=$x
         OFFSET_Y=$y
         break
     fi
-done < ~/mavsdk_drone_show/config.csv
+done < $CONFIG_PATH
 
 echo "DEBUG: Offset X = $OFFSET_X, Offset Y = $OFFSET_Y"
 
