@@ -16,12 +16,17 @@ echo ""
 port_in_use() {
    netstat -tln | grep $1 > /dev/null
 }
+# Check Python version and set appropriate alias
+PYTHON_CMD=python
+if command -v python3 &>/dev/null; then
+    PYTHON_CMD=python3
+fi
 
 # Start the Drone Dashboard server if not running
 if ! port_in_use 3000; then
     echo "Starting the Drone Dashboard server..."
-    cd dashboard/drone-dashboard
-    npm start &
+    (cd dashboard/drone-dashboard && npm start &) 
+
     sleep 5
 else
     echo "Drone Dashboard server is already running!"
@@ -30,8 +35,7 @@ fi
 # Start the getElevation server if not running
 if ! port_in_use 5001; then
     echo "Starting the getElevation server..."
-    cd ../getElevation
-    node server.js &
+    (cd ../getElevation &&  node server.js &) 
     sleep 5
 else
     echo "getElevation server is already running!"
@@ -39,9 +43,9 @@ fi
 
 # Start the GCS Terminal App with Flask
 echo "Now starting the GCS Terminal App with Flask..."
-cd ../..
-python gcs_with_flask.py &
-sleep 5
+# Navigate to the correct directory and run the Python script
+(cd .. && $PYTHON_CMD gcs_with_flask.py)  # replace `gcs...` with the actual filename
+
 
 echo ""
 echo "For more details, please check the documentation in the 'docs' folder."
