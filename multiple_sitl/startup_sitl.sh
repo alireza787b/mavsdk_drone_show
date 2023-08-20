@@ -58,7 +58,7 @@ while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
   sleep 1
 done
 
-HWID=$(basename ~/mavsdk_drone_show/i.hwID)
+HWID=$(basename ~/mavsdk_drone_show/*.hwID)
 
 # Fetch offsets for the current drone from config.csv
 while IFS=, read -r hw_id pos_id x y ip mavlink_port debug_port gcs_ip; do
@@ -69,12 +69,18 @@ while IFS=, read -r hw_id pos_id x y ip mavlink_port debug_port gcs_ip; do
     fi
 done < ~/mavsdk_drone_show/config.csv
 
+echo "DEBUG: Offset X = $OFFSET_X, Offset Y = $OFFSET_Y"
+
 # Calculate new LAT and LON based on the offsets
 NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111111" | bc -l)
-NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / (111111 * c($DEFAULT_LAT))" | bc -l)
+NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / (111111 * c($DEFAULT_LAT * a(1) / 57.29578))" | bc -l)
+
+echo "DEBUG: Calculated LAT = $NEW_LAT, LON = $NEW_LON"
 
 # Modify the SIMULATION_COMMAND to initialize the drone at the calculated position
 SIMULATION_COMMAND="$SIMULATION_COMMAND -l $NEW_LAT,$NEW_LON,$DEFAULT_ALT"
+
+echo "DEBUG: SIMULATION_COMMAND = $SIMULATION_COMMAND"
 
 # Pull the latest repo changes
 cd ~/mavsdk_drone_show
