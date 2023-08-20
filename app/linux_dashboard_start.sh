@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
-echo "MAVSDK_Drone_Show Version 0.7"
+echo "MAVSDK_Drone_Show Version 0.8"
 echo ""
 echo "This script will do the following:"
 echo "1. Check if the Drone Dashboard (a Node.js React app) is running."

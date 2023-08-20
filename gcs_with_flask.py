@@ -391,7 +391,7 @@ try:
 
         # Socket for communication
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind((gcs_ip, debug_port))
+        sock.bind(('0.0.0.0', debug_port))
 
         # This flag controls whether telemetry is printed to the screen. 
         # We use a list so the changes in the main thread can be seen by the telemetry threads.

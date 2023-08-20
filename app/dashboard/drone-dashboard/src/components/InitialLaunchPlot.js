@@ -18,7 +18,7 @@ function InitialLaunchPlot({ drones, onDroneClick }) {
                     marker: {
                         size: 16,
                         color: '#3498db', // Bright blue
-                        opacity: 0.7,
+                        opacity: 0.8,
                         line: {
                             color: '#1A5276',  // Dark blue border
                             width: 2
@@ -26,7 +26,7 @@ function InitialLaunchPlot({ drones, onDroneClick }) {
                     },
                     textfont: {
                         color: 'white',
-                        size: 12
+                        size: 14
                     },
                     textposition: 'center',
                     hoverinfo: 'x+y',  // Show X and Y coordinates on hover

@@ -133,21 +133,28 @@ function MissionConfig() {
             // Generate new hw_id (one increment more than the current maximum)
             const newHwId = availableHwIds[0].toString();
         
+            // Check if all drones have the same gcs_ip
+            const allSameGcsIp = configData.every(drone => drone.gcs_ip === configData[0].gcs_ip);
+        
+            // Extract common subnet from existing IPs
+            const commonSubnet = configData.length > 0 ? configData[0].ip.split('.').slice(0, -1).join('.') + '.' : "";
+        
             const newDrone = {
-                hw_id: newHwId.toString(),
-                ip: "", // you can set default values here if needed
-                mavlink_port: "",
-                debug_port: "",
-                gcs_ip: configData.length > 0 ? configData[0].gcs_ip : "",
+                hw_id: newHwId,
+                ip: commonSubnet,
+                mavlink_port: (14550 + parseInt(newHwId)).toString(),
+                debug_port: (13540 + parseInt(newHwId)).toString(),
+                gcs_ip: allSameGcsIp ? configData[0].gcs_ip : "",
                 x: "0",
                 y: "0",
-                pos_id: newHwId.toString()
-
+                pos_id: newHwId
             };
         
             // Add the new drone to configData state
             setConfigData(prevConfig => [...prevConfig, newDrone]);
         };
+        
+    
 
         const removeDrone = (hw_id) => {
             
@@ -196,26 +203,27 @@ for (let i = 1; i <= maxId; i++) {
         
         return (
             <div className="mission-config-container">
-    <h2>Mission Configuration</h2>
-    <button onClick={addNewDrone}>Add New Drone</button>
-
-    <div className="content-flex">
-        <div className="drone-cards">
-            {droneCards}
-        </div>
+                <h2>Mission Configuration</h2>
+                <div className="top-buttons">
+                    <button className="add" onClick={addNewDrone}><span className="icon">➕</span> <span className="addCaption">Add New Drone</span></button>
+                    <div className="control-buttons">
+                        <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
+                        <button className="revert" onClick={handleRevertChanges}>Revert</button>
+                    </div>
+                </div>
         
-        <div className="initial-launch-plot">
-            <InitialLaunchPlot drones={configData} onDroneClick={startEditing} />
-        </div>
-    </div>
-
-    <div className="control-buttons">
-        <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
-        <button className="revert" onClick={handleRevertChanges}>Revert</button>
-    </div>
-</div>
-
+                <div className="content-flex">
+                    <div className="drone-cards">
+                        {droneCards}
+                    </div>
+                    
+                    <div className="initial-launch-plot">
+                        <InitialLaunchPlot drones={configData} onDroneClick={startEditing} />
+                    </div>
+                </div>
+            </div>
         );
+        
     }
 
     export default MissionConfig;

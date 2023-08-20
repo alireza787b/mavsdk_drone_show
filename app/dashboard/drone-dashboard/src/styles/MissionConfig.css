@@ -6,6 +6,70 @@
     border-radius: 10px;
 }
 
+.top-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+button {
+    margin: 0.5rem 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #1A5276; 
+}
+
+button:active {
+    background-color: #0E3748; 
+}
+
+button.add {
+    background-color: #3498db;
+    display: flex;
+    align-items: center;
+}
+
+button.add .icon {
+    margin-right: 5px;
+    color: white;
+}
+.addCaption{
+    min-width: 95px;
+}
+button.save {
+    background-color: #28a745; /* Green for save */
+}
+
+button.revert {
+    background-color: #E74C3C; 
+}
+
+button.edit {
+    background-color: #f39c12; /* orange color for edit */
+}
+
+button.remove {
+    background-color: #e74c3c; /* red color for remove */
+}
+
+/* ... Rest of your styles ... */
+
+.mission-config-container {
+    font-family: Arial, sans-serif;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f4f4f4;
+    border-radius: 10px;
+}
+
 .drone-config-card {
     padding: 15px;
     margin: 15px 0;
