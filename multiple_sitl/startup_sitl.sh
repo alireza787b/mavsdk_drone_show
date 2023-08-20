@@ -90,9 +90,16 @@ done < "$CONFIG_PATH"
 
 echo "DEBUG: Offset X = $OFFSET_X, Offset Y = $OFFSET_Y"
 
+# Convert latitude from degrees to radians
+LAT_RAD=$(echo "$DEFAULT_LAT * (3.141592653589793238 / 180)" | bc -l)
+
+# Calculate km per degree for current latitude
+KM_PER_DEGREE=$(echo "111.32 * c($LAT_RAD)" | bc -l)
+
 # Calculate new LAT and LON based on the offsets
-NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111111" | bc -l)
-NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / (111111 * c($DEFAULT_LAT * a(1) / 57.29578))" | bc -l)
+NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111.32" | bc -l)
+NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / $KM_PER_DEGREE" | bc -l)
+
 
 echo "DEBUG: Calculated LAT = $NEW_LAT, LON = $NEW_LON"
 
