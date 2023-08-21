@@ -74,7 +74,7 @@ function MissionConfig() {
                         <label htmlFor={`pos_id-${drone.hw_id}`}>Position ID:</label>
                         <input type="text" id={`pos_id-${drone.hw_id}`} defaultValue={drone.pos_id} placeholder="Enter Position ID" />
         
-                        <button onClick={() => saveChanges(drone.hw_id, {
+                        <button className='saveDrone' onClick={() => saveChanges(drone.hw_id, {
                             hw_id: document.querySelector(`#hw_id-${drone.hw_id}`).value,
                             ip: document.querySelector(`#ip-${drone.hw_id}`).value,
                             mavlink_port: document.querySelector(`#mavlink_port-${drone.hw_id}`).value,
@@ -84,7 +84,7 @@ function MissionConfig() {
                             y: document.querySelector(`#y-${drone.hw_id}`).value,
                             pos_id: document.querySelector(`#pos_id-${drone.hw_id}`).value
                         })}>Save</button>
-                        <button onClick={() => setEditingDroneId(null)}>Cancel</button>
+                        <button className='cancelSaveDrone' onClick={() => setEditingDroneId(null)}>Cancel</button>
                     </>
                 ) : (
                     <>
@@ -204,17 +204,114 @@ axios.post(`${backendURL}/save-config-data`, configData)
             }
         };
         
+        const handleFileChange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const csvData = e.target.result;
+                    const drones = parseCSV(csvData);
+if (drones && validateDrones(drones)) {
+    setConfigData(drones);
+}
+ else {
+                        alert("Invalid CSV structure. Please make sure your CSV matches the required format.");
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+        
+        
+        function parseCSV(data) {
+            const rows = data.trim().split('\n').filter(row => row.trim() !== ''); // Trim to remove possible whitespace and filter out empty rows
+            const drones = [];
+            if (rows[0].trim() !== "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip") {
+                console.log("CSV Header Mismatch!");
+                return null; // Invalid CSV structure
+            }
+            for (let i = 1; i < rows.length; i++) {
+                const columns = rows[i].split(',').map(cell => cell.trim()); // Trim each cell value
+                if (columns.length === 8) {
+                    const drone = {
+                        hw_id: columns[0],
+                        pos_id: columns[1],
+                        x: columns[2],
+                        y: columns[3],
+                        ip: columns[4],
+                        mavlink_port: columns[5],
+                        debug_port: columns[6],
+                        gcs_ip: columns[7]
+                    };
+                    drones.push(drone);
+                } else {
+                    console.log(`Row ${i} has incorrect number of columns.`);
+                    return null; // Invalid row structure
+                }
+            }
+            return drones;
+        }
+        
+        
+        function validateDrones(drones) {
+            for (const drone of drones) {
+                for (const key in drone) {
+                    if (!drone[key]) {
+                        alert(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
+                        console.log(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        
+        
+
+        const exportConfig = () => {
+            const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"];
+            const csvRows = configData.map(drone => 
+                [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(",")
+            );
+            const csvData = [header.join(",")].concat(csvRows).join("\n");
+            
+            const blob = new Blob([csvData], { type: "text/csv" });
+            const url = window.URL.createObjectURL(blob);
+        
+            const a = document.createElement("a");
+            a.setAttribute("hidden", "");
+            a.setAttribute("href", url);
+            a.setAttribute("download", "config_export.csv");
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        
         
         return (
             <div className="mission-config-container">
                 <h2>Mission Configuration</h2>
                 <div className="top-buttons">
-                    <button className="add" onClick={addNewDrone}><span className="icon">➕</span> <span className="addCaption">Add New Drone</span></button>
-                    <div className="control-buttons">
-                        <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
-                        <button className="revert" onClick={handleRevertChanges}>Revert</button>
-                    </div>
-                </div>
+    {/* Primary Actions */}
+    <div className="primary-actions">
+        <button className="save" onClick={handleSaveChangesToServer}>Save Changes</button>
+        <button className="add" onClick={addNewDrone}>
+            <span className="icon">➕</span>
+            <span className="addCaption">Add New Drone</span>
+        </button>
+    </div>
+    
+    {/* Secondary Actions */}
+    <div className="secondary-actions">
+        <label htmlFor="csvInput" className="file-upload-btn">Import CSV</label>
+        <input type="file" id="csvInput" onChange={handleFileChange} />
+        <button className="export-config" onClick={exportConfig} title="Export current drone configurations to a CSV file">Export Config</button>
+        <button className="revert" onClick={handleRevertChanges}>Revert</button>
+    </div>
+</div>
+
+
         
                 <div className="content-flex">
                     <div className="drone-cards">

@@ -110,6 +110,10 @@
         flex-basis: 100%;
     }
 }
+buttton {
+    background-color: #3498db;
+
+}
 .selected-drone {
     border: 2px solid blue;
     background-color: #f7f7f7;

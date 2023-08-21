@@ -76,9 +76,10 @@ function SwarmDesign() {
 
 // useEffect for fetching data
 useEffect(() => {
-    const fetchSwarmData = axios.get(`${getBackendURL()}/get-swarm-data`);
-const fetchConfigData = axios.get(`${getBackendURL()}/get-config-data`);
+    const backendURL = getBackendURL();
 
+    const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
+    const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
 
     Promise.all([fetchSwarmData, fetchConfigData])
         .then(([swarmResponse, configResponse]) => {
@@ -152,12 +153,11 @@ setChanges({ added: addedDrones, removed: removedDrones });
     
 
     const fetchOriginalSwarmData = () => {
-     
-    
-        const fetchSwarmData = axios.get(`${getBackendURL()}/get-swarm-data`);
-        const fetchConfigData = axios.get(`${getBackendURL()}/get-config-data`);
-        
+        const backendURL = getBackendURL();
 
+        const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
+        const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
+    
         Promise.all([fetchSwarmData, fetchConfigData])
             .then(([swarmResponse, configResponse]) => {
                 setSwarmData(swarmResponse.data);
@@ -171,8 +171,9 @@ setChanges({ added: addedDrones, removed: removedDrones });
 
     const saveUpdatedSwarmData = () => {
         const backendURL = getBackendURL();
+
         axios.post(`${backendURL}/save-swarm-data`, swarmData)
-                    .then(response => {
+            .then(response => {
                 if (response.status === 200) {
                     alert(response.data.message);
                     // Refetch the data after a successful save:
@@ -188,7 +189,57 @@ setChanges({ added: addedDrones, removed: removedDrones });
     };
     
 
-//console.log("Current Selected Drone:", selectedDroneId);
+    const handleCSVImport = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            let parsedData = Papa.parse(file, {
+                complete: (result) => {
+                    const header = result.data[0].map(column => column.trim());
+                    if (header.toString() !== ["hw_id", "follow", "offset_n", "offset_e", "offset_alt"].toString()) {
+                        alert("CSV structure is incorrect. Please check the column headers and order.");
+                        return;
+                    }
+    
+                    parsedData = result.data.slice(1).map(row => ({
+                        hw_id: row[0],
+                        follow: row[1],
+                        offset_n: row[2],
+                        offset_e: row[3],
+                        offset_alt: row[4]
+                    }));
+                    parsedData = parsedData.filter(drone => drone.hw_id && drone.hw_id.trim() !== "");
+    
+                    // console.log("Parsed CSV data:", parsedData);
+    
+                    setSwarmData(parsedData);
+                },
+                header: false
+            });
+        }
+    };
+    
+    
+const handleCSVExport = () => {
+    const orderedSwarmData = swarmData.map(drone => ({
+        hw_id: drone.hw_id,
+        follow: drone.follow,
+        offset_n: drone.offset_n,
+        offset_e: drone.offset_e,
+        offset_alt: drone.offset_alt
+    }));
+    const csvContent = Papa.unparse(orderedSwarmData);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "swarm_export.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+
 
     return (
         <div className="swarm-design-container">
@@ -212,14 +263,25 @@ setChanges({ added: addedDrones, removed: removedDrones });
         </div>
     }
 
-    <button 
-        className={`save ${changes.added.length > 0 || changes.removed.length > 0 ? 'pending-changes' : ''}`} 
-        onClick={handleSaveChangesToServer}
-    >
-        Save Changes
-    </button>
-    <button className="revert" onClick={handleRevertChanges}>Revert</button>
+    <div className="primary-actions">
+        <button 
+            className={`save ${changes.added.length > 0 || changes.removed.length > 0 ? 'pending-changes' : ''}`} 
+            onClick={handleSaveChangesToServer}
+        >
+            Save Changes
+        </button>
+    </div>
+    
+    <div className="secondary-actions">
+        <button className="revert" onClick={handleRevertChanges}>Revert</button>
+        <label className="file-upload-btn">
+            Import CSV
+            <input type="file" id="csvInput" accept=".csv" onChange={handleCSVImport} />
+        </label>
+        <button className="export-config" onClick={handleCSVExport}>Export CSV</button>
+    </div>
 </div>
+
 
 
             

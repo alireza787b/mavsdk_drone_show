@@ -316,9 +316,9 @@ def save_swarm_data():
     try:
         data = request.json
         # Convert the JSON data to CSV format
-        csv_data = "follow,hw_id,offset_n,offset_e,offset_alt\n"
+        csv_data = "hw_id,follow,offset_n,offset_e,offset_alt\n"
         for drone in data:
-            csv_data += f"{drone['follow']},{drone['hw_id']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
+            csv_data += f"{drone['hw_id']},{drone['follow']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
         
         # Save to swarm.csv
         with open('swarm.csv', 'w') as file:
@@ -344,7 +344,8 @@ def save_config_data():
             writer = csv.DictWriter(file, fieldnames=column_order)
             writer.writeheader()
             for drone in data:
-                writer.writerow({col: drone.get(col, "") for col in column_order})
+                writer.writerow({col: str(drone.get(col, "")).strip() for col in column_order})
+
 
         return jsonify({"message": "Configuration saved successfully!"}), 200
     except Exception as e:

@@ -31,7 +31,7 @@ useEffect(() => {
       </div>
       <ul>
       <li>
-  <a href="/">Overview</a>
+  <a href="/">Dashboard</a>
 </li>
 <li>
 <Link to="/mission-config">Mission Config</Link>

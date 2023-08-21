@@ -13,7 +13,7 @@
     margin-bottom: 20px;
 }
 
-button {
+button, .file-upload-btn {
     margin: 0.5rem 0.5rem;
     padding: 0.5rem 1rem;
     border: none;
@@ -23,15 +23,15 @@ button {
     transition: background-color 0.3s;
 }
 
-button:hover {
-    background-color: #1A5276; 
+button:hover, .file-upload-btn:hover {
+    background-color: #1A5276;
 }
 
 button:active {
-    background-color: #0E3748; 
+    background-color: #0E3748;
 }
 
-button.add {
+button.add, .file-upload-btn {
     background-color: #3498db;
     display: flex;
     align-items: center;
@@ -41,33 +41,21 @@ button.add .icon {
     margin-right: 5px;
     color: white;
 }
-.addCaption{
+
+.addCaption {
     min-width: 95px;
 }
+
 button.save {
     background-color: #28a745; /* Green for save */
 }
 
-button.revert {
-    background-color: #E74C3C; 
+button.revert, button.remove {
+    background-color: #E74C3C;
 }
 
 button.edit {
     background-color: #f39c12; /* orange color for edit */
-}
-
-button.remove {
-    background-color: #e74c3c; /* red color for remove */
-}
-
-/* ... Rest of your styles ... */
-
-.mission-config-container {
-    font-family: Arial, sans-serif;
-    margin: 0 auto;
-    padding: 20px;
-    background-color: #f4f4f4;
-    border-radius: 10px;
 }
 
 .drone-config-card {
@@ -79,7 +67,7 @@ button.remove {
 }
 
 .drone-config-card:hover {
-    transform: scale(1.02); 
+    transform: scale(1.02);
 }
 
 h4 {
@@ -95,33 +83,6 @@ input[type="text"], select {
     border: 1px solid #ddd;
     border-radius: 5px;
     box-sizing: border-box;
-}
-
-button {
-    margin: 0.5rem 0.5rem;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    background-color: #3498db; 
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-button:hover {
-    background-color: #1A5276; 
-}
-
-button:active {
-    background-color: #0E3748; 
-}
-
-button.revert {
-    background-color: #E74C3C; 
-}
-
-button.revert:hover {
-    background-color: #B03A2E; 
 }
 
 .content-flex {
@@ -150,17 +111,90 @@ button.revert:hover {
 
 .initial-launch-plot {
     max-width: calc(60% - 1rem);
-}
-button.edit {
-    background-color: #f39c12; /* orange color for edit */
-}
-
-button.remove {
-    background-color: #e74c3c; /* red color for remove */
-}
-.initial-launch-plot {
     overflow-y: auto; /* Enables vertical scrolling */
 }
+
 .js-plotly-plot {
     position: fixed;
+}
+
+#csvInput {
+    display: none;
+}
+/* ... Your previous styles ... */
+.primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.secondary-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+button.saveDrone {
+    background-color: #3498db;
+}
+
+button.cancelSaveDrone {
+    background-color: #E74C3C;
+}
+/* Primary action button styles */
+button.add {
+    background-color: #3498db; /* Blue for add */
+}
+
+button.add:hover {
+    background-color: #2980b9; /* Darker Blue for add hover */
+}
+
+button.save {
+    background-color: #28a745; /* Green for save */
+}
+
+button.save:hover {
+    background-color: #219737; /* Darker Green for save hover */
+}
+
+/* Secondary action button styles */
+button.revert {
+    background-color: #E74C3C; /* Red for revert */
+}
+
+button.revert:hover {
+    background-color: #c0392b; /* Darker Red for revert hover */
+}
+
+.file-upload-btn {
+    background-color: #f1c40f; /* Yellow for import */
+    transition: background-color 0.3s;
+}
+
+.file-upload-btn:hover {
+    background-color: #d4ad00; /* Darker Yellow for import hover */
+}
+
+/* Button to export configuration will retain the default button color */
+/* ... Your previous styles ... */
+
+/* Making the save button a bit bigger */
+button.save {
+    padding: 0.6rem 1.2rem;
+    font-size: 1.1rem;
+}
+
+/* Styling for export-config button */
+button.export-config {
+    background-color: #3498db; /* Default color */
+    transition: background-color 0.3s;
+}
+
+button.export-config:hover {
+    background-color: #1A5276; /* Hover color */
+}
+
+button.export-config:active {
+    background-color: #0E3748; /* Active state color */
 }
