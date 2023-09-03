@@ -3,7 +3,7 @@
 }
 
 .App-logo {
-  height: 40vmin;
+  height: 4rem; 
   pointer-events: none;
 }
 
@@ -20,7 +20,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
+  font-size: 1.2rem;
   color: white;
 }
 
@@ -29,12 +29,12 @@
 }
 
 .drone-item:hover {
-  cursor: pointer;
+  cursor: pointer; 
 }
 
 .drone-item li {
   font-weight: bold;
-  margin-top: 50px;
+  margin-top: 5rem;
   list-style: none;
 }
 
@@ -54,15 +54,22 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Montserrat', sans-serif;
 }
+
 .app-container {
-  flex: 1 1;
-    padding: 20px;
-    margin-left: 13%;
-    width: 85%;
+  flex: 1 1; 
+  padding: 2rem;
+  margin-left: 13%;
+  width: 82%;
 }
 
 .content {
   flex: 1;
-  padding: 20px;
+  padding: 2rem; 
 }
 
+@media (max-width: 600px) {
+  .app-container {
+    margin-left: 5%;
+    width: 90%; 
+  }
+}

@@ -31,7 +31,7 @@ useEffect(() => {
       </div>
       <ul>
       <li>
-  <a href="/">Dashboard</a>
+      <Link to="/">Dashboard</Link>
 </li>
 <li>
 <Link to="/mission-config">Mission Config</Link>
@@ -39,6 +39,9 @@ useEffect(() => {
 <li>
 <Link to="/swarm-design">Swarm Design</Link>
 </li>
+<li>
+    <Link to="/import-drone-show">Import Drone Show</Link> {/* New Link */}
+  </li>
         <li>Settings</li>
       </ul>
      

@@ -108,10 +108,12 @@ Always ensure that you comply with all local laws and regulations when operating
 
 import csv
 import logging
+import shutil
 import socket
 import struct
-from flask import Flask, jsonify
-from flask import request
+import subprocess
+from flask import Flask, jsonify, make_response, send_from_directory
+from flask import request, send_file
 
 from threading import Thread, Lock
 import time
@@ -120,6 +122,9 @@ import os
 import math
 from enum import Enum
 from flask_cors import CORS
+import zipfile
+from werkzeug.utils import secure_filename
+import shutil
 
 
 FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
@@ -270,6 +275,11 @@ drones_threads = []
 # We use a list so the changes in the main thread can be seen by the telemetry threads.
 keep_running = [True]
 
+
+
+
+
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS
 
@@ -366,6 +376,84 @@ def get_config_data():
         reader = csv.DictReader(f)
         data = [row for row in reader]
     return jsonify(data)
+
+
+
+ALLOWED_EXTENSIONS = {'zip'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+           
+# Function to clear show directories
+def clear_show_directories():
+    directories = [
+        'shapes/swarm/skybrush',
+        'shapes/swarm/processed',
+        'shapes/swarm/plots'
+    ]
+    for directory in directories:
+        print(f"Clearing directory: {directory}")  # Debugging line
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}')  # Debugging line
+
+
+# Updated route in Flask
+@app.route('/import-show', methods=['POST'])
+def import_show():
+    uploaded_file = request.files.get('file')
+    
+    if uploaded_file and allowed_file(uploaded_file.filename):
+        clear_show_directories()  # Clear existing files
+
+        # Store the uploaded ZIP file temporarily
+        zip_path = os.path.join('temp', 'uploaded.zip')
+        uploaded_file.save(zip_path)
+
+        # Unzip the file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall('shapes/swarm/skybrush')
+
+        # Remove the temporary ZIP file
+        os.remove(zip_path)
+
+        # Run the processformation.py script
+        try:
+            completed_process = subprocess.run(["python", "process_formation.py"], capture_output=True, text=True, check=True)
+            print("Have {} bytes in stdout:\n{}".format(len(completed_process.stdout), completed_process.stdout))
+        except subprocess.CalledProcessError as e:
+            return jsonify({'success': False, 'error': 'Error in running processformation.py', 'details': str(e)})
+        
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
+
+
+
+
+@app.route('/get-show-plots/<filename>')
+def send_image(filename):
+    print("Trying to serve:", filename)
+    print("From directory:", os.path.abspath('shapes/swarm/plots'))
+    return send_from_directory('shapes/swarm/plots', filename)
+
+@app.route('/get-show-plots', methods=['GET'])
+def get_show_plots():
+    plots_directory = 'shapes/swarm/plots'
+    filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
+    # Assuming 'all_drones.png' will always be there, use its upload time
+    upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
+    print("Filenames:", filenames)
+    print("Last upload time:", upload_time)
+    return jsonify({'filenames': filenames, 'uploadTime': upload_time})
+
 
 # Function to convert mission type to mission and state values
 def convert_mission_type(mission_type):
