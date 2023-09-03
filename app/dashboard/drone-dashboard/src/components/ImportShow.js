@@ -12,7 +12,9 @@ const ImportShow = () => {
     const [uploadTime, setUploadTime] = useState(null);
     const [uploadCount, setUploadCount] = useState(0);
     const [dronesMismatchWarning, setDronesMismatchWarning] = useState(null);
-
+    const [coordinateWarnings, setCoordinateWarnings] = useState([]);
+    const [returnWarnings, setReturnWarnings] = useState([]);
+    
     useEffect(() => {
         async function fetchPlots() {
           const backendURL = getBackendURL();
@@ -34,20 +36,52 @@ const ImportShow = () => {
           const configResponse = await fetch(`${backendURL}/get-config-data`);
           const configData = await configResponse.json();
       
-          console.log("Number of drones in config:", configData.length);  // Debug output
-          console.log("Number of plots:", plotList.length);  // Debug output
+          const configMap = configData.reduce((acc, drone) => {
+            acc[drone.hw_id] = { x: parseFloat(drone.x), y: parseFloat(drone.y) };
+            return acc;
+          }, {});
       
-          if (configData.length !== (plotList.length -1)) {
-            console.log("Mismatch detected!");  // Debug output
-            setDronesMismatchWarning('The number of drones in the uploaded show does not match the number in config.csv.');
-          } else {
-            console.log("No mismatch detected.");  // Debug output
-            setDronesMismatchWarning(null);
+          const coordinateWarnings = [];
+          const returnWarnings = [];
+          let droneCountWarning = null;
+      
+          // 1. Check for drone number mismatch
+          if (configData.length !== (plotList.length - 1)) {
+            droneCountWarning = `The number of drones in the uploaded show (${plotList.length - 1}) does not match the number in the config file (${configData.length}).`;
           }
+      
+          // 2. and 3. Check for coordinate mismatches
+          for (const [hw_id, { x: configX, y: configY }] of Object.entries(configMap)) {
+            try {
+              const rowResponse = await fetch(`${backendURL}/get-first-last-row/${hw_id}`);
+              const rowData = await rowResponse.json();
+      
+              const firstRowX = parseFloat(rowData.firstRow.x);
+              const firstRowY = parseFloat(rowData.firstRow.y);
+              const lastRowX = parseFloat(rowData.lastRow.x);
+              const lastRowY = parseFloat(rowData.lastRow.y);
+      
+              if (configX !== firstRowX || configY !== firstRowY) {
+                coordinateWarnings.push(`Drone ${hw_id} has mismatch in initial launch point. Config: (${configX}, ${configY}), CSV: (${firstRowX}, ${firstRowY})`);
+              }
+      
+              if (firstRowX !== lastRowX || firstRowY !== lastRowY) {
+                returnWarnings.push(`Drone ${hw_id} has different return point. Start: (${firstRowX}, ${firstRowY}), End: (${lastRowX}, ${lastRowY})`);
+              }
+      
+            } catch (error) {
+              console.warn(`Could not fetch data for drone ${hw_id}. Skipping...`);
+            }
+          }
+      
+          setCoordinateWarnings(coordinateWarnings);
+          setReturnWarnings(returnWarnings);
+          setDronesMismatchWarning(droneCountWarning);
         }
       
         checkDronesMismatch();
       }, [plotList]);
+      
       
       
     
@@ -158,13 +192,22 @@ const ImportShow = () => {
               <small className="file-requirements">File should be a ZIP containing CSV files.</small>
 
               <p className={`response-message ${responseMessage.includes('successfully') ? 'success' : 'failure'}`}>{responseMessage}</p>
-              {dronesMismatchWarning && (
+          
+
+{dronesMismatchWarning && (
   <p className="warning-message">
-    {dronesMismatchWarning} 
-    Please check and update your 
-    <a href="http://localhost:3000/mission-config" target="_blank" rel="noreferrer">Mission Configuration</a>.
+    {dronesMismatchWarning}
   </p>
 )}
+{coordinateWarnings.map((warning, index) => (
+  <p key={index} className="warning-message">{warning}</p>
+))}
+{returnWarnings.map((warning, index) => (
+  <p key={index} className="soft-warning-message">{warning}</p>
+))}
+
+
+
 
 
               <div className="upload-info">

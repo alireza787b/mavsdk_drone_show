@@ -117,3 +117,15 @@
     text-decoration: underline;
   }
   
+  .soft-warning-message {
+    color: #FF9800;  /* Orange */
+    background-color: #FFECB3;  /* Light Orange */
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 1.1em;
+    display: flex;
+    align-items: center;
+  }
+  
+  

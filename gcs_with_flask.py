@@ -1,4 +1,3 @@
-
 """
 Author: Alireza Ghaderi
 Email: p30planets@gmail.com
@@ -453,6 +452,36 @@ def get_show_plots():
     print("Filenames:", filenames)
     print("Last upload time:", upload_time)
     return jsonify({'filenames': filenames, 'uploadTime': upload_time})
+
+
+
+@app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
+def get_first_last_row(hw_id):
+    try:
+        # Construct the full path to the drone's CSV file
+        csv_path = os.path.join("shapes", "swarm", "skybrush", f"Drone {hw_id}.csv")
+
+        # Read the CSV file into a DataFrame
+        df = pd.read_csv(csv_path)
+
+        # Get the first and last row
+        first_row = df.iloc[0]
+        last_row = df.iloc[-1]
+
+        # Extract the x, y coordinates
+        first_x = first_row['x [m]']
+        first_y = first_row['y [m]']
+        last_x = last_row['x [m]']
+        last_y = last_row['y [m]']
+
+        return jsonify({
+            "success": True,
+            "firstRow": {"x": first_x, "y": first_y},
+            "lastRow": {"x": last_x, "y": last_y}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 
 
 # Function to convert mission type to mission and state values
