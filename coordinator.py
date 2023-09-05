@@ -200,50 +200,56 @@ def synchronize_time():
             print("Failed to sync time with an internet source.")
     else:
         print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
-
 def run_mission_script(command):
+    print(f"Running mission script: {command}")  # Debug print
     try:
         subprocess.run(command.split(), check=True)
+        print("Mission script completed successfully.")  # Debug print
         return True
     except subprocess.CalledProcessError:
+        print("Mission script encountered an error.")  # Debug print
         return False
 
-        
 def schedule_mission():
+    print("Ready For Command...")  # Debug print
     current_time = int(time.time())
     success = False
 
     if drone_config.mission in [1, 2]:
         if drone_config.state == 1 and current_time >= drone_config.trigger_time:
-            # Reset the state and trigger time
             drone_config.state = 2
             drone_config.trigger_time = 0
-
             if drone_config.mission == 1:
+                print("Starting Drone Show")  # Debug print
                 success = run_mission_script("python offboard_multiple_from_csv.py")
-
             elif drone_config.mission == 2:
+                print("Starting Swarm Mission")  # Debug print
                 success = run_mission_script("python smart_swarm_mission.py")
 
     elif 10 <= drone_config.mission < 100:
         altitude = float(drone_config.mission) - 10
         if altitude > 50:
             altitude = 50
+        print(f"Starting Takeoff to {altitude}m")  # Debug print
         success = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
 
     elif drone_config.mission == 101:
+        print("Starting Land")  # Debug print
         success = run_mission_script("python actions.py --action=land")
 
     elif drone_config.mission == 102:
+        print("Starting Hold Position")  # Debug print
         success = run_mission_script("python actions.py --action=hold")
 
     elif drone_config.mission == 100:
+        print("Starting Test")  # Debug print
         success = run_mission_script("python actions.py --action=test")
 
     if success:
-        # Reset mission to NONE after performing it
+        print("Mission completed successfully. Resetting mission code and state.")  # Debug print
         drone_config.mission = 0
         drone_config.state = 0
+
 
         
         
