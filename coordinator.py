@@ -215,35 +215,45 @@ def run_mission_script(command):
         print("Mission script encountered an error.")  # Debug print
         return False
 
+# Global variable to store OffboardController instances for each follower drone
+offboard_controllers = {}
+
 def schedule_mission():
+    """
+    Schedule and execute various drone missions based on the current mission code and state.
+    """
     global offboard_controllers  # Declare it as global to modify it
-
-    # print("Ready For Command...")  # Debug print
+    
+    # Get the current time
     current_time = int(time.time())
-    success = False
-
+    success = False  # Initialize success flag
+    
+    # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
     if drone_config.mission in [1, 2]:
         if drone_config.state == 1 and current_time >= drone_config.trigger_time:
+            # Update state and reset trigger time
             drone_config.state = 2
             drone_config.trigger_time = 0
+            
             if drone_config.mission == 1:
-                print("Starting Drone Show")  # Debug print
+                print("Starting Drone Show")
                 success = run_mission_script("python offboard_multiple_from_csv.py")
             elif drone_config.mission == 2:
-                print("Starting Swarm Mission")  # Debug print
-                if int(drone_config.swarm.get('follow')) != 0): 
+                print("Starting Swarm Mission")
+                if int(drone_config.swarm.get('follow')) != 0:
                     if drone_config.id not in offboard_controllers:
                         offboard_controllers[drone_config.id] = OffboardController(drone_config)
                     asyncio.run(offboard_controllers[drone_config.id].start_offboard_follow())
-                success = 0
-
+                success = True  # Assume success for now
+    
+    # If the mission is to take off to a certain altitude
     elif 10 <= drone_config.mission < 100:
         altitude = float(drone_config.mission) - 10
-        if altitude > 50:
-            altitude = 50
-        print(f"Starting Takeoff to {altitude}m")  # Debug print
+        altitude = min(altitude, 50)  # Limit altitude to 50m
+        print(f"Starting Takeoff to {altitude}m")
         success = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
-
+    
+    # If the mission is to land
     elif drone_config.mission == 101:
         print("Starting Land")
         if int(drone_config.swarm.get('follow')) != 0:  # Check if it's a follower
@@ -252,23 +262,24 @@ def schedule_mission():
                 if offboard_controller.is_offboard:  # Check if it's in offboard mode
                     asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
                     asyncio.sleep(1)  # Wait for a second
-            success = run_mission_script("python actions.py --action=land")  # Then land as usual
-        else:
-            success = run_mission_script("python actions.py --action=land")  # If not a follower, land as usual
-
-
+        success = run_mission_script("python actions.py --action=land")
+    
+    # If the mission is to hold the position
     elif drone_config.mission == 102:
-        print("Starting Hold Position")  # Debug print
+        print("Starting Hold Position")
         success = run_mission_script("python actions.py --action=hold")
-
+    
+    # If the mission is a test
     elif drone_config.mission == 100:
-        print("Starting Test")  # Debug print
+        print("Starting Test")
         success = run_mission_script("python actions.py --action=test")
-
+    
+    # Reset mission and state if successful
     if success:
-        print("Mission completed successfully. Resetting mission code and state.")  # Debug print
+        print("Mission completed successfully. Resetting mission code and state.")
         drone_config.mission = 0
         drone_config.state = 0
+
 
 
         
