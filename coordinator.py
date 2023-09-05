@@ -215,18 +215,20 @@ def run_mission_script(command):
         print("Mission script encountered an error.")  # Debug print
         return False
 
-# Global variable to store OffboardController instances for each follower drone
-offboard_controllers = {}
+# Global variable to store the single OffboardController instance
+offboard_controller = None
 
 def schedule_mission():
     """
     Schedule and execute various drone missions based on the current mission code and state.
     """
-    global offboard_controllers  # Declare it as global to modify it
+    global offboard_controller  # Declare it as global to modify it
     
     # Get the current time
     current_time = int(time.time())
     success = False  # Initialize success flag
+    
+    print(f"Current mission code: {drone_config.mission}, Current state: {drone_config.state}")  # Debug output
     
     # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
     if drone_config.mission in [1, 2]:
@@ -241,9 +243,8 @@ def schedule_mission():
             elif drone_config.mission == 2:
                 print("Starting Swarm Mission")
                 if int(drone_config.swarm.get('follow')) != 0:
-                    if drone_config.hw_id not in offboard_controllers:
-                        offboard_controllers[drone_config.hw_id] = OffboardController(drone_config)
-                    asyncio.run(offboard_controllers[drone_config.hw_id].start_offboard_follow())
+                    offboard_controller = OffboardController(drone_config)
+                    asyncio.run(offboard_controller.start_offboard_follow())
                 success = True  # Assume success for now
     
     # If the mission is to take off to a certain altitude
@@ -256,12 +257,12 @@ def schedule_mission():
     # If the mission is to land
     elif drone_config.mission == 101:
         print("Starting Land")
-        if int(drone_config.swarm.get('follow')) != 0:  # Check if it's a follower
-            if drone_config.hw_id in offboard_controllers:
-                offboard_controller = offboard_controllers[drone_config.hw_id]
-                if offboard_controller.is_offboard:  # Check if it's in offboard mode
-                    asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
-                    asyncio.sleep(1)  # Wait for a second
+        if int(drone_config.swarm.get('follow')) != 0 and offboard_controller:  # Check if it's a follower
+            print("Is a follower and offboard_controller exists.")  # Debug output
+            if offboard_controller.is_offboard:  # Check if it's in offboard mode
+                print("Is in Offboard mode. Attempting to stop offboard.")  # Debug output
+                asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
+                asyncio.sleep(1)  # Wait for a second
         success = run_mission_script("python actions.py --action=land")
     
     # If the mission is to hold the position
@@ -279,7 +280,6 @@ def schedule_mission():
         print("Mission completed successfully. Resetting mission code and state.")
         drone_config.mission = 0
         drone_config.state = 0
-
 
 
         
