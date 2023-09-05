@@ -114,6 +114,7 @@ class DroneCommunicator:
             self.drone_config.hw_id = hw_id
             self.drone_config.pos_id = pos_id
             self.drone_config.state = state
+            self.drone_config.mission = mission
             self.drone_config.trigger_time = trigger_time
 
             # Handle TAKE_OFF with altitude
