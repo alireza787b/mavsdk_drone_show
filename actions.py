@@ -6,6 +6,11 @@ import glob
 import os
 
 
+SIM_MODE = False  # or True based on your setting
+GRPC_PORT_BASE = 50041
+HW_ID = read_hw_id()
+
+
 def read_hw_id():
     hwid_files = glob.glob('*.hwID')
     if hwid_files:
@@ -36,12 +41,20 @@ def read_config(filename='config.csv'):
 async def perform_action(action, altitude):
     """Connect to drone, perform action, then disconnect."""
     droneConfig = read_config()
-    
-    udp_port = int(droneConfig['udp_port'])
-    grpc_port = int(droneConfig['grpc_port'])
-    
+    if (SIM_MODE == True):
+        grpc_port = GRPC_PORT_BASE + HW_ID
+    else:
+        grpc_port = GRPC_PORT_BASE - 1
+
+    if (SIM_MODE == False):
+        udp_port = 14540  # Default API connection on the same hardware
+    else:
+        udp_port = int(droneConfig['udp_port'])
+
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
     await drone.connect(system_address=f"udp://:{udp_port}")
+
+
 
     # Ensure drone is connected
     async for state in drone.core.connection_state():
