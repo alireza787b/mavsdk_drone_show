@@ -142,6 +142,11 @@ class Mission(Enum):
     NONE = 0
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
+    TAKE_OFF = 10
+    LAND = 101
+    HOLD = 102
+    TEST = 100
+
 
 
 flask_telem_socket_port = 5000
@@ -156,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -192,6 +197,9 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
 
         # Encode the data
         data = struct.pack(command_struct_fmt, header, hw_id, pos_id, mission, state, trigger_time, terminator)
+
+        print(f"Sending command with mission code: {mission}")  # Add this line
+
 
         # Send the command data
         sock.sendto(data, (coordinator_ip, debug_port))
@@ -295,7 +303,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # If the print_telemetry flag is True, print the decoded data
             if print_telemetry[0]:
                 # Debug log with all details
-                logger.info(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
+                logger.debug(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
                 
         except (OSError, struct.error) as e:
             # If there is an OSError or an error in unpacking the data, log the error and break the loop
@@ -330,6 +338,8 @@ def get_telemetry():
 def send_command_to_drones(drone_ids):
     try:
         command_data = request.get_json()
+        print(request.json)  # Debug line
+
         mission_type = command_data['missionType']
         trigger_time = int(command_data['triggerTime'])
         
@@ -526,14 +536,29 @@ def get_first_last_row(hw_id):
 
 # Function to convert mission type to mission and state values
 def convert_mission_type(mission_type):
-    if mission_type == 's':
-        return 2, 1
-    elif mission_type == 'd':
-        return 1, 1
-    elif mission_type == 'n':
-        return 0, 0
+    if isinstance(mission_type, str):
+        if mission_type == 's':
+            return 2, 1  # Smart Swarm
+        elif mission_type == 'd':
+            return 1, 1  # Drone Show
+        elif mission_type == 'n':
+            return 0, 0  # Cancel Mission/Disarm
+        else:
+            return 0, 0  # Invalid command
+    elif isinstance(mission_type, int):
+        if 10 <= mission_type <= 60:  # Takeoff to specific altitude
+            return mission_type, 1
+        elif mission_type == 101:  # Land
+            return mission_type, 1
+        elif mission_type == 102:  # Hold Position
+            return mission_type, 1
+        elif mission_type == 100:  # Test
+            return mission_type, 1
+        else:
+            return 0, 0  # Invalid command
     else:
-        return 0, 0
+        return 0, 0  # Invalid command
+
 
 
 

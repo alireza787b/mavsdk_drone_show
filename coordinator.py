@@ -214,41 +214,42 @@ def run_mission_script(script_name, *args):
         
 def schedule_mission():
     current_time = int(time.time())
-    
     success = False
 
     if drone_config.mission in [1, 2]:
         if drone_config.state == 1 and current_time >= drone_config.trigger_time:
-            print("Trigger time reached. Starting drone mission...")
-
             # Reset the state and trigger time
             drone_config.state = 2
             drone_config.trigger_time = 0
 
             if drone_config.mission == 1:
-                success = run_mission_script("offboard_multiple_from_csv.py")
+                success = run_mission_script("actions.py --action=drone_show")
 
             elif drone_config.mission == 2:
-                success = run_mission_script("smart_swarm_mission.py")
+                success = run_mission_script("actions.py --action=smart_swarm")
 
-    elif drone_config.mission >= 10 and drone_config.mission < 100:
+    elif 10 <= drone_config.mission < 100:
         altitude = drone_config.mission % 10
         if altitude > 50:
             altitude = 50
-        success = run_mission_script("takeoff_mission.py", altitude)
+        success = run_mission_script(f"actions.py --action=takeoff --altitude={altitude}")
 
     elif drone_config.mission == 101:
-        success = run_mission_script("land_mission.py")
+        success = run_mission_script("actions.py --action=land")
 
     elif drone_config.mission == 102:
-        success = run_mission_script("hold_mission.py")
+        success = run_mission_script("actions.py --action=hold")
 
     elif drone_config.mission == 100:
-        success = run_mission_script("test_mission.py")
+        success = run_mission_script("actions.py --action=test")
 
     if success:
         # Reset mission to NONE after performing it
         drone_config.mission = 0
+
+        
+        
+        
             
 # Create 'logs' directory if it doesn't exist
 if not os.path.exists('logs'):

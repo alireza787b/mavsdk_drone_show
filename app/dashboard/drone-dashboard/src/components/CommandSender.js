@@ -90,9 +90,10 @@ const handleTakeoff = () => {
       missionType: 10 + parseInt(altitude, 10), // 10 for Takeoff and altitude
       triggerTime: '0', // No delay for Takeoff
     };
-  
+    console.log("Sending Takeoff commandData:", commandData);  // Add this line
     sendCommandToServer(commandData);
   };
+  
   
   // Function to handle sending the Land All command
   const handleLandAll = () => {
