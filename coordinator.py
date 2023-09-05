@@ -241,9 +241,9 @@ def schedule_mission():
             elif drone_config.mission == 2:
                 print("Starting Swarm Mission")
                 if int(drone_config.swarm.get('follow')) != 0:
-                    if drone_config.id not in offboard_controllers:
-                        offboard_controllers[drone_config.id] = OffboardController(drone_config)
-                    asyncio.run(offboard_controllers[drone_config.id].start_offboard_follow())
+                    if drone_config.hw_id not in offboard_controllers:
+                        offboard_controllers[drone_config.hw_id] = OffboardController(drone_config)
+                    asyncio.run(offboard_controllers[drone_config.hw_id].start_offboard_follow())
                 success = True  # Assume success for now
     
     # If the mission is to take off to a certain altitude
@@ -257,8 +257,8 @@ def schedule_mission():
     elif drone_config.mission == 101:
         print("Starting Land")
         if int(drone_config.swarm.get('follow')) != 0:  # Check if it's a follower
-            if drone_config.id in offboard_controllers:
-                offboard_controller = offboard_controllers[drone_config.id]
+            if drone_config.hw_id in offboard_controllers:
+                offboard_controller = offboard_controllers[drone_config.hw_id]
                 if offboard_controller.is_offboard:  # Check if it's in offboard mode
                     asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
                     asyncio.sleep(1)  # Wait for a second
