@@ -228,6 +228,12 @@ def retry_pending_commands():
                         # Remove this command from pending_commands if max retries reached
                         del pending_commands[hw_id]
 
+def get_optional_altitude(mission):
+    if 10 <= mission < 60:  # Range for takeoff commands with altitude
+        return f" (Altitude: {mission % 10}m)"
+    return ""
+
+
 def handle_telemetry(keep_running, print_telemetry, sock):
     """
     This function continuously receives and handles telemetry data.
@@ -258,8 +264,13 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             telemetry_data = struct.unpack(telem_struct_fmt, data)
             header, terminator = telemetry_data[0], telemetry_data[-1]
             hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, telemetry_update_time = telemetry_data[1:-1]
-            logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}")
-
+                        # Inside your existing code
+            if 10 <= mission < 60:
+                optional_altitude = get_optional_altitude(mission)
+                mission = 10  # Resetting mission to the default takeoff code
+                logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}{optional_altitude}, Trigger Time={trigger_time}")
+            else:
+                logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}")
             # If header or terminator are not as expected, log the error and continue
             if header != 77 or terminator != 88:
                 logger.error("Invalid header or terminator received in telemetry data.")
