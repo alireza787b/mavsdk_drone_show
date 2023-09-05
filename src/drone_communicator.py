@@ -105,35 +105,38 @@ class DroneCommunicator:
 
 
     def process_packet(self, data):
-        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
-
-        # Check if it's a command packet
+        header, terminator = struct.unpack('BB', data[0:1] + data[-1:])
+        
         if header == 55 and terminator == 66 and len(data) == self.params.command_packet_size:
             header, hw_id, pos_id, mission, state, trigger_time, terminator = struct.unpack(self.params.command_struct_fmt, data)
             logging.info(f"Received command from GCS: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
 
             self.drone_config.hw_id = hw_id
             self.drone_config.pos_id = pos_id
-            self.drone_config.mission = mission
             self.drone_config.state = state
             self.drone_config.trigger_time = trigger_time
 
-        # Add additional logic here to handle the received command
-            if mission == self.params.Mission.TAKE_OFF.value:
-                altitude = mission % 10  # Extract altitude from the mission code
-                if altitude > 50:  # Cap the altitude to 50m
+            # Handle TAKE_OFF with altitude
+            if 10 <= mission < 60:
+                altitude = mission - 10
+                if altitude > 50:
                     altitude = 50
-                # Run the takeoff command logic here
                 print(f"Takeoff command received. Altitude: {altitude}m")
+                
+                # Update mission code to default TAKE_OFF code after extracting altitude
+                self.drone_config.mission = self.params.Mission.TAKE_OFF.value
             elif mission == self.params.Mission.LAND.value:
-                # Run the land command logic here
                 print("Land command received.")
+                self.drone_config.mission = mission
             elif mission == self.params.Mission.HOLD.value:
-                # Run the hold command logic here
                 print("Hold command received.")
+                self.drone_config.mission = mission
             elif mission == self.params.Mission.TEST.value:
-                # Run the test command logic here
                 print("Test command received.")
+                self.drone_config.mission = mission
+            else:
+                print(f"Unknown mission command received: {mission}")
+                self.drone_config.mission = self.params.Mission.NONE.value
 
 
 
