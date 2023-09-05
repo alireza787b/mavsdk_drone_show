@@ -131,4 +131,12 @@ class OffboardController:
         # Continuously maintain the drone's position and velocity
         await self.maintain_position_velocity()
 
+    async def hold_position(self):
+        await self.drone.offboard.stop()
+        print("Holding Position")
+
+    async def land_drone(self):
+        await self.drone.offboard.stop()
+        await self.drone.action.land()
+        print("Landing Drone")
 

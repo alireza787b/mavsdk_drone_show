@@ -239,11 +239,14 @@ def schedule_mission():
 
     elif drone_config.mission == 101:
         print("Starting Land")  # Debug print
-        success = run_mission_script("python actions.py --action=land")
+        offboard_controller = OffboardController(drone_config)
+        asyncio.run(offboard_controller.land_drone())
 
     elif drone_config.mission == 102:
         print("Starting Hold Position")  # Debug print
-        success = run_mission_script("python actions.py --action=hold")
+        offboard_controller = OffboardController(drone_config)
+        asyncio.run(offboard_controller.hold_position())
+
 
     elif drone_config.mission == 100:
         print("Starting Test")  # Debug print
