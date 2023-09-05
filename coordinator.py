@@ -201,16 +201,13 @@ def synchronize_time():
     else:
         print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
 
-def run_mission_script(script_name, *args):
-        cmd = ["python3", script_name] + list(map(str, args))
-        try:
-            completed_process = subprocess.run(cmd, check=True)
-            if completed_process.returncode == 0:
-                print(f"{script_name} executed successfully.")
-                return True
-        except subprocess.CalledProcessError as e:
-            print(f"Error in executing {script_name}: {e}")
+def run_mission_script(command):
+    try:
+        subprocess.run(command.split(), check=True)
+        return True
+    except subprocess.CalledProcessError:
         return False
+
         
 def schedule_mission():
     current_time = int(time.time())
@@ -223,10 +220,10 @@ def schedule_mission():
             drone_config.trigger_time = 0
 
             if drone_config.mission == 1:
-                success = run_mission_script("actions.py --action=drone_show")
+                success = run_mission_script("offboard_multiple_from_csv.py")
 
             elif drone_config.mission == 2:
-                success = run_mission_script("actions.py --action=smart_swarm")
+                success = run_mission_script("smart_swarm_mission.py")
 
     elif 10 <= drone_config.mission < 100:
         altitude = drone_config.mission % 10
