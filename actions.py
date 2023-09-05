@@ -92,7 +92,7 @@ async def perform_action(action, altitude):
     try:
         if action == "takeoff":
             await drone.action.arm()
-            await drone.action.takeoff()
+            await drone.action.takeoff(altitude)
         elif action == "land":
             await drone.action.land()
         elif action == "hold":
@@ -106,9 +106,9 @@ async def perform_action(action, altitude):
             print("Invalid action")
     finally:
         if state.is_connected:
-            
             # Stop mavsdk_server
             stop_mavsdk_server(mavsdk_server)
+            exit(0)
 
 if __name__ == "__main__":
     # Parse command-line arguments
