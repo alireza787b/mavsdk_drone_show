@@ -243,6 +243,7 @@ def schedule_mission():
     if success:
         # Reset mission to NONE after performing it
         drone_config.mission = 0
+        drone_config.state = 0
 
         
         
