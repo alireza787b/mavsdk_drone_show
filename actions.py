@@ -7,7 +7,29 @@ import os
 import subprocess
 
 
+import psutil  # You may need to install this package
 
+# Function to check if MAVSDK server is running
+def check_mavsdk_server_running(port):
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.connections(kind='inet'):
+                if conn.laddr.port == port:
+                    return True, proc.info['pid']
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False, None
+
+# Modified start_mavsdk_server function
+def start_mavsdk_server(grpc_port, udp_port):
+    is_running, pid = check_mavsdk_server_running(grpc_port)
+    if is_running:
+        print(f"MAVSDK server already running on port {grpc_port}. Terminating...")
+        psutil.Process(pid).terminate()
+    
+    print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
+    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    return mavsdk_server
 
 def read_hw_id():
     hwid_files = glob.glob('*.hwID')
@@ -109,6 +131,10 @@ async def perform_action(action, altitude):
         if state.is_connected:
             # Stop mavsdk_server
             stop_mavsdk_server(mavsdk_server)
+            is_running, pid = check_mavsdk_server_running(grpc_port)
+            if is_running:
+                print(f"Terminating MAVSDK server running on port {grpc_port}...")
+                psutil.Process(pid).terminate()
             exit(0)
 
 if __name__ == "__main__":

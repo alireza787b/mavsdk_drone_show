@@ -211,7 +211,7 @@ def run_mission_script(command):
         return False
 
 def schedule_mission():
-    print("Ready For Command...")  # Debug print
+    # print("Ready For Command...")  # Debug print
     current_time = int(time.time())
     success = False
 
