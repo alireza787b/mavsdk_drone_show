@@ -229,11 +229,9 @@ def retry_pending_commands():
                         del pending_commands[hw_id]
 
 def get_optional_altitude(mission):
-    if 10 <= mission < 100:  # Assuming takeoff missions are between 10 and 60
-        altitude = mission % 10
-        mission = 10  # Setting to default takeoff code
-        return f" (Altitude: {altitude}m)", mission
-    return "", mission
+    if 10 <= mission < 60:  # Range for takeoff commands with altitude
+        return f" (Altitude: {mission % 10}m)"
+    return ""
 
 
 def handle_telemetry(keep_running, print_telemetry, sock):

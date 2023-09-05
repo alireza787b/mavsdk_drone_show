@@ -79,61 +79,77 @@ const CommandSender = () => {
     
 // Placeholder function for Test action
 const handleTestAction = () => {
-    alert('Test Action: Will arm the drones, wait for 3 seconds, then disarm.');
-    const commandData = {
-        missionType: 100, // 
-        triggerTime: '0', // No delay
-      };
-      console.log("Sending Test commandData:", commandData);  // Add this line
-      sendCommandToServer(commandData);
-      };
+    const isConfirmed = window.confirm('Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?');
+
+    if (isConfirmed) {
+        const commandData = {
+            missionType: 100,
+            triggerTime: '0', // No delay
+        };
+        console.log("Sending Test commandData:", commandData);
+        sendCommandToServer(commandData);
+    } else {
+        console.log("Test command cancelled.");
+    }
+};
 
 
 // Function to handle sending the Takeoff command
 const handleTakeoff = () => {
+    const actualAltitude = parseInt(altitude, 10);
     const commandData = {
-      missionType: 10 + parseInt(altitude, 10), // 10 for Takeoff and altitude
+      missionType: 10 + actualAltitude, // 10 for Takeoff and altitude
       triggerTime: '0', // No delay for Takeoff
     };
-    console.log("Sending Takeoff commandData:", commandData);  // Add this line
-    sendCommandToServer(commandData);
-  };
+
+    // Confirmation dialog
+    if (window.confirm(`Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${actualAltitude}m.`)) {
+        console.log("Sending Takeoff commandData:", commandData);
+        sendCommandToServer(commandData);
+    } else {
+        console.log("Takeoff command cancelled.");
+    }
+};
+
   
   
-  // Function to handle sending the Land All command
-  const handleLandAll = () => {
-    const commandData = {
-      missionType: 101, // 101 for Land All
-      triggerTime: '0', // No delay for Land
-    };
+// Function to handle sending the Land All command
+const handleLandAll = () => {
+    const isConfirmed = window.confirm('Land All: This will land all drones at their current positions. Are you sure you want to proceed?');
   
-    sendCommandToServer(commandData);
+    if (isConfirmed) {
+      const commandData = {
+        missionType: 101, // 101 for Land All
+        triggerTime: '0', // No delay for Land
+      };
+  
+      console.log("Sending Land All commandData:", commandData);
+      sendCommandToServer(commandData);
+    } else {
+      console.log("Land All command cancelled.");
+    }
   };
   
   // Function to handle sending the Hold Position command
   const handleHoldPosition = () => {
-    const commandData = {
-      missionType: 102, // 102 for Hold Position
-      triggerTime: '0', // No delay for Hold
-    };
+    const isConfirmed = window.confirm('Hold Position: This will make all drones hold their current positions. Are you sure you want to proceed?');
   
-    sendCommandToServer(commandData);
+    if (isConfirmed) {
+      const commandData = {
+        missionType: 102, // 102 for Hold Position
+        triggerTime: '0', // No delay for Hold
+      };
+  
+      console.log("Sending Hold Position commandData:", commandData);
+      sendCommandToServer(commandData);
+    } else {
+      console.log("Hold Position command cancelled.");
+    }
   };
+  
   
   // Function to send command to the server
   const sendCommandToServer = (commandData) => {
-    const missionType = commandData.missionType;
-    const actionNames = {
-        20: 'Takeoff',
-        101: 'Land All',
-        102: 'Hold Position',
-    };
-
-    if (Object.keys(actionNames).includes(missionType.toString())) {
-        if (!window.confirm(`Are you sure you want to send the ${actionNames[missionType]} command to all drones?`)) {
-            return;
-        }
-    }
     axios.post(`${getBackendURL()}/send_command`, commandData)
     .then((response) => {
       if (response.data.status === 'success') {
