@@ -45,7 +45,7 @@ HW_ID = read_hw_id()
 
 def start_mavsdk_server(grpc_port, udp_port):
     print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
-    mavsdk_server = subprocess.Popen(["mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
     return mavsdk_server
 
 def stop_mavsdk_server(mavsdk_server):
