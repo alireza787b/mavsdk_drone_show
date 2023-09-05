@@ -91,8 +91,9 @@ async def perform_action(action, altitude):
     # Perform the action
     try:
         if action == "takeoff":
+            await drone.action.set_takeoff_altitude(float(altitude))
             await drone.action.arm()
-            await drone.action.takeoff(altitude)
+            await drone.action.takeoff()
         elif action == "land":
             await drone.action.land()
         elif action == "hold":
