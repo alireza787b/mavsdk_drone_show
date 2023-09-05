@@ -226,7 +226,7 @@ def schedule_mission():
                 success = run_mission_script("python smart_swarm_mission.py")
 
     elif 10 <= drone_config.mission < 100:
-        altitude = float(drone_config.mission) % 10
+        altitude = float(drone_config.mission) - 10
         if altitude > 50:
             altitude = 50
         success = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
