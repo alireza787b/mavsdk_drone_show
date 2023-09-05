@@ -122,6 +122,18 @@ const handleTakeoff = () => {
   
   // Function to send command to the server
   const sendCommandToServer = (commandData) => {
+    const missionType = commandData.missionType;
+    const actionNames = {
+        20: 'Takeoff',
+        101: 'Land All',
+        102: 'Hold Position',
+    };
+
+    if (Object.keys(actionNames).includes(missionType.toString())) {
+        if (!window.confirm(`Are you sure you want to send the ${actionNames[missionType]} command to all drones?`)) {
+            return;
+        }
+    }
     axios.post(`${getBackendURL()}/send_command`, commandData)
     .then((response) => {
       if (response.data.status === 'success') {
