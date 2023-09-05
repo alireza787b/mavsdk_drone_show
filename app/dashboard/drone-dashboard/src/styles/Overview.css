@@ -118,4 +118,29 @@
     margin-top: 20px;
     text-align: center;
   }
+  .display-block {
+    display: block;
+  }
+  
+  .display-none {
+    display: none;
+  }
+  
+  .overview-container {
+    padding: 20px;
+  }
+  
+  .mission-trigger-section {
+    margin-bottom: 20px;
+  }
+  
+  .connected-drones-header {
+    margin-top: 20px;
+    margin-bottom: 10px;
+  }
+  
+  .drone-list {
+    display: flex;
+    flex-wrap: wrap;
+  }
   

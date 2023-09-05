@@ -1,0 +1,36 @@
+.drone-widget {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .drone-widget.expanded {
+    background-color: #f2f2f2;
+  }
+  
+  .status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+  
+  .status-indicator.active {
+    background-color: green;
+  }
+  
+  .status-indicator.stale {
+    background-color: red;
+  }
+  
+  .drone-actions {
+    margin-top: 10px;
+  }
+  
+  .details-content {
+    margin-top: 10px;
+  }
+  

@@ -183,6 +183,9 @@ else:
 # Function to send commands
 def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     try:
+        # Debug: Log before sending command
+        logger.debug(f"Preparing to send command to HW_ID={hw_id}, POS_ID={pos_id}")
+
         # Prepare the command data
         header = 55  # Constant
         terminator = 66  # Constant
@@ -233,6 +236,8 @@ def handle_telemetry(keep_running, print_telemetry, sock):
 
     while keep_running[0]:
         try:
+            # Debug: Log at the beginning of receiving telemetry
+            logger.debug("Waiting to receive telemetry data...")
             # Receive telemetry data
             data, addr = sock.recvfrom(1024)
 
@@ -245,6 +250,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             telemetry_data = struct.unpack(telem_struct_fmt, data)
             header, terminator = telemetry_data[0], telemetry_data[-1]
             hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, telemetry_update_time = telemetry_data[1:-1]
+            logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}")
 
             # If header or terminator are not as expected, log the error and continue
             if header != 77 or terminator != 88:
@@ -279,6 +285,8 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # Check for pending commands
             with telemetry_lock:
                 if hw_id in pending_commands:
+                    logger.debug(f"Found pending command for HW_ID={hw_id}. Checking...")
+
                     pending_command = pending_commands[hw_id]
                     if pending_command['mission'] == Mission(mission).name and pending_command['state'] == State(state).name and pending_command['trigger_time'] == trigger_time:
                         # Remove this command from the pending commands as it has been successfully executed
