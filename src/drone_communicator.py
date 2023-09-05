@@ -64,6 +64,7 @@ import struct
 import logging
 from src.drone_config import DroneConfig
 import select
+import subprocess 
 
 class DroneCommunicator:
     def __init__(self, drone_config, params, drones):
@@ -100,6 +101,9 @@ class DroneCommunicator:
         self.drones[hw_id] = drone
 
 
+
+
+
     def process_packet(self, data):
         header, terminator = struct.unpack('BB', data[0:1] + data[-1:])  # get the header and terminator
 
@@ -113,6 +117,25 @@ class DroneCommunicator:
             self.drone_config.mission = mission
             self.drone_config.state = state
             self.drone_config.trigger_time = trigger_time
+
+        # Add additional logic here to handle the received command
+            if mission == self.params.Mission.TAKE_OFF.value:
+                altitude = mission % 10  # Extract altitude from the mission code
+                if altitude > 50:  # Cap the altitude to 50m
+                    altitude = 50
+                # Run the takeoff command logic here
+                print(f"Takeoff command received. Altitude: {altitude}m")
+            elif mission == self.params.LAND.value:
+                # Run the land command logic here
+                print("Land command received.")
+            elif mission == self.params.HOLD.value:
+                # Run the hold command logic here
+                print("Hold command received.")
+            elif mission == self.params.TEST.value:
+                # Run the test command logic here
+                print("Test command received.")
+
+
 
             # Add additional logic here to handle the received command
         elif header == 77 and terminator == 88 and len(data) == self.params.telem_packet_size:

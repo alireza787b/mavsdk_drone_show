@@ -329,39 +329,31 @@ def get_telemetry():
 @app.route('/send_command/<drone_ids>', methods=['POST'])
 def send_command_to_drones(drone_ids):
     try:
-        # Get the command data from the request
         command_data = request.get_json()
-
-        # Extract the mission type and time delay
         mission_type = command_data['missionType']
         trigger_time = int(command_data['triggerTime'])
-
-        # Convert mission type and state
+        
+        # Here you can process altitude from the mission code if it's a TAKEOFF command
+        if mission_type == 10:  # Assuming 10 is the code for TAKEOFF
+            altitude = command_data.get('altitude', 10)
+            if altitude > 50:
+                altitude = 50
+            mission_type += altitude  # Add the altitude to the mission_type
+        
         mission, state = convert_mission_type(mission_type)
 
-        # Determine which drones to send the command to
         if drone_ids == 'all':
             target_drones = [hw_id for _, _, _, _, hw_id, _ in drones_threads]
         else:
             target_drones = list(map(int, drone_ids.split(',')))
 
-        # Turn off telemetry printing while sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = False
-
-        # Send command to the target drones
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
             if hw_id in target_drones:
                 send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
 
-        # Turn on telemetry printing after sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = True
-
         return jsonify({'status': 'success', 'message': f'Command sent to drones {target_drones}'})
 
     except Exception as e:
-        # Log the error and return a response with an error message
         print(f"An error occurred while sending command: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
 

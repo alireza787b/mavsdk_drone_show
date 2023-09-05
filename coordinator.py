@@ -63,6 +63,18 @@ from src.drone_communicator import DroneCommunicator
 import math
 from src.params import Params 
 
+from enum import Enum
+
+class Mission(Enum):
+    NONE = 0
+    DRONE_SHOW_FROM_CSV = 1
+    SMART_SWARM = 2
+    TAKE_OFF = 10
+    LAND = 101
+    HOLD = 102
+    TEST = 100
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -189,36 +201,54 @@ def synchronize_time():
     else:
         print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
 
+def run_mission_script(script_name, *args):
+        cmd = ["python3", script_name] + list(map(str, args))
+        try:
+            completed_process = subprocess.run(cmd, check=True)
+            if completed_process.returncode == 0:
+                print(f"{script_name} executed successfully.")
+                return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error in executing {script_name}: {e}")
+        return False
         
-
-# Function to schedule the drone mission
 def schedule_mission():
-    # Constantly checks the current time vs trigger time
-    # If it's time to trigger, it opens the offboard_from_csv_multiple.py separately
-
     current_time = int(time.time())
-    #print(f"Current system time: {current_time}")
-    #print(f"Target Trigger Time: {drone_config.trigger_time}")
     
-    if drone_config.state == 1 and current_time >= drone_config.trigger_time:
-        print("Trigger time reached. Starting drone mission...")
-        # Reset the state and trigger time
-        drone_config.state = 2
-        drone_config.trigger_time = 0
+    success = False
 
-        # Check the mission code
-        if drone_config.mission == 1:  # For csv_droneshow
-            # Run the mission script in a new process
-            mission_process = subprocess.Popen(["python3", "offboard_multiple_from_csv.py"])
-            
-            # Note: Replace "offboard_from_csv_multiple.py" with the actual script for the drone mission
-        elif drone_config.mission == 2:  # For smart_swarm
-            print("Smart swarm mission should be started")
-            # You can add logic here to start the smart swarm mission
-            if(int(drone_config.swarm.get('follow')) != 0): 
-                # Run the async function
-                offboard_controller = OffboardController(drone_config)
-                asyncio.run(offboard_controller.start_offboard_follow())
+    if drone_config.mission in [1, 2]:
+        if drone_config.state == 1 and current_time >= drone_config.trigger_time:
+            print("Trigger time reached. Starting drone mission...")
+
+            # Reset the state and trigger time
+            drone_config.state = 2
+            drone_config.trigger_time = 0
+
+            if drone_config.mission == 1:
+                success = run_mission_script("offboard_multiple_from_csv.py")
+
+            elif drone_config.mission == 2:
+                success = run_mission_script("smart_swarm_mission.py")
+
+    elif drone_config.mission >= 10 and drone_config.mission < 100:
+        altitude = drone_config.mission % 10
+        if altitude > 50:
+            altitude = 50
+        success = run_mission_script("takeoff_mission.py", altitude)
+
+    elif drone_config.mission == 101:
+        success = run_mission_script("land_mission.py")
+
+    elif drone_config.mission == 102:
+        success = run_mission_script("hold_mission.py")
+
+    elif drone_config.mission == 100:
+        success = run_mission_script("test_mission.py")
+
+    if success:
+        # Reset mission to NONE after performing it
+        drone_config.mission = 0
             
 # Create 'logs' directory if it doesn't exist
 if not os.path.exists('logs'):

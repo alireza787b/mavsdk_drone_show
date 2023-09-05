@@ -61,6 +61,7 @@
     """
 
 import struct
+from enum import Enum
 
 
 class Params():
@@ -120,3 +121,11 @@ class Params():
     offboard_follow_update_interval = 0.2
 
 
+class Mission(Enum):
+    NONE = 0
+    DRONE_SHOW_FROM_CSV = 1
+    SMART_SWARM = 2
+    TAKE_OFF = 10
+    LAND = 101
+    HOLD = 102
+    TEST = 100

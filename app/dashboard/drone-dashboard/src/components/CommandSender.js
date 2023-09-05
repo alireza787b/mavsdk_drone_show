@@ -82,6 +82,54 @@ const handleTestAction = () => {
     alert('Test Action: Will arm the drones, wait for 3 seconds, then disarm.');
     // Here, you'll call your Python script for this action.
   };
+
+
+// Function to handle sending the Takeoff command
+const handleTakeoff = () => {
+    const commandData = {
+      missionType: 10 + parseInt(altitude, 10), // 10 for Takeoff and altitude
+      triggerTime: '0', // No delay for Takeoff
+    };
+  
+    sendCommandToServer(commandData);
+  };
+  
+  // Function to handle sending the Land All command
+  const handleLandAll = () => {
+    const commandData = {
+      missionType: 101, // 101 for Land All
+      triggerTime: '0', // No delay for Land
+    };
+  
+    sendCommandToServer(commandData);
+  };
+  
+  // Function to handle sending the Hold Position command
+  const handleHoldPosition = () => {
+    const commandData = {
+      missionType: 102, // 102 for Hold Position
+      triggerTime: '0', // No delay for Hold
+    };
+  
+    sendCommandToServer(commandData);
+  };
+  
+  // Function to send command to the server
+  const sendCommandToServer = (commandData) => {
+    axios.post(`${getBackendURL()}/send_command`, commandData)
+    .then((response) => {
+      if (response.data.status === 'success') {
+        alert('Command sent successfully!');
+      } else {
+        alert('Error sending command: ' + response.data.message);
+      }
+    })
+    .catch((error) => {
+      console.error('Error sending command:', error);
+      alert('Error sending command. Please check the console for more details.');
+    });
+  };
+
       return (
         <div className="command-sender">
                   <h1>Command Control</h1>  {/* Added title */}
@@ -129,26 +177,25 @@ const handleTestAction = () => {
           )}
     
     {activeTab === 'actions' && (
-        <div className="actions-content">
-             <div className="test-section">
-            <button className="action-button test-button" onClick={handleTestAction}>Test</button>
-          </div>
-          <div className="takeoff-section">
-            <label>
-              Initial Takeoff Altitude (m):&nbsp;
-              <input type="number" value={altitude} onChange={(e) => setAltitude(e.target.value)} className="altitude-input" />
-            </label>
-            <button className="action-button">Takeoff</button>
-          </div>
-          <div className="land-all-section">
-            <button className="action-button">Land All</button>
-          </div>
-          <div className="hold-position-section">
-            <button className="action-button hold-position">Hold Position</button>
-          </div>
-         
-        </div>
-      )}
+  <div className="actions-content">
+    <div className="test-section">
+      <button className="action-button test-button" onClick={handleTestAction}>Test</button>
+    </div>
+    <div className="takeoff-section">
+      <label>
+        Initial Takeoff Altitude (m):&nbsp;
+        <input type="number" value={altitude} onChange={(e) => setAltitude(e.target.value)} className="altitude-input" />
+      </label>
+      <button className="action-button" onClick={handleTakeoff}>Takeoff</button>
+    </div>
+    <div className="land-all-section">
+      <button className="action-button" onClick={handleLandAll}>Land All</button>
+    </div>
+    <div className="hold-position-section">
+      <button className="action-button hold-position" onClick={handleHoldPosition}>Hold Position</button>
+    </div>
+  </div>
+)}
     </div>
   );
 };
