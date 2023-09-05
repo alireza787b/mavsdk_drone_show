@@ -217,8 +217,6 @@ def run_mission_script(command):
 
 # Global variable to store the single OffboardController instance
 offboard_controller = None
-# Global variable to store the single OffboardController instance
-offboard_controller = None
 
 def schedule_mission():
     """
@@ -277,14 +275,14 @@ def schedule_mission():
         print("Starting Test")
         success = run_mission_script("python actions.py --action=test")
     
-   # Reset mission and state if successful
+    # Reset mission and state if successful
     if success:
-        if drone_config.mission == 2:  # If the mission is Smart Swarm
-            print("Mission completed successfully. Keeping mission and state codes.")
-        else:
-            print("Mission completed successfully. Resetting mission code and state.")
+        print("Mission completed successfully.")
+        if drone_config.mission != 2:  # Don't reset if it's a Smart Swarm mission
+            print("Resetting mission code and state.")
             drone_config.mission = 0
             drone_config.state = 0
+
 
 
 
