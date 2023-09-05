@@ -106,8 +106,7 @@ async def perform_action(action, altitude):
             print("Invalid action")
     finally:
         if state.is_connected:
-            await drone.action.disarm()
-            await drone.disconnect()
+            
             # Stop mavsdk_server
             stop_mavsdk_server(mavsdk_server)
 
