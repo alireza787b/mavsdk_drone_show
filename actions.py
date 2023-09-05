@@ -117,9 +117,11 @@ async def perform_action(action, altitude):
             await drone.action.arm()
             await drone.action.takeoff()
         elif action == "land":
-            await drone.action.land()
+            await drone.action.hold()  # Switch to Hold mode
+            await asyncio.sleep(1)  # Wait for a short period
+            await drone.action.land()  # Then execute land command
         elif action == "hold":
-            # Code to hold position
+            await drone.action.hold()  # Switch to Hold mode
             pass
         elif action == "test":
             await drone.action.arm()
