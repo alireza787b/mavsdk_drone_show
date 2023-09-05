@@ -124,7 +124,7 @@ class DroneCommunicator:
                 print(f"Takeoff command received. Altitude: {altitude}m")
                 
                 # Update mission code to default TAKE_OFF code after extracting altitude
-                self.drone_config.mission = 10  # Change this to your default TAKE_OFF code
+                self.drone_config.mission = mission  # Change this to your default TAKE_OFF code
                 
             elif mission == 1:
                 print("Drone Show command received.")

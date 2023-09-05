@@ -224,7 +224,7 @@ def schedule_mission():
                 success = run_mission_script("python offboard_multiple_from_csv.py")
             elif drone_config.mission == 2:
                 print("Starting Swarm Mission")  # Debug print
-                success = run_mission_script("python smart_swarm_mission.py")
+                # success = run_mission_script("python smart_swarm_mission.py")
 
     elif 10 <= drone_config.mission < 100:
         altitude = float(drone_config.mission) - 10
