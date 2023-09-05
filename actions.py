@@ -4,7 +4,7 @@ import csv
 from mavsdk import System
 import glob
 import os
-
+import subprocess
 
 
 
@@ -43,6 +43,16 @@ SIM_MODE = False  # or True based on your setting
 GRPC_PORT_BASE = 50041
 HW_ID = read_hw_id()
 
+def start_mavsdk_server(grpc_port, udp_port):
+    print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
+    mavsdk_server = subprocess.Popen(["mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    return mavsdk_server
+
+def stop_mavsdk_server(mavsdk_server):
+    print("Stopping mavsdk_server")
+    mavsdk_server.terminate()
+
+
 async def perform_action(action, altitude):
     print("Starting to perform action...")
     droneConfig = read_config()
@@ -61,7 +71,11 @@ async def perform_action(action, altitude):
         udp_port = int(droneConfig['udp_port'])
 
     print(f"UDP Port: {udp_port}")
-
+    
+    # Start mavsdk_server
+    mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
+    
+    
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
     print("Attempting to connect to drone...")
     await drone.connect(system_address=f"udp://:{udp_port}")
@@ -94,6 +108,8 @@ async def perform_action(action, altitude):
         if state.is_connected:
             await drone.action.disarm()
             await drone.disconnect()
+            # Stop mavsdk_server
+            stop_mavsdk_server(mavsdk_server)
 
 if __name__ == "__main__":
     # Parse command-line arguments
