@@ -82,6 +82,11 @@ logging.basicConfig(level=logging.INFO)
 # Global variable to store telemetry
 global_telemetry = {}
 
+
+# Global variable to store OffboardController instances
+offboard_controllers = {}
+
+
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
@@ -211,6 +216,8 @@ def run_mission_script(command):
         return False
 
 def schedule_mission():
+    global offboard_controllers  # Declare it as global to modify it
+
     # print("Ready For Command...")  # Debug print
     current_time = int(time.time())
     success = False
@@ -224,10 +231,10 @@ def schedule_mission():
                 success = run_mission_script("python offboard_multiple_from_csv.py")
             elif drone_config.mission == 2:
                 print("Starting Swarm Mission")  # Debug print
-                if(int(drone_config.swarm.get('follow')) != 0): 
-                    # Run the async function
-                    offboard_controller = OffboardController(drone_config)
-                    asyncio.run(offboard_controller.start_offboard_follow())
+                if int(drone_config.swarm.get('follow')) != 0): 
+                    if drone_config.id not in offboard_controllers:
+                        offboard_controllers[drone_config.id] = OffboardController(drone_config)
+                    asyncio.run(offboard_controllers[drone_config.id].start_offboard_follow())
                 success = 0
 
     elif 10 <= drone_config.mission < 100:
@@ -240,10 +247,11 @@ def schedule_mission():
     elif drone_config.mission == 101:
         print("Starting Land")
         if int(drone_config.swarm.get('follow')) != 0:  # Check if it's a follower
-            offboard_controller = OffboardController(drone_config)
-            if offboard_controller.is_offboard:  # Check if it's in offboard mode
-                asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
-                asyncio.sleep(1)  # Wait for a second
+            if drone_config.id in offboard_controllers:
+                offboard_controller = offboard_controllers[drone_config.id]
+                if offboard_controller.is_offboard:  # Check if it's in offboard mode
+                    asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
+                    asyncio.sleep(1)  # Wait for a second
             success = run_mission_script("python actions.py --action=land")  # Then land as usual
         else:
             success = run_mission_script("python actions.py --action=land")  # If not a follower, land as usual
