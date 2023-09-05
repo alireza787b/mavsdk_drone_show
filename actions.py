@@ -6,9 +6,7 @@ import glob
 import os
 
 
-SIM_MODE = False  # or True based on your setting
-GRPC_PORT_BASE = 50041
-HW_ID = read_hw_id()
+
 
 
 def read_hw_id():
@@ -37,6 +35,10 @@ def read_config(filename='config.csv'):
                     'grpc_port': debug_port
                 }
                 return droneConfig
+            
+SIM_MODE = False  # or True based on your setting
+GRPC_PORT_BASE = 50041
+HW_ID = read_hw_id()
 
 async def perform_action(action, altitude):
     """Connect to drone, perform action, then disconnect."""
