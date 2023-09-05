@@ -238,8 +238,16 @@ def schedule_mission():
         success = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
 
     elif drone_config.mission == 101:
-        print("Starting Land")  # Debug print
-        success = run_mission_script("python actions.py --action=land")
+        print("Starting Land")
+        if int(drone_config.swarm.get('follow')) != 0:  # Check if it's a follower
+            offboard_controller = OffboardController(drone_config)
+            if offboard_controller.is_offboard:  # Check if it's in offboard mode
+                asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
+                asyncio.sleep(1)  # Wait for a second
+            success = run_mission_script("python actions.py --action=land")  # Then land as usual
+        else:
+            success = run_mission_script("python actions.py --action=land")  # If not a follower, land as usual
+
 
     elif drone_config.mission == 102:
         print("Starting Hold Position")  # Debug print

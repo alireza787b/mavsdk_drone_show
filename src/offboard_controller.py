@@ -19,6 +19,8 @@ class OffboardController:
         self.drone = System(mavsdk_server_address, port)
         self.offboard_follow_update_interval = 0.2 # 200ms, adjust to your needs
         self.mavsdk_server_port = 50051
+        self.is_offboard = False  # Add this line
+
 
     def start_mavsdk_server(self, port):
         """
@@ -75,7 +77,9 @@ class OffboardController:
         """
         try:
             await self.drone.offboard.start()
-            logging.info("Offboard start")                    
+            logging.info("Offboard start")
+            self.is_offboard = True  # Set flag when offboard mode starts
+                 
         except OffboardError as error:
             logging.error(f"Starting offboard mode failed with error code: {error._result.result}")
             return
@@ -109,6 +113,8 @@ class OffboardController:
         finally:
             # Ensure MAVSDK server is stopped when this function ends
             self.stop_mavsdk_server()
+            self.is_offboard = False  # Clear flag when offboard mode stops
+
             
     async def start_offboard_follow(self):
         """
@@ -132,3 +138,14 @@ class OffboardController:
         await self.maintain_position_velocity()
 
 
+    async def stop_offboard(self):
+        await self.drone.offboard.stop()
+        self.is_offboard = False
+        print("Stopped Offboard Mode")
+
+    async def land_drone(self):
+        if self.is_offboard:
+            await self.stop_offboard()
+            await asyncio.sleep(1)  # Wait for a bit after stopping offboard mode
+        await self.drone.action.land()
+        print("Landing Drone")

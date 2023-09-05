@@ -7,7 +7,7 @@ import { getBackendURL } from '../utilities';
 import '../styles/Overview.css';
 
 // Constants for readability and maintainability
-const POLLING_RATE_HZ = 2;
+const POLLING_RATE_HZ = 4;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 const Overview = ({ setSelectedDrone }) => {
