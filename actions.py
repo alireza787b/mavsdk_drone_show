@@ -21,48 +21,58 @@ def read_hw_id():
         return None
 
 def read_config(filename='config.csv'):
+    print("Reading drone configuration...")
     dronesConfig = []
-    HW_ID = read_hw_id()
     with open(filename, newline='') as csvfile:
         reader = csv.reader(csvfile)
         next(reader, None)  # Skip the header
         for row in reader:
             hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
             if int(hw_id) == HW_ID:
+                print(f"Matching hardware ID found: {hw_id}")
                 droneConfig = {
                     'hw_id': hw_id,
                     'udp_port': mavlink_port,
                     'grpc_port': debug_port
                 }
+                print(f"Drone configuration: {droneConfig}")
                 return droneConfig
+    print("No matching hardware ID found in the configuration file.")
             
 SIM_MODE = False  # or True based on your setting
 GRPC_PORT_BASE = 50041
 HW_ID = read_hw_id()
 
 async def perform_action(action, altitude):
-    """Connect to drone, perform action, then disconnect."""
+    print("Starting to perform action...")
     droneConfig = read_config()
+    print(f"SIM_MODE: {SIM_MODE}, GRPC_PORT_BASE: {GRPC_PORT_BASE}, HW_ID: {HW_ID}")
+
     if (SIM_MODE == True):
         grpc_port = GRPC_PORT_BASE + HW_ID
     else:
         grpc_port = GRPC_PORT_BASE - 1
+
+    print(f"gRPC Port: {grpc_port}")
 
     if (SIM_MODE == False):
         udp_port = 14540  # Default API connection on the same hardware
     else:
         udp_port = int(droneConfig['udp_port'])
 
+    print(f"UDP Port: {udp_port}")
+
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
+    print("Attempting to connect to drone...")
     await drone.connect(system_address=f"udp://:{udp_port}")
 
-
-
-    # Ensure drone is connected
+    print("Checking connection state...")
     async for state in drone.core.connection_state():
         if state.is_connected:
             print(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
             break
+    else:
+        print("Could not establish a connection with the drone.")
 
     # Perform the action
     try:
