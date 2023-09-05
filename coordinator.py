@@ -228,7 +228,7 @@ def schedule_mission():
                     # Run the async function
                     offboard_controller = OffboardController(drone_config)
                     asyncio.run(offboard_controller.start_offboard_follow())
-                success = run_mission_script("python smart_swarm_mission.py")
+                success = 0
 
     elif 10 <= drone_config.mission < 100:
         altitude = float(drone_config.mission) - 10
