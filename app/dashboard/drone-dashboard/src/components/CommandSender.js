@@ -80,8 +80,13 @@ const CommandSender = () => {
 // Placeholder function for Test action
 const handleTestAction = () => {
     alert('Test Action: Will arm the drones, wait for 3 seconds, then disarm.');
-    // Here, you'll call your Python script for this action.
-  };
+    const commandData = {
+        missionType: 100, // 
+        triggerTime: '0', // No delay
+      };
+      console.log("Sending Test commandData:", commandData);  // Add this line
+      sendCommandToServer(commandData);
+      };
 
 
 // Function to handle sending the Takeoff command
