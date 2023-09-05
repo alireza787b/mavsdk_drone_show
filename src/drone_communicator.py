@@ -114,7 +114,6 @@ class DroneCommunicator:
             self.drone_config.hw_id = hw_id
             self.drone_config.pos_id = pos_id
             self.drone_config.state = state
-            self.drone_config.mission = mission
             self.drone_config.trigger_time = trigger_time
 
             # Handle TAKE_OFF with altitude
@@ -125,19 +124,31 @@ class DroneCommunicator:
                 print(f"Takeoff command received. Altitude: {altitude}m")
                 
                 # Update mission code to default TAKE_OFF code after extracting altitude
+                self.drone_config.mission = 10  # Change this to your default TAKE_OFF code
+                
+            elif mission == 1:
+                print("Drone Show command received.")
                 self.drone_config.mission = mission
+                
+            elif mission == 2:
+                print("Smart Swarm command received.")
+                self.drone_config.mission = mission
+                
             elif mission == self.params.Mission.LAND.value:
                 print("Land command received.")
                 self.drone_config.mission = mission
+                
             elif mission == self.params.Mission.HOLD.value:
                 print("Hold command received.")
                 self.drone_config.mission = mission
+                
             elif mission == self.params.Mission.TEST.value:
                 print("Test command received.")
                 self.drone_config.mission = mission
             else:
                 print(f"Unknown mission command received: {mission}")
                 self.drone_config.mission = self.params.Mission.NONE.value
+
 
 
 
