@@ -125,13 +125,13 @@ class DroneCommunicator:
                     altitude = 50
                 # Run the takeoff command logic here
                 print(f"Takeoff command received. Altitude: {altitude}m")
-            elif mission == self.params.LAND.value:
+            elif mission == self.params.Mission.LAND.value:
                 # Run the land command logic here
                 print("Land command received.")
-            elif mission == self.params.HOLD.value:
+            elif mission == self.params.Mission.HOLD.value:
                 # Run the hold command logic here
                 print("Hold command received.")
-            elif mission == self.params.TEST.value:
+            elif mission == self.params.Mission.TEST.value:
                 # Run the test command logic here
                 print("Test command received.")
 
