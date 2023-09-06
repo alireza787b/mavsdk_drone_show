@@ -15,12 +15,14 @@ class OffboardController:
         The constructor for OffboardController class.
         """
         self.drone_config = drone_config
-        self.mavsdk_server_process = self.start_mavsdk_server(port)
-        self.drone = System(mavsdk_server_address, port)
         self.offboard_follow_update_interval = 0.2 # 200ms, adjust to your needs
-        self.mavsdk_server_port = 50051
+        self.port = port
+        self.mavsdk_server_address = mavsdk_server_address
         self.is_offboard = False  # Add this line
 
+
+    def start_swarm(self):
+        self.is_offboard = True
 
     # Function to handle drone states
     def calculate_follow_setpoint(self):
@@ -49,6 +51,11 @@ class OffboardController:
             logging.info(f"Stopped MAVSDK server on port {self.port}")
 
     async def connect(self):
+        
+        self.mavsdk_server_process = self.start_mavsdk_server(self.port)
+        self.drone = System(self.mavsdk_server_address, self.port)
+        
+        
         """
         Connect to the drone.
         """
