@@ -247,10 +247,9 @@ def schedule_mission():
 
 
         
-        
 def main_loop():
-    global mavlink_manager  # Declare it as global
-    global params
+    global mavlink_manager, offboard_controller  # Declare them as global
+    offboard_controller = None  # Initialize to None
     try:
         synchronize_time()
         mavlink_manager = MavlinkManager(params, drone_config)
@@ -266,8 +265,8 @@ def main_loop():
         while True:
             current_time = time.time()
 
-            # Update follow setpoint at higher frequency
-            if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
+            # Update follow setpoint at higher frequency only if offboard_controller is initialized
+            if offboard_controller and (current_time - last_follow_setpoint_time >= follow_setpoint_interval):
                 offboard_controller.calculate_follow_setpoint()
                 last_follow_setpoint_time = current_time
 
@@ -291,6 +290,7 @@ def main_loop():
 
     print("Exiting the application...")
     logging.info("Exiting the application.")
+
 
 
 # Main function
