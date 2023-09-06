@@ -246,7 +246,9 @@ def schedule_mission():
 
 
 
-     def main_loop():
+        
+        
+def main_loop():
     global mavlink_manager  # Declare it as global
     try:
         synchronize_time()
@@ -288,3 +290,12 @@ def schedule_mission():
 
     print("Exiting the application...")
     logging.info("Exiting the application.")
+
+
+# Main function
+def main():
+    print("Starting the main function...")
+    main_loop()
+
+if __name__ == "__main__":
+    main()
