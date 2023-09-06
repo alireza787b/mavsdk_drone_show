@@ -74,10 +74,19 @@ class Mission(Enum):
     HOLD = 102
     TEST = 100
 
+# Create 'logs' directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 
+# Get current datetime to use in the filename
+now = datetime.datetime.now()
+current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+log_filename = os.path.join('logs', f'{current_time}.log')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 
 # Global variable to store telemetry
 global_telemetry = {}
@@ -175,7 +184,7 @@ def schedule_mission():
     current_time = int(time.time())
     success = False  # Initialize success flag
     
-    print(f"Current mission code: {drone_config.mission}, Current state: {drone_config.state}")  # Debug output
+    # print(f"Current mission code: {drone_config.mission}, Current state: {drone_config.state}")  # Debug output
     
     # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
     if drone_config.mission in [1, 2]:
@@ -238,17 +247,7 @@ def schedule_mission():
         
         
             
-# Create 'logs' directory if it doesn't exist
-if not os.path.exists('logs'):
-    os.makedirs('logs')
 
-# Get current datetime to use in the filename
-now = datetime.datetime.now()
-current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-
-# Set up logging
-log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # Main function
