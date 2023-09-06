@@ -277,3 +277,11 @@ def main_loop():
 
     print("Exiting the application...")
     logging.info("Exiting the application.")
+
+# Main function
+def main():
+    print("Starting the main function...")
+    main_loop()
+
+if __name__ == "__main__":
+    main()
