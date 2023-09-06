@@ -7,11 +7,10 @@ import time
 import asyncio
 from params import Params as params  # Assuming params is another module you have
 from offboard_controller import OffboardController
-
 class DroneSetup:
     
     
-    def __init__(self, drone_config, offboard_controller=None):
+    def __init__(self, params,drone_config, offboard_controller=None):
         self.drone_config = drone_config
         self.offboard_controller = offboard_controller
 

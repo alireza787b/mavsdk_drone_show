@@ -138,7 +138,7 @@ offboard_controller = None
 
 
 # Create a DroneSetup object
-drone_setup = DroneSetup(drone_config, offboard_controller)
+drone_setup = DroneSetup(params,drone_config, offboard_controller)
 
 
 
