@@ -8,7 +8,7 @@ import asyncio
 class DroneSetup:
     
     
-    def __init__(self, params,drone_config, offboard_controller=None):
+    def __init__(self, params,drone_config, offboard_controller):
         self.drone_config = drone_config
         self.offboard_controller = offboard_controller
         self.params = params
@@ -79,7 +79,7 @@ class DroneSetup:
                 elif self.drone_config.mission == 2:
                     logging.info("Starting Swarm Mission")
                     if int(self.drone_config.swarm.get('follow')) != 0:
-                        self.offboard_controller = OffboardController(self.drone_config)
+                        self.offboard_controller.start_swarm()
                         asyncio.run(self.offboard_controller.start_offboard_follow())
                     success, message = True, "Assumed success for Swarm Mission."
         

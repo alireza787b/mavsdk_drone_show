@@ -136,6 +136,8 @@ drone_comms.start_communication()
 offboard_controller = None
 
 
+offboard_controller = OffboardController(drone_config)
+
 
 # Create a DroneSetup object
 drone_setup = DroneSetup(params,drone_config, offboard_controller)
@@ -163,7 +165,7 @@ def main_loop():
             current_time = time.time()
 
             # Update follow setpoint at higher frequency only if offboard_controller is initialized
-            if offboard_controller and (current_time - last_follow_setpoint_time >= follow_setpoint_interval):
+            if int(drone_config.mission) ==2 and (current_time - last_follow_setpoint_time >= follow_setpoint_interval):
                 offboard_controller.calculate_follow_setpoint()
                 last_follow_setpoint_time = current_time
 
