@@ -1,0 +1,131 @@
+.command-sender {
+    margin: 20px;
+    padding: 20px;
+    border: 1px solid #ccc;
+  }
+  
+  .mission-control {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .mission-selection,
+  .time-delay,
+  .mission-actions {
+    flex: 1;
+    margin: 10px;
+  }
+  
+  .mission-dropdown,
+  .delay-input {
+    padding: 5px;
+    border: 1px solid #ccc;
+  }
+  
+  .mission-button {
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 5px;
+  }
+  
+  .mission-button.cancel-mission {
+    background-color: #dc3545;
+  }
+  .command-sender {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .tab-bar {
+    display: flex;
+    border-bottom: 2px solid #ccc;
+  }
+  
+  .tab-bar button {
+    flex: 1;
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+  }
+  
+  .tab-bar button.active {
+    border-bottom: 2px solid #007bff;
+    font-weight: 600;
+  }
+  
+  .mission-trigger-content, .actions-content {
+    margin-top: 20px;
+  }
+  
+  .mission-actions, .actions-content {
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .mission-button, .action-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .mission-button.send-command, .action-button {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .mission-button.cancel-mission {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .mission-button.send-command:hover, .action-button:hover {
+    background-color: #0056b3;
+  }
+  
+  .mission-button.cancel-mission:hover {
+    background-color: #da190b;
+  }
+  
+  .altitude-input {
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  /* ... existing styles ... */
+
+  .tab-bar button {
+    flex: 1 1;
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: #8f8f8f;  /* Adjusted to a darker grey for visibility */
+}
+
+  
+  .takeoff-section, .land-all-section, .hold-position-section {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .takeoff-section input, .land-all-section input {
+    margin-right: 10px;
+  }
+  
+  .action-button.hold-position {
+    background-color: #f44336; /* Red for hold position */
+  }
+  

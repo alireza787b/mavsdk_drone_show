@@ -142,6 +142,11 @@ class Mission(Enum):
     NONE = 0
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
+    TAKE_OFF = 10
+    LAND = 101
+    HOLD = 102
+    TEST = 100
+
 
 
 flask_telem_socket_port = 5000
@@ -156,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -183,12 +188,18 @@ else:
 # Function to send commands
 def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state):
     try:
+        # Debug: Log before sending command
+        logger.debug(f"Preparing to send command to HW_ID={hw_id}, POS_ID={pos_id}")
+
         # Prepare the command data
         header = 55  # Constant
         terminator = 66  # Constant
 
         # Encode the data
         data = struct.pack(command_struct_fmt, header, hw_id, pos_id, mission, state, trigger_time, terminator)
+
+        print(f"Sending command with mission code: {mission}")  # Add this line
+
 
         # Send the command data
         sock.sendto(data, (coordinator_ip, debug_port))
@@ -200,17 +211,47 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
 
 
 
+def retry_pending_commands():
+    while True:
+        time.sleep(1)  # Sleep for 1 second between each iteration
+        current_time = int(time.time())
+        with telemetry_lock:  # Lock to ensure thread safety
+            for hw_id, command_data in list(pending_commands.items()):  # Make a copy of items to safely modify the dictionary
+                if current_time - command_data['timestamp'] > 5:  # If more than 5 seconds have passed
+                    if command_data['retries'] < 5:  # Maximum of 5 retries
+                        # Resend the command (You'll need to adjust this part to fit your actual send_command function)
+                        send_command(command_data['trigger_time'], sock, coordinator_ip, debug_port, hw_id, pos_id, command_data['mission'], command_data['state'])
+                        # Update the number of retries and timestamp
+                        command_data['retries'] += 1
+                        command_data['timestamp'] = current_time
+                    else:
+                        # Remove this command from pending_commands if max retries reached
+                        del pending_commands[hw_id]
+
+def get_optional_altitude(mission):
+    if 10 <= mission < 60:  # Range for takeoff commands with altitude
+        return f" (Altitude: {mission % 10}m)"
+    return ""
+
+
 def handle_telemetry(keep_running, print_telemetry, sock):
     """
     This function continuously receives and handles telemetry data.
+    It updates the global telemetry data and checks for any pending commands
+    that have been successfully executed.
 
     :param keep_running: A control flag for the while loop. 
                          When it's False, the function stops receiving data.
     :param print_telemetry: A flag to control if the telemetry data should be printed.
     :param sock: The socket from which data will be received.
     """
+    global telemetry_data_all_drones  # Declare it as global so that we can modify it
+    global pending_commands  # Declare it as global so that we can modify it
+
     while keep_running[0]:
         try:
+            # Debug: Log at the beginning of receiving telemetry
+            logger.debug("Waiting to receive telemetry data...")
             # Receive telemetry data
             data, addr = sock.recvfrom(1024)
 
@@ -222,13 +263,19 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # Decode the data
             telemetry_data = struct.unpack(telem_struct_fmt, data)
             header, terminator = telemetry_data[0], telemetry_data[-1]
-            hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode,telemetry_update_time = telemetry_data[1:-1]
-
+            hw_id, pos_id, state, mission, trigger_time, position_lat, position_long, position_alt, velocity_north, velocity_east, velocity_down, yaw, battery_voltage, follow_mode, telemetry_update_time = telemetry_data[1:-1]
+                        # Inside your existing code
+            if 10 <= mission < 60:
+                optional_altitude = get_optional_altitude(mission)
+                mission = 10  # Resetting mission to the default takeoff code
+                logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}{optional_altitude}, Trigger Time={trigger_time}")
+            else:
+                logger.debug(f"Unpacked Telemetry: HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}")
             # If header or terminator are not as expected, log the error and continue
             if header != 77 or terminator != 88:
                 logger.error("Invalid header or terminator received in telemetry data.")
                 continue
-            
+
             # Forwarding the received telemetry data to the specified IPs
             for ip in FORWARDING_IPS:
                 try:
@@ -236,9 +283,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
                 except Exception as e:
                     logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
 
-
-
-            global telemetry_data_all_drones
+            # Update global telemetry data for all drones
             with telemetry_lock:
                 telemetry_data_all_drones[hw_id] = {
                     'Pos_ID': pos_id,
@@ -255,17 +300,26 @@ def handle_telemetry(keep_running, print_telemetry, sock):
                     'Follow_Mode': follow_mode,
                     'Update_Time': telemetry_update_time
                 }
+            
+            # Check for pending commands
+            with telemetry_lock:
+                if hw_id in pending_commands:
+                    logger.debug(f"Found pending command for HW_ID={hw_id}. Checking...")
 
+                    pending_command = pending_commands[hw_id]
+                    if pending_command['mission'] == Mission(mission).name and pending_command['state'] == State(state).name and pending_command['trigger_time'] == trigger_time:
+                        # Remove this command from the pending commands as it has been successfully executed
+                        del pending_commands[hw_id]
+            
             # If the print_telemetry flag is True, print the decoded data
             if print_telemetry[0]:
                 # Debug log with all details
-                logger.info(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
+                logger.debug(f"Received telemetry at {telemetry_update_time}: Header={header}, HW_ID={hw_id}, Pos_ID={pos_id}, State={State(state).name}, Mission={Mission(mission).name}, Trigger Time={trigger_time}, Position Lat={position_lat}, Position Long={position_long}, Position Alt={position_alt:.1f}, Velocity North={velocity_north:.1f}, Velocity East={velocity_east:.1f}, Velocity Down={velocity_down:.1f}, Yaw={yaw:.1f}, Battery Voltage={battery_voltage:.1f}, Follow Mode={follow_mode}, Terminator={terminator}")
                 
         except (OSError, struct.error) as e:
             # If there is an OSError or an error in unpacking the data, log the error and break the loop
             logger.error(f"An error occurred: {e}")
             break
-
 
 # Drones threads
 drones_threads = []
@@ -273,6 +327,9 @@ drones_threads = []
 # This flag indicates if the telemetry threads should keep running.
 # We use a list so the changes in the main thread can be seen by the telemetry threads.
 keep_running = [True]
+
+# Dictionary to hold pending commands for each drone
+pending_commands = {}  # Key: hw_id, Value: {'mission': mission, 'state': state, 'trigger_time': trigger_time, 'retries': 0, 'timestamp': timestamp}
 
 
 
@@ -287,37 +344,41 @@ def get_telemetry():
     with telemetry_lock:
         return jsonify(telemetry_data_all_drones)
 
-@app.route('/send_command', methods=['POST'])
-def send_command_to_all_drones():
+@app.route('/send_command', defaults={'drone_ids': 'all'}, methods=['POST'])
+@app.route('/send_command/<drone_ids>', methods=['POST'])
+def send_command_to_drones(drone_ids):
     try:
-        # Get the command data from the request
         command_data = request.get_json()
+        print(request.json)  # Debug line
 
-        # Extract the mission type and time delay
         mission_type = command_data['missionType']
         trigger_time = int(command_data['triggerTime'])
-
-        # Convert mission type and state
+        
+        # Here you can process altitude from the mission code if it's a TAKEOFF command
+        if mission_type == 10:  # Assuming 10 is the code for TAKEOFF
+            altitude = command_data.get('altitude', 10)
+            if altitude > 50:
+                altitude = 50
+            mission_type += altitude  # Add the altitude to the mission_type
+        
         mission, state = convert_mission_type(mission_type)
 
-        # Turn off telemetry printing while sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = False
+        if drone_ids == 'all':
+            target_drones = [hw_id for _, _, _, _, hw_id, _ in drones_threads]
+        else:
+            target_drones = list(map(int, drone_ids.split(',')))
 
-        # Send command to each drone
         for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+            if hw_id in target_drones:
+                send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
 
-        # Turn on telemetry printing after sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = True
-
-        return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
+        return jsonify({'status': 'success', 'message': f'Command sent to drones {target_drones}'})
 
     except Exception as e:
-        # Log the error and return a response with an error message
         print(f"An error occurred while sending command: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
+
+
     
     
 @app.route('/save-swarm-data', methods=['POST'])
@@ -486,18 +547,36 @@ def get_first_last_row(hw_id):
 
 # Function to convert mission type to mission and state values
 def convert_mission_type(mission_type):
-    if mission_type == 's':
-        return 2, 1
-    elif mission_type == 'd':
-        return 1, 1
-    elif mission_type == 'n':
-        return 0, 0
+    if isinstance(mission_type, str):
+        if mission_type == 's':
+            return 2, 1  # Smart Swarm
+        elif mission_type == 'd':
+            return 1, 1  # Drone Show
+        elif mission_type == 'n':
+            return 0, 0  # Cancel Mission/Disarm
+        else:
+            return 0, 0  # Invalid command
+    elif isinstance(mission_type, int):
+        if 10 <= mission_type <= 60:  # Takeoff to specific altitude
+            return mission_type, 1
+        elif mission_type == 101:  # Land
+            return mission_type, 1
+        elif mission_type == 102:  # Hold Position
+            return mission_type, 1
+        elif mission_type == 100:  # Test
+            return mission_type, 1
+        else:
+            return 0, 0  # Invalid command
     else:
-        return 0, 0
+        return 0, 0  # Invalid command
+
 
 
 
 def run_flask():
+    # Start the retry thread
+    retry_thread = Thread(target=retry_pending_commands)
+    retry_thread.start()
     app.run(host='0.0.0.0', port=flask_telem_socket_port)
 
 flask_thread = Thread(target=run_flask)
