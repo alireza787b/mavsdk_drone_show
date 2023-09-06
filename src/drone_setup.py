@@ -12,6 +12,8 @@ class DroneSetup:
         self.drone_config = drone_config
         self.offboard_controller = offboard_controller
         self.params = params
+        self.last_logged_mission = None  # Add this line
+        self.last_logged_state = None  # Add this line
 
     def synchronize_time(self):
         if self.params.online_sync_time:
@@ -110,13 +112,19 @@ class DroneSetup:
             logging.info("Starting Test")
             success, message = self.run_mission_script("python actions.py --action=test")
         
-        # Log the outcome
-        if self.drone_config.mission != (0,1,2):  # Only log if a mission is active
-            if success:
-                logging.info(message)
-            else:
-                logging.error(f"Error: {message}")
-        
+        # Log the outcome only once for each mission code or state change
+        if (self.last_logged_mission != self.drone_config.mission) or \
+           (self.last_logged_state != self.drone_config.state):
+            if message:  # Only log if there's a message to display
+                if success:
+                    logging.info(message)
+                else:
+                    logging.error(f"Error: {message}")
+
+            # Update the last logged mission and state
+            self.last_logged_mission = self.drone_config.mission
+            self.last_logged_state = self.drone_config.state
+
         # Reset mission and state if successful
         if success:
             if self.drone_config.mission != 2:  # Don't reset if it's a Smart Swarm mission
