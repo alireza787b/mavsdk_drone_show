@@ -5,17 +5,16 @@ import subprocess
 import logging
 import time
 import asyncio
-from offboard_controller import OffboardController
 class DroneSetup:
     
     
     def __init__(self, params,drone_config, offboard_controller=None):
         self.drone_config = drone_config
         self.offboard_controller = offboard_controller
+        self.params = params
 
-    @staticmethod
-    def synchronize_time():
-        if params.online_sync_time:
+    def synchronize_time(self):
+        if self.params.online_sync_time:
             logging.info(f"Current system time before synchronization: {datetime.datetime.now()}")
             logging.info("Attempting to synchronize time with a reliable internet source...")
             
@@ -40,8 +39,7 @@ class DroneSetup:
             logging.info(f"Using Current System Time without online synchronization: {datetime.datetime.now()}")
 
 
-    @staticmethod
-    def run_mission_script(command, subprocess_module=subprocess):
+    def run_mission_script(self,command, subprocess_module=subprocess):
         """
         Runs the given mission script and returns a tuple (status, message).
         Status is a boolean indicating success (True) or failure (False).
