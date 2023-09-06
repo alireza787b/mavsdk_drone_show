@@ -5,7 +5,6 @@ import subprocess
 import logging
 import time
 import asyncio
-from params import Params as params  # Assuming params is another module you have
 from offboard_controller import OffboardController
 class DroneSetup:
     
