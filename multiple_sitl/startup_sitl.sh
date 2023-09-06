@@ -153,3 +153,5 @@ echo "All processes have been initialized."
 echo "Press Ctrl+C to stop the simulation process."
 wait $simulation_pid
 
+tail -f /dev/null
+
