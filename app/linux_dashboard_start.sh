@@ -21,7 +21,7 @@ port_in_use() {
 SCRIPT_DIR="$(dirname "$0")"
 
 # Check Python version and set appropriate alias
-PYTHON_CMD=python
+PYTHON_CMD=python3
 if command -v python3 &>/dev/null; then
     PYTHON_CMD=python3
 fi
