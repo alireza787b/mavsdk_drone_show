@@ -22,6 +22,11 @@ class OffboardController:
         self.is_offboard = False  # Add this line
 
 
+    # Function to handle drone states
+    def calculate_follow_setpoint(self):
+        if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
+            self.drone_config.calculate_setpoints()
+
     def start_mavsdk_server(self, port):
         """
         Start the MAVSDK server

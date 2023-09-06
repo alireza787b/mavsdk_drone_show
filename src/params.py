@@ -121,6 +121,10 @@ class Params():
     offboard_follow_update_interval = 0.2
 
 
+    schedule_mission_frequency = 2
+    follow_mission_frequency = 4
+
+
     class Mission(Enum):
         NONE = 0
         DRONE_SHOW_FROM_CSV = 1

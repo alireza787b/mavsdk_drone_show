@@ -47,15 +47,12 @@ from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
 import logging
 import struct
-import csv
 import glob
 import requests
 from geographiclib.geodesic import Geodesic
 from mavsdk import System
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 from src.offboard_controller import OffboardController
-import os
-import datetime
 import logging
 import src.params as params
 import struct
@@ -114,14 +111,6 @@ drone_config = DroneConfig(drones)
 
 
  
-
-
-
-
-
-
-
-
 
 
 # Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
@@ -256,13 +245,8 @@ def schedule_mission():
 
 
 
-# Function to handle drone states
-def handle_follow_setpoint():
-    if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-        drone_config.calculate_setpoints()
-        
-        
-def main_loop():
+
+     def main_loop():
     global mavlink_manager  # Declare it as global
     try:
         synchronize_time()
@@ -271,9 +255,24 @@ def main_loop():
         mavlink_manager.initialize()  # Use MavlinkManager's initialize method
         time.sleep(2)
 
+        last_follow_setpoint_time = 0
+        last_schedule_mission_time = 0
+        follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency  # time in seconds
+        schedule_mission_interval = 1.0 / params.schedule_mission_frequency  # time in seconds
+
         while True:
-            handle_follow_setpoint()
-            schedule_mission()
+            current_time = time.time()
+
+            # Update follow setpoint at higher frequency
+            if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
+                offboard_controller.calculate_follow_setpoint()
+                last_follow_setpoint_time = current_time
+
+            # Schedule mission at lower frequency
+            if current_time - last_schedule_mission_time >= schedule_mission_interval:
+                schedule_mission()
+                last_schedule_mission_time = current_time
+
             time.sleep(params.sleep_interval)
 
     except Exception as e:
@@ -289,11 +288,3 @@ def main_loop():
 
     print("Exiting the application...")
     logging.info("Exiting the application.")
-
-# Main function
-def main():
-    print("Starting the main function...")
-    main_loop()
-
-if __name__ == "__main__":
-    main()
