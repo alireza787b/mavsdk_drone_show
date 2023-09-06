@@ -122,7 +122,7 @@ class Params():
 
 
     schedule_mission_frequency = 2
-    follow_mission_frequency = 4
+    follow_setpoint_frequency = 4
 
 
     class Mission(Enum):
