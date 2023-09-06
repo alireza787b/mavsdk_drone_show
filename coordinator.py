@@ -239,10 +239,11 @@ def schedule_mission():
         success, message = run_mission_script("python actions.py --action=test")
     
     # Log the outcome
-    if success:
-        print(message)
-    else:
-        print(f"Error: {message}")
+    if drone_config.mission != 0:  # Only log if a mission is active
+        if success:
+            print(message)
+        else:
+            print(f"Error: {message}")
     
     # Reset mission and state if successful
     if success:
