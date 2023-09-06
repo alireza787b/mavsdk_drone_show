@@ -137,7 +137,15 @@ cd ~/PX4-Autopilot
 hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
 hwid=$(echo $hwid_file | cut -d'.' -f2)
 export px4_instance=$hwid-1
+
+if [[ $SIMULATION_COMMAND == HEADLESS* ]]; then
+    HEADLESS=1
+    SIMULATION_COMMAND="make px4_sitl gazebo"
+fi
+
+export HEADLESS
 $SIMULATION_COMMAND &
+
 
 # Record the PID of the simulation process
 simulation_pid=$!
