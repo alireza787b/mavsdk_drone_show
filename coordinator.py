@@ -61,6 +61,7 @@ import math
 from src.params import Params 
 from src.mavlink_manager import MavlinkManager
 from enum import Enum
+from src.drone_setup import DroneSetup
 
 class Mission(Enum):
     NONE = 0
@@ -125,124 +126,19 @@ drone_comms.start_communication()
 
 
 
-# Function to synchronize time with a reliable internet source
-def synchronize_time():
-    # Report current time before sync
 
-    if(params.online_sync_time):
-        print(f"Current system time before synchronization: {datetime.datetime.now()}")
-        # Attempt to get the time from a reliable source
-        print("Attempting to synchronize time with a reliable internet source...")
-        response = requests.get("http://worldtimeapi.org/api/ip")
-        
-        if response.status_code == 200:
-            # Time server and result
-            server_used = response.json()["client_ip"]
-            current_time = response.json()["datetime"]
-            print(f"Time server used: {server_used}")
-            print(f"Time reported by server: {current_time}")
-            
-            # Set this time as system time
-            print("Setting system time...")
-            os.system(f"sudo date -s '{current_time}'")
-            
-            # Report current time after sync
-            print(f"Current system time after synchronization: {datetime.datetime.now()}")
-        else:
-            print("Failed to sync time with an internet source.")
-    else:
-        print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
         
         
-def run_mission_script(command, subprocess_module=subprocess):
-    """
-    Runs the given mission script and returns a tuple (status, message).
-    Status is a boolean indicating success (True) or failure (False).
-    Message is a string describing the outcome or error.
-    """
-    try:
-        subprocess_module.run(command.split(), check=True)
-        return True, "Mission script completed successfully."
-    except subprocess_module.CalledProcessError as e:
-        return False, f"Mission script encountered an error: {e}"
+
 
 
 # Global variable to store the single OffboardController instance
 offboard_controller = None
 
-def schedule_mission():
-    """
-    Schedule and execute various drone missions based on the current mission code and state.
-    """
-    global offboard_controller  # Declare it as global to modify it
-    
-    # Get the current time
-    current_time = int(time.time())
-    
-    # Initialize success flag and message
-    success = False
-    message = ""
-    
-    # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
-    if drone_config.mission in [1, 2]:
-        if drone_config.state == 1 and current_time >= drone_config.trigger_time:
-            # Update state and reset trigger time
-            drone_config.state = 2
-            drone_config.trigger_time = 0
-            
-            if drone_config.mission == 1:
-                print("Starting Drone Show")
-                success, message = run_mission_script("python offboard_multiple_from_csv.py")
-            elif drone_config.mission == 2:
-                print("Starting Swarm Mission")
-                if int(drone_config.swarm.get('follow')) != 0:
-                    offboard_controller = OffboardController(drone_config)
-                    asyncio.run(offboard_controller.start_offboard_follow())
-                success, message = True, "Assumed success for Swarm Mission."
-    
-    # If the mission is to take off to a certain altitude
-    elif 10 <= drone_config.mission < 100:
-        altitude = float(drone_config.mission) - 10
-        altitude = min(altitude, 50)  # Limit altitude to 50m
-        print(f"Starting Takeoff to {altitude}m")
-        success, message = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
-    
-    # If the mission is to land
-    elif drone_config.mission == 101:
-        print("Starting Land")
-        if int(drone_config.swarm.get('follow')) != 0 and offboard_controller:  # Check if it's a follower
-            if offboard_controller.is_offboard:  # Check if it's in offboard mode
-                print("Is in Offboard mode. Attempting to stop offboard.")
-                asyncio.run(offboard_controller.stop_offboard())
-                asyncio.sleep(1)
-        success, message = run_mission_script("python actions.py --action=land")
-    
-    # If the mission is to hold the position
-    elif drone_config.mission == 102:
-        print("Starting Hold Position")
-        success, message = run_mission_script("python actions.py --action=hold")
-    
-    # If the mission is a test
-    elif drone_config.mission == 100:
-        print("Starting Test")
-        success, message = run_mission_script("python actions.py --action=test")
-    
-    # Log the outcome
-    if drone_config.mission != 0:  # Only log if a mission is active
-        if success:
-            print(message)
-        else:
-            print(f"Error: {message}")
-    
-    # Reset mission and state if successful
-    if success:
-        if drone_config.mission != 2:  # Don't reset if it's a Smart Swarm mission
-            print("Resetting mission code and state.")
-            drone_config.mission = 0
-            drone_config.state = 0
 
 
-
+# Create a DroneSetup object
+drone_setup = DroneSetup(drone_config, offboard_controller)
 
 
 
@@ -251,7 +147,8 @@ def main_loop():
     global mavlink_manager, offboard_controller  # Declare them as global
     offboard_controller = None  # Initialize to None
     try:
-        synchronize_time()
+        DroneSetup.synchronize_time()
+
         mavlink_manager = MavlinkManager(params, drone_config)
         print("Initializing MAVLink...")
         mavlink_manager.initialize()  # Use MavlinkManager's initialize method
@@ -272,7 +169,7 @@ def main_loop():
 
             # Schedule mission at lower frequency
             if current_time - last_schedule_mission_time >= schedule_mission_interval:
-                schedule_mission()
+                drone_setup.schedule_mission()
                 last_schedule_mission_time = current_time
 
             time.sleep(params.sleep_interval)
