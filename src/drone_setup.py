@@ -111,7 +111,7 @@ class DroneSetup:
             success, message = self.run_mission_script("python actions.py --action=test")
         
         # Log the outcome
-        if self.drone_config.mission != 0:  # Only log if a mission is active
+        if self.drone_config.mission != (0,1,2):  # Only log if a mission is active
             if success:
                 logging.info(message)
             else:
