@@ -1,22 +1,13 @@
 #!/bin/bash
 
 echo "Welcome to the SITL Startup Script for MAVSDK_Drone_Show!"
-echo ""
-echo "This script will do the following:"
-echo "1. Wait for the .hwID file to be present."
-echo "2. Pull the latest changes from the repository."
-echo "3. Check Python requirements and install if necessary."
-echo "4. Set the MAV_SYS_ID using set_sys_id.py."
-echo "5. Start the SITL simulation process based on the chosen environment."
-echo "6. Start the coordinator.py process."
-echo ""
-echo "Please wait as the script initializes the necessary components..."
-echo ""
+# ... [The rest of your introductory messages]
 
 # Function to handle SIGINT
 cleanup() {
   echo "Received interrupt, terminating background processes..."
   kill $simulation_pid
+  kill $coordinator_pid
   exit 0
 }
 
@@ -140,18 +131,30 @@ pip install -r requirements.txt
 echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
 
-# Start the SITL simulation
-echo "Starting the simulation process in a new terminal window..."
-gnome-terminal -- bash -c "cd ~/PX4-Autopilot; hwid_file=\$(find ~/mavsdk_drone_show -name '*.hwID'); hwid=\$(echo \$hwid_file | cut -d'.' -f2); export px4_instance=\$hwid-1; $SIMULATION_COMMAND; bash" &
+# Start the SITL simulation in the background
+echo "Starting the SITL simulation process..."
+cd ~/PX4-Autopilot
+hwid_file=$(find ~/mavsdk_drone_show -name '*.hwID')
+hwid=$(echo $hwid_file | cut -d'.' -f2)
+export px4_instance=$hwid-1
+$SIMULATION_COMMAND &
+
+# Record the PID of the simulation process
 simulation_pid=$!
 
-# Start the coordinator.py process
-echo "Starting the coordinator.py process in another new terminal window..."
-gnome-terminal -- bash -c "python3 ~/mavsdk_drone_show/coordinator.py; bash" &
+# Start the coordinator.py process in the background
+echo "Starting the coordinator.py process..."
+cd ~/mavsdk_drone_show
+python3 ~/mavsdk_drone_show/coordinator.py &
+
+# Record the PID of the coordinator process
+coordinator_pid=$!
 
 echo "All processes have been initialized."
-echo "Press Ctrl+C to stop the simulation process."
+echo "Press Ctrl+C to stop the simulation and coordinator processes."
+
+# Wait for the simulation to complete
 wait $simulation_pid
 
+# Keep the script running to maintain background processes
 tail -f /dev/null
-
