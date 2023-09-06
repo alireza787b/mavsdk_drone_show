@@ -250,6 +250,7 @@ def schedule_mission():
         
 def main_loop():
     global mavlink_manager  # Declare it as global
+    global params
     try:
         synchronize_time()
         mavlink_manager = MavlinkManager(params, drone_config)
