@@ -163,15 +163,20 @@ def synchronize_time():
             print("Failed to sync time with an internet source.")
     else:
         print(f"Using Current System Time witout Online synchronization: {datetime.datetime.now()}")
-def run_mission_script(command):
-    print(f"Running mission script: {command}")  # Debug print
+        
+        
+def run_mission_script(command, subprocess_module=subprocess):
+    """
+    Runs the given mission script and returns a tuple (status, message).
+    Status is a boolean indicating success (True) or failure (False).
+    Message is a string describing the outcome or error.
+    """
     try:
-        subprocess.run(command.split(), check=True)
-        print("Mission script completed successfully.")  # Debug print
-        return True
-    except subprocess.CalledProcessError:
-        print("Mission script encountered an error.")  # Debug print
-        return False
+        subprocess_module.run(command.split(), check=True)
+        return True, "Mission script completed successfully."
+    except subprocess_module.CalledProcessError as e:
+        return False, f"Mission script encountered an error: {e}"
+
 
 # Global variable to store the single OffboardController instance
 offboard_controller = None
@@ -184,9 +189,10 @@ def schedule_mission():
     
     # Get the current time
     current_time = int(time.time())
-    success = False  # Initialize success flag
     
-    # print(f"Current mission code: {drone_config.mission}, Current state: {drone_config.state}")  # Debug output
+    # Initialize success flag and message
+    success = False
+    message = ""
     
     # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
     if drone_config.mission in [1, 2]:
@@ -197,49 +203,54 @@ def schedule_mission():
             
             if drone_config.mission == 1:
                 print("Starting Drone Show")
-                success = run_mission_script("python offboard_multiple_from_csv.py")
+                success, message = run_mission_script("python offboard_multiple_from_csv.py")
             elif drone_config.mission == 2:
                 print("Starting Swarm Mission")
                 if int(drone_config.swarm.get('follow')) != 0:
                     offboard_controller = OffboardController(drone_config)
                     asyncio.run(offboard_controller.start_offboard_follow())
-                success = True  # Assume success for now
+                success, message = True, "Assumed success for Swarm Mission."
     
     # If the mission is to take off to a certain altitude
     elif 10 <= drone_config.mission < 100:
         altitude = float(drone_config.mission) - 10
         altitude = min(altitude, 50)  # Limit altitude to 50m
         print(f"Starting Takeoff to {altitude}m")
-        success = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
+        success, message = run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
     
     # If the mission is to land
     elif drone_config.mission == 101:
         print("Starting Land")
         if int(drone_config.swarm.get('follow')) != 0 and offboard_controller:  # Check if it's a follower
-            print("Is a follower and offboard_controller exists.")  # Debug output
             if offboard_controller.is_offboard:  # Check if it's in offboard mode
-                print("Is in Offboard mode. Attempting to stop offboard.")  # Debug output
-                asyncio.run(offboard_controller.stop_offboard())  # Stop offboard
-                asyncio.sleep(1)  # Wait for a second
-        success = run_mission_script("python actions.py --action=land")
+                print("Is in Offboard mode. Attempting to stop offboard.")
+                asyncio.run(offboard_controller.stop_offboard())
+                asyncio.sleep(1)
+        success, message = run_mission_script("python actions.py --action=land")
     
     # If the mission is to hold the position
     elif drone_config.mission == 102:
         print("Starting Hold Position")
-        success = run_mission_script("python actions.py --action=hold")
+        success, message = run_mission_script("python actions.py --action=hold")
     
     # If the mission is a test
     elif drone_config.mission == 100:
         print("Starting Test")
-        success = run_mission_script("python actions.py --action=test")
+        success, message = run_mission_script("python actions.py --action=test")
+    
+    # Log the outcome
+    if success:
+        print(message)
+    else:
+        print(f"Error: {message}")
     
     # Reset mission and state if successful
     if success:
-        print("Mission completed successfully.")
         if drone_config.mission != 2:  # Don't reset if it's a Smart Swarm mission
             print("Resetting mission code and state.")
             drone_config.mission = 0
             drone_config.state = 0
+
 
 
 
