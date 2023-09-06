@@ -88,6 +88,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 
+mavlink_manager = None
+
 # Global variable to store telemetry
 global_telemetry = {}
 
@@ -242,52 +244,36 @@ def schedule_mission():
 
 
 
-
+# Function to handle drone states
+def handle_follow_setpoint():
+    if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
+        drone_config.calculate_setpoints()
         
         
-        
-            
-
-
-
-# Main function
-def main():
-    print("Starting the main function...")
-
+def main_loop():
+    global mavlink_manager  # Declare it as global
     try:
-        # Synchronize time once
-        print("Synchronizing time...")
         synchronize_time()
-
-        # Initialize MAVLink
-        print("Initializing MAVLink...")
         mavlink_manager = MavlinkManager(params, drone_config)
-        mavlink_manager.initialize()
+        print("Initializing MAVLink...")
+        mavlink_manager.initialize()  # Use MavlinkManager's initialize method
         time.sleep(2)
 
-        # Enter a loop where the application will continue running
         while True:
-            # Get the drone state
-            #drone_state = get_drone_state()
-
-            if drone_config.mission == 2 and drone_config.state != 0 and int(drone_config.swarm.get('follow')) != 0:
-                drone_config.calculate_setpoints()
-            
-            # Schedule the drone mission if the trigger time has been reached
+            handle_follow_setpoint()
             schedule_mission()
-
-            # Sleep for a short interval to prevent the loop from running too fast
             time.sleep(params.sleep_interval)
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
+
     finally:
-        # Close the threads before the application closes
         print("Closing threads...")
+        if mavlink_manager:
+            mavlink_manager.terminate()  # Terminate MavlinkManager
         drone_comms.stop_communication()
-        mavlink_manager.terminate()
+        logging.info("Closing threads and stopping communication.")
 
     print("Exiting the application...")
-
-if __name__ == "__main__":
-    main()
+    logging.info("Exiting the application.")
