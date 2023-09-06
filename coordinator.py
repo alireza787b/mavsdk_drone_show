@@ -147,7 +147,6 @@ drone_setup = DroneSetup(params,drone_config, offboard_controller)
         
 def main_loop():
     global mavlink_manager, offboard_controller  # Declare them as global
-    offboard_controller = None  # Initialize to None
     try:
         drone_setup.synchronize_time()
 
