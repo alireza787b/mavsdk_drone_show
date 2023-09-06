@@ -62,7 +62,7 @@ import struct
 from src.drone_communicator import DroneCommunicator
 import math
 from src.params import Params 
-
+from src.mavlink_manager import MavlinkManager
 from enum import Enum
 
 class Mission(Enum):
@@ -109,59 +109,6 @@ drone_config = DroneConfig(drones)
 
 
 
-# Function to initialize MAVLink connection
-def initialize_mavlink():
-
-    # Depending on the sim_mode, connect to either the SITL or the Raspberry Pi GPIO serial
-    if params.sim_mode:
-        print("Sim mode is enabled. Connecting to SITL...")
-        if (params.default_sitl == True):
-            mavlink_source = f"0.0.0.0:{params.sitl_port}"
-        else:
-            mavlink_source = f"0.0.0.0:{drone_config.config['mavlink_port']}"
-    else:
-        if(params.serial_mavlink==True):
-            print("Real mode is enabled. Connecting to Pixhawk via serial...")
-            mavlink_source = f"/dev/{params.serial_mavlink}:{params.serial_baudrate}"
-        else:
-            print("Real mode is enabled. Connecting to Pixhawk via UDP...")
-            mavlink_source = f"127.0.0.1:{params.sitl_port}"
-
-    # Prepare endpoints for mavlink-router
-    endpoints = [f"-e {device}" for device in params.extra_devices]
-
-    if params.sim_mode:
-        # In sim mode, route the MAVLink messages to the GCS locally
-        endpoints.append(f"-e {drone_config.config['gcs_ip']}:{params.mavsdk_port}")
-    else:
-        # In real life, route the MAVLink messages to the GCS and other drones over a Zerotier network
-        if(params.shared_gcs_port):
-            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{params.gcs_mavlink_port}")
-        else:
-            endpoints.append(f"-e {drone_config.config['gcs_ip']}:{int(drone_config.config['mavlink_port'])}")
-
-
-    # Command to start mavlink-router
-    mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
-
-    # Start mavlink-router and keep track of the process
-    print(f"Starting MAVLink routing: {mavlink_router_cmd}")
-    mavlink_router_process = subprocess.Popen(mavlink_router_cmd, shell=True)
-    return mavlink_router_process
-
-
-
-
-# Function to stop MAVLink routing
-def stop_mavlink_routing(mavlink_router_process):
-
-    if mavlink_router_process:
-        print("Stopping MAVLink routing...")
-        mavlink_router_process.terminate()
-        run_telemetry_thread.clear()
-        drone_comms.stop_communication()
-    else:
-        print("MAVLink routing is not running.")
 
 
 
@@ -315,7 +262,8 @@ def main():
 
         # Initialize MAVLink
         print("Initializing MAVLink...")
-        mavlink_router_process = initialize_mavlink()
+        mavlink_manager = MavlinkManager(params, drone_config)
+        mavlink_manager.initialize()
         time.sleep(2)
 
         # Enter a loop where the application will continue running
@@ -338,6 +286,7 @@ def main():
         # Close the threads before the application closes
         print("Closing threads...")
         drone_comms.stop_communication()
+        mavlink_manager.terminate()
 
     print("Exiting the application...")
 
