@@ -314,3 +314,4 @@ class DroneConfig:
             yaw_degrees += 360
 
         return yaw_degrees
+
