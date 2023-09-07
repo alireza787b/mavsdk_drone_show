@@ -77,7 +77,7 @@ class DroneSetup:
                 
                 if self.drone_config.mission == 1:
                     logging.info("Starting Drone Show")
-                    success, message = self.run_mission_script("python offboard_multiple_from_csv.py")
+                    success, message = self.run_mission_script("python3 offboard_multiple_from_csv.py")
                 elif self.drone_config.mission == 2:
                     logging.info("Starting Swarm Mission")
                     if int(self.drone_config.swarm.get('follow')) != 0:
@@ -90,7 +90,7 @@ class DroneSetup:
             altitude = float(self.drone_config.mission) - 10
             altitude = min(altitude, 50)  # Limit altitude to 50m
             logging.info(f"Starting Takeoff to {altitude}m")
-            success, message = self.run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
+            success, message = self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
         
         # If the mission is to land
         elif self.drone_config.mission == 101:
@@ -100,17 +100,17 @@ class DroneSetup:
                     logging.info("Is in Offboard mode. Attempting to stop offboard.")
                     asyncio.run(self.offboard_controller.stop_offboard())
                     asyncio.sleep(1)
-            success, message = self.run_mission_script("python actions.py --action=land")
+            success, message = self.run_mission_script("python3 actions.py --action=land")
         
         # If the mission is to hold the position
         elif self.drone_config.mission == 102:
             logging.info("Starting Hold Position")
-            success, message = self.run_mission_script("python actions.py --action=hold")
+            success, message = self.run_mission_script("python3 actions.py --action=hold")
         
         # If the mission is a test
         elif self.drone_config.mission == 100:
             logging.info("Starting Test")
-            success, message = self.run_mission_script("python actions.py --action=test")
+            success, message = self.run_mission_script("python3 actions.py --action=test")
         
         # Log the outcome only once for each mission code or state change
         if (self.last_logged_mission != self.drone_config.mission) or \
