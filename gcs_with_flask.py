@@ -616,6 +616,10 @@ try:
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
 
 #     # Main loop for command input
+
+#Removed the command line since it is not needed anymore since we have GUI. if you want to reactivate it remmeber in SSH when mulitple termials open there might be some problem
+
+
 #     mission = 0
 #     state = 0
 #     n = 0
@@ -673,3 +677,5 @@ finally:
 logger.info("Exiting the application...")
 
 
+if __name__ == "__main__":
+    app.run()
