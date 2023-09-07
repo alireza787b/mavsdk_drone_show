@@ -161,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -614,11 +614,8 @@ try:
 
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
+
     # Main loop for command input
-
-# Removed the command line since it is not needed anymore since we have GUI. if you want to reactivate it remmeber in SSH when mulitple termials open there might be some problem
-
-
     mission = 0
     state = 0
     n = 0
@@ -674,3 +671,4 @@ finally:
     pass
 
 logger.info("Exiting the application...")
+
