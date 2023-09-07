@@ -161,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -614,45 +614,51 @@ try:
 
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
-
     # Main loop for command input
+
+# Removed the command line since it is not needed anymore since we have GUI. if you want to reactivate it remmeber in SSH when mulitple termials open there might be some problem
+
+
     mission = 0
     state = 0
     n = 0
     while True:
-        command = input("\n Enter 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
-        if command.lower() == 'q':
-            break
-        elif command.lower() == 's':
-            mission = 2  # Setting mission to smart_swarm
-            n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
-            if int(n) == 0:
-                continue
-            state = 1
-        elif command.lower() == 'c':
-            mission = 1  # Setting mission to csv_droneshow
-            n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
-            if int(n) == 0:
-                continue
-            state = 1
-        elif command.lower() == 'n':
-            mission = 0  # Unsetting the mission
-            state = 0
-            n = 0  # Unsetting the trigger time
-        else:
-            logger.warning("Invalid command.")
-            continue
+        pass
+    
+    # while True:
+    #     command = input("\n Enter 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
+    #     if command.lower() == 'q':
+    #         break
+    #     elif command.lower() == 's':
+    #         mission = 2  # Setting mission to smart_swarm
+    #         n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
+    #         if int(n) == 0:
+    #             continue
+    #         state = 1
+    #     elif command.lower() == 'c':
+    #         mission = 1  # Setting mission to csv_droneshow
+    #         n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
+    #         if int(n) == 0:
+    #             continue
+    #         state = 1
+    #     elif command.lower() == 'n':
+    #         mission = 0  # Unsetting the mission
+    #         state = 0
+    #         n = 0  # Unsetting the trigger time
+    #     else:
+    #         logger.warning("Invalid command.")
+    #         continue
 
-        # Turn off telemetry printing while sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = False
-        # Send command to each drone
-        for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-            trigger_time = int(time.time()) + int(n)  # Now + n seconds
-            send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
-        # Turn on telemetry printing after sending commands
-        for _, _, _, _, _, _ in drones_threads:
-            print_telemetry[0] = True
+    #     # Turn off telemetry printing while sending commands
+    #     for _, _, _, _, _, _ in drones_threads:
+    #         print_telemetry[0] = False
+    #     # Send command to each drone
+    #     for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
+    #         trigger_time = int(time.time()) + int(n)  # Now + n seconds
+    #         send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
+    #     # Turn on telemetry printing after sending commands
+    #     for _, _, _, _, _, _ in drones_threads:
+    #         print_telemetry[0] = True
 except (ValueError, OSError, KeyboardInterrupt) as e:
     # Catch any exceptions that occur during the execution
     logger.error(f"An error occurred: {e}")
@@ -671,4 +677,3 @@ finally:
     pass
 
 logger.info("Exiting the application...")
-
