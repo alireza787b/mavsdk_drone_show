@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# Function to check if a port is in use
+port_in_use() {
+   netstat -tln | grep $1 > /dev/null
+}
+
+# Start a process either in a new terminal or in the background
+start_process() {
+    if [ "$1" == "g" ]; then
+        gnome-terminal -- bash -c "$2; exec bash" &
+    else
+        eval "$2 &"
+    fi
+}
+
 echo "Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
 echo "MAVSDK_Drone_Show Version 0.8"
 echo ""
@@ -12,24 +26,17 @@ echo ""
 echo "Please wait as the script checks and initializes the necessary components..."
 echo ""
 
-# Function to check if a port is in use
-port_in_use() {
-   netstat -tln | grep $1 > /dev/null
-}
-
 # Get the directory of the current script
 SCRIPT_DIR="$(dirname "$0")"
 
 # Check Python version and set appropriate alias
+# If Python 3 is your default, you can just use 'python' here
 PYTHON_CMD=python3
-if command -v python3 &>/dev/null; then
-    PYTHON_CMD=python3
-fi
 
 # Start the Drone Dashboard server if not running
 if ! port_in_use 3000; then
     echo "Starting the Drone Dashboard server..."
-    (cd "$SCRIPT_DIR/dashboard/drone-dashboard" && npm start &)
+    start_process "$1" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
     sleep 5
 else
     echo "Drone Dashboard server is already running!"
@@ -43,7 +50,7 @@ fi
 # Start the getElevation server if not running
 if ! port_in_use 5001; then
     echo "Starting the getElevation server..."
-    (cd "$SCRIPT_DIR/dashboard/getElevation" && node server.js &)
+    start_process "$1" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js"
     sleep 5
 else
     echo "getElevation server is already running!"
@@ -52,7 +59,7 @@ fi
 # Start the GCS Terminal App with Flask
 echo "Now starting the GCS Terminal App with Flask..."
 # Navigate to the correct directory and run the Python script
-(cd "$SCRIPT_DIR/.." && $PYTHON_CMD gcs_with_flask.py)
+start_process "$1" "cd $SCRIPT_DIR/.. && $PYTHON_CMD gcs_with_flask.py"
 
 echo ""
 echo "For more details, please check the documentation in the 'docs' folder."
