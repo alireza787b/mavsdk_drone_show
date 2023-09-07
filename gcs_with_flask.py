@@ -161,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -622,6 +622,8 @@ try:
     mission = 0
     state = 0
     n = 0
+    
+    #Removed the commandline input becuase it is no longer needed since we have a GUI. if you need that make sure you take care of auto linux startup since it might have problem when multiple terminal opens in one termina in one SSH. you might need to pass 'g' to startup 
     while True:
         pass
     
