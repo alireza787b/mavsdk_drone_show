@@ -161,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -615,7 +615,7 @@ try:
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
         while True:
-            time.sleep(1)
+            time.sleep(0.1)
 #     # Main loop for command input
 
 #Removed the command line since it is not needed anymore since we have GUI. if you want to reactivate it remmeber in SSH when mulitple termials open there might be some problem
