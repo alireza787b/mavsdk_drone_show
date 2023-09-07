@@ -2,9 +2,12 @@
     border: 1px solid #ccc;
     padding: 10px;
     margin: 10px;
-    cursor: pointer;
     transition: background-color 0.3s ease;
   }
+
+.drone-widget h3{
+  cursor: pointer;
+}
   
   .drone-widget.expanded {
     background-color: #f2f2f2;

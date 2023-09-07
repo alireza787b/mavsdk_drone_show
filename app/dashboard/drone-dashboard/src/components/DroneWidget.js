@@ -6,8 +6,8 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   const isStale = (new Date() / 1000 - drone.Update_Time) > 5;  // Replace 5 with STALE_DATA_THRESHOLD_SECONDS if you want
   
   return (
-    <div className={`drone-widget ${isExpanded ? 'expanded' : ''}`} onClick={() => toggleDroneDetails(drone)}>
-      <h3>
+    <div className={`drone-widget ${isExpanded ? 'expanded' : ''}`}>
+      <h3 onClick={() => toggleDroneDetails(drone)}>
         <span className={`status-indicator ${isStale ? 'stale' : 'active'}`}></span>
         Drone {drone.hw_ID}
       </h3>
