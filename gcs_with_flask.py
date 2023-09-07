@@ -653,22 +653,22 @@ try:
 #         # Turn on telemetry printing after sending commands
 #         for _, _, _, _, _, _ in drones_threads:
 #             print_telemetry[0] = True
-# except (ValueError, OSError, KeyboardInterrupt) as e:
-#     # Catch any exceptions that occur during the execution
-#     logger.error(f"An error occurred: {e}")
-# finally:
-#     # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
-#     # keep_running[0] = False
+except (ValueError, OSError, KeyboardInterrupt) as e:
+    # Catch any exceptions that occur during the execution
+    logger.error(f"An error occurred: {e}")
+finally:
+    # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
+    # keep_running[0] = False
 
-#     # for sock, telemetry_thread, _, _, _, _ in drones_threads:
-#     #     # Close the socket
-#     #     sock.close()
-#     #     # Join the thread
-#     #     telemetry_thread.join()
+    # for sock, telemetry_thread, _, _, _, _ in drones_threads:
+    #     # Close the socket
+    #     sock.close()
+    #     # Join the thread
+    #     telemetry_thread.join()
 
-#     # # Join the Flask thread
-#     # flask_thread.join()
-#     pass
+    # # Join the Flask thread
+    # flask_thread.join()
+    pass
 
 logger.info("Exiting the application...")
 
