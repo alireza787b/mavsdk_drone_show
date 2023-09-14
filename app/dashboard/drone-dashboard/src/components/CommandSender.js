@@ -179,7 +179,6 @@ const handleLandAll = () => {
     
           {activeTab === 'missionTrigger' && (
             <div className="mission-trigger-content">
-              <h2>Mission Trigger</h2>
               {/* Your existing Mission Trigger form controls */}
               <div className="mission-control">
                 <div className="mission-selection">

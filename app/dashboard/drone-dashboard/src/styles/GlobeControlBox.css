@@ -1,0 +1,49 @@
+.globe-control-box {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 10;
+  }
+  .globe-control-box {
+    /* ...your existing styles... */
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .globe-control-box.show {
+    opacity: 1;
+  }
+  /* GlobeControlBox.css */
+
+/* GlobeControlBox.css */
+
+/* Button Base Style */
+.get-terrain-button {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 16px;  /* Reduced padding for smaller size */
+  font-size: 14px;  /* Reduced font size */
+  border-radius: 5px;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin: 1em auto;  /* Auto margins for horizontal centering */
+  display: block;  /* Required for margin auto to work */
+}
+
+/* Button Hover Style */
+.get-terrain-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Button Active Style */
+.get-terrain-button:active {
+  transform: scale(1);
+  box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.2);
+}
