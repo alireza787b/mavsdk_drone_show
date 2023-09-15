@@ -1,4 +1,5 @@
 import datetime
+import threading
 import requests
 import os
 import subprocess
@@ -55,8 +56,11 @@ class DroneSetup:
             logging.error(f"Mission script encountered an error: {e}")
             return False, f"Mission script encountered an error: {e}"
         
-        
-        
+    def run_offboard_follow_thread(self):
+        if int(self.drone_config.swarm.get('follow')) != 0:
+            self.offboard_controller.start_swarm()  
+            asyncio.run(self.offboard_controller.start_offboard_follow())    
+            
     def schedule_mission(self):
         """
         Schedule and execute various drone missions based on the current mission code and state.
@@ -79,10 +83,7 @@ class DroneSetup:
                     logging.info("Starting Drone Show")
                     success, message = self.run_mission_script("python3 offboard_multiple_from_csv.py")
                 elif self.drone_config.mission == 2:
-                    logging.info("Starting Swarm Mission")
-                    if int(self.drone_config.swarm.get('follow')) != 0:
-                        self.offboard_controller.start_swarm()
-                        asyncio.run(self.offboard_controller.start_offboard_follow())
+                    threading.Thread(target=self.run_offboard_follow_thread).start()
                     success, message = True, "Assumed success for Swarm Mission."
         
         # If the mission is to take off to a certain altitude
