@@ -89,6 +89,7 @@ class OffboardController:
         """
         Continuously update the drone's position and velocity setpoints.
         """
+        logging.info(self.drone_config.mission)
         try:
             while True:
                 # Check for mission code change to stop the swarm
@@ -114,7 +115,7 @@ class OffboardController:
                 await self.drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
                 logging.debug(f"Setpoint sent | Position: [N:{self.drone_config.position_setpoint_NED.get('north')}, E:{self.drone_config.position_setpoint_NED.get('east')}, D:{self.drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{self.drone_config.velocity_setpoint_NED.get('vel_n')}, E:{self.drone_config.velocity_setpoint_NED.get('vel_e')}, D:{self.drone_config.velocity_setpoint_NED.get('vel_d')}] | Yaw: {self.drone_config.yaw_setpoint}")
 
-                await asyncio.sleep(0.2)  # Sleep for 200 ms
+                await asyncio.sleep(0.5)  # Sleep for 200 ms
 
         except Exception as e:
             logging.error(f"Error in maintain_position_velocity: {e}")
