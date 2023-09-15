@@ -24,6 +24,11 @@ class OffboardController:
     def calculate_follow_setpoint(self):
         if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
             self.drone_config.calculate_setpoints()
+        else:
+            if self.is_offboard:
+                logging.info("Mission code changed or offboard conditions not met. Stopping swarm.")
+                asyncio.run(self.stop_swarm())  # Stop the swarm
+
 
     def stop_existing_mavsdk_server(self, port):
         for proc in psutil.process_iter():
@@ -86,6 +91,12 @@ class OffboardController:
         """
         try:
             while True:
+                # Check for mission code change to stop the swarm
+                if self.drone_config.mission != 2:
+                    logging.info("Mission code changed. Stopping swarm.")
+                    await self.stop_swarm()  # Stop the swarm
+                    break  # Break out of the while loop
+            
                 pos_ned_yaw = PositionNedYaw(
                     self.drone_config.position_setpoint_NED['north'],
                     self.drone_config.position_setpoint_NED['east'],
@@ -137,3 +148,8 @@ class OffboardController:
         await self.set_initial_position()
         await self.start_offboard()
         await self.maintain_position_velocity()
+
+    async def stop_swarm(self):
+        self.is_offboard = False
+        await self.stop_offboard()
+        # No landing here, just stopping offboard
