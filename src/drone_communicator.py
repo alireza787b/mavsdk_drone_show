@@ -124,30 +124,31 @@ class DroneCommunicator:
                 logging.info(f"Takeoff command received. Altitude: {altitude}m")
                 
                 # Update mission code to default TAKE_OFF code after extracting altitude
-                self.drone_config.mission = mission  # Change this to your default TAKE_OFF code
+                self.drone_config.set_mission(mission)  # Updated this line
                 
             elif mission == 1:
                 logging.info("Drone Show command received.")
-                self.drone_config.mission = mission
+                self.drone_config.set_mission(mission)  # Updated this line
                 
             elif mission == 2:
                 logging.info("Smart Swarm command received.")
-                self.drone_config.mission = mission
+                self.drone_config.set_mission(mission)  # Updated this line
                 
             elif mission == self.params.Mission.LAND.value:
                 logging.info("Land command received.")
-                self.drone_config.mission = mission
+                self.drone_config.set_mission(mission)  # Updated this line
                 
             elif mission == self.params.Mission.HOLD.value:
                 logging.info("Hold command received.")
-                self.drone_config.mission = mission
+                self.drone_config.set_mission(mission)  # Updated this line
                 
             elif mission == self.params.Mission.TEST.value:
                 logging.info("Test command received.")
-                self.drone_config.mission = mission
+                self.drone_config.set_mission(mission)  # Updated this line
             else:
                 logging.warning(f"Unknown mission command received: {mission}")
-                self.drone_config.mission = self.params.Mission.NONE.value
+                self.drone_config.set_mission(self.params.Mission.NONE.value)  # Updated this line
+
 
 
 
@@ -240,6 +241,12 @@ class DroneCommunicator:
             if ready[0]:
                 data, addr = self.sock.recvfrom(1024)
                 self.process_packet(data)
+                
+            # Add this condition to exit the loop
+            if self.drone_config.mission != 2:
+                logging.info("Mission code changed. Exiting read_packets.")
+                break  # This will exit the while loop
+        
             if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
                     self.drone_config.calculate_setpoints()
 
