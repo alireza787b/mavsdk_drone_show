@@ -89,9 +89,10 @@ class OffboardController:
         """
         Continuously update the drone's position and velocity setpoints.
         """
-        logging.info(self.drone_config.mission)
         try:
             while True:
+                logging.info(self.drone_config.mission)
+
                 # Check for mission code change to stop the swarm
                 if self.drone_config.mission != 2:
                     logging.info("Mission code changed. Stopping swarm.")

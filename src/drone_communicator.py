@@ -137,7 +137,7 @@ class DroneCommunicator:
             elif mission == self.params.Mission.LAND.value:
                 logging.info("Land command received.")
                 self.drone_config.set_mission(mission)  # Updated this line
-                logging.info(f"Current Mission Code: {self.drone_config.mission}")
+                print(f"Current Mission Code: {self.drone_config.mission}")
                 
             elif mission == self.params.Mission.HOLD.value:
                 logging.info("Hold command received.")
