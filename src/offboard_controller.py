@@ -121,7 +121,6 @@ class OffboardController:
         except Exception as e:
             logging.error(f"Error in maintain_position_velocity: {e}")
         finally:
-            self.stop_mavsdk_server()
             self.is_offboard = False
 
     async def stop_offboard(self):
