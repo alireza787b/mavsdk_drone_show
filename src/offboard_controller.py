@@ -99,6 +99,8 @@ class OffboardController:
             while True:
                 if self.use_filter:
                     pos, vel, acc = self.drone_config.kalman_filter.get_current_state()  # Get state from Kalman Filter
+                    logging.debug(f"States: | Position: {pos} | Velocity: {vel} | Acceleration: {acc}")
+
                 else:
                     # Use raw setpoints
                     pos = self.drone_config.position_setpoint_NED
