@@ -144,6 +144,15 @@ drone_setup = DroneSetup(params,drone_config, offboard_controller)
 
 
 
+
+def schedule_missions_thread(drone_setup):
+    schedule_mission_interval = 1.0 / params.schedule_mission_frequency  # time in seconds
+    while True:
+        drone_setup.schedule_mission()
+        time.sleep(schedule_mission_interval)
+
+scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
+scheduling_thread.start()
         
 def main_loop():
     global mavlink_manager, offboard_controller  # Declare them as global
@@ -169,9 +178,11 @@ def main_loop():
                 last_follow_setpoint_time = current_time
 
             # Schedule mission at lower frequency
-            if current_time - last_schedule_mission_time >= schedule_mission_interval:
-                drone_setup.schedule_mission()
-                last_schedule_mission_time = current_time
+            # if current_time - last_schedule_mission_time >= schedule_mission_interval:
+            #     drone_setup.schedule_mission()
+            #     last_schedule_mission_time = current_time
+            
+            
 
             time.sleep(params.sleep_interval)
 
