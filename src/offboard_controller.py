@@ -3,7 +3,7 @@ import asyncio
 import subprocess
 import psutil  # Import psutil to find and kill existing MAVSDK server processes
 from mavsdk import System
-from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+from mavsdk.offboard import AccelerationNed, OffboardError, PositionNedYaw, VelocityNedYaw
 
 class OffboardController:
     """
@@ -17,6 +17,9 @@ class OffboardController:
         self.port = port
         self.mavsdk_server_address = mavsdk_server_address
         self.is_offboard = False
+        self.mavsdk_server_process = None
+        self.use_filter = True
+        self.use_acceleration = True
 
     def start_swarm(self):
         self.is_offboard = True
@@ -39,12 +42,20 @@ class OffboardController:
     def start_mavsdk_server(self, port):
         try:
             self.stop_existing_mavsdk_server(port)
-            mavsdk_server_process = subprocess.Popen(["./mavsdk_server", "-p", str(port)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.mavsdk_server_process = subprocess.Popen(["./mavsdk_server", "-p", str(port)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             logging.info(f"MAVSDK Server started on port {port}")
-            return mavsdk_server_process
+        
         except Exception as e:
             logging.error(f"Error starting MAVSDK Server: {e}")
             return None
+
+    def stop_mavsdk_server(self):
+        try:
+            self.mavsdk_server_process.terminate()
+            logging.info("MAVSDK Server terminated.")
+        except Exception as e:
+            logging.error(f"Error stopping MAVSDK Server: {e}")
+
 
     async def connect(self):
         self.mavsdk_server_process = self.start_mavsdk_server(self.port)
@@ -80,36 +91,39 @@ class OffboardController:
             logging.error(f"Starting offboard mode failed with error code: {error._result.result}")
             return
 
-    async def maintain_position_velocity(self):
-        """
-        Continuously update the drone's position and velocity setpoints.
-        """
+    async def maintain_setpoints(self):
+        """Maintain position, velocity, and optionally acceleration."""
         try:
             while True:
-                pos_ned_yaw = PositionNedYaw(
-                    self.drone_config.position_setpoint_NED['north'],
-                    self.drone_config.position_setpoint_NED['east'],
-                    self.drone_config.position_setpoint_NED['down'],
-                    self.drone_config.yaw_setpoint
-                )
+                if self.use_filter:
+                    pos, vel, acc = self.drone_config.kalman_filter.state  # Get state from Kalman Filter
+                else:
+                    # Use raw setpoints
+                    pos = self.drone_config.position_setpoint_NED
+                    vel = self.drone_config.velocity_setpoint_NED
+                    acc = [0, 0, 0]  # Assume zero acceleration
 
-                vel_ned_yaw = VelocityNedYaw(
-                    self.drone_config.velocity_setpoint_NED['vel_n'],
-                    self.drone_config.velocity_setpoint_NED['vel_e'],
-                    self.drone_config.velocity_setpoint_NED['vel_d'],
-                    self.drone_config.yaw_setpoint
-                )
+                pos_ned_yaw = PositionNedYaw(pos['north'], pos['east'], pos['down'], self.drone_config.yaw_setpoint)
+                vel_ned_yaw = VelocityNedYaw(vel['vel_n'], vel['vel_e'], vel['vel_d'], self.drone_config.yaw_setpoint)
 
-                await self.drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-                logging.debug(f"Setpoint sent | Position: [N:{self.drone_config.position_setpoint_NED.get('north')}, E:{self.drone_config.position_setpoint_NED.get('east')}, D:{self.drone_config.position_setpoint_NED.get('down')}] | Velocity: [N:{self.drone_config.velocity_setpoint_NED.get('vel_n')}, E:{self.drone_config.velocity_setpoint_NED.get('vel_e')}, D:{self.drone_config.velocity_setpoint_NED.get('vel_d')}] | Yaw: {self.drone_config.yaw_setpoint}")
+                if self.use_acceleration:
+                    acc_ned = AccelerationNed(acc[0], acc[1], acc[2])
+                    await self.drone.offboard.set_position_velocity_acceleration_ned(pos_ned_yaw, vel_ned_yaw, acc_ned)
+                else:
+                    await self.drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
+                
+                logging.debug(f"Maintaining setpoints | Position: {pos} | Velocity: {vel} | Acceleration: {acc}")
+                await asyncio.sleep(0.2)  # Update rate of 200 ms
 
-                await asyncio.sleep(0.2)  # Sleep for 200 ms
-
+        except OffboardError as e:
+            logging.error(f"Offboard Error: {e}")
         except Exception as e:
-            logging.error(f"Error in maintain_position_velocity: {e}")
+            logging.error(f"An unexpected error occurred: {e}")
         finally:
+            # Stop the MAVSDK server and set offboard flag to False
             self.stop_mavsdk_server()
             self.is_offboard = False
+
 
     async def stop_offboard(self):
         """
@@ -136,4 +150,4 @@ class OffboardController:
         await self.connect()
         await self.set_initial_position()
         await self.start_offboard()
-        await self.maintain_position_velocity()
+        await self.maintain_setpoints()

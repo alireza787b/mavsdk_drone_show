@@ -81,8 +81,10 @@ import logging
 import math
 from geographiclib.geodesic import Geodesic
 import navpy
+import numpy as np
 import requests
 from src.params import Params as params
+from filter import KalmanFilter
 
 class DroneConfig:
     def __init__(self,drones, hw_id=None):
@@ -106,6 +108,8 @@ class DroneConfig:
         self.yaw_setpoint=0
         self.target_drone = None
         self.drones = drones
+        self.kalman_filter = KalmanFilter() # New line
+
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
@@ -202,6 +206,7 @@ class DroneConfig:
 
     def calculate_position_setpoint_LLA(self):
         # find its setpoints
+        
         offset_n = self.swarm.get('offset_n', 0)
         offset_e = self.swarm.get('offset_e', 0)
         offset_alt = self.swarm.get('offset_alt', 0)
@@ -231,20 +236,44 @@ class DroneConfig:
         else:
             print(f"No target drone found for drone with hw_id: {self.hw_id}")
     
-    def calculate_setpoints(self):
+def calculate_setpoints(self):
+    if self.mission == 2:
         self.find_target_drone()
 
         if self.target_drone:
             self.calculate_position_setpoint_NED()
             self.calculate_velocity_setpoint_NED()
             self.calculate_yaw_setpoint()
-            print(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
+            logging.debug(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
 
-        
-        elif self.swarm.get('follow') == 0:
-            print(f"Drone {self.hw_id} is a master drone and not following anyone.")
-        else:
-            print(f"No drone to follow for drone with hw_id: {self.hw_id}")
+            # Initialize the Kalman Filter with the first setpoint if needed
+            self.kalman_filter.initialize_if_needed(self.position_setpoint_NED, self.velocity_setpoint_NED)
+
+            # Prediction Step
+            self.kalman_filter.predict()
+
+            # Get the last predicted accelerations from the Kalman Filter's state
+            last_predicted_accel_north = self.kalman_filter.state[2]
+            last_predicted_accel_east = self.kalman_filter.state[5]
+            last_predicted_accel_down = self.kalman_filter.state[8]
+
+            # Update Step using the setpoints as the measurement
+            measurement = np.array([
+                self.position_setpoint_NED['north'],
+                self.velocity_setpoint_NED['vel_n'],
+                last_predicted_accel_north,
+                self.position_setpoint_NED['east'],
+                self.velocity_setpoint_NED['vel_e'],
+                last_predicted_accel_east,
+                self.position_setpoint_NED['down'],
+                self.velocity_setpoint_NED['vel_d'],
+                last_predicted_accel_down
+            ])
+            self.kalman_filter.update(measurement)
+
+                
+                
+            
 
 
     def calculate_position_setpoint_NED(self):
