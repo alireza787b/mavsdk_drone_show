@@ -15,7 +15,7 @@ class DroneSetup:
         self.params = params
         self.last_logged_mission = None  # Add this line
         self.last_logged_state = None  # Add this line
-
+        self.main_loop = asyncio.get_event_loop()
     def synchronize_time(self):
         if self.params.online_sync_time:
             logging.info(f"Current system time before synchronization: {datetime.datetime.now()}")
@@ -61,7 +61,7 @@ class DroneSetup:
             self.offboard_controller.start_swarm()  
             asyncio.run(self.offboard_controller.start_offboard_follow())    
             
-    def schedule_mission(self):
+    async def schedule_mission(self):
         """
         Schedule and execute various drone missions based on the current mission code and state.
         """
@@ -97,9 +97,9 @@ class DroneSetup:
         elif self.drone_config.mission == 101:
             logging.info("Starting Land")
             if int(self.drone_config.swarm.get('follow')) != 0 and self.offboard_controller:  # Check if it's a follower
-                if self.offboard_controller.is_offboard:  # Check if it's in offboard mode
-                    logging.info("Is in Offboard mode. Attempting to stop offboard.")
-                    asyncio.run(self.offboard_controller.stop_offboard())
+                if self.offboard_controller.is_offboard:
+                    asyncio.create_task(
+                        self.offboard_controller.stop_offboard())
                     asyncio.sleep(1)
             success, message = self.run_mission_script("python3 actions.py --action=land")
         
@@ -132,3 +132,5 @@ class DroneSetup:
                 logging.info("Resetting mission code and state.")
                 self.drone_config.mission = 0
                 self.drone_config.state = 0
+        await asyncio.gather(*asyncio.all_tasks())
+
