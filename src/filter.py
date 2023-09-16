@@ -95,7 +95,7 @@ class KalmanFilter:
         # Compute reliability measure based on diagonal elements of P
         reliability = np.diagonal(self.P)
         self.reliability_score = 100 * (1 - reliability / np.sum(reliability))
-        logging.info(f"Reliability Score: {self.reliability_score}")
+        logging.debug(f"Reliability Score: {self.reliability_score}")
 
     def update(self, measurement):
         """
