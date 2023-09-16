@@ -68,7 +68,7 @@ class LocalMavlinkController:
 
 
     def process_attitude(self, msg):
-        logging.debug(f"Received ATTITUDE: {msg}")
+        # logging.debug(f"Received ATTITUDE: {msg}")
         valid_msg = msg.yaw is not None
         if not valid_msg:
             logging.error('Received ATTITUDE message with invalid data')
@@ -76,7 +76,7 @@ class LocalMavlinkController:
 
         # Update yaw
         self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
-        logging.debug(f"Updated yaw angle for drone {self.drone_config.hw_id}: {self.drone_config.yaw} degrees")
+        # logging.debug(f"Updated yaw angle for drone {self.drone_config.hw_id}: {self.drone_config.yaw} degrees")
 
     def set_home_position(self, msg):
         logging.debug(f"Received HOME_POSITION: {msg}")
@@ -101,7 +101,7 @@ class LocalMavlinkController:
             logging.debug(f"Home position for drone {self.drone_config.hw_id} is updated: {self.drone_config.home_position}")
 
     def process_global_position_int(self, msg):
-        logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
+        # logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
         valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
         if not valid_msg:
             logging.error('Received GLOBAL_POSITION_INT message with invalid data')
@@ -129,10 +129,10 @@ class LocalMavlinkController:
             self.drone_config.home_position = self.drone_config.position.copy()
             logging.info(f"Home position for drone {self.drone_config.hw_id} is set to current position: {self.drone_config.home_position}")
 
-        logging.debug(f"Updated position and velocity for drone {self.drone_config.hw_id}")
+        # logging.debug(f"Updated position and velocity for drone {self.drone_config.hw_id}")
 
     def process_battery_status(self, msg):
-        logging.debug(f"Received BATTERY_STATUS: {msg}")
+        # logging.debug(f"Received BATTERY_STATUS: {msg}")
         valid_msg = msg.voltages and len(msg.voltages) > 0
         if not valid_msg:
             logging.error('Received BATTERY_STATUS message with invalid data')
@@ -140,7 +140,7 @@ class LocalMavlinkController:
 
         # Update battery
         self.drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
-        logging.debug(f"Updated battery voltage for drone {self.drone_config.hw_id}: {self.drone_config.battery}V")
+        # logging.debug(f"Updated battery voltage for drone {self.drone_config.hw_id}: {self.drone_config.battery}V")
     
     def __del__(self):
         """
