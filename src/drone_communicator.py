@@ -164,7 +164,7 @@ class DroneCommunicator:
                 self.drones[hw_id] = DroneConfig(self.drones, hw_id)
 
             position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
-            velocity = {'vel_n': velocity_north, 'vel_e': velocity_east, 'vel_d': velocity_down}
+            velocity = {'north': velocity_north, 'east': velocity_east, 'down': velocity_down}
             self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, update_time)
 
             # Add processing of the received telemetry data here
@@ -182,9 +182,9 @@ class DroneCommunicator:
         "position_lat": self.drone_config.position['lat'],
         "position_long": self.drone_config.position['long'],
         "position_alt": self.drone_config.position['alt'],
-        "velocity_north": self.drone_config.velocity['vel_n'],
-        "velocity_east": self.drone_config.velocity['vel_e'],
-        "velocity_down": self.drone_config.velocity['vel_d'],
+        "velocity_north": self.drone_config.velocity['north'],
+        "velocity_east": self.drone_config.velocity['east'],
+        "velocity_down": self.drone_config.velocity['down'],
         "yaw": self.drone_config.yaw,
         "battery_voltage": self.drone_config.battery,
         "follow_mode": int(self.drone_config.swarm['follow']),
