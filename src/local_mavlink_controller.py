@@ -116,9 +116,9 @@ class LocalMavlinkController:
 
         # Update velocity
         self.drone_config.velocity = {
-            'vel_n': msg.vx / 1E2,
-            'vel_e': msg.vy / 1E2,
-            'vel_d': msg.vz / 1E2
+            'north': msg.vx / 1E2,
+            'east': msg.vy / 1E2,
+            'down': msg.vz / 1E2
         }
         
         # Update the Update Time
