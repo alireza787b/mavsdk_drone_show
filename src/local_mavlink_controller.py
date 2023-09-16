@@ -79,7 +79,7 @@ class LocalMavlinkController:
         # logging.debug(f"Updated yaw angle for drone {self.drone_config.hw_id}: {self.drone_config.yaw} degrees")
 
     def set_home_position(self, msg):
-        logging.debug(f"Received HOME_POSITION: {msg}")
+        # logging.debug(f"Received HOME_POSITION: {msg}")
         valid_msg = msg.latitude is not None and msg.longitude is not None and msg.altitude is not None
         if not valid_msg:
             logging.error('Received HOME_POSITION message with invalid data')
