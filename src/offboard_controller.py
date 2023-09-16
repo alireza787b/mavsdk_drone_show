@@ -20,6 +20,8 @@ class OffboardController:
         self.mavsdk_server_process = None
         self.use_filter = True
         self.use_acceleration = True
+        
+        self.stop_existing_mavsdk_server(self.port)
 
     def start_swarm(self):
         self.is_offboard = True
