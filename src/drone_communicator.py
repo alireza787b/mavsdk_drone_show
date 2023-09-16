@@ -63,7 +63,9 @@ import csv
 import struct
 import logging
 import select
-import subprocess 
+import subprocess
+
+from src.drone_config import DroneConfig 
 
 class DroneCommunicator:
     def __init__(self, drone_config, params, drones):
