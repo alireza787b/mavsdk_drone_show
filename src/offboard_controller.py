@@ -97,7 +97,7 @@ class OffboardController:
         """Maintain position, velocity, and optionally acceleration."""
         try:
             while True:
-                if self.use_filter:
+                if self.use_filter==True:
                     state = self.drone_config.kalman_filter.get_current_state()
                     pos = state['position']
                     vel = state['velocity']
@@ -112,7 +112,7 @@ class OffboardController:
                 pos_ned_yaw = PositionNedYaw(pos['north'], pos['east'], pos['down'], self.drone_config.yaw_setpoint)
                 vel_ned_yaw = VelocityNedYaw(vel['north'], vel['east'], vel['down'], self.drone_config.yaw_setpoint)  # Use 'north', 'east', 'down' keys
 
-                if self.use_acceleration:
+                if self.use_acceleration == True:
                     acc_ned = AccelerationNed(acc[0], acc[1], acc[2])
                     await self.drone.offboard.set_position_velocity_acceleration_ned(pos_ned_yaw, vel_ned_yaw, acc_ned)
                 else:
