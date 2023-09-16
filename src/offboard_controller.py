@@ -98,9 +98,11 @@ class OffboardController:
         try:
             while True:
                 if self.use_filter:
-                    pos, vel, acc = self.drone_config.kalman_filter.get_current_state()  # Get state from Kalman Filter
+                    state = self.drone_config.kalman_filter.get_current_state()
+                    pos = state['position']
+                    vel = state['velocity']
+                    acc = [state['acceleration']['north'], state['acceleration']['east'], state['acceleration']['down']]
                     logging.debug(f"States: | Position: {pos} | Velocity: {vel} | Acceleration: {acc}")
-
                 else:
                     # Use raw setpoints
                     pos = self.drone_config.position_setpoint_NED
@@ -108,25 +110,26 @@ class OffboardController:
                     acc = [0, 0, 0]  # Assume zero acceleration
 
                 pos_ned_yaw = PositionNedYaw(pos['north'], pos['east'], pos['down'], self.drone_config.yaw_setpoint)
-                vel_ned_yaw = VelocityNedYaw(vel['vel_n'], vel['vel_e'], vel['vel_d'], self.drone_config.yaw_setpoint)
+                vel_ned_yaw = VelocityNedYaw(vel['north'], vel['east'], vel['down'], self.drone_config.yaw_setpoint)  # Use 'north', 'east', 'down' keys
 
                 if self.use_acceleration:
                     acc_ned = AccelerationNed(acc[0], acc[1], acc[2])
                     await self.drone.offboard.set_position_velocity_acceleration_ned(pos_ned_yaw, vel_ned_yaw, acc_ned)
                 else:
                     await self.drone.offboard.set_position_velocity_ned(pos_ned_yaw, vel_ned_yaw)
-                
+
                 logging.debug(f"Maintaining setpoints | Position: {pos} | Velocity: {vel} | Acceleration: {acc}")
                 await asyncio.sleep(0.2)  # Update rate of 200 ms
 
         except OffboardError as e:
-            logging.error(f"Offboard Error: {e}")
+            logging.error(f"Offboard Error: {e}", exc_info=True)
         except Exception as e:
-            logging.error(f"An unexpected error occurred: {e} {e.with_traceback()}")
+            logging.error(f"An unexpected error occurred: {e}", exc_info=True)
         finally:
             # Stop the MAVSDK server and set offboard flag to False
             self.stop_mavsdk_server()
             self.is_offboard = False
+
 
 
     async def stop_offboard(self):

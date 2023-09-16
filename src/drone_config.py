@@ -97,7 +97,7 @@ class DroneConfig:
         self.mission = 0
         self.trigger_time = 0
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
-        self.velocity = {'vel_n': 0, 'vel_e': 0, 'vel_d': 0}
+        self.velocity = {'nort': 0, 'east': 0, 'down': 0}
         self.yaw = 0
         self.battery = 0
         self.last_update_timestamp = 0
@@ -244,7 +244,7 @@ class DroneConfig:
                 self.calculate_position_setpoint_NED()
                 self.calculate_velocity_setpoint_NED()
                 self.calculate_yaw_setpoint()
-                logging.debug(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('vel_n')}, E:{self.velocity_setpoint_NED.get('vel_e')}, D:{self.velocity_setpoint_NED.get('vel_d')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
+                logging.debug(f"Setpoint updated | Position: [N:{self.position_setpoint_NED.get('north')}, E:{self.position_setpoint_NED.get('east')}, D:{self.position_setpoint_NED.get('down')}] | Velocity: [N:{self.velocity_setpoint_NED.get('north')}, E:{self.velocity_setpoint_NED.get('east')}, D:{self.velocity_setpoint_NED.get('down')}] | following drone {self.target_drone.hw_id}, with offsets [N:{self.swarm.get('offset_n', 0)},E:{self.swarm.get('offset_e', 0)},Alt:{self.swarm.get('offset_alt', 0)}]")
 
                 # Initialize the Kalman Filter with the first setpoint if needed
                 self.kalman_filter.initialize_if_needed(self.position_setpoint_NED, self.velocity_setpoint_NED)
@@ -260,13 +260,13 @@ class DroneConfig:
                 # Update Step using the setpoints as the measurement
                 measurement = np.array([
                     self.position_setpoint_NED['north'],
-                    self.velocity_setpoint_NED['vel_n'],
+                    self.velocity_setpoint_NED['north'],
                     last_predicted_accel_north,
                     self.position_setpoint_NED['east'],
-                    self.velocity_setpoint_NED['vel_e'],
+                    self.velocity_setpoint_NED['east'],
                     last_predicted_accel_east,
                     self.position_setpoint_NED['down'],
-                    self.velocity_setpoint_NED['vel_d'],
+                    self.velocity_setpoint_NED['down'],
                     last_predicted_accel_down
                 ])
                 self.kalman_filter.update(measurement)
