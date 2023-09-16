@@ -120,15 +120,15 @@ class KalmanFilter:
 
         logging.debug("Kalman Filter state updated.")
 
-def get_current_state(self):
-        """
-        Retrieve the current state estimate.
+    def get_current_state(self):
+            """
+            Retrieve the current state estimate.
 
-        Returns:
-        - Dictionary containing current estimates of position, velocity, and acceleration
-        """
-        return {
-            'position': {'north': self.state[0], 'east': self.state[3], 'down': self.state[6]},
-            'velocity': {'north': self.state[1], 'east': self.state[4], 'down': self.state[7]},
-            'acceleration': {'north': self.state[2], 'east': self.state[5], 'down': self.state[8]}
-        }
+            Returns:
+            - Dictionary containing current estimates of position, velocity, and acceleration
+            """
+            return {
+                'position': {'north': self.state[0], 'east': self.state[3], 'down': self.state[6]},
+                'velocity': {'north': self.state[1], 'east': self.state[4], 'down': self.state[7]},
+                'acceleration': {'north': self.state[2], 'east': self.state[5], 'down': self.state[8]}
+            }
