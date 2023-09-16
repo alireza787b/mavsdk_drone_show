@@ -84,7 +84,7 @@ import navpy
 import numpy as np
 import requests
 from src.params import Params as params
-from filter import KalmanFilter
+from src.filter import KalmanFilter
 
 class DroneConfig:
     def __init__(self,drones, hw_id=None):
