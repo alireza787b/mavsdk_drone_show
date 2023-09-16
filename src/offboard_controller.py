@@ -122,7 +122,7 @@ class OffboardController:
         except OffboardError as e:
             logging.error(f"Offboard Error: {e}")
         except Exception as e:
-            logging.error(f"An unexpected error occurred: {e}")
+            logging.error(f"An unexpected error occurred: {e} {e.with_traceback()}")
         finally:
             # Stop the MAVSDK server and set offboard flag to False
             self.stop_mavsdk_server()
