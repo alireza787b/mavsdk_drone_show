@@ -26,10 +26,12 @@ def start_mavsdk_server(grpc_port, udp_port):
     if is_running:
         print(f"MAVSDK server already running on port {grpc_port}. Terminating...")
         psutil.Process(pid).terminate()
+        psutil.Process(pid).wait()  # Wait for the process to actually terminate
     
     print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
     return mavsdk_server
+
 
 def read_hw_id():
     hwid_files = glob.glob('*.hwID')
@@ -65,10 +67,6 @@ SIM_MODE = False  # or True based on your setting
 GRPC_PORT_BASE = 50041
 HW_ID = read_hw_id()
 
-def start_mavsdk_server(grpc_port, udp_port):
-    print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
-    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
-    return mavsdk_server
 
 def stop_mavsdk_server(mavsdk_server):
     print("Stopping mavsdk_server")
@@ -131,13 +129,13 @@ async def perform_action(action, altitude):
             print("Invalid action")
     finally:
         if state.is_connected:
-            # Stop mavsdk_server
-            stop_mavsdk_server(mavsdk_server)
+            # Terminate MAVSDK server if still running
             is_running, pid = check_mavsdk_server_running(grpc_port)
             if is_running:
                 print(f"Terminating MAVSDK server running on port {grpc_port}...")
                 psutil.Process(pid).terminate()
-            exit(0)
+                psutil.Process(pid).wait()  # Wait for the process to actually terminate
+
 
 if __name__ == "__main__":
     # Parse command-line arguments
