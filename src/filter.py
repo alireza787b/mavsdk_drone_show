@@ -57,13 +57,13 @@ class KalmanFilter:
         if not self.is_initialized:
             initial_state = [
                 position_setpoint['north'],
-                velocity_setpoint['vel_n'],  # Initial velocity in North direction
+                velocity_setpoint['north'],  # Initial velocity in North direction
                 0,  # Initial acceleration in North direction
                 position_setpoint['east'],
-                velocity_setpoint['vel_e'],  # Initial velocity in East direction
+                velocity_setpoint['east'],  # Initial velocity in East direction
                 0,  # Initial acceleration in East direction
                 position_setpoint['down'],
-                velocity_setpoint['vel_d'],  # Initial velocity in Down direction
+                velocity_setpoint['down'],  # Initial velocity in Down direction
                 0   # Initial acceleration in Down direction
             ]
 

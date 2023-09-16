@@ -97,7 +97,7 @@ class DroneConfig:
         self.mission = 0
         self.trigger_time = 0
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
-        self.velocity = {'nort': 0, 'east': 0, 'down': 0}
+        self.velocity = {'north': 0, 'east': 0, 'down': 0}
         self.yaw = 0
         self.battery = 0
         self.last_update_timestamp = 0
