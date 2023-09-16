@@ -8,6 +8,7 @@ class KalmanFilter:
         Initialize the Kalman Filter without setting any initial parameters.
         """
         self.is_initialized = False
+        self.reliability_score = 0
         logging.debug("Kalman Filter object created, awaiting initialization.")
 
     def initialize(self, initial_state, initial_covariance, process_noise, measurement_noise):
@@ -90,7 +91,11 @@ class KalmanFilter:
         # Predicted estimate covariance: P(k|k-1) = A * P(k-1|k-1) * A' + Q
         self.P = np.dot(np.dot(self.A, self.P), self.A.T) + self.Q
 
-        logging.debug("Kalman Filter state predicted.")
+        logging.debug(f"Kalman Filter state predicted. State: {self.state}")
+        # Compute reliability measure based on diagonal elements of P
+        reliability = np.diagonal(self.P)
+        self.reliability_score = 100 * (1 - reliability / np.sum(reliability))
+        logging.info(f"Reliability Score: {self.reliability_score}")
 
     def update(self, measurement):
         """
