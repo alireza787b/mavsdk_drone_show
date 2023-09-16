@@ -17,6 +17,8 @@ class OffboardController:
         self.port = port
         self.mavsdk_server_address = mavsdk_server_address
         self.is_offboard = False
+        self.mavsdk_server_process = None
+        self.drone = None
 
     def start_swarm(self):
         self.is_offboard = True
@@ -54,7 +56,6 @@ class OffboardController:
     async def connect(self):
         self.mavsdk_server_process = self.start_mavsdk_server(self.port)
         self.drone = System(self.mavsdk_server_address, self.port)
-        
         await self.drone.connect()
 
         logging.info("Waiting for drone to connect...")
@@ -63,6 +64,15 @@ class OffboardController:
                 logging.info("Drone discovered")
                 break
         # Removed redundant call to start_mavsdk_server
+        
+    def stop_mavsdk_server(self):
+        if self.mavsdk_server_process:
+            self.mavsdk_server_process.terminate()
+        self.mavsdk_server_process = None
+        
+        if self.drone:
+            # Could add something here to disconnect if wanted
+            self.drone = None
 
     async def set_initial_position(self):
         initial_pos = PositionNedYaw(
@@ -153,4 +163,4 @@ class OffboardController:
     async def stop_swarm(self):
         self.is_offboard = False
         await self.stop_offboard()
-        # No landing here, just stopping offboard
+        self.stop_mavsdk_server() # Add this
