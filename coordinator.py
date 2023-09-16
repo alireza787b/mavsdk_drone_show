@@ -142,14 +142,6 @@ offboard_controller = OffboardController(drone_config)
 # Create a DroneSetup object
 drone_setup = DroneSetup(params,drone_config, offboard_controller)
 
-def schedule_missions_thread(drone_setup):
-    schedule_mission_interval = 1.0 / params.schedule_mission_frequency
-    loop = asyncio.get_event_loop()
-
-    while True:
-
-        loop.run_until_complete(drone_setup.schedule_mission())
-        time.sleep(schedule_mission_interval)
 
 
         
@@ -168,10 +160,6 @@ def main_loop():
         follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency  # time in seconds
         schedule_mission_interval = 1.0 / params.schedule_mission_frequency  # time in seconds
 
-
-        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
-        scheduling_thread.start()
-
         while True:
             current_time = time.time()
 
@@ -181,12 +169,11 @@ def main_loop():
                 last_follow_setpoint_time = current_time
 
             # Schedule mission at lower frequency
-            # if current_time - last_schedule_mission_time >= schedule_mission_interval:
-            #     drone_setup.schedule_mission()
-            #     last_schedule_mission_time = current_time
+            if current_time - last_schedule_mission_time >= schedule_mission_interval:
+                drone_setup.schedule_mission()
+                last_schedule_mission_time = current_time
 
             time.sleep(params.sleep_interval)
-        
 
     except Exception as e:
         print(f"An error occurred: {e}")

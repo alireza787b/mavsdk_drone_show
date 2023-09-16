@@ -79,7 +79,6 @@ import csv
 import glob
 import logging
 import math
-import threading
 from geographiclib.geodesic import Geodesic
 import navpy
 import requests
@@ -107,8 +106,6 @@ class DroneConfig:
         self.yaw_setpoint=0
         self.target_drone = None
         self.drones = drones
-        self.mission_lock = threading.Lock()  # Add a Lock object for the mission
-
 
     def get_hw_id(self, hw_id=None):
         if hw_id is not None:
@@ -187,11 +184,6 @@ class DroneConfig:
         
         print("Swarm configuration not found.")
         return None
-    
-    
-    def set_mission(self, new_mission):
-        with self.mission_lock:  # Acquire the lock
-            self.mission = new_mission  # Update the mission
     
     def find_target_drone(self):
         # find which drone it should follow

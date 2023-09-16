@@ -121,35 +121,33 @@ class DroneCommunicator:
                 altitude = mission - 10
                 if altitude > 50:
                     altitude = 50
-                logging.info(f"Takeoff command received. Altitude: {altitude}m")
+                print(f"Takeoff command received. Altitude: {altitude}m")
                 
                 # Update mission code to default TAKE_OFF code after extracting altitude
-                self.drone_config.set_mission(mission)  # Updated this line
+                self.drone_config.mission = mission  # Change this to your default TAKE_OFF code
                 
             elif mission == 1:
-                logging.info("Drone Show command received.")
-                self.drone_config.set_mission(mission)  # Updated this line
+                print("Drone Show command received.")
+                self.drone_config.mission = mission
                 
             elif mission == 2:
-                logging.info("Smart Swarm command received.")
-                self.drone_config.set_mission(mission)  # Updated this line
+                print("Smart Swarm command received.")
+                self.drone_config.mission = mission
                 
             elif mission == self.params.Mission.LAND.value:
-                logging.info("Land command received.")
-                self.drone_config.set_mission(mission)  # Updated this line
-                print(f"Current Mission Code: {self.drone_config.mission}")
+                print("Land command received.")
+                self.drone_config.mission = mission
                 
             elif mission == self.params.Mission.HOLD.value:
-                logging.info("Hold command received.")
-                self.drone_config.set_mission(mission)  # Updated this line
+                print("Hold command received.")
+                self.drone_config.mission = mission
                 
             elif mission == self.params.Mission.TEST.value:
-                logging.info("Test command received.")
-                self.drone_config.set_mission(mission)  # Updated this line
+                print("Test command received.")
+                self.drone_config.mission = mission
             else:
-                logging.warning(f"Unknown mission command received: {mission}")
-                self.drone_config.set_mission(self.params.Mission.NONE.value)  # Updated this line
-
+                print(f"Unknown mission command received: {mission}")
+                self.drone_config.mission = self.params.Mission.NONE.value
 
 
 
@@ -242,8 +240,6 @@ class DroneCommunicator:
             if ready[0]:
                 data, addr = self.sock.recvfrom(1024)
                 self.process_packet(data)
-                
-        
             if self.drone_config.mission == 2 and self.drone_config.state != 0 and int(self.drone_config.swarm.get('follow')) != 0:
                     self.drone_config.calculate_setpoints()
 
