@@ -17,9 +17,6 @@ class OffboardController:
         self.port = port
         self.mavsdk_server_address = mavsdk_server_address
         self.is_offboard = False
-        # Add these instance variables 
-        self.mavsdk_server_process = None
-        self.drone = None
 
     def start_swarm(self):
         self.is_offboard = True
@@ -52,8 +49,6 @@ class OffboardController:
     async def connect(self):
         self.mavsdk_server_process = self.start_mavsdk_server(self.port)
         self.drone = System(self.mavsdk_server_address, self.port)
-
-# Rest of connect method...
         
         await self.drone.connect()
 
@@ -142,12 +137,3 @@ class OffboardController:
         await self.set_initial_position()
         await self.start_offboard()
         await self.maintain_position_velocity()
-        
-    def stop_mavsdk_server(self):
-        if self.mavsdk_server_process:
-            self.mavsdk_server_process.terminate()
-        self.mavsdk_server_process = None
-        
-        if self.drone:
-            # Could add something here to disconnect if wanted
-            self.drone = None
