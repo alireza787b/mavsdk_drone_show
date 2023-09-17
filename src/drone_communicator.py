@@ -167,7 +167,6 @@ class DroneCommunicator:
             position = {'lat': position_lat, 'long': position_long, 'alt': position_alt}
             velocity = {'north': velocity_north, 'east': velocity_east, 'down': velocity_down}
             self.set_drone_config(hw_id, pos_id, state, mission, trigger_time, position, velocity, yaw, battery_voltage, update_time)
-
             # Add processing of the received telemetry data here
         else:
             logging.error(f"Received packet of incorrect size or header. Got {len(data)} bytes.")

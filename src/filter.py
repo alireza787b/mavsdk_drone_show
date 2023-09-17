@@ -76,7 +76,6 @@ class KalmanFilter:
             self.initialize(initial_state, initial_covariance, process_noise, measurement_noise)
             logging.info("Kalman Filter initialized with the first setpoint.")
 
-
     def predict(self):
         """
         Predict the next state and error covariance.

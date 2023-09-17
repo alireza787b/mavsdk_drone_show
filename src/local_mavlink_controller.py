@@ -35,9 +35,7 @@ class LocalMavlinkController:
         self.telemetry_thread = threading.Thread(target=self.mavlink_monitor)
         self.telemetry_thread.start()
         self.home_position_logged = False
-        
-       
-
+    
         
     def mavlink_monitor(self):
         while self.run_telemetry_thread.is_set():
