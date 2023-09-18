@@ -8,3 +8,4 @@ pymavlink
 flask
 flask-cors
 psutil  
+scipy
