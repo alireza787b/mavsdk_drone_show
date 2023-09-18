@@ -67,6 +67,22 @@ if [ ! -f "$CONFIG_PATH" ]; then
     exit 1
 fi
 
+
+# Pull the latest repo changes
+cd ~/mavsdk_drone_show
+echo "Stashing and pulling the latest changes from the repository..."
+git stash
+git pull
+
+# Check Python requirements
+echo "Checking and installing Python Requirements..."
+pip install -r requirements.txt
+
+# Set the MAV_SYS_ID
+echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
+python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
+
+
 # Initialize offsets with default values
 OFFSET_X=0
 OFFSET_Y=0
@@ -117,19 +133,7 @@ esac
 
 echo "DEBUG: SIMULATION_COMMAND = $SIMULATION_COMMAND"
 
-# Pull the latest repo changes
-cd ~/mavsdk_drone_show
-echo "Stashing and pulling the latest changes from the repository..."
-git stash
-git pull
 
-# Check Python requirements
-echo "Checking and installing Python Requirements..."
-pip install -r requirements.txt
-
-# Set the MAV_SYS_ID
-echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
-python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
 
 # Start the SITL simulation in the background
 echo "Starting the SITL simulation process..."
