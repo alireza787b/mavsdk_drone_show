@@ -486,7 +486,7 @@ def import_show():
 
         # Run the processformation.py script
         try:
-            completed_process = subprocess.run(["python", "process_formation.py"], capture_output=True, text=True, check=True)
+            completed_process = subprocess.run(["python3", "process_formation.py"], capture_output=True, text=True, check=True)
             print("Have {} bytes in stdout:\n{}".format(len(completed_process.stdout), completed_process.stdout))
         except subprocess.CalledProcessError as e:
             return jsonify({'success': False, 'error': 'Error in running processformation.py', 'details': str(e)})
