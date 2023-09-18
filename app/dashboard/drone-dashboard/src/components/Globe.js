@@ -3,58 +3,23 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { Color, RepeatWrapping, TextureLoader } from 'three';
 import { useLoader } from '@react-three/fiber';
-
+import { getElevation, llaToLocal } from '../utilities';
+import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
+import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities';
+import useElevation from '../useElevation';  // Update the path if necessary
 
 
 // Constants for conversions and world setup
-const LAT_TO_METERS = 111321;
-const LON_TO_METERS = 111321;
-const WORLD_SIZE = 400;
-const TEXTURE_REPEAT = 10;
 
-// Fetch the elevation based on latitude and longitude
-const getElevation = async (lat, lon) => {
-  try {
-    const url = `http://localhost:5001/elevation?lat=${lat}&lon=${lon}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const data = await response.json();
-    return data.results[0]?.elevation || null;
-  } catch (error) {
-    console.error(`Failed to fetch elevation data: ${error}`);
-    return null;
-  }
-};
+
 
 // Timeout Promise for fetch operations
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 
-// Convert Latitude, Longitude, Altitude to local coordinates
-const llaToLocal = (lat, lon, alt, reference) => {
-  const north = (lat - reference[0]) * LAT_TO_METERS;
-  const east = (lon - reference[1]) * LON_TO_METERS;
-  const up = alt - reference[2];
-  return [north, up, east];
-};
 
-// Environment setup component
-const Environment = ({ groundLevel  }) => {
-  const grassTexture = useLoader(TextureLoader, '/grass1.jpg');
-  grassTexture.wrapS = grassTexture.wrapT = RepeatWrapping;
-  grassTexture.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
 
-  return (
-    <>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0,0, 0]} receiveShadow castShadow>
-        <planeGeometry attach="geometry" args={[WORLD_SIZE, WORLD_SIZE]} />
-        <meshStandardMaterial map={grassTexture} attach="material" side={2} />
-      </mesh>
-      <ambientLight intensity={0.6} />
-      <hemisphereLight skyColor={'#ffffff'} groundColor={'#000000'} intensity={1} />
-    </>
-  );
-};
+
 
 
 // Tooltip for drones
@@ -122,11 +87,19 @@ export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showGround, setShowGround] = useState(true);
-  const [groundLevel, setGroundLevel] = useState(0);
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
+  const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
+  const [groundLevel, setGroundLevel] = useState(0);
 
+
+  const handleGetTerrainClick = () => {
+    if (realElevation !== null) {
+      setGroundLevel(realElevation);
+    }
+  };
+  
 
   const toggleFullscreen = () => {
     const element = document.getElementById("scene-container");
@@ -141,29 +114,18 @@ export default function Globe({ drones }) {
       }
     }
   };
-  
-  
 
-// Function to handle 'Get Terrain' button click
-const handleGetTerrainClick = () => {
-  if (referencePoint) {
-    fetchAndUpdateTerrain(referencePoint[0], referencePoint[1], setGroundLevel);
+
+useEffect(() => {
+  if (referencePoint && groundLevel !== referencePoint[2]) {
+    setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
   }
-};
+}, [groundLevel, referencePoint]);
 
-// Fetch terrain elevation and update ground level
-const fetchAndUpdateTerrain = async (lat, lon, setGroundLevel) => {
-  const elevation = await Promise.race([getElevation(lat, lon), timeoutPromise(5000)]);
-  if (elevation !== null) {
-    setGroundLevel(elevation);
-  }
-};
+  
 
-  useEffect(() => {
-    if (referencePoint) {
-      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
-    }
-  }, [groundLevel]);
+
+
   
 
   useEffect(() => {
@@ -171,21 +133,20 @@ const fetchAndUpdateTerrain = async (lat, lon, setGroundLevel) => {
       if (drones?.length) {
         setIsLoading(true);
   
-        // Existing logic for setting initial reference point
         if (!referencePoint) {
           const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
           const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
           const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
-  
+
           const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
           const localReference = [avgLat, avgLon, elevation ?? avgAlt];
           setReferencePoint(localReference);
           
-          // Update groundLevel only if it hasn't been set yet
           if (groundLevel === 0) {
             setGroundLevel(elevation ?? avgAlt);
           }
         }
+
   
         // Update the droneVisibility state based on the new drones list
         const newDroneVisibility = {};
@@ -208,6 +169,11 @@ const fetchAndUpdateTerrain = async (lat, lon, setGroundLevel) => {
   }, [drones, referencePoint]);
   
   
+  useEffect(() => {
+    if (referencePoint && groundLevel !== null) {
+      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
+    }
+  }, [groundLevel]);
   
 
   if (isLoading || !drones?.length || !referencePoint) return <div>Loading...</div>;
@@ -231,7 +197,6 @@ const fetchAndUpdateTerrain = async (lat, lon, setGroundLevel) => {
 
   return (
 
-<div id="scene-container" style={{ width: '100%', height: '70vh', position: 'relative' }}>
 
 
     <div style={{ width: '100%', height: '70vh', position: 'relative' }}> {/* Set to relative */}
@@ -292,7 +257,6 @@ const fetchAndUpdateTerrain = async (lat, lon, setGroundLevel) => {
 
 
       />}
-    </div>
     </div>
   );
   

@@ -42,12 +42,12 @@ function GlobeControlBox({ setShowGround, showGround, setGroundLevel, groundLeve
  {/* Set Grid Visibile */}
  <div>
       <label>
-  Show Grid
   <input
     type="checkbox"
     checked={showGrid}
     onChange={() => setShowGrid(!showGrid)}
   />
+    Show Grid
 </label>
 </div>
       
