@@ -19,7 +19,7 @@ def main(src_ip, src_port, dest_ip, dest_port):
     
     # Create a UDP socket for receiving messages from GCS to drone
     recv_sock2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    recv_sock2.bind((dest_ip, dest_port))
+    recv_sock2.bind(('0.0.0.0', dest_port))  # Bind to all available network interfaces
     
     # Create UDP sockets for sending messages
     send_sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -41,7 +41,7 @@ def main(src_ip, src_port, dest_ip, dest_port):
 
 if __name__ == "__main__":
     # Replace these variables with the actual IPs and ports you want to use
-    SRC_IP = "100.102.184.87"
+    SRC_IP = "100.102.184.87"  # Make sure this IP is configured on your machine
     SRC_PORT = 14550
     DEST_IP = "100.100.184.90"
     DEST_PORT = 14550
