@@ -126,7 +126,7 @@ from werkzeug.utils import secure_filename
 import shutil
 
 
-FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
+FORWARDING_IPS = ['100.100.184.90']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
 
 
 # Imports
