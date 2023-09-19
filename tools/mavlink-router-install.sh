@@ -36,11 +36,23 @@ sudo apt update && sudo apt install -y git autoconf libtool python3 python3-futu
 
 # Clone and navigate into the repository
 git clone https://github.com/mavlink-router/mavlink-router.git || { echo "Cloning of repository failed"; exit 1; }
-cd mavlink-router
+cd mavlink-router || { echo "Changing directory failed"; exit 1; }
+
+# List the contents for debugging
+echo "Listing directory contents:"
+ls -al
 
 # Build and install
-git submodule update --init --recursive && \
-./autogen.sh && \
+git submodule update --init --recursive || { echo "Submodule update failed"; exit 1; }
+
+# Check if autogen.sh exists and is executable
+if [[ -x "autogen.sh" ]]; then
+    ./autogen.sh || { echo "Autogen failed"; exit 1; }
+else
+    echo "./autogen.sh doesn't exist or is not executable"
+    exit 1
+fi
+
 ./configure CFLAGS='-g -O2' \
             --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 \
             --prefix=/usr && \
