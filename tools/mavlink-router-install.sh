@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# Author: Alireza Ghaderi
-# GitHub: alireza787b/mavsdk_drone_show
-# Email: p30planets@gmail.com
-# Introduction: This script installs mavlink-router as part of the MAVSDK-Drone-Show project.
-
-
 echo "================================================================="
 echo "MAVSDK-Drone-Show Mavlink-router Installation Script"
 echo "Author: Alireza Ghaderi"
@@ -20,7 +14,7 @@ cd ~
 # Check if mavlink-router is already installed
 if command -v mavlink-routerd &> /dev/null; then
     echo "mavlink-router is already installed. You're good to go!"
-    echo "use this command:"
+    echo "Use this command:"
     echo "mavlink-routerd -e 100.100.184.90:14550 0.0.0.0:14550"   
     exit 0
 fi
@@ -32,39 +26,28 @@ if [ -d "mavlink-router" ]; then
 fi
 
 # Update and install packages
-sudo apt update && sudo apt install -y git autoconf libtool python3 python3-future python3-lxml g++ || { echo "Installation of packages failed"; exit 1; }
+sudo apt update && sudo apt install -y git meson ninja-build pkg-config gcc g++ systemd || { echo "Installation of packages failed"; exit 1; }
 
 # Clone and navigate into the repository
 git clone https://github.com/mavlink-router/mavlink-router.git || { echo "Cloning of repository failed"; exit 1; }
 cd mavlink-router || { echo "Changing directory failed"; exit 1; }
 
-# List the contents for debugging
-echo "Listing directory contents:"
-ls -al
-
-# Build and install
+# Fetch dependencies (submodules)
 git submodule update --init --recursive || { echo "Submodule update failed"; exit 1; }
 
-# Check if autogen.sh exists and is executable
-if [[ -x "autogen.sh" ]]; then
-    ./autogen.sh || { echo "Autogen failed"; exit 1; }
-else
-    echo "./autogen.sh doesn't exist or is not executable"
-    exit 1
-fi
+# Build with Meson and Ninja
+meson setup build . || { echo "Meson setup failed"; exit 1; }
+ninja -C build || { echo "Ninja build failed"; exit 1; }
 
-./configure CFLAGS='-g -O2' \
-            --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 \
-            --prefix=/usr && \
-make && \
-sudo make install || { echo "Build or installation failed"; exit 1; }
+# Install
+sudo ninja -C build install || { echo "Installation failed"; exit 1; }
 
 # Navigate back to home directory
 cd ~
 
 # Print success message
 echo "mavlink-router installed successfully. You're good to go!"
-echo "use this command:"
+echo "Use this command:"
 echo "mavlink-routerd -e 100.100.184.90:14550 0.0.0.0:14550"
 
 # Exit the script
