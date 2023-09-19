@@ -11,15 +11,21 @@ def forward_mavlink(src_ip, src_port, dest_ip, dest_port):
     print(f"Listening for incoming MAVLink messages on {src_ip}:{src_port}")
     print(f"Forwarding MAVLink messages to {dest_ip}:{dest_port}")
 
-    while True:
-        try:
+    try:
+        while True:
             # Receive MAVLink message from source
             data, addr = recv_sock.recvfrom(4096)
             
             # Forward the received message to the destination
             send_sock.sendto(data, (dest_ip, dest_port))
-        except Exception as e:
-            print(f"An error occurred: {e}")
+    except KeyboardInterrupt:
+        print("Received Ctrl+C. Terminating.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        recv_sock.close()
+        send_sock.close()
+        print("Sockets closed.")
 
 if __name__ == "__main__":
     # Replace these variables with the actual IPs and ports you want to use
