@@ -31,6 +31,9 @@ class MavlinkManager:
             if self.params.sim_mode:
                 endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.mavsdk_port}")
             else:
+                if self.params.serial_mavlink:
+                    endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
+
                 if self.params.shared_gcs_port:
                     endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
                 else:
