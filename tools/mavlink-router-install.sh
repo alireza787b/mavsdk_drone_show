@@ -15,7 +15,7 @@ cd ~
 if command -v mavlink-routerd &> /dev/null; then
     echo "mavlink-router is already installed. You're good to go!"
     echo "Use this command:"
-    echo "mavlink-routerd -e GCS_IP:24550 0.0.0.0:14550"
+    echo "mavlink-routerd -e GCS_IP:24550 0.0.0.0:34550"
     exit 0
 fi
 
@@ -48,7 +48,7 @@ cd ~
 # Print success message
 echo "mavlink-router installed successfully. You're good to go!"
 echo "Use this command:"
-echo "mavlink-routerd -e GCS_IP:14550 0.0.0.0:14550"
+echo "mavlink-routerd -e GCS_IP:24550 0.0.0.0:34550"
 
 # Exit the script
 exit 0
