@@ -508,8 +508,13 @@ def send_image(filename):
 def get_show_plots():
     plots_directory = 'shapes/swarm/plots'
     filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
-    # Assuming 'all_drones.png' will always be there, use its upload time
-    upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
+    
+    # Check if 'all_drones.png' is in filenames
+    if 'all_drones.png' in filenames:
+        upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
+    else:
+        upload_time = "unknown"
+    
     print("Filenames:", filenames)
     print("Last upload time:", upload_time)
     return jsonify({'filenames': filenames, 'uploadTime': upload_time})
