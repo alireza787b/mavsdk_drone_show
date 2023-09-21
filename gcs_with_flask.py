@@ -489,8 +489,8 @@ def import_show():
             completed_process = subprocess.run(["python3", "process_formation.py"], capture_output=True, text=True, check=True)
             print("Have {} bytes in stdout:\n{}".format(len(completed_process.stdout), completed_process.stdout))
         except subprocess.CalledProcessError as e:
+            print(str(e))
             return jsonify({'success': False, 'error': 'Error in running processformation.py', 'details': str(e)})
-        
         return jsonify({'success': True})
     else:
         return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
@@ -515,8 +515,6 @@ def get_show_plots():
     else:
         upload_time = "unknown"
     
-    print("Filenames:", filenames)
-    print("Last upload time:", upload_time)
     return jsonify({'filenames': filenames, 'uploadTime': upload_time})
 
 
