@@ -1,29 +1,3 @@
-# -----------------------------------------------------------------------------
-# coordinator.py
-# Version: 0.5
-#
-# Authors: Alireza Ghaderi
-# Email: p30planets@gmail.com
-# GitHub: https://github.com/Alireza787b
-#
-# This script coordinates the operations of a drone show. Its responsibilities include:
-# - Sending node info state to Ground Control Station (GCS)
-# - Listening to the commands from GCS
-# - Connecting to the pixhawk via serial (in real life) or SITL (in sim mode) and routing the mavlink messages
-#   (requires mavlink-router to be installed) to GCS and other nodes (in real life over Zerotier network, 
-#   in sim mode just send to the IP of the GCS locally)
-# - Syncing and setting the time to accurate internet time
-# - Setting a trigger time so all the drones can start the mission at a specified time in future for synced shows
-# - Allowing to unset the triggered time
-# - Autostarting when OS loads
-# 
-# More features might be added as the project progresses.
-#
-# This script is a part of mavsdk_drone_show repository available at:
-# https://github.com/Alireza787b/mavsdk_drone_show
-#
-# Last updated: June 2023
-# -----------------------------------------------------------------------------
 
 # Importing the necessary libraries
 import asyncio
@@ -178,11 +152,6 @@ def main_loop():
                     last_follow_setpoint_time = current_time
 
             time.sleep(params.sleep_interval)
-
-            # Schedule mission at lower frequency
-            # if current_time - last_schedule_mission_time >= schedule_mission_interval:
-            #     drone_setup.schedule_mission()
-            #     last_schedule_mission_time = current_time
 
         
 

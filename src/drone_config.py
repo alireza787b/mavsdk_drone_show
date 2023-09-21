@@ -72,7 +72,7 @@ class DroneConfig:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
                     return None
 
-                with open('online_params.csv', 'w') as f:
+                with open('online_config.csv', 'w') as f:
                     f.write(response.text)
 
                 return self.read_file('online_config.csv', 'online CSV file', self.hw_id)
