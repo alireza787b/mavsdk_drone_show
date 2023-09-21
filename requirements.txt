@@ -9,3 +9,4 @@ flask
 flask-cors
 psutil  
 scipy
+matplotlib
