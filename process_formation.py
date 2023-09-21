@@ -6,7 +6,7 @@ from functions.process_drone_files import process_drone_files
 from functions.update_config_file import update_config_file
 
 # Process the drone files and output the processed data to another directory
-
+print("starting process_formation.py")
 skybrush_dir = 'shapes/swarm/skybrush'
 
 processed_dir = 'shapes/swarm/processed'
