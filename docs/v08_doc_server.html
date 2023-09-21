@@ -433,13 +433,25 @@ ping LOCAL_GCS_TAILSCALE_IP
 <h4>Using MAVLink Router</h4>
 
 <p>
-  Mavlink Router serves as a middleware to forward MAVLink packets between different endpoints. In this setup, it's essential for routing MAVLink data from your server GCS to your local GCS.
+  MAVLink Router serves as a middleware to forward MAVLink packets between different endpoints. In this setup, it's essential for routing MAVLink data from your server GCS to your local GCS.
+</p>
+<h5>Why Use MAVLink Router?</h5>
+<p>
+  When your drones are being managed by a GCS on the server, the MAVLink data packets they generate are initially sent to that server-side GCS. However, you may also want this data to be accessible on a local GCS for easier monitoring and control. MAVLink Router allows you to achieve this by routing these data packets to another GCS located on your local machine.
+</p>
+<h5>Installing MAVLink Router</h5>
+<p>
+  Before we proceed with the MAVLink routing, we first need to ensure MAVLink Router is installed on the server. Follow these steps to install MAVLink Router:
+</p>
+<pre><code>
+cd ~/mavsdk_drone_show
+sudo bash tools/mavlink-router-install.sh
+</code></pre>
+<p>
+  This script will handle the installation process for MAVLink Router. Once completed, you can proceed with configuring the router.
 </p>
 
-<h5>Why Use Mavlink Router?</h5>
-<p>
-  When your drones are being managed by a GCS on the server, the MAVLink data packets they generate are initially sent to that server-side GCS. However, you may also want this data to be accessible on a local GCS for easier monitoring and control. Mavlink Router allows you to achieve this by routing these data packets to another GCS located on your local machine.
-</p>
+
 
 <h5>Understanding the Command</h5>
 <pre><code>
@@ -457,6 +469,7 @@ ping LOCAL_GCS_TAILSCALE_IP
 <p>
   In the given command, MAVLink messages are being sent initially on port "34550" to the first GCS (server-side), and then routed to port "24550" for the second GCS (local). These port numbers can be modified in the "params.py" file as per your requirements.
 </p>
+
 
 
 <h4>QGroundControl Settings</h4>
