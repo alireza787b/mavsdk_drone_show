@@ -40,3 +40,6 @@ app.get('/elevation', async (req, res) => {
         res.status(500).send("Error fetching elevation");
     }
 });
+app.listen(PORT, () => {
+    console.log(`Server started on http://localhost:${PORT}`);
+});
