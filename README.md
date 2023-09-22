@@ -50,10 +50,11 @@ We encourage you to check out our previous versions to get a feel for our journe
   <li>If relaying the MAVLink commands from the cloud, sometimes QGroundControl won't send</li>
   <li>When starting a swarm mission, you can no longer send any commands through the dashboard </li>
 </ul>
+<h3>،To Run the SITL using Docker:</h3>
+
 <ul>
   <li>Docker Image for Drone Instance: <a href="https://www.mediafire.com/file/8i54nkdxt3abkd2/drone-template-1_19thsept2023.tar/file">Download Here</a></li>
   <li>Demo Video: Coming Soon (Placeholder for YouTube link)</li>
-  <li>Demo Image: Coming Soon (Placeholder for image link)</li>
 </ul>
 <p>As always, we welcome your feedback, suggestions, and contributions!</p>
 
