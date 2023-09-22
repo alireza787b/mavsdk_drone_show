@@ -8,31 +8,46 @@ const PORT = 5001;
 app.use(cors());
 
 const elevationCache = {};
+const RADIUS = 20 / 1000; // 20 meters in kilometers
+
+// Function to calculate distance between two geographical points
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in kilometers
+}
 
 app.get('/elevation', async (req, res) => {
-    const lat = req.query.lat;
-    const lon = req.query.lon;
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
 
-    if(lat == null || lat === 'null' || lon == null || lon === 'null') {
-        console.error('Error: Latitude and Longitude must be provided');
-        return res.status(400).send('Latitude and Longitude must be provided');
+    if(isNaN(lat) || isNaN(lon)) {
+        console.error('Error: Valid Latitude and Longitude must be provided');
+        return res.status(400).send('Valid Latitude and Longitude must be provided');
     }
 
-
-    const coordKey = `${lat},${lon}`;
-
-    if (elevationCache[coordKey]) {
-        console.log(`Cache hit for coordinates ${coordKey}`);
-        return res.json(elevationCache[coordKey]);
+    // Check each cached coordinate
+    for(const coordKey in elevationCache) {
+        const [cachedLat, cachedLon] = coordKey.split(',').map(Number);
+        const distance = getDistance(lat, lon, cachedLat, cachedLon);
+        if(distance < RADIUS) {
+            console.log(`Cache hit for coordinates ${coordKey}`);
+            return res.json(elevationCache[coordKey]);
+        }
     }
 
     try {
-        console.log(`Fetching elevation data online for coordinates ${coordKey}`);
+        console.log(`Fetching elevation data online for coordinates ${lat},${lon}`);
         const response = await axios.get(`https://api.opentopodata.org/v1/srtm90m?locations=${lat},${lon}`);
-        elevationCache[coordKey] = response.data;
+        elevationCache[`${lat},${lon}`] = response.data;
         res.json(response.data);
     } catch (error) {
-        console.error(`Error fetching elevation for coordinates ${coordKey}:`, error);
+        console.error(`Error fetching elevation for coordinates ${lat},${lon}:`, error);
         res.status(500).send("Error fetching elevation");
     }
 });

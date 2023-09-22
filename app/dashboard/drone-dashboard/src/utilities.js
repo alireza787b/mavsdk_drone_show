@@ -11,6 +11,9 @@ export const LON_TO_METERS = 111321;
 export const WORLD_SIZE = 400;
 export const TEXTURE_REPEAT = 10;
 
+// Constants for readability and maintainability
+export const POLLING_RATE_HZ = 4;
+export const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 
 // Fetch the elevation based on latitude and longitude

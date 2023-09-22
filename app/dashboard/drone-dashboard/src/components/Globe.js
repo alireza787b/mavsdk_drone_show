@@ -8,6 +8,7 @@ import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
 import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities';
 import useElevation from '../useElevation';  // Update the path if necessary
+import '../styles/Globe.css'; // Import the CSS
 
 
 // Constants for conversions and world setup
@@ -82,6 +83,9 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
   );
 };
 
+const MemoizedDrone = React.memo(Drone);
+
+
 // Main Globe component
 export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
@@ -133,11 +137,13 @@ useEffect(() => {
       if (drones?.length) {
         setIsLoading(true);
   
-        if (!referencePoint) {
+        if (drones?.length && !referencePoint) {
+          setIsLoading(true);
+      
           const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
           const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
           const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
-
+      
           const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
           const localReference = [avgLat, avgLon, elevation ?? avgAlt];
           setReferencePoint(localReference);
@@ -176,7 +182,14 @@ useEffect(() => {
   }, [groundLevel]);
   
 
-  if (isLoading || !drones?.length || !referencePoint) return <div>Loading...</div>;
+  if (isLoading || !drones?.length || !referencePoint) 
+  return (
+    <div className="loading-container">
+      <div className="loading-message">
+        Waiting for drone to connect...
+      </div>
+    </div>
+  );
 
   const convertedDrones = drones.map(drone => ({
     ...drone,
@@ -198,13 +211,18 @@ useEffect(() => {
   return (
 
 
-
-    <div style={{ width: '100%', height: '70vh', position: 'relative' }}> {/* Set to relative */}
+<div id="scene-container" style={{ width: '100%', height: '70vh', position: 'relative' }}>
       <Canvas camera={{ position: initialCameraPosition, up: [0, 1, 0] }}>
         {showGround && <Environment groundLevel={groundLevel} />}
-        {convertedDrones.map(drone => (
+        {/* {convertedDrones.map(drone => (
           droneVisibility[drone.hw_ID] && <Drone key={drone.hw_ID} {...drone} />
-        ))}
+        ))} */}
+    {/*  Using memorize to see how it works. */}
+{convertedDrones.map(drone => (
+  droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
+))}
+
+
         {showGrid && <gridHelper args={[WORLD_SIZE, 50]} />}  
         <OrbitControls />
       </Canvas>

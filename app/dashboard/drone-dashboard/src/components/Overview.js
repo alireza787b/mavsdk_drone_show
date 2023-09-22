@@ -3,12 +3,9 @@ import axios from 'axios';
 import Globe from './Globe';
 import CommandSender from './CommandSender';
 import DroneWidget from './DroneWidget';
-import { getBackendURL } from '../utilities';
+import { getBackendURL , POLLING_RATE_HZ , STALE_DATA_THRESHOLD_SECONDS } from '../utilities';
 import '../styles/Overview.css';
 
-// Constants for readability and maintainability
-const POLLING_RATE_HZ = 4;
-const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 const Overview = ({ setSelectedDrone }) => {
   // State management

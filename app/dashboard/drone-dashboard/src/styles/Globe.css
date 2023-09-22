@@ -1,0 +1,19 @@
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 70vh;
+    width: 100%;
+    background-color: rgba(0,0,0,0.7); /* Semi-transparent black */
+  }
+  
+  .loading-message {
+    padding: 20px;
+    border-radius: 10px;
+    background: #ffffff; /* White background */
+    color: #000000; /* Black text */
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+  }
+  
