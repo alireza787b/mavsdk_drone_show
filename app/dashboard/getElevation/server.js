@@ -8,12 +8,23 @@ const PORT = 5001;
 // Use the CORS middleware to handle CORS issues
 app.use(cors());
 
+// In-memory cache to store elevation data
+const elevationCache = {};
+
 app.get('/elevation', async (req, res) => {
     const lat = req.query.lat;
     const lon = req.query.lon;
+    const coordKey = `${lat},${lon}`; // Create a unique key for each set of coordinates
+
+    // Check if the elevation data for the requested coordinates is already in the cache
+    if (elevationCache[coordKey]) {
+        return res.json(elevationCache[coordKey]);
+    }
 
     try {
         const response = await axios.get(`https://api.opentopodata.org/v1/srtm90m?locations=${lat},${lon}`);
+        // Store the received elevation data in the cache
+        elevationCache[coordKey] = response.data;
         res.json(response.data);
     } catch (error) {
         console.error("Error fetching elevation:", error);
