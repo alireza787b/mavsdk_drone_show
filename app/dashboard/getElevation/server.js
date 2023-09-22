@@ -14,6 +14,13 @@ const elevationCache = {};
 app.get('/elevation', async (req, res) => {
     const lat = req.query.lat;
     const lon = req.query.lon;
+    
+    // Validate latitude and longitude
+    if(lat == null || lon == null) {
+        console.error('Error: Latitude and Longitude must be provided'); // Log error details to the server terminal
+        return res.status(400).send('Latitude and Longitude must be provided');
+    }
+
     const coordKey = `${lat},${lon}`; // Create a unique key for each set of coordinates
 
     // Check if the elevation data for the requested coordinates is already in the cache
@@ -32,8 +39,4 @@ app.get('/elevation', async (req, res) => {
         console.error(`Error fetching elevation for coordinates ${coordKey}:`, error); // Log error details to the server terminal
         res.status(500).send("Error fetching elevation");
     }
-});
-
-app.listen(PORT, () => {
-    console.log(`Server started on http://localhost:${PORT}`);
 });
