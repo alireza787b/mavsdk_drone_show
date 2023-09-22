@@ -18,16 +18,18 @@ app.get('/elevation', async (req, res) => {
 
     // Check if the elevation data for the requested coordinates is already in the cache
     if (elevationCache[coordKey]) {
+        console.log(`Cache hit for coordinates ${coordKey}`); // Log cache hit to the server terminal
         return res.json(elevationCache[coordKey]);
     }
 
     try {
+        console.log(`Fetching elevation data online for coordinates ${coordKey}`); // Log online fetch to the server terminal
         const response = await axios.get(`https://api.opentopodata.org/v1/srtm90m?locations=${lat},${lon}`);
         // Store the received elevation data in the cache
         elevationCache[coordKey] = response.data;
         res.json(response.data);
     } catch (error) {
-        console.error("Error fetching elevation:", error);
+        console.error(`Error fetching elevation for coordinates ${coordKey}:`, error); // Log error details to the server terminal
         res.status(500).send("Error fetching elevation");
     }
 });
