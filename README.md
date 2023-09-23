@@ -21,6 +21,11 @@ We encourage you to check out our previous versions to get a feel for our journe
 
 <p>In version 0.8, we have made significant improvements to the GUI and drone dashboard, which is a web-based React application. We have also introduced smarter and smoother drone swarm behaviors using a Kalman Filter implementation. </p>
 
+<a href="https://youtu.be/E0xijEuTKtU" target="_blank"><img src="[https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/0d5d3630-e843-49c5-8bab-159a2bdeb81e](https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/823ddf04-78dd-47a9-9036-809cd8da1c5b)" style="width=300px" /></a>
+
+
+<h3><a href="https://youtu.be/E0xijEuTKtU">YouTube Demo of Version 0.8</a></h3>
+
 <h3>New Features:</h3>
 
 <ul>
@@ -53,7 +58,6 @@ We encourage you to check out our previous versions to get a feel for our journe
 <ul>
   <li>Docker Image for Drone Instance: <a href="https://www.mediafire.com/file/8i54nkdxt3abkd2/drone-template-1_19thsept2023.tar/file">Download Here</a></li>
   <li>Demo Video: Coming Soon (Placeholder for YouTube link)</li>
-  <li>Demo Image: Coming Soon (Placeholder for image link)</li>
 </ul>
 <p>As always, we welcome your feedback, suggestions, and contributions!</p>
 
