@@ -17,6 +17,51 @@ We've built this project hoping it'll make a dent in the drone programming unive
 We encourage you to check out our previous versions to get a feel for our journey so far. And hey, we absolutely love hearing from you all - your thoughts, ideas, questions - bring 'em on! They fuel our drive to keep pushing. Enjoy exploring and happy coding!
 
 
+<h2>Version 0.8: Major GUI Improvements and Enhanced Swarm Intelligence</h2>
+
+<p>In version 0.8, we have made significant improvements to the GUI and drone dashboard, which is a web-based React application. We have also introduced smarter and smoother drone swarm behaviors using a Kalman Filter implementation. </p>
+
+<a href="https://youtu.be/E0xijEuTKtU" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/823ddf04-78dd-47a9-9036-809cd8da1c5b" style="width=300px" /></a>
+
+
+<h3><a href="https://youtu.be/E0xijEuTKtU">YouTube Demo of Version 0.8</a></h3>
+
+<h3>New Features:</h3>
+
+<ul>
+  <li>Visually create/manage/import/export mission config file</li>
+  <li>Visually create/manage/import/export swarm file</li>
+  <li>Auto check for any position or config mismatch</li>
+  <li>Auto convert SkyBrush CSV zip files to MAVSDK drone show template</li>
+  <li>Docker optimization for running all your SITLs in the cloud in a few minutes</li>
+  <li>MAVLink router installation script (only needed when running in the cloud)</li>
+  <li>Auto startup scripts</li>
+</ul>
+
+<h3>Improvements:</h3>
+
+<ul>
+  <li>Huge improvements in GUI and drone dashboard</li>
+  <li>3D environment improvement for multi drones </li>
+  <li>Improved command handling to ensure each drone receives command</li>
+  <li>Kalman Filter implementation for smarter and smoother drone following</li>
+  <li>Many minor improvements and bug fixes</li>
+</ul>
+
+<h3>Known Bugs:</h3>
+
+<ul>
+  <li>Sometimes you need to refresh the page when a new drone is added to the system</li>
+  <li>If relaying the MAVLink commands from the cloud, sometimes QGroundControl won't send</li>
+  <li>When starting a swarm mission, you can no longer send any commands through the dashboard </li>
+</ul>
+<ul>
+  <li>Docker Image for Drone Instance: <a href="https://www.mediafire.com/file/8i54nkdxt3abkd2/drone-template-1_19thsept2023.tar/file">Download Here</a></li>
+  <li>Demo Video: Coming Soon (Placeholder for YouTube link)</li>
+</ul>
+<p>As always, we welcome your feedback, suggestions, and contributions!</p>
+
+
 ## Version 0.7: React GUI for Swarm Monitoring & Real-World and SITL Environment Scenario Automization Improvements
 
 In version 0.7, we have implemented a React-based graphical user interface (GUI) for real-time drone swarm monitoring. This allows for an intuitive centralized dashboard to track and command multiple drones in a swarm. 
