@@ -64,7 +64,7 @@ import struct
 import logging
 import select
 import subprocess
-
+from concurrent.futures import ThreadPoolExecutor
 from src.drone_config import DroneConfig 
 
 class DroneCommunicator:
@@ -77,6 +77,10 @@ class DroneCommunicator:
         self.sock.setblocking(0)  # This sets the socket to non-blocking mode
         self.stop_flag = threading.Event()
         self.nodes = None
+        self.executor = ThreadPoolExecutor(max_workers=10)
+
+    def send_telem(self, packet, ip, port):
+        self.sock.sendto(packet, (ip, port))
         
     def send_packet_to_node(self, packet, ip, port):
         self.sock.sendto(packet, (ip, port))
@@ -193,6 +197,7 @@ class DroneCommunicator:
 
         return drone_state
 
+
     def send_drone_state(self):
         udp_ip = self.drone_config.config['gcs_ip']  # IP address of the ground station
         udp_port = int(self.drone_config.config['debug_port'])  # UDP port to send telemetry data to
@@ -203,23 +208,23 @@ class DroneCommunicator:
             # Create a struct format string based on the data types
             telem_struct_fmt = '=BHHBBIddddddddBIB'  # update this to match your data types
             packet = struct.pack(telem_struct_fmt,
-                                 77,
-                                 drone_state['hw_id'],
-                                 drone_state['pos_id'],
-                                 drone_state['state'],
-                                 drone_state['mission'],
-                                 drone_state['trigger_time'],
-                                 drone_state['position_lat'],
-                                 drone_state['position_long'],
-                                 drone_state['position_alt'],
-                                 drone_state['velocity_north'],
-                                 drone_state['velocity_east'],
-                                 drone_state['velocity_down'],
-                                 drone_state['yaw'],
-                                 drone_state['battery_voltage'],
-                                 drone_state['follow_mode'],
-                                 drone_state['update_time'],
-                                 88)
+                                    77,
+                                    drone_state['hw_id'],
+                                    drone_state['pos_id'],
+                                    drone_state['state'],
+                                    drone_state['mission'],
+                                    drone_state['trigger_time'],
+                                    drone_state['position_lat'],
+                                    drone_state['position_long'],
+                                    drone_state['position_alt'],
+                                    drone_state['velocity_north'],
+                                    drone_state['velocity_east'],
+                                    drone_state['velocity_down'],
+                                    drone_state['yaw'],
+                                    drone_state['battery_voltage'],
+                                    drone_state['follow_mode'],
+                                    drone_state['update_time'],
+                                    88)
             telem_packet_size = len(packet)
 
             # If broadcast_mode is True, send to all nodes
@@ -227,13 +232,13 @@ class DroneCommunicator:
                 nodes = self.get_nodes()
                 for node in nodes:
                     if int(node["hw_id"]) != drone_state['hw_id']:
-                        self.send_packet_to_node(packet, node["ip"], int(node["debug_port"]))
-
+                        future = self.executor.submit(self.send_telem, packet,  node["ip"], int(node["debug_port"]))
             # Always send to GCS
-            self.send_packet_to_node(packet, udp_ip, udp_port)
+            self.executor.submit(self.send_telem, packet, udp_ip, udp_port)
 
-            time.sleep(self.params.TELEM_SEND_INTERVAL)  
-
+            time.sleep(self.params.TELEM_SEND_INTERVAL)
+            return future
+        
     def read_packets(self):
         while not self.stop_flag.is_set():
             ready = select.select([self.sock], [], [], self.params.income_packet_check_interval)
@@ -253,3 +258,5 @@ class DroneCommunicator:
         self.stop_flag.set()
         self.telemetry_thread.join()
         self.command_thread.join()
+        self.executor.shutdown()
+
