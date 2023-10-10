@@ -237,7 +237,6 @@ class DroneCommunicator:
             self.executor.submit(self.send_telem, packet, udp_ip, udp_port)
 
             time.sleep(self.params.TELEM_SEND_INTERVAL)
-            return future
         
     def read_packets(self):
         while not self.stop_flag.is_set():
