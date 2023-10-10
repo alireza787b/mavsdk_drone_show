@@ -22,7 +22,7 @@ do
     docker run --name drone-$i -d drone-template-1 bash /root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh
 
     # Give Docker a moment to get the container up and running
-    sleep 2
+    sleep 1+$i*0.3
 
     # Copy the .hwID file to the Docker container
     docker cp $i.hwID drone-$i:/root/mavsdk_drone_show/
