@@ -99,7 +99,7 @@ class Params():
     online_sync_time = False  # Set to True to sync time from Internet Time Servers
 
     # Telemetry and Communication
-    TELEM_SEND_INTERVAL = 1  # Send telemetry data every TELEM_SEND_INTERVAL seconds
+    TELEM_SEND_INTERVAL = 0.3  # Send telemetry data every TELEM_SEND_INTERVAL seconds
     local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
     broadcast_mode = False  # Set to True for broadcast mode, False for unicast mode
 
