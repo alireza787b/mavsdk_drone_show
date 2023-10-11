@@ -101,7 +101,7 @@ class Params():
     # Telemetry and Communication
     TELEM_SEND_INTERVAL = 1  # Send telemetry data every TELEM_SEND_INTERVAL seconds
     local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
-    broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
+    broadcast_mode = False  # Set to True for broadcast mode, False for unicast mode
 
     # Packet formats
     telem_struct_fmt = '=BHHBBIddddddddBIB'  # Telemetry packet format
