@@ -56,13 +56,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .app-container {
-  flex: 1 1; 
-  padding: 2rem;
-  margin-left: 13%;
-  width: 82%;
+
+   /* margin-left: 10px; */
+  /* width: 82%; */
 }
 
-.content {
+/* .content {
   flex: 1;
   padding: 2rem; 
 }
@@ -72,4 +71,29 @@ h1, h2, h3, h4, h5, h6 {
     margin-left: 5%;
     width: 90%; 
   }
+} */
+
+
+/* Layout */
+.app-container {
+  display: flex;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+}
+
+
+
+/* Menu items */
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+}
+
+/* Text contrast */  
+.text {
+  color: #333;
 }

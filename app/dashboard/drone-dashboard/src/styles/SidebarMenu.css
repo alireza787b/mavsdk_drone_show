@@ -1,0 +1,99 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+min-height: 100vh;
+height: 100%;
+}
+
+
+/* Header style */
+.sidebar-header {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.sidebar-header h3 {
+  color: #59d0ff; /* Header text color */
+  margin: 0;
+}
+
+/* Time display style */
+.sidebar-time {
+  text-align: center;
+}
+
+/* Style for the links within menu items */
+.menu-list a {
+  text-decoration: none; /* Remove underlines from links */
+  color: inherit; /* Inherit text color from the parent .menu-item */
+}
+
+.menu-list a:hover {
+  color: inherit; /* Text color on hover */
+}
+
+.menu-list:hover {
+  background-color: inherit; /* Background color on hover */
+}
+
+
+/* Menu style */
+.menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.menu-list a {
+  display: flex;
+  align-items: center;
+  padding: 1em;
+  color: #a2a5b9; /* Menu item text color */
+  font-weight: 600;
+  font-size: 1.02em;
+  text-decoration: none; /* Remove underlines from links */
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.menu-item:hover {
+  background-color: #00458b; /* Background color on hover */
+  color: #b6c8d9; /* Text color on hover */
+}
+
+.developer-info {
+  position: sticky;
+  bottom: 0;
+  margin-top: 100px ;
+  background-color: #1f2128; /* Background color for the developer info section */
+  padding: 10px; /* Add some padding for better visibility */
+  color: #aaa;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.developer-info a{
+  text-decoration: none; /* Remove underlines from links */
+  color: inherit; /* Inherit text color from the parent .menu-item */
+}
+
+/* Icon style */
+.FaBars-icon {
+  cursor: pointer;
+  transform: scale(1);
+  transition: transform 0.3s ease;
+  margin-left: auto;
+  padding: 10px;
+  color: rgb(139, 161, 183);
+  font-weight: 600;
+}
+
+.FaBars-icon:hover {
+  transform: scale(1.2);
+}
+
+/* Menu style */
+.menu-list {
+  flex-grow: 1; /* Allow the menu to expand and push the developer info section to the bottom */
+}

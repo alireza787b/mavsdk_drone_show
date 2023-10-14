@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Overview from './components/Overview';
 import Detail from './components/DroneDetail';
-import Sidebar from './components/Sidebar';
+import SidebarMenu from './components/SidebarMenu';
 import SwarmDesign from './components/SwarmDesign';
 import Mission from './components/MissionConfig';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
@@ -21,7 +21,7 @@ const App = () => {
   return (
     <Router>
       <div className="app-container">
-        <Sidebar />
+        <SidebarMenu />
         <div className="content">
         <Routes>
   <Route path="/drone-show-design" element={<DroneShowDesign />} />

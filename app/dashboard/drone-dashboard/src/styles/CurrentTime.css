@@ -1,0 +1,9 @@
+.current-time{
+    color: rgb(139, 161, 183);
+    font-size: 1em;
+    font-weight: 400;
+    text-align: left;
+    margin-left: auto;
+    padding: 10px;
+
+}
