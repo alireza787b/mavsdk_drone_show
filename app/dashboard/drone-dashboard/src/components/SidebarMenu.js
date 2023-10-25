@@ -71,18 +71,22 @@ const SidebarMenu = () => {
     {/* Menu */}
     <div className='menu-list'>
     <Menu menuItemStyles={menuItemStyles}>
-      <MenuItem icon={<FaTachometerAlt />}>
-        <Link to="/">Dashboard</Link>
+    <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
+       Dashboard
       </MenuItem>
-      <MenuItem icon={<FaGem />}>
-        <Link to="/mission-config">Mission Config</Link>
+      </Link>
+      <Link to="/mission-config">
+        <MenuItem icon={<FaGem />}>
+       Mission Config
       </MenuItem>
-      <MenuItem icon={<FaList />}>
-        <Link to="/swarm-design">Swarm Design</Link>
+      </Link>
+      <Link to="/swarm-design"><MenuItem icon={<FaList />}>
+       Swarm Design
       </MenuItem>
-      <MenuItem icon={<FaGithub />}>
-        <Link to="/import-drone-show">Import Drone Show</Link>
-      </MenuItem>
+      </Link>
+      <Link to="/import-drone-show"><MenuItem icon={<FaGithub />}>
+       Import Drone Show
+      </MenuItem></Link>
     </Menu>
     </div>
 
