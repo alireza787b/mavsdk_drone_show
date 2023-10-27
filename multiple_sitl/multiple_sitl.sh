@@ -10,6 +10,9 @@ trap "cleanup" SIGINT SIGTERM EXIT
 #./Tools/simulation/gazebo-classic/sitl_multiple_run.sh -n 10 -m iris
 
 
+# Variable to control logging. Set it to true if you want to enable logging and false if you want to disable it.
+ENABLE_LOGGING=false
+
 # Global counter
 declare -i COUNTER=0
 function get_coords_from_csv() {
@@ -31,55 +34,61 @@ function cleanup() {
 
 
 function spawn_model() {
-	MODEL=$1
-	N=$2 #Instance Number
-	X=$3
-	Y=$4
+    MODEL=$1
+    N=$2 #Instance Number
+    X=$3
+    Y=$4
 
-	local coords=$(get_coords_from_csv $(($N+1)))
+    local coords=$(get_coords_from_csv $(($N+1)))
     X=$(echo $coords | cut -d' ' -f1)
     Y=$(echo $coords | cut -d' ' -f2)
     echo "Using coords for drone $N: x=$X, y=$Y" >&2
 
+    SUPPORTED_MODELS=("iris" "plane" "standard_vtol" "rover" "r1_rover" "typhoon_h480")
+    if [[ " ${SUPPORTED_MODELS[*]} " != *"$MODEL"* ]];
+    then
+        echo "ERROR: Currently only vehicle model $MODEL is not supported!"
+        echo "       Supported Models: [${SUPPORTED_MODELS[@]}]"
+        trap "cleanup" SIGINT SIGTERM EXIT
+        exit 1
+    fi
 
-	SUPPORTED_MODELS=("iris" "plane" "standard_vtol" "rover" "r1_rover" "typhoon_h480")
-	if [[ " ${SUPPORTED_MODELS[*]} " != *"$MODEL"* ]];
-	then
-		echo "ERROR: Currently only vehicle model $MODEL is not supported!"
-		echo "       Supported Models: [${SUPPORTED_MODELS[@]}]"
-		trap "cleanup" SIGINT SIGTERM EXIT
-		exit 1
-	fi
+    working_dir="$build_path/rootfs/$n"
+    [ ! -d "$working_dir" ] && mkdir -p "$working_dir"
 
-	working_dir="$build_path/rootfs/$n"
-	[ ! -d "$working_dir" ] && mkdir -p "$working_dir"
+    pushd "$working_dir" &>/dev/null
+    echo "starting instance $N in $(pwd)"
+    $build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
 
-	pushd "$working_dir" &>/dev/null
-	echo "starting instance $N in $(pwd)"
-	$build_path/bin/px4 -i $N -d "$build_path/etc" >out.log 2>err.log &
+    sleep 2 # Give it a moment to initialize
+    if [ "$ENABLE_LOGGING" = false ]; then
+        # Disable logging for this PX4 instance
+        echo "param set SDLOG_MODE 0" | $build_path/bin/px4 -i $N -d "$build_path/etc"
+    fi
 
-	set --
-	set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/scripts/jinja_gen.py
-	set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models/${MODEL}/${MODEL}.sdf.jinja
-	set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic
-	set -- ${@} --mavlink_tcp_port $((4560+${N}))
-	set -- ${@} --mavlink_udp_port $((14560+${N}))
-	set -- ${@} --mavlink_id $((1+${N}))
-	set -- ${@} --gst_udp_port $((5600+${N}))
-	set -- ${@} --video_uri $((5600+${N}))
-	set -- ${@} --mavlink_cam_udp_port $((14530+${N}))
-	set -- ${@} --output-file /tmp/${MODEL}_${N}.sdf
+    set --
+    set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/scripts/jinja_gen.py
+    set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models/${MODEL}/${MODEL}.sdf.jinja
+    set -- ${@} ${src_path}/Tools/simulation/gazebo-classic/sitl_gazebo-classic
+    set -- ${@} --mavlink_tcp_port $((4560+${N}))
+    set -- ${@} --mavlink_udp_port $((14560+${N}))
+    set -- ${@} --mavlink_id $((1+${N}))
+    set -- ${@} --gst_udp_port $((5600+${N}))
+    set -- ${@} --video_uri $((5600+${N}))
+    set -- ${@} --mavlink_cam_udp_port $((14530+${N}))
+    set -- ${@} --output-file /tmp/${MODEL}_${N}.sdf
 
-	python3 ${@}
+    python3 ${@}
 
-	echo "Spawning ${MODEL}_${N} at ${X} ${Y}"
+    echo "Spawning ${MODEL}_${N} at ${X} ${Y}"
 
-	gz model --spawn-file=/tmp/${MODEL}_${N}.sdf --model-name=${MODEL}_${N} -x ${X} -y ${Y} -z 0.83
+    gz model --spawn-file=/tmp/${MODEL}_${N}.sdf --model-name=${MODEL}_${N} -x ${X} -y ${Y} -z 0.83
 
-	popd &>/dev/null
-	# Increment the counter
+    popd &>/dev/null
+    # Increment the counter
     let COUNTER++
 }
+
 
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]
 then
