@@ -23,6 +23,7 @@ We encourage you to check out our previous versions to get a feel for our journe
 
 <a href="https://youtu.be/E0xijEuTKtU" target="_blank"><img src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/823ddf04-78dd-47a9-9036-809cd8da1c5b" style="width=300px" /></a>
 
+follow the <a href="https://alireza787b.github.io/mavsdk_drone_show/v08_doc_server.html" target="_blank"> step-by-step instructions </a> to run this version.
 
 <h3><a href="https://youtu.be/E0xijEuTKtU">YouTube Demo of Version 0.8</a></h3>
 
