@@ -1,7 +1,32 @@
 #!/bin/bash
 
+# *****************************************************************************************
+# SITL Startup Script for MAVSDK_Drone_Show
+# Author: Alireza Ghaderi
+# GitHub: https://github.com/alireza787b/mavsdk_drone_show
+# Date: April 2024
+#
+# This script automates the setup and launch of the SITL (Software in the Loop) environment
+# for the MAVSDK_Drone_Show project. It handles software dependencies, configuration settings,
+# and initiates the SITL simulation with appropriate environmental variables.
+#
+# Usage:
+# ./startup_script.sh [simulation_mode] [branch_name]
+#
+# Arguments:
+#   simulation_mode - (Optional) 'g' for gazebo with graphics, 'j' for jmavsim, 'h' for headless gazebo (default).
+#   branch_name - (Optional) Specifies the GitHub branch to be used for pulling updates. Defaults to 'main' if not provided.
+#
+# Requirements:
+#   'bc' tool for floating point math and 'git' for repository management must be installed.
+#
+# Example:
+#   To start the simulation in headless mode and pull updates from the 'sitl-test' branch:
+#   ./startup_script.sh h sitl-test
+#
+# *****************************************************************************************
+
 echo "Welcome to the SITL Startup Script for MAVSDK_Drone_Show!"
-# ... [The rest of your introductory messages]
 
 # Function to handle SIGINT
 cleanup() {
@@ -22,7 +47,7 @@ if ! command -v bc &> /dev/null; then
     exit 1
 fi
 
-# Determine the command based on the provided argument
+# Determine the command based on the provided first argument
 case $1 in
   g)
     SIMULATION_COMMAND="make px4_sitl gazebo"
@@ -43,11 +68,11 @@ esac
 # DEFAULT_LON=51.3036
 # DEFAULT_ALT=1208
 
+
 # Default position: Azadi Stadium
 DEFAULT_LAT=35.725125060059966
 DEFAULT_LON=51.27585107671351
 DEFAULT_ALT=1278.5
-
 
 # Read hwID from the file
 while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
@@ -67,12 +92,12 @@ if [ ! -f "$CONFIG_PATH" ]; then
     exit 1
 fi
 
-
-# Pull the latest repo changes
+# Pull the latest repo changes with specified branch or default to 'main'
+BRANCH=${2:-main}  # Default to 'main' if no branch specified
 cd ~/mavsdk_drone_show
-echo "Stashing and pulling the latest changes from the repository..."
+echo "Stashing any local changes and pulling the latest changes from the repository..."
 git stash
-git pull
+git pull origin $BRANCH
 
 # Check Python requirements
 echo "Checking and installing Python Requirements..."
@@ -81,7 +106,6 @@ pip install -r requirements.txt
 # Set the MAV_SYS_ID
 echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
-
 
 # Initialize offsets with default values
 OFFSET_X=0
@@ -107,33 +131,12 @@ M_PER_DEGREE=$(echo "111320 * c($LAT_RAD)" | bc -l)
 NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
 NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
-
 echo "DEBUG: Calculated LAT = $NEW_LAT, LON = $NEW_LON"
 
 # Export environment variables for PX4 SITL
 export PX4_HOME_LAT="$NEW_LAT"
 export PX4_HOME_LON="$NEW_LON"
 export PX4_HOME_ALT="$DEFAULT_ALT"
-
-# Continue with the simulation command
-case $1 in
-  g)
-    SIMULATION_COMMAND="make px4_sitl gazebo"
-    echo "Graphics enabled."
-    ;;
-  j)
-    SIMULATION_COMMAND="make px4_sitl jmavsim"
-    echo "Using jmavsim."
-    ;;
-  h|*)
-    SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
-    echo "Graphics disabled."
-    ;;
-esac
-
-echo "DEBUG: SIMULATION_COMMAND = $SIMULATION_COMMAND"
-
-
 
 # Start the SITL simulation in the background
 echo "Starting the SITL simulation process..."
@@ -149,7 +152,6 @@ fi
 
 export HEADLESS
 $SIMULATION_COMMAND &
-
 
 # Record the PID of the simulation process
 simulation_pid=$!
@@ -170,3 +172,4 @@ wait $simulation_pid
 
 # Keep the script running to maintain background processes
 tail -f /dev/null
+
