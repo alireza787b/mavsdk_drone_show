@@ -23,8 +23,8 @@
 #   a Docker image named 'drone-template-1' that is pre-configured to run the SITL simulations.
 #
 # Example:
-#   To create 5 containers using the 'development' branch of the repository:
-#   ./create_docker.sh 5 development
+#   To create 5 containers using the 'sitl-test' branch of the repository:
+#   ./create_docker.sh 5 sitl-test
 #
 # Note:
 #   This script will create an empty '.hwID' file for each container, copy it to the container,
