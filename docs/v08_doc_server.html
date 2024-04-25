@@ -321,38 +321,6 @@ bash linux_dashboard_start.sh
   You can configure your mission, swarm design, or drone show using SkyBrush or similar tools. Remember, if you make any changes to these configurations, you should push those changes to your forked GitHub repo. Your drone instances will automatically pull these changes upon startup.
 </p>
 
-<h3>Run Drone Instances</h3>
-<p>
-  Open a new terminal tab and SSH into your server:
-</p>
-
-<pre><code>
-ssh root@Your_Server_IP
-</code></pre>
-
-<p>
-  Once connected, navigate to the repository directory:
-</p>
-
-<pre><code>
-cd ~/mavsdk_drone_show
-</code></pre>
-
-<p>
-  Create the drone instances using the following script. This script now supports specifying a branch name for the simulations, allowing you to test different branches without affecting the main code base or real-world tests:
-</p>
-
-<pre><code>
-sudo bash multiple_sitl/create_dockers.sh 2 sitl-test
-</code></pre>
-
-<p>
-  The first argument specifies how many drone instances you want to create. In this example, "2" drones will be created. The second argument "sitl-test" specifies the branch name to be used for each Docker container. If no branch name is provided, the script defaults to the 'main' branch. This feature is particularly useful for testing new features or configurations in isolation from the main operational environment.
-</p>
-
-<p>
-  Ensure your server has enough resources allocated for the drone instances you plan to run. The instances should automatically appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
-</p>
 
 <h3>VPN Setup for Local MAVLink Communication (Optional but Recommended)</h3>
 
@@ -463,7 +431,39 @@ sudo bash tools/mavlink-router-install.sh
 
 <p>On your local GCS, open QGroundControl and navigate to &#39;Application Settings&#39; &gt; &#39;Comm Links&#39;. Create a new comm link, name it (e.g., &#39;server1&#39;), check the &#39;High Latency&#39; mode, set the connection type to &#39;UDP&#39;, set the port to &#39;24550&#39;, and optionally add the server (<code>SERVER_GCS_VPN_IP</code>). Save and select this comm link to connect. All your drones should now be auto-detected.</p>
 
-<h2>Clean-Up</h2>
+<h2>Run Drone Instances</h2>
+<p>
+  Open a new terminal tab and SSH into your server:
+</p>
+
+<pre><code>
+ssh root@Your_Server_IP
+</code></pre>
+
+<p>
+  Once connected, navigate to the repository directory:
+</p>
+
+<pre><code>
+cd ~/mavsdk_drone_show
+</code></pre>
+
+<p>
+  Create the drone instances using the following script. This script now supports specifying a branch name for the simulations, allowing you to test different branches without affecting the main code base or real-world tests:
+</p>
+
+<pre><code>
+sudo bash multiple_sitl/create_dockers.sh 2 sitl-test
+</code></pre>
+
+<p>
+  The first argument specifies how many drone instances you want to create. In this example, "2" drones will be created. The second argument "sitl-test" specifies the branch name to be used for each Docker container. If no branch name is provided, the script defaults to the 'main' branch. This feature is particularly useful for testing new features or configurations in isolation from the main operational environment.
+</p>
+
+<p>
+  Ensure your server has enough resources allocated for the drone instances you plan to run. The instances should automatically appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
+</p>
+	    <h2>Clean-Up</h2>
 
 <p>Once you are done, head over to the Portainer container menu and remove the drone instances you created. This will help save disk resources.</p>
 
