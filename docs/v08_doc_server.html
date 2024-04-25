@@ -169,7 +169,7 @@
   <li>Click 'Save.'</li>
 </ol>
 
-<p><strong>Note on Security and Accessibility:</strong> It is advisable to use a reverse proxy, such as Nginx or Caddy, to manage and secure access to your server's various services like the dashboard and Portainer. A reverse proxy can help you configure SSL certificates for these subdomains, ensuring encrypted and secure communication. This setup not only enhances security but also improves access management, allowing you to point several subdomains to different services seamlessly.</p>
+<p><strong>Note on Security and Accessibility:</strong> It is advisable to use a reverse proxy, such as Nginx or Caddy web servers, to manage and secure access to your server's various services like the dashboard and Portainer. A reverse proxy can help you configure SSL certificates for these subdomains, ensuring encrypted and secure communication. This setup not only enhances security but also improves access management, allowing you to point several subdomains to different services seamlessly.</p>
 
 <p>For detailed guides on setting up a reverse proxy with SSL certificates, please refer to:</p>
 <ul>
@@ -177,7 +177,7 @@
   <li><a href="https://caddyserver.com/docs/" target="_blank">Caddy Documentation</a></li>
 </ul>
 
-<p>Tip: If you prefer, you can also continue to use the IP address of the server or Reverse DNS URLs.</p>
+<p>Tip: If you prefer, you can also continue to use the IP address of the server or your main domain and port number or Reverse DNS URLs.</p>
 
 
 <h2>Server Configuration: Basic Setup</h2>
@@ -247,64 +247,19 @@ sudo docker load &lt; drone-template-1_19thsept2023.tar
 
 <h4>Customizing the Docker Image (Optional)</h4>
 
-<p>If you are familiar with docker and git workflow and wish to customize the Docker image to suit specific project needs or to test new features, follow this detailed guide. These steps allow you to modify the image, including using a different repository or branch for the MAVSDK_Drone_Show project and integrating other software components like MAVSDK_Server.</p>
+<p>If you are experienced with Docker and Git and wish to customize the Docker image for specific project needs or to test new features, here's a brief guide:</p>
 
-<ol>
-  <li><strong>Create a Docker Container:</strong> Start by creating a new container from the existing drone template image. This container will serve as your working environment for all modifications.</li>
-</ol>
+<ul>
+  <li><strong>Container Setup:</strong> Create and start a Docker container from the existing drone template image to serve as your modification workspace.</li>
+  <li><strong>Repository Management:</strong> Fork the <code>mavsdk_drone_show</code> repository and clone your fork into the Docker container. This setup allows you to make changes without impacting the original codebase.</li>
+  <li><strong>Branch Management:</strong> Create new branches or switch between existing ones within your repository to manage different development streams or feature tests.</li>
+  <li><strong>Software Integration:</strong> Add any required components such as the MAVSDK_Server or other dependencies that are crucial for your project's functionality.</li>
+  <li><strong>Image Customization:</strong> Once your modifications are complete, commit the changes to a new Docker image to preserve your environment for future deployments.</li>
+</ul>
 
-<pre><code>
-sudo docker run -it --name updated_drone_template drone-template-1 /bin/bash
-</code></pre>
+<p>This approach ensures you have a Docker image customized to your requirements, ready for deploying drone simulations or other related applications. Utilize your expertise in Docker and Git to manage and implement these changes efficiently.</p>
 
-<p>This command runs the container in interactive mode and opens a bash shell for you.</p>
-
-<ol start="2">
-  <li><strong>Access the Container's Bash Terminal:</strong> If you exit the container's terminal, you can re-enter it using:</li>
-</ol>
-
-<pre><code>
-sudo docker start -ai updated_drone_template
-</code></pre>
-
-<ol start="3">
-  <li><strong>Fork and Clone Your Repository:</strong> Fork the <code>mavsdk_drone_show</code> repository on GitHub to create a personal copy. Then, clone your fork inside the container. This allows you to push changes to your repository without affecting the official version.</li>
-</ol>
-
-<pre><code>
-git clone https://github.com/yourusername/mavsdk_drone_show.git
-cd mavsdk_drone_show
-</code></pre>
-
-<ol start="4">
-  <li><strong>Switch Branches or Create New Ones:</strong> If you need to work on a specific branch or create a new one for your tests and developments, do it as follows:</li>
-</ol>
-
-<pre><code>
-git checkout -b new-feature
-</code></pre>
-
-<p>This command creates and switches to a new branch named 'new-feature'.</p>
-
-<ol start="5">
-  <li><strong>Integrate Additional Components:</strong> If your project requires the MAVSDK_Server binary or other dependencies not included in the base image, download and configure them as needed.</li>
-</ol>
-<pre><code>
-https://github.com/mavlink/MAVSDK/releases/
-</code></pre>
-
-<ol start="6">
-  <li><strong>Commit Changes to a New Docker Image:</strong> Once all modifications are complete, commit these changes to create a new Docker image. This preserves your custom environment for future use or distribution.</li>
-</ol>
-
-<pre><code>
-sudo docker commit updated_drone_template custom_drone_template:latest
-</code></pre>
-
-<p>This command saves all your customizations into a new Docker image named 'custom_drone_template' with the 'latest' tag.</p>
-
-<p>With these steps, you have a fully customized Docker image ready for deploying drone simulations with your configurations and enhancements. This image can now be used to launch new drone instances tailored to your specific project needs.</p>
-
+	    
 <h3>Portainer Installation (Optional but Highly Recommended)</h3>
 
 <p>Portainer is an open-source management tool that provides a graphical user interface (GUI) to facilitate the management and monitoring of Docker environments. It simplifies the deployment, troubleshooting, and overall control of Docker containers, including those used for drone simulations.</p>
