@@ -76,8 +76,8 @@ class Params():
 
     # Mavlink Connection
     serial_mavlink = False  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
-    serial_mavlink_port = '/dev/ttyAMA0'  # Default serial port for Raspberry Pi Zero
-    serial_baudrate = 57600  # Default baudrate
+    serial_mavlink_port = '/dev/ttyS0'  # Default serial port for Raspberry Pi Zero TTL
+    serial_baudrate = 1000000  # Default baudrate
     sitl_port = 14550  # Default SITL port
     gcs_mavlink_port = 34550  # Port to send Mavlink messages to GCS
     mavsdk_port = 14540  # Default MAVSDK port
@@ -101,7 +101,7 @@ class Params():
     # Telemetry and Communication
     TELEM_SEND_INTERVAL = 0.5  # Send telemetry data every TELEM_SEND_INTERVAL seconds
     local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
-    broadcast_mode = False  # Set to True for broadcast mode, False for unicast mode
+    broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
 
     # Packet formats
     telem_struct_fmt = '=BHHBBIddddddddBIB'  # Telemetry packet format
