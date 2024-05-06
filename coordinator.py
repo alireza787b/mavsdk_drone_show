@@ -102,9 +102,6 @@ drone_comms.start_communication()
 
 
         
-        
-
-
 
 # Global variable to store the single OffboardController instance
 offboard_controller = None
