@@ -75,7 +75,7 @@ class Params():
     sim_mode = False  # Set to True for simulation mode, False for real-life mode
 
     # Mavlink Connection
-    serial_mavlink = False  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
+    serial_mavlink = True  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
     serial_mavlink_port = '/dev/ttyS0'  # Default serial port for Raspberry Pi Zero TTL
     serial_baudrate = 1000000  # Default baudrate
     sitl_port = 14550  # Default SITL port
