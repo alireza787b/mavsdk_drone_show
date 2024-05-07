@@ -122,7 +122,8 @@ def schedule_missions_thread(drone_setup):
 def main_loop():
     global mavlink_manager, offboard_controller  # Declare them as global
     try:
-        drone_setup.synchronize_time()
+        if params.online_sync_time:
+            drone_setup.synchronize_time()
 
         mavlink_manager = MavlinkManager(params, drone_config)
         print("Initializing MAVLink...")
