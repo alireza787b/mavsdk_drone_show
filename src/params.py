@@ -76,9 +76,9 @@ class Params():
 
     # Mavlink Connection
     serial_mavlink = True  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
-    serial_mavlink_port = '/dev/ttyACM0'  # Default serial port for Raspberry Pi USB
-    #serial_mavlink_port = '/dev/ttyS0'  # Default serial port for Raspberry Pi Zero TTL
-    serial_baudrate = 1000000  # Default baudrate
+    #serial_mavlink_port = '/dev/ttyACM0'  # Default serial port for Raspberry Pi USB
+    serial_mavlink_port = '/dev/ttyS0'  # Default serial port for Raspberry Pi Zero TTL
+    serial_baudrate = 57600  # Default baudrate
     sitl_port = 14550  # Default SITL port
     gcs_mavlink_port = 34550  # Port to send Mavlink messages to GCS
     mavsdk_port = 14540  # Default MAVSDK port
