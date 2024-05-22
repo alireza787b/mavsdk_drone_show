@@ -83,7 +83,7 @@ class Params():
     gcs_mavlink_port = 34550  # Port to send Mavlink messages to GCS
     mavsdk_port = 14540  # Default MAVSDK port
     local_mavlink_port = 12550  # Local Mavlink port
-    shared_gcs_port = False
+    shared_gcs_port = True
     #extra_devices = [f"127.0.0.1:{local_mavlink_port}", "192.168.189.1:14550"]  # List of extra devices (IP:Port) to route Mavlink
     extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.20.178:14550","100.84.21.128:14550"]
     # Sleep interval for the main loop in seconds
@@ -102,7 +102,7 @@ class Params():
     # Telemetry and Communication
     TELEM_SEND_INTERVAL = 0.5  # Send telemetry data every TELEM_SEND_INTERVAL seconds
     local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
-    broadcast_mode = False  # Set to True for broadcast mode, False for unicast mode
+    broadcast_mode = True  # Set to True for broadcast mode, False for unicast mode
 
     # Packet formats
     telem_struct_fmt = '=BHHBBIddddddddBIB'  # Telemetry packet format
