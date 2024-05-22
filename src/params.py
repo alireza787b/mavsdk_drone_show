@@ -83,7 +83,7 @@ class Params():
     gcs_mavlink_port = 34550  # Port to send Mavlink messages to GCS
     mavsdk_port = 14540  # Default MAVSDK port
     local_mavlink_port = 12550  # Local Mavlink port
-    shared_gcs_port = True
+    shared_gcs_port = False
     #extra_devices = [f"127.0.0.1:{local_mavlink_port}", "192.168.189.1:14550"]  # List of extra devices (IP:Port) to route Mavlink
     extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.20.178:14550","100.84.21.128:14550"]
     # Sleep interval for the main loop in seconds
