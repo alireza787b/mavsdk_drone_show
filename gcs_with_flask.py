@@ -213,7 +213,7 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
 
 def retry_pending_commands():
     while True:
-        time.sleep(1)  # Sleep for 1 second between each iteration
+        time.sleep(3)  # Sleep for 1 second between each iteration
         current_time = int(time.time())
         with telemetry_lock:  # Lock to ensure thread safety
             for hw_id, command_data in list(pending_commands.items()):  # Make a copy of items to safely modify the dictionary
