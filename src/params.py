@@ -85,7 +85,7 @@ class Params():
     local_mavlink_port = 12550  # Local Mavlink port
     shared_gcs_port = True
     #extra_devices = [f"127.0.0.1:{local_mavlink_port}", "192.168.189.1:14550"]  # List of extra devices (IP:Port) to route Mavlink
-    extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550","100.84.21.128:14550"]
+    extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550","100.84.21.128:14550","100.84.20.178:14550"]
     # Sleep interval for the main loop in seconds
     sleep_interval = 0.1
 
@@ -113,13 +113,13 @@ class Params():
     command_packet_size = struct.calcsize(command_struct_fmt)  # Size of command packet
 
     # Interval for checking incoming packets
-    income_packet_check_interval = 0.2
+    income_packet_check_interval = 0.1
 
     # Default GRPC port
     default_GRPC_port = 50051
 
     # Offboard follow update interval
-    offboard_follow_update_interval = 0.2
+    offboard_follow_update_interval = 0.1
 
 
     schedule_mission_frequency = 2
