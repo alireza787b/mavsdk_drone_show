@@ -161,7 +161,7 @@ telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.debug)
 logger = logging.getLogger(__name__)
 
 # Single Drone

@@ -56,7 +56,7 @@ current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 
 # Set up logging
 log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.debug, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 
