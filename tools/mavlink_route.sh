@@ -21,9 +21,10 @@ listen_endpoint="0.0.0.0:34550"
 
 # Pre-programmed client endpoints
 preprogrammed_clients=(
-    "100.84.172.88:24550"
-    "100.84.147.240:24550"
-    "100.84.229.96:24550"
+    "100.84.172.88:24550" # S9 Plus
+    "100.84.147.240:24550" # S9
+    "100.84.229.96:24550" # Iphone 13s
+    "11.94.119.73:24550" # Nokia
 )
 
 # Function to display help
