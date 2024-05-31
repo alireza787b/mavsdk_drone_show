@@ -126,7 +126,7 @@ from werkzeug.utils import secure_filename
 import shutil
 
 
-FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
+# FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
 
 
 # Imports
@@ -154,14 +154,14 @@ flask_telem_socket_port = 5000
 # Sim Mode
 sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
-telem_struct_fmt = '=BHHBBIddddddddBIB'
-command_struct_fmt = '=B B B B B I B'
+telem_struct_fmt = '>BHHBBIddddddddBIB'
+command_struct_fmt = '>B B B B B I B'
 
 telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Single Drone
@@ -213,7 +213,7 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
 
 def retry_pending_commands():
     while True:
-        time.sleep(3)  # Sleep for 1 second between each iteration
+        time.sleep(5)  # Sleep for 1 second between each iteration
         current_time = int(time.time())
         with telemetry_lock:  # Lock to ensure thread safety
             for hw_id, command_data in list(pending_commands.items()):  # Make a copy of items to safely modify the dictionary
@@ -276,12 +276,12 @@ def handle_telemetry(keep_running, print_telemetry, sock):
                 logger.error("Invalid header or terminator received in telemetry data.")
                 continue
 
-            # Forwarding the received telemetry data to the specified IPs
-            for ip in FORWARDING_IPS:
-                try:
-                    sock.sendto(data, (ip, sock.getsockname()[1]))  # Using the same port as the receiving port
-                except Exception as e:
-                    logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
+            # # Forwarding the received telemetry data to the specified IPs
+            # for ip in FORWARDING_IPS:
+            #     try:
+            #         sock.sendto(data, (ip, sock.getsockname()[1]))  # Using the same port as the receiving port
+            #     except Exception as e:
+            #         logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
 
             # Update global telemetry data for all drones
             with telemetry_lock:

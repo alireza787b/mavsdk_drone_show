@@ -123,7 +123,7 @@ async def perform_action(action, altitude):
             pass
         elif action == "test":
             await drone.action.arm()
-            await asyncio.sleep(4)
+            await asyncio.sleep(3)
             await drone.action.disarm()
         else:
             print("Invalid action")
