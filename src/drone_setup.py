@@ -12,33 +12,33 @@ class DroneSetup:
         self.drone_config = drone_config
         self.offboard_controller = offboard_controller
         self.params = params
-        self.last_logged_mission = None  # Add this line
-        self.last_logged_state = None  # Add this line
+        self.last_logged_mission = None 
+        self.last_logged_state = None  
 
     def synchronize_time(self):
-        if self.params.online_sync_time:
-            logging.info(f"Current system time before synchronization: {datetime.datetime.now()}")
-            logging.info("Attempting to synchronize time with a reliable internet source...")
+        logging.info("Attempting to synchronize time using shell script...")
+        
+        try:
+            # Execute the shell script and capture the output
+            result = subprocess.run(['bash', 'tools/sync_time_linux.sh'], capture_output=True, text=True)
             
-            try:
-                response = requests.get("http://worldtimeapi.org/api/ip")
-                
-                if response.status_code == 200:
-                    server_used = response.json()["client_ip"]
-                    current_time = response.json()["datetime"]
-                    logging.info(f"Time server used: {server_used}")
-                    logging.info(f"Time reported by server: {current_time}")
-                    
-                    logging.info("Setting system time...")
-                    os.system(f"sudo date -s '{current_time}'")
-                    
-                    logging.info(f"Current system time after synchronization: {datetime.datetime.now()}")
-                else:
-                    logging.error("Failed to sync time with an internet source.")
-            except Exception as e:
-                logging.error(f"An error occurred while synchronizing time: {e}")
-        else:
-            logging.info(f"Using Current System Time without online synchronization: {datetime.datetime.now()}")
+            if result.returncode == 0:
+                logging.info("Time synchronization successful.")
+                print("Shell script output:")
+                print(result.stdout)  # Printing the output from the shell script to the terminal
+            else:
+                logging.error("Failed to execute time synchronization script.")
+                print("Shell script output (stderr):")
+                print(result.stderr)  # Printing the error output from the shell script to the terminal
+
+        except Exception as e:
+            logging.error(f"An error occurred while running the time synchronization script: {e}")
+            print(f"Error running shell script: {e}")
+        
+        finally:
+            # Always log the final action, whether success or failure
+            logging.info("Time synchronization attempt completed.")
+
 
 
     def run_mission_script(self,command, subprocess_module=subprocess):
@@ -63,18 +63,18 @@ class DroneSetup:
         """
         # Get the current time
         current_time = int(time.time())
-        
+
         # Initialize success flag and message
         success = False
         message = ""
-        
+
         # If the mission is 1 (Drone Show) or 2 (Swarm Mission)
         if self.drone_config.mission in [1, 2]:
             if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
                 # Update state and reset trigger time
                 self.drone_config.state = 2
                 self.drone_config.trigger_time = 0
-                
+
                 if self.drone_config.mission == 1:
                     logging.info("Starting Drone Show")
                     success, message = self.run_mission_script("python3 offboard_multiple_from_csv.py")
@@ -84,37 +84,37 @@ class DroneSetup:
                         self.offboard_controller.start_swarm()
                         asyncio.run(self.offboard_controller.start_offboard_follow())
                     success, message = True, "Assumed success for Swarm Mission."
-        
+
         # If the mission is to take off to a certain altitude
         elif 10 <= self.drone_config.mission < 100:
             altitude = float(self.drone_config.mission) - 10
             altitude = min(altitude, 50)  # Limit altitude to 50m
             logging.info(f"Starting Takeoff to {altitude}m")
             success, message = self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
-        
+
         # If the mission is to land
         elif self.drone_config.mission == 101:
             logging.info("Starting Land")
-            if int(self.drone_config.swarm.get('follow')) != 0 and self.offboard_controller:  # Check if it's a follower
-                if self.offboard_controller.is_offboard:  # Check if it's in offboard mode
+            if int(self.drone_config.swarm.get('follow')) != 0 and self.offboard_controller:
+                if self.offboard_controller.is_offboard:
                     logging.info("Is in Offboard mode. Attempting to stop offboard.")
                     asyncio.run(self.offboard_controller.stop_offboard())
                     asyncio.sleep(1)
             success, message = self.run_mission_script("python3 actions.py --action=land")
-        
+
         # If the mission is to hold the position
         elif self.drone_config.mission == 102:
             logging.info("Starting Hold Position")
             success, message = self.run_mission_script("python3 actions.py --action=hold")
-        
+
         # If the mission is a test
         elif self.drone_config.mission == 100:
             logging.info("Starting Test")
             success, message = self.run_mission_script("python3 actions.py --action=test")
-        
+
         # Log the outcome only once for each mission code or state change
         if (self.last_logged_mission != self.drone_config.mission) or \
-           (self.last_logged_state != self.drone_config.state):
+        (self.last_logged_state != self.drone_config.state):
             if message:  # Only log if there's a message to display
                 if success:
                     logging.info(message)
@@ -131,3 +131,4 @@ class DroneSetup:
                 logging.info("Resetting mission code and state.")
                 self.drone_config.mission = 0
                 self.drone_config.state = 0
+

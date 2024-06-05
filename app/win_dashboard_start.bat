@@ -43,7 +43,7 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 echo Now starting the GCS Terminal App with Flask...
-cd "%REPO_ROOT%"
+cd "%REPO_ROOT%\gcs"
 start cmd /k python gcs_with_flask.py
 echo GCS Terminal App started successfully!
 

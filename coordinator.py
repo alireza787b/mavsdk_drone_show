@@ -139,17 +139,14 @@ def main_loop():
         scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
         scheduling_thread.start()
 
-        while True:
-            current_time = time.time()
+        while int(drone_config.mission) == 2:
+            current_time = time.time()            
             
-            if int(drone_config.mission) == 2:
-                
-                
-                if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
-                    offboard_controller.calculate_follow_setpoint()
-                    last_follow_setpoint_time = current_time
+            if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
+                offboard_controller.calculate_follow_setpoint()
+                last_follow_setpoint_time = current_time
 
-            time.sleep(params.sleep_interval)
+        time.sleep(params.sleep_interval)
 
         
 

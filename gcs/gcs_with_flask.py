@@ -104,6 +104,7 @@ Always ensure that you comply with all local laws and regulations when operating
 
 """
 
+import sys
 
 import csv
 import logging
@@ -124,11 +125,10 @@ from flask_cors import CORS
 import zipfile
 from werkzeug.utils import secure_filename
 import shutil
-from src.params import Params
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
-# FORWARDING_IPS = ['172.27.18.28']  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
-
+from params import Params  # Absolute import using updated sys.path
 
 # Imports
 telemetry_data_all_drones = {}
@@ -150,23 +150,23 @@ class Mission(Enum):
 
 
 
-flask_telem_socket_port = 5000
+flask_telem_socket_port = Params.flask_telem_socket_port
 
 # Sim Mode
-sim_mode = False  # Set this variable to True for simulation mode (the ip of all drones will be the same)
+sim_mode = Params.sim_mode  # Set this variable to True for simulation mode (the ip of all drones will be the same)
 
-telem_struct_fmt = '>BHHBBIddddddddBIB'
-command_struct_fmt = '>B B B B B I B'
+telem_struct_fmt = Params.telem_struct_fmt
+command_struct_fmt = Params.command_struct_fmt
 
 telem_packet_size = struct.calcsize(telem_struct_fmt)
 command_packet_size = struct.calcsize(command_struct_fmt)
 
 # Setup logger
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Single Drone
-single_drone = False  # Set this to True for single drone connection
+single_drone = Params.single_drone  # Set this to True for single drone connection
 
 # Read the config file
 config_df = pd.read_csv('config.csv')
@@ -214,13 +214,12 @@ def send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, 
 
 def retry_pending_commands():
     while True:
-        time.sleep(5)  # Sleep for 1 second between each iteration
+        time.sleep(2)  # Sleep for 2 second between each iteration
         current_time = int(time.time())
         with telemetry_lock:  # Lock to ensure thread safety
             for hw_id, command_data in list(pending_commands.items()):  # Make a copy of items to safely modify the dictionary
                 if current_time - command_data['timestamp'] > 5:  # If more than 5 seconds have passed
                     if command_data['retries'] < 5:  # Maximum of 5 retries
-                        # Resend the command (You'll need to adjust this part to fit your actual send_command function)
                         send_command(command_data['trigger_time'], sock, coordinator_ip, debug_port, hw_id, pos_id, command_data['mission'], command_data['state'])
                         # Update the number of retries and timestamp
                         command_data['retries'] += 1
@@ -277,14 +276,16 @@ def handle_telemetry(keep_running, print_telemetry, sock):
                 logger.error("Invalid header or terminator received in telemetry data.")
                 continue
 
-            # # Forwarding the received telemetry data to the specified IPs
-            # for ip in FORWARDING_IPS:
-            #     try:
-            #         sock.sendto(data, (ip, sock.getsockname()[1]))  # Using the same port as the receiving port
-            #     except Exception as e:
-            #         logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
+            # Forwarding the received telemetry data to the specified IPs
+            for ip in Params.extra_swarm_telem:
+                try:
+                    sock.sendto(data, (ip, sock.getsockname()[1]))  # Using the same port as the receiving port
+                except Exception as e:
+                    logger.error(f"Error forwarding telemetry to IP {ip}: {e}")
 
-            # Update global telemetry data for all drones
+            #Update global telemetry data for all drones
+            
+            
             with telemetry_lock:
                 telemetry_data_all_drones[hw_id] = {
                     'Pos_ID': pos_id,
@@ -305,7 +306,7 @@ def handle_telemetry(keep_running, print_telemetry, sock):
             # Check for pending commands
             with telemetry_lock:
                 if hw_id in pending_commands:
-                    logger.debug(f"Found pending command for HW_ID={hw_id}. Checking...")
+                    logger.INFO(f"Found pending command for HW_ID={hw_id}. Checking...")
 
                     pending_command = pending_commands[hw_id]
                     if pending_command['mission'] == Mission(mission).name and pending_command['state'] == State(state).name and pending_command['trigger_time'] == trigger_time:
@@ -498,7 +499,6 @@ def import_show():
 
 
 
-
 @app.route('/get-show-plots/<filename>')
 def send_image(filename):
     print("Trying to serve:", filename)
@@ -618,68 +618,21 @@ try:
 
         # Add to the drones_threads
         drones_threads.append((sock, telemetry_thread, coordinator_ip, debug_port, hw_id, pos_id))
-    # Main loop for command input
-
-# Removed the command line since it is not needed anymore since we have GUI. if you want to reactivate it remmeber in SSH when mulitple termials open there might be some problem
-
-
-    mission = 0
-    state = 0
-    n = 0
-    
-    #Removed the commandline input becuase it is no longer needed since we have a GUI. if you need that make sure you take care of auto linux startup since it might have problem when multiple terminal opens in one termina in one SSH. you might need to pass 'g' to startup 
     while True:
         pass
-    
-    # while True:
-    #     command = input("\n Enter 's' for swarm, 'c' for csv_droneshow, 'n' for none, 'q' to quit: \n")
-    #     if command.lower() == 'q':
-    #         break
-    #     elif command.lower() == 's':
-    #         mission = 2  # Setting mission to smart_swarm
-    #         n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
-    #         if int(n) == 0:
-    #             continue
-    #         state = 1
-    #     elif command.lower() == 'c':
-    #         mission = 1  # Setting mission to csv_droneshow
-    #         n = input("\n Enter the number of seconds for the trigger time (or '0' to cancel): \n")
-    #         if int(n) == 0:
-    #             continue
-    #         state = 1
-    #     elif command.lower() == 'n':
-    #         mission = 0  # Unsetting the mission
-    #         state = 0
-    #         n = 0  # Unsetting the trigger time
-    #     else:
-    #         logger.warning("Invalid command.")
-    #         continue
-
-    #     # Turn off telemetry printing while sending commands
-    #     for _, _, _, _, _, _ in drones_threads:
-    #         print_telemetry[0] = False
-    #     # Send command to each drone
-    #     for sock, _, coordinator_ip, debug_port, hw_id, pos_id in drones_threads:
-    #         trigger_time = int(time.time()) + int(n)  # Now + n seconds
-    #         send_command(trigger_time, sock, coordinator_ip, debug_port, hw_id, pos_id, mission, state)
-    #     # Turn on telemetry printing after sending commands
-    #     for _, _, _, _, _, _ in drones_threads:
-    #         print_telemetry[0] = True
 except (ValueError, OSError, KeyboardInterrupt) as e:
     # Catch any exceptions that occur during the execution
     logger.error(f"An error occurred: {e}")
-finally:
-    # When KeyboardInterrupt happens or an error occurs, stop the telemetry threads
     # keep_running[0] = False
 
-    # for sock, telemetry_thread, _, _, _, _ in drones_threads:
-    #     # Close the socket
-    #     sock.close()
-    #     # Join the thread
-    #     telemetry_thread.join()
+    for sock, telemetry_thread, _, _, _, _ in drones_threads:
+        # Close the socket
+        sock.close()
+        # Join the thread
+        telemetry_thread.join()
 
-    # # Join the Flask thread
-    # flask_thread.join()
+    # Join the Flask thread
+    flask_thread.join()
     pass
 
 logger.info("Exiting the application...")

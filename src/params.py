@@ -87,6 +87,12 @@ class Params():
     #extra_devices = [f"127.0.0.1:{local_mavlink_port}", "192.168.189.1:14550"]  # List of extra devices (IP:Port) to route Mavlink
     extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550","100.84.21.128:14550","100.84.20.178:14550"]
     # Sleep interval for the main loop in seconds
+    
+    
+    extra_swarm_telem = []  # Add IPs here as strings e.g. ['192.168.1.2', '192.168.1.3']
+
+    flask_telem_socket_port = 5000
+    
     sleep_interval = 0.1
 
     # Offline configuration switch

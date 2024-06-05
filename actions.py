@@ -5,7 +5,7 @@ from mavsdk import System
 import glob
 import os
 import subprocess
-
+import logging
 
 import psutil  # You may need to install this package
 
@@ -111,22 +111,37 @@ async def perform_action(action, altitude):
     # Perform the action
     try:
         if action == "takeoff":
-            await drone.action.set_takeoff_altitude(float(altitude))
-            await drone.action.arm()
-            await drone.action.takeoff()
+            try:
+                await drone.action.set_takeoff_altitude(float(altitude))
+                await drone.action.arm()
+                await drone.action.takeoff()
+                print("Takeoff successful.")
+            except Exception as e:
+                print(f"Takeoff failed but continuing: {e}")
         elif action == "land":
-            await drone.action.hold()  # Switch to Hold mode
-            await asyncio.sleep(1)  # Wait for a short period
-            await drone.action.land()  # Then execute land command
+            try:
+                await drone.action.hold()  # Switch to Hold mode
+                await asyncio.sleep(1)  # Wait for a short period
+                await drone.action.land()  # Then execute land command
+                print("Landing successful.")
+            except Exception as e:
+                print(f"Landing failed but continuing: {e}")
         elif action == "hold":
-            await drone.action.hold()  # Switch to Hold mode
-            pass
+            try:
+                await drone.action.hold()  # Switch to Hold mode
+                print("Hold position successful.")
+            except Exception as e:
+                print(f"Hold failed but continuing: {e}")
         elif action == "test":
-            await drone.action.arm()
-            await asyncio.sleep(3)
-            await drone.action.disarm()
+            try:
+                await drone.action.arm()
+                await asyncio.sleep(3)
+                await drone.action.disarm()
+                print("Test action successful.")
+            except Exception as e:
+                print(f"Test failed but continuing: {e}")
         else:
-            print("Invalid action")
+            print("Invalid action specified.")
     finally:
         if state.is_connected:
             # Terminate MAVSDK server if still running
@@ -134,17 +149,28 @@ async def perform_action(action, altitude):
             if is_running:
                 print(f"Terminating MAVSDK server running on port {grpc_port}...")
                 psutil.Process(pid).terminate()
-                psutil.Process(pid).wait()  # Wait for the process to actually terminate
+                psutil.Process(pid).wait()  # Ensure the server is properly terminated
+
+
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold')
+    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test')
     parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
 
     args = parser.parse_args()
 
     # Run the main event loop
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(perform_action(args.action, args.altitude))
+    try:
+        loop.run_until_complete(perform_action(args.action, args.altitude))
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+    finally:
+        loop.close()  # Ensure the loop is closed properly
+        logging.info("Operation completed, event loop closed.")
