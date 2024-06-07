@@ -74,6 +74,8 @@ class Params():
     # Simulation mode switch
     sim_mode = False  # Set to True for simulation mode, False for real-life mode
 
+    single_drone = False
+
     # Mavlink Connection
     serial_mavlink = True  # Set to True if Raspberry Pi is connected to Pixhawk using serial, False for UDP
     #serial_mavlink_port = '/dev/ttyACM0'  # Default serial port for Raspberry Pi USB
