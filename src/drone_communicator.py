@@ -150,7 +150,7 @@ class DroneCommunicator:
             drone_state = self.get_drone_state()
 
             # Create a struct format string based on the data types
-            telem_struct_fmt = self.params.telem_packet_size 
+            telem_struct_fmt = self.params.telem_struct_fmt 
             packet = struct.pack(telem_struct_fmt,
                                     77,
                                     drone_state['hw_id'],
