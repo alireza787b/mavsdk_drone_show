@@ -33,23 +33,23 @@ Additional Information:
 
 
 
-The script is set up to read its configuration from a .csv file named 'config.csv' which should be located in the same directory as the script. The columns
-in 'config.csv' should be as follows: hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip.
+The script is set up to read its configuration from a .csv file named '../config.csv' which should be located in the same directory as the script. The columns
+in '../config.csv' should be as follows: hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip.
 
-Each row in 'config.csv' corresponds to a drone. The 'hw_id' column indicates the hardware ID of the drone, the 'pos_id' gives its position ID, 'x' and 'y'
+Each row in '../config.csv' corresponds to a drone. The 'hw_id' column indicates the hardware ID of the drone, the 'pos_id' gives its position ID, 'x' and 'y'
 provide coordinates, 'ip' specifies the drone's IP address, 'mavlink_port' and 'debug_port' provide the ports for MAVLink communication and debug information,
 and 'gcs_ip' specifies the IP address of the GCS.
 
 The script supports both single-drone and multiple-drone modes. The mode is determined by the 'single_drone' variable in the script. 
 If 'single_drone' is True, the script will function in single-drone mode, where it communicates with a single drone specified by the hardware ID in a file 
 named 'i.hwID', where 'i' is the hardware ID of the drone. This file should be located in the same directory as the script.
-If 'single_drone' is False, the script operates in multiple-drone mode, communicating with all drones specified in the 'config.csv' file.
+If 'single_drone' is False, the script operates in multiple-drone mode, communicating with all drones specified in the '../config.csv' file.
 
 Sim Mode:
 ---------
 The script includes a 'sim_mode' boolean variable that allows the user to switch between simulation mode and real-world mode. When 'sim_mode' is set to True,
 the script is in simulation mode, and the IP address of the coordinator (essentially the drone control node) is manually defined in the code. 
-If 'sim_mode' is False, the script uses the IP address from 'config.csv' for the drones.
+If 'sim_mode' is False, the script uses the IP address from '../config.csv' for the drones.
 
 Communication Protocol:
 -----------------------
@@ -412,7 +412,7 @@ def save_config_data():
         # Specify column order
         column_order = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"]
 
-        with open('config.csv', 'w', newline='') as file:
+        with open('../config.csv', 'w', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=column_order)
             writer.writeheader()
             for drone in data:
@@ -434,7 +434,7 @@ def get_swarm_data():
 
 @app.route('/get-config-data', methods=['GET'])
 def get_config_data():
-    with open('config.csv', 'r') as f:
+    with open('../config.csv', 'r') as f:
         reader = csv.DictReader(f)
         data = [row for row in reader]
     return jsonify(data)
