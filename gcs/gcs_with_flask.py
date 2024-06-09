@@ -169,7 +169,7 @@ logger = logging.getLogger(__name__)
 single_drone = Params.single_drone  # Set this to True for single drone connection
 
 # Read the config file
-config_df = pd.read_csv('config.csv')
+config_df = pd.read_csv('../config.csv')
 
 # Drones list
 drones = []
