@@ -1,6 +1,7 @@
 # flask_handler.py
 import time
 from flask import Flask, jsonify
+from src.params import Params
 
 class FlaskHandler:
     def __init__(self,params , drone_communicator):
@@ -10,7 +11,7 @@ class FlaskHandler:
         self.setup_routes()
 
     def setup_routes(self):
-        @self.app.route('/get-drone-state', methods=['GET'])
+        @self.app.route(f"/{Params.get_drone_state_URI}", methods=['GET'])
         def get_drone_state():
             try:
                 drone_state = self.drone_communicator.get_drone_state()
