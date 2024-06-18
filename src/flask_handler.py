@@ -9,14 +9,14 @@ class FlaskHandler:
         self.setup_routes()
 
     def setup_routes(self):
-        @self.app.route('/get-drone-state/<int:hw_id>', methods=['GET'])
-        def get_drone_state(hw_id):
+        @self.app.route('/get-drone-state', methods=['GET'])
+        def get_drone_state():
             try:
-                drone_state = self.drone_communicator.get_drone_state(hw_id)
+                drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
                     return jsonify(drone_state)
                 else:
-                    return jsonify({"error": "Drone not found"}), 404
+                    return jsonify({"error": "Drone State not found"}), 404
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
 
