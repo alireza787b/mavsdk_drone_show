@@ -36,6 +36,10 @@ from src.params import Params
 from src.mavlink_manager import MavlinkManager
 from enum import Enum
 from src.drone_setup import DroneSetup
+from src.flask_handler import FlaskHandler
+
+
+
 
 class Mission(Enum):
     NONE = 0
@@ -99,6 +103,10 @@ drone_comms = DroneCommunicator(drone_config, params, drones)
 drone_comms.start_communication()
 
 
+if params.enable_drones_http_server:
+        flask_handler = FlaskHandler(params,drone_comms)
+        flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
+        flask_thread.start()
 
 
         

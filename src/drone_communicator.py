@@ -1,4 +1,4 @@
-
+# src/drone_communicator.py
 import socket
 import threading
 import os
@@ -22,7 +22,7 @@ class DroneCommunicator:
         self.stop_flag = threading.Event()
         self.nodes = None
         self.executor = ThreadPoolExecutor(max_workers=10)
-
+        self.drone_state = None
     def send_telem(self, packet, ip, port):
         self.sock.sendto(packet, (ip, port))
         
@@ -138,7 +138,7 @@ class DroneCommunicator:
         "follow_mode": int(self.drone_config.swarm['follow']),
         "update_time": int(self.drone_config.last_update_timestamp)
         }
-
+        self.drone_state = drone_state
         return drone_state
 
 

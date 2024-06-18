@@ -74,6 +74,9 @@ class Params():
     # Simulation mode switch
     sim_mode = False  # Set to True for simulation mode, False for real-life mode
 
+    enable_drones_http_server = True
+    drones_flask_port = 7070 # each drone will have a flask werver outpoint reporting its state.
+
     single_drone = False
 
     # Mavlink Connection
