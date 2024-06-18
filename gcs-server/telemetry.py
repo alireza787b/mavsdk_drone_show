@@ -12,7 +12,7 @@ telemetry_data_all_drones = {}
 def poll_telemetry(drone):
     while True:
         try:
-            response = requests.get(f"http://{drone['ip']}:{Params().drones_flask_port}/{Params.get_drone_state_URI}}")
+            response = requests.get(f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}")
             if response.status_code == 200:
                 telemetry_data_all_drones[drone['hw_id']] = response.json()
         except requests.RequestException as e:
