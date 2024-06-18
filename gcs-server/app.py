@@ -13,4 +13,8 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host='0.0.0.0', port=Params.flask_telem_socket_port)
+
+    if Params.env_mode == 'development':
+        app.run(host='0.0.0.0', port=Params.flask_telem_socket_port, debug=True)
+    else:
+        app.run(host='0.0.0.0', port=Params.flask_telem_socket_port, debug=False)

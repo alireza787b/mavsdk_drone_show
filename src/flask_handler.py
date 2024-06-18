@@ -34,4 +34,8 @@ class FlaskHandler:
     def run(self):
         host = '0.0.0.0'
         port = self.params.drones_flask_port
-        self.app.run(host=host, port=port, debug=False, use_reloader=False)
+
+        if self.params.env_mode == 'development':
+            self.app.run(host=host, port=port, debug=True, use_reloader=False)
+        else:
+            self.app.run(host=host, port=port, debug=False, use_reloader=False)

@@ -22,6 +22,9 @@ class Params():
     get_drone_state_URI = 'get_drone_state'  # URI for getting drone state
     send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
     flask_telem_socket_port = 5000  # Flask telemetry socket port
+    
+    # Environment mode
+    env_mode = 'development'  # Change to 'production' for production mode
 
     # UDP Telemetry Configuration
     enable_udp_telemetry = False  # Enable/disable UDP telemetry

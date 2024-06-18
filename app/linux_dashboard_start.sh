@@ -59,7 +59,7 @@ fi
 # Start the GCS Terminal App with Flask
 echo "Now starting the GCS Terminal App with Flask..."
 # Navigate to the correct directory and run the Python script
-start_process "$1" "cd $SCRIPT_DIR/../gcs && $PYTHON_CMD gcs_with_flask.py"
+start_process "$1" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
 
 echo ""
 echo "For more details, please check the documentation in the 'docs' folder."
