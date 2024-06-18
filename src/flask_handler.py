@@ -1,4 +1,5 @@
 # flask_handler.py
+import time
 from flask import Flask, jsonify
 
 class FlaskHandler:
@@ -14,6 +15,8 @@ class FlaskHandler:
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
+                    # Add the current UNIX timestamp to the drone state dictionary
+                    drone_state['timestamp'] = int(time.time())
                     return jsonify(drone_state)
                 else:
                     return jsonify({"error": "Drone State not found"}), 404
