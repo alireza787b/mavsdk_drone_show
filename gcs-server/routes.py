@@ -9,9 +9,6 @@ from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories
 
-from flask import Flask, jsonify, request
-
-
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
@@ -46,7 +43,6 @@ def setup_routes(app):
         swarm = load_swarm()
         return jsonify(swarm)
 
-    # Additional routes from gcs_with_flask.py
     @app.route('/import-show', methods=['POST'])
     def import_show():
         uploaded_file = request.files.get('file')
@@ -58,7 +54,10 @@ def setup_routes(app):
                 zip_ref.extractall('shapes/swarm/skybrush')
             os.remove(zip_path)
             try:
-                completed_process = subprocess.run(["python3", "process_formation.py"], capture_output=True, text=True, check=True)
+                completed_process = subprocess.run(
+                    ["python3", "process_formation.py"],
+                    capture_output=True, text=True, check=True
+                )
                 print("Have {} bytes in stdout:\n{}".format(len(completed_process.stdout), completed_process.stdout))
             except subprocess.CalledProcessError as e:
                 print(str(e))
