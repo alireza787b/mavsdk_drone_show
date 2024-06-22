@@ -24,24 +24,24 @@ def setup_routes(app):
         send_commands_to_all(drones, command_data)
         return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
 
-    @app.route('/save_config', methods=['POST'])
+    @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
         config_data = request.get_json()
         save_config(config_data)
         return jsonify({'status': 'success', 'message': 'Configuration saved successfully'})
 
-    @app.route('/get_config', methods=['GET'])
+    @app.route('/get-config-data', methods=['GET'])
     def get_config():
         config = load_config()
         return jsonify(config)
 
-    @app.route('/save_swarm', methods=['POST'])
+    @app.route('/save-swarm-data', methods=['POST'])
     def save_swarm_route():
         swarm_data = request.get_json()
         save_swarm(swarm_data)
         return jsonify({'status': 'success', 'message': 'Swarm data saved successfully'})
 
-    @app.route('/get_swarm', methods=['GET'])
+    @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm():
         swarm = load_swarm()
         return jsonify(swarm)
