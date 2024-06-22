@@ -1,18 +1,26 @@
+import os
+import shutil
+import logging
+
 ALLOWED_EXTENSIONS = {'zip'}
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-           
-# Function to clear show directories
+    """
+    Check if the file has an allowed extension.
+    """
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def clear_show_directories():
+    """
+    Clear specific directories used for drone show data.
+    """
     directories = [
         'shapes/swarm/skybrush',
         'shapes/swarm/processed',
         'shapes/swarm/plots'
     ]
     for directory in directories:
-        print(f"Clearing directory: {directory}")  # Debugging line
+        logging.info(f"Clearing directory: {directory}")
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
             try:
@@ -20,5 +28,6 @@ def clear_show_directories():
                     os.unlink(file_path)
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
+                logging.info(f"Deleted {file_path}")
             except Exception as e:
-                print(f'Failed to delete {file_path}. Reason: {e}')  # Debugging line
+                logging.error(f"Failed to delete {file_path}. Reason: {e}")
