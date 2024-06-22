@@ -9,6 +9,8 @@ from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories
 
+from flask import Flask, jsonify, request
+
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
@@ -94,47 +96,6 @@ def setup_routes(app):
             return jsonify({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)})
-
-    # Restoring additional routes from old gcs server
-    @app.route('/save-swarm-data', methods=['POST'])
-    def save_swarm_data():
-        try:
-            data = request.json
-            # Convert the JSON data to CSV format
-            csv_data = "hw_id,follow,offset_n,offset_e,offset_alt\n"
-            for drone in data:
-                csv_data += f"{drone['hw_id']},{drone['follow']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
-
-            # Save to swarm.csv
-            save_swarm(csv_data.splitlines())
-
-            return {"message": "Data saved successfully"}, 200
-        except Exception as e:
-            return {"message": f"Error: {str(e)}"}, 500
-
-    @app.route('/save-config-data', methods=['POST'])
-    def save_config_data():
-        data = request.json
-        try:
-            # Ensure that all drones have essential properties before writing to CSV
-            if not all('hw_id' in drone for drone in data):
-                return jsonify({"message": "Incomplete data received. Every drone must have an 'hw_id'."}), 400
-
-            save_config(data)
-
-            return jsonify({"message": "Configuration saved successfully!"}), 200
-        except Exception as e:
-            return jsonify({"message": "Error saving configuration!", "error": str(e)}), 500
-
-    @app.route('/get-swarm-data', methods=['GET'])
-    def get_swarm_data():
-        swarm = load_swarm()
-        return jsonify(swarm)
-
-    @app.route('/get-config-data', methods=['GET'])
-    def get_config_data():
-        config = load_config()
-        return jsonify(config)
 
     drones = load_config()
     start_telemetry_polling(drones)

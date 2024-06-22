@@ -12,7 +12,6 @@ from config import load_config
 telemetry_data_all_drones = {}
 last_telemetry_time = {}
 
-
 def initialize_telemetry_tracking(drones):
     """
     Initialize the last telemetry tracking dictionary with drone IDs and initial timestamp.
@@ -33,7 +32,22 @@ def poll_telemetry(drone):
             )
             if response.status_code == 200:
                 telemetry_data = response.json()
-                telemetry_data_all_drones[drone['hw_id']] = telemetry_data
+                # Adjust the telemetry data structure to match the expected format
+                telemetry_data_all_drones[drone['hw_id']] = {
+                    'Pos_ID': telemetry_data.get('pos_id'),
+                    'State': telemetry_data.get('state'),
+                    'Mission': telemetry_data.get('mission'),
+                    'Position_Lat': telemetry_data.get('position_lat'),
+                    'Position_Long': telemetry_data.get('position_long'),
+                    'Position_Alt': telemetry_data.get('position_alt'),
+                    'Velocity_North': telemetry_data.get('velocity_north'),
+                    'Velocity_East': telemetry_data.get('velocity_east'),
+                    'Velocity_Down': telemetry_data.get('velocity_down'),
+                    'Yaw': telemetry_data.get('yaw'),
+                    'Battery_Voltage': telemetry_data.get('battery_voltage'),
+                    'Follow_Mode': telemetry_data.get('follow_mode'),
+                    'Update_Time': telemetry_data.get('update_time')
+                }
                 last_telemetry_time[drone['hw_id']] = time.time()  # Update the last telemetry received time
                 logging.info(f"Telemetry data updated for drone {drone['hw_id']}")
             else:
