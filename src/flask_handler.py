@@ -1,10 +1,12 @@
 import time
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from src.params import Params
 
 class FlaskHandler:
     def __init__(self, params, drone_communicator):
         self.app = Flask(__name__)
+        CORS(self.app)  # This will enable CORS for all routes
         self.params = params
         self.drone_communicator = drone_communicator
         self.setup_routes()
