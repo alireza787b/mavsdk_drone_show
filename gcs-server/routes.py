@@ -2,8 +2,9 @@ import os
 import subprocess
 import time
 import zipfile
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response
 import pandas as pd
+import json
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
@@ -30,7 +31,7 @@ def setup_routes(app):
     @app.route('/get_config', methods=['GET'])
     def get_config():
         config = load_config()
-        return jsonify(config, indent=None)
+        return Response(json.dumps(config), mimetype='application/json')
 
     @app.route('/save_swarm', methods=['POST'])
     def save_swarm_route():
@@ -41,7 +42,7 @@ def setup_routes(app):
     @app.route('/get_swarm', methods=['GET'])
     def get_swarm():
         swarm = load_swarm()
-        return jsonify(swarm, indent=None)
+        return Response(json.dumps(swarm), mimetype='application/json')
 
     # Additional routes from gcs_with_flask.py
     @app.route('/import-show', methods=['POST'])
@@ -78,7 +79,7 @@ def setup_routes(app):
             upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
         else:
             upload_time = "unknown"
-        return jsonify({'filenames': filenames, 'uploadTime': upload_time}, indent=None)
+        return Response(json.dumps({'filenames': filenames, 'uploadTime': upload_time}), mimetype='application/json')
 
     @app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
     def get_first_last_row(hw_id):
@@ -91,9 +92,9 @@ def setup_routes(app):
             first_y = first_row['y [m]']
             last_x = last_row['x [m]']
             last_y = last_row['y [m]']
-            return jsonify({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}}, indent=None)
+            return Response(json.dumps({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}}), mimetype='application/json')
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)}, indent=None)
+            return Response(json.dumps({"success": False, "error": str(e)}), mimetype='application/json')
 
     # Restoring additional routes from old gcs server
     @app.route('/save-swarm-data', methods=['POST'])
@@ -129,12 +130,12 @@ def setup_routes(app):
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm_data():
         swarm = load_swarm()
-        return jsonify(swarm, indent=None)
+        return Response(json.dumps(swarm), mimetype='application/json')
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config_data():
         config = load_config()
-        return jsonify(config, indent=None)
+        return Response(json.dumps(config), mimetype='application/json')
 
     drones = load_config()
     start_telemetry_polling(drones)
