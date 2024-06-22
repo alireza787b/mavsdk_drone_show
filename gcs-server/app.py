@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 from flask import Flask
+from flask_cors import CORS
 from routes import setup_routes
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -9,6 +10,7 @@ from params import Params
 
 def create_app():
     app = Flask(__name__)
+    CORS(app)  # This will enable CORS for all routes
     setup_routes(app)
     return app
 

@@ -2,9 +2,8 @@ import os
 import subprocess
 import time
 import zipfile
-from flask import Flask, jsonify, request, send_from_directory, Response
+from flask import Flask, jsonify, request, send_from_directory
 import pandas as pd
-import json
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
@@ -31,7 +30,7 @@ def setup_routes(app):
     @app.route('/get_config', methods=['GET'])
     def get_config():
         config = load_config()
-        return Response(json.dumps(config), mimetype='application/json')
+        return jsonify(config)
 
     @app.route('/save_swarm', methods=['POST'])
     def save_swarm_route():
@@ -42,7 +41,7 @@ def setup_routes(app):
     @app.route('/get_swarm', methods=['GET'])
     def get_swarm():
         swarm = load_swarm()
-        return Response(json.dumps(swarm), mimetype='application/json')
+        return jsonify(swarm)
 
     # Additional routes from gcs_with_flask.py
     @app.route('/import-show', methods=['POST'])
@@ -79,7 +78,7 @@ def setup_routes(app):
             upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
         else:
             upload_time = "unknown"
-        return Response(json.dumps({'filenames': filenames, 'uploadTime': upload_time}), mimetype='application/json')
+        return jsonify({'filenames': filenames, 'uploadTime': upload_time})
 
     @app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
     def get_first_last_row(hw_id):
@@ -92,9 +91,9 @@ def setup_routes(app):
             first_y = first_row['y [m]']
             last_x = last_row['x [m]']
             last_y = last_row['y [m]']
-            return Response(json.dumps({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}}), mimetype='application/json')
+            return jsonify({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}})
         except Exception as e:
-            return Response(json.dumps({"success": False, "error": str(e)}), mimetype='application/json')
+            return jsonify({"success": False, "error": str(e)})
 
     # Restoring additional routes from old gcs server
     @app.route('/save-swarm-data', methods=['POST'])
@@ -107,7 +106,8 @@ def setup_routes(app):
                 csv_data += f"{drone['hw_id']},{drone['follow']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
 
             # Save to swarm.csv
-            save_swarm(csv_data.splitlines())
+            with open('swarm.csv', 'w') as file:
+                file.write(csv_data)
 
             return {"message": "Data saved successfully"}, 200
         except Exception as e:
@@ -121,7 +121,14 @@ def setup_routes(app):
             if not all('hw_id' in drone for drone in data):
                 return jsonify({"message": "Incomplete data received. Every drone must have an 'hw_id'."}), 400
 
-            save_config(data)
+            # Specify column order
+            column_order = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"]
+
+            with open('config.csv', 'w', newline='') as file:
+                writer = csv.DictWriter(file, fieldnames=column_order)
+                writer.writeheader()
+                for drone in data:
+                    writer.writerow({col: str(drone.get(col, "")).strip() for col in column_order})
 
             return jsonify({"message": "Configuration saved successfully!"}), 200
         except Exception as e:
@@ -129,13 +136,17 @@ def setup_routes(app):
 
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm_data():
-        swarm = load_swarm()
-        return Response(json.dumps(swarm), mimetype='application/json')
+        with open('swarm.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            data = [row for row in reader]
+        return jsonify(data)
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config_data():
-        config = load_config()
-        return Response(json.dumps(config), mimetype='application/json')
+        with open('config.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            data = [row for row in reader]
+        return jsonify(data)
 
     drones = load_config()
     start_telemetry_polling(drones)
