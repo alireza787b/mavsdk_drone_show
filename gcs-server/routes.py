@@ -11,6 +11,7 @@ from utils import allowed_file, clear_show_directories
 
 from flask import Flask, jsonify, request
 
+
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
@@ -23,24 +24,24 @@ def setup_routes(app):
         send_commands_to_all(drones, command_data)
         return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
 
-    @app.route('/save_config_data', methods=['POST'])
+    @app.route('/save_config', methods=['POST'])
     def save_config_route():
         config_data = request.get_json()
         save_config(config_data)
         return jsonify({'status': 'success', 'message': 'Configuration saved successfully'})
 
-    @app.route('/get_config_data', methods=['GET'])
+    @app.route('/get_config', methods=['GET'])
     def get_config():
         config = load_config()
         return jsonify(config)
 
-    @app.route('/save_swarm_data', methods=['POST'])
+    @app.route('/save_swarm', methods=['POST'])
     def save_swarm_route():
         swarm_data = request.get_json()
         save_swarm(swarm_data)
         return jsonify({'status': 'success', 'message': 'Swarm data saved successfully'})
 
-    @app.route('/get_swarm_data', methods=['GET'])
+    @app.route('/get_swarm', methods=['GET'])
     def get_swarm():
         swarm = load_swarm()
         return jsonify(swarm)
