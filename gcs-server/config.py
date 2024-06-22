@@ -17,6 +17,9 @@ def load_config(file_path=CONFIG_FILE_PATH):
         logging.error(f"Error loading config file: {e}")
     return config
 
+
+
+
 def save_config(config, file_path=CONFIG_FILE_PATH):
     try:
         with open(file_path, mode='w', newline='') as file:

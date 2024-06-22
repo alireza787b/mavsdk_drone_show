@@ -106,8 +106,7 @@ def setup_routes(app):
                 csv_data += f"{drone['hw_id']},{drone['follow']},{drone['offset_n']},{drone['offset_e']},{drone['offset_alt']}\n"
 
             # Save to swarm.csv
-            with open('swarm.csv', 'w') as file:
-                file.write(csv_data)
+            save_swarm(csv_data.splitlines())
 
             return {"message": "Data saved successfully"}, 200
         except Exception as e:
@@ -121,14 +120,7 @@ def setup_routes(app):
             if not all('hw_id' in drone for drone in data):
                 return jsonify({"message": "Incomplete data received. Every drone must have an 'hw_id'."}), 400
 
-            # Specify column order
-            column_order = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"]
-
-            with open('config.csv', 'w', newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=column_order)
-                writer.writeheader()
-                for drone in data:
-                    writer.writerow({col: str(drone.get(col, "")).strip() for col in column_order})
+            save_config(data)
 
             return jsonify({"message": "Configuration saved successfully!"}), 200
         except Exception as e:
@@ -136,17 +128,13 @@ def setup_routes(app):
 
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm_data():
-        with open('swarm.csv', 'r') as f:
-            reader = csv.DictReader(f)
-            data = [row for row in reader]
-        return jsonify(data)
+        swarm = load_swarm()
+        return jsonify(swarm)
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config_data():
-        with open('config.csv', 'r') as f:
-            reader = csv.DictReader(f)
-            data = [row for row in reader]
-        return jsonify(data)
+        config = load_config()
+        return jsonify(config)
 
     drones = load_config()
     start_telemetry_polling(drones)
