@@ -30,7 +30,7 @@ def setup_routes(app):
     @app.route('/get_config', methods=['GET'])
     def get_config():
         config = load_config()
-        return jsonify(config)
+        return jsonify(config, indent=None)
 
     @app.route('/save_swarm', methods=['POST'])
     def save_swarm_route():
@@ -41,7 +41,7 @@ def setup_routes(app):
     @app.route('/get_swarm', methods=['GET'])
     def get_swarm():
         swarm = load_swarm()
-        return jsonify(swarm)
+        return jsonify(swarm, indent=None)
 
     # Additional routes from gcs_with_flask.py
     @app.route('/import-show', methods=['POST'])
@@ -78,7 +78,7 @@ def setup_routes(app):
             upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
         else:
             upload_time = "unknown"
-        return jsonify({'filenames': filenames, 'uploadTime': upload_time})
+        return jsonify({'filenames': filenames, 'uploadTime': upload_time}, indent=None)
 
     @app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
     def get_first_last_row(hw_id):
@@ -91,9 +91,9 @@ def setup_routes(app):
             first_y = first_row['y [m]']
             last_x = last_row['x [m]']
             last_y = last_row['y [m]']
-            return jsonify({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}})
+            return jsonify({"success": True, "firstRow": {"x": first_x, "y": first_y}, "lastRow": {"x": last_x, "y": last_y}}, indent=None)
         except Exception as e:
-            return jsonify({"success": False, "error": str(e)})
+            return jsonify({"success": False, "error": str(e)}, indent=None)
 
     # Restoring additional routes from old gcs server
     @app.route('/save-swarm-data', methods=['POST'])
@@ -129,12 +129,12 @@ def setup_routes(app):
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm_data():
         swarm = load_swarm()
-        return jsonify(swarm)
+        return jsonify(swarm, indent=None)
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config_data():
         config = load_config()
-        return jsonify(config)
+        return jsonify(config, indent=None)
 
     drones = load_config()
     start_telemetry_polling(drones)
