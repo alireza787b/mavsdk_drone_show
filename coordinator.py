@@ -41,14 +41,7 @@ from src.flask_handler import FlaskHandler
 
 
 
-class Mission(Enum):
-    NONE = 0
-    DRONE_SHOW_FROM_CSV = 1
-    SMART_SWARM = 2
-    TAKE_OFF = 10
-    LAND = 101
-    HOLD = 102
-    TEST = 100
+
 
 # Create 'logs' directory if it doesn't exist
 if not os.path.exists('logs'):

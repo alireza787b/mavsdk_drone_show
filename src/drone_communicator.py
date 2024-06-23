@@ -117,6 +117,7 @@ class DroneCommunicator:
             yaw=telemetry_data[12],
             battery_voltage=telemetry_data[13],
             update_time=telemetry_data[15]
+            #TODO: remmebr to also add hrop and flight mode and using HTTP FLASK
         )
 
     def get_drone_state(self):
@@ -135,7 +136,9 @@ class DroneCommunicator:
             "yaw": self.drone_config.yaw,
             "battery_voltage": self.drone_config.battery,
             "follow_mode": int(self.drone_config.swarm['follow']),
-            "update_time": int(self.drone_config.last_update_timestamp)
+            "update_time": int(self.drone_config.last_update_timestamp),
+            "flight_mode_raw": int(self.drone_config.flight_mode_raw),
+            "hdop": self.drone_config.hdop
         }
         self.drone_state = drone_state
         return drone_state

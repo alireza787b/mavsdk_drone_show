@@ -65,12 +65,5 @@ class Params():
     # Sleep Interval for Main Loop
     sleep_interval = 0.1  # Sleep interval for the main loop in seconds
 
-    # Mission Types
-    class Mission(Enum):
-        NONE = 0
-        DRONE_SHOW_FROM_CSV = 1
-        SMART_SWARM = 2
-        TAKE_OFF = 10
-        LAND = 101
-        HOLD = 102
-        TEST = 100
+
+       

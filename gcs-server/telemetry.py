@@ -7,6 +7,7 @@ import logging
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
+from enums import Mission, State
 from config import load_config
 
 telemetry_data_all_drones = {}
@@ -35,8 +36,8 @@ def poll_telemetry(drone):
                 # Adjust the telemetry data structure to match the expected format
                 telemetry_data_all_drones[drone['hw_id']] = {
                     'Pos_ID': telemetry_data.get('pos_id'),
-                    'State': telemetry_data.get('state'),
-                    'Mission': telemetry_data.get('mission'),
+                    'State': State(telemetry_data.get('state')).name,
+                    'Mission': Mission(telemetry_data.get('mission')).name,
                     'Position_Lat': telemetry_data.get('position_lat'),
                     'Position_Long': telemetry_data.get('position_long'),
                     'Position_Alt': telemetry_data.get('position_alt'),
@@ -46,7 +47,10 @@ def poll_telemetry(drone):
                     'Yaw': telemetry_data.get('yaw'),
                     'Battery_Voltage': telemetry_data.get('battery_voltage'),
                     'Follow_Mode': telemetry_data.get('follow_mode'),
-                    'Update_Time': telemetry_data.get('update_time')
+                    'Update_Time': telemetry_data.get('update_time'),
+                    'Timestamp': telemetry_data.get('timestamp'),
+                    'Flight_Mode': telemetry_data.get('flight_mode_raw'),
+                    'Hdop': telemetry_data.get('hdop')
                 }
                 last_telemetry_time[drone['hw_id']] = time.time()  # Update the last telemetry received time
                 logging.info(f"Telemetry data updated for drone {drone['hw_id']}")

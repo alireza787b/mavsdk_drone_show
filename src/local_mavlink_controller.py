@@ -2,6 +2,7 @@ import threading
 import logging
 from pymavlink import mavutil
 import time
+
 class LocalMavlinkController:
     """
     The LocalMavlinkController class is responsible for managing the telemetry data received from the local Mavlink 
@@ -18,11 +19,10 @@ class LocalMavlinkController:
         The constructor starts a new thread which reads Mavlink messages and updates the drone_config object.
         """
         
-        
         # Create a dictionary to store the latest message of each type
         self.latest_messages = {}
-        # Set the message filter
-        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE']
+        # Set the message filter to include additional types for flight mode and HDOP
+        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT']
         
         # Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
         self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
@@ -36,7 +36,6 @@ class LocalMavlinkController:
         self.telemetry_thread.start()
         self.home_position_logged = False
     
-        
     def mavlink_monitor(self):
         while self.run_telemetry_thread.is_set():
             msg = self.mav.recv_match(type=self.message_filter, blocking=True, timeout=5)  # 5-second timeout
@@ -45,8 +44,6 @@ class LocalMavlinkController:
                 self.latest_messages[msg.get_type()] = msg
             else:
                 logging.warning('No MAVLink message received within timeout period')
-
-        
 
     def process_message(self, msg):
         # Update the latest message of the received type
@@ -61,12 +58,24 @@ class LocalMavlinkController:
             self.process_battery_status(msg)
         elif msg_type == 'ATTITUDE':
             self.process_attitude(msg)
+        elif msg_type == 'HEARTBEAT':
+            self.process_heartbeat(msg)
+        elif msg_type == 'GPS_RAW_INT':
+            self.process_gps_raw_int(msg)
         else:
             logging.debug(f"Received unhandled message type: {msg.get_type()}")
 
+    def process_heartbeat(self, msg):
+        # Store the raw flight mode
+        self.drone_config.flight_mode_raw = msg.custom_mode
+        logging.debug(f"Updated raw flight mode to: {self.drone_config.flight_mode_raw}")
+
+    def process_gps_raw_int(self, msg):
+        # Store HDOP value directly
+        self.drone_config.hdop = msg.eph/ 1E2
+        logging.debug(f"Updated HDOP to: {self.drone_config.hdop}")
 
     def process_attitude(self, msg):
-        # logging.debug(f"Received ATTITUDE: {msg}")
         valid_msg = msg.yaw is not None
         if not valid_msg:
             logging.error('Received ATTITUDE message with invalid data')
@@ -74,10 +83,8 @@ class LocalMavlinkController:
 
         # Update yaw
         self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
-        # logging.debug(f"Updated yaw angle for drone {self.drone_config.hw_id}: {self.drone_config.yaw} degrees")
 
     def set_home_position(self, msg):
-        # logging.debug(f"Received HOME_POSITION: {msg}")
         valid_msg = msg.latitude is not None and msg.longitude is not None and msg.altitude is not None
         if not valid_msg:
             logging.error('Received HOME_POSITION message with invalid data')
@@ -90,47 +97,34 @@ class LocalMavlinkController:
             'alt': msg.altitude / 1E3
         }
 
-        # Check if the home position has been logged before
         if not self.home_position_logged:
             logging.info(f"Home position for drone {self.drone_config.hw_id} is set: {self.drone_config.home_position}")
-            # Set the flag to True to indicate that the home position has been logged
             self.home_position_logged = True
-        else:
-            logging.debug(f"Home position for drone {self.drone_config.hw_id} is updated: {self.drone_config.home_position}")
 
     def process_global_position_int(self, msg):
-        # logging.debug(f"Received GLOBAL_POSITION_INT: {msg}")
         valid_msg = msg.lat is not None and msg.lon is not None and msg.alt is not None
         if not valid_msg:
             logging.error('Received GLOBAL_POSITION_INT message with invalid data')
             return
 
-        # Update position
+        # Update position and velocity
         self.drone_config.position = {
             'lat': msg.lat / 1E7,
             'long': msg.lon / 1E7,
             'alt': msg.alt / 1E3
         }
-
-        # Update velocity
         self.drone_config.velocity = {
             'north': msg.vx / 1E2,
             'east': msg.vy / 1E2,
             'down': msg.vz / 1E2
         }
-        
-        # Update the Update Time
         self.drone_config.last_update_timestamp = int(time.time())
 
-        # If home position is not set yet, use the current position as the home position
         if self.drone_config.home_position is None:
             self.drone_config.home_position = self.drone_config.position.copy()
             logging.info(f"Home position for drone {self.drone_config.hw_id} is set to current position: {self.drone_config.home_position}")
 
-        # logging.debug(f"Updated position and velocity for drone {self.drone_config.hw_id}")
-
     def process_battery_status(self, msg):
-        # logging.debug(f"Received BATTERY_STATUS: {msg}")
         valid_msg = msg.voltages and len(msg.voltages) > 0
         if not valid_msg:
             logging.error('Received BATTERY_STATUS message with invalid data')
@@ -138,17 +132,11 @@ class LocalMavlinkController:
 
         # Update battery
         self.drone_config.battery = msg.voltages[0] / 1E3  # convert from mV to V
-        # logging.debug(f"Updated battery voltage for drone {self.drone_config.hw_id}: {self.drone_config.battery}V")
-    
+
     def __del__(self):
-        """
-        The destructor clears the stop event for the telemetry thread and waits for it to stop.
-        """
-        
         # Clear the telemetry thread stop event
         self.run_telemetry_thread.clear()
 
         # Wait for the telemetry thread to stop
         if self.telemetry_thread.is_alive():
             self.telemetry_thread.join()
-
