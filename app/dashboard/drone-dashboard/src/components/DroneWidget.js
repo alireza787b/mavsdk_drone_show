@@ -28,5 +28,6 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
     </div>
   );
 
+};
 
 export default DroneWidget;
