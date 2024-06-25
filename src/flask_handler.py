@@ -17,7 +17,8 @@ class FlaskHandler:
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
-                    drone_state['timestamp'] = int(time.time())
+                    # Send timestamp in milliseconds
+                    drone_state['Timestamp'] = int(time.time() * 1000)
                     return jsonify(drone_state)
                 else:
                     return jsonify({"error": "Drone State not found"}), 404

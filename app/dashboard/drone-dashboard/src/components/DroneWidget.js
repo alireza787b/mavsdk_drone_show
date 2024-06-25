@@ -12,14 +12,13 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
         Drone {drone.hw_ID}
       </h3>
       <p>Mission: {drone.Mission}</p>
-      <p>ّFlight Mode: {drone.Flight_Mode}</p>
+      <p>Flight Mode: {drone.Flight_Mode}</p>
       <p>State: {drone.State}</p>
-      <p>Server Time: {drone.Timestamp}</p>
-      {/* <p>Follow Mode: {drone.Follow_Mode === 0 ? 'LEADER' : `Follows ${drone.Follow_Mode}`}</p> */}
+      <p>Server Time: {new Date(drone.Timestamp).toLocaleString()}</p>
       <p>Altitude: {drone.Position_Alt.toFixed(1)}m</p>
       <p>HDOP: {drone.Hdop}</p>
       <p>Battery Voltage: {drone.Battery_Voltage}</p>
-
+      
       <div className="drone-actions">
         <span onClick={(e) => { e.stopPropagation(); setSelectedDrone(drone); }}>🔗 External View</span>
       </div>
@@ -28,6 +27,6 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       </div>
     </div>
   );
-};
+
 
 export default DroneWidget;
