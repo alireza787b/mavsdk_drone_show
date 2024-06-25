@@ -1,11 +1,10 @@
 import React from 'react';
 import DroneDetail from './DroneDetail';
 import '../styles/DroneWidget.css';
-import STALE_DATA_THRESHOLD_SECONDS from '../utilities';
 
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
   const currentTimeInMs = Date.now(); // Current time in milliseconds
-  const isStale = (currentTimeInMs - drone.Timestamp) > STALE_DATA_THRESHOLD_SECONDS*1000;  // Checking staleness with 5000 ms threshold
+  const isStale = (currentTimeInMs - drone.Timestamp) > 5*1000;  // Checking staleness with 5000 ms threshold
   return (
     <div className={`drone-widget ${isExpanded ? 'expanded' : ''}`}>
       <h3 onClick={() => toggleDroneDetails(drone)}>
