@@ -12,7 +12,7 @@ export const WORLD_SIZE = 400;
 export const TEXTURE_REPEAT = 10;
 
 // Constants for readability and maintainability
-export const POLLING_RATE_HZ = 4;
+export const POLLING_RATE_HZ = 1;
 export const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 
