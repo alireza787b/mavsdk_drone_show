@@ -33,7 +33,6 @@ def poll_telemetry(drone):
             )
             if response.status_code == 200:
                 telemetry_data = response.json()
-                # Adjust the telemetry data structure to match the expected format
                 telemetry_data_all_drones[drone['hw_id']] = {
                     'Pos_ID': telemetry_data.get('pos_id'),
                     'State': State(telemetry_data.get('state')).name,
@@ -53,18 +52,13 @@ def poll_telemetry(drone):
                     'Hdop': telemetry_data.get('hdop')
                 }
                 last_telemetry_time[drone['hw_id']] = time.time()  # Update the last telemetry received time
-                logging.info(f"Telemetry data updated for drone {drone['hw_id']}")
+                logging.info(f"Telemetry updated for drone {drone['hw_id']}.")
             else:
-                logging.warning(f"Failed to get telemetry data from drone {drone['hw_id']}: {response.text}")
+                logging.warning(f"Request failed for drone {drone['hw_id']} with status code {response.status_code}. Response: {response.text}")
         except requests.Timeout:
-            logging.error(f"HTTP request to drone {drone['hw_id']} timed out.")
+            logging.error(f"Timeout occurred when polling drone {drone['hw_id']}.")
         except requests.RequestException as e:
-            logging.error(f"Error polling telemetry from drone {drone['hw_id']}: {e}")
-
-        # Check for telemetry timeout
-        current_time = time.time()
-        if current_time - last_telemetry_time[drone['hw_id']] > Params.TELEMETRY_POLLING_TIMEOUT:
-            logging.warning(f"No telemetry data received from drone {drone['hw_id']} for more than {Params.TELEMETRY_POLLING_TIMEOUT} seconds.")
+            logging.error(f"Exception when polling drone {drone['hw_id']}: {e}")
 
         time.sleep(Params.polling_interval)
 
