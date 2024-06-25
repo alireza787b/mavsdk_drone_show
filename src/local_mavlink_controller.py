@@ -68,12 +68,12 @@ class LocalMavlinkController:
     def process_heartbeat(self, msg):
         # Store the raw flight mode
         self.drone_config.flight_mode_raw = msg.custom_mode
-        logging.debug(f"Updated raw flight mode to: {self.drone_config.flight_mode_raw}")
+        # logging.debug(f"Updated raw flight mode to: {self.drone_config.flight_mode_raw}")
 
     def process_gps_raw_int(self, msg):
         # Store HDOP value directly
         self.drone_config.hdop = msg.eph/ 1E2
-        logging.debug(f"Updated HDOP to: {self.drone_config.hdop}")
+        # logging.debug(f"Updated HDOP to: {self.drone_config.hdop}")
 
     def process_attitude(self, msg):
         valid_msg = msg.yaw is not None

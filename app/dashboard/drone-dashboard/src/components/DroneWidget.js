@@ -14,6 +14,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       <p>Mission: {drone.Mission}</p>
       <p>ّFlight Mode: {drone.Flight_Mode}</p>
       <p>State: {drone.State}</p>
+      <p>Server Time: {drone.Timestamp}</p>
       {/* <p>Follow Mode: {drone.Follow_Mode === 0 ? 'LEADER' : `Follows ${drone.Follow_Mode}`}</p> */}
       <p>Altitude: {drone.Position_Alt.toFixed(1)}m</p>
       <p>HDOP: {drone.Hdop}</p>
