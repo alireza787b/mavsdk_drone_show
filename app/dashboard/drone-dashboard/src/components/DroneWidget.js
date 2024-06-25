@@ -3,8 +3,8 @@ import DroneDetail from './DroneDetail';
 import '../styles/DroneWidget.css';
 
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
-  const isStale = (new Date() / 1000 - drone.Timestamp) > 5;  // Replace 5 with STALE_DATA_THRESHOLD_SECONDS if you want
-  
+  const currentTimeInMs = Date.now(); // Current time in milliseconds
+  const isStale = (currentTimeInMs - drone.Timestamp) > 5000;  // Checking staleness with 5000 ms threshold
   return (
     <div className={`drone-widget ${isExpanded ? 'expanded' : ''}`}>
       <h3 onClick={() => toggleDroneDetails(drone)}>
@@ -14,7 +14,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       <p>Mission: {drone.Mission}</p>
       <p>Flight Mode: {drone.Flight_Mode}</p>
       <p>State: {drone.State}</p>
-      <p>Server Time: {new Date(drone.Timestamp).toLocaleString()}</p>
+      <p>Server Time: {new Date(drone.Timestamp).toLocaleString()} / {drone.Timestamp}</p>
       <p>Altitude: {drone.Position_Alt.toFixed(1)}m</p>
       <p>HDOP: {drone.Hdop}</p>
       <p>Battery Voltage: {drone.Battery_Voltage}</p>
