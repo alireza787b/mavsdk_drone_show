@@ -1,3 +1,4 @@
+# src/drone_communicator.py
 import socket
 import threading
 import os
@@ -10,28 +11,38 @@ from concurrent.futures import ThreadPoolExecutor
 from src.drone_config import DroneConfig
 from src.flask_handler import FlaskHandler
 from src.params import Params
+from src.telemetry_subscription_manager import TelemetrySubscriptionManager
 
 class DroneCommunicator:
     def __init__(self, drone_config, params, drones):
         self.drone_config = drone_config
         self.params = params
         self.drones = drones
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
-        self.sock.setblocking(0)  # This sets the socket to non-blocking mode
+        self.enable_udp_telemetry = Params.enable_udp_telemetry
+        if self.enable_udp_telemetry:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
+            self.sock.setblocking(0)  # This sets the socket to non-blocking mode
         self.stop_flag = threading.Event()
         self.nodes = None
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.drone_state = None
-
         # Initialize FlaskHandler
         self.flask_handler = FlaskHandler(params, self)
+        # Initialize TelemetrySubscriptionManager
+        self.subscription_manager = TelemetrySubscriptionManager(drones)
+        # Subscribe to all drones if the parameter is enabled
+        # Subscribe to all drones if the parameter is enabled
+        if Params.enable_default_subscriptions:
+            self.subscription_manager.subscribe_to_all()
 
     def send_telem(self, packet, ip, port):
-        self.sock.sendto(packet, (ip, port))
-        
+        if self.enable_udp_telemetry:
+            self.sock.sendto(packet, (ip, port))
+
     def send_packet_to_node(self, packet, ip, port):
-        self.sock.sendto(packet, (ip, port))
+        if self.enable_udp_telemetry:
+            self.sock.sendto(packet, (ip, port))
 
     def get_nodes(self):
         if self.nodes is not None:

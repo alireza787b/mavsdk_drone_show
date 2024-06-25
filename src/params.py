@@ -1,3 +1,4 @@
+#src/params.py
 import struct
 from enum import Enum
 
@@ -25,6 +26,8 @@ class Params():
     
     TELEMETRY_POLLING_TIMEOUT = 10  # Threshold in seconds to check for telemetry timeout
     HTTP_REQUEST_TIMEOUT = 5  # Timeout in seconds for HTTP request
+    
+    enable_default_subscriptions = True # all drones subscribe to each other and get contineous polling 
     
     # Environment mode
     env_mode = 'development'  # Change to 'production' for production mode

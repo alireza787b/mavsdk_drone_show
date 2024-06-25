@@ -8,7 +8,7 @@ from params import Params
 
 def send_command(drone, command_data):
     try:
-        response = requests.post(f"http://{drone['ip']}:{Params.drones_flask_port}/command", json=command_data)
+        response = requests.post(f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.send_drone_command_URI}", json=command_data)
         if response.status_code == 200:
             logging.info(f"Command sent successfully to {drone['hw_id']}")
         else:
