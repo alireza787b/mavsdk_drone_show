@@ -19,7 +19,7 @@ class Params():
 
     # Flask Server Configuration
     drones_flask_port = 7070  # Port for the drone's Flask server
-    polling_interval = 1  # Polling interval in seconds
+    polling_interval = 1000  # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state'  # URI for getting drone state
     send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
     flask_telem_socket_port = 5000  # Flask telemetry socket port
