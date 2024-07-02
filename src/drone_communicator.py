@@ -8,7 +8,7 @@ import struct
 import logging
 import select
 from concurrent.futures import ThreadPoolExecutor
-from enums import Mission
+from src.enums import Mission
 from src.drone_config import DroneConfig
 from src.flask_handler import FlaskHandler
 from src.params import Params
