@@ -25,6 +25,7 @@ preprogrammed_clients=(
     "100.84.147.240:24550" # S9
     "100.84.229.96:24550" # Iphone 13s
     "11.94.119.73:24550" # Nokia
+    "100.84.20.178:24550" # Macbook 
 )
 
 # Function to display help
