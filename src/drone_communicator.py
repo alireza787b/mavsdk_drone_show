@@ -8,6 +8,7 @@ import struct
 import logging
 import select
 from concurrent.futures import ThreadPoolExecutor
+from enums import Mission
 from src.drone_config import DroneConfig
 from src.flask_handler import FlaskHandler
 from src.params import Params
@@ -31,7 +32,6 @@ class DroneCommunicator:
         self.flask_handler = FlaskHandler(params, self)
         # Initialize TelemetrySubscriptionManager
         self.subscription_manager = TelemetrySubscriptionManager(drones)
-        # Subscribe to all drones if the parameter is enabled
         # Subscribe to all drones if the parameter is enabled
         if Params.enable_default_subscriptions:
             self.subscription_manager.subscribe_to_all()
@@ -64,44 +64,68 @@ class DroneCommunicator:
         drone.last_update_timestamp = last_update_timestamp
         self.drones[hw_id] = drone
 
-    def process_command(self, command_data):
-        hw_id = command_data.get("hw_id")
-        pos_id = command_data.get("pos_id")
+    def process_command(self, command_data: dict) -> None:
+        """
+        Process incoming command data and update drone configuration.
+
+        This function handles various mission types and updates the drone's configuration
+        based on the received command data.
+
+        Args:
+            command_data (dict): A dictionary containing command information.
+
+        Required fields:
+            - mission (int): The mission code.
+            - trigger_time (str): The time to trigger the mission.
+
+        Optional fields:
+            - hw_id (str): Hardware ID.
+            - pos_id (str): Position ID.
+            - state (str): Drone state.
+        """
+        logging.debug(f"Received command data: {command_data}")
+
+        # Extract fields (making hw_id, pos_id, and state optional)
         mission = command_data.get("mission")
-        state = command_data.get("state")
         trigger_time = command_data.get("trigger_time")
+        hw_id = command_data.get("hw_id", self.drone_config.hw_id)
+        pos_id = command_data.get("pos_id", self.drone_config.pos_id)
+        state = command_data.get("state", self.drone_config.state)
 
-        logging.info(f"Received command from GCS: hw_id: {hw_id}, pos_id: {pos_id}, mission: {mission}, state: {state}, trigger_time: {trigger_time}")
+        # Validate required fields
+        if mission is None or trigger_time is None:
+            logging.error("Missing required fields in command data")
+            return
 
+        # Update drone configuration
         self.drone_config.hw_id = hw_id
         self.drone_config.pos_id = pos_id
         self.drone_config.state = state
         self.drone_config.trigger_time = trigger_time
 
+        # Process mission command
         if 10 <= mission < 60:
-            altitude = mission - 10
-            if altitude > 50:
-                altitude = 50
-            print(f"Takeoff command received. Altitude: {altitude}m")
+            altitude = min(mission - 10, 50)
+            logging.info(f"Takeoff command received. Altitude: {altitude}m")
             self.drone_config.mission = mission
-        elif mission == 1:
-            print("Drone Show command received.")
-            self.drone_config.mission = mission
-        elif mission == 2:
-            print("Smart Swarm command received.")
-            self.drone_config.mission = mission
-        elif mission == Params.Mission.LAND.value:
-            print("Land command received.")
-            self.drone_config.mission = mission
-        elif mission == Params.Mission.HOLD.value:
-            print("Hold command received.")
-            self.drone_config.mission = mission
-        elif mission == Params.Mission.TEST.value:
-            print("Test command received.")
+        elif mission in Mission._value2member_map_:
+            mission_enum = Mission(mission)
+            logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
             self.drone_config.mission = mission
         else:
-            print(f"Unknown mission command received: {mission}")
-            self.drone_config.mission = Params.Mission.NONE.value
+            logging.warning(f"Unknown mission command received: {mission}")
+            self.drone_config.mission = Mission.NONE.value
+
+        # Log updated configuration
+        logging.info(f"Updated drone configuration: "
+                     f"hw_id={self.drone_config.hw_id}, "
+                     f"pos_id={self.drone_config.pos_id}, "
+                     f"state={self.drone_config.state}, "
+                     f"mission={self.drone_config.mission}, "
+                     f"trigger_time={self.drone_config.trigger_time}")
+        # Update the drone in the drones dictionary
+        self.drones[hw_id] = self.drone_config
+
 
     def process_packet(self, data):
         header, terminator = struct.unpack('BB', data[0:1] + data[-1:])
