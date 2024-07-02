@@ -4,6 +4,7 @@ import requests
 import threading
 import time
 import logging
+from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
@@ -13,18 +14,28 @@ from config import load_config
 telemetry_data_all_drones = {}
 last_telemetry_time = {}
 
+# Custom logging formatter
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            return f"{self.formatTime(record, '%Y-%m-%d %H:%M:%S')} | {record.getMessage()}"
+        elif record.levelno == logging.ERROR:
+            return f"{self.formatTime(record, '%Y-%m-%d %H:%M:%S')} | ERROR | Drone {record.drone_id}: {record.getMessage()}"
+        return super().format(record)
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(CustomFormatter())
+logger.addHandler(handler)
+
 def initialize_telemetry_tracking(drones):
-    """
-    Initialize the last telemetry tracking dictionary with drone IDs and initial timestamp.
-    """
     for drone in drones:
-        last_telemetry_time[drone['hw_id']] = 0  # Initialize with 0 or a very old timestamp
-    logging.info(f"Initialized telemetry tracking for {len(drones)} drones.")
+        last_telemetry_time[drone['hw_id']] = 0
+    logger.info(f"Initialized tracking for {len(drones)} drones")
 
 def poll_telemetry(drone):
-    """
-    Poll telemetry data from the drone's HTTP server and update the shared telemetry data.
-    """
     while True:
         try:
             response = requests.get(
@@ -37,51 +48,38 @@ def poll_telemetry(drone):
                     'Pos_ID': telemetry_data.get('pos_id'),
                     'State': State(telemetry_data.get('state')).name,
                     'Mission': Mission(telemetry_data.get('mission')).name,
-                    'Position_Lat': telemetry_data.get('position_lat'),
-                    'Position_Long': telemetry_data.get('position_long'),
-                    'Position_Alt': telemetry_data.get('position_alt'),
-                    'Velocity_North': telemetry_data.get('velocity_north'),
-                    'Velocity_East': telemetry_data.get('velocity_east'),
-                    'Velocity_Down': telemetry_data.get('velocity_down'),
-                    'Yaw': telemetry_data.get('yaw'),
-                    'Battery_Voltage': telemetry_data.get('battery_voltage'),
+                    'Position': f"({telemetry_data.get('position_lat'):.6f}, {telemetry_data.get('position_long'):.6f}, {telemetry_data.get('position_alt'):.2f})",
+                    'Velocity': f"({telemetry_data.get('velocity_north'):.2f}, {telemetry_data.get('velocity_east'):.2f}, {telemetry_data.get('velocity_down'):.2f})",
+                    'Yaw': f"{telemetry_data.get('yaw'):.2f}",
+                    'Battery': f"{telemetry_data.get('battery_voltage'):.2f}V",
                     'Follow_Mode': telemetry_data.get('follow_mode'),
-                    'Update_Time': telemetry_data.get('update_time'),
-                    'Timestamp': telemetry_data.get('timestamp'),
+                    'Update_Time': datetime.fromtimestamp(telemetry_data.get('update_time')).strftime('%H:%M:%S'),
                     'Flight_Mode': telemetry_data.get('flight_mode_raw'),
-                    'Hdop': telemetry_data.get('hdop')
+                    'Hdop': f"{telemetry_data.get('hdop'):.2f}"
                 }
-                last_telemetry_time[drone['hw_id']] = time.time()  # Update the last telemetry received time
-                logging.info(f"Telemetry updated for drone {drone['hw_id']}.")
+                last_telemetry_time[drone['hw_id']] = time.time()
+                logger.info(f"Drone {drone['hw_id']} | {telemetry_data_all_drones[drone['hw_id']]['State']} | {telemetry_data_all_drones[drone['hw_id']]['Mission']} | Pos: {telemetry_data_all_drones[drone['hw_id']]['Position']} | Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery']}")
             else:
-                logging.warning(f"Request failed for drone {drone['hw_id']} with status code {response.status_code}. Response: {response.text}")
+                logger.error(f"Request failed: Status {response.status_code}", extra={'drone_id': drone['hw_id']})
         except requests.Timeout:
-            logging.error(f"Timeout occurred when polling drone {drone['hw_id']}.")
+            logger.error("Timeout occurred", extra={'drone_id': drone['hw_id']})
         except requests.RequestException as e:
-            logging.error(f"Exception when polling drone {drone['hw_id']}: {e}")
+            logger.error(f"Connection failed: {e}", extra={'drone_id': drone['hw_id']})
 
         time.sleep(Params.polling_interval)
 
 def start_telemetry_polling(drones):
-    """
-    Start a polling thread for each drone to continuously update telemetry data.
-    """
     initialize_telemetry_tracking(drones)
     
     for drone in drones:
         thread = threading.Thread(target=poll_telemetry, args=(drone,))
-        thread.daemon = True  # Allow thread to exit when main program exits
+        thread.daemon = True
         thread.start()
-        logging.info(f"Started telemetry polling thread for drone {drone['hw_id']}")
+        logger.info(f"Started polling for Drone {drone['hw_id']}")
 
-# Example usage:
 if __name__ == "__main__":
-    # Set up logging
-    logging.basicConfig(level=logging.INFO)
-    
     drones = load_config()
     start_telemetry_polling(drones)
 
-    # Keep the main thread alive to allow daemon threads to keep running
     while True:
         time.sleep(1)
