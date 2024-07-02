@@ -14,7 +14,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       <p>Mission: {drone.Mission}</p>
       <p>Flight Mode: {drone.Flight_Mode}</p>
       <p>State: {drone.State}</p>
-      <p>Server Time: {new Date(drone.Timestamp).toLocaleString()} / {drone.Timestamp}</p>
+      <p>Server Time: {new Date(drone.Timestamp).toLocaleString()}</p>
       <p>Altitude: {drone.Position_Alt.toFixed(1)}m</p>
       <p>HDOP: {drone.Hdop}</p>
       <p>Battery Voltage: {drone.Battery_Voltage}</p>

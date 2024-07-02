@@ -50,14 +50,19 @@ def poll_telemetry(drone):
                     'Pos_ID': telemetry_data.get('pos_id'),
                     'State': State(telemetry_data.get('state')).name,
                     'Mission': Mission(telemetry_data.get('mission')).name,
-                    'Position': f"({telemetry_data.get('position_lat'):.6f}, {telemetry_data.get('position_long'):.6f}, {telemetry_data.get('position_alt'):.2f})",
-                    'Velocity': f"({telemetry_data.get('velocity_north'):.2f}, {telemetry_data.get('velocity_east'):.2f}, {telemetry_data.get('velocity_down'):.2f})",
-                    'Yaw': f"{telemetry_data.get('yaw'):.2f}",
-                    'Battery': f"{telemetry_data.get('battery_voltage'):.2f}V",
+                    'Position_Lat': telemetry_data.get('position_lat'),
+                    'Position_Long': telemetry_data.get('position_long'),
+                    'Position_Alt': telemetry_data.get('position_alt'),
+                    'Velocity_North': telemetry_data.get('velocity_north'),
+                    'Velocity_East': telemetry_data.get('velocity_east'),
+                    'Velocity_Down': telemetry_data.get('velocity_down'),
+                    'Yaw': telemetry_data.get('yaw'),
+                    'Battery_Voltage': telemetry_data.get('battery_voltage'),
                     'Follow_Mode': telemetry_data.get('follow_mode'),
-                    'Update_Time': datetime.fromtimestamp(telemetry_data.get('update_time')).strftime('%H:%M:%S'),
+                    'Update_Time': telemetry_data.get('update_time'),
+                    'Timestamp': telemetry_data.get('timestamp'),
                     'Flight_Mode': telemetry_data.get('flight_mode_raw'),
-                    'Hdop': f"{telemetry_data.get('hdop'):.2f}"
+                    'Hdop': telemetry_data.get('hdop')
                 }
                 last_telemetry_time[drone['hw_id']] = time.time()
                 logger.info(f"{telemetry_data_all_drones[drone['hw_id']]['State']} | {telemetry_data_all_drones[drone['hw_id']]['Mission']} | Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery']}", extra={'drone_id': drone['hw_id']})
