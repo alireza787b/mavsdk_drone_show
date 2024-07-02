@@ -86,8 +86,8 @@ class DroneCommunicator:
         logging.debug(f"Received command data: {command_data}")
 
         # Extract fields (making hw_id, pos_id, and state optional)
-        mission = command_data.get("mission")
-        trigger_time = command_data.get("trigger_time")
+        mission = command_data.get("missionType")
+        trigger_time = command_data.get("triggerTime")
         hw_id = command_data.get("hw_id", self.drone_config.hw_id)
         pos_id = command_data.get("pos_id", self.drone_config.pos_id)
         state = command_data.get("state", self.drone_config.state)
