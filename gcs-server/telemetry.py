@@ -60,7 +60,7 @@ def poll_telemetry(drone):
                     'Hdop': f"{telemetry_data.get('hdop'):.2f}"
                 }
                 last_telemetry_time[drone['hw_id']] = time.time()
-                logger.info(f"{telemetry_data_all_drones[drone['hw_id']]['State']} | {telemetry_data_all_drones[drone['hw_id']]['Mission']} | Pos: {telemetry_data_all_drones[drone['hw_id']]['Position']} | Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery']}", extra={'drone_id': drone['hw_id']})
+                logger.info(f"{telemetry_data_all_drones[drone['hw_id']]['State']} | {telemetry_data_all_drones[drone['hw_id']]['Mission']} | Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery']}", extra={'drone_id': drone['hw_id']})
             else:
                 logger.error(f"Request failed: Status {response.status_code}", extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP'})
         except requests.Timeout:
