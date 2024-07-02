@@ -17,10 +17,11 @@ last_telemetry_time = {}
 # Custom logging formatter
 class CustomFormatter(logging.Formatter):
     def format(self, record):
+        timestamp = self.formatTime(record, '%Y-%m-%d %H:%M:%S')
         if record.levelno == logging.INFO:
-            return f"{self.formatTime(record, '%Y-%m-%d %H:%M:%S')} | {record.getMessage()}"
+            return f"{timestamp} | {record.getMessage()}"
         elif record.levelno == logging.ERROR:
-            return f"{self.formatTime(record, '%Y-%m-%d %H:%M:%S')} | ERROR | Drone {record.drone_id}: {record.getMessage()}"
+            return f"{timestamp} | ERROR | Drone {record.drone_id} | {record.error_type}: {record.getMessage()}"
         return super().format(record)
 
 # Set up logging
@@ -60,11 +61,13 @@ def poll_telemetry(drone):
                 last_telemetry_time[drone['hw_id']] = time.time()
                 logger.info(f"Drone {drone['hw_id']} | {telemetry_data_all_drones[drone['hw_id']]['State']} | {telemetry_data_all_drones[drone['hw_id']]['Mission']} | Pos: {telemetry_data_all_drones[drone['hw_id']]['Position']} | Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery']}")
             else:
-                logger.error(f"Request failed: Status {response.status_code}", extra={'drone_id': drone['hw_id']})
+                logger.error(f"Request failed: Status {response.status_code}", extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP'})
         except requests.Timeout:
-            logger.error("Timeout occurred", extra={'drone_id': drone['hw_id']})
+            logger.error("Connection timeout", extra={'drone_id': drone['hw_id'], 'error_type': 'Timeout'})
+        except requests.ConnectionError as e:
+            logger.error(f"No route to host: {drone['ip']}", extra={'drone_id': drone['hw_id'], 'error_type': 'ConnectionError'})
         except requests.RequestException as e:
-            logger.error(f"Connection failed: {e}", extra={'drone_id': drone['hw_id']})
+            logger.error(f"Request failed", extra={'drone_id': drone['hw_id'], 'error_type': 'RequestException'})
 
         time.sleep(Params.polling_interval)
 
