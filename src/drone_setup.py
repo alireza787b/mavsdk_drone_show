@@ -88,7 +88,7 @@ class DroneSetup:
                     success, message = True, "Assumed success for Swarm Mission."
 
         elif self.drone_config.mission == 10:  # Constant takeoff command
-            altitude = float(self.drone_config.assignedAltitude)
+            altitude = float(self.drone_config.takeoff_altitude)
             logging.info(f"Starting Takeoff to {altitude}m")
             success, message = self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
         

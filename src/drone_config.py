@@ -7,7 +7,7 @@ from geographiclib.geodesic import Geodesic
 import navpy
 import numpy as np
 import requests
-from src.params import Params as params
+from src.params import Params
 from src.filter import KalmanFilter
 
 class DroneConfig:
@@ -33,6 +33,7 @@ class DroneConfig:
         self.target_drone = None
         self.drones = drones
         self.kalman_filter = KalmanFilter() # New line
+        self.takeoff_altitude = Params.default_takeoff_alt
 
 
     def get_hw_id(self, hw_id=None):
@@ -60,13 +61,13 @@ class DroneConfig:
         return None
 
     def read_config(self):
-        if params.offline_config:
+        if Params.offline_config:
             return self.read_file('config.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading configuration from online source...")
             try:
-                print(f'Attempting to download file from: {params.config_url}')
-                response = requests.get(params.config_url)
+                print(f'Attempting to download file from: {Params.config_url}')
+                response = requests.get(Params.config_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')
@@ -90,13 +91,13 @@ class DroneConfig:
         In online mode, it downloads the swarm configuration file from the specified URL.
         In offline mode, it reads the swarm configuration file from the local disk.
         """
-        if params.offline_swarm:
+        if Params.offline_swarm:
             return self.read_file('swarm.csv', 'local CSV file', self.hw_id)
         else:
             print("Loading swarm configuration from online source...")
             try:
-                print(f'Attempting to download file from: {params.swarm_url}')
-                response = requests.get(params.swarm_url)
+                print(f'Attempting to download file from: {Params.swarm_url}')
+                response = requests.get(Params.swarm_url)
 
                 if response.status_code != 200:
                     print(f'Error downloading file: {response.status_code} {response.reason}')

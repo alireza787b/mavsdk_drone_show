@@ -105,8 +105,8 @@ class DroneCommunicator:
 
         # Process mission command
         if mission == 10:  # Takeoff command
-            assigned_altitude = command_data.get("altitude", Params.default_takeoff_alt)  # Default to 10m if not provided
-            self.drone_config.assignedAltitude = min(float(assigned_altitude), Params.max_takeoff_alt)
+            assigned_altitude = command_data.get("takeoff_altitude", Params.default_takeoff_alt)  # Default to 10m if not provided
+            self.drone_config.takeoff_altitude = min(float(assigned_altitude), Params.max_takeoff_alt)
             logging.info(f"Takeoff command received. Assigned altitude: {self.drone_config.assignedAltitude}m")
             self.drone_config.mission = mission
         elif mission in Mission._value2member_map_:

@@ -99,7 +99,7 @@ const handleTakeoff = () => {
   const actualAltitude = parseInt(altitude, 10);
   const commandData = {
       missionType: 10, // 10 for Takeoff (constant)
-      altitude: actualAltitude, // Separate altitude field
+      takeoff_altitude: actualAltitude, // Separate altitude field
       triggerTime: '0', // No delay for Takeoff
   };
 
