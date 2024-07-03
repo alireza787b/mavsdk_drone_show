@@ -6,6 +6,8 @@ import logging
 import time
 import asyncio
 
+from src.params import Params
+
 class DroneSetup:
     def __init__(self, params, drone_config, offboard_controller):
         """
@@ -85,12 +87,11 @@ class DroneSetup:
                         asyncio.run(self.offboard_controller.start_offboard_follow())
                     success, message = True, "Assumed success for Swarm Mission."
 
-        elif 10 <= self.drone_config.mission < 100:
-            altitude = float(self.drone_config.mission) - 10
-            altitude = min(altitude, 50)
+        elif self.drone_config.mission == 10:  # Constant takeoff command
+            altitude = float(self.drone_config.assignedAltitude)
             logging.info(f"Starting Takeoff to {altitude}m")
             success, message = self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
-
+        
         elif self.drone_config.mission == 101:
             logging.info("Starting Land")
             if int(self.drone_config.swarm.get('follow')) != 0 and self.offboard_controller:

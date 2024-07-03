@@ -70,3 +70,5 @@ class Params():
 
 
        
+    max_takeoff_alt = 100
+    default_takeoff_alt = 10

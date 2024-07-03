@@ -94,21 +94,22 @@ const handleTestAction = () => {
 };
 
 
+
 // Function to handle sending the Takeoff command
 const handleTakeoff = () => {
-    const actualAltitude = parseInt(altitude, 10);
-    const commandData = {
-      missionType: 10 + actualAltitude, // 10 for Takeoff and altitude
-      triggerTime: '0', // No delay for Takeoff
-    };
+  const actualAltitude = parseInt(altitude, 10);
+  const commandData = {
+    missionType: 10 + actualAltitude, // 10 for Takeoff and altitude
+    triggerTime: '0', // No delay for Takeoff
+  };
 
-    // Confirmation dialog
-    if (window.confirm(`Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${actualAltitude}m.`)) {
-        console.log("Sending Takeoff commandData:", commandData);
-        sendCommandToServer(commandData);
-    } else {
-        console.log("Takeoff command cancelled.");
-    }
+  // Confirmation dialog
+  if (window.confirm(`Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${actualAltitude}m.`)) {
+      console.log("Sending Takeoff commandData:", commandData);
+      sendCommandToServer(commandData);
+  } else {
+      console.log("Takeoff command cancelled.");
+  }
 };
 
   
