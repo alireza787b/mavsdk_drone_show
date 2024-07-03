@@ -95,12 +95,12 @@ const handleTestAction = () => {
 
 
 
-// Function to handle sending the Takeoff command
 const handleTakeoff = () => {
   const actualAltitude = parseInt(altitude, 10);
   const commandData = {
-    missionType: 10 + actualAltitude, // 10 for Takeoff and altitude
-    triggerTime: '0', // No delay for Takeoff
+      missionType: 10, // 10 for Takeoff (constant)
+      altitude: actualAltitude, // Separate altitude field
+      triggerTime: '0', // No delay for Takeoff
   };
 
   // Confirmation dialog
@@ -111,7 +111,6 @@ const handleTakeoff = () => {
       console.log("Takeoff command cancelled.");
   }
 };
-
   
   
 // Function to handle sending the Land All command
