@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { defaultTriggerTimeDelay } from '../constants/droneConstants';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [missionType, setMissionType] = useState('');
-  const [timeDelay, setTimeDelay] = useState(10);  // Assuming default delay is 10 seconds
+  const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);  // Assuming default delay is 10 seconds
 
   const handleSend = () => {
     if (missionType === '') {
@@ -13,6 +14,18 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
       alert('Please enter a valid time delay.');
       return;
     }
+
+    // Prepare the confirmation message
+    const missionName = missionTypes[missionType];
+    const triggerTime = new Date(Date.now() + timeDelay * 1000).toLocaleString();
+    const confirmationMessage = `Are you sure you want to send the "${missionName}" command to all drones?
+      Trigger time: ${triggerTime}`;
+
+    // Show confirmation dialog
+    if (!window.confirm(confirmationMessage)) {
+      return; // Do nothing if the user cancels
+    }
+
     const commandData = {
       missionType,
       triggerTime: Math.floor(Date.now() / 1000) + parseInt(timeDelay),
@@ -28,7 +41,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
           <select value={missionType} onChange={(e) => setMissionType(e.target.value)} className="mission-dropdown">
             <option value="">Select</option>
             {Object.entries(missionTypes).map(([key, value]) => (
-              <option value={value}>{key.replace(/_/g, ' ')}</option>
+              <option key={value} value={value}>{key.replace(/_/g, ' ')}</option>
             ))}
           </select>
         </label>

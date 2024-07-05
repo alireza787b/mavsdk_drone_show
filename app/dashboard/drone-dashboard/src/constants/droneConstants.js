@@ -11,3 +11,4 @@ export const DRONE_MISSION_TYPES = {
     TEST: 100,
   };
   
+  defaultTriggerTimeDelay = 10
