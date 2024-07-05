@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getBackendURL } from '../utilities';
+import { getBackendURL } from '../utilities/utilities';
 
 export const sendDroneCommand = async (commandData) => {
   try {
