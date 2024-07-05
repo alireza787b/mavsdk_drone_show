@@ -1,13 +1,12 @@
-//app/dashboard/drone-dashboard/src/pages/MissionConfig.js
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
-import { getBackendURL } from '../utilities/utilities';
-import { getBackendURL } from '../utilities/missionConfigUtilities';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
+import { getBackendURL } from '../utilities/utilities';
+import { handleSaveChangesToServer, handleRevertChanges, handleFileChange, exportConfig } from '../utilities/missionConfigUtilities';
 
 const MissionConfig = () => {
   const [configData, setConfigData] = useState([]);
@@ -72,7 +71,7 @@ const MissionConfig = () => {
       <h2>Mission Configuration</h2>
       <ControlButtons
         addNewDrone={addNewDrone}
-        handleSaveChangesToServer={() => handleSaveChangesToServer(configData)}
+        handleSaveChangesToServer={() => handleSaveChangesToServer(configData, setConfigData)}
         handleRevertChanges={() => handleRevertChanges(setConfigData)}
         handleFileChange={(event) => handleFileChange(event, setConfigData)}
         exportConfig={() => exportConfig(configData)}

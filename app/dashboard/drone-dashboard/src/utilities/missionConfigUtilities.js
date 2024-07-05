@@ -1,105 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
 import axios from 'axios';
-import '../styles/MissionConfig.css';
-import InitialLaunchPlot from '../components/InitialLaunchPlot';
-import DroneConfigCard from '../components/DroneConfigCard';
-import ControlButtons from '../components/ControlButtons';
-import { getBackendURL } from '../utilities/generalUtilities';
-import { handleSaveChangesToServer, handleRevertChanges, handleFileChange, exportConfig } from '../utilities/missionConfigUtilities';
+import { getBackendURL } from './utilities';
 
-const MissionConfig = () => {
-  const [configData, setConfigData] = useState([]);
-  const [editingDroneId, setEditingDroneId] = useState(null);
-
-  const allHwIds = new Set(configData.map(drone => parseInt(drone.hw_id)));
-  const maxHwId = Math.max(0, ...allHwIds) + 1;
-  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => i + 1).filter(id => !allHwIds.has(id));
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const backendURL = getBackendURL();
-      try {
-        const response = await axios.get(`${backendURL}/get-config-data`);
-        setConfigData(response.data);
-      } catch (error) {
-        console.error("Error fetching config data:", error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const saveChanges = (hw_id, updatedData) => {
-    const { hw_id: newHwId } = updatedData;
-    if (configData.some(d => d.hw_id === newHwId && d.hw_id !== hw_id)) {
-      alert("The selected hardware ID is already in use. Please choose another one.");
-      return;
+export const handleSaveChangesToServer = async (configData, setConfigData) => {
+    const maxId = Math.max(...configData.map(drone => parseInt(drone.hw_id)));
+    for (let i = 1; i <= maxId; i++) {
+        if (!configData.some(drone => parseInt(drone.hw_id) === i)) {
+            alert(`Missing Drone ID: ${i}. Please create the missing drone before saving.`);
+            return;
+        }
     }
-    setConfigData(prevConfig => prevConfig.map(drone => drone.hw_id === hw_id ? updatedData : drone));
-    setEditingDroneId(null);
-  };
 
-  const addNewDrone = () => {
-    const newHwId = availableHwIds[0].toString();
-    const allSameGcsIp = configData.every(drone => drone.gcs_ip === configData[0].gcs_ip);
-    const commonSubnet = configData.length > 0 ? configData[0].ip.split('.').slice(0, -1).join('.') + '.' : "";
-
-    const newDrone = {
-      hw_id: newHwId,
-      ip: commonSubnet,
-      mavlink_port: (14550 + parseInt(newHwId)).toString(),
-      debug_port: (13540 + parseInt(newHwId)).toString(),
-      gcs_ip: allSameGcsIp ? configData[0].gcs_ip : "",
-      x: "0",
-      y: "0",
-      pos_id: newHwId
-    };
-
-    setConfigData(prevConfig => [...prevConfig, newDrone]);
-  };
-
-  const removeDrone = (hw_id) => {
-    if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
-      setConfigData(prevConfig => prevConfig.filter(drone => drone.hw_id !== hw_id));
+    const backendURL = getBackendURL();
+    try {
+        const response = await axios.post(`${backendURL}/save-config-data`, configData);
+        alert(response.data.message);
+    } catch (error) {
+        console.error("Error saving updated config data:", error);
+        if (error.response && error.response.data.message) {
+            alert(error.response.data.message);
+        } else {
+            alert('Error saving data.');
+        }
     }
-  };
-
-  const sortedConfigData = [...configData].sort((a, b) => a.hw_id - b.hw_id);
-
-  return (
-    <div className="mission-config-container">
-      <h2>Mission Configuration</h2>
-      <ControlButtons
-        addNewDrone={addNewDrone}
-        handleSaveChangesToServer={() => handleSaveChangesToServer(configData, setConfigData)}
-        handleRevertChanges={() => handleRevertChanges(setConfigData)}
-        handleFileChange={(event) => handleFileChange(event, setConfigData)}
-        exportConfig={() => exportConfig(configData)}
-      />
-      <div className="content-flex">
-        <div className="drone-cards">
-          {sortedConfigData.map(drone => (
-            <DroneConfigCard
-              key={drone.hw_id}
-              drone={drone}
-              availableHwIds={availableHwIds}
-              editingDroneId={editingDroneId}
-              setEditingDroneId={setEditingDroneId}
-              saveChanges={saveChanges}
-              removeDrone={removeDrone}
-            />
-          ))}
-        </div>
-        <div className="initial-launch-plot">
-          <InitialLaunchPlot drones={configData} onDroneClick={setEditingDroneId} />
-        </div>
-      </div>
-    </div>
-  );
 };
 
-MissionConfig.propTypes = {
-  // No props are currently being used, but this is a placeholder for future use
+export const handleRevertChanges = async (setConfigData) => {
+    if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
+        const backendURL = getBackendURL();
+        try {
+            const response = await axios.get(`${backendURL}/get-config-data`);
+            setConfigData(response.data);
+        } catch (error) {
+            console.error("Error fetching original config data:", error);
+        }
+    }
 };
 
-export default MissionConfig;
+export const handleFileChange = (event, setConfigData) => {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const csvData = e.target.result;
+            const drones = parseCSV(csvData);
+            if (drones && validateDrones(drones)) {
+                setConfigData(drones);
+            } else {
+                alert("Invalid CSV structure. Please make sure your CSV matches the required format.");
+            }
+        };
+        reader.readAsText(file);
+    }
+};
+
+export const parseCSV = (data) => {
+    const rows = data.trim().split('\n').filter(row => row.trim() !== ''); // Trim to remove possible whitespace and filter out empty rows
+    const drones = [];
+    if (rows[0].trim() !== "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip") {
+        console.log("CSV Header Mismatch!");
+        return null; // Invalid CSV structure
+    }
+    for (let i = 1; i < rows.length; i++) {
+        const columns = rows[i].split(',').map(cell => cell.trim()); // Trim each cell value
+        if (columns.length === 8) {
+            const drone = {
+                hw_id: columns[0],
+                pos_id: columns[1],
+                x: columns[2],
+                y: columns[3],
+                ip: columns[4],
+                mavlink_port: columns[5],
+                debug_port: columns[6],
+                gcs_ip: columns[7]
+            };
+            drones.push(drone);
+        } else {
+            console.log(`Row ${i} has incorrect number of columns.`);
+            return null; // Invalid row structure
+        }
+    }
+    return drones;
+};
+
+export const validateDrones = (drones) => {
+    for (const drone of drones) {
+        for (const key in drone) {
+            if (!drone[key]) {
+                alert(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
+                console.log(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
+                return false;
+            }
+        }
+    }
+    return true;
+};
+
+export const exportConfig = (configData) => {
+    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port,debug_port,gcs_ip"];
+    const csvRows = configData.map(drone => 
+        [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(",")
+    );
+    const csvData = [header.join(",")].concat(csvRows).join("\n");
+
+    const blob = new Blob([csvData], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.setAttribute("hidden", "");
+    a.setAttribute("href", url);
+    a.setAttribute("download", "config_export.csv");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
