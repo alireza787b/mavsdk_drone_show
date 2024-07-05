@@ -1,9 +1,13 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 export function getBackendURL() {
   const hostArray = window.location.host.split(":");
   const domain = hostArray[0];
-  return http://${domain}:5010;
+  const port = process.env.REACT_APP_BACKEND_PORT || 5000; // Default to 5000 if the env variable is not set
+  return `http://${domain}:${port}`;
 }
-
 
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;
@@ -15,17 +19,16 @@ export const TEXTURE_REPEAT = 10;
 export const POLLING_RATE_HZ = 1;
 export const STALE_DATA_THRESHOLD_SECONDS = 5;
 
-
 // Fetch the elevation based on latitude and longitude
 export const getElevation = async (lat, lon) => {
   try {
-    const url = http://localhost:5001/elevation?lat=${lat}&lon=${lon};
+    const url = `http://localhost:5001/elevation?lat=${lat}&lon=${lon}`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error(HTTP error! status: ${response.status});
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
     return data.results[0]?.elevation || null;
   } catch (error) {
-    console.error(Failed to fetch elevation data: ${error});
+    console.error(`Failed to fetch elevation data: ${error}`);
     return null;
   }
 };
