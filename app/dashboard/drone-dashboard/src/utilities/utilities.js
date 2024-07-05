@@ -1,12 +1,7 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
-
 export function getBackendURL() {
   const hostArray = window.location.host.split(":");
   const domain = hostArray[0];
-  const port = process.env.REACT_APP_BACKEND_PORT || 5000; // Default to 5000 if the env variable is not set
-  return `http://${domain}:${port}`;
+  return `http://${domain}:5010`;
 }
 
 // Constants for conversions and world setup
