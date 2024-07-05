@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
-        logger.info("Telemetry data requested")
+        #logger.info("Telemetry data requested")
         return jsonify(telemetry_data_all_drones)
 
     @app.route('/send_command', methods=['POST'])
