@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/CommandSender.js
 import React, { useState } from 'react';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
@@ -24,7 +25,7 @@ const CommandSender = () => {
 
   return (
     <div className="command-sender">
-      <h1>Command Control</h1>
+      <h2>Command Control</h2>
       <div className="tab-bar">
         <button className={activeTab === 'missionTrigger' ? 'active' : ''} onClick={() => setActiveTab('missionTrigger')}>
           Mission Trigger

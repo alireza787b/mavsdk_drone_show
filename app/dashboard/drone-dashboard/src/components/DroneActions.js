@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/DroneActions.js
 import React, { useState } from 'react';
 
 
@@ -26,16 +27,9 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
   return (
     <div className="actions-content">
-      <div className="test-section">
-        <button className="action-button test-button" onClick={() => handleAction('TEST', 'Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?')}>
-          Test
-        </button>
-      </div>
       <div className="takeoff-section">
-        <label>
-          Initial Takeoff Altitude (m):&nbsp;
-          <input type="number" value={altitude} onChange={(e) => setAltitude(e.target.value)} className="altitude-input" />
-        </label>
+        <label htmlFor="takeoff-altitude">Initial Takeoff Altitude (m):</label>
+        <input type="number" id="takeoff-altitude" value={altitude} onChange={(e) => setAltitude(e.target.value)} />
         <button className="action-button" onClick={() => handleAction('TAKE_OFF', `Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${altitude}m.`)}>
           Takeoff
         </button>
@@ -45,6 +39,9 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       </button>
       <button className="action-button" onClick={() => handleAction('HOLD', 'Hold Position: This will make all drones hold their current positions. Are you sure you want to proceed?')}>
         Hold Position
+      </button>
+      <button className="action-button test-button" onClick={() => handleAction('TEST', 'Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?')}>
+        Test
       </button>
       <button className="action-button" onClick={() => handleAction('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
               style={{ backgroundColor: 'red', color: 'white' }}>

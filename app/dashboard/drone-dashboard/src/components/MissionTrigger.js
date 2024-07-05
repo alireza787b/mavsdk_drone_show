@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/MissionTrigger.js
 import React, { useState } from 'react';
 import { defaultTriggerTimeDelay } from '../constants/droneConstants';
 
@@ -36,23 +37,19 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   return (
     <div className="mission-trigger-content">
       <div className="mission-selection">
-        <label className="mission-label">
-          Mission Type:&nbsp;
-          <select value={missionType} onChange={(e) => setMissionType(e.target.value)} className="mission-dropdown">
-            <option value="">Select</option>
-            {Object.entries(missionTypes).map(([key, value]) => (
-              <option key={value} value={value}>{key.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-        </label>
+        <label htmlFor="mission-type">Mission Type:</label>
+        <select id="mission-type" value={missionType} onChange={(e) => setMissionType(e.target.value)}>
+          <option value="">Select</option>
+          {Object.entries(missionTypes).map(([key, value]) => (
+            <option key={value} value={value}>{key.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
       </div>
       <div className="time-delay">
-        <label className="delay-label">
-          Time Delay (seconds):&nbsp;
-          <input type="number" value={timeDelay} onChange={(e) => setTimeDelay(e.target.value)} className="delay-input" />
-        </label>
+        <label htmlFor="time-delay">Time Delay (seconds):</label>
+        <input type="number" id="time-delay" value={timeDelay} onChange={(e) => setTimeDelay(e.target.value)} />
       </div>
-      <button onClick={handleSend} className="mission-button send-command">
+      <button onClick={handleSend} className="mission-button">
         Send Command
       </button>
     </div>
