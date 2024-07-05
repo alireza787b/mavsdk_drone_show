@@ -1,11 +1,12 @@
+//app/dashboard/drone-dashboard/src/pages/Overview.js
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types'; // Import PropTypes for validation
 import axios from 'axios';
-import Globe from './Globe';
-import CommandSender from './CommandSender';
-import DroneWidget from './DroneWidget';
-import { getBackendURL , POLLING_RATE_HZ , STALE_DATA_THRESHOLD_SECONDS } from '../utilities';
+import Globe from '../components/Globe'; // Adjusted import path
+import CommandSender from '../components/CommandSender'; // Adjusted import path
+import DroneWidget from '../components/DroneWidget'; // Adjusted import path
+import { getBackendURL, POLLING_RATE_HZ, STALE_DATA_THRESHOLD_SECONDS } from '../utilities';
 import '../styles/Overview.css';
-
 
 const Overview = ({ setSelectedDrone }) => {
   // State management
@@ -76,6 +77,11 @@ const Overview = ({ setSelectedDrone }) => {
       />
     </div>
   );
+};
+
+// Define PropTypes for better validation
+Overview.propTypes = {
+  setSelectedDrone: PropTypes.func.isRequired,
 };
 
 export default Overview;
