@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types'; // Import PropTypes for validation
 import '../styles/ImportShow.css';
-import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
+import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
 
 const ImportShow = () => {
   const [selectedFile, setSelectedFile] = useState(null);

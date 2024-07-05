@@ -7,7 +7,7 @@ import '../styles/SwarmDesign.css';
 import DroneGraph from '../components/DroneGraph'; // Adjusted import path
 import SwarmPlots from '../components/SwarmPlots'; // Adjusted import path
 import DroneCard from '../components/DroneCard'; // Adjusted import path
-import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
+import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
 
 const transformToGraphData = (swarmData) => {
   const nodes = swarmData.map(drone => ({

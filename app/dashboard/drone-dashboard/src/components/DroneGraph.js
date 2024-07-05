@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import '../styles/DroneGraph.css';
-import { getBackendURL } from '../utilities';  // Adjust the path according to the location of utilities.js
+import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
 
 
 

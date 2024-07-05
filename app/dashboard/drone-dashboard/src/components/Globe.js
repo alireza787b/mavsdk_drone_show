@@ -3,10 +3,10 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { Color, RepeatWrapping, TextureLoader } from 'three';
 import { useLoader } from '@react-three/fiber';
-import { getElevation, llaToLocal } from '../utilities';
+import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
-import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities';
+import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities/utilities';
 import useElevation from '../useElevation';  // Update the path if necessary
 import '../styles/Globe.css'; // Import the CSS
 

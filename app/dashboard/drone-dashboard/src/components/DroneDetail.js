@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import '../styles/DroneDetail.css';
-import { getBackendURL } from '../utilities'; // Adjust the path if needed
+import { getBackendURL } from '../utilities/utilities'; // Adjust the path if needed
 
 
 const POLLING_RATE_HZ = 2;

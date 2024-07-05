@@ -5,7 +5,7 @@ import axios from 'axios';
 import Globe from '../components/Globe'; // Adjusted import path
 import CommandSender from '../components/CommandSender'; // Adjusted import path
 import DroneWidget from '../components/DroneWidget'; // Adjusted import path
-import { getBackendURL, POLLING_RATE_HZ, STALE_DATA_THRESHOLD_SECONDS } from '../utilities';
+import { getBackendURL, POLLING_RATE_HZ, STALE_DATA_THRESHOLD_SECONDS } from '../utilities/utilities';
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
