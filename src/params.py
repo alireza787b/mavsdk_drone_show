@@ -22,7 +22,7 @@ class Params():
     polling_interval = 1  # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state'  # URI for getting drone state
     send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
-    flask_telem_socket_port = 5010  # Flask telemetry socket port
+    flask_telem_socket_port = 5090  # Flask telemetry socket port
     
     TELEMETRY_POLLING_TIMEOUT = 10  # Threshold in seconds to check for telemetry timeout
     HTTP_REQUEST_TIMEOUT = 5  # Timeout in seconds for HTTP request
