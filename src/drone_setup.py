@@ -1,103 +1,187 @@
+import argparse
 import asyncio
-import datetime
+import csv
+from mavsdk import System
+import glob
+import os
+import subprocess
 import logging
-import time
-from src.enums import *
+import psutil  # You may need to install this package
 
-class DroneSetup:
-    MAX_RETRIES = 3  # Maximum number of retries for an action
-    RETRY_DELAY = 5  # Seconds to wait before retrying an action
+# Function to check if MAVSDK server is running
+def check_mavsdk_server_running(port):
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.connections(kind='inet'):
+                if conn.laddr.port == port:
+                    return True, proc.info['pid']
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False, None
 
-    def __init__(self, params, drone_config, offboard_controller):
-        self.params = params
-        self.drone_config = drone_config
-        self.offboard_controller = offboard_controller
-        self.last_logged_mission = None
-        self.last_logged_state = None
+# Modified start_mavsdk_server function
+def start_mavsdk_server(grpc_port, udp_port):
+    is_running, pid = check_mavsdk_server_running(grpc_port)
+    if is_running:
+        print(f"MAVSDK server already running on port {grpc_port}. Terminating...")
+        psutil.Process(pid).terminate()
+        psutil.Process(pid).wait()  # Wait for the process to actually terminate
+    
+    print(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
+    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    return mavsdk_server
 
-    async def run_mission_script(self, command):
-        """Executes drone mission commands asynchronously with retries."""
-        attempt = 0
-        while attempt < self.MAX_RETRIES:
+def read_hw_id():
+    hwid_files = glob.glob('*.hwID')
+    if hwid_files:
+        filename = hwid_files[0]
+        hw_id = os.path.splitext(filename)[0]  # Get filename without extension
+        print(f"Hardware ID {hw_id} detected.")
+        return int(hw_id)
+    else:
+        print("Hardware ID file not found.")
+        return None
+
+def read_config(filename='config.csv'):
+    print("Reading drone configuration...")
+    dronesConfig = []
+    with open(filename, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader, None)  # Skip the header
+        for row in reader:
+            hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
+            if int(hw_id) == HW_ID:
+                print(f"Matching hardware ID found: {hw_id}")
+                droneConfig = {
+                    'hw_id': hw_id,
+                    'udp_port': mavlink_port,
+                    'grpc_port': debug_port
+                }
+                print(f"Drone configuration: {droneConfig}")
+                return droneConfig
+    print("No matching hardware ID found in the configuration file.")
+
+SIM_MODE = False  # or True based on your setting
+GRPC_PORT_BASE = 50041
+HW_ID = read_hw_id()
+
+def stop_mavsdk_server(mavsdk_server):
+    print("Stopping mavsdk_server")
+    mavsdk_server.terminate()
+
+async def perform_action_with_retries(action, altitude, retries=3, retry_interval=5):
+    for attempt in range(retries):
+        success = await perform_action(action, altitude)
+        if success:
+            return True
+        print(f"Attempt {attempt + 1} failed, retrying after {retry_interval} seconds...")
+        await asyncio.sleep(retry_interval)
+    return False
+
+async def perform_action(action, altitude):
+    print("Starting to perform action...")
+    droneConfig = read_config()
+    print(f"SIM_MODE: {SIM_MODE}, GRPC_PORT_BASE: {GRPC_PORT_BASE}, HW_ID: {HW_ID}")
+
+    if (SIM_MODE == True):
+        grpc_port = GRPC_PORT_BASE + HW_ID
+    else:
+        grpc_port = GRPC_PORT_BASE - 1
+
+    print(f"gRPC Port: {grpc_port}")
+
+    if (SIM_MODE == False):
+        udp_port = 14540  # Default API connection on the same hardware
+    else:
+        udp_port = int(droneConfig['udp_port'])
+
+    print(f"UDP Port: {udp_port}")
+    
+    # Start mavsdk_server
+    mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
+    
+    drone = System(mavsdk_server_address="localhost", port=grpc_port)
+    print("Attempting to connect to drone...")
+    await drone.connect(system_address=f"udp://:{udp_port}")
+
+    print("Checking connection state...")
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            print(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
+            break
+    else:
+        print("Could not establish a connection with the drone.")
+        return False
+
+    # Perform the action
+    try:
+        if action == "takeoff":
             try:
-                logging.info(f"Executing command: {command}, Attempt: {attempt + 1}")
-                process = await asyncio.create_subprocess_shell(
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                if process.returncode == 0:
-                    logging.info(f"Mission script completed successfully: {stdout.decode().strip()}")
-                    return True, "Mission completed successfully."
-                else:
-                    logging.error(f"Mission script failed: {stderr.decode().strip()}")
-                    attempt += 1
-                    await asyncio.sleep(self.RETRY_DELAY)
+                await drone.action.set_takeoff_altitude(float(altitude))
+                await drone.action.arm()
+                await drone.action.takeoff()
+                print("Takeoff successful.")
             except Exception as e:
-                logging.error(f"Exception running mission script: {e}")
-                attempt += 1
-                await asyncio.sleep(self.RETRY_DELAY)
+                print(f"Takeoff failed: {e}")
+                return False
+        elif action == "land":
+            try:
+                await drone.action.hold()  # Switch to Hold mode
+                await asyncio.sleep(1)  # Wait for a short period
+                await drone.action.land()  # Then execute land command
+                print("Landing successful.")
+            except Exception as e:
+                print(f"Landing failed: {e}")
+                return False
+        elif action == "hold":
+            try:
+                await drone.action.hold()  # Switch to Hold mode
+                print("Hold position successful.")
+            except Exception as e:
+                print(f"Hold failed: {e}")
+                return False
+        elif action == "test":
+            try:
+                await drone.action.arm()
+                await asyncio.sleep(3)
+                await drone.action.disarm()
+                print("Test action successful.")
+            except Exception as e:
+                print(f"Test failed: {e}")
+                return False
+        else:
+            print("Invalid action specified.")
+            return False
+    finally:
+        if state.is_connected:
+            # Terminate MAVSDK server if still running
+            is_running, pid = check_mavsdk_server_running(grpc_port)
+            if is_running:
+                print(f"Terminating MAVSDK server running on port {grpc_port}...")
+                psutil.Process(pid).terminate()
+                psutil.Process(pid).wait()  # Ensure the server is properly terminated
 
-        return False, "Mission failed after all retries."
+    return True
 
-    async def schedule_mission(self):
-        """Schedules and executes drone missions based on the current state and mission code."""
-        current_time = int(time.time())
-        if self.drone_config.mission != Mission.NONE.value:
-            logging.info(f"Scheduling mission at {datetime.datetime.now()}: Mission {self.drone_config.mission}, State {self.drone_config.state}")
-            success, message = await self.handle_mission(current_time)
-            self.log_mission_result(success, message)
-            await self.reset_mission_if_needed(success)
+if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    async def handle_mission(self, current_time):
-        """Handles specific missions based on the mission code."""
-        if self.drone_config.mission in [Mission.DRONE_SHOW_FROM_CSV.value, Mission.SMART_SWARM.value]:
-            return await self._handle_show_or_swarm(current_time)
-        elif self.drone_config.mission == Mission.TAKE_OFF.value:
-            return await self._handle_takeoff()
-        elif self.drone_config.mission == Mission.LAND.value:
-            return await self._handle_land()
-        elif self.drone_config.mission == Mission.HOLD.value:
-            return await self._handle_hold()
-        elif self.drone_config.mission == Mission.TEST.value:
-            return await self._handle_test()
-        return False, "Unknown mission type."
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Perform actions with drones.")
+    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test')
+    parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
+    parser.add_argument('--retries', type=int, default=3, help='Number of retries if the action fails')
+    parser.add_argument('--retry_interval', type=int, default=5, help='Time interval between retries in seconds')
 
-    async def _handle_show_or_swarm(self, current_time):
-        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
-            self.drone_config.state = 2
-            self.drone_config.trigger_time = 0
-            script = "python3 offboard_multiple_from_csv.py" if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value else ""
-            return await self.run_mission_script(script)
-        return False, "Conditions not met for show or swarm."
+    args = parser.parse_args()
 
-    async def _handle_takeoff(self):
-        return await self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={self.drone_config.takeoff_altitude}")
-
-    async def _handle_land(self):
-        return await self.run_mission_script("python3 actions.py --action=land")
-
-    async def _handle_hold(self):
-        return await self.run_mission_script("python3 actions.py --action=hold")
-
-    async def _handle_test(self):
-        return await self.run_mission_script("python3 actions.py --action=test")
-
-    def log_mission_result(self, success, message):
-        """Logs the result of a mission execution."""
-        if self.last_logged_mission != self.drone_config.mission or self.last_logged_state != self.drone_config.state:
-            log_func = logging.info if success else logging.error
-            log_func(f"Mission result: {'Success' if success else 'Error'} - {message}")
-            self.last_logged_mission = self.drone_config.mission
-            self.last_logged_state = self.drone_config.state
-
-    async def reset_mission_if_needed(self, success):
-        """Resets the mission code and state after a successful execution."""
-        if success and self.drone_config.mission != Mission.SMART_SWARM.value:
-            logging.info("Resetting mission code and state.")
-            self.drone_config.mission = Mission.NONE.value
-            self.drone_config.state = 0
-
-# Configuration of logging for debugging and tracing
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Run the main event loop
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(perform_action_with_retries(args.action, args.altitude, args.retries, args.retry_interval))
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+    finally:
+        loop.close()  # Ensure the loop is closed properly
+        logging.info("Operation completed, event loop closed.")
