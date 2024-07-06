@@ -63,7 +63,7 @@ class DroneSetup:
                 success, message = await self._handle_test()
 
             self._log_mission_result(success, message)
-            #await self._reset_mission_if_needed(success)  # double check later in what condition should we retry
+            await self._reset_mission_if_needed(success)  # double check later in what condition should we retry
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
