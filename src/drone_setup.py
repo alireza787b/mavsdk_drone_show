@@ -78,4 +78,49 @@ class DroneSetup:
             self.drone_config.state = 2
             self.drone_config.trigger_time = 0
 
-            if self.drone_config
+            if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
+                logging.info("Starting Drone Show")
+                return await self.run_mission_script("python3 offboard_multiple_from_csv.py")
+            elif self.drone_config.mission == Mission.SMART_SWARM.value:
+                logging.info("Starting Swarm Mission")
+                if int(self.drone_config.swarm.get('follow', 0)) != 0:
+                    self.offboard_controller.start_swarm()
+                    await self.offboard_controller.start_offboard_follow()
+                return True, "Swarm Mission initiated"
+        return False, "Conditions not met for show or swarm"
+
+    async def _handle_takeoff(self):
+        altitude = float(self.drone_config.takeoff_altitude)
+        logging.info(f"Starting Takeoff to {altitude}m")
+        return await perform_action_with_retries("takeoff", altitude)
+
+    async def _handle_land(self):
+        logging.info("Starting Land")
+        if int(self.drone_config.swarm.get('follow', 0)) != 0 and self.offboard_controller:
+            if self.offboard_controller.is_offboard:
+                logging.info("Is in Offboard mode. Attempting to stop offboard.")
+                await self.offboard_controller.stop_offboard()
+                await asyncio.sleep(1)
+        return await perform_action_with_retries("land", None)
+
+    async def _handle_hold(self):
+        logging.info("Starting Hold Position")
+        return await perform_action_with_retries("hold", None)
+
+    async def _handle_test(self):
+        logging.info("Starting Test")
+        return await perform_action_with_retries("test", None)
+
+    def _log_mission_result(self, success, message):
+        if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
+            if message:
+                log_func = logging.info if success else logging.error
+                log_func(f"Mission result: {'Success' if success else 'Error'} - {message}")
+            self.last_logged_mission = self.drone_config.mission
+            self.last_logged_state = self.drone_config.state
+
+    async def _reset_mission_if_needed(self, success):
+        if success and self.drone_config.mission != Mission.SMART_SWARM.value:
+            logging.info("Resetting mission code and state.")
+            self.drone_config.mission = Mission.NONE.value
+            self.drone_config.state = 0
