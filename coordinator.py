@@ -53,8 +53,7 @@ current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 
 # Set up logging
 log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(filename=log_filename, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 
@@ -116,12 +115,9 @@ offboard_controller = OffboardController(drone_config)
 drone_setup = DroneSetup(params,drone_config, offboard_controller)
 
 def schedule_missions_thread(drone_setup):
-    asyncio.run(schedule_missions_async(drone_setup))
-
-async def schedule_missions_async(drone_setup):
     while True:
-        await drone_setup.schedule_mission()
-        await asyncio.sleep(1.0 / params.schedule_mission_frequency)
+        drone_setup.schedule_mission()
+        time.sleep(1.0 / params.schedule_mission_frequency)
 
         
 def main_loop():
