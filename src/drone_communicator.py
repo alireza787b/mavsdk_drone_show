@@ -1,3 +1,4 @@
+#src/drone_communicator.py
 import socket
 import threading
 import csv
@@ -115,7 +116,7 @@ class DroneCommunicator:
             - pos_id (str): Position ID.
             - state (str): Drone state.
         """
-        logging.debug(f"Received command data: {command_data}")
+        logging.info(f"Received command data: {command_data}")
 
         try:
             mission = command_data["missionType"]

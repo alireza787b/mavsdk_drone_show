@@ -1,3 +1,5 @@
+
+# Importing the necessary libraries
 import asyncio
 import csv
 import datetime
@@ -36,6 +38,11 @@ from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
 
+
+
+
+
+
 # Create 'logs' directory if it doesn't exist
 if not os.path.exists('logs'):
     os.makedirs('logs')
@@ -46,21 +53,26 @@ current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
 
 # Set up logging
 log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_filename)
+logging.basicConfig(level=logging.Info, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 
 mavlink_manager = None
 
 # Global variable to store telemetry
 global_telemetry = {}
 
+
 # Global variable to store OffboardController instances
 offboard_controllers = {}
+
 
 # Flag to indicate whether the telemetry thread should run
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
+# Initialize an empty dictionary to store drones  a dict
+#example on how to access drone 4 lat      lat_drone_4 = drones[4].position['lat']
 
-# Initialize an empty dictionary to store drones
 drones = {}
 
 # Create global instance
@@ -69,30 +81,48 @@ params = params.Params()
 # Initialize DroneConfig
 drone_config = DroneConfig(drones)
 
-# Create an instance of LocalMavlinkController
+
+ 
+
+
+# Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
+# messages from the drone, processes these messages, and updates the drone_config object accordingly.
+# When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
 local_drone_controller = LocalMavlinkController(drone_config, params)
 
-# Initialize DroneCommunicator
+
+
 drone_comms = DroneCommunicator(drone_config, params, drones)
 drone_comms.start_communication()
 
-# Start Flask HTTP server if enabled
+
 if params.enable_drones_http_server:
-    flask_handler = FlaskHandler(params, drone_comms)
-    flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
-    flask_thread.start()
+        flask_handler = FlaskHandler(params,drone_comms)
+        flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
+        flask_thread.start()
+
+
+        
 
 # Global variable to store the single OffboardController instance
+offboard_controller = None
+
+
 offboard_controller = OffboardController(drone_config)
 
-# Create a DroneSetup object
-drone_setup = DroneSetup(params, drone_config, offboard_controller)
 
-async def schedule_missions_loop(drone_setup):
+# Create a DroneSetup object
+drone_setup = DroneSetup(params,drone_config, offboard_controller)
+
+def schedule_missions_thread(drone_setup):
+    asyncio.run(schedule_missions_async(drone_setup))
+
+async def schedule_missions_async(drone_setup):
     while True:
         await drone_setup.schedule_mission()
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
+        
 def main_loop():
     global mavlink_manager, offboard_controller  # Declare them as global
     try:
@@ -109,17 +139,25 @@ def main_loop():
         follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency  # time in seconds
         schedule_mission_interval = 1.0 / params.schedule_mission_frequency  # time in seconds
 
-        asyncio.run(schedule_missions_loop(drone_setup))
 
+        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
+        scheduling_thread.start()
+
+        #later on should check here is this is makeing the thread running even after fninish or not
         while True:
             current_time = time.time()
 
             if int(drone_config.mission) == 2:
+
+
                 if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
                     offboard_controller.calculate_follow_setpoint()
                     last_follow_setpoint_time = current_time
 
             time.sleep(params.sleep_interval)
+
+
+        
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -134,6 +172,8 @@ def main_loop():
 
     print("Exiting the application...")
     logging.info("Exiting the application.")
+
+
 
 # Main function
 def main():
