@@ -27,7 +27,7 @@ def ensure_mavsdk_server_executable(path):
 
 # Modified start_mavsdk_server function
 def start_mavsdk_server(grpc_port, udp_port):
-    mavsdk_server_path = "./mavsdk_server"
+    # mavsdk_server_path = "./mavsdk_server"
     ensure_mavsdk_server_executable(mavsdk_server_path)
     
     is_running, pid = check_mavsdk_server_running(grpc_port)
@@ -38,7 +38,8 @@ def start_mavsdk_server(grpc_port, udp_port):
     
     logging.info(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     try:
-        mavsdk_server = subprocess.Popen([mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"])
+        mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+
         return mavsdk_server
     except OSError as e:
         logging.error(f"Failed to start mavsdk_server: {e}")
