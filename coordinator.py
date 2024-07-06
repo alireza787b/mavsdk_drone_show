@@ -115,9 +115,12 @@ offboard_controller = OffboardController(drone_config)
 drone_setup = DroneSetup(params,drone_config, offboard_controller)
 
 def schedule_missions_thread(drone_setup):
+    asyncio.run(schedule_missions_async(drone_setup))
+
+async def schedule_missions_async(drone_setup):
     while True:
-        drone_setup.schedule_mission()
-        time.sleep(1.0 / params.schedule_mission_frequency)
+        await drone_setup.schedule_mission()
+        await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
         
 def main_loop():
