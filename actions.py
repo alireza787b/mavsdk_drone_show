@@ -28,7 +28,7 @@ def ensure_mavsdk_server_executable(path):
 # Modified start_mavsdk_server function
 def start_mavsdk_server(grpc_port, udp_port):
     # mavsdk_server_path = "./mavsdk_server"
-    ensure_mavsdk_server_executable(mavsdk_server_path)
+    ensure_mavsdk_server_executable("./mavsdk_server")
     
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
