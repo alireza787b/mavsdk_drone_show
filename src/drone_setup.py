@@ -61,6 +61,7 @@ class DroneSetup:
             elif self.drone_config.mission == Mission.HOLD.value:
                 success, message = await self._handle_hold()
             elif self.drone_config.mission == Mission.TEST.value:
+                print("started Test")
                 success, message = await self._handle_test()
 
             self._log_mission_result(success, message)
