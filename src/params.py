@@ -36,7 +36,7 @@ class Params():
     enable_udp_telemetry = False  # Enable/disable UDP telemetry
     TELEM_SEND_INTERVAL = 0.5  # Send telemetry data every TELEM_SEND_INTERVAL seconds
     local_mavlink_refresh_interval = 0.1  # Refresh interval for local Mavlink connection
-    broadcast_mode = False  # Enable broadcast mode
+    broadcast_mode = True  # Enable broadcast mode
     extra_swarm_telem = []  # Extra swarm telemetry IPs
     income_packet_check_interval = 0.1  # Interval for checking incoming packets
 
