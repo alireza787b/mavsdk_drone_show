@@ -148,12 +148,18 @@ class DroneCommunicator:
 
     def _process_mission_command(self, mission: int, command_data: Dict[str, Any]) -> None:
         """Process the mission command based on its type."""
+        # Log the incoming mission command and data
+        logging.info(f"Processing mission command: {mission}, with data: {command_data}")
+
         if mission == Mission.TAKE_OFF.value:
             self._handle_takeoff_command(command_data)
         elif mission in Mission._value2member_map_:
             self._handle_standard_mission(mission)
         else:
+            # Log the error before raising an exception
+            logging.error(f"Unknown mission command: {mission}")
             raise ValueError(f"Unknown mission command: {mission}")
+    
 
     def _handle_takeoff_command(self, command_data: Dict[str, Any]) -> None:
         """Handle the takeoff command, setting altitude and mission."""
