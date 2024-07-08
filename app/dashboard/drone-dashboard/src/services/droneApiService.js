@@ -3,6 +3,9 @@ import { getBackendURL } from '../utilities/utilities';
 
 export const sendDroneCommand = async (commandData) => {
   try {
+    // Log the command being sent
+    console.log('Sending command:', JSON.stringify(commandData));
+
     const response = await axios.post(`${getBackendURL()}/send_command`, commandData);
     return response.data;  // This might contain status and message fields
   } catch (error) {
