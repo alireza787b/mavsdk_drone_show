@@ -46,13 +46,11 @@ class DroneSetup:
         success = False
         message = ""
 
-        if True or self.drone_config.mission != Mission.NONE.value:
-            logging.info(f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
+        logging.info(f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
                          f"Current mission: {Mission(self.drone_config.mission).name}, State: {self.drone_config.state}")
-        print(self.drone_config.mission.name)
+
         try:
             if self.drone_config.mission in [Mission.DRONE_SHOW_FROM_CSV.value, Mission.SMART_SWARM.value]:
-                print("detected droneshow or swarm")
                 success, message = await self._handle_show_or_swarm(current_time)
             elif self.drone_config.mission == Mission.TAKE_OFF.value:
                 success, message = await self._handle_takeoff()
