@@ -168,12 +168,14 @@ class DroneCommunicator:
         self.drone_config.takeoff_altitude = min(float(assigned_altitude), self.params.max_takeoff_alt)
         logging.info(f"Takeoff command received. Assigned altitude: {self.drone_config.takeoff_altitude}m")
         self.drone_config.mission = Mission.TAKE_OFF.value
+        self.drone_config.state = 1 #double check
 
     def _handle_standard_mission(self, mission: int) -> None:
         """Handle standard (non-takeoff) mission commands."""
         mission_enum = Mission(mission)
         logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
         self.drone_config.mission = mission
+        self.drone_config.state = 1 #double check
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""
