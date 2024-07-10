@@ -74,7 +74,7 @@ class DroneSetup:
 
             if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
                 logging.info("Starting Drone Show")
-                return await self.run_mission_script("python3 offboard_multiple_from_csv.py")
+                return await self.run_mission_script("python offboard_multiple_from_csv.py")
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
                 logging.info("Starting Swarm Mission")
                 if int(self.drone_config.swarm.get('follow', 0)) != 0:
@@ -86,7 +86,7 @@ class DroneSetup:
     async def _handle_takeoff(self):
         altitude = float(self.drone_config.takeoff_altitude)
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
+        return await self.run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
 
     async def _handle_land(self):
         logging.info("Starting Land")
@@ -95,15 +95,15 @@ class DroneSetup:
                 logging.info("Is in Offboard mode. Attempting to stop offboard.")
                 await self.offboard_controller.stop_offboard()
                 await asyncio.sleep(1)
-        return await self.run_mission_script("python3 actions.py --action=land")
+        return await self.run_mission_script("python actions.py --action=land")
 
     async def _handle_hold(self):
         logging.info("Starting Hold Position")
-        return await self.run_mission_script("python3 actions.py --action=hold")
+        return await self.run_mission_script("python actions.py --action=hold")
 
     async def _handle_test(self):
         logging.info("Starting Test")
-        return await self.run_mission_script("python3 actions.py --action=test")
+        return await self.run_mission_script("python actions.py --action=test")
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
