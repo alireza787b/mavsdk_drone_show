@@ -10,3 +10,4 @@ flask-cors
 psutil  
 scipy
 matplotlib
+sdnotify

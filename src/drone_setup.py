@@ -14,12 +14,15 @@ class DroneSetup:
         self.last_logged_mission = None
         self.last_logged_state = None
 
-    async def run_mission_script(self, command):
+    async def run_mission_script(self, script_name, action):
         """
-        Runs the given mission script asynchronously.
+        Runs the given mission script asynchronously using full command paths.
         Returns a tuple (status, message).
         """
-        logging.info(f"Executing command: {command}")
+        python_exec_path = "/home/droneshow/mavsdk_drone_show/venv/bin/python"
+        script_path = f"/home/droneshow/mavsdk_drone_show/{script_name}"
+        command = f"{python_exec_path} {script_path} --action={action}"
+        logging.debug(f"Executing command: {command}")
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
@@ -74,7 +77,7 @@ class DroneSetup:
 
             if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
                 logging.info("Starting Drone Show")
-                return await self.run_mission_script("python offboard_multiple_from_csv.py")
+                return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
                 logging.info("Starting Swarm Mission")
                 if int(self.drone_config.swarm.get('follow', 0)) != 0:
@@ -86,7 +89,7 @@ class DroneSetup:
     async def _handle_takeoff(self):
         altitude = float(self.drone_config.takeoff_altitude)
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.run_mission_script(f"python actions.py --action=takeoff --altitude={altitude}")
+        return await self.run_mission_script("actions.py", f"takeoff --altitude={altitude}")
 
     async def _handle_land(self):
         logging.info("Starting Land")
@@ -95,15 +98,15 @@ class DroneSetup:
                 logging.info("Is in Offboard mode. Attempting to stop offboard.")
                 await self.offboard_controller.stop_offboard()
                 await asyncio.sleep(1)
-        return await self.run_mission_script("python actions.py --action=land")
+        return await self.run_mission_script("actions.py", "land")
 
     async def _handle_hold(self):
         logging.info("Starting Hold Position")
-        return await self.run_mission_script("python actions.py --action=hold")
+        return await self.run_mission_script("actions.py", "hold")
 
     async def _handle_test(self):
         logging.info("Starting Test")
-        return await self.run_mission_script("python actions.py --action=test")
+        return await self.run_mission_script("actions.py", "test")
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
