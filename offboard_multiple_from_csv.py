@@ -301,10 +301,10 @@ async def run_drone(drone_id,home_position_NED, trajectory_offset, udp_port, tim
         drone_id = 0
     # Call the initial setup and connection function
     drone, mode_descriptions, home_position = await initial_setup_and_connection(drone_id, udp_port)
-    
+    print("connection successfull!")
     # Add time offset before starting the maneuver
     await asyncio.sleep(time_offset)
-
+    print("sleeped successfull!")
 
     # Perform pre-flight checks
     home_position = await pre_flight_checks(drone_id, drone)
