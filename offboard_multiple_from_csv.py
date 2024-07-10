@@ -190,14 +190,31 @@ async def initial_setup_and_connection(drone_id, udp_port):
 
 
 async def pre_flight_checks(drone_id, drone):
+    print(f"Starting pre-flight checks for Drone {drone_id+1}...")
+    
+    # Initialize variable to track the home position
+    home_position = None
+    
     # Wait for the drone to have a global position estimate
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
-            print(f"Global position estimate ok {drone_id+1}")
-            home_position = global_position_telemetry[drone_id]
-            print(f"Home Position of {drone_id+1} set to: {home_position}")
+            print(f"Global position estimate and home position check passed for Drone {drone_id+1}.")
+            home_position = global_position_telemetry[drone_id]  # Make sure this variable is correctly defined elsewhere in your code
+            print(f"Home Position of Drone {drone_id+1} set to: {home_position}")
             break
-
+        else:
+            # Output the current failing status to help with troubleshooting
+            if not health.is_global_position_ok:
+                print(f"Waiting for global position to be okay for Drone {drone_id+1}.")
+            if not health.is_home_position_ok:
+                print(f"Waiting for home position to be set for Drone {drone_id+1}.")
+                
+    # Check if home_position was successfully set
+    if home_position is not None:
+        print(f"Pre-flight checks successful for Drone {drone_id+1}.")
+    else:
+        print(f"Pre-flight checks failed for Drone {drone_id+1}. Please resolve the issues and try again.")
+    
     return home_position
 
 
