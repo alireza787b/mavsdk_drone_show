@@ -185,7 +185,7 @@ async def initial_setup_and_connection(drone_id, udp_port):
         if state.is_connected:
             print(f"Drone id {drone_id+1} connected on Port: {udp_port} and grpc Port: {grpc_port}")
             break
-
+            print("out of loop")
     return drone, mode_descriptions, home_position
 
 
