@@ -21,6 +21,7 @@ DEFAULT_LAT=35.725125060059966
 DEFAULT_LON=51.27585107671351
 DEFAULT_ALT=1278.5
 
+
 # Function to handle SIGINT
 cleanup() {
   echo "Received interrupt, terminating background processes..."
@@ -69,7 +70,6 @@ case $1 in
     ;;
 esac
 
-
 # Read hwID from the file
 while [ ! -f ~/mavsdk_drone_show/*.hwID ]; do
   echo "Waiting for hwID file..."
@@ -93,7 +93,6 @@ cd ~/mavsdk_drone_show
 echo "Stashing and pulling the latest changes from the repository..."
 git stash
 git pull
-
 
 if [ "$USE_GLOBAL_PYTHON" = false ]; then
   # Setup Python virtual environment
