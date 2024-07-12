@@ -248,7 +248,8 @@ async def arming_and_starting_offboard_mode(drone_id: int, drone: System):
         logger.info(f"Arming drone {drone_id+1}")
         await drone.action.arm()
         logger.info(f"Setting initial setpoint for drone {drone_id+1}")
-        await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+        #await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+        await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         logger.info(f"Starting offboard mode for drone {drone_id+1}")
         await drone.offboard.start()
     except OffboardError as error:
