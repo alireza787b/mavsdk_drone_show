@@ -26,16 +26,9 @@ INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
 
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
 SIM_MODE = False
-#if set to false each drone will read its own HW_ID and initialize its offboard, otherwise all droness are being commanded
-#set to False when uploaded to the companion computer to run in real world or doing HITL
-#set to True for just visulizing all drones in one PC for SITL
-
-SEPERATE_CSV = True 
-#if set to false, its used for sim that alld drones are simulated in this pc with same csv file, if set to true, 
-# its for real world each drone has seperated csv
-# active.csv will be used if seperate csv is false and then we can use offsets
-# drone i.csv in shapes/swarm/processed will be used if seperate.csv is True
+SEPARATE_CSV = True
 HW_ID = None
+global_position_telemetry = {}
 
 def read_hw_id() -> int:
     """
