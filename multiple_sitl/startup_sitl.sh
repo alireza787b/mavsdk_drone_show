@@ -1,25 +1,56 @@
 #!/bin/bash
 
 echo "Welcome to the SITL Startup Script for MAVSDK_Drone_Show!"
-# ... [The rest of your introductory messages]
+echo ""
+echo "This script will do the following:"
+echo "1. Wait for the .hwID file to be present."
+echo "2. Pull the latest changes from the repository."
+echo "3. Check Python requirements and install if necessary."
+echo "4. Set the MAV_SYS_ID using set_sys_id.py."
+echo "5. Start the SITL simulation process based on the chosen environment."
+echo "6. Start the coordinator.py process."
+echo ""
+echo "Please wait as the script initializes the necessary components..."
+echo ""
+
+# Option to use global Python
+USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
+
+# Default position: Azadi Stadium
+DEFAULT_LAT=35.725125060059966
+DEFAULT_LON=51.27585107671351
+DEFAULT_ALT=1278.5
 
 # Function to handle SIGINT
 cleanup() {
   echo "Received interrupt, terminating background processes..."
   kill $simulation_pid
   kill $coordinator_pid
+  deactivate 2>/dev/null
   exit 0
 }
 
 # Trap SIGINT
 trap 'cleanup' INT
 
+# Check if script is run as root
+if [ "$EUID" -ne 0 ]; then 
+  echo "ERROR: Please run as root (use sudo)."
+  exit 1
+fi
+
+# Function to install bc if not found
+install_bc() {
+  echo "'bc' is not installed. Installing 'bc'..."
+  if ! sudo apt-get install -y bc; then
+    echo "ERROR: Failed to install 'bc'. Please install it manually."
+    exit 1
+  fi
+}
+
 # Check if 'bc' is installed
 if ! command -v bc &> /dev/null; then
-    echo "WARNING: 'bc' is not installed. It's required for location offset calculations."
-    echo "To install 'bc', run:"
-    echo "sudo apt-get install bc"
-    exit 1
+    install_bc
 fi
 
 # Determine the command based on the provided argument
@@ -37,16 +68,6 @@ case $1 in
     echo "Graphics disabled."
     ;;
 esac
-
-# Default position: Mehrabad Airport
-# DEFAULT_LAT=35.6857
-# DEFAULT_LON=51.3036
-# DEFAULT_ALT=1208
-
-# Default position: Azadi Stadium
-DEFAULT_LAT=35.725125060059966
-DEFAULT_LON=51.27585107671351
-DEFAULT_ALT=1278.5
 
 
 # Read hwID from the file
@@ -67,21 +88,34 @@ if [ ! -f "$CONFIG_PATH" ]; then
     exit 1
 fi
 
-
 # Pull the latest repo changes
 cd ~/mavsdk_drone_show
 echo "Stashing and pulling the latest changes from the repository..."
 git stash
 git pull
 
-# Check Python requirements
-echo "Checking and installing Python Requirements..."
-pip install -r requirements.txt
+
+if [ "$USE_GLOBAL_PYTHON" = false ]; then
+  # Setup Python virtual environment
+  VENV_DIR=~/mavsdk_drone_show/venv
+
+  if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating a virtual environment..."
+    python3 -m venv $VENV_DIR
+  fi
+
+  echo "Activating the virtual environment..."
+  source $VENV_DIR/bin/activate
+
+  echo "Checking and installing Python Requirements..."
+  pip install -r requirements.txt
+else
+  echo "Using global Python installation."
+fi
 
 # Set the MAV_SYS_ID
 echo "Running the set_sys_id.py script to set the MAV_SYS_ID..."
 python3 ~/mavsdk_drone_show/multiple_sitl/set_sys_id.py
-
 
 # Initialize offsets with default values
 OFFSET_X=0
@@ -106,7 +140,6 @@ M_PER_DEGREE=$(echo "111320 * c($LAT_RAD)" | bc -l)
 # Calculate new LAT and LON based on the offsets
 NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
 NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
-
 
 echo "DEBUG: Calculated LAT = $NEW_LAT, LON = $NEW_LON"
 
@@ -133,8 +166,6 @@ esac
 
 echo "DEBUG: SIMULATION_COMMAND = $SIMULATION_COMMAND"
 
-
-
 # Start the SITL simulation in the background
 echo "Starting the SITL simulation process..."
 cd ~/PX4-Autopilot
@@ -149,7 +180,6 @@ fi
 
 export HEADLESS
 $SIMULATION_COMMAND &
-
 
 # Record the PID of the simulation process
 simulation_pid=$!
