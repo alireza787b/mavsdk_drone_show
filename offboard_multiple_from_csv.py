@@ -177,6 +177,8 @@ async def initial_setup_and_connection(drone_id: int, udp_port: int):
     try:
         drones_config = read_config('config.csv')
         grpc_port = GRPC_PORT_BASE + drone_id if SIM_MODE else GRPC_PORT_BASE - 1
+        home_position = None
+
 
         mode_descriptions = {
             0: "On the ground",
@@ -203,7 +205,7 @@ async def initial_setup_and_connection(drone_id: int, udp_port: int):
                 logger.info(f"Drone {drone_id+1} connected on Port: {udp_port} and grpc Port: {grpc_port}")
                 break
 
-        return drone, mode_descriptions
+        return drone, mode_descriptions, home_position
     except Exception as e:
         logger.error(f"Error in initial setup and connection for drone {drone_id}: {e}")
         raise
