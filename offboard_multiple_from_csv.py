@@ -7,7 +7,7 @@ import glob
 import logging
 from collections import namedtuple
 from mavsdk import System
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed, OffboardError
+from mavsdk.offboard import PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw, AccelerationNed, OffboardError
 from mavsdk.telemetry import LandedState
 from mavsdk.action import ActionError
 import functions.global_to_local
@@ -369,10 +369,16 @@ async def main():
     """
     Main function to run all drones.
     """
-    global HW_ID
+    global HW_ID, dronesConfig
     HW_ID = read_hw_id()
     if HW_ID is None:
         logger.error("Failed to read HW ID. Exiting program.")
+        return
+
+    # Ensure dronesConfig is properly populated
+    dronesConfig = read_config('config.csv')
+    if not dronesConfig:
+        logger.error("No drone configurations available. Exiting program.")
         return
 
     num_drones = len(dronesConfig)
