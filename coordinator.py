@@ -88,10 +88,13 @@ def main_loop():
         logging.info("Initializing MAVLink...")
         mavlink_manager.initialize()
 
-        print("Active threads:", threading.enumerate())
-        print("before sleep")
-        time.sleep(2)
-        print("after sleep")
+        try:
+            print("before sleep")
+            time.sleep(2)
+            print("after sleep")
+        except Exception as e:
+            logging.error(f"Error after sleep: {e}")
+
 
 
         last_follow_setpoint_time = 0
