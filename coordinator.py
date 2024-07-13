@@ -65,7 +65,7 @@ if params.enable_drones_http_server:
     flask_thread.start()
 # Systemd watchdog notifier
 
-notifier = sdnotify.SystemdNotifier()
+#notifier = sdnotify.SystemdNotifier()
 def schedule_missions_thread(drone_setup):
     """ Thread to continuously schedule drone missions. """
     asyncio.run(schedule_missions_async(drone_setup))
@@ -105,7 +105,7 @@ def main_loop():
                 last_follow_setpoint_time = current_time
 
             # Notify systemd watchdog
-            notifier.notify("WATCHDOG=1")
+            #notifier.notify("WATCHDOG=1")
 
             time.sleep(params.sleep_interval)
 
