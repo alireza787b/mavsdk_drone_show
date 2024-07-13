@@ -120,6 +120,8 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
     while t <= total_duration:
         try:
             actual_position = global_position_telemetry[drone_id]
+            logger.debug(f"Actual position: {actual_position}, Home position: {home_position}")
+            local_ned_position = functions.global_to_local.global_to_local(actual_position, home_position)
             local_ned_position = functions.global_to_local.global_to_local(actual_position, home_position)
             
             current_waypoint = None
