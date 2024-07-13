@@ -10,9 +10,12 @@ class Mission(Enum):
     LAND = 101
     HOLD = 102
     TEST = 100
+    REBOOT = 7
     
     
 class State(Enum):
     IDLE = 0
     ARMED = 1
     TRIGGERED = 2
+    
+    
