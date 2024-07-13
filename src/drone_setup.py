@@ -88,6 +88,8 @@ class DroneSetup:
                 success, message = await self._handle_hold()
             elif self.drone_config.mission == Mission.TEST.value:
                 success, message = await self._handle_test()
+            elif self.drone_config.mission == Mission.REBOOT.value:
+                success, message = await self._handle_reboot()
 
             self._log_mission_result(success, message)
             await self._reset_mission_if_needed(success)  # double check later in what condition should we retry
@@ -96,19 +98,32 @@ class DroneSetup:
             logging.error(f"Exception in schedule_mission: {e}")
 
     async def _handle_show_or_swarm(self, current_time):
+        """
+        Handles the progression of states for show or swarm missions based on the trigger time.
+
+        Args:
+            current_time (int): The current system time to compare with the trigger time.
+
+        Returns:
+            Tuple[bool, str]: Status of the mission initiation and a message describing the outcome.
+        """
+        # Check if the mission is ready to be triggered
         if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
-            self.drone_config.state = 2
-            self.drone_config.trigger_time = 0
+            self.drone_config.state = 2  # Move to the active mission state
+            self.drone_config.trigger_time = 0  # Reset the trigger time
 
             if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
-                logging.info("Starting Drone Show")
+                logging.info("Starting Drone Show from CSV")
                 return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
-                logging.info("Starting Swarm Mission")
+                logging.info("Starting Smart Swarm Mission")
                 if int(self.drone_config.swarm.get('follow', 0)) != 0:
                     self.offboard_controller.start_swarm()
                     await self.offboard_controller.start_offboard_follow()
                 return True, "Swarm Mission initiated"
+
+        # Log when conditions are not met to trigger the mission
+        logging.info("Conditions not met for triggering show or swarm")
         return False, "Conditions not met for show or swarm"
 
     async def _handle_takeoff(self):
@@ -132,6 +147,10 @@ class DroneSetup:
     async def _handle_test(self):
         logging.info("Starting Test")
         return await self.run_mission_script("actions.py", "test")
+    
+    async def _handle_reboot(self):
+        logging.info("Starting Reboot")
+        return await self.run_mission_script("actions.py", "reboot")
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):

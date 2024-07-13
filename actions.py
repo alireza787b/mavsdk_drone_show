@@ -79,38 +79,34 @@ def stop_mavsdk_server(mavsdk_server):
     logger.info("Stopping mavsdk_server")
     mavsdk_server.terminate()
 
-async def perform_action(action, altitude):
-    logger.info("Starting to perform action...")
+async def perform_action(action, altitude=None):
+    logging.info("Starting to perform action...")
     droneConfig = read_config()
     if not droneConfig:
-        logger.error("Drone configuration not found. Exiting...")
+        logging.error("Drone configuration not found. Exiting...")
         return
     
-    logger.info(f"SIM_MODE: {SIM_MODE}, GRPC_PORT_BASE: {GRPC_PORT_BASE}, HW_ID: {HW_ID}")
-
     grpc_port = GRPC_PORT_BASE + HW_ID if SIM_MODE else GRPC_PORT_BASE - 1
     udp_port = 14540 if not SIM_MODE else int(droneConfig['udp_port'])
 
     logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
-    # Start mavsdk_server
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
     
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
-    logger.info("Attempting to connect to drone...")
+    logging.info("Attempting to connect to drone...")
     await drone.connect(system_address=f"udp://:{udp_port}")
 
-    logger.info("Checking connection state...")
+    logging.info("Checking connection state...")
     async for state in drone.core.connection_state():
         if state.is_connected:
-            logger.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
+            logging.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
             break
     else:
-        logger.error("Could not establish a connection with the drone.")
+        logging.error("Could not establish a connection with the drone.")
         stop_mavsdk_server(mavsdk_server)
         return
 
-    # Perform the action
     try:
         if action == "takeoff":
             await takeoff(drone, altitude)
@@ -120,18 +116,19 @@ async def perform_action(action, altitude):
             await hold(drone)
         elif action == "test":
             await test(drone)
+        elif action == "reboot":
+            await reboot(drone)
         else:
-            logger.error("Invalid action specified.")
+            logging.error("Invalid action specified.")
     except Exception as e:
-        logger.error(f"Error performing action {action}: {e}")
+        logging.error(f"Error performing action {action}: {e}")
     finally:
-        # Terminate MAVSDK server if still running
         is_running, pid = check_mavsdk_server_running(grpc_port)
         if is_running:
             logger.info(f"Terminating MAVSDK server running on port {grpc_port}...")
             psutil.Process(pid).terminate()
-            psutil.Process(pid).wait()  # Ensure the server is properly terminated
-        logger.info("Action completed.")
+            psutil.Process(pid).wait()
+        logging.info("Action completed.")
 
 async def takeoff(drone, altitude):
     try:
@@ -167,15 +164,20 @@ async def test(drone):
     except Exception as e:
         logger.error(f"Test failed: {e}")
 
+async def reboot(drone):
+    try:
+        await drone.action.reboot()
+        logger.info("Reboot successful.")
+    except Exception as e:
+        logger.error(f"Reboot failed: {e}")
+
 if __name__ == "__main__":
-    # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test')
+    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
     parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
 
     args = parser.parse_args()
 
-    # Run the main event loop
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(perform_action(args.action, args.altitude))

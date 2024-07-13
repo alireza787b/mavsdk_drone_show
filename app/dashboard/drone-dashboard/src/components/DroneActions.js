@@ -1,7 +1,4 @@
-//app/dashboard/drone-dashboard/src/components/DroneActions.js
 import React, { useState } from 'react';
-
-
 
 const DroneActions = ({ actionTypes, onSendCommand }) => {
   const [altitude, setAltitude] = useState(10);
@@ -13,7 +10,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
     }
 
     const commandData = {
-      missionType: actionTypes[actionType],
+      missionType: actionTypes[actionType].type,
       triggerTime: '0' // Immediate action for these commands
     };
 
@@ -46,6 +43,10 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       <button className="action-button" onClick={() => handleAction('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
               style={{ backgroundColor: 'red', color: 'white' }}>
         Disarm Drones
+      </button>
+      <button className="action-button" onClick={() => handleAction('REBOOT', 'Reboot Drones: This will reboot all drones. Are you sure you want to proceed?')}
+              style={{ backgroundColor: 'orange', color: 'white' }}>
+        Reboot Drones
       </button>
     </div>
   );
