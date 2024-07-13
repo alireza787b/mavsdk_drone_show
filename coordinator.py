@@ -1,183 +1,103 @@
-
-# Importing the necessary libraries
 import asyncio
-import csv
 import datetime
-import glob
-import json
-import socket
-import threading
+import logging
 import os
-import time
-import pandas as pd
-import requests
-import urllib3
-import subprocess
-import navpy
-
-import time
 import threading
+import time
+from drone_communicator import DroneCommunicator
+import sdnotify  # For systemd watchdog notifications
+
+# Custom modules for drone control and communication
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
-import logging
-import struct
-import glob
-import requests
-from geographiclib.geodesic import Geodesic
-from mavsdk import System
-from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 from src.offboard_controller import OffboardController
-import logging
-import src.params as params
-import struct
-from src.drone_communicator import DroneCommunicator
-import math
-from src.params import Params 
-from src.mavlink_manager import MavlinkManager
-from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
+from src.params import Params
 
-
-
-
-
-
-# Create 'logs' directory if it doesn't exist
+# Ensure the 'logs' directory exists
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
-# Get current datetime to use in the filename
+# Set up logging with the current date and time
 now = datetime.datetime.now()
-current_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+log_filename = os.path.join('logs', f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.log')
+logging.basicConfig(filename=log_filename, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Set up logging
-log_filename = os.path.join('logs', f'{current_time}.log')
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# Initialize system parameters and configurations
+params = Params()
+drone_config = DroneConfig({})  # Initialize DroneConfig with an empty dictionary
 
-
-
-mavlink_manager = None
-
-# Global variable to store telemetry
-global_telemetry = {}
-
-
-# Global variable to store OffboardController instances
-offboard_controllers = {}
-
-
-# Flag to indicate whether the telemetry thread should run
-run_telemetry_thread = threading.Event()
-run_telemetry_thread.set()
-# Initialize an empty dictionary to store drones  a dict
-#example on how to access drone 4 lat      lat_drone_4 = drones[4].position['lat']
-
-drones = {}
-
-# Create global instance
-params = params.Params()
-
-# Initialize DroneConfig
-drone_config = DroneConfig(drones)
-
-
- 
-
-
-# Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
-# messages from the drone, processes these messages, and updates the drone_config object accordingly.
-# When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
+# Create necessary service components
 local_drone_controller = LocalMavlinkController(drone_config, params)
-
-
-
-drone_comms = DroneCommunicator(drone_config, params, drones)
+drone_comms = DroneCommunicator(drone_config, params, {})
 drone_comms.start_communication()
-
-
-if params.enable_drones_http_server:
-        flask_handler = FlaskHandler(params,drone_comms)
-        flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
-        flask_thread.start()
-
-
-        
-
-# Global variable to store the single OffboardController instance
-offboard_controller = None
-
-
 offboard_controller = OffboardController(drone_config)
+drone_setup = DroneSetup(params, drone_config, offboard_controller)
 
+# Setup Flask server for HTTP drone control (if enabled)
+if params.enable_drones_http_server:
+    flask_handler = FlaskHandler(params, drone_comms)
+    flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
+    flask_thread.start()
 
-# Create a DroneSetup object
-drone_setup = DroneSetup(params,drone_config, offboard_controller)
+# Systemd watchdog notifier
+notifier = sdnotify.SystemdNotifier()
 
 def schedule_missions_thread(drone_setup):
+    """ Thread to continuously schedule drone missions. """
     asyncio.run(schedule_missions_async(drone_setup))
 
 async def schedule_missions_async(drone_setup):
+    """ Asynchronously schedule drone missions at specified intervals. """
     while True:
         await drone_setup.schedule_mission()
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
-        
 def main_loop():
-    global mavlink_manager, offboard_controller  # Declare them as global
+    """ Main application loop handling drone operations and system monitoring. """
+    global mavlink_manager  # Global reference for Mavlink manager
+
     try:
         if params.online_sync_time:
             drone_setup.synchronize_time()
 
         mavlink_manager = MavlinkManager(params, drone_config)
-        print("Initializing MAVLink...")
-        mavlink_manager.initialize()  # Use MavlinkManager's initialize method
+        logging.info("Initializing MAVLink...")
+        mavlink_manager.initialize()
         time.sleep(2)
 
         last_follow_setpoint_time = 0
-        last_schedule_mission_time = 0
-        follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency  # time in seconds
-        schedule_mission_interval = 1.0 / params.schedule_mission_frequency  # time in seconds
+        follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency
 
-
+        # Start the mission scheduling thread
         scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
         scheduling_thread.start()
 
-        #later on should check here is this is makeing the thread running even after fninish or not
         while True:
             current_time = time.time()
+            if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
+                offboard_controller.calculate_follow_setpoint()
+                last_follow_setpoint_time = current_time
 
-            if int(drone_config.mission) == 2:
-
-
-                if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
-                    offboard_controller.calculate_follow_setpoint()
-                    last_follow_setpoint_time = current_time
+            # Notify systemd watchdog
+            notifier.notify("WATCHDOG=1")
 
             time.sleep(params.sleep_interval)
 
-
-        
-
     except Exception as e:
-        print(f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
     finally:
-        print("Closing threads...")
-        if mavlink_manager:
-            mavlink_manager.terminate()  # Terminate MavlinkManager
-        drone_comms.stop_communication()
         logging.info("Closing threads and stopping communication.")
+        mavlink_manager.terminate() if mavlink_manager else None
+        drone_comms.stop_communication()
 
-    print("Exiting the application...")
-    logging.info("Exiting the application.")
+        logging.info("Exiting the application.")
 
-
-
-# Main function
 def main():
-    print("Starting the main function...")
+    """ Entry point of the application. """
+    logging.info("Starting the main function...")
     main_loop()
 
 if __name__ == "__main__":
