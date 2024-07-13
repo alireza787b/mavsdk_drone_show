@@ -87,9 +87,9 @@ def main_loop():
         mavlink_manager = MavlinkManager(params, drone_config)
         logging.info("Initializing MAVLink...")
         mavlink_manager.initialize()
-        print("mav_intied")
 
         time.sleep(2)
+        print("after sleep")
 
         last_follow_setpoint_time = 0
         follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency
