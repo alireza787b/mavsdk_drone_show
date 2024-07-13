@@ -37,6 +37,8 @@ from src.mavlink_manager import MavlinkManager
 from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
+import sdnotify  # For systemd watchdog notifications
+
 
 
 
@@ -101,7 +103,8 @@ if params.enable_drones_http_server:
         flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
         flask_thread.start()
 
-
+# Systemd watchdog notifier
+notifier = sdnotify.SystemdNotifier()
         
 
 # Global variable to store the single OffboardController instance
@@ -146,6 +149,8 @@ def main_loop():
         #later on should check here is this is makeing the thread running even after fninish or not
         while True:
             current_time = time.time()
+            # Notify systemd watchdog
+            notifier.notify("WATCHDOG=1")
 
             if int(drone_config.mission) == 2:
 
