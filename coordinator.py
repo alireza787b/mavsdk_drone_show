@@ -30,13 +30,12 @@ import src.params as params
 import struct
 from src.drone_communicator import DroneCommunicator
 import math
-from src.params import Params 
+from src.params import Params
 from src.mavlink_manager import MavlinkManager
 from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
 import sdnotify  # For systemd watchdog notifications
-
 
 # Ensure the 'logs' directory exists
 if not os.path.exists('logs'):
@@ -63,9 +62,10 @@ if params.enable_drones_http_server:
     flask_handler = FlaskHandler(params, drone_comms)
     flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
     flask_thread.start()
-# Systemd watchdog notifier
 
-#notifier = sdnotify.SystemdNotifier()
+# Systemd watchdog notifier
+notifier = sdnotify.SystemdNotifier()
+
 def schedule_missions_thread(drone_setup):
     """ Thread to continuously schedule drone missions. """
     asyncio.run(schedule_missions_async(drone_setup))
@@ -87,8 +87,8 @@ def main_loop():
         mavlink_manager = MavlinkManager(params, drone_config)
         logging.info("Initializing MAVLink...")
         mavlink_manager.initialize()
-
-        #time.sleep(2)
+        print("before sleep")
+        time.sleep(2)
         print("after sleep")
 
         last_follow_setpoint_time = 0
@@ -105,7 +105,7 @@ def main_loop():
                 last_follow_setpoint_time = current_time
 
             # Notify systemd watchdog
-            #notifier.notify("WATCHDOG=1")
+            notifier.notify("WATCHDOG=1")
 
             time.sleep(params.sleep_interval)
 
@@ -114,7 +114,8 @@ def main_loop():
 
     finally:
         logging.info("Closing threads and stopping communication.")
-        mavlink_manager.terminate() if mavlink_manager else None
+        if mavlink_manager:
+            mavlink_manager.terminate()
         drone_comms.stop_communication()
 
         logging.info("Exiting the application.")
