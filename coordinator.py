@@ -35,7 +35,7 @@ from src.mavlink_manager import MavlinkManager
 from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
-import sdnotify  # For systemd watchdog notifications
+#import sdnotify  # For systemd watchdog notifications
 
 # Ensure the 'logs' directory exists
 if not os.path.exists('logs'):
@@ -64,7 +64,7 @@ if params.enable_drones_http_server:
     flask_thread.start()
 
 # Systemd watchdog notifier
-notifier = sdnotify.SystemdNotifier()
+#notifier = sdnotify.SystemdNotifier()
 
 def schedule_missions_thread(drone_setup):
     """ Thread to continuously schedule drone missions. """
@@ -87,9 +87,12 @@ def main_loop():
         mavlink_manager = MavlinkManager(params, drone_config)
         logging.info("Initializing MAVLink...")
         mavlink_manager.initialize()
+
+        print("Active threads:", threading.enumerate())
         print("before sleep")
-        #time.sleep(2)
+        time.sleep(2)
         print("after sleep")
+
 
         last_follow_setpoint_time = 0
         follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency
