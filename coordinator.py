@@ -88,7 +88,7 @@ def main_loop():
         logging.info("Initializing MAVLink...")
         mavlink_manager.initialize()
 
-        time.sleep(2)
+        #time.sleep(2)
         print("after sleep")
 
         last_follow_setpoint_time = 0
