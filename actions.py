@@ -173,8 +173,9 @@ async def reboot(drone):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add.argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
-    parser.add.argument('--altitude', type=float, default=10, help='Altitude for takeoff')
+    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
+    parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
+
 
     args = parser.parse_args()
 
