@@ -17,7 +17,7 @@ class DroneSetup:
         self.running_processes = {}  # Store running processes
 
     def _get_python_exec_path(self):
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'venv', 'bin', 'python')
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)),'..', 'venv', 'bin', 'python')
 
     def _get_script_path(self, script_name):
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), script_name)
