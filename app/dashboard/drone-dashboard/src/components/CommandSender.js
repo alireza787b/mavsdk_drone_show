@@ -42,7 +42,6 @@ const CommandSender = () => {
       )}
       {activeTab === 'actions' && (
         <DroneActions 
-          actionTypes={[...DRONE_ACTION_TYPES, { type: 'REBOOT', label: 'Reboot', color: 'orange' }]}
           onSendCommand={handleSendCommand}
         />
       )}
