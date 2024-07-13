@@ -54,6 +54,7 @@ def read_config(filename: str) -> list:
             reader = csv.reader(csvfile)
             next(reader, None)  # Skip the header
             for row in reader:
+                print("Unpacking config:", row)
                 hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
                 if not SIM_MODE and int(hw_id) == HW_ID:
                     drone = Drone(hw_id, pos_id, float(x), float(y), ip, mavlink_port, debug_port, gcs_ip)
