@@ -1,4 +1,4 @@
-//app/dashboard/drone-dashboard/src/components/CommandSender.js
+// app/dashboard/drone-dashboard/src/components/CommandSender.js
 import React, { useState } from 'react';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
@@ -51,4 +51,3 @@ const CommandSender = () => {
 };
 
 export default CommandSender;
-

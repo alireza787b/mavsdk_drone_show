@@ -1,3 +1,5 @@
+// app/dashboard/drone-dashboard/src/constants/droneConstants.js
+
 export const DRONE_MISSION_TYPES = {
   NONE: 0,
   DRONE_SHOW_FROM_CSV: 1,
