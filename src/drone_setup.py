@@ -20,7 +20,7 @@ class DroneSetup:
         return os.path.join(os.path.dirname(os.path.abspath(__file__)),'..', 'venv', 'bin', 'python')
 
     def _get_script_path(self, script_name):
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)), script_name)
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)),'..', script_name)
 
     async def run_mission_script(self, script_name, action):
         """
