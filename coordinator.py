@@ -86,7 +86,9 @@ def main_loop():
 
         mavlink_manager = MavlinkManager(params, drone_config)
         logging.info("Initializing MAVLink...")
-        mavlink_manager.initialize()
+        mavlink_manager.initialize()+
+        print("mav_intied")
+
         time.sleep(2)
 
         last_follow_setpoint_time = 0
@@ -118,7 +120,6 @@ def main_loop():
         logging.info("Exiting the application.")
 
 def main():
-    print("main")
     """ Entry point of the application. """
     logging.info("Starting the main function...")
     main_loop()
