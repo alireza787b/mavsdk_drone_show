@@ -7,6 +7,8 @@ import os
 import subprocess
 import logging
 import psutil
+import os
+from src.params import Params
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -167,7 +169,11 @@ async def test(drone):
 async def reboot(drone):
     try:
         await drone.action.reboot()
-        logging.info("Reboot successful.")
+        logging.info("Drone reboot successful.")
+
+        if Params.hard_reboot_command_enabled:
+            logging.info("Initiating full system reboot...")
+            os.system('sudo reboot')
     except Exception as e:
         logging.error(f"Reboot failed: {e}")
 

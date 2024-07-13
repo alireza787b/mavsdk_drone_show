@@ -51,6 +51,9 @@ class Params():
     shared_gcs_port = True  # Shared GCS port
     extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550", "100.84.21.128:14550", "100.84.20.178:14550"]  # Extra devices for MAVLink routing
 
+    hard_reboot_command_enabled = True  # Default to not rebooting the system , make sure have root priv
+
+
     # Packet Formats and Sizes
     telem_struct_fmt = '>BHHBBIddddddddBIB'  # Telemetry packet format
     command_struct_fmt = '>B B B B B I B'  # Command packet format
