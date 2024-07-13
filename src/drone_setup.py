@@ -113,14 +113,8 @@ class DroneSetup:
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
             if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
-<<<<<<< HEAD
-                logging.info("Starting Drone Show")
-                return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
-=======
                 logging.info("Starting Drone Show from CSV")
-                return await self.run_mission_script("python3 offboard_multiple_from_csv.py")
-
->>>>>>> 585f33f (untested added reboot command)
+                return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
                 logging.info("Starting Smart Swarm Mission")
                 if int(self.drone_config.swarm.get('follow', 0)) != 0:
@@ -152,15 +146,11 @@ class DroneSetup:
 
     async def _handle_test(self):
         logging.info("Starting Test")
-<<<<<<< HEAD
         return await self.run_mission_script("actions.py", "test")
-=======
-        return await self.run_mission_script("python3 actions.py --action=test")
     
     async def _handle_reboot(self):
         logging.info("Starting Reboot")
         return await self.run_mission_script("actions.py", "reboot")
->>>>>>> 585f33f (untested added reboot command)
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
