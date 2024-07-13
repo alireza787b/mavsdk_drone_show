@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 import time
-from drone_communicator import DroneCommunicator
+from src.drone_communicator import DroneCommunicator
 import sdnotify  # For systemd watchdog notifications
 
 # Custom modules for drone control and communication
