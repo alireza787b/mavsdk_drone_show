@@ -5,9 +5,15 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
   // Function to handle actions with confirmation
   const handleAction = (actionType, confirmationMessage) => {
+    console.log('handleAction called with actionType:', actionType);
+    console.log('Confirmation message:', confirmationMessage);
+
     if (!window.confirm(confirmationMessage)) {
       return; // Do nothing if the user cancels the action
     }
+
+    console.log('actionTypes:', actionTypes);
+    console.log('actionTypes[actionType]:', actionTypes[actionType]);
 
     const commandData = {
       missionType: actionTypes[actionType],
@@ -18,6 +24,8 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
     if (actionType === 'TAKE_OFF') {
       commandData.takeoff_altitude = altitude;
     }
+
+    console.log('Command data:', commandData);
 
     onSendCommand(commandData);
   };
