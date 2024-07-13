@@ -1,41 +1,20 @@
 import asyncio
-import csv
 import datetime
-import glob
-import json
-import socket
-import threading
+import logging
 import os
-import time
-import pandas as pd
-import requests
-import urllib3
-import subprocess
-import navpy
-
-import time
 import threading
+import time
+from src.mavlink_manager import MavlinkManager
+from src.drone_communicator import DroneCommunicator
+import sdnotify  # For systemd watchdog notifications
+
+# Custom modules for drone control and communication
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
-import logging
-import struct
-import glob
-import requests
-from geographiclib.geodesic import Geodesic
-from mavsdk import System
-from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 from src.offboard_controller import OffboardController
-import logging
-import src.params as params
-import struct
-from src.drone_communicator import DroneCommunicator
-import math
-from src.params import Params 
-from src.mavlink_manager import MavlinkManager
-from enum import Enum
 from src.drone_setup import DroneSetup
 from src.flask_handler import FlaskHandler
-import sdnotify  # For systemd watchdog notifications
+from src.params import Params
 
 # Ensure the 'logs' directory exists
 if not os.path.exists('logs'):
