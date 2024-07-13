@@ -111,7 +111,7 @@ def main_loop():
                 last_follow_setpoint_time = current_time
 
             # Notify systemd watchdog
-            notifier.notify("WATCHDOG=1")
+            #notifier.notify("WATCHDOG=1")
 
             time.sleep(params.sleep_interval)
 
