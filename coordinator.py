@@ -63,10 +63,9 @@ if params.enable_drones_http_server:
     flask_handler = FlaskHandler(params, drone_comms)
     flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
     flask_thread.start()
-print("flask inited")
 # Systemd watchdog notifier
+
 notifier = sdnotify.SystemdNotifier()
-print("stnotifdu")
 def schedule_missions_thread(drone_setup):
     """ Thread to continuously schedule drone missions. """
     asyncio.run(schedule_missions_async(drone_setup))
@@ -119,6 +118,7 @@ def main_loop():
         logging.info("Exiting the application.")
 
 def main():
+    print("main")
     """ Entry point of the application. """
     logging.info("Starting the main function...")
     main_loop()
