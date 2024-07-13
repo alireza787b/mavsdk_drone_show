@@ -86,7 +86,7 @@ def main_loop():
 
         mavlink_manager = MavlinkManager(params, drone_config)
         logging.info("Initializing MAVLink...")
-        mavlink_manager.initialize()+
+        mavlink_manager.initialize()
         print("mav_intied")
 
         time.sleep(2)
