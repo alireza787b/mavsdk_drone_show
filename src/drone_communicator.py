@@ -161,34 +161,21 @@ class DroneCommunicator:
             raise ValueError(f"Unknown mission command: {mission}")
     
 
-    def _handle_takeoff_command(self, command_data: Dict[str, Any]):
-        """
-        Handles the takeoff command by setting the altitude and updating the mission state to 'ready' (state 1).
-
-        Args:
-            command_data (Dict[str, Any]): Dictionary containing command parameters such as takeoff altitude.
-        """
+    def _handle_takeoff_command(self, command_data: Dict[str, Any]) -> None:
+        """Handle the takeoff command, setting altitude and mission."""
         default_altitude = self.params.default_takeoff_alt
         assigned_altitude = command_data.get("takeoff_altitude", default_altitude)
         self.drone_config.takeoff_altitude = min(float(assigned_altitude), self.params.max_takeoff_alt)
         logging.info(f"Takeoff command received. Assigned altitude: {self.drone_config.takeoff_altitude}m")
         self.drone_config.mission = Mission.TAKE_OFF.value
-        self.drone_config.state = 1  # Set state to 'ready'
-        logging.debug(f"Drone state set to {self.drone_config.state} for mission {self.drone_config.mission}")
+        self.drone_config.state = 1 #double check
 
-    def _handle_standard_mission(self, mission: int):
-        """
-        Handles standard mission commands by updating the mission type and setting the state to 'ready' (state 1).
-
-        Args:
-            mission (int): Mission type identifier.
-        """
+    def _handle_standard_mission(self, mission: int) -> None:
+        """Handle standard (non-takeoff) mission commands."""
         mission_enum = Mission(mission)
         logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
         self.drone_config.mission = mission
-        self.drone_config.state = 1  # Set state to 'ready'
-        logging.debug(f"Drone state set to {self.drone_config.state} for mission {self.drone_config.mission}")
-
+        self.drone_config.state = 1 #double check
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""
