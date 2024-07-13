@@ -41,7 +41,8 @@ const CommandSender = () => {
         />
       )}
       {activeTab === 'actions' && (
-        <DroneActions 
+        <DroneActions
+          actionTypes={DRONE_ACTION_TYPES}
           onSendCommand={handleSendCommand}
         />
       )}

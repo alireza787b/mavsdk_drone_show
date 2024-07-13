@@ -10,7 +10,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
     }
 
     const commandData = {
-      missionType: actionTypes[actionType].type,
+      missionType: actionTypes[actionType],
       triggerTime: '0' // Immediate action for these commands
     };
 
