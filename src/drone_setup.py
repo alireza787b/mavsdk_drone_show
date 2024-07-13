@@ -1,8 +1,9 @@
-#src/drone_setup.py
 import asyncio
 import datetime
 import logging
 import time
+import psutil  # Add this import for process handling
+import os
 from enum import Enum
 from src.enums import *
 
@@ -13,30 +14,55 @@ class DroneSetup:
         self.offboard_controller = offboard_controller
         self.last_logged_mission = None
         self.last_logged_state = None
+        self.running_processes = {}  # Store running processes
 
-    async def run_mission_script(self, command):
+    def _get_python_exec_path(self):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'venv', 'bin', 'python')
+
+    def _get_script_path(self, script_name):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), script_name)
+
+    async def run_mission_script(self, script_name, action):
         """
-        Runs the given mission script asynchronously.
+        Runs the given mission script asynchronously using full command paths.
         Returns a tuple (status, message).
         """
-        logging.info(f"Executing command: {command}")
+        python_exec_path = self._get_python_exec_path()
+        script_path = self._get_script_path(script_name)
+        command = f"{python_exec_path} {script_path} --action={action}"
+        logging.debug(f"Executing command: {command}")
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+            self.running_processes[script_name] = process
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode == 0:
                 logging.info(f"Mission script completed successfully. Output: {stdout.decode().strip()}")
+                del self.running_processes[script_name]
                 return True, "Mission script completed successfully."
             else:
                 logging.error(f"Mission script encountered an error. Stderr: {stderr.decode().strip()}")
+                del self.running_processes[script_name]
                 return False, f"Mission script error: {stderr.decode().strip()}"
         except Exception as e:
             logging.error(f"Exception in run_mission_script: {e}")
+            del self.running_processes[script_name]
             return False, f"Exception: {str(e)}"
+
+    def check_running_processes(self):
+        """
+        Check the status of running processes.
+        """
+        for script_name, process in list(self.running_processes.items()):
+            if process.returncode is not None:  # Process has finished
+                logging.warning(f"Process for {script_name} has finished unexpectedly with return code {process.returncode}.")
+                del self.running_processes[script_name]
+            else:
+                logging.debug(f"Process for {script_name} is still running.")
 
     async def schedule_mission(self):
         """
@@ -47,9 +73,11 @@ class DroneSetup:
         message = ""
 
         logging.info(f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
-                         f"Current mission: {Mission(self.drone_config.mission).name}, State: {self.drone_config.state}")
+                     f"Current mission: {Mission(self.drone_config.mission).name}, State: {self.drone_config.state}")
 
         try:
+            self.check_running_processes()  # Check the status of running processes before scheduling a new mission
+
             if self.drone_config.mission in [Mission.DRONE_SHOW_FROM_CSV.value, Mission.SMART_SWARM.value]:
                 success, message = await self._handle_show_or_swarm(current_time)
             elif self.drone_config.mission == Mission.TAKE_OFF.value:
@@ -86,8 +114,7 @@ class DroneSetup:
 
             if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
                 logging.info("Starting Drone Show from CSV")
-                return await self.run_mission_script("python3 offboard_multiple_from_csv.py")
-
+                return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
                 logging.info("Starting Smart Swarm Mission")
                 if int(self.drone_config.swarm.get('follow', 0)) != 0:
@@ -102,7 +129,7 @@ class DroneSetup:
     async def _handle_takeoff(self):
         altitude = float(self.drone_config.takeoff_altitude)
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.run_mission_script(f"python3 actions.py --action=takeoff --altitude={altitude}")
+        return await self.run_mission_script("actions.py", f"takeoff --altitude={altitude}")
 
     async def _handle_land(self):
         logging.info("Starting Land")
@@ -111,15 +138,15 @@ class DroneSetup:
                 logging.info("Is in Offboard mode. Attempting to stop offboard.")
                 await self.offboard_controller.stop_offboard()
                 await asyncio.sleep(1)
-        return await self.run_mission_script("python3 actions.py --action=land")
+        return await self.run_mission_script("actions.py", "land")
 
     async def _handle_hold(self):
         logging.info("Starting Hold Position")
-        return await self.run_mission_script("python3 actions.py --action=hold")
+        return await self.run_mission_script("actions.py", "hold")
 
     async def _handle_test(self):
         logging.info("Starting Test")
-        return await self.run_mission_script("python3 actions.py --action=test")
+        return await self.run_mission_script("actions.py", "test")
     
     async def _handle_reboot(self):
         logging.info("Starting Reboot")

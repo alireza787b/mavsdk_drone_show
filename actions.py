@@ -135,46 +135,46 @@ async def takeoff(drone, altitude):
         await drone.action.set_takeoff_altitude(float(altitude))
         await drone.action.arm()
         await drone.action.takeoff()
-        logging.info("Takeoff successful.")
+        logger.info("Takeoff successful.")
     except Exception as e:
-        logging.error(f"Takeoff failed: {e}")
+        logger.error(f"Takeoff failed: {e}")
 
 async def land(drone):
     try:
         await drone.action.hold()  # Switch to Hold mode
         await asyncio.sleep(1)  # Wait for a short period
         await drone.action.land()  # Then execute land command
-        logging.info("Landing successful.")
+        logger.info("Landing successful.")
     except Exception as e:
-        logging.error(f"Landing failed: {e}")
+        logger.error(f"Landing failed: {e}")
 
 async def hold(drone):
     try:
         await drone.action.hold()  # Switch to Hold mode
-        logging.info("Hold position successful.")
+        logger.info("Hold position successful.")
     except Exception as e:
-        logging.error(f"Hold failed: {e}")
+        logger.error(f"Hold failed: {e}")
 
 async def test(drone):
     try:
         await drone.action.arm()
         await asyncio.sleep(3)
         await drone.action.disarm()
-        logging.info("Test action successful.")
+        logger.info("Test action successful.")
     except Exception as e:
-        logging.error(f"Test failed: {e}")
+        logger.error(f"Test failed: {e}")
 
 async def reboot(drone):
     try:
         await drone.action.reboot()
-        logging.info("Reboot successful.")
+        logger.info("Reboot successful.")
     except Exception as e:
-        logging.error(f"Reboot failed: {e}")
+        logger.error(f"Reboot failed: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
-    parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
+    parser.add.argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
+    parser.add.argument('--altitude', type=float, default=10, help='Altitude for takeoff')
 
     args = parser.parse_args()
 
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     try:
         loop.run_until_complete(perform_action(args.action, args.altitude))
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
     finally:
         loop.close()  # Ensure the loop is closed properly
-        logging.info("Operation completed, event loop closed.")
+        logger.info("Operation completed, event loop closed.")
