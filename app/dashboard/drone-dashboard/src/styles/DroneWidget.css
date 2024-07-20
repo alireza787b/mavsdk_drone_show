@@ -1,39 +1,71 @@
 .drone-widget {
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin: 10px;
-    transition: background-color 0.3s ease;
-  }
-
-.drone-widget h3{
-  cursor: pointer;
+  border: 1px solid #ccc;
+  padding: 16px;
+  margin: 16px;
+  border-radius: 8px;
+  background-color: #fff;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-  
-  .drone-widget.expanded {
-    background-color: #f2f2f2;
-  }
-  
-  .status-indicator {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-right: 5px;
-  }
-  
-  .status-indicator.active {
-    background-color: green;
-  }
-  
-  .status-indicator.stale {
-    background-color: red;
-  }
-  
-  .drone-actions {
-    margin-top: 10px;
-  }
-  
-  .details-content {
-    margin-top: 10px;
-  }
-  
+
+.drone-widget:hover {
+  background-color: #f9f9f9;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.drone-widget h3 {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.drone-widget.expanded {
+  background-color: #f0f0f0;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-indicator.active {
+  background-color: green;
+}
+
+.status-indicator.stale {
+  background-color: red;
+}
+
+.drone-info {
+  margin-bottom: 8px;
+}
+
+.drone-info p {
+  margin: 4px 0;
+}
+
+.drone-actions {
+  text-align: right;
+  margin-top: 10px;
+}
+
+.external-view-btn {
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.external-view-btn:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+.details-content {
+  margin-top: 16px;
+}
