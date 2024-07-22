@@ -166,16 +166,18 @@ async def test(drone):
     except Exception as e:
         logging.error(f"Test failed: {e}")
 
-async def reboot(drone):
+async def reboot(drone, force_reboot=Params.force_reboot):
     try:
         await drone.action.reboot()
         logging.info("Drone reboot successful.")
-
-        if Params.hard_reboot_command_enabled:
+    except Exception as e:
+        logging.error(f"Drone reboot failed: {e}")
+        if force_reboot:
+            logging.info("Force reboot enabled, proceeding with system reboot despite drone error.")
+    finally:
+        if force_reboot:
             logging.info("Initiating full system reboot...")
             os.system('sudo reboot')
-    except Exception as e:
-        logging.error(f"Reboot failed: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
