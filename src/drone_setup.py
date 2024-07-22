@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+import subprocess
 import time
 import psutil  # Add this import for process handling
 import os
@@ -63,6 +64,24 @@ class DroneSetup:
                 del self.running_processes[script_name]
             else:
                 logging.debug(f"Process for {script_name} is still running.")
+                
+                
+    def synchronize_time(self):
+        """
+        Executes the time synchronization script and logs the output.
+        """
+        script_path = self._get_script_path('tools/sync_time_linux.sh')
+        try:
+            result = subprocess.run([script_path], capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                logging.info(f"Time synchronization successful: {result.stdout.strip()}")
+                print("Time synchronization successful.")
+            else:
+                logging.error(f"Time synchronization failed: {result.stderr.strip()}")
+                print("Time synchronization failed, continuing without adjustment.")
+        except Exception as e:
+            logging.error(f"Error executing time synchronization script: {e}")
+            print(f"Error during time synchronization, but continuing: {str(e)}")
 
     async def schedule_mission(self):
         """

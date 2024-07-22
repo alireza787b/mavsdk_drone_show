@@ -15,7 +15,7 @@ class Params():
     offline_config = True  # Use offline configuration
     offline_swarm = True  # Use offline swarm
     default_sitl = True  # Use default 14550 port for single drone simulation
-    online_sync_time = False  # Sync time from Internet Time Servers
+    online_sync_time = True  # Sync time from Internet Time Servers
 
     # Flask Server Configuration
     drones_flask_port = 7070  # Port for the drone's Flask server
