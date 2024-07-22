@@ -52,7 +52,7 @@ class Params():
     extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550", "100.84.21.128:14550", "100.84.20.178:14550"]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Default to not rebooting the system , make sure have root priv
-
+    force_reboot = True
 
     # Packet Formats and Sizes
     telem_struct_fmt = '>BHHBBIddddddddBIB'  # Telemetry packet format
