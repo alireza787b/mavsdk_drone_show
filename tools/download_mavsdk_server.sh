@@ -7,8 +7,8 @@
 # URL for the latest mavsdk_server binary for Raspberry Pi 4 (64-bit) as of 23 July 2024
 BINARY_URL="https://github.com/mavlink/MAVSDK/releases/download/v2.12.2/mavsdk_server_linux-arm64-musl"
 
-# Define the expected repository directory
-EXPECTED_DIR=~/mavsdk_drone_show
+# Define the expected repository directory dynamically
+EXPECTED_DIR="$(eval echo ~$SUDO_USER)/mavsdk_drone_show"
 
 # Check if the script is running in the correct directory
 if [ "$(pwd)" != "$EXPECTED_DIR" ]; then
