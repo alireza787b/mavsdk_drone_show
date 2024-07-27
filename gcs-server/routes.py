@@ -98,13 +98,15 @@ def setup_routes(app):
                 clear_show_directories()
                 zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
                 uploaded_file.save(zip_path)
+                logger.info(f"File saved to {zip_path}")
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                     zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
                 os.remove(zip_path)
-                
-                output = run_formation_process()  # Ensure this is defined to handle formation processing
+                logger.info("Zip file extracted and original deleted")
+
+                output = run_formation_process()  # This function needs to be properly defined
                 logger.info(f"Process formation output: {output}")
-                
+
                 return jsonify({'success': True, 'message': output})
             except Exception as e:
                 logger.error(f"Unexpected error during show import: {e}")
@@ -112,6 +114,8 @@ def setup_routes(app):
         else:
             logger.warning("Invalid file type uploaded")
             return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
+
+
 
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
