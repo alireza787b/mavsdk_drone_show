@@ -117,3 +117,35 @@ input[type="file"] {
         margin-top: 10px;
     }
 }
+
+.visualization-section {
+    margin-top: 20px;
+}
+
+.plot-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.plot-full-width {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.plot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 10px;
+}
+
+.plot img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.plot-full-width img {
+    width: 100%;
+    height: auto;
+    display: block;
+}

@@ -1,4 +1,3 @@
-//app/dashboard/drone-dashboard/src/components/VisualizationSection.js
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities'; // Ensure this utility function correctly returns the backend URL
 
@@ -35,11 +34,22 @@ const VisualizationSection = ({ uploadCount }) => {
             <h2>Visualization of Drone Paths</h2>
             {loading && <p>Loading plots...</p>}
             {error && <p className="error">Error: {error}</p>}
-            <div>
+            <div className="plot-container">
                 {plots.length > 0 ? (
-                    plots.map((plot, index) => (
-                        <img key={index} src={`${getBackendURL()}/get-show-plots/${encodeURIComponent(plot)}`} alt={`Plot ${index}`} />
-                    ))
+                    <>
+                        {plots.filter(name => name === "all_drones.png").map((plot, index) => (
+                            <div key={index} className="plot-full-width">
+                                <img src={`${getBackendURL()}/get-show-plots/${encodeURIComponent(plot)}`} alt="All Drones" />
+                            </div>
+                        ))}
+                        <div className="plot-grid">
+                            {plots.filter(name => name !== "all_drones.png").map((plot, index) => (
+                                <div key={index} className="plot">
+                                    <img src={`${getBackendURL()}/get-show-plots/${encodeURIComponent(plot)}`} alt={`Plot ${index}`} />
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 ) : (
                     <p>No plots available to display.</p>
                 )}
