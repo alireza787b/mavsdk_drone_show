@@ -139,12 +139,20 @@ def setup_routes(app):
     def get_show_plots():
         logging.info("Show plots list requested")
         try:
-            BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Adjust based on your application structure
+            # Base directory adjusted to be two levels up from the current file's directory
+            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             PLOTS_DIR = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+            
+            # Ensure the directory exists to avoid FileNotFoundError
+            if not os.path.exists(PLOTS_DIR):
+                os.makedirs(PLOTS_DIR)
+
             filenames = [f for f in os.listdir(PLOTS_DIR) if f.endswith('.png')]
             upload_time = "unknown"
+            
             if 'all_drones.png' in filenames:
                 upload_time = time.ctime(os.path.getctime(os.path.join(PLOTS_DIR, 'all_drones.png')))
+            
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
             logging.error(f"Failed to list directory: {e}")
