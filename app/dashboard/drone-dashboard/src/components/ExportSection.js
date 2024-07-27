@@ -1,9 +1,9 @@
-//app/dashboard/drone-dashboard/src/components/ExportSection.js
 import React from 'react';
+import { getBackendURL } from '../utilities/utilities'; // Ensure this utility is correctly imported
 
 const ExportSection = () => {
     const handleDownload = (type) => {
-        const downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/download-${type}-show`;
+        const downloadUrl = `${getBackendURL()}/download-${type}-show`;
         window.open(downloadUrl, '_blank');
     };
 

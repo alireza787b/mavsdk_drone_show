@@ -1,8 +1,11 @@
+// Adjust the function to use the port from environment variables or default to 5000
 export function getBackendURL() {
-  const hostArray = window.location.host.split(":");
+  const hostArray = window.location.hostname.split(":");
   const domain = hostArray[0];
-  return `http://${domain}:5000`;
+  const port = process.env.REACT_APP_BACKEND_PORT || '5000'; // Default to 5000 if not specified
+  return `http://${domain}:${port}`;
 }
+
 
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;
