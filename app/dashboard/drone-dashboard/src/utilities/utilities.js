@@ -1,11 +1,10 @@
 // Adjust the function to use the port from environment variables or default to 5000
-// src/utilities/utilities.js
 export function getBackendURL() {
-  const domain = process.env.REACT_APP_BACKEND_URL || 'http://localhost';
-  const port = process.env.REACT_APP_BACKEND_PORT || '5000';
-  return `${domain}:${port}`;
+  const hostArray = window.location.hostname.split(":");
+  const domain = hostArray[0];
+  const port = process.env.REACT_APP_BACKEND_PORT || '5000'; // Default to 5000 if not specified
+  return `http://${domain}:${port}`;
 }
-
 
 
 // Constants for conversions and world setup
