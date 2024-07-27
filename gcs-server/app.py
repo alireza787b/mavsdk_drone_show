@@ -5,6 +5,10 @@ from flask import Flask
 from flask_cors import CORS
 from routes import setup_routes
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Adjust based on your application structure
+PLOTS_DIR = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
 

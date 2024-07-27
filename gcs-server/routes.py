@@ -139,6 +139,8 @@ def setup_routes(app):
     def get_show_plots():
         logging.info("Show plots list requested")
         try:
+            BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Adjust based on your application structure
+            PLOTS_DIR = os.path.join(BASE_DIR, 'shapes/swarm/plots')
             filenames = [f for f in os.listdir(PLOTS_DIR) if f.endswith('.png')]
             upload_time = "unknown"
             if 'all_drones.png' in filenames:

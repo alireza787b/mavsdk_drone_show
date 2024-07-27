@@ -38,3 +38,8 @@ def zip_directory(folder_path, zip_path):
     """Zip the contents of the specified folder."""
     shutil.make_archive(zip_path, 'zip', folder_path)
     return zip_path + '.zip'
+
+
+def ensure_directory(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
