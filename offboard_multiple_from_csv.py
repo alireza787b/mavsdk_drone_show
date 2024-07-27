@@ -364,8 +364,9 @@ async def run_drone(drone_id: int, home_position_NED: tuple, trajectory_offset: 
         filename = f"shapes/swarm/processed/Drone {HW_ID}.csv" if SEPARATE_CSV and not SIM_MODE else f"shapes/swarm/processed/Drone {drone_id + 1}.csv" if SEPARATE_CSV else "shapes/active.csv"
         waypoints = read_trajectory_file(filename, trajectory_offset, altitude_offset)
         await perform_trajectory(drone_id, drone, waypoints, home_position, home_position_NED, global_position_telemetry, mode_descriptions)
-        await perform_landing(drone_id, drone)
+        # TODO: We observer suddden transition wild just before switching to landing. When we got RTK we should try to to Land also with Offboard of find a better solution
         await stop_offboard_mode(drone_id, drone)
+        await perform_landing(drone_id, drone)
         await disarm_drone(drone_id, drone)
     except Exception as e:
         logger.error(f"Error running drone {drone_id}: {e}")
