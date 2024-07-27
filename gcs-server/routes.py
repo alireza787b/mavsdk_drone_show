@@ -1,4 +1,3 @@
-#gcs-server/routes.py
 import os
 import subprocess
 import sys
@@ -11,18 +10,18 @@ from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, zip_directory
 import logging
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from process_formation import run_formation_process  # Assuming you've refactored process_formation.py to provide this function
+# Configure base directory for better path management
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-# Set up logging
+# Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
-        #logger.info("Telemetry data requested")
+        logger.info("Telemetry data requested")
         return jsonify(telemetry_data_all_drones)
 
     @app.route('/send_command', methods=['POST'])
@@ -35,7 +34,7 @@ def setup_routes(app):
             logger.info("Command sent successfully to all drones")
             return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
         except Exception as e:
-            logger.error(f"Error sending command: {str(e)}")
+            logger.error(f"Error sending command: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/save-config-data', methods=['POST'])
@@ -47,7 +46,7 @@ def setup_routes(app):
             logger.info("Configuration saved successfully")
             return jsonify({'status': 'success', 'message': 'Configuration saved successfully'})
         except Exception as e:
-            logger.error(f"Error saving configuration: {str(e)}")
+            logger.error(f"Error saving configuration: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/get-config-data', methods=['GET'])
@@ -57,7 +56,7 @@ def setup_routes(app):
             config = load_config()
             return jsonify(config)
         except Exception as e:
-            logger.error(f"Error loading configuration: {str(e)}")
+            logger.error(f"Error loading configuration: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/save-swarm-data', methods=['POST'])
@@ -69,7 +68,7 @@ def setup_routes(app):
             logger.info("Swarm data saved successfully")
             return jsonify({'status': 'success', 'message': 'Swarm data saved successfully'})
         except Exception as e:
-            logger.error(f"Error saving swarm data: {str(e)}")
+            logger.error(f"Error saving swarm data: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/get-swarm-data', methods=['GET'])
@@ -79,34 +78,31 @@ def setup_routes(app):
             swarm = load_swarm()
             return jsonify(swarm)
         except Exception as e:
-            logger.error(f"Error loading swarm data: {str(e)}")
+            logger.error(f"Error loading swarm data: {e}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
     @app.route('/import-show', methods=['POST'])
     def import_show():
-        logger = logging.getLogger(__name__)
         logger.info("Show import requested")
-        
         if 'file' not in request.files:
             logger.warning("No file part in the request")
             return jsonify({'success': False, 'error': 'No file part'})
-        
+
         uploaded_file = request.files['file']
         if uploaded_file.filename == '':
             logger.warning("No selected file")
             return jsonify({'success': False, 'error': 'No selected file'})
-        
+
         if uploaded_file and allowed_file(uploaded_file.filename):
             try:
                 clear_show_directories()
-                zip_path = os.path.join('temp', 'uploaded.zip')
+                zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
                 uploaded_file.save(zip_path)
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall('shapes/swarm/skybrush')
+                    zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
                 os.remove(zip_path)
                 
-                output = run_formation_process()
+                output = run_formation_process()  # Ensure this is defined to handle formation processing
                 logger.info(f"Process formation output: {output}")
                 
                 return jsonify({'success': True, 'message': output})
@@ -116,87 +112,42 @@ def setup_routes(app):
         else:
             logger.warning("Invalid file type uploaded")
             return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
-        
-        
+
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
-        zip_file = zip_directory('shapes/swarm/skybrush', 'temp/raw_show')
+        zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
         return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
 
     @app.route('/download-processed-show', methods=['GET'])
     def download_processed_show():
-        zip_file = zip_directory('shapes/swarm/processed', 'temp/processed_show')
+        zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/processed'), os.path.join(BASE_DIR, 'temp/processed_show'))
         return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
-
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
         logger.info(f"Image requested: {filename}")
-        plots_directory = os.path.abspath('shapes/swarm/plots')
+        plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
         return send_from_directory(plots_directory, filename)
 
     @app.route('/get-show-plots', methods=['GET'])
     def get_show_plots():
-        logging.info("Show plots list requested")
+        logger.info("Show plots list requested")
         try:
-            # Base directory adjusted to be two levels up from the current file's directory
-            BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            PLOTS_DIR = os.path.join(BASE_DIR, 'shapes/swarm/plots')
-            
-            # Ensure the directory exists to avoid FileNotFoundError
-            if not os.path.exists(PLOTS_DIR):
-                os.makedirs(PLOTS_DIR)
+            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+            if not os.path.exists(plots_directory):
+                os.makedirs(plots_directory)
 
-            filenames = [f for f in os.listdir(PLOTS_DIR) if f.endswith('.png')]
+            filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
             upload_time = "unknown"
-            
             if 'all_drones.png' in filenames:
-                upload_time = time.ctime(os.path.getctime(os.path.join(PLOTS_DIR, 'all_drones.png')))
+                upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
             
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
-            logging.error(f"Failed to list directory: {e}")
+            logger.error(f"Failed to list directory: {e}")
             return jsonify({'error': str(e)}), 500
-
-    @app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
-    def get_first_last_row(hw_id):
-        logger.info(f"First and last row requested for drone {hw_id}")
-        try:
-            csv_path = os.path.join("shapes", "swarm", "skybrush", f"Drone {hw_id}.csv")
-            df = pd.read_csv(csv_path)
-            first_row = df.iloc[0]
-            last_row = df.iloc[-1]
-            result = {
-                "success": True,
-                "firstRow": {"x": first_row['x [m]'], "y": first_row['y [m]']},
-                "lastRow": {"x": last_row['x [m]'], "y": last_row['y [m]']}
-            }
-            logger.info(f"Successfully retrieved data for drone {hw_id}")
-            return jsonify(result)
-        except Exception as e:
-            logger.error(f"Error retrieving data for drone {hw_id}: {str(e)}")
-            return jsonify({"success": False, "error": str(e)}), 500
-        
-        # Error handling
-    @app.errorhandler(404)
-    def not_found_error(error):
-        logger.error(f"404 error: {error}")
-        return jsonify({"error": "Not found"}), 404
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        logger.error(f"500 error: {error}")
-        return jsonify({"error": "Internal server error"}), 500
-
-    # Start telemetry polling
-    drones = load_config()
-    start_telemetry_polling(drones)
-    logger.info("Telemetry polling started")
-
-
 
 if __name__ == '__main__':
     app = Flask(__name__)
     setup_routes(app)
-    logger.info("Flask app started")
     app.run(debug=True)
