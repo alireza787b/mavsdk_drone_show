@@ -1,3 +1,4 @@
+#gcs-server/routes.py
 import os
 import subprocess
 import sys
@@ -10,7 +11,7 @@ from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, zip_directory
 import logging
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from process_formation import run_formation_process  # Assuming you've refactored process_formation.py to provide this function
 
