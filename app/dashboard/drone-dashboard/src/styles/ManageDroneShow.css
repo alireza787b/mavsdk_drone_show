@@ -1,0 +1,131 @@
+/* ImportShow.css */
+
+.import-show-container {
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  
+  .intro-section {
+    margin-bottom: 20px;
+  }
+  
+  .intro-section ul {
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .tutorial-link {
+    display: inline-block;
+    margin-top: 10px;
+    text-decoration: underline;
+  }
+  
+  .upload-section {
+    display: flex;
+    align-items: center;
+  }
+  
+  .upload-button {
+    margin-left: 15px;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .file-requirements {
+    display: block;
+    margin-top: 15px;
+    font-size: 12px;
+    color: #777;
+  }
+  .response-message {
+    margin-top: 20px;
+    font-size: 14px;
+  }
+
+
+
+  .all-drones-plot img {
+    width: 100%;
+    max-width: 800px; /* Adjust this value as needed */
+    margin: 0 auto;
+    display: block;
+}
+
+.other-plots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.other-plots img {
+    flex: 1;
+    min-width: calc(33.333% - 20px); /* Adjust this value as needed */
+    margin: 10px;
+}
+
+@media (max-width: 768px) {
+    .other-plots img {
+        min-width: calc(50% - 20px);
+    }
+}
+
+@media (max-width: 480px) {
+    .other-plots img {
+        min-width: calc(100% - 20px);
+    }
+}
+.response-message.success {
+    color: green;
+    font-weight: bold;
+  }
+  
+  .response-message.failure {
+    color: red;
+    font-weight: bold;
+  }
+  
+
+  .drop-zone {
+    border: 2px dashed grey;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .drop-zone.dragging {
+    border: 2px solid blue;
+  }
+  .warning-message {
+    color: #D32F2F;  /* Red */
+    background-color: #FFCDD2;  /* Light Red */
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 1.1em;
+    display: flex;
+    align-items: center;
+  }
+  
+  .warning-message a {
+    color: #1976D2;  /* Blue */
+    margin-left: 5px;
+    text-decoration: underline;
+  }
+  
+  .soft-warning-message {
+    color: #FF9800;  /* Orange */
+    background-color: #FFECB3;  /* Light Orange */
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 1.1em;
+    display: flex;
+    align-items: center;
+  }
+  
+  
