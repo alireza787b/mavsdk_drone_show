@@ -151,4 +151,6 @@ input[type="file"] {
     width: 80%; /* Adjust this value as needed to make it bigger than the rest */
     max-width: 800px; /* Ensures it doesn't get too large on wider screens */
     display: block;
+    cursor: pointer;
+
 }
