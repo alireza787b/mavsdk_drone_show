@@ -2,13 +2,14 @@ import os
 import subprocess
 import time
 import zipfile
-from flask import Flask, jsonify, request, send_from_directory, current_app
+from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
-from utils import allowed_file, clear_show_directories
+from utils import allowed_file, clear_show_directories, zip_directory
 import logging
+from process_formation import run_formation_process  # Assuming you've refactored process_formation.py to provide this function
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -77,9 +78,12 @@ def setup_routes(app):
             logger.error(f"Error loading swarm data: {str(e)}")
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
     @app.route('/import-show', methods=['POST'])
     def import_show():
+        logger = logging.getLogger(__name__)
         logger.info("Show import requested")
+        
         if 'file' not in request.files:
             logger.warning("No file part in the request")
             return jsonify({'success': False, 'error': 'No file part'})
@@ -98,23 +102,28 @@ def setup_routes(app):
                     zip_ref.extractall('shapes/swarm/skybrush')
                 os.remove(zip_path)
                 
-                logger.info("Running process_formation.py")
-                completed_process = subprocess.run(
-                    ["python3", "process_formation.py"],
-                    capture_output=True, text=True, check=True
-                )
-                logger.info(f"process_formation.py output: {completed_process.stdout}")
+                output = run_formation_process()
+                logger.info(f"Process formation output: {output}")
                 
-                return jsonify({'success': True})
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Error in running process_formation.py: {str(e)}")
-                return jsonify({'success': False, 'error': 'Error in running process_formation.py', 'details': str(e)})
+                return jsonify({'success': True, 'message': output})
             except Exception as e:
-                logger.error(f"Unexpected error during show import: {str(e)}")
+                logger.error(f"Unexpected error during show import: {e}")
                 return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
         else:
             logger.warning("Invalid file type uploaded")
             return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
+        
+        
+    @app.route('/download-raw-show', methods=['GET'])
+    def download_raw_show():
+        zip_file = zip_directory('shapes/swarm/skybrush', 'temp/raw_show')
+        return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
+
+    @app.route('/download-processed-show', methods=['GET'])
+    def download_processed_show():
+        zip_file = zip_directory('shapes/swarm/processed', 'temp/processed_show')
+        return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
+
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):

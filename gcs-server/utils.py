@@ -1,3 +1,4 @@
+#gcs-server/utils.py
 import os
 import shutil
 import logging
@@ -31,3 +32,9 @@ def clear_show_directories():
                 logging.info(f"Deleted {file_path}")
             except Exception as e:
                 logging.error(f"Failed to delete {file_path}. Reason: {e}")
+
+
+def zip_directory(folder_path, zip_path):
+    """Zip the contents of the specified folder."""
+    shutil.make_archive(zip_path, 'zip', folder_path)
+    return zip_path + '.zip'

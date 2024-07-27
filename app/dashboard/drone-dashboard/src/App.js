@@ -9,6 +9,7 @@ import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
 import ImportShow from './pages/ImportShow';
 import './App.css';
+import ManageDroneShow from './pages/ManageDroneShow';
 
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
@@ -23,7 +24,7 @@ const App = () => {
             <Route path="/swarm-design" element={<SwarmDesign />} />
             <Route path="/mission-config" element={<MissionConfig />} />
             <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
-            <Route path="/import-drone-show" element={<ImportShow />} />
+            <Route path="/manage-drone-show" element={<ManageDroneShow />} />
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
           </Routes>
         </div>

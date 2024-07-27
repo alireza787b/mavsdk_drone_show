@@ -95,33 +95,35 @@ const ImportShow = () => {
 
   const uploadFile = async () => {
     const userConfirmed = window.confirm("Any existing drone show configuration will be overwritten. Are you sure you want to proceed?");
-    if (userConfirmed) {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      const backendURL = getBackendURL();
-
-      try {
+    if (!userConfirmed) {
+        setResponseMessage('Upload cancelled by user.');
+        return;
+    }
+    if (!selectedFile) {
+        setResponseMessage('No file selected. Please select a file to upload.');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    const backendURL = getBackendURL();
+    try {
         const response = await fetch(`${backendURL}/import-show`, {
-          method: 'POST',
-          body: formData
+            method: 'POST',
+            body: formData
         });
-
         const result = await response.json();
-
         if (result.success) {
-          setResponseMessage('File uploaded successfully.');
-          setUploadCount(uploadCount + 1); // Increment the upload count
+            setResponseMessage('File uploaded successfully.');
+            setUploadCount(prevCount => prevCount + 1);
         } else {
-          setResponseMessage('Error: ' + result.error);
+            setResponseMessage('Error: ' + result.error);
         }
-      } catch (error) {
+    } catch (error) {
         console.error('Upload failed:', error);
         setResponseMessage('Network error. Please try again.');
-      }
-    } else {
-      setResponseMessage('Upload cancelled by user.');
     }
-  };
+};
+
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
