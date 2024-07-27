@@ -22,7 +22,7 @@ STEP_TIME = 0.05
 DEFAULT_Z = 0.83
 GRPC_PORT_BASE = 50041
 SHOW_DEVIATIONS = False
-INITIAL_CLIMB_DURATION = 3  # Duration in seconds for the initial climb phase
+INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
 
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
 SIM_MODE = False
