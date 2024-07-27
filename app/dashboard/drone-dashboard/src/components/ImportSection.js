@@ -1,5 +1,6 @@
-//app/dashboard/drone-dashboard/src/components/ImportSection.js
+// src/components/ImportSection.js
 import React, { useState } from 'react';
+import { getBackendURL } from '../utilities/utilities'; // Ensure this utility is correctly imported
 
 const ImportSection = ({ setUploadCount, setResponseMessage }) => {
     const [selectedFile, setSelectedFile] = useState(null);
@@ -27,7 +28,7 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
         formData.append('file', selectedFile);
 
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/import-show`, {
+            const response = await fetch(`${getBackendURL()}/import-show`, {
                 method: 'POST',
                 body: formData,
             });
