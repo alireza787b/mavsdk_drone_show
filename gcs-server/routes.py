@@ -137,14 +137,16 @@ def setup_routes(app):
 
     @app.route('/get-show-plots', methods=['GET'])
     def get_show_plots():
-        logger.info("Show plots list requested")
-        plots_directory = 'shapes/swarm/plots'
-        filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
-        if 'all_drones.png' in filenames:
-            upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
-        else:
+        logging.info("Show plots list requested")
+        try:
+            filenames = [f for f in os.listdir(PLOTS_DIR) if f.endswith('.png')]
             upload_time = "unknown"
-        return jsonify({'filenames': filenames, 'uploadTime': upload_time})
+            if 'all_drones.png' in filenames:
+                upload_time = time.ctime(os.path.getctime(os.path.join(PLOTS_DIR, 'all_drones.png')))
+            return jsonify({'filenames': filenames, 'uploadTime': upload_time})
+        except Exception as e:
+            logging.error(f"Failed to list directory: {e}")
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/get-first-last-row/<string:hw_id>', methods=['GET'])
     def get_first_last_row(hw_id):
