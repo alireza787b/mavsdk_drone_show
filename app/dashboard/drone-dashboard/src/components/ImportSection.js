@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/ImportSection.js
 import React, { useState } from 'react';
 
 const ImportSection = ({ setUploadCount, setResponseMessage }) => {
@@ -9,7 +10,7 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
             setResponseMessage('No file selected. Please choose a file.');
             return;
         }
-        if (file.type !== 'application/zip') {
+        if (!file.name.endsWith('.zip')) {
             setResponseMessage('Invalid file type. Please select a ZIP file.');
             return;
         }
@@ -28,12 +29,12 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
         try {
             const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/import-show`, {
                 method: 'POST',
-                body: formData
+                body: formData,
             });
             const result = await response.json();
             if (result.success) {
                 setResponseMessage('File uploaded successfully. Processing...');
-                setUploadCount(prev => prev + 1);
+                setUploadCount(prev => prev + 1);  // Increment to trigger re-fetching plots
             } else {
                 setResponseMessage(`Upload failed: ${result.error}`);
             }

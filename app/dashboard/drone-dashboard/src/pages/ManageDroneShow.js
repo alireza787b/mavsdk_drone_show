@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/pages/ManageDroneShow.js
 import React, { useState } from 'react';
 import ImportSection from '../components/ImportSection';
 import ExportSection from '../components/ExportSection';
