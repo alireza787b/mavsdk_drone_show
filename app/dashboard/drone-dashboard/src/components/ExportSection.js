@@ -16,7 +16,7 @@ const ExportSection = () => {
             </div>
             <p className="info">
                 Use the buttons above to download the raw or processed data for your drone shows. 
-                Raw data contains the original configurations and settings, while processed data includes adjustments and optimizations made by our system.
+                Raw data contains the original exported zip file created by Skybrush, while processed data includes processes files compatible with MAVSDK Drone Show.
             </p>
         </div>
     );

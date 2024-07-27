@@ -1,6 +1,5 @@
 /* General container and layout styles */
 .manage-drone-show-container {
-    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
     background-color: #f4f4f9;
@@ -151,4 +150,6 @@ input[type="file"] {
     width: 80%; /* Adjust this value as needed to make it bigger than the rest */
     max-width: 800px; /* Ensures it doesn't get too large on wider screens */
     display: block;
+    cursor: pointer;
+
 }
