@@ -127,10 +127,6 @@ input[type="file"] {
     flex-direction: column;
 }
 
-.plot-full-width {
-    width: 100%;
-    margin-bottom: 20px;
-}
 
 .plot-grid {
     display: grid;
@@ -144,8 +140,14 @@ input[type="file"] {
     display: block;
 }
 
+.plot-full-width {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
 .plot-full-width img {
-    width: 100%;
-    height: auto;
+    width: 80%; /* Adjust this value as needed to make it bigger than the rest */
+    max-width: 800px; /* Ensures it doesn't get too large on wider screens */
     display: block;
 }
