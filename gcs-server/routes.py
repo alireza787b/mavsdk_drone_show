@@ -5,6 +5,7 @@ import time
 import zipfile
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
+from process_formation import run_formation_process
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
@@ -104,16 +105,13 @@ def setup_routes(app):
                 os.remove(zip_path)
                 logger.info("Zip file extracted and original deleted")
 
-                output = run_formation_process()  # This function needs to be properly defined
-                logger.info(f"Process formation output: {output}")
-
+                output = run_formation_process()
+                if output is None:
+                    raise ValueError("Failed to process the formation correctly.")
                 return jsonify({'success': True, 'message': output})
             except Exception as e:
-                logger.error(f"Unexpected error during show import: {e}")
+                logger.error(f"Unexpected error during show import: {e}", exc_info=True)
                 return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
-        else:
-            logger.warning("Invalid file type uploaded")
-            return jsonify({'success': False, 'error': 'Invalid file type. Please upload a ZIP file.'})
 
 
 
