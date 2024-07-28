@@ -1,3 +1,5 @@
+#gcs-server/routes.py
+
 import os
 import subprocess
 import sys
@@ -11,10 +13,11 @@ from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, zip_directory
 import logging
 
-# Configure base directory for better path management
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-#from process_formation import run_formation_process
-print(BASE_DIR)
+root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(root_dir)
+
+from process_formation import run_formation_process  # This should now work
+
 
 
 # Setup logging
