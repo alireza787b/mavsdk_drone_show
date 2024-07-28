@@ -103,8 +103,10 @@ def setup_routes(app):
             return jsonify({'success': False, 'error': 'No selected file'})
 
         # Define the base directory dynamically based on the route's file location
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Get the root of the project
+        skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
+        processed_dir = os.path.join(BASE_DIR, 'shapes/swarm/processed')
+        plots_dir = os.path.join(BASE_DIR, 'shapes/swarm/plots')
         try:
             clear_show_directories(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
