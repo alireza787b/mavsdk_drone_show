@@ -91,6 +91,7 @@ def setup_routes(app):
 
     @app.route('/import-show', methods=['POST'])
     def import_show():
+        logger = logging.getLogger(__name__)
         logger.info("Show import requested")
         if 'file' not in request.files:
             logger.warning("No file part in the request")
@@ -101,22 +102,25 @@ def setup_routes(app):
             logger.warning("No selected file")
             return jsonify({'success': False, 'error': 'No selected file'})
 
+        # Define the base directory dynamically based on the route's file location
+        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
         try:
-            clear_show_directories(BASE_DIR)
+            clear_show_directories(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
             uploaded_file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
             os.remove(zip_path)
-            
-            output = run_formation_process()  # Ensure this function is correctly handling exceptions
+
+            # Now passing the BASE_DIR to the processing function
+            output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
-            
+
             return jsonify({'success': True, 'message': output})
         except Exception as e:
             logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
             return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
-
 
 
     @app.route('/download-raw-show', methods=['GET'])

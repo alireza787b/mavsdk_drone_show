@@ -5,6 +5,8 @@ import logging
 
 ALLOWED_EXTENSIONS = {'zip'}
 
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 def allowed_file(filename):
     """
     Check if the file has an allowed extension.
