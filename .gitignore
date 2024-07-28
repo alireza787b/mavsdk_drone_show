@@ -1,12 +1,129 @@
-# Ignore mavsdk binary
-/mavsdk_server
-/1.hwID
-/2.hwID
-/3.hwID
-/4.hwID
+# Compiled Python files
+__pycache__/
+*.py[cod]
+
+# Packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.wheelhouse/
+.installed.cfg
+*.egg-info/
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+junit.xml
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Environment files
+#.env write now we need react .env. maybe later put them in constants
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+
+# Temporary files
+*.temp
+*.tmp
+*.swp
+*~
+
+# Logs
+logs/
+*.log
+
+# Local configuration files
+/local_config.yml
+/local_config.xml
 /online_config.csv
-/mavsdk/__pycache__/*
-/src/__pycache__/*
-/__pycache__/*
-/gcs-server/__pycache__/*
-/logs/*
+
+# Specific binary and hardware ID files that should not be committed
+/mavsdk_server
+/*.hwID
+
+# Node modules
+/node_modules/
+
+# Production files
+/dist/
+
+# Credentials
+*.pem
+*.key
+
+# Database
+*.db
+*.sql
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
