@@ -13,7 +13,8 @@ import logging
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-from process_formation import run_formation_process
+#from process_formation import run_formation_process
+print(BASE_DIR)
 
 
 # Setup logging
