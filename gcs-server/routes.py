@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 import zipfile
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
@@ -22,7 +23,7 @@ from process_formation import run_formation_process
 
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def setup_routes(app):
@@ -100,24 +101,21 @@ def setup_routes(app):
             logger.warning("No selected file")
             return jsonify({'success': False, 'error': 'No selected file'})
 
-        if uploaded_file and allowed_file(uploaded_file.filename):
-            try:
-                clear_show_directories()
-                zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
-                uploaded_file.save(zip_path)
-                logger.info(f"File saved to {zip_path}")
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
-                os.remove(zip_path)
-                logger.info("Zip file extracted and original deleted")
-
-                output = run_formation_process()
-                if output is None:
-                    raise ValueError("Failed to process the formation correctly.")
-                return jsonify({'success': True, 'message': output})
-            except Exception as e:
-                logger.error(f"Unexpected error during show import: {e}", exc_info=True)
-                return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
+        try:
+            clear_show_directories()
+            zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
+            uploaded_file.save(zip_path)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
+            os.remove(zip_path)
+            
+            output = run_formation_process()  # Ensure this function is correctly handling exceptions
+            logger.info(f"Process formation output: {output}")
+            
+            return jsonify({'success': True, 'message': output})
+        except Exception as e:
+            logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
+            return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
 
 
 
