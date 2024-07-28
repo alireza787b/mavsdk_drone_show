@@ -5,7 +5,6 @@ import time
 import zipfile
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from process_formation import run_formation_process
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
@@ -14,6 +13,8 @@ import logging
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+from process_formation import run_formation_process
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
