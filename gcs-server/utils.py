@@ -2,6 +2,9 @@
 import os
 import shutil
 import logging
+import subprocess
+
+from params import Params
 
 ALLOWED_EXTENSIONS = {'zip'}
 
@@ -46,3 +49,21 @@ def zip_directory(folder_path, zip_path):
 def ensure_directory(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+
+# Utility function for Git operations
+
+def git_operations(base_dir, commit_message):
+    try:
+        # Staging changes
+        subprocess.check_call(['git', 'add', '.'], cwd=base_dir)
+        
+        # Committing changes
+        subprocess.check_call(['git', 'commit', '-m', commit_message], cwd=base_dir)
+        
+        # Pushing to the specified branch
+        subprocess.check_call(['git', 'push', 'origin', Params.GIT_BRANCH], cwd=base_dir)
+        
+        return "Changes pushed to repository successfully."
+    except subprocess.CalledProcessError as e:
+        return f"Failed to push changes to repository: {str(e)}"

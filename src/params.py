@@ -75,3 +75,7 @@ class Params():
        
     max_takeoff_alt = 100
     default_takeoff_alt = 10
+    
+    GIT_AUTO_PUSH = True
+    GIT_BRANCH = 'real-test-1'
+    GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'

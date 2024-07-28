@@ -11,8 +11,11 @@ import pandas as pd
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
 from command import send_commands_to_all
 from config import load_config, save_config, load_swarm, save_swarm
-from utils import allowed_file, clear_show_directories, zip_directory
+from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 import logging
+from params import Params
+from datetime import datetime
+
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -91,40 +94,56 @@ def setup_routes(app):
 
     @app.route('/import-show', methods=['POST'])
     def import_show():
+        """
+        Endpoint to handle the uploading and processing of drone show files.
+        It saves the uploaded files, processes them, and optionally pushes changes to a Git repository.
+        """
         logger = logging.getLogger(__name__)
         logger.info("Show import requested")
+
+        # Check if the file part is present in the request
         if 'file' not in request.files:
             logger.warning("No file part in the request")
             return jsonify({'success': False, 'error': 'No file part'})
 
         uploaded_file = request.files['file']
+
+        # Check if the file name is not empty
         if uploaded_file.filename == '':
             logger.warning("No selected file")
             return jsonify({'success': False, 'error': 'No selected file'})
 
         # Define the base directory dynamically based on the route's file location
-        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Get the root of the project
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
-        processed_dir = os.path.join(BASE_DIR, 'shapes/swarm/processed')
-        plots_dir = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+
         try:
-            clear_show_directories(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
+            # Clear existing files in the directory to prepare for new upload
+            clear_show_directories(skybrush_dir)
+
+            # Save the uploaded ZIP file and extract its contents
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
             uploaded_file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'))
+                zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
 
-            # Now passing the BASE_DIR to the processing function
+            # Run the drone formation processing
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
-            return jsonify({'success': True, 'message': output})
+            # If Git auto-push is enabled in parameters, perform Git operations
+            if Params.GIT_AUTO_PUSH:
+                commit_message = f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {uploaded_file.filename}"
+                git_result = git_operations(BASE_DIR, commit_message)
+                logger.info(git_result)
+
+            return jsonify({'success': True, 'message': output, 'git_info': git_result if Params.GIT_AUTO_PUSH else "Git auto-push disabled"})
         except Exception as e:
             logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
             return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
-
-
+    
+    
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
         zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
