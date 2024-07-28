@@ -28,9 +28,7 @@
 # - The script provides console output that details each step of the process, including any failures.
 # - In case of failure, appropriate error messages are displayed to help diagnose issues.
 #
-# Author: [Your Name or Your Team's Name]
-# Date: [Date of creation]
-# Version: 1.0
+
 
 # Define the base directory for the repository. Modify this path as needed.
 REPO_DIR="${HOME}/mavsdk_drone_show"
