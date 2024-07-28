@@ -4,6 +4,7 @@ import { getBackendURL } from '../utilities/utilities'; // Ensure this utility i
 const ImportSection = ({ setUploadCount, setResponseMessage }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadError, setUploadError] = useState('');
 
     const handleFileChange = (e) => {
@@ -19,6 +20,7 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
         setSelectedFile(file);
         setResponseMessage('');
         setUploadError('');
+        setUploadProgress(0);
     };
 
     const uploadFile = async () => {
@@ -34,6 +36,11 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
             const response = await fetch(`${getBackendURL()}/import-show`, {
                 method: 'POST',
                 body: formData,
+            }, {
+                onUploadProgress: progressEvent => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                    setUploadProgress(percentCompleted);
+                }
             });
 
             if (!response.ok) {
@@ -42,8 +49,8 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
 
             const result = await response.json();
             if (result.success) {
-                setResponseMessage('File uploaded successfully. Processing...');
-                setUploadCount(prev => prev + 1);  // Increment to trigger re-fetching plots
+                setResponseMessage('File uploaded and processed successfully!');
+                setUploadCount(prev => prev + 1); // Increment to trigger re-fetching plots
                 setIsUploading(false);
             } else {
                 throw new Error(result.error || 'Unknown error during file upload.');
@@ -62,7 +69,14 @@ const ImportSection = ({ setUploadCount, setResponseMessage }) => {
             <input type="file" accept=".zip" onChange={handleFileChange} />
             {selectedFile && <p>File selected: {selectedFile.name}</p>}
             <button onClick={uploadFile} disabled={!selectedFile || isUploading}>Upload</button>
-            {isUploading && <p>Uploading...</p>}
+            {isUploading && (
+                <div>
+                    <p>Uploading... {uploadProgress}%</p>
+                    <div className="progress-bar">
+                        <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                </div>
+            )}
             {uploadError && <p className="error-message">{uploadError}</p>}
         </div>
     );
