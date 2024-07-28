@@ -11,17 +11,18 @@ def allowed_file(filename):
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def clear_show_directories():
+def clear_show_directories(BASE_DIR):
     """
     Clear specific directories used for drone show data.
     """
     directories = [
-        'shapes/swarm/skybrush',
-        'shapes/swarm/processed',
-        'shapes/swarm/plots'
+        os.path.join(BASE_DIR, 'shapes', 'swarm', 'skybrush'),
+        os.path.join(BASE_DIR, 'shapes', 'swarm', 'processed'),
+        os.path.join(BASE_DIR, 'shapes', 'swarm', 'plots')
     ]
     for directory in directories:
-        logging.info(f"Clearing directory: {directory}")
+        if not os.path.exists(directory):
+            os.makedirs(directory)  # Create the directory if it doesn't exist
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
             try:

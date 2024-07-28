@@ -102,7 +102,7 @@ def setup_routes(app):
             return jsonify({'success': False, 'error': 'No selected file'})
 
         try:
-            clear_show_directories()
+            clear_show_directories(BASE_DIR)
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
             uploaded_file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
