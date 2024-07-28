@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { getBackendURL } from '../utilities/utilities'; // Ensure this utility is correctly implemented
-import './ImportSection.css'; // Assuming you have some basic styling and animations defined here
 
 const ImportSection = ({ setUploadCount, setResponseMessage }) => {
     const [selectedFile, setSelectedFile] = useState(null);
