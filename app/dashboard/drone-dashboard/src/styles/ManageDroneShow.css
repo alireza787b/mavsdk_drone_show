@@ -93,6 +93,22 @@ input[type="file"] {
     color: red;
 }
 
+/* Progress Bar Styles */
+.progress-bar {
+    width: 100%;
+    background-color: #f1f1f1;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+.progress-bar-fill {
+    height: 20px;
+    background-color: #007bff;
+    width: 0%; /* Default width, will be set dynamically */
+    border-radius: 5px;
+    transition: width 0.4s ease-in-out;
+}
+
 /* Styling for image display and galleries */
 .visualization-section img {
     width: 100%;
@@ -151,5 +167,4 @@ input[type="file"] {
     max-width: 800px; /* Ensures it doesn't get too large on wider screens */
     display: block;
     cursor: pointer;
-
 }
