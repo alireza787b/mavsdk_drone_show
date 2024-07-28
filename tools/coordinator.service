@@ -1,0 +1,77 @@
+[Unit]
+Description=Drone Swarm System Coordinator
+# Ensure the network is available before starting the service
+After=network.target
+
+[Service]
+# Path to the Python executable and the coordinator script
+ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
+WorkingDirectory=/home/droneshow/mavsdk_drone_show
+User=droneshow
+Group=droneshow
+
+# Ensure the system's codebase is up-to-date before starting
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo.sh
+
+Restart=always
+RestartSec=5s
+# Capabilities required by the service
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+StandardOutput=journal
+StandardError=inherit
+# Environmental variables that the service requires
+Environment="VAR1=value1" "VAR2=value2"
+
+# Uncomment for stricter security settings
+#ProtectSystem=full
+#ProtectHome=read-only
+#PrivateTmp=true
+#NoNewPrivileges=true
+
+# Service watchdog and timeout settings
+WatchdogSec=10s
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Drone Swarm System Coordinator
+# Ensure the network is available before starting the service
+After=network.target
+
+[Service]
+# Path to the Python executable and the coordinator script
+ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
+WorkingDirectory=/home/droneshow/mavsdk_drone_show
+User=droneshow
+Group=droneshow
+
+# Ensure the system's codebase is up-to-date before starting
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo.sh
+
+Restart=always
+RestartSec=5s
+# Capabilities required by the service
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+StandardOutput=journal
+StandardError=inherit
+# Environmental variables that the service requires
+Environment="VAR1=value1" "VAR2=value2"
+
+# Uncomment for stricter security settings
+#ProtectSystem=full
+#ProtectHome=read-only
+#PrivateTmp=true
+#NoNewPrivileges=true
+
+# Service watchdog and timeout settings
+WatchdogSec=10s
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
