@@ -46,8 +46,8 @@ git pull
 
 # Check if Git operations were successful and log the result
 if [ $? -ne 0 ]; then
-    echo "$(date): Failed to update code from Git repository" >> "${REPO_DIR}/logs/git_operations.log"
+    echo "$(date): Failed to update code from Git repository" 
     # Optionally, you can perform additional error handling here, such as retrying the operation.
 else
-    echo "$(date): Successfully updated code from Git repository" >> "${REPO_DIR}/logs/git_operations.log"
+    echo "$(date): Successfully updated code from Git repository"
 fi
