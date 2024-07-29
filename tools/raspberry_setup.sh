@@ -20,6 +20,10 @@ echo "Using Netbird Management URL: $management_url"
 echo "Disconnecting from Netbird..."
 netbird down
 
+# Clear Netbird configurations
+echo "Clearing Netbird configurations..."
+sudo rm -rf /etc/netbird/ # Assuming config is stored here; adjust path as necessary
+
 # Configure HWID files
 hwid_file="~/mavsdk_drone_show/${drone_id}.hwID"
 if [ -f "$hwid_file" ]; then
