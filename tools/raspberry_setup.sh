@@ -59,7 +59,7 @@ sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
 # Download and configure the MAVSDK server
 echo "Downloading and configuring MAVSDK server..."
-sudo bash $HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh
+sudo bash $HOME/mavsdk_drone_show/download_mavsdk_server.sh
 echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
 
 echo "Setup complete! The system is now configured for Drone ID $drone_id."
