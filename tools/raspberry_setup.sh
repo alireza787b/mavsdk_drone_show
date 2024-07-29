@@ -25,7 +25,7 @@ echo "Clearing Netbird configurations..."
 sudo rm -rf /etc/netbird/ # Assuming config is stored here; adjust path as necessary
 
 # Configure HWID files
-hwid_file="~/mavsdk_drone_show/${drone_id}.hwID"
+hwid_file="$HOME/mavsdk_drone_show/${drone_id}.hwID"
 if [ -f "$hwid_file" ]; then
     echo "HWID file exists - updating..."
     rm "$hwid_file"
@@ -52,6 +52,6 @@ unset netbird_key
 
 # Setup and start the coordinator service
 echo "Setting up the Drone Swarm System Coordinator service..."
-sudo bash /home/droneshow/mavsdk_drone_show/tools/update_service.sh
+sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
 echo "Setup complete! The system is now configured for Drone ID $drone_id."
