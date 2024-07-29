@@ -16,20 +16,32 @@ read -p "Enter Netbird Management URL (Press enter for default): " management_ur
 management_url="${management_url:-https://nb1.joomtalk.ir}"  # Default URL if not provided
 echo "Using Netbird Management URL: $management_url"
 
+# Disconnect from Netbird if connected
+echo "Disconnecting from Netbird..."
+netbird down
+
 # Configure HWID files
 hwid_file="~/mavsdk_drone_show/${drone_id}.hwID"
-touch $hwid_file
-echo "Hardware ID file created at: $hwid_file"
+if [ -f "$hwid_file" ]; then
+    echo "HWID file exists - updating..."
+    rm "$hwid_file"
+fi
+touch "$hwid_file"
+echo "Hardware ID file created/updated at: $hwid_file"
 
 # Configure system name
 echo "Configuring hostname to 'drone$drone_id'..."
 echo "drone$drone_id" | sudo tee /etc/hostname
 sudo sed -i "s/.*127.0.1.1.*/127.0.1.1\tdrone$drone_id/" /etc/hosts
 
-# Netbird setup
-echo "Setting up Netbird..."
+# Ensure hostname change takes effect
+echo "Restarting avahi-daemon to apply hostname changes..."
+sudo systemctl restart avahi-daemon
+
+# Reconnect to Netbird with new hostname
+echo "Reconnecting to Netbird with new settings..."
 netbird up --management-url "$management_url" --setup-key "$netbird_key"
-echo "Netbird setup complete."
+echo "Netbird reconnected with new hostname 'drone$drone_id'."
 
 # Securely remove sensitive information
 unset netbird_key
