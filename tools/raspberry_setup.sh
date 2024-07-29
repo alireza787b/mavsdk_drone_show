@@ -3,16 +3,16 @@
 # Setup script for configuring a Raspberry Pi for Drone Swarm System
 echo "Starting setup for the Drone Swarm System..."
 
+# Inform user about potential duplication
+echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
+
 # Get user inputs
 read -p "Enter Drone ID (e.g., 1, 2): " drone_id
 echo "You entered Drone ID: $drone_id"
 
-# Inform user about potential duplication
-echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
-
 # Ask for Netbird setup key
-read -s -p "Enter Netbird Setup Key (hidden for security): " netbird_key  # -s to hide input for security
-echo  # Ensure newline after hidden input
+read -s -p "Enter Netbird Setup Key: " netbird_key  # -s to hide input for security
+echo
 
 # Optional: Enter Netbird Management URL
 read -p "Enter Netbird Management URL (Press enter for default): " management_url
@@ -47,7 +47,7 @@ sudo systemctl restart avahi-daemon
 
 # Reconnect to Netbird with new hostname
 echo "Reconnecting to Netbird with new settings..."
-netbird up --management_url "$management_url" --setup_key "$netbird_key"
+netbird up --management-url "$management_url" --setup-key "$netbird_key"
 echo "Netbird reconnected with new hostname 'drone$drone_id'."
 
 # Securely remove sensitive information
@@ -57,4 +57,4 @@ unset netbird_key
 echo "Setting up the Drone Swarm System Coordinator service..."
 sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
-echo "Setup complete! The system is now configured for Drone ID $drone_id. Be aware of potential duplicate entries in Netbird with similar naming patterns."
+echo "Setup complete! The system is now configured for Drone ID $drone_id."
