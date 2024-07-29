@@ -64,7 +64,6 @@ def poll_telemetry(drone):
                     'Flight_Mode': telemetry_data.get('flight_mode_raw'),
                     'Hdop': telemetry_data.get('hdop')
                 }
-                print(telemetry_data_all_drones)
                 last_telemetry_time[drone['hw_id']] = time.time()
                 logger.info(f"{telemetry_data_all_drones[drone['hw_id']]['State']} | "
                             f"{telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
