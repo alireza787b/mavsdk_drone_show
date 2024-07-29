@@ -31,7 +31,7 @@ SCRIPT_DIR="$(dirname "$0")"
 
 # Check Python version and set appropriate alias
 # If Python 3 is your default, you can just use 'python' here
-PYTHON_CMD=python3
+PYTHON_CMD=python
 
 # Start the Drone Dashboard server if not running
 if ! port_in_use 3000; then
