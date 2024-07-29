@@ -12,3 +12,4 @@ scipy
 matplotlib
 sdnotify
 requests
+tenacity
