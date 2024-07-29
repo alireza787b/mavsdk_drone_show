@@ -11,3 +11,4 @@ psutil
 scipy
 matplotlib
 sdnotify
+requests
