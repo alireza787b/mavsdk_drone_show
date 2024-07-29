@@ -27,11 +27,12 @@
 # Output:
 # - The script provides console output that details each step of the process, including any failures.
 # - In case of failure, appropriate error messages are displayed to help diagnose issues.
-#
 
+# Assume the user is 'droneshow' for the script execution context; modify as needed for other users.
+REPO_USER="droneshow"
 
-# Define the base directory for the repository. Modify this path as needed.
-REPO_DIR="${HOME}/mavsdk_drone_show"
+# Define the base directory for the repository.
+REPO_DIR="/home/${REPO_USER}/mavsdk_drone_show"
 
 # Path to the service file in the repository
 SERVICE_FILE_PATH="${REPO_DIR}/tools/coordinator.service"
