@@ -29,9 +29,12 @@ echo ""
 # Get the directory of the current script
 SCRIPT_DIR="$(dirname "$0")"
 
-# Check Python version and set appropriate alias
-# If Python 3 is your default, you can just use 'python' here
-PYTHON_CMD=python
+# Path to the virtual environment
+VENV_PATH="/home/droneshow/mavsdk_drone_show/venv"
+PYTHON_CMD="$VENV_PATH/bin/python"
+
+# Activate virtual environment
+source "$VENV_PATH/bin/activate"
 
 # Start the Drone Dashboard server if not running
 if ! port_in_use 3000; then
