@@ -24,6 +24,7 @@ const Overview = ({ setSelectedDrone }) => {
           hw_ID,
           ...response.data[hw_ID],
         }));
+        console.log(dronesArray)
         setDrones(dronesArray);
       } catch (error) {
         console.error('Network Error:', error);
