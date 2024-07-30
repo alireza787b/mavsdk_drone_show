@@ -56,18 +56,23 @@ def ensure_directory(directory):
 # Utility function for Git operations
 def git_operations(base_dir, commit_message):
     """
-    Handles git operations including add, commit, and an intelligent push that handles possible upstream changes.
+    Handles Git operations including add, commit, and an intelligent push that handles possible upstream changes.
+    This function uses configured branch names from Params.GIT_BRANCH.
     """
     try:
+        # Staging changes
         subprocess.check_call(['git', 'add', '.'], cwd=base_dir)
         subprocess.check_call(['git', 'commit', '-m', commit_message], cwd=base_dir)
+        
+        # Fetch the latest changes from the repository to prepare for rebase
+        subprocess.check_call(['git', 'fetch'], cwd=base_dir)
+        
         try:
-            # Fetch the latest changes from the repository to check if there are conflicts
-            subprocess.check_call(['git', 'fetch'], cwd=base_dir)
             # Attempt to rebase onto the fetched branch
-            subprocess.check_call(['git', 'rebase', 'origin/' +Params.GIT_BRANCH], cwd=base_dir)
+            subprocess.check_call(['git', 'rebase', f'origin/{Params.GIT_BRANCH}'], cwd=base_dir)
         except subprocess.CalledProcessError:
-            # If rebase fails, reset to the previous commit and return error
+            # If rebase fails, log the failure and suggest manual intervention
+            logging.error("Rebase failed, attempting to abort.")
             subprocess.check_call(['git', 'rebase', '--abort'], cwd=base_dir)
             return "Rebase failed; manual intervention required."
 
@@ -75,5 +80,6 @@ def git_operations(base_dir, commit_message):
         subprocess.check_call(['git', 'push', 'origin', Params.GIT_BRANCH], cwd=base_dir)
         return "Changes pushed to repository successfully."
     except subprocess.CalledProcessError as e:
+        # Log the specific error and return a friendly message
         logging.error(f"Git operation failed: {e}")
         return f"Failed to push changes to repository: {e.output}"

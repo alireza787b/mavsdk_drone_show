@@ -95,18 +95,16 @@ def setup_routes(app):
     @app.route('/import-show', methods=['POST'])
     def import_show():
         """
-        Endpoint to handle the uploading and processing of drone show files, and optionally pushes changes to a Git repository.
+        Endpoint to handle the uploading and processing of drone show files,
+        saves the uploaded files, processes them, and optionally pushes changes to a Git repository.
         """
-        logger = logging.getLogger(__name__)
         logger.info("Show import requested")
-
         file = request.files.get('file')
         if not file or file.filename == '':
             logger.warning("No file part or empty filename")
             return jsonify({'success': False, 'error': 'No file part or empty filename'})
 
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
-
         try:
             clear_show_directories(skybrush_dir)
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
@@ -114,16 +112,15 @@ def setup_routes(app):
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
-
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
-            if current_app.config['GIT_AUTO_PUSH']:
+            if Params.GIT_AUTO_PUSH:
                 git_result = git_operations(BASE_DIR, f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}")
                 logger.info(git_result)
                 return jsonify({'success': True, 'message': output, 'git_info': git_result})
-
-            return jsonify({'success': True, 'message': output})
+            else:
+                return jsonify({'success': True, 'message': output})
         except Exception as e:
             logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
             return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
