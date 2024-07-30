@@ -16,7 +16,7 @@ const Overview = ({ setSelectedDrone }) => {
   // Fetch data from the backend
   useEffect(() => {
     const url = `${getBackendURL()}/telemetry`;
-
+    console.log(url)
     const fetchData = async () => {
       try {
         const response = await axios.get(url);

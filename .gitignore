@@ -1,7 +1,7 @@
 # Compiled Python files
 __pycache__/
 *.py[cod]
-
+functions/__pycache__
 # Packages
 *.egg
 *.egg-info/

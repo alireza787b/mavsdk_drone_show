@@ -2,7 +2,7 @@
 export function getBackendURL() {
   const hostArray = window.location.hostname.split(":");
   const domain = hostArray[0];
-  const port = process.env.REACT_APP_BACKEND_PORT_OLD || '5000'; // Default to 5000 if not specified
+  const port = process.env.REACT_APP_BACKEND_PORT || '5000'; // Default to 5000 if not specified
   return `http://${domain}:${port}`;
 }
 
