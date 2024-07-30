@@ -65,14 +65,14 @@ def git_operations(base_dir, commit_message):
             # Fetch the latest changes from the repository to check if there are conflicts
             subprocess.check_call(['git', 'fetch'], cwd=base_dir)
             # Attempt to rebase onto the fetched branch
-            subprocess.check_call(['git', 'rebase', 'origin/' + current_app.config['GIT_BRANCH']], cwd=base_dir)
+            subprocess.check_call(['git', 'rebase', 'origin/' +Params.GIT_BRANCH], cwd=base_dir)
         except subprocess.CalledProcessError:
             # If rebase fails, reset to the previous commit and return error
             subprocess.check_call(['git', 'rebase', '--abort'], cwd=base_dir)
             return "Rebase failed; manual intervention required."
 
         # Push the changes if rebase was successful
-        subprocess.check_call(['git', 'push', 'origin', current_app.config['GIT_BRANCH']], cwd=base_dir)
+        subprocess.check_call(['git', 'push', 'origin', Params.GIT_BRANCH], cwd=base_dir)
         return "Changes pushed to repository successfully."
     except subprocess.CalledProcessError as e:
         logging.error(f"Git operation failed: {e}")

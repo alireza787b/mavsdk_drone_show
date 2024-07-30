@@ -105,7 +105,6 @@ def setup_routes(app):
             logger.warning("No file part or empty filename")
             return jsonify({'success': False, 'error': 'No file part or empty filename'})
 
-        BASE_DIR = current_app.config['BASE_DIR']
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
 
         try:
