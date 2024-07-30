@@ -95,50 +95,36 @@ def setup_routes(app):
     @app.route('/import-show', methods=['POST'])
     def import_show():
         """
-        Endpoint to handle the uploading and processing of drone show files.
-        It saves the uploaded files, processes them, and optionally pushes changes to a Git repository.
+        Endpoint to handle the uploading and processing of drone show files, and optionally pushes changes to a Git repository.
         """
         logger = logging.getLogger(__name__)
         logger.info("Show import requested")
 
-        # Check if the file part is present in the request
-        if 'file' not in request.files:
-            logger.warning("No file part in the request")
-            return jsonify({'success': False, 'error': 'No file part'})
+        file = request.files.get('file')
+        if not file or file.filename == '':
+            logger.warning("No file part or empty filename")
+            return jsonify({'success': False, 'error': 'No file part or empty filename'})
 
-        uploaded_file = request.files['file']
-
-        # Check if the file name is not empty
-        if uploaded_file.filename == '':
-            logger.warning("No selected file")
-            return jsonify({'success': False, 'error': 'No selected file'})
-
-        # Define the base directory dynamically based on the route's file location
-        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        BASE_DIR = current_app.config['BASE_DIR']
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
 
         try:
-            # Clear existing files in the directory to prepare for new upload
             clear_show_directories(skybrush_dir)
-
-            # Save the uploaded ZIP file and extract its contents
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
-            uploaded_file.save(zip_path)
+            file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
 
-            # Run the drone formation processing
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
-            # If Git auto-push is enabled in parameters, perform Git operations
-            if Params.GIT_AUTO_PUSH:
-                commit_message = f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {uploaded_file.filename}"
-                git_result = git_operations(BASE_DIR, commit_message)
+            if current_app.config['GIT_AUTO_PUSH']:
+                git_result = git_operations(BASE_DIR, f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}")
                 logger.info(git_result)
+                return jsonify({'success': True, 'message': output, 'git_info': git_result})
 
-            return jsonify({'success': True, 'message': output, 'git_info': git_result if Params.GIT_AUTO_PUSH else "Git auto-push disabled"})
+            return jsonify({'success': True, 'message': output})
         except Exception as e:
             logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
             return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})

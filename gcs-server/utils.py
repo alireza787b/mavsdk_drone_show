@@ -4,6 +4,8 @@ import shutil
 import logging
 import subprocess
 
+from flask import current_app
+
 from params import Params
 
 ALLOWED_EXTENSIONS = {'zip'}
@@ -52,18 +54,25 @@ def ensure_directory(directory):
 
 
 # Utility function for Git operations
-
 def git_operations(base_dir, commit_message):
+    """
+    Handles git operations including add, commit, and an intelligent push that handles possible upstream changes.
+    """
     try:
-        # Staging changes
         subprocess.check_call(['git', 'add', '.'], cwd=base_dir)
-        
-        # Committing changes
         subprocess.check_call(['git', 'commit', '-m', commit_message], cwd=base_dir)
-        
-        # Pushing to the specified branch
-        subprocess.check_call(['git', 'push', 'origin', Params.GIT_BRANCH], cwd=base_dir)
-        
+        try:
+            # Fetch the latest changes from the repository to check if there are conflicts
+            subprocess.check_call(['git', 'fetch'], cwd=base_dir)
+            # Attempt to rebase onto the fetched branch
+            subprocess.check_call(['git', 'rebase', 'origin/' + current_app.config['GIT_BRANCH']], cwd=base_dir)
+        except subprocess.CalledProcessError:
+            # If rebase fails, reset to the previous commit and return error
+            subprocess.check_call(['git', 'rebase', '--abort'], cwd=base_dir)
+            return "Rebase failed; manual intervention required."
+
+        # Push the changes if rebase was successful
+        subprocess.check_call(['git', 'push', 'origin', current_app.config['GIT_BRANCH']], cwd=base_dir)
         return "Changes pushed to repository successfully."
     except subprocess.CalledProcessError as e:
         logging.error(f"Git operation failed: {e}")
