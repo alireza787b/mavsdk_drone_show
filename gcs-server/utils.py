@@ -66,4 +66,5 @@ def git_operations(base_dir, commit_message):
         
         return "Changes pushed to repository successfully."
     except subprocess.CalledProcessError as e:
-        return f"Failed to push changes to repository: {str(e)}"
+        logging.error(f"Git operation failed: {e}")
+        return f"Failed to push changes to repository: {e.output}"
