@@ -178,7 +178,4 @@ def setup_routes(app):
             logger.error(f"Failed to list directory: {e}")
             return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    app = Flask(__name__)
-    setup_routes(app)
-    app.run(debug=True)
+
