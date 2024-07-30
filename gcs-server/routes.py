@@ -177,5 +177,3 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Failed to list directory: {e}")
             return jsonify({'error': str(e)}), 500
-
-
