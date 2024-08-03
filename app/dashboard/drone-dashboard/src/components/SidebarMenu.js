@@ -58,7 +58,7 @@ const SidebarMenu = () => {
           
 
     <div className="sidebar-header">
-      <h3>Swarm Dashboard v0.8</h3>
+      <h3>Swarm Dashboard v0.9</h3>
     </div>
 
     <div className="sidebar-time">
