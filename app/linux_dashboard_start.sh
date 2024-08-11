@@ -37,7 +37,7 @@ start_process_tmux() {
     local window_name="$2"
     local command="$3"
     
-    tmux new-window -t "$session" -n "$window_name" "clear; show_tmux_instructions; $command"
+    tmux new-window -t "$session" -n "$window_name" "clear; $command"
     sleep 2
 }
 
@@ -52,26 +52,22 @@ start_services_in_tmux() {
     echo "Starting Drone Dashboard server in tmux..."
     start_process_tmux "$session" "Dashboard" "cd $REACT_APP_DIR && npm start"
 
-    # Start the getElevation server
-    echo "Starting getElevation server in tmux..."
-    start_process_tmux "$session" "Elevation" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js"
-
-    # Attach to the tmux session
+    # Attach to the tmux session and display instructions
     tmux attach-session -t "$session"
+    show_tmux_instructions
 }
 
 echo "==============================================="
 echo "  Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
 echo "==============================================="
 echo ""
-echo "MAVSDK_Drone_Show Version 0.9"
+echo "MAVSDK_Drone_Show Version 1.0"
 echo ""
 echo "This script will:"
 echo "1. Check if the Drone Dashboard (Node.js React app) is running."
 echo "2. Start the Drone Dashboard if it's not running."
 echo "   - Once started, access the dashboard at http://localhost:3000"
 echo "3. Open the terminal-based GCS (Ground Control Station) app."
-echo "4. Start the getElevation server for elevation data fetching."
 echo ""
 echo "Please wait as the script checks and initializes the necessary components..."
 echo ""
@@ -101,21 +97,13 @@ fi
 # Check for first-time setup for React app
 REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
 if [ ! -d "$REACT_APP_DIR/node_modules" ]; then
-    echo "WARNING: The 'node_modules' directory is missing. It seems like 'npm install' hasn't been run yet."
-    read -p "Would you like to automatically run 'npm install' now? [y/n]: " install_choice
-
-    if [[ "$install_choice" =~ ^[Yy]$ ]]; then
-        echo "Running 'npm install' in $REACT_APP_DIR..."
-        cd "$REACT_APP_DIR"
-        npm install
-        if [ $? -eq 0 ]; then
-            echo "'npm install' completed successfully."
-        else
-            echo "Error: 'npm install' failed. Please resolve the issue manually."
-            exit 1
-        fi
+    echo "WARNING: The 'node_modules' directory is missing. Running 'npm install' now..."
+    cd "$REACT_APP_DIR"
+    npm install
+    if [ $? -eq 0 ]; then
+        echo "'npm install' completed successfully."
     else
-        echo "Please navigate to $REACT_APP_DIR and run 'npm install' manually before proceeding."
+        echo "Error: 'npm install' failed. Please resolve the issue manually."
         exit 1
     fi
 fi
