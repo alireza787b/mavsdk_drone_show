@@ -1,34 +1,25 @@
 // utilities.js
 
-// Adjust the function to use the port from environment variables or default to 5000
-// utilities.js
-
 // Get the base server URL from environment variables
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
 
-// Get the port for Flask and Node.js from environment variables
-const flaskPort = process.env.FLASK_PORT || '5000';
-const nodejsPort = process.env.NODEJS_PORT || '5001';
-
-// Function to get the Flask backend URL
-export function getFlaskBackendURL() {
-    return `${baseServerURL}:${flaskPort}`;
+// Function to get the backend URL, with an optional port
+export function getBackendURL(servicePort) {
+    return `${baseServerURL}:${servicePort}`;
 }
 
-// Function to get the Node.js backend URL
-export function getNodeBackendURL() {
-    return `${baseServerURL}:${nodejsPort}`;
-}
-
-// Example function for getting telemetry data (Flask)
+// Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    return `${getFlaskBackendURL()}/telemetry`;
+    const flaskPort = process.env.FLASK_PORT || '5000'; // Default Flask port
+    return `${getBackendURL(flaskPort)}/telemetry`;
 }
 
-// Example function for getting elevation data (Node.js)
 export function getElevationURL(lat, lon) {
-    return `${getNodeBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
+    const nodejsPort = process.env.NODEJS_PORT || '5001'; // Default Node.js port
+    return `${getBackendURL(nodejsPort)}/elevation?lat=${lat}&lon=${lon}`;
 }
+
+// Other utility functions remain the same...
 
 
 // Constants for conversions and world setup
