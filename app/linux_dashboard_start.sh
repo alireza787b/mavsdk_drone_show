@@ -2,26 +2,36 @@
 
 # Function to check if a port is in use
 port_in_use() {
-   netstat -tln | grep $1 > /dev/null
+    netstat -tln | grep ":$1 " > /dev/null
 }
 
-# Start a process either in a new terminal or in the background
+# Function to start a process in either a new terminal or in the background
 start_process() {
-    if [ "$1" == "g" ]; then
-        gnome-terminal -- bash -c "$2; exec bash" &
+    local description="$1"
+    local command="$2"
+    
+    echo "Starting $description..."
+    if [ "$3" == "g" ]; then
+        gnome-terminal -- bash -c "$command; exec bash" &
     else
-        eval "$2 &"
+        eval "$command &"
     fi
+    
+    sleep 5
 }
 
-echo "Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
-echo "MAVSDK_Drone_Show Version 0.8"
+echo "==============================================="
+echo "  Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
+echo "==============================================="
 echo ""
-echo "This script will do the following:"
-echo "1. Check if the Drone Dashboard (a Node.js React app) is running."
-echo "2. If not, it will start the Drone Dashboard. Once started, you can access the dashboard at http://localhost:3000"
-echo "3. The script will also open the terminal-based GCS (Ground Control Station) app."
-echo "4. Start the getElevation server that acts as a proxy for fetching elevation data."
+echo "MAVSDK_Drone_Show Version 0.9"
+echo ""
+echo "This script will:"
+echo "1. Check if the Drone Dashboard (Node.js React app) is running."
+echo "2. Start the Drone Dashboard if it's not running."
+echo "   - Once started, access the dashboard at http://localhost:3000"
+echo "3. Open the terminal-based GCS (Ground Control Station) app."
+echo "4. Start the getElevation server for elevation data fetching."
 echo ""
 echo "Please wait as the script checks and initializes the necessary components..."
 echo ""
@@ -34,41 +44,64 @@ VENV_PATH="/home/droneshow/mavsdk_drone_show/venv"
 PYTHON_CMD="$VENV_PATH/bin/python"
 
 # Activate virtual environment
-source "$VENV_PATH/bin/activate"
-
-# Start the Drone Dashboard server if not running
-if ! port_in_use 3000; then
-    echo "Starting the Drone Dashboard server..."
-    start_process "$1" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
-    sleep 5
+if [ -d "$VENV_PATH" ]; then
+    source "$VENV_PATH/bin/activate"
+    echo "Virtual environment activated."
 else
-    echo "Drone Dashboard server is already running!"
+    echo "Error: Virtual environment not found at $VENV_PATH. Please check the path and try again."
+    exit 1
 fi
 
 # Check for first-time setup for React app
-if [ ! -d "$SCRIPT_DIR/dashboard/drone-dashboard/node_modules" ]; then
-    echo "WARNING: It seems like you haven't done 'npm install' in the React app directory. Please navigate to $SCRIPT_DIR/dashboard/drone-dashboard and run 'npm install' before proceeding."
+REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
+if [ ! -d "$REACT_APP_DIR/node_modules" ]; then
+    echo "WARNING: The 'node_modules' directory is missing. It seems like 'npm install' hasn't been run yet."
+    read -p "Would you like to automatically run 'npm install' now? [y/n]: " install_choice
+
+    if [[ "$install_choice" =~ ^[Yy]$ ]]; then
+        echo "Running 'npm install' in $REACT_APP_DIR..."
+        cd "$REACT_APP_DIR"
+        npm install
+        if [ $? -eq 0 ]; then
+            echo "'npm install' completed successfully."
+        else
+            echo "Error: 'npm install' failed. Please resolve the issue manually."
+            exit 1
+        fi
+    else
+        echo "Please navigate to $REACT_APP_DIR and run 'npm install' manually before proceeding."
+        exit 1
+    fi
 fi
 
-# Start the getElevation server if not running
-if ! port_in_use 5001; then
-    echo "Starting the getElevation server..."
-    start_process "$1" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js"
-    sleep 5
+# Check and start the Drone Dashboard server
+if ! port_in_use 3000; then
+    start_process "Drone Dashboard server" "cd $REACT_APP_DIR && npm start" "$1"
 else
-    echo "getElevation server is already running!"
+    echo "Drone Dashboard server is already running on port 3000!"
+fi
+
+# Check and start the getElevation server
+if ! port_in_use 5001; then
+    start_process "getElevation server" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js" "$1"
+else
+    echo "getElevation server is already running on port 5001!"
 fi
 
 # Start the GCS Terminal App with Flask
 echo "Now starting the GCS Terminal App with Flask..."
-# Navigate to the correct directory and run the Python script
-start_process "$1" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+start_process "GCS Terminal App" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py" "$1"
 
 echo ""
+echo "==============================================="
+echo "  All services have been started successfully!"
+echo "==============================================="
+echo ""
 echo "For more details, please check the documentation in the 'docs' folder."
-echo "You can also refer to GitHub repo: https://github.com/alireza787b/mavsdk_drone_show"
-echo "For tutorials and additional content, visit Alireza Ghaderi's YouTube channel: https://www.youtube.com/@alirezaghaderi"
+echo "GitHub repo: https://github.com/alireza787b/mavsdk_drone_show"
+echo "For tutorials and content, visit Alireza Ghaderi's YouTube channel:"
+echo "https://www.youtube.com/@alirezaghaderi"
 echo ""
 
 # End of the script
-read -p "Press any key to close this script..."
+read -p "Press any key to exit the script..."
