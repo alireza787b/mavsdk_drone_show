@@ -16,10 +16,11 @@ const ImportShow = () => {
   const [returnWarnings, setReturnWarnings] = useState([]);
   const [dragging, setDragging] = useState(false);
 
+  const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
   // Fetch plot list from backend
   useEffect(() => {
     const fetchPlots = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       console.log(`Fetching plot list from URL: ${backendURL}/get-show-plots`);
 
       try {
@@ -36,12 +37,11 @@ const ImportShow = () => {
     };
 
     fetchPlots();
-  }, [responseMessage, uploadCount]);
+  }, [backendURL, responseMessage, uploadCount]);
 
   // Check for drone mismatches after plot list updates
   useEffect(() => {
     const checkDronesMismatch = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       console.log(`Checking drone mismatches at URL: ${backendURL}/get-config-data`);
 
       try {
@@ -96,7 +96,7 @@ const ImportShow = () => {
     };
 
     checkDronesMismatch();
-  }, [plotList]);
+  }, [plotList, backendURL]);
 
   // File upload handler
   const uploadFile = async () => {
@@ -113,7 +113,6 @@ const ImportShow = () => {
 
     const formData = new FormData();
     formData.append('file', selectedFile);
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     console.log(`Uploading file to URL: ${backendURL}/import-show`);
 
     try {
@@ -225,13 +224,13 @@ const ImportShow = () => {
       </div>
 
       <div className="all-drones-plot">
-        <img src={`${getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000')}/get-show-plots/all_drones.png?key=${uploadCount}`} alt="All Drones" />
+        <img src={`${backendURL}/get-show-plots/all_drones.png?key=${uploadCount}`} alt="All Drones" />
       </div>
 
       <div className="other-plots">
         {plotList.filter(name => name !== "all_drones.png").map(filename => (
           <div key={filename}>
-            <img src={`${getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000')}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`} alt={filename} />
+            <img src={`${backendURL}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`} alt={filename} />
           </div>
         ))}
       </div>
