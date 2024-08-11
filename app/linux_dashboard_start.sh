@@ -5,19 +5,48 @@ port_in_use() {
     netstat -tln | grep ":$1 " > /dev/null
 }
 
-# Function to start a process in either a new terminal or in the background
-start_process() {
-    local description="$1"
-    local command="$2"
-    
-    echo "Starting $description..."
-    if [ "$3" == "g" ]; then
-        gnome-terminal -- bash -c "$command; exec bash" &
+# Function to check if tmux is installed
+check_tmux_installed() {
+    if ! command -v tmux &> /dev/null; then
+        echo "tmux could not be found. Installing tmux..."
+        sudo apt-get update
+        sudo apt-get install -y tmux
     else
-        eval "$command &"
+        echo "tmux is already installed."
     fi
+}
+
+# Function to start a process in a new tmux window
+start_process_tmux() {
+    local session="$1"
+    local window_name="$2"
+    local command="$3"
     
-    sleep 5
+    tmux new-window -t "$session" -n "$window_name" "$command"
+    sleep 2
+}
+
+# Function to create a tmux session and start all services
+start_services_in_tmux() {
+    local session="DroneServices"
+
+    echo "Creating tmux session '$session'..."
+    tmux new-session -d -s "$session" -n "GCS"
+
+    # Start the GCS Terminal App with Flask
+    echo "Starting GCS Terminal App in tmux..."
+    start_process_tmux "$session" "GCS" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+
+    # Start the Drone Dashboard server
+    echo "Starting Drone Dashboard server in tmux..."
+    start_process_tmux "$session" "Dashboard" "cd $REACT_APP_DIR && npm start"
+
+    # Start the getElevation server
+    echo "Starting getElevation server in tmux..."
+    start_process_tmux "$session" "Elevation" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js"
+
+    # Attach to the tmux session
+    tmux attach-session -t "$session"
 }
 
 echo "==============================================="
@@ -36,11 +65,17 @@ echo ""
 echo "Please wait as the script checks and initializes the necessary components..."
 echo ""
 
+# Check if tmux is installed and install if necessary
+check_tmux_installed
+
 # Get the directory of the current script
 SCRIPT_DIR="$(dirname "$0")"
 
+# Dynamically determine the user's home directory
+USER_HOME=$(eval echo ~$USER)
+
 # Path to the virtual environment
-VENV_PATH="/home/droneshow/mavsdk_drone_show/venv"
+VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
 PYTHON_CMD="$VENV_PATH/bin/python"
 
 # Activate virtual environment
@@ -74,23 +109,8 @@ if [ ! -d "$REACT_APP_DIR/node_modules" ]; then
     fi
 fi
 
-# Check and start the Drone Dashboard server
-if ! port_in_use 3000; then
-    start_process "Drone Dashboard server" "cd $REACT_APP_DIR && npm start" "$1"
-else
-    echo "Drone Dashboard server is already running on port 3000!"
-fi
-
-# Check and start the getElevation server
-if ! port_in_use 5001; then
-    start_process "getElevation server" "cd $SCRIPT_DIR/dashboard/getElevation && node server.js" "$1"
-else
-    echo "getElevation server is already running on port 5001!"
-fi
-
-# Start the GCS Terminal App with Flask
-echo "Now starting the GCS Terminal App with Flask..."
-start_process "GCS Terminal App" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py" "$1"
+# Check if services are already running and start them in tmux
+start_services_in_tmux
 
 echo ""
 echo "==============================================="
