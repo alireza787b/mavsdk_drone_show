@@ -4,18 +4,18 @@
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
 
 // Function to get the backend URL, with an optional port
-export function getBackendURL(servicePort) {
-    return `${baseServerURL}:${servicePort}`;
+export function getBackendURL(servicePort = '') {
+    return servicePort ? `${baseServerURL}:${servicePort}` : baseServerURL;
 }
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    const flaskPort = process.env.FLASK_PORT || '5000'; // Default Flask port
+    const flaskPort = process.env.REACT_APP_FLASK_PORT || '5000'; // Default Flask port
     return `${getBackendURL(flaskPort)}/telemetry`;
 }
 
 export function getElevationURL(lat, lon) {
-    const flaskPort = process.env.FLASK_PORT || '5000'; // Default Flask port
+    const flaskPort = process.env.REACT_APP_FLASK_PORT || '5000'; // Default Flask port
     return `${getBackendURL(flaskPort)}/elevation?lat=${lat}&lon=${lon}`;
 }
 
@@ -33,6 +33,7 @@ export const STALE_DATA_THRESHOLD_SECONDS = 5;
 export const getElevation = async (lat, lon) => {
   try {
       const url = getElevationURL(lat, lon);  // Use the updated function to get the elevation URL
+      console.log(`Fetching elevation data from URL: ${url}`);  // Log the URL
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();

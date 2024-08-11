@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
 import axios from 'axios';
+import PropTypes from 'prop-types';
 import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
@@ -18,7 +18,8 @@ const MissionConfig = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const backendURL = getBackendURL();
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
         setConfigData(response.data);
