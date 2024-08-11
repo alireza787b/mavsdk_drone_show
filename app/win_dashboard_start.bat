@@ -2,13 +2,12 @@
 cls
 
 echo Welcome to the Drone Dashboard and GCS Terminal App Startup Script!
-echo MAVSDK_Drone_Show Version 0.8
+echo MAVSDK_Drone_Show Version 1.0
 echo.
 echo This script will do the following:
 echo 1. Check if the Drone Dashboard (a Node.js React app) is running.
 echo 2. If not, it will start the Drone Dashboard. Once started, you can access the dashboard at http://localhost:3000 (can also be done manually with npm start command)
-echo 3. The script will also open the terminal-based GCS (Ground Control Station) app. This GCS app serves data to the Drone Dashboard using Flask endpoints + ability to send command and receive telemetry from drones using terminal.
-echo 4. Start the getElevation server that acts as a proxy for fetching elevation data.
+echo 3. The script will also open the terminal-based GCS (Ground Control Station) app.
 echo.
 echo Please wait as the script checks and initializes the necessary components...
 echo.
@@ -23,22 +22,23 @@ powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:3
 IF %ERRORLEVEL% NEQ 0 (
     echo Starting the Drone Dashboard server...
     cd "%SCRIPT_DIR%\dashboard\drone-dashboard"
+
+    REM Check if node_modules directory exists (indicating npm install has been run)
+    IF NOT EXIST node_modules (
+        echo The 'node_modules' directory is missing. Running 'npm install'...
+        npm install
+        IF %ERRORLEVEL% NEQ 0 (
+            echo Error: 'npm install' failed. Please resolve the issue manually.
+            pause
+            exit /b
+        )
+        echo 'npm install' completed successfully.
+    )
+
     start cmd /k npm start
     echo Drone Dashboard server started successfully!
 ) ELSE (
     echo Drone Dashboard server is already running!
-)
-
-REM Check if the getElevation server is running
-powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:5001 -UseBasicParsing -ErrorAction Stop; exit 0 } catch { exit 1 }"
-
-IF %ERRORLEVEL% NEQ 0 (
-    echo Starting the getElevation server...
-    cd "%SCRIPT_DIR%\dashboard\getElevation"
-    start cmd /k node server.js
-    echo getElevation server started successfully!
-) ELSE (
-    echo getElevation server is already running!
 )
 
 echo Now starting the GCS Terminal App with Flask...
