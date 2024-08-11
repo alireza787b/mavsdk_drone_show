@@ -16,13 +16,28 @@ check_tmux_installed() {
     fi
 }
 
+# Function to display tmux instructions
+show_tmux_instructions() {
+    echo "==============================================="
+    echo "  Quick tmux Guide:"
+    echo "==============================================="
+    echo "Prefix key (Ctrl+B), then:"
+    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1)"
+    echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
+    echo "  - Detach from session: Ctrl+B, then D"
+    echo "  - Reattach to session: tmux attach -t DroneServices"
+    echo "  - Close pane/window: Type 'exit' or press Ctrl+D"
+    echo "==============================================="
+    echo ""
+}
+
 # Function to start a process in a new tmux window
 start_process_tmux() {
     local session="$1"
     local window_name="$2"
     local command="$3"
     
-    tmux new-window -t "$session" -n "$window_name" "$command"
+    tmux new-window -t "$session" -n "$window_name" "clear; show_tmux_instructions; $command"
     sleep 2
 }
 
@@ -31,11 +46,7 @@ start_services_in_tmux() {
     local session="DroneServices"
 
     echo "Creating tmux session '$session'..."
-    tmux new-session -d -s "$session" -n "GCS"
-
-    # Start the GCS Terminal App with Flask
-    echo "Starting GCS Terminal App in tmux..."
-    start_process_tmux "$session" "GCS" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+    tmux new-session -d -s "$session" -n "GCS" "clear; show_tmux_instructions; cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
 
     # Start the Drone Dashboard server
     echo "Starting Drone Dashboard server in tmux..."

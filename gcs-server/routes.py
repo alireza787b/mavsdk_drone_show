@@ -14,6 +14,8 @@ from utils import allowed_file, clear_show_directories, git_operations, zip_dire
 import logging
 from params import Params
 from datetime import datetime
+from get_elevation import get_elevation  # Import the elevation function
+
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -175,3 +177,25 @@ def setup_routes(app):
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
             return error_response(f"Failed to list directory: {e}")
+        
+    @app.route('/elevation', methods=['GET'])
+    def elevation_route():
+        lat = request.args.get('lat')
+        lon = request.args.get('lon')
+
+        if lat is None or lon is None:
+            logger.error("Latitude and Longitude must be provided")
+            return jsonify({'error': 'Latitude and Longitude must be provided'}), 400
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except ValueError:
+            logger.error("Invalid latitude or longitude format")
+            return jsonify({'error': 'Invalid latitude or longitude format'}), 400
+
+        elevation_data = get_elevation(lat, lon)
+        if elevation_data:
+            return jsonify(elevation_data)
+        else:
+            return jsonify({'error': 'Failed to fetch elevation data'}), 500
