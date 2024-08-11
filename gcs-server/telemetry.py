@@ -1,3 +1,4 @@
+#gcs-server/telemetry.py
 import os
 import sys
 import requests
@@ -13,6 +14,7 @@ from config import load_config
 
 telemetry_data_all_drones = {}
 last_telemetry_time = {}
+data_lock = threading.Lock()  # Ensure thread-safe access to shared data
 
 # Custom logging formatter
 class CustomFormatter(logging.Formatter):
@@ -34,49 +36,87 @@ logger.addHandler(handler)
 
 def initialize_telemetry_tracking(drones):
     for drone in drones:
+        with data_lock:
+            telemetry_data_all_drones[drone['hw_id']] = {}
         last_telemetry_time[drone['hw_id']] = 0
     logger.info(f"Initialized tracking for {len(drones)} drones", extra={'drone_id': 'System'})
 
 def poll_telemetry(drone):
     while True:
         try:
-            response = requests.get(
-                f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}",
-                timeout=Params.HTTP_REQUEST_TIMEOUT
+            # Construct the full URI
+            full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
+            
+            # Debug log the full URI being requested
+            logger.debug(
+                f"Requesting telemetry data from URI: {full_uri}",
+                extra={'drone_id': drone['hw_id']}
             )
+
+            # Make the HTTP request
+            response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)
+
+            # Check for a successful response
             if response.status_code == 200:
                 telemetry_data = response.json()
-                telemetry_data_all_drones[drone['hw_id']] = {
-                    'Pos_ID': telemetry_data.get('pos_id'),
-                    'State': State(telemetry_data.get('state')).name,
-                    'Mission': Mission(telemetry_data.get('mission')).name,
-                    'Position_Lat': telemetry_data.get('position_lat'),
-                    'Position_Long': telemetry_data.get('position_long'),
-                    'Position_Alt': telemetry_data.get('position_alt'),
-                    'Velocity_North': telemetry_data.get('velocity_north'),
-                    'Velocity_East': telemetry_data.get('velocity_east'),
-                    'Velocity_Down': telemetry_data.get('velocity_down'),
-                    'Yaw': telemetry_data.get('yaw'),
-                    'Battery_Voltage': telemetry_data.get('battery_voltage'),
-                    'Follow_Mode': telemetry_data.get('follow_mode'),
-                    'Update_Time': telemetry_data.get('update_time'),
-                    'Timestamp': telemetry_data.get('timestamp'),
-                    'Flight_Mode': telemetry_data.get('flight_mode_raw'),
-                    'Hdop': telemetry_data.get('hdop')
-                }
-                last_telemetry_time[drone['hw_id']] = time.time()
-                logger.info(f"{telemetry_data_all_drones[drone['hw_id']]['State']} | "
-                            f"{telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
-                            f"Batt: {telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V",
-                            extra={'drone_id': drone['hw_id']})
+
+                # Update telemetry data with thread-safe access
+                with data_lock:
+                    telemetry_data_all_drones[drone['hw_id']] = {
+                        'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
+                        'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
+                        'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
+                        'Position_Lat': telemetry_data.get('position_lat', 0.0),
+                        'Position_Long': telemetry_data.get('position_long', 0.0),
+                        'Position_Alt': telemetry_data.get('position_alt', 0.0),
+                        'Velocity_North': telemetry_data.get('velocity_north', 0.0),
+                        'Velocity_East': telemetry_data.get('velocity_east', 0.0),
+                        'Velocity_Down': telemetry_data.get('velocity_down', 0.0),
+                        'Yaw': telemetry_data.get('yaw', 0.0),
+                        'Battery_Voltage': telemetry_data.get('battery_voltage', 0.0),
+                        'Follow_Mode': telemetry_data.get('follow_mode', 'Unknown'),
+                        'Update_Time': telemetry_data.get('update_time', 'Unknown'),
+                        'Timestamp': telemetry_data.get('timestamp', time.time()),
+                        'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
+                        'Hdop': telemetry_data.get('hdop', 99.99)
+                    }
+                    last_telemetry_time[drone['hw_id']] = time.time()
+
+                # Log the main telemetry details
+                logger.info(
+                    f"Updated telemetry for drone {drone['hw_id']}: State={telemetry_data_all_drones[drone['hw_id']]['State']} | "
+                    f"Mission={telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
+                    f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V",
+                    extra={'drone_id': drone['hw_id']}
+                )
+
             else:
-                logger.error(f"Request failed: Status {response.status_code}", extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP'})
+                # Log detailed HTTP error information
+                logger.error(
+                    f"Request failed with status {response.status_code}: {response.text}",
+                    extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP', 'status_code': response.status_code}
+                )
+
         except requests.Timeout:
-            logger.error("Connection timeout", extra={'drone_id': drone['hw_id'], 'error_type': 'Timeout'})
-        except requests.ConnectionError:
-            logger.error(f"No route to host: {drone['ip']}", extra={'drone_id': drone['hw_id'], 'error_type': 'ConnectionError'})
-        except requests.RequestException:
-            logger.error(f"Request failed", extra={'drone_id': drone['hw_id'], 'error_type': 'RequestException'})
+            logger.error(
+                "Connection timeout while polling telemetry",
+                extra={'drone_id': drone['hw_id'], 'error_type': 'Timeout'}
+            )
+        except requests.ConnectionError as e:
+            logger.error(
+                f"No route to host: {drone['ip']}. Error: {str(e)}",
+                extra={'drone_id': drone['hw_id'], 'error_type': 'ConnectionError'}
+            )
+        except requests.RequestException as e:
+            logger.error(
+                f"RequestException occurred: {str(e)}",
+                extra={'drone_id': drone['hw_id'], 'error_type': 'RequestException', 'traceback': traceback.format_exc()}
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error: {str(e)}",
+                extra={'drone_id': drone['hw_id'], 'error_type': 'UnexpectedError', 'traceback': traceback.format_exc()}
+            )
 
         time.sleep(Params.polling_interval)
 
@@ -87,7 +127,7 @@ def start_telemetry_polling(drones):
         thread = threading.Thread(target=poll_telemetry, args=(drone,))
         thread.daemon = True
         thread.start()
-        logger.info(f"Started polling", extra={'drone_id': drone['hw_id']})
+        logger.info(f"Started polling for drone {drone['hw_id']}", extra={'drone_id': drone['hw_id']})
 
 if __name__ == "__main__":
     drones = load_config()

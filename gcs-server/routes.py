@@ -1,5 +1,4 @@
 #gcs-server/routes.py
-
 import os
 import subprocess
 import sys
@@ -16,28 +15,35 @@ import logging
 from params import Params
 from datetime import datetime
 
-
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
-
-
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def error_response(message, status_code=500):
+    """Generate a consistent error response with logging."""
+    logger.error(message)
+    return jsonify({'status': 'error', 'message': message}), status_code
 
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
         logger.info("Telemetry data requested")
+        if not telemetry_data_all_drones:
+            logger.warning("Telemetry data is currently empty")
         return jsonify(telemetry_data_all_drones)
 
     @app.route('/send_command', methods=['POST'])
     def send_command():
         command_data = request.get_json()
+        if not command_data:
+            return error_response("No command data provided", 400)
+
         logger.info(f"Received command: {command_data}")
         try:
             drones = load_config()
@@ -45,20 +51,21 @@ def setup_routes(app):
             logger.info("Command sent successfully to all drones")
             return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
         except Exception as e:
-            logger.error(f"Error sending command: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return error_response(f"Error sending command: {e}")
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
         config_data = request.get_json()
+        if not config_data:
+            return error_response("No configuration data provided", 400)
+
         logger.info("Received configuration data for saving")
         try:
             save_config(config_data)
             logger.info("Configuration saved successfully")
             return jsonify({'status': 'success', 'message': 'Configuration saved successfully'})
         except Exception as e:
-            logger.error(f"Error saving configuration: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return error_response(f"Error saving configuration: {e}")
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
@@ -67,20 +74,21 @@ def setup_routes(app):
             config = load_config()
             return jsonify(config)
         except Exception as e:
-            logger.error(f"Error loading configuration: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return error_response(f"Error loading configuration: {e}")
 
     @app.route('/save-swarm-data', methods=['POST'])
     def save_swarm_route():
         swarm_data = request.get_json()
+        if not swarm_data:
+            return error_response("No swarm data provided", 400)
+
         logger.info("Received swarm data for saving")
         try:
             save_swarm(swarm_data)
             logger.info("Swarm data saved successfully")
             return jsonify({'status': 'success', 'message': 'Swarm data saved successfully'})
         except Exception as e:
-            logger.error(f"Error saving swarm data: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return error_response(f"Error saving swarm data: {e}")
 
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm():
@@ -89,8 +97,7 @@ def setup_routes(app):
             swarm = load_swarm()
             return jsonify(swarm)
         except Exception as e:
-            logger.error(f"Error loading swarm data: {e}")
-            return jsonify({'status': 'error', 'message': str(e)}), 500
+            return error_response(f"Error loading swarm data: {e}")
 
     @app.route('/import-show', methods=['POST'])
     def import_show():
@@ -102,7 +109,7 @@ def setup_routes(app):
         file = request.files.get('file')
         if not file or file.filename == '':
             logger.warning("No file part or empty filename")
-            return jsonify({'success': False, 'error': 'No file part or empty filename'})
+            return error_response('No file part or empty filename', 400)
 
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
         try:
@@ -112,6 +119,9 @@ def setup_routes(app):
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
+
+            # Debug log before processing
+            logger.debug(f"Starting process formation for files in {skybrush_dir}")
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
@@ -122,25 +132,32 @@ def setup_routes(app):
             else:
                 return jsonify({'success': True, 'message': output})
         except Exception as e:
-            logger.error(f"Unexpected error during show import: {traceback.format_exc()}")
-            return jsonify({'success': False, 'error': 'Unexpected error during show import', 'details': str(e)})
-    
-    
+            return error_response(f"Unexpected error during show import: {traceback.format_exc()}")
+
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
-        zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
-        return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
+        try:
+            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
+            return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
+        except Exception as e:
+            return error_response(f"Error creating raw show zip: {e}")
 
     @app.route('/download-processed-show', methods=['GET'])
     def download_processed_show():
-        zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/processed'), os.path.join(BASE_DIR, 'temp/processed_show'))
-        return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
+        try:
+            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/processed'), os.path.join(BASE_DIR, 'temp/processed_show'))
+            return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
+        except Exception as e:
+            return error_response(f"Error creating processed show zip: {e}")
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
         logger.info(f"Image requested: {filename}")
-        plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
-        return send_from_directory(plots_directory, filename)
+        try:
+            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+            return send_from_directory(plots_directory, filename)
+        except Exception as e:
+            return error_response(f"Error sending image: {e}", 404)
 
     @app.route('/get-show-plots', methods=['GET'])
     def get_show_plots():
@@ -157,5 +174,4 @@ def setup_routes(app):
             
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
-            logger.error(f"Failed to list directory: {e}")
-            return jsonify({'error': str(e)}), 500
+            return error_response(f"Failed to list directory: {e}")
