@@ -1,8 +1,9 @@
 //app/dashboard/drone-dashboard/src/pages/ImportShow.js
+
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types'; // Import PropTypes for validation
+import PropTypes from 'prop-types';
 import '../styles/ImportShow.css';
-import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
+import { getBackendURL } from '../utilities/utilities';
 
 const ImportShow = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -15,28 +16,34 @@ const ImportShow = () => {
   const [returnWarnings, setReturnWarnings] = useState([]);
   const [dragging, setDragging] = useState(false);
 
+  // Fetch plot list from backend
   useEffect(() => {
-    async function fetchPlots() {
-      const backendURL = getBackendURL();
+    const fetchPlots = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      console.log(`Fetching plot list from URL: ${backendURL}/get-show-plots`);
+
       try {
         const response = await fetch(`${backendURL}/get-show-plots`);
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         setPlotList(data.filenames || []);
         setUploadTime(data.uploadTime || "N/A");
-        console.log("Fetched plot list:", data.filenames);  // Debug output
+        console.log("Fetched plot list:", data.filenames);
       } catch (error) {
         console.error('Fetch plots failed:', error);
         setResponseMessage('Error fetching plot list.');
       }
-    }
+    };
 
     fetchPlots();
   }, [responseMessage, uploadCount]);
 
+  // Check for drone mismatches after plot list updates
   useEffect(() => {
-    async function checkDronesMismatch() {
-      const backendURL = getBackendURL();
+    const checkDronesMismatch = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      console.log(`Checking drone mismatches at URL: ${backendURL}/get-config-data`);
+
       try {
         const configResponse = await fetch(`${backendURL}/get-config-data`);
         if (!configResponse.ok) throw new Error(`HTTP error! Status: ${configResponse.status}`);
@@ -51,12 +58,10 @@ const ImportShow = () => {
         const returnWarnings = [];
         let droneCountWarning = null;
 
-        // 1. Check for drone number mismatch
         if (configData.length !== (plotList.length - 1)) {
           droneCountWarning = `The number of drones in the uploaded show (${plotList.length - 1}) does not match the number in the config file (${configData.length}).`;
         }
 
-        // 2. and 3. Check for coordinate mismatches
         for (const [hw_id, { x: configX, y: configY }] of Object.entries(configMap)) {
           try {
             const rowResponse = await fetch(`${backendURL}/get-first-last-row/${hw_id}`);
@@ -88,43 +93,49 @@ const ImportShow = () => {
         console.error('Error checking drone mismatches:', error);
         setResponseMessage('Error checking drone mismatches.');
       }
-    }
+    };
 
     checkDronesMismatch();
   }, [plotList]);
 
+  // File upload handler
   const uploadFile = async () => {
     const userConfirmed = window.confirm("Any existing drone show configuration will be overwritten. Are you sure you want to proceed?");
     if (!userConfirmed) {
-        setResponseMessage('Upload cancelled by user.');
-        return;
+      setResponseMessage('Upload cancelled by user.');
+      return;
     }
+
     if (!selectedFile) {
-        setResponseMessage('No file selected. Please select a file to upload.');
-        return;
+      setResponseMessage('No file selected. Please select a file to upload.');
+      return;
     }
+
     const formData = new FormData();
     formData.append('file', selectedFile);
-    const backendURL = getBackendURL();
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    console.log(`Uploading file to URL: ${backendURL}/import-show`);
+
     try {
-        const response = await fetch(`${backendURL}/import-show`, {
-            method: 'POST',
-            body: formData
-        });
-        const result = await response.json();
-        if (result.success) {
-            setResponseMessage('File uploaded successfully.');
-            setUploadCount(prevCount => prevCount + 1);
-        } else {
-            setResponseMessage('Error: ' + result.error);
-        }
+      const response = await fetch(`${backendURL}/import-show`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setResponseMessage('File uploaded successfully.');
+        setUploadCount(prevCount => prevCount + 1);
+      } else {
+        setResponseMessage('Error: ' + result.error);
+      }
     } catch (error) {
-        console.error('Upload failed:', error);
-        setResponseMessage('Network error. Please try again.');
+      console.error('Upload failed:', error);
+      setResponseMessage('Network error. Please try again.');
     }
-};
+  };
 
-
+  // File change handler
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -132,6 +143,7 @@ const ImportShow = () => {
     }
   };
 
+  // Drag and drop handlers
   const handleDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -213,13 +225,13 @@ const ImportShow = () => {
       </div>
 
       <div className="all-drones-plot">
-        <img src={`${getBackendURL()}/get-show-plots/all_drones.png?key=${uploadCount}`} alt="All Drones" />
+        <img src={`${getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000')}/get-show-plots/all_drones.png?key=${uploadCount}`} alt="All Drones" />
       </div>
 
       <div className="other-plots">
         {plotList.filter(name => name !== "all_drones.png").map(filename => (
           <div key={filename}>
-            <img src={`${getBackendURL()}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`} alt={filename} />
+            <img src={`${getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000')}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`} alt={filename} />
           </div>
         ))}
       </div>

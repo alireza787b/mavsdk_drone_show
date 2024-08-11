@@ -1,135 +1,136 @@
 //app/dashboard/drone-dashboard/src/pages/SwarmDesign.js
+
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types'; // Import PropTypes for validation
+import PropTypes from 'prop-types';
 import axios from 'axios';
 import Papa from 'papaparse';
 import '../styles/SwarmDesign.css';
-import DroneGraph from '../components/DroneGraph'; // Adjusted import path
-import SwarmPlots from '../components/SwarmPlots'; // Adjusted import path
-import DroneCard from '../components/DroneCard'; // Adjusted import path
-import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
+import DroneGraph from '../components/DroneGraph';
+import SwarmPlots from '../components/SwarmPlots';
+import DroneCard from '../components/DroneCard';
+import { getBackendURL } from '../utilities/utilities';
 
 const transformToGraphData = (swarmData) => {
-  const nodes = swarmData.map(drone => ({
-    data: { id: drone.hw_id, label: drone.hw_id, ...drone } // Set label to hw_id
-  }));
-
-  const edges = swarmData
-    .filter(drone => drone.follow !== '0')
-    .map(drone => ({
-      data: { source: drone.hw_id, target: drone.follow }
+    const nodes = swarmData.map(drone => ({
+        data: { id: drone.hw_id, label: drone.hw_id, ...drone }
     }));
 
-  return [...nodes, ...edges];
+    const edges = swarmData
+        .filter(drone => drone.follow !== '0')
+        .map(drone => ({
+            data: { source: drone.hw_id, target: drone.follow }
+        }));
+
+    return [...nodes, ...edges];
 };
 
 const categorizeDrones = (swarmData) => {
-  const topLeaders = swarmData.filter(drone => drone.follow === '0');
-  const topLeaderIdsSet = new Set(topLeaders.map(leader => leader.hw_id));
+    const topLeaders = swarmData.filter(drone => drone.follow === '0');
+    const topLeaderIdsSet = new Set(topLeaders.map(leader => leader.hw_id));
 
-  // Count followers for each drone
-  const followerCounts = {};
-  swarmData.forEach(drone => {
-    if (!followerCounts[drone.follow]) {
-      followerCounts[drone.follow] = 0;
-    }
-    followerCounts[drone.follow]++;
-  });
+    const followerCounts = {};
+    swarmData.forEach(drone => {
+        if (!followerCounts[drone.follow]) {
+            followerCounts[drone.follow] = 0;
+        }
+        followerCounts[drone.follow]++;
+    });
 
-  // Identify intermediate leaders
-  const intermediateLeaders = swarmData.filter(drone => 
-    !topLeaderIdsSet.has(drone.hw_id) && followerCounts[drone.hw_id]
-  );
-  const intermediateLeaderIdsSet = new Set(intermediateLeaders.map(drone => drone.hw_id));
+    const intermediateLeaders = swarmData.filter(drone =>
+        !topLeaderIdsSet.has(drone.hw_id) && followerCounts[drone.hw_id]
+    );
+    const intermediateLeaderIdsSet = new Set(intermediateLeaders.map(drone => drone.hw_id));
 
-  return {
-    topLeaders,
-    intermediateLeaders,
-    topLeaderIdsSet,
-    intermediateLeaderIdsSet
-  };
+    return {
+        topLeaders,
+        intermediateLeaders,
+        topLeaderIdsSet,
+        intermediateLeaderIdsSet
+    };
 };
 
 const isEqual = (arr1, arr2) => JSON.stringify(arr1) === JSON.stringify(arr2);
 
 const SwarmDesign = () => {
-  console.log("SwarmDesign rendered");
+        console.log("SwarmDesign rendered");
 
-  const [swarmData, setSwarmData] = useState([]);
-  const [configData, setConfigData] = useState([]);
-  const { topLeaders, intermediateLeaders } = categorizeDrones(swarmData);
-  const [selectedDroneId, setSelectedDroneId] = useState(null);
-  const [changes, setChanges] = useState({ added: [], removed: [] });
+        const [swarmData, setSwarmData] = useState([]);
+        const [configData, setConfigData] = useState([]);
+        const { topLeaders, intermediateLeaders } = categorizeDrones(swarmData);
+        const [selectedDroneId, setSelectedDroneId] = useState(null);
+        const [changes, setChanges] = useState({ added: [], removed: [] });
 
-  const handleSaveChanges = (hw_id, updatedDroneData) => {
-    setSwarmData(prevDrones => prevDrones.map(drone => drone.hw_id === hw_id ? updatedDroneData : drone));
-  };
+        const handleSaveChanges = (hw_id, updatedDroneData) => {
+            setSwarmData(prevDrones => prevDrones.map(drone => drone.hw_id === hw_id ? updatedDroneData : drone));
+        };
 
-  const handleDroneCardClick = (droneId) => {
-    setSelectedDroneId(droneId);
-  };
+        const handleDroneCardClick = (droneId) => {
+            setSelectedDroneId(droneId);
+        };
 
-  // useEffect for fetching data
-  useEffect(() => {
-    const backendURL = getBackendURL();
+        useEffect(() => {
+            const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+            console.log(`Fetching swarm data from URL: ${backendURL}/get-swarm-data`);
+            console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
 
-    const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
-    const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
+            const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
+            const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
 
-    Promise.all([fetchSwarmData, fetchConfigData])
-      .then(([swarmResponse, configResponse]) => {
-        setSwarmData(swarmResponse.data);
-        setConfigData(configResponse.data);
-      })
-      .catch(error => {
-        console.error("Error fetching data:", error);
-      });
+            Promise.all([fetchSwarmData, fetchConfigData])
+                .then(([swarmResponse, configResponse]) => {
+                    console.log("Swarm Data Response:", swarmResponse.data);
+                    console.log("Config Data Response:", configResponse.data);
 
-  }, []);  // Run only once on component mount
+                    setSwarmData(swarmResponse.data);
+                    setConfigData(configResponse.data);
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                });
 
-  // useEffect for synchronizing swarmData based on configData
-  useEffect(() => {
-    if (swarmData.length === 0 || configData.length === 0) return; // Ensure we have data
+        }, []);
 
-    let updatedSwarmData = [...swarmData];
-    // Update changes
-    const addedDrones = configData.filter(configDrone => !swarmData.some(drone => drone.hw_id === configDrone.hw_id)).map(drone => drone.hw_id);
-    const removedDrones = swarmData.filter(swarmDrone => !configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)).map(drone => drone.hw_id);
-    setChanges({ added: addedDrones, removed: removedDrones });
+        useEffect(() => {
+            if (swarmData.length === 0 || configData.length === 0) return;
 
-    // Add missing drones to swarmData
-    configData.forEach(configDrone => {
-      if (!swarmData.some(drone => drone.hw_id === configDrone.hw_id)) {
-        updatedSwarmData.push({
-          hw_id: configDrone.hw_id,
-          follow: '0',
-          offset_n: '0',
-          offset_e: '0',
-          offset_alt: '0'
-        });
-      }
-    });
+            let updatedSwarmData = [...swarmData];
 
-    // Remove extra drones from swarmData
-    updatedSwarmData = updatedSwarmData.filter(swarmDrone =>
-      configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)
-    );
+            const addedDrones = configData.filter(configDrone => !swarmData.some(drone => drone.hw_id === configDrone.hw_id)).map(drone => drone.hw_id);
+            const removedDrones = swarmData.filter(swarmDrone => !configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)).map(drone => drone.hw_id);
+            setChanges({ added: addedDrones, removed: removedDrones });
 
-    if (!isEqual(swarmData, updatedSwarmData)) {
-      setSwarmData(updatedSwarmData);
-    }
+            configData.forEach(configDrone => {
+                if (!swarmData.some(drone => drone.hw_id === configDrone.hw_id)) {
+                    updatedSwarmData.push({
+                        hw_id: configDrone.hw_id,
+                        follow: '0',
+                        offset_n: '0',
+                        offset_e: '0',
+                        offset_alt: '0'
+                    });
+                }
+            });
 
-  }, [configData]);  // Run whenever configData changes
+            updatedSwarmData = updatedSwarmData.filter(swarmDrone =>
+                configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)
+            );
 
-  const dronesFollowing = (leaderId) => {
-    return swarmData.filter(drone => drone.follow === leaderId).map(drone => drone.hw_id);
-  };
+            if (!isEqual(swarmData, updatedSwarmData)) {
+                console.log("Swarm data updated");
+                setSwarmData(updatedSwarmData);
+            }
 
-  const handleSaveChangesToServer = () => {
-    const changesSummary = swarmData.map(drone => {
-      const role = drone.follow === '0' ? 'Top Leader' : 
-                  (dronesFollowing(drone.hw_id).length ? 'Intermediate Leader' : 'Follower');
-      return `Drone ${drone.hw_id}: ${role} ${role !== 'Top Leader' ? `(Follows Drone ${drone.follow})` : ''} with Offsets (m) North:${drone.offset_n} East:${drone.offset_e} Altitude:${drone.offset_alt}`;
+        }, [configData, swarmData]);
+
+        const dronesFollowing = (leaderId) => {
+            return swarmData.filter(drone => drone.follow === leaderId).map(drone => drone.hw_id);
+        };
+
+        const handleSaveChangesToServer = () => {
+                const changesSummary = swarmData.map(drone => {
+                            const role = drone.follow === '0' ? 'Top Leader' :
+                                (dronesFollowing(drone.hw_id).length ? 'Intermediate Leader' : 'Follower');
+                            return `Drone ${drone.hw_id}: ${role} ${role !== 'Top Leader' ? `(Follows Drone ${drone.follow})` : ''} with Offsets (m) North:${drone.offset_n} East:${drone.offset_e} Altitude:${drone.offset_alt}`;
     }).join('\n');
 
     const isConfirmed = window.confirm(`Are you sure you want to save the following changes?\n\n${changesSummary}`);
@@ -145,29 +146,31 @@ const SwarmDesign = () => {
   };
 
   const fetchOriginalSwarmData = () => {
-    const backendURL = getBackendURL();
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
     const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
     const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
 
     Promise.all([fetchSwarmData, fetchConfigData])
       .then(([swarmResponse, configResponse]) => {
+        console.log("Refetched Swarm Data:", swarmResponse.data);
+        console.log("Refetched Config Data:", configResponse.data);
+
         setSwarmData(swarmResponse.data);
         setConfigData(configResponse.data);
       })
       .catch(error => {
-        console.error("Error fetching data:", error);
+        console.error("Error refetching data:", error);
       });
   };
 
   const saveUpdatedSwarmData = () => {
-    const backendURL = getBackendURL();
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
     axios.post(`${backendURL}/save-swarm-data`, swarmData)
       .then(response => {
         if (response.status === 200) {
           alert(response.data.message);
-          // Refetch the data after a successful save:
           fetchOriginalSwarmData();
         } else {
           alert('Error saving data.');
@@ -272,7 +275,7 @@ const SwarmDesign = () => {
             drone={drone}
             allDrones={swarmData}
             onSaveChanges={handleSaveChanges}
-            isSelected={selectedDroneId === drone.hw_id}  // Add this line
+            isSelected={selectedDroneId === drone.hw_id}
           />
         )) : <p>No data available for swarm configuration.</p>}
       </div>
