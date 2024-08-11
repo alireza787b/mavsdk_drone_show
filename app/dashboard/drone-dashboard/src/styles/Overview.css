@@ -8,17 +8,20 @@
     background-color: #f5f5f5;
     padding: 15px;
     border-radius: 8px;
-    width: calc(30% - 20px);  /* 3 cards per row with a gap of 20px */
+    width: calc(30% - 20px);
+    /* 3 cards per row with a gap of 20px */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     transition: background-color 0.3s, transform 0.2s;
 }
-.drone-card h3{
-    cursor: pointer;
 
+.drone-card h3 {
+    cursor: pointer;
 }
+
 .drone-card:hover {
     background-color: #eaeaea;
-    transform: translateY(-5px);  /* slight lift effect on hover */
+    transform: translateY(-5px);
+    /* slight lift effect on hover */
 }
 
 .drone-actions {
@@ -30,117 +33,165 @@
 .drone-card .details-content {
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.5s ease-out;  /* You can adjust the timing for a faster/slower transition */
+    transition: max-height 0.5s ease-out;
+    /* You can adjust the timing for a faster/slower transition */
 }
 
 .drone-card.expanded .details-content {
-    max-height: 600px; /* Adjust this value depending on the expected maximum height of your expanded content */
+    max-height: 600px;
+    /* Adjust this value depending on the expected maximum height of your expanded content */
     overflow-y: auto;
 }
 
 .mission-selection label:hover {
-    background-color: #f2f2f2; /* A subtle grey */
+    background-color: #f2f2f2;
+    /* A subtle grey */
     cursor: pointer;
-  }
+}
 
-  .confirmation-toast {
-    background-color: #4CAF50; /* Green */
+.confirmation-toast {
+    background-color: #4CAF50;
+    /* Green */
     color: white;
     padding: 10px;
     position: fixed;
     bottom: 10px;
     right: 10px;
     border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     animation: fadeIn 0.5s;
-  }
-  
-  @keyframes fadeIn {
-    from {opacity: 0;}
-    to {opacity: 1;}
-  }
-  .mission-trigger-section {
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.mission-trigger-section {
     padding: 20px;
     background-color: #f7f7f7;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  
-  .mission-control {
+}
+
+.mission-control {
     display: flex;
     justify-content: space-between;
     align-items: center;
-  }
-  
-  .mission-label, .delay-label {
+}
+
+.mission-label,
+.delay-label {
     font-weight: bold;
     margin-right: 10px;
-  }
-  
-  .mission-dropdown, .delay-input {
+}
+
+.mission-dropdown,
+.delay-input {
     padding: 5px 10px;
     border: 1px solid #ccc;
     border-radius: 5px;
-  }
-  
-  .mission-button {
+}
+
+.mission-button {
     padding: 10px 15px;
     margin: 5px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.3s;
-  }
-  
-  .send-command {
+}
+
+.send-command {
     background-color: #4CAF50;
     color: white;
-  }
-  
-  .send-command:hover {
+}
+
+.send-command:hover {
     background-color: #45a049;
-  }
-  
-  .cancel-mission {
+}
+
+.cancel-mission {
     background-color: #f44336;
     color: white;
-  }
-  
-  .cancel-mission:hover {
+}
+
+.cancel-mission:hover {
     background-color: #da190b;
-  }
-  
-  .confirmation-toast {
+}
+
+.confirmation-toast {
     padding: 10px;
     background-color: #4CAF50;
     color: white;
     border-radius: 5px;
     margin-top: 20px;
     text-align: center;
-  }
-  .display-block {
+}
+
+.display-block {
     display: block;
-  }
-  
-  .display-none {
+}
+
+.display-none {
     display: none;
-  }
-  
-  .overview-container {
+}
+
+.overview-container {
     padding: 20px;
-  }
-  
-  .mission-trigger-section {
+}
+
+.mission-trigger-section {
     margin-bottom: 20px;
-  }
-  
-  .connected-drones-header {
+}
+
+.connected-drones-header {
     margin-top: 20px;
     margin-bottom: 10px;
-  }
-  
-  .drone-list {
+}
+
+.drone-list {
     display: flex;
     flex-wrap: wrap;
-  }
-  
+}
+
+.notification {
+    background-color: #ff9800;
+    /* Amber color for warning/notification */
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    font-weight: bold;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    /* Ensure it sits above other content */
+    animation: slideDown 0.5s ease-in-out, fadeOut 3s ease-in 2.5s forwards;
+    /* Slide down and fade out */
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) translateX(-50%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) translateX(-50%);
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-20px) translateX(-50%);
+    }
+}

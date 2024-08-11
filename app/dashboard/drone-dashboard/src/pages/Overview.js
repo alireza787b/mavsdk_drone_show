@@ -1,22 +1,24 @@
-//app/dashboard/drone-dashboard/src/pages/Overview.js
+// Overview.js
+
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types'; // Import PropTypes for validation
+import PropTypes from 'prop-types';
 import axios from 'axios';
-import Globe from '../components/Globe'; // Adjusted import path
-import CommandSender from '../components/CommandSender'; // Adjusted import path
-import DroneWidget from '../components/DroneWidget'; // Adjusted import path
-import { getBackendURL, POLLING_RATE_HZ, STALE_DATA_THRESHOLD_SECONDS } from '../utilities/utilities';
+import Globe from '../components/Globe';
+import CommandSender from '../components/CommandSender';
+import DroneWidget from '../components/DroneWidget';
+import { getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
-  // State management
   const [drones, setDrones] = useState([]);
   const [expandedDrone, setExpandedDrone] = useState(null);
+  const [error, setError] = useState(null);
+  const [notification, setNotification] = useState(null);
 
-  // Fetch data from the backend
   useEffect(() => {
-    const url = `${getBackendURL()}/telemetry`;
-    console.log(url)
+    const url = getTelemetryURL();
+    console.log("Polling started. Fetching telemetry data from:", url);
+
     const fetchData = async () => {
       try {
         const response = await axios.get(url);
@@ -24,22 +26,34 @@ const Overview = ({ setSelectedDrone }) => {
           hw_ID,
           ...response.data[hw_ID],
         }));
-        console.log(dronesArray)
+
         setDrones(dronesArray);
+        setError(null);
+        setNotification(null);
+
+        console.info("Data fetched successfully:", dronesArray);
       } catch (error) {
-        console.error('Network Error:', error);
+        console.error('Network Error:', error.message);
+        console.debug("Detailed error:", error.response ? error.response.data : "No response data");
+
+        setError('Failed to fetch data from the backend.');
+        setNotification('Network issue, retrying...');
+
+        setTimeout(() => {
+          setNotification(null);
+        }, 3000);
       }
     };
 
     fetchData();
-    const pollingInterval = setInterval(fetchData, 1000 / POLLING_RATE_HZ);
+    const pollingInterval = setInterval(fetchData, 1000);
 
     return () => {
       clearInterval(pollingInterval);
+      console.log("Polling stopped.");
     };
   }, []);
 
-  // Function to toggle drone details
   const toggleDroneDetails = (drone) => {
     if (expandedDrone && expandedDrone.hw_ID === drone.hw_ID) {
       setExpandedDrone(null);
@@ -55,6 +69,8 @@ const Overview = ({ setSelectedDrone }) => {
       </div>
 
       <h2 className="connected-drones-header">Connected Drones</h2>
+      
+      {notification && <div className="notification">{notification}</div>}
       <div className="drone-list">
         {drones.map((drone) => (
           <DroneWidget
