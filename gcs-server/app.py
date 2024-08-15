@@ -1,9 +1,12 @@
+#gcs-server/app.py
 import os
 import sys
 import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from routes import setup_routes
+from telemetry import start_telemetry_polling
+from config import load_config
 
 # Configure logging at the entry point of the application
 def configure_logging():
@@ -48,6 +51,13 @@ if __name__ == "__main__":
 
     # Load system or application parameters from external sources if needed
     from params import Params  # Consider moving imports to the top if Params is used elsewhere outside __main__
+
+    # Start telemetry polling for all drones
+    drones = load_config()
+    if drones:
+        start_telemetry_polling(drones)
+    else:
+        logging.error("No drones found in configuration")
 
     # Environment-based configuration
     ENV_MODE = os.getenv('FLASK_ENV', 'development')

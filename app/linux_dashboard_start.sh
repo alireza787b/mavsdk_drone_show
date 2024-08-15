@@ -31,28 +31,36 @@ show_tmux_instructions() {
     echo ""
 }
 
-# Function to start a process in a new tmux window
-start_process_tmux() {
+# Function to start a process in a new tmux pane
+start_process_tmux_pane() {
     local session="$1"
-    local window_name="$2"
+    local pane="$2"
     local command="$3"
-    
-    tmux new-window -t "$session" -n "$window_name" "clear; $command"
+
+    tmux send-keys -t "$session:$pane" "clear; $command" C-m
     sleep 2
 }
 
-# Function to create a tmux session and start all services
+# Function to create a tmux session, split panes, and start all services
 start_services_in_tmux() {
     local session="DroneServices"
 
     echo "Creating tmux session '$session'..."
-    tmux new-session -d -s "$session" -n "GCS" "clear; show_tmux_instructions; cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+    tmux new-session -d -s "$session" -n "GCS" "clear"
 
-    # Start the Drone Dashboard server
+    # Split the window vertically for side-by-side view
+    tmux split-window -h -t "$session"
+
+    # Start the GCS Terminal App with Flask on the left pane
+    echo "Starting GCS Terminal App in tmux..."
+    start_process_tmux_pane "$session" "0" "cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+
+    # Start the Drone Dashboard server on the right pane
     echo "Starting Drone Dashboard server in tmux..."
-    start_process_tmux "$session" "Dashboard" "cd $REACT_APP_DIR && npm start"
+    start_process_tmux_pane "$session" "1" "cd $REACT_APP_DIR && npm start"
 
     # Attach to the tmux session and display instructions
+    tmux select-pane -t "$session:0.0"  # Focus on the left pane
     tmux attach-session -t "$session"
     show_tmux_instructions
 }

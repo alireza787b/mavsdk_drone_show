@@ -1,6 +1,6 @@
-#gcs-server/telemetry.py
 import os
 import sys
+import traceback
 import requests
 import threading
 import time
@@ -43,7 +43,6 @@ def initialize_telemetry_tracking(drones):
 
 def poll_telemetry(drone):
     while True:
-        print ("polling")
         try:
             # Construct the full URI
             full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
@@ -118,6 +117,13 @@ def poll_telemetry(drone):
                 f"Unexpected error: {str(e)}",
                 extra={'drone_id': drone['hw_id'], 'error_type': 'UnexpectedError', 'traceback': traceback.format_exc()}
             )
+
+        # Purge stale telemetry data if no response for a certain period
+        current_time = time.time()
+        with data_lock:
+            if current_time - last_telemetry_time[drone['hw_id']] > Params.stale_data_timeout:
+                logger.warning(f"No telemetry received for drone {drone['hw_id']} for over {Params.stale_data_timeout} seconds. Purging stale data.")
+                telemetry_data_all_drones[drone['hw_id']] = {}
 
         time.sleep(Params.polling_interval)
 
