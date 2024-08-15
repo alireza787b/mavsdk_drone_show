@@ -1,5 +1,3 @@
-// Overview.js
-
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
@@ -14,6 +12,7 @@ const Overview = ({ setSelectedDrone }) => {
   const [expandedDrone, setExpandedDrone] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [incompleteDrones, setIncompleteDrones] = useState([]);
 
   useEffect(() => {
     const url = getTelemetryURL();
@@ -27,9 +26,24 @@ const Overview = ({ setSelectedDrone }) => {
           ...response.data[hw_ID],
         }));
 
-        setDrones(dronesArray);
+        // Filter out drones with incomplete data (e.g., missing key properties)
+        const validDrones = dronesArray.filter(drone => (
+          drone.Position_Lat !== undefined && 
+          drone.Position_Long !== undefined &&
+          drone.Position_Alt !== undefined &&
+          drone.Battery_Voltage !== undefined
+        ));
+
+        const invalidDrones = dronesArray.filter(drone => !validDrones.includes(drone));
+
+        setDrones(validDrones);
+        setIncompleteDrones(invalidDrones);  // Track incomplete drones for warnings
         setError(null);
         setNotification(null);
+
+        if (invalidDrones.length > 0) {
+          setNotification(`${invalidDrones.length} drones have incomplete data.`);
+        }
 
         console.info("Data fetched successfully:", dronesArray);
       } catch (error) {
@@ -71,7 +85,10 @@ const Overview = ({ setSelectedDrone }) => {
       <h2 className="connected-drones-header">Connected Drones</h2>
       
       {notification && <div className="notification">{notification}</div>}
+      {error && <div className="error-message">{error}</div>}
+      
       <div className="drone-list">
+        {drones.length === 0 && !error && <p>No valid drone data available.</p>}
         {drones.map((drone) => (
           <DroneWidget
             drone={drone}
@@ -92,6 +109,12 @@ const Overview = ({ setSelectedDrone }) => {
           altitude: drone.Position_Alt
         }))}
       />
+      
+      {incompleteDrones.length > 0 && (
+        <div className="warning-message">
+          Warning: {incompleteDrones.length} drone(s) have incomplete data and are not displayed.
+        </div>
+      )}
     </div>
   );
 };
