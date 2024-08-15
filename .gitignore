@@ -152,3 +152,4 @@ yarn-debug.log*
 yarn-error.log*
 
 src/__pycache__
+gcs-server/__pycache__/

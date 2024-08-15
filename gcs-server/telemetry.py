@@ -43,12 +43,13 @@ def initialize_telemetry_tracking(drones):
 
 def poll_telemetry(drone):
     while True:
+        print ("polling")
         try:
             # Construct the full URI
             full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             
             # Debug log the full URI being requested
-            logger.debug(
+            logger.info(
                 f"Requesting telemetry data from URI: {full_uri}",
                 extra={'drone_id': drone['hw_id']}
             )
