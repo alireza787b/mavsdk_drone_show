@@ -18,7 +18,7 @@ def send_command(drone, command_data, timeout=10):
             timeout=timeout
         )
         if response.status_code == 200:
-            logger.info(f"Command sent successfully to {drone['hw_id']}",
+            logger.info(f"Command sent successfully to {drone['hw_id']} ({drone['ip']})",
                         extra={'drone_id': drone['hw_id'], 'command': command_data})
             return True
         else:
@@ -26,7 +26,7 @@ def send_command(drone, command_data, timeout=10):
                          extra={'drone_id': drone['hw_id'], 'command': command_data})
             return False
     except Timeout:
-        logger.error(f"Timeout occurred while sending command to {drone['hw_id']}",
+        logger.error(f"Timeout occurred while sending command to {drone['hw_id']} ({drone['ip']})",
                      extra={'drone_id': drone['hw_id'], 'command': command_data})
         return False
     except ConnectionError:

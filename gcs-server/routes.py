@@ -49,11 +49,16 @@ def setup_routes(app):
         logger.info(f"Received command: {command_data}")
         try:
             drones = load_config()
+            if not drones:
+                return error_response("No drones found in the configuration", 500)
+
             send_commands_to_all(drones, command_data)
             logger.info("Command sent successfully to all drones")
             return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
         except Exception as e:
+            logger.error(f"Error sending command: {e}", exc_info=True)  # Include stack trace
             return error_response(f"Error sending command: {e}")
+
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
