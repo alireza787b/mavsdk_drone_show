@@ -121,8 +121,8 @@ def poll_telemetry(drone):
         # Purge stale telemetry data if no response for a certain period
         current_time = time.time()
         with data_lock:
-            if current_time - last_telemetry_time[drone['hw_id']] > Params.stale_data_timeout:
-                logger.warning(f"No telemetry received for drone {drone['hw_id']} for over {Params.stale_data_timeout} seconds. Purging stale data.")
+            if current_time - last_telemetry_time[drone['hw_id']] > Params.HTTP_REQUEST_TIMEOUT:
+                logger.warning(f"No telemetry received for drone {drone['hw_id']} for over {Params.HTTP_REQUEST_TIMEOUT} seconds. Purging stale data.")
                 telemetry_data_all_drones[drone['hw_id']] = {}
 
         time.sleep(Params.polling_interval)
