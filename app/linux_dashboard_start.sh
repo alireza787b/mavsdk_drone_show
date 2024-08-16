@@ -1,10 +1,12 @@
 #!/bin/bash
 
 #########################################
-# Robust Drone Services Launcher
+# Robust Drone Services Launcher with Tmux Pane Layout
 #
 # This script starts the GUI React App and GCS Server, managing port conflicts
 # and ensuring processes run reliably, either in tmux or standalone terminals.
+#
+# Now includes a combined tmux window with side-by-side panes.
 #########################################
 
 # Configurable Variables
@@ -104,9 +106,30 @@ check_tmux_session() {
 
 start_services_tmux() {
     echo "Creating tmux session '$SESSION_NAME'..."
+
+    # Window 1: GCS Server
     tmux new-session -d -s "$SESSION_NAME" -n "GCS-Server" "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+
+    # Window 2: GUI React App
     tmux new-window -t "$SESSION_NAME" -n "GUI-React" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
-    tmux select-window -t "$SESSION_NAME:0"
+
+    # Window 3: Combined View
+    tmux new-window -t "$SESSION_NAME" -n "Combined-View"
+
+    # Pane 1: GCS Server
+    tmux split-window -h -t "$SESSION_NAME:2" "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+
+    # Pane 2: GUI React App
+    tmux split-window -v -t "$SESSION_NAME:2.0" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+
+    # Pane 3: Additional terminal in the project root
+    tmux split-window -v -t "$SESSION_NAME:2.1" "cd $HOME/mavsdk_drone_show; bash"
+
+    # Adjust layout to be tiled for a clean side-by-side view
+    tmux select-layout -t "$SESSION_NAME:2" tiled
+
+    # Attach to the tmux session in the combined view window
+    tmux select-window -t "$SESSION_NAME:2"
     tmux attach-session -t "$SESSION_NAME"
 }
 
@@ -114,6 +137,7 @@ start_services_no_tmux() {
     echo "Starting services without tmux..."
     gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
     gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+    gnome-terminal -- bash -c "cd $HOME/mavsdk_drone_show; bash"
 }
 
 #########################################
