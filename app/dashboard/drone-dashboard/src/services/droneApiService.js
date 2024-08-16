@@ -4,23 +4,25 @@ import { getBackendURL } from '../utilities/utilities';
 
 export const sendDroneCommand = async (commandData) => {
   const requestURI = `${getBackendURL()}/submit_command`;
-  
+
   try {
     // Log the command being sent, along with the request URI
     console.log('Sending command:', JSON.stringify(commandData));
     console.log('Request URI:', requestURI);
-    
+    console.log('Base Server URL:', process.env.REACT_APP_SERVER_URL);
+    console.log('Service Port:', process.env.REACT_APP_FLASK_PORT);
+
     // Send the POST request
     const response = await axios.post(requestURI, commandData);
-    
+
     // Log the response received from the server
     console.log('Response received from server:', response.data);
-    
+
     return response.data;  // This might contain status and message fields
   } catch (error) {
     // Log detailed error information
     console.error('Error in sendDroneCommand:', error);
-    
+
     if (error.response) {
       console.error('Error response data:', error.response.data);
       console.error('Error status code:', error.response.status);
