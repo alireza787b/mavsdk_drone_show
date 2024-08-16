@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux and Enhanced Port Checking
+# Drone Services Launcher with Tmux, Port Checking, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
-# within tmux. It checks for ports in use, sets up individual windows for
-# each service, and provides a combined view window with split panes.
+# within tmux. It checks for ports in use, handles existing sessions, sets up
+# individual windows for each service, and provides a combined view window
+# with split panes.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -59,6 +60,21 @@ check_tmux_installed() {
     fi
 }
 
+# Function to check if a tmux session exists and handle it
+check_existing_tmux_session() {
+    if tmux has-session -t $SESSION_NAME 2>/dev/null; then
+        echo "Warning: A tmux session named '$SESSION_NAME' is already running."
+        read -p "Do you want to kill the existing session? (y/n): " response
+        if [[ "$response" == "y" || "$response" == "Y" ]]; then
+            tmux kill-session -t $SESSION_NAME
+            echo "Existing tmux session '$SESSION_NAME' has been killed. Starting a new session..."
+        else
+            echo "Please manually kill the session or attach to it using 'tmux attach -t $SESSION_NAME'."
+            exit 1
+        fi
+    fi
+}
+
 # Function to load the virtual environment
 load_virtualenv() {
     local venv_path="$1"
@@ -81,6 +97,7 @@ show_tmux_instructions() {
     echo "==============================================="
     echo "Prefix key (Ctrl+B), then:"
     echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2, 3)"
+    echo "  - Switch between panes (in combined view): Arrow keys (e.g., Ctrl+B, then →)"
     echo "  - Detach from session: Ctrl+B, then D"
     echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
     echo "  - Close the session and all services: Exit all windows or type 'exit'"
@@ -116,6 +133,9 @@ start_services_in_tmux() {
 
 # Ensure tmux is installed
 check_tmux_installed
+
+# Check if the session is already running
+check_existing_tmux_session
 
 # Get the directory of the current script
 SCRIPT_DIR="$(dirname "$0")"
