@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import '../style/MissionTrigger.css'; // Import the CSS file
+import '../styles/MissionTrigger.css'; // Import the CSS file
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [selectedMission, setSelectedMission] = useState('');
