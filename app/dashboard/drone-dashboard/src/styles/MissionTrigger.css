@@ -17,14 +17,9 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
   
-  .mission-card.selected {
-    border-color: #007bff;
+  .mission-card:hover {
     transform: scale(1.05);
-  }
-  
-  .mission-card.cancel-mission {
-    border-color: #ff4d4d;
-    background-color: #ffe6e6;
+    border-color: #007bff;
   }
   
   .mission-icon {
@@ -37,10 +32,27 @@
     text-align: center;
   }
   
+  .mission-details {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .selected-mission-card {
+    flex: 1 1 60%;
+    margin: 20px;
+    padding: 30px;
+    border: 2px solid #007bff;
+    border-radius: 10px;
+    text-align: center;
+    background-color: #e6f7ff;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+  }
+  
   .time-selection {
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
+    margin: 20px 0;
   }
   
   .time-delay-slider,
@@ -49,9 +61,10 @@
     margin-bottom: 20px;
   }
   
-  .mission-button {
+  .mission-button,
+  .back-button {
     display: block;
-    margin: 0 auto;
+    margin: 10px auto;
     padding: 10px 20px;
     background-color: #007bff;
     color: white;
@@ -61,7 +74,16 @@
     font-size: 16px;
   }
   
-  .mission-button:hover {
+  .mission-button:hover,
+  .back-button:hover {
     background-color: #0056b3;
+  }
+  
+  .back-button {
+    background-color: #6c757d;
+  }
+  
+  .back-button:hover {
+    background-color: #5a6268;
   }
   
