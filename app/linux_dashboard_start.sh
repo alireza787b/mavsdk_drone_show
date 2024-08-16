@@ -1,64 +1,107 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
+# Robust Drone Services Launcher
 #
-# This script manages the execution of the GUI React App and GCS Server
-# within tmux (by default) or in separate terminal windows if the flag 
-# --no-tmux is passed. It handles port conflicts, manages existing sessions, 
-# and provides individual windows for each service or separate terminal windows.
+# This script starts the GUI React App and GCS Server, managing port conflicts
+# and ensuring processes run reliably, either in tmux or standalone terminals.
 #
-# Usage:
-#   ./linux_dashboard_start.sh [--no-tmux]
-#   Options:
-#     -n, --no-tmux   Run the services in separate terminal windows instead of tmux
-#
-# Author: Alireza Ghaderi
-# Project: MAVSDK Drone Show
+# Author: [Your Name]
 #########################################
 
 # Configurable Variables
-USE_TMUX=true  # Default behavior is to use tmux. Set to false to run in separate terminals by default.
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
-WAIT_TIME=5   # Wait time between retries (in seconds)
-GRACE_PERIOD=10 # Extra wait time before starting services to ensure ports are released
-RETRY_LIMIT=10  # Maximum number of retries to free ports
-GCS_PID=""
-GUI_PID=""
+VENV_PATH="$HOME/mavsdk_drone_show/venv"
+USE_TMUX=true  # Default behavior is to use tmux
 
 #########################################
-# Signal Handling and Cleanup Functions
+# Utility Functions
 #########################################
 
-# Function to handle Ctrl+C and terminate background processes
-cleanup() {
-    echo ""
-    echo "Terminating all background processes..."
-    
-    if [ -n "$GCS_PID" ]; then
-        echo "Killing GCS Server process $GCS_PID"
-        kill -9 "$GCS_PID"
-    fi
-    
-    if [ -n "$GUI_PID" ]; then
-        echo "Killing GUI React app process $GUI_PID"
-        kill -9 "$GUI_PID"
-    fi
-    
-    echo "All background processes terminated."
-    exit 0
+# Function to check if a port is in use
+port_in_use() {
+    ss -ltnp | grep ":$1 " &> /dev/null
+    return $?  # 0 if in use, 1 if free
 }
 
-# Set the trap to catch Ctrl+C (SIGINT) and clean up
-trap cleanup SIGINT
+# Function to kill a process using a specific port
+kill_port_process() {
+    local port=$1
+    local pids=$(ss -ltnp | awk -v port=":$port" '$4 ~ port {gsub(","," "); print $NF}' | cut -d= -f2)
+    if [ -n "$pids" ]; then
+        echo "Killing process(es) $pids on port $port..."
+        kill -9 $pids
+        sleep 1  # Give time for the system to release the port
+    fi
+}
+
+# Function to ensure a port is free
+ensure_port_free() {
+    local port=$1
+    while port_in_use $port; do
+        kill_port_process $port
+        if port_in_use $port; then
+            echo "Port $port is still in use. Retrying..."
+            sleep 2
+        else
+            echo "Port $port is now free."
+            break
+        fi
+    done
+}
+
+# Function to load the virtual environment
+load_virtualenv() {
+    if [ -d "$VENV_PATH" ]; then
+        source "$VENV_PATH/bin/activate"
+        echo "Virtual environment activated."
+    else
+        echo "Error: Virtual environment not found at $VENV_PATH."
+        exit 1
+    fi
+}
+
+# Function to check and handle tmux sessions
+check_tmux_session() {
+    if tmux has-session -t $SESSION_NAME 2>/dev/null; then
+        echo "Existing tmux session '$SESSION_NAME' detected."
+        read -p "Kill the existing session? (y/n): " response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            tmux kill-session -t $SESSION_NAME
+            echo "Tmux session '$SESSION_NAME' killed."
+            sleep 2  # Ensure tmux session is fully terminated
+        else
+            echo "Please handle the session manually."
+            exit 1
+        fi
+    fi
+}
 
 #########################################
-# Option Parsing and Environment Setup
+# Service Launch Functions
 #########################################
 
-# Check if the --no-tmux flag is passed
+start_services_tmux() {
+    echo "Creating tmux session '$SESSION_NAME'..."
+    tmux new-session -d -s "$SESSION_NAME" -n "GCS-Server" "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+    tmux new-window -t "$SESSION_NAME" -n "GUI-React" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+    tmux select-window -t "$SESSION_NAME:0"
+    tmux attach-session -t "$SESSION_NAME"
+}
+
+start_services_no_tmux() {
+    echo "Starting services without tmux..."
+    gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+    gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+}
+
+#########################################
+# Main Execution Sequence
+#########################################
+
+# Determine if tmux should be used
 for arg in "$@"; do
     case $arg in
         -n|--no-tmux)
@@ -68,222 +111,23 @@ for arg in "$@"; do
     esac
 done
 
-#########################################
-# Utility Functions
-#########################################
-
-# Function to check if a port is in use
-port_in_use() {
-    local port=$1
-    if lsof -i :$port > /dev/null; then
-        return 0  # Port is in use
-    else
-        return 1  # Port is free
-    fi
-}
-
-# Function to force kill a process using a specific port and retry until the port is free
-force_kill_port() {
-    local port=$1
-    local retries=0
-
-    while port_in_use $port; do
-        local pids=$(lsof -t -i:$port)  # Get the PIDs of processes using the port
-        if [ -n "$pids" ]; then
-            echo "Attempting to kill processes using port $port: $pids"
-            for pid in $pids; do
-                kill -9 $pid
-                if [ $? -eq 0 ]; then
-                    echo "Successfully killed process $pid on port $port."
-                else
-                    echo "Failed to kill process $pid on port $port."
-                fi
-            done
-        else
-            echo "Warning: No process found for port $port, but it is still in use."
-        fi
-
-        # Wait and check if the port is free
-        sleep $WAIT_TIME
-        ((retries++))
-
-        if port_in_use $port; then
-            if [ $retries -ge $RETRY_LIMIT ]; then
-                echo "Error: Unable to free port $port after $RETRY_LIMIT attempts."
-                exit 1
-            fi
-            echo "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
-        else
-            echo "Port $port is now free."
-            break
-        fi
-    done
-}
-
-# Function to check if tmux is installed
-check_tmux_installed() {
-    if ! command -v tmux &> /dev/null && [ "$USE_TMUX" = true ]; then
-        echo "Error: tmux is not installed."
-        echo "Please install tmux with the following command:"
-        echo "  sudo apt-get install -y tmux"
-        exit 1
-    fi
-}
-
-# Function to check if a tmux session exists and handle it
-check_existing_tmux_session() {
-    if tmux has-session -t $SESSION_NAME 2>/dev/null; then
-        echo "Warning: A tmux session named '$SESSION_NAME' is already running."
-        read -p "Do you want to kill the existing session? (y/n): " response
-        if [[ "$response" == "y" || "$response" == "Y" ]]; then
-            tmux kill-session -t $SESSION_NAME
-            echo "Existing tmux session '$SESSION_NAME' has been killed."
-        else
-            echo "Please manually kill the session or attach to it using 'tmux attach -t $SESSION_NAME'."
-            exit 1
-        fi
-    fi
-}
-
-# Function to load the virtual environment
-load_virtualenv() {
-    local venv_path="$1"
-    
-    if [ -d "$venv_path" ]; then
-        source "$venv_path/bin/activate"
-        echo "Virtual environment activated."
-    else
-        echo "Error: Virtual environment not found at $venv_path."
-        echo "Please follow the setup instructions at:"
-        echo "  https://github.com/alireza787b/mavsdk_drone_show"
-        exit 1
-    fi
-}
-
-#########################################
-# Service Launch Functions
-#########################################
-
-# Function to start services in separate terminal windows (non-tmux mode)
-start_services_no_tmux() {
-    if [[ -z "$DISPLAY" ]]; then
-        echo "No graphical environment detected. Running services in this terminal."
-        echo "Starting GCS Server..."
-        bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py &"
-        GCS_PID=$!
-
-        echo "Starting GUI React app..."
-        bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start &"
-        GUI_PID=$!
-
-        # Wait for background processes to finish
-        wait
-    else
-        echo "Starting GCS Server in a new terminal..."
-        gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
-
-        echo "Starting GUI React app in a new terminal..."
-        gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
-    fi
-}
-
-# Function to create a tmux session with individual windows and a combined view
-start_services_in_tmux() {
-    local session="$SESSION_NAME"
-
-    echo "Creating tmux session '$session'..."
-
-    # Create a new tmux session and start the GCS Server in the first window
-    tmux new-session -d -s "$session" -n "GCS-Server" "clear; $GCS_COMMAND; bash"
-
-    # Start the GUI React app in a new window
-    tmux new-window -t "$session" -n "GUI-React" "clear; $GUI_COMMAND; bash"
-
-    # Create a combined view window with both services in split panes
-    tmux new-window -t "$session" -n "Combined-View"
-    tmux split-window -h -t "$session:2" "clear; $GCS_COMMAND; bash"
-    tmux split-window -v -t "$session:2.0" "clear; $GUI_COMMAND; bash"
-    tmux select-layout -t "$session:2" tiled  # Organize panes in a tiled layout
-
-    # Attach to the tmux session in the combined view window by default
-    tmux select-window -t "$session:2"
-    tmux attach-session -t "$session"
-}
-
-#########################################
-# Main Execution Sequence
-#########################################
-
-# Ensure tmux is installed (if using tmux)
-check_tmux_installed
-
-# Check if the session is already running (if using tmux)
-if [ "$USE_TMUX" = true ]; then
-    check_existing_tmux_session
-fi
-
-# Get the directory of the current script
+# Get the script directory
 SCRIPT_DIR="$(dirname "$0")"
 
-# Dynamically determine the user's home directory
-USER_HOME=$(eval echo ~$USER)
+# Load virtual environment
+load_virtualenv
 
-# Path to the virtual environment
-VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
+# Check and free up ports
+echo "Ensuring ports are free..."
+ensure_port_free $GCS_PORT
+ensure_port_free $GUI_PORT
 
-# Load the virtual environment
-load_virtualenv "$VENV_PATH"
-
-# Check if ports are in use and handle conflicts
-echo "Checking if ports are in use..."
-force_kill_port $GCS_PORT
-force_kill_port $GUI_PORT
-
-# Add a grace period to ensure ports are fully released
-echo "Waiting for $GRACE_PERIOD seconds to ensure ports are fully released..."
-sleep $GRACE_PERIOD
-
-# Final check for ports after grace period
-echo "Performing final check for ports..."
-force_kill_port $GCS_PORT
-force_kill_port $GUI_PORT
-
-# Commands for the GCS Server and the GUI React app
-GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
-GUI_COMMAND="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
-
-# Start the services either in tmux or separate terminal windows based on user preference
+# Start services in tmux or separate terminals
 if [ "$USE_TMUX" = true ]; then
-    start_services_in_tmux
-    show_tmux_instructions
+    check_tmux_session
+    start_services_tmux
 else
     start_services_no_tmux
 fi
 
-echo ""
-echo "==============================================="
-echo "  All DroneServices components have been started successfully!"
-echo "==============================================="
-echo ""
-
-#########################################
-# Tmux Instruction Display Function
-#########################################
-
-# Function to display detailed tmux instructions to the user
-show_tmux_instructions() {
-    echo "==============================================="
-    echo "  Tmux Session Management Instructions"
-    echo "==============================================="
-    echo "Tmux Session Name: $SESSION_NAME"
-    echo ""
-    echo "To navigate within tmux:"
-    echo "  - Switch between windows: Prefix (Ctrl+B), then [number key] (e.g., Ctrl+B, 1 for GCS, 2 for GUI)"
-    echo "  - Switch between panes (in combined view): Prefix (Ctrl+B), then arrow keys"
-    echo "  - Detach from the session (leave the processes running): Prefix (Ctrl+B), then D"
-    echo "  - Reattach to the session: Run 'tmux attach -t $SESSION_NAME'"
-    echo "  - Close the session and stop all services: Exit all windows or type 'exit' in each tmux window"
-    echo "  - To kill the session entirely: Run 'tmux kill-session -t $SESSION_NAME' or simply "tmux kill-server"
-    echo "==============================================="
-    echo ""
-}
+echo "All DroneServices components started successfully."
