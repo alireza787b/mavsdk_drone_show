@@ -1,11 +1,10 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux Windows and Split Panes
+# Drone Services Launcher with Tmux Side-by-Side Panes
 #
-# This script manages the execution of the Drone Dashboard and GCS
-# application, providing a combined split view as well as separate
-# windows for each service.
+# This script manages the execution of the Drone Dashboard, GCS Server,
+# and a debug terminal, providing a side-by-side split view in tmux.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -25,64 +24,57 @@ check_tmux_installed() {
     fi
 }
 
-# Function to display tmux instructions
+# Function to display tmux instructions to the user
 show_tmux_instructions() {
     echo "==============================================="
     echo "  Quick tmux Guide:"
     echo "==============================================="
     echo "Prefix key (Ctrl+B), then:"
-    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2)"
     echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
-    echo "  - Pause auto-scrolling: Ctrl+S (pause), Ctrl+Q (resume)"
+    echo "  - Navigate to a specific pane: Ctrl+B, then pane number (0, 1, 2)"
+    echo "  - Pause scrolling in a pane: Ctrl+S (to pause), Ctrl+Q (to resume)"
     echo "  - Detach from session: Ctrl+B, then D"
     echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
-    echo "  - Close pane/window: Type 'exit' or press Ctrl+D"
+    echo "  - Close a pane or window: Type 'exit' or press Ctrl+D"
     echo "==============================================="
     echo ""
 }
 
-# Function to start a process in a new tmux window
-start_process_tmux() {
-    local session="$1"
-    local window_name="$2"
-    local command="$3"
-    
-    tmux new-window -t "$session" -n "$window_name" "clear; $command"
-    sleep 2
-}
-
-# Function to create a tmux session with both windows and split panes
+# Function to create a tmux session with split panes
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
-    echo "Creating tmux session '$session'..."
-    tmux new-session -d -s "$session" -n "CombinedView"
-    
-    # Split the CombinedView window into three panes
-    tmux split-window -h -t "$session:0" "clear; $GCS_COMMAND; bash"
-    tmux split-window -v -t "$session:0.0" "clear; $DASHBOARD_COMMAND; bash"
-    tmux split-window -v -t "$session:0.1" "clear; $OTHER_SERVICE_COMMAND; bash"
-    tmux select-layout -t "$session:0" tiled  # Organize panes in a tiled layout
+    echo "Creating tmux session '$session' with side-by-side panes..."
 
-    # Create separate windows for each service
-    start_process_tmux "$session" "GCS" "$GCS_COMMAND"
-    start_process_tmux "$session" "Dashboard" "$DASHBOARD_COMMAND"
-    start_process_tmux "$session" "OtherService" "$OTHER_SERVICE_COMMAND"
+    # Create the session and the first pane for the GCS server
+    tmux new-session -d -s "$session" -n "Services" "clear; $GCS_COMMAND; bash"
 
-    # Attach to the tmux session and display instructions
+    # Split horizontally to create the second pane for the Dashboard
+    tmux split-window -h -t "$session:0" "clear; $DASHBOARD_COMMAND; bash"
+
+    # Split horizontally again to create the third pane for the Debug terminal
+    tmux split-window -h -t "$session:0.1" "clear; echo 'Debug Terminal (Pane 2)'; bash"
+
+    # Adjust layout to distribute the panes evenly
+    tmux select-layout -t "$session:0" even-horizontal
+
+    # Attach to the tmux session
     tmux attach-session -t "$session"
-    show_tmux_instructions
 }
 
 # Function to run the DroneServices components
 run_droneservices_components() {
     echo "Starting DroneServices components in tmux..."
 
+    # Commands for the GCS Server and the Dashboard
     GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
     DASHBOARD_COMMAND="cd $REACT_APP_DIR && npm start"
-    OTHER_SERVICE_COMMAND="cd $SCRIPT_DIR/../other-service && ./run_service.sh"
 
+    # Start services in tmux with split panes
     start_services_in_tmux
+
+    # Show user instructions after tmux session is attached
+    show_tmux_instructions
 }
 
 # Main execution sequence
