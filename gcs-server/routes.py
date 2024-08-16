@@ -40,8 +40,6 @@ def setup_routes(app):
             logger.warning("Telemetry data is currently empty")
         return jsonify(telemetry_data_all_drones)
 
-    import threading
-
     @app.route('/submit_command', methods=['POST'])
     def submit_command():
         command_data = request.get_json()
@@ -49,25 +47,17 @@ def setup_routes(app):
             return error_response("No command data provided", 400)
 
         logger.info(f"Received command: {command_data}")
-        
-        def process_commands():
-            try:
-                drones = load_config()
-                if not drones:
-                    raise ValueError("No drones found in the configuration")
+        try:
+            drones = load_config()
+            if not drones:
+                return error_response("No drones found in the configuration", 500)
 
-                send_commands_to_all(drones, command_data)
-                logger.info("Command sent successfully to all drones")
-            except Exception as e:
-                logger.error(f"Error sending command: {e}", exc_info=True)
-
-        # Set a timeout for processing the commands
-        command_thread = threading.Thread(target=process_commands)
-        command_thread.start()
-
-        # Send an immediate response to the frontend
-        return jsonify({'status': 'pending', 'message': 'Command is being processed in the background'})
-
+            send_commands_to_all(drones, command_data)
+            logger.info("Command sent successfully to all drones")
+            return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
+        except Exception as e:
+            logger.error(f"Error sending command: {e}", exc_info=True) 
+            return error_response(f"Error sending command: {e}")
 
 
 
