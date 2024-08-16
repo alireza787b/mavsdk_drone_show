@@ -1,12 +1,11 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux
+# Drone Services Launcher with Tmux and Port Checking
 #
 # This script manages the execution of the GUI React App and GCS Server
-# within tmux. It sets up individual windows for each service and a
-# combined view window with split panes. It checks for port conflicts
-# and ensures ports are free before proceeding.
+# within tmux. It checks for ports in use, sets up individual windows for
+# each service, and provides a combined view window with split panes.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -16,6 +15,33 @@
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
+
+# Function to check if a port is in use
+port_in_use() {
+    local port=$1
+    if lsof -i :$port > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to handle port conflicts
+handle_port_conflict() {
+    local port=$1
+    local process_info=$(lsof -i :$port | awk 'NR==2 {print $2, $1}') # Extract PID and command
+    echo "Warning: Port $port is currently in use by process: $process_info"
+    
+    read -p "Do you want to kill the process using port $port? (y/n): " response
+    if [[ "$response" == "y" || "$response" == "Y" ]]; then
+        local pid=$(echo $process_info | awk '{print $1}')
+        kill -9 $pid
+        echo "Process $pid has been killed. Continuing..."
+    else
+        echo "Please free up the port and rerun the script."
+        exit 1
+    fi
+}
 
 # Function to check if tmux is installed
 check_tmux_installed() {
@@ -39,30 +65,6 @@ load_virtualenv() {
         echo "Please follow the setup instructions at:"
         echo "  https://github.com/alireza787b/mavsdk_drone_show"
         exit 1
-    fi
-}
-
-# Function to check if a port is in use and force kill the process
-force_kill_port() {
-    local port=$1
-    local service_name=$2
-    local pid=$(lsof -ti :$port)
-
-    if [ -n "$pid" ]; then
-        echo "Warning: Port $port is in use by process ID $pid."
-        echo "This port is required by the $service_name."
-        echo "Attempting to terminate the process using port $port..."
-        
-        kill -9 "$pid"
-        
-        if [ $? -eq 0 ]; then
-            echo "Process on port $port has been successfully terminated."
-        else
-            echo "Error: Failed to terminate process on port $port."
-            exit 1
-        fi
-    else
-        echo "Port $port is free and available for $service_name."
     fi
 }
 
@@ -121,9 +123,14 @@ VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
 # Load the virtual environment
 load_virtualenv "$VENV_PATH"
 
-# Check if ports are in use and force kill any processes using them
-force_kill_port $GCS_PORT "GCS Server"
-force_kill_port $GUI_PORT "GUI React App"
+# Check if ports are in use and handle conflicts
+echo "Checking if ports are in use..."
+if port_in_use $GCS_PORT; then
+    handle_port_conflict $GCS_PORT
+fi
+if port_in_use $GUI_PORT; then
+    handle_port_conflict $GUI_PORT
+fi
 
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
