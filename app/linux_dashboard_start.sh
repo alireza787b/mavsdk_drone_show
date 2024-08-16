@@ -5,8 +5,6 @@
 #
 # This script starts the GUI React App and GCS Server, managing port conflicts
 # and ensuring processes run reliably, either in tmux or standalone terminals.
-#
-# Author: [Your Name]
 #########################################
 
 # Configurable Variables
@@ -29,11 +27,20 @@ port_in_use() {
 # Function to kill a process using a specific port
 kill_port_process() {
     local port=$1
-    local pids=$(ss -ltnp | awk -v port=":$port" '$4 ~ port {gsub(","," "); print $NF}' | cut -d= -f2)
+    local pids=$(ss -ltnp | awk -v port=":$port" '$4 ~ port {gsub(","," "); print $NF}' | grep -oP '\d+')
+
     if [ -n "$pids" ]; then
         echo "Killing process(es) $pids on port $port..."
-        kill -9 $pids
-        sleep 1  # Give time for the system to release the port
+        for pid in $pids; do
+            if [[ $pid =~ ^[0-9]+$ ]]; then  # Ensure it's a valid PID
+                kill -9 $pid
+                sleep 1  # Give time for the system to release the port
+            else
+                echo "Invalid PID: $pid, skipping..."
+            fi
+        done
+    else
+        echo "No valid PIDs found for port $port."
     fi
 }
 
