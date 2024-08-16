@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux, Port Checking, and Session Management
+# Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
-# within tmux. It checks for ports in use, handles existing sessions, sets up
-# individual windows for each service, and provides a combined view window
-# with split panes.
+# within tmux. It handles port conflicts, manages existing sessions, and
+# provides individual windows for each service as well as a combined view
+# window with split panes.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -16,6 +16,8 @@
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
+RETRY_LIMIT=5  # Number of retries to check if a port is free after killing a process
+WAIT_TIME=2    # Wait time between retries (in seconds)
 
 # Function to check if a port is in use
 port_in_use() {
@@ -27,27 +29,33 @@ port_in_use() {
     fi
 }
 
-# Function to handle port conflicts with verification
-handle_port_conflict() {
+# Function to force kill a process using a specific port
+force_kill_port() {
     local port=$1
+    local retries=0
+    
     while port_in_use $port; do
-        local process_info=$(lsof -i :$port | awk 'NR==2 {print $2, $1}')  # Extract PID and command
-        echo "Warning: Port $port is currently in use by process: $process_info"
-        
-        read -p "Do you want to kill the process using port $port? (y/n): " response
-        if [[ "$response" == "y" || "$response" == "Y" ]]; then
-            local pid=$(echo $process_info | awk '{print $1}')
-            kill -9 $pid
-            echo "Process $pid has been killed. Checking if port $port is free..."
-        else
-            echo "Please free up the port manually and rerun the script."
-            exit 1
+        local pids=$(lsof -t -i:$port)  # Get the PIDs of processes using the port
+        if [ -n "$pids" ]; then
+            echo "Killing processes using port $port: $pids"
+            kill -9 $pids
         fi
 
-        # Recheck if the port is still in use
-        sleep 2  # Wait a moment before rechecking
+        # Wait and check if the port is free
+        sleep $WAIT_TIME
+        ((retries++))
+
+        if port_in_use $port; then
+            if [ $retries -ge $RETRY_LIMIT ]; then
+                echo "Error: Unable to free port $port after multiple attempts."
+                exit 1
+            fi
+            echo "Retrying... ($retries/$RETRY_LIMIT)"
+        else
+            echo "Port $port is now free."
+            break
+        fi
     done
-    echo "Port $port is now free. Continuing..."
 }
 
 # Function to check if tmux is installed
@@ -152,10 +160,10 @@ load_virtualenv "$VENV_PATH"
 # Check if ports are in use and handle conflicts
 echo "Checking if ports are in use..."
 if port_in_use $GCS_PORT; then
-    handle_port_conflict $GCS_PORT
+    force_kill_port $GCS_PORT
 fi
 if port_in_use $GUI_PORT; then
-    handle_port_conflict $GUI_PORT
+    force_kill_port $GUI_PORT
 fi
 
 # Commands for the GCS Server and the GUI React app
