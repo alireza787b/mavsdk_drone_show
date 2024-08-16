@@ -9,10 +9,10 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [notification, setNotification] = useState('');  // For user notifications
 
   useEffect(() => {
-    // Set default to current time + 30 seconds when component mounts
+    // Set default to user system time + 30 seconds when component mounts
     const now = new Date();
     now.setSeconds(now.getSeconds() + 30);
-    setSelectedTime(now.toISOString().slice(11, 19)); // Format as HH:MM:SS
+    setSelectedTime(now.toTimeString().slice(0, 8)); // Format as HH:MM:SS
   }, []);
 
   const handleMissionSelect = (missionType) => {
@@ -43,7 +43,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     if (useSlider) {
       triggerTime = Math.floor(Date.now() / 1000) + parseInt(timeDelay);
     } else {
-      // Convert selectedTime to UNIX timestamp
+      // Convert user-selected system time to UNIX timestamp
       const now = new Date();
       const [hours, minutes, seconds] = selectedTime.split(':').map(Number);
       const selectedDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, seconds);
@@ -72,6 +72,22 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
 
   const handleBack = () => {
     setSelectedMission(''); // Reset mission selection
+  };
+
+  const getMissionDescription = (missionType) => {
+    // Placeholder descriptions for each mission mode
+    switch (missionType) {
+      case 'DRONE_SHOW_FROM_CSV':
+        return 'This mission mode triggers a drone show based on pre-defined CSV data.';
+      case 'CUSTOM_CSV_DRONE_SHOW':
+        return 'This mission mode triggers a custom drone show using a custom CSV file.';
+      case 'SMART_SWARM':
+        return 'This mission mode coordinates a smart swarm of drones.';
+      case 'NONE':
+        return 'Cancel any currently active mission.';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -108,6 +124,9 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
             </div>
             <div className="mission-name">
               {Object.keys(missionTypes).find((key) => missionTypes[key] === selectedMission).replace(/_/g, ' ')}
+            </div>
+            <div className="mission-description">
+              {getMissionDescription(selectedMission)} {/* Placeholder description */}
             </div>
           </div>
 
