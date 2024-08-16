@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux and Port Checking
+# Drone Services Launcher with Tmux and Enhanced Port Checking
 #
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It checks for ports in use, sets up individual windows for
@@ -20,27 +20,33 @@ GUI_PORT=3000
 port_in_use() {
     local port=$1
     if lsof -i :$port > /dev/null; then
-        return 0
+        return 0  # Port is in use
     else
-        return 1
+        return 1  # Port is free
     fi
 }
 
-# Function to handle port conflicts
+# Function to handle port conflicts with verification
 handle_port_conflict() {
     local port=$1
-    local process_info=$(lsof -i :$port | awk 'NR==2 {print $2, $1}') # Extract PID and command
-    echo "Warning: Port $port is currently in use by process: $process_info"
-    
-    read -p "Do you want to kill the process using port $port? (y/n): " response
-    if [[ "$response" == "y" || "$response" == "Y" ]]; then
-        local pid=$(echo $process_info | awk '{print $1}')
-        sudo kill -9 $pid
-        echo "Process $pid has been killed. Continuing..."
-    else
-        echo "Please free up the port and rerun the script."
-        exit 1
-    fi
+    while port_in_use $port; do
+        local process_info=$(lsof -i :$port | awk 'NR==2 {print $2, $1}')  # Extract PID and command
+        echo "Warning: Port $port is currently in use by process: $process_info"
+        
+        read -p "Do you want to kill the process using port $port? (y/n): " response
+        if [[ "$response" == "y" || "$response" == "Y" ]]; then
+            local pid=$(echo $process_info | awk '{print $1}')
+            kill -9 $pid
+            echo "Process $pid has been killed. Checking if port $port is free..."
+        else
+            echo "Please free up the port manually and rerun the script."
+            exit 1
+        fi
+
+        # Recheck if the port is still in use
+        sleep 2  # Wait a moment before rechecking
+    done
+    echo "Port $port is now free. Continuing..."
 }
 
 # Function to check if tmux is installed
