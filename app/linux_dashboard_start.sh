@@ -13,6 +13,7 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 USE_TMUX=true  # Default behavior is to use tmux
+RETRY_LIMIT=5  # Number of retries before giving up
 
 #########################################
 # Utility Functions
@@ -20,45 +21,48 @@ USE_TMUX=true  # Default behavior is to use tmux
 
 # Function to check if a port is in use
 port_in_use() {
-    ss -ltnp | grep ":$1 " &> /dev/null
+    lsof -i :$1 &> /dev/null
     return $?  # 0 if in use, 1 if free
 }
 
 # Function to kill a process using a specific port with sudo fallback
 kill_port_process() {
     local port=$1
-    local pids=$(ss -ltnp | awk -v port=":$port" '$4 ~ port {gsub(","," "); print $NF}' | grep -oP '\d+')
+    local pid=$(lsof -t -i:$port)
 
-    if [ -n "$pids" ]; then
-        echo "Killing process(es) $pids on port $port..."
-        for pid in $pids; do
-            if [[ $pid =~ ^[0-9]+$ ]]; then  # Ensure it's a valid PID
-                kill -9 $pid 2>/dev/null
-                if [ $? -ne 0 ]; then
-                    echo "Operation not permitted. Retrying with sudo..."
-                    sudo kill -9 $pid
-                    if [ $? -ne 0 ]; then
-                        echo "Failed to kill process $pid even with sudo. Please handle manually."
-                    fi
-                else
-                    sleep 1  # Give time for the system to release the port
-                fi
+    if [ -n "$pid" ]; then
+        echo "Attempting to kill process $pid on port $port..."
+        kill -9 $pid 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "Operation not permitted. Retrying with sudo..."
+            sudo kill -9 $pid
+            if [ $? -ne 0 ]; then
+                echo "Failed to kill process $pid even with sudo. Please handle manually."
             else
-                echo "Invalid PID: $pid, skipping..."
+                sleep 1  # Give time for the system to release the port
             fi
-        done
+        else
+            sleep 1  # Give time for the system to release the port
+        fi
     else
-        echo "No valid PIDs found for port $port."
+        echo "No process found for port $port."
     fi
 }
 
 # Function to ensure a port is free
 ensure_port_free() {
     local port=$1
+    local retries=0
+
     while port_in_use $port; do
         kill_port_process $port
         if port_in_use $port; then
-            echo "Port $port is still in use. Retrying..."
+            retries=$((retries + 1))
+            if [ $retries -ge $RETRY_LIMIT ]; then
+                echo "Error: Unable to free port $port after $RETRY_LIMIT attempts."
+                exit 1
+            fi
+            echo "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
             sleep 2
         else
             echo "Port $port is now free."
