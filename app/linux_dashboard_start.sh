@@ -122,6 +122,24 @@ load_virtualenv() {
     fi
 }
 
+# Function to start services in separate terminal windows (non-tmux mode)
+start_services_no_tmux() {
+    if [[ -z "$DISPLAY" ]]; then
+        echo "No graphical environment detected. Running services in this terminal."
+        echo "Starting GCS Server..."
+        bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py &"
+        
+        echo "Starting GUI React app..."
+        bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start &"
+    else
+        echo "Starting GCS Server in a new terminal..."
+        gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+
+        echo "Starting GUI React app in a new terminal..."
+        gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+    fi
+}
+
 # Function to create a tmux session with individual windows and a combined view
 start_services_in_tmux() {
     local session="$SESSION_NAME"
@@ -143,15 +161,6 @@ start_services_in_tmux() {
     # Attach to the tmux session in the combined view window by default
     tmux select-window -t "$session:2"
     tmux attach-session -t "$session"
-}
-
-# Function to start services in separate terminal windows (non-tmux mode)
-start_services_no_tmux() {
-    echo "Starting GCS Server in a new terminal..."
-    gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
-
-    echo "Starting GUI React app in a new terminal..."
-    gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
 }
 
 # Main execution sequence
