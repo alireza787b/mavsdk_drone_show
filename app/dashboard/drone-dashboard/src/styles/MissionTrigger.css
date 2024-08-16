@@ -6,7 +6,7 @@
   }
   
   .mission-card {
-    flex: 1 1 20%;
+    flex: 1 1 30%;
     margin: 10px;
     padding: 20px;
     border: 2px solid #ccc;
@@ -14,6 +14,7 @@
     cursor: pointer;
     transition: transform 0.2s, border-color 0.2s;
     text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
   
   .mission-card.selected {
@@ -21,14 +22,19 @@
     transform: scale(1.05);
   }
   
-  .mission-icon img {
-    width: 50px;
-    height: 50px;
+  .mission-card.cancel-mission {
+    border-color: #ff4d4d;
+    background-color: #ffe6e6;
+  }
+  
+  .mission-icon {
+    font-size: 36px;
     margin-bottom: 10px;
   }
   
   .mission-name {
     font-weight: bold;
+    text-align: center;
   }
   
   .time-selection {
