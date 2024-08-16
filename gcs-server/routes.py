@@ -8,7 +8,7 @@ import zipfile
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
-from command import send_commands_to_all
+from command import send_commands_to_all , send_command_to_drone
 from config import load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 import logging
@@ -40,24 +40,35 @@ def setup_routes(app):
             logger.warning("Telemetry data is currently empty")
         return jsonify(telemetry_data_all_drones)
 
-    @app.route('/send_command', methods=['POST'])
-    def send_command():
+    import threading
+
+    @app.route('/submit_command', methods=['POST'])
+    def submit_command():
         command_data = request.get_json()
         if not command_data:
             return error_response("No command data provided", 400)
 
         logger.info(f"Received command: {command_data}")
-        try:
-            drones = load_config()
-            if not drones:
-                return error_response("No drones found in the configuration", 500)
+        
+        def process_commands():
+            try:
+                drones = load_config()
+                if not drones:
+                    raise ValueError("No drones found in the configuration")
 
-            send_commands_to_all(drones, command_data)
-            logger.info("Command sent successfully to all drones")
-            return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
-        except Exception as e:
-            logger.error(f"Error sending command: {e}", exc_info=True)  # Include stack trace
-            return error_response(f"Error sending command: {e}")
+                send_commands_to_all(drones, command_data)
+                logger.info("Command sent successfully to all drones")
+            except Exception as e:
+                logger.error(f"Error sending command: {e}", exc_info=True)
+
+        # Set a timeout for processing the commands
+        command_thread = threading.Thread(target=process_commands)
+        command_thread.start()
+
+        # Send an immediate response to the frontend
+        return jsonify({'status': 'pending', 'message': 'Command is being processed in the background'})
+
+
 
 
     @app.route('/save-config-data', methods=['POST'])

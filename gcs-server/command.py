@@ -9,7 +9,7 @@ from params import Params
 
 logger = logging.getLogger(__name__)
 
-def send_command(drone, command_data, timeout=10):
+def send_command_to_drone(drone, command_data, timeout=10):
     """Send a command to a specific drone and handle potential errors."""
     try:
         response = requests.post(
@@ -42,11 +42,12 @@ def send_command(drone, command_data, timeout=10):
                      extra={'drone_id': drone['hw_id'], 'command': command_data})
         return False
 
+
 def send_commands_to_all(drones, command_data):
     """Send a command to all drones in the list."""
     success_count = 0
     for drone in drones:
-        success = send_command(drone, command_data)
+        success = send_command_to_drone(drone, command_data)
         if success:
             success_count += 1
 

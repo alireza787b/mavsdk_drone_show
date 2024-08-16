@@ -48,10 +48,10 @@ def poll_telemetry(drone):
             full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             
             # Debug log the full URI being requested
-            logger.info(
-                f"Requesting telemetry data from URI: {full_uri}",
-                extra={'drone_id': drone['hw_id']}
-            )
+            # logger.info(
+            #     f"Requesting telemetry data from URI: {full_uri}",
+            #     extra={'drone_id': drone['hw_id']}
+            # )
 
             # Make the HTTP request
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)
@@ -83,12 +83,12 @@ def poll_telemetry(drone):
                     last_telemetry_time[drone['hw_id']] = time.time()
 
                 # Log the main telemetry details
-                logger.info(
-                    f"Updated telemetry for drone {drone['hw_id']}: State={telemetry_data_all_drones[drone['hw_id']]['State']} | "
-                    f"Mission={telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
-                    f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V",
-                    extra={'drone_id': drone['hw_id']}
-                )
+                # logger.info(
+                #     f"Updated telemetry for drone {drone['hw_id']}: State={telemetry_data_all_drones[drone['hw_id']]['State']} | "
+                #     f"Mission={telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
+                #     f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V",
+                #     extra={'drone_id': drone['hw_id']}
+                # )
 
             else:
                 # Log detailed HTTP error information
