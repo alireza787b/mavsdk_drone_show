@@ -17,7 +17,7 @@ SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
 WAIT_TIME=5   # Wait time between retries (in seconds)
-GRACE_PERIOD=5 # Extra wait time before starting services
+GRACE_PERIOD=10 # Extra wait time before starting services
 RETRY_LIMIT=10 # Maximum number of retries to free ports
 
 # Function to check if a port is in use
