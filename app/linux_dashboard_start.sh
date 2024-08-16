@@ -35,7 +35,7 @@ handle_port_conflict() {
     read -p "Do you want to kill the process using port $port? (y/n): " response
     if [[ "$response" == "y" || "$response" == "Y" ]]; then
         local pid=$(echo $process_info | awk '{print $1}')
-        kill -9 $pid
+        sudo kill -9 $pid
         echo "Process $pid has been killed. Continuing..."
     else
         echo "Please free up the port and rerun the script."
