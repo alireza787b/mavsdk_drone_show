@@ -1,10 +1,11 @@
 #!/bin/bash
 
 #########################################
-# Robust Drone Services Launcher
+# Robust Drone Services Launcher with Mouse Support in tmux
 #
 # This script starts the GUI React App and GCS Server, managing port conflicts
 # and ensuring processes run reliably, either in tmux or standalone terminals.
+# Mouse support in tmux is enabled by default but can be disabled with a flag.
 #########################################
 
 # Configurable Variables
@@ -13,7 +14,7 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 USE_TMUX=true  # Default behavior is to use tmux
-RETRY_LIMIT=5  # Number of retries before giving up
+ENABLE_MOUSE=true  # Default behavior is to enable mouse support in tmux
 
 #########################################
 # Utility Functions
@@ -58,11 +59,11 @@ ensure_port_free() {
         kill_port_process $port
         if port_in_use $port; then
             retries=$((retries + 1))
-            if [ $retries -ge $RETRY_LIMIT ]; then
-                echo "Error: Unable to free port $port after $RETRY_LIMIT attempts."
+            if [ $retries -ge 5 ]; then
+                echo "Error: Unable to free port $port after 5 attempts."
                 exit 1
             fi
-            echo "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
+            echo "Port $port is still in use. Retrying... ($retries/5)"
             sleep 2
         else
             echo "Port $port is now free."
@@ -104,6 +105,11 @@ check_tmux_session() {
 
 start_services_tmux() {
     echo "Creating tmux session '$SESSION_NAME'..."
+
+    if [ "$ENABLE_MOUSE" = true ]; then
+        tmux set-option -g mouse on  # Enable mouse support
+    fi
+
     tmux new-session -d -s "$SESSION_NAME" -n "GCS-Server" "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
     tmux new-window -t "$SESSION_NAME" -n "GUI-React" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
     tmux select-window -t "$SESSION_NAME:0"
@@ -120,11 +126,15 @@ start_services_no_tmux() {
 # Main Execution Sequence
 #########################################
 
-# Determine if tmux should be used
+# Determine if tmux should be used and if mouse support should be enabled
 for arg in "$@"; do
     case $arg in
         -n|--no-tmux)
         USE_TMUX=false
+        shift
+        ;;
+        --disable-mouse)
+        ENABLE_MOUSE=false
         shift
         ;;
     esac
