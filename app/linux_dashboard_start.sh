@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
+# Drone Services Launcher with Tmux, Continuous Port Handling, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It handles port conflicts, manages existing sessions, and
@@ -16,8 +16,7 @@
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
-RETRY_LIMIT=5  # Number of retries to check if a port is free after killing a process
-WAIT_TIME=2    # Wait time between retries (in seconds)
+WAIT_TIME=5  # Wait time between retries (in seconds)
 
 # Function to check if a port is in use
 port_in_use() {
@@ -32,7 +31,6 @@ port_in_use() {
 # Function to force kill a process using a specific port
 force_kill_port() {
     local port=$1
-    local retries=0
     
     while port_in_use $port; do
         local pids=$(lsof -t -i:$port)  # Get the PIDs of processes using the port
@@ -43,14 +41,9 @@ force_kill_port() {
 
         # Wait and check if the port is free
         sleep $WAIT_TIME
-        ((retries++))
 
         if port_in_use $port; then
-            if [ $retries -ge $RETRY_LIMIT ]; then
-                echo "Error: Unable to free port $port after multiple attempts."
-                exit 1
-            fi
-            echo "Retrying... ($retries/$RETRY_LIMIT)"
+            echo "Port $port is still in use. Retrying..."
         else
             echo "Port $port is now free."
             break
@@ -159,12 +152,8 @@ load_virtualenv "$VENV_PATH"
 
 # Check if ports are in use and handle conflicts
 echo "Checking if ports are in use..."
-if port_in_use $GCS_PORT; then
-    force_kill_port $GCS_PORT
-fi
-if port_in_use $GUI_PORT; then
-    force_kill_port $GUI_PORT
-fi
+force_kill_port $GCS_PORT
+force_kill_port $GUI_PORT
 
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
