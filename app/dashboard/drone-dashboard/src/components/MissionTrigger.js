@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import MissionNotification from './MissionNotification';
-import '../styles/MissionTrigger.css'; // Import the CSS file
+import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(10);  // Default time delay in seconds
   const [useSlider, setUseSlider] = useState(true);  // Toggle between slider and clock
   const [selectedTime, setSelectedTime] = useState('');  // For time picker input
-  const [notification, setNotification] = useState('');  // For user notifications
+  const [notification, setNotification] = useState(null);  // For user notifications
 
   useEffect(() => {
     // Set default to user system time + 30 seconds when component mounts
@@ -31,7 +31,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
         };
         onSendCommand(commandData);
         setNotification('Cancel Mission command sent successfully.');
-        setTimeout(() => setNotification(''), 3000);
+        setTimeout(() => setNotification(null), 3000);
       }
     }
   };
@@ -66,7 +66,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     };
     onSendCommand(commandData);
     setNotification(`"${missionName}" command sent successfully.`);
-    setTimeout(() => setNotification(''), 3000);
+    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleBack = () => {
@@ -76,11 +76,11 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const getMissionDescription = (missionType) => {
     switch (missionType) {
       case 'DRONE_SHOW_FROM_CSV':
-        return 'This mission mode triggers a drone show based on pre-defined CSV data.';
+        return 'Smartly runs the Skybrush exported and processed drone show, synchronized with other drones.';
       case 'CUSTOM_CSV_DRONE_SHOW':
-        return 'This mission mode triggers a custom drone show using a custom CSV file.';
+        return 'Runs the shapes/active.csv that can be either created by the CSV creator script or custom methods.';
       case 'SMART_SWARM':
-        return 'This mission mode coordinates a smart swarm of drones.';
+        return 'Can plan clustered leader-follower missions (under development).';
       case 'NONE':
         return 'Cancel any currently active mission.';
       default:

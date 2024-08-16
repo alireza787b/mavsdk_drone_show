@@ -5,6 +5,14 @@
     margin-bottom: 20px;
   }
   
+  /* Responsive adjustments for mission cards */
+  @media (max-width: 768px) {
+    .mission-cards {
+      flex-direction: column;
+      align-items: center;
+    }
+  }
+  
   .mission-card {
     flex: 1 1 30%;
     margin: 10px;
@@ -34,6 +42,7 @@
   
   .mission-name {
     font-weight: bold;
+    font-size: 18px;
     text-align: center;
   }
   
@@ -56,8 +65,10 @@
   
   .mission-description {
     margin-top: 10px;
-    font-size: 14px;
+    font-size: 16px;
     color: #555;
+    text-align: center;
+    line-height: 1.5;
   }
   
   .time-selection {
@@ -76,7 +87,7 @@
   .back-button {
     display: block;
     margin: 10px auto;
-    padding: 10px 20px;
+    padding: 12px 24px; /* Increased padding for a more prominent button */
     background-color: #007bff;
     color: white;
     border: none;
@@ -106,5 +117,8 @@
     text-align: center;
     margin-bottom: 20px;
     border: 1px solid #c3e6cb;
+    max-width: 600px; /* Added a max-width to prevent notifications from being too wide */
+    margin-left: auto;
+    margin-right: auto;
   }
   
