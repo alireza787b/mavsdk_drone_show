@@ -18,10 +18,10 @@ class DroneSetup:
         self.running_processes = {}  # Store running processes
 
     def _get_python_exec_path(self):
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)),'..', 'venv', 'bin', 'python')
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'venv', 'bin', 'python')
 
     def _get_script_path(self, script_name):
-        return os.path.join(os.path.dirname(os.path.abspath(__file__)),'..', script_name)
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
     async def run_mission_script(self, script_name, action):
         """
@@ -64,8 +64,7 @@ class DroneSetup:
                 del self.running_processes[script_name]
             else:
                 logging.debug(f"Process for {script_name} is still running.")
-                
-                
+
     def synchronize_time(self):
         """
         Executes the time synchronization script and logs the output.
@@ -97,8 +96,11 @@ class DroneSetup:
         try:
             self.check_running_processes()  # Check the status of running processes before scheduling a new mission
 
-            if self.drone_config.mission in [Mission.DRONE_SHOW_FROM_CSV.value, Mission.SMART_SWARM.value]:
-                success, message = await self._handle_show_or_swarm(current_time)
+            # Call the appropriate handler based on the mission
+            if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
+                success, message = await self._handle_drone_show(current_time)
+            elif self.drone_config.mission == Mission.SMART_SWARM.value:
+                success, message = await self._handle_smart_swarm(current_time)
             elif self.drone_config.mission == Mission.TAKE_OFF.value:
                 success, message = await self._handle_takeoff()
             elif self.drone_config.mission == Mission.LAND.value:
@@ -109,6 +111,8 @@ class DroneSetup:
                 success, message = await self._handle_test()
             elif self.drone_config.mission == Mission.REBOOT.value:
                 success, message = await self._handle_reboot()
+            elif self.drone_config.mission == Mission.CUSTOM_CSV_DRONE_SHOW.value:  # New Custom CSV Drone Show mission
+                success, message = await self._handle_custom_csv_drone_show(current_time)
 
             self._log_mission_result(success, message)
             await self._reset_mission_if_needed(success)  # double check later in what condition should we retry
@@ -116,34 +120,36 @@ class DroneSetup:
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
 
-    async def _handle_show_or_swarm(self, current_time):
+    async def _handle_drone_show(self, current_time):
         """
-        Handles the progression of states for show or swarm missions based on the trigger time.
-
-        Args:
-            current_time (int): The current system time to compare with the trigger time.
-
-        Returns:
-            Tuple[bool, str]: Status of the mission initiation and a message describing the outcome.
+        Handles the progression of states for the drone show mission based on the trigger time.
         """
-        # Check if the mission is ready to be triggered
         if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
-            if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
-                logging.info("Starting Drone Show from CSV")
-                return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
-            elif self.drone_config.mission == Mission.SMART_SWARM.value:
-                logging.info("Starting Smart Swarm Mission")
-                if int(self.drone_config.swarm.get('follow', 0)) != 0:
-                    self.offboard_controller.start_swarm()
-                    await self.offboard_controller.start_offboard_follow()
-                return True, "Swarm Mission initiated"
+            logging.info("Starting Drone Show from CSV")
+            return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
 
-        # Log when conditions are not met to trigger the mission
-        logging.info("Conditions not met for triggering show or swarm")
-        return False, "Conditions not met for show or swarm"
+        logging.info("Conditions not met for triggering Drone Show")
+        return False, "Conditions not met for Drone Show"
+
+    async def _handle_smart_swarm(self, current_time):
+        """
+        Handles the progression of states for the smart swarm mission based on the trigger time.
+        """
+        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
+            self.drone_config.state = 2  # Move to the active mission state
+            self.drone_config.trigger_time = 0  # Reset the trigger time
+
+            logging.info("Starting Smart Swarm Mission")
+            if int(self.drone_config.swarm.get('follow', 0)) != 0:
+                self.offboard_controller.start_swarm()
+                await self.offboard_controller.start_offboard_follow()
+            return True, "Swarm Mission initiated"
+
+        logging.info("Conditions not met for triggering Smart Swarm")
+        return False, "Conditions not met for Smart Swarm"
 
     async def _handle_takeoff(self):
         altitude = float(self.drone_config.takeoff_altitude)
@@ -166,10 +172,24 @@ class DroneSetup:
     async def _handle_test(self):
         logging.info("Starting Test")
         return await self.run_mission_script("actions.py", "test")
-    
+
     async def _handle_reboot(self):
         logging.info("Starting Reboot")
         return await self.run_mission_script("actions.py", "reboot")
+
+    async def _handle_custom_csv_drone_show(self, current_time):
+        """
+        Handles the custom CSV drone show mission.
+        """
+        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
+            self.drone_config.state = 2  # Move to the active mission state
+            self.drone_config.trigger_time = 0  # Reset the trigger time
+
+            logging.info("Starting Custom CSV Drone Show")
+            return await self.run_mission_script("offboard_from_csv.py", "start")
+
+        logging.info("Conditions not met for triggering Custom CSV Drone Show")
+        return False, "Conditions not met for Custom CSV Drone Show"
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):

@@ -1,9 +1,8 @@
-// app/dashboard/drone-dashboard/src/constants/droneConstants.js
-
 export const DRONE_MISSION_TYPES = {
   NONE: 0,
   DRONE_SHOW_FROM_CSV: 1,
   SMART_SWARM: 2,
+  CUSTOM_CSV_DRONE_SHOW: 5,  // New Custom CSV Drone Show mission type
 };
 
 export const DRONE_ACTION_TYPES = {
