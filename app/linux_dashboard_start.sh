@@ -120,13 +120,13 @@ start_services_tmux() {
     tmux split-window -h -t "$SESSION_NAME:2" "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
 
     # Pane 2: GUI React App
-    tmux split-window -v -t "$SESSION_NAME:2.0" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+    tmux split-window -v -t "$SESSION_NAME:2" "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
 
     # Pane 3: Additional terminal in the project root
     tmux split-window -v -t "$SESSION_NAME:2.1" "cd $HOME/mavsdk_drone_show; bash"
 
-    # Adjust layout to be tiled for a clean side-by-side view
-    tmux select-layout -t "$SESSION_NAME:2" tiled
+    # Adjust layout to be evenly split into three panes
+    tmux select-layout -t "$SESSION_NAME:2" even-vertical
 
     # Attach to the tmux session in the combined view window
     tmux select-window -t "$SESSION_NAME:2"
