@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { defaultTriggerTimeDelay } from '../constants/droneConstants';
 import TimePicker from 'react-time-picker'; // You may need to install react-time-picker library
-import './MissionTrigger.css'; // Import the CSS file
+import '../styles/MissionTrigger.css'; // Import the CSS file
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [selectedMission, setSelectedMission] = useState('');
