@@ -6,7 +6,7 @@
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It sets up individual windows for each service and a
 # combined view window with split panes. It checks for port conflicts
-# and handles them before proceeding.
+# and ensures ports are free before proceeding.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -42,32 +42,27 @@ load_virtualenv() {
     fi
 }
 
-# Function to check if a port is in use and handle conflicts
-check_port_in_use() {
+# Function to check if a port is in use and force kill the process
+force_kill_port() {
     local port=$1
     local service_name=$2
     local pid=$(lsof -ti :$port)
 
     if [ -n "$pid" ]; then
-        echo "Warning: Port $port is currently in use by another process."
+        echo "Warning: Port $port is in use by process ID $pid."
         echo "This port is required by the $service_name."
-        while true; do
-            read -p "Would you like to kill the process using port $port? (y/n): " choice
-            case "$choice" in
-                y|Y )
-                    kill -9 "$pid"
-                    echo "Process on port $port has been terminated."
-                    break
-                    ;;
-                n|N )
-                    echo "Please resolve the port conflict and try again."
-                    exit 1
-                    ;;
-                * )
-                    echo "Invalid input. Please enter 'y' or 'n'."
-                    ;;
-            esac
-        done
+        echo "Attempting to terminate the process using port $port..."
+        
+        kill -9 "$pid"
+        
+        if [ $? -eq 0 ]; then
+            echo "Process on port $port has been successfully terminated."
+        else
+            echo "Error: Failed to terminate process on port $port."
+            exit 1
+        fi
+    else
+        echo "Port $port is free and available for $service_name."
     fi
 }
 
@@ -126,9 +121,9 @@ VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
 # Load the virtual environment
 load_virtualenv "$VENV_PATH"
 
-# Check if ports are in use and handle conflicts
-check_port_in_use $GCS_PORT "GCS Server"
-check_port_in_use $GUI_PORT "GUI React App"
+# Check if ports are in use and force kill any processes using them
+force_kill_port $GCS_PORT "GCS Server"
+force_kill_port $GUI_PORT "GUI React App"
 
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
