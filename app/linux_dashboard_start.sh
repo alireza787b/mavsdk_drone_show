@@ -1,10 +1,11 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux Side-by-Side Panes
+# Drone Services Launcher with Tmux Windows and Split Panes
 #
 # This script manages the execution of the Drone Dashboard, GCS Server,
-# and a debug terminal, providing a side-by-side split view in tmux.
+# and a debug terminal, providing both individual windows and a combined
+# split-pane view in tmux.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -30,35 +31,46 @@ show_tmux_instructions() {
     echo "  Quick tmux Guide:"
     echo "==============================================="
     echo "Prefix key (Ctrl+B), then:"
-    echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
-    echo "  - Navigate to a specific pane: Ctrl+B, then pane number (0, 1, 2)"
-    echo "  - Pause scrolling in a pane: Ctrl+S (to pause), Ctrl+Q (to resume)"
+    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2, 3)"
+    echo "  - Switch between panes (in combined view): Arrow keys (e.g., Ctrl+B, then →)"
+    echo "  - Pause scrolling in any window or pane: Ctrl+S (to pause), Ctrl+Q (to resume)"
     echo "  - Detach from session: Ctrl+B, then D"
     echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
-    echo "  - Close a pane or window: Type 'exit' or press Ctrl+D"
+    echo "  - Close a window/pane: Type 'exit' or press Ctrl+D"
     echo "==============================================="
     echo ""
 }
 
-# Function to create a tmux session with split panes
+# Function to start a process in a new tmux window
+start_process_tmux() {
+    local session="$1"
+    local window_name="$2"
+    local command="$3"
+    
+    tmux new-window -t "$session" -n "$window_name" "clear; $command"
+    sleep 2
+}
+
+# Function to create a tmux session with both windows and split panes
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
-    echo "Creating tmux session '$session' with side-by-side panes..."
+    echo "Creating tmux session '$session'..."
 
-    # Create the session and the first pane for the GCS server
-    tmux new-session -d -s "$session" -n "Services" "clear; $GCS_COMMAND; bash"
+    # Create separate windows for each service
+    tmux new-session -d -s "$session" -n "GCS" "clear; $GCS_COMMAND; bash"
+    start_process_tmux "$session" "Dashboard" "$DASHBOARD_COMMAND"
+    start_process_tmux "$session" "Debug" "clear; echo 'Debug Terminal (Pane 2)'; bash"
 
-    # Split horizontally to create the second pane for the Dashboard
-    tmux split-window -h -t "$session:0" "clear; $DASHBOARD_COMMAND; bash"
+    # Create a window with split panes for a combined view
+    tmux new-window -t "$session" -n "CombinedView"
+    tmux split-window -h -t "$session:3" "clear; $GCS_COMMAND; bash"
+    tmux split-window -v -t "$session:3.0" "clear; $DASHBOARD_COMMAND; bash"
+    tmux split-window -v -t "$session:3.1" "clear; echo 'Debug Terminal (Pane 2)'; bash"
+    tmux select-layout -t "$session:3" tiled  # Organize panes in a tiled layout
 
-    # Split horizontally again to create the third pane for the Debug terminal
-    tmux split-window -h -t "$session:0.1" "clear; echo 'Debug Terminal (Pane 2)'; bash"
-
-    # Adjust layout to distribute the panes evenly
-    tmux select-layout -t "$session:0" even-horizontal
-
-    # Attach to the tmux session
+    # Attach to the tmux session in the CombinedView window
+    tmux select-window -t "$session:3"
     tmux attach-session -t "$session"
 }
 
@@ -70,7 +82,7 @@ run_droneservices_components() {
     GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
     DASHBOARD_COMMAND="cd $REACT_APP_DIR && npm start"
 
-    # Start services in tmux with split panes
+    # Start services in tmux with separate windows and a combined view
     start_services_in_tmux
 
     # Show user instructions after tmux session is attached
