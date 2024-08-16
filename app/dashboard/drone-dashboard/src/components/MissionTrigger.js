@@ -74,6 +74,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   };
 
   const getMissionDescription = (missionType) => {
+    console.log("Mission Type:", missionType); // Add this to check the missionType
     switch (missionType) {
       case 'DRONE_SHOW_FROM_CSV':
         return 'Smartly runs the Skybrush exported and processed drone show, synchronized with other drones.';
@@ -87,6 +88,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
         return '';
     }
   };
+  
 
   return (
     <div className="mission-trigger-content">
