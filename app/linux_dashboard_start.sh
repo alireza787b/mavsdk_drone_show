@@ -24,7 +24,7 @@ port_in_use() {
     return $?  # 0 if in use, 1 if free
 }
 
-# Function to kill a process using a specific port
+# Function to kill a process using a specific port with sudo fallback
 kill_port_process() {
     local port=$1
     local pids=$(ss -ltnp | awk -v port=":$port" '$4 ~ port {gsub(","," "); print $NF}' | grep -oP '\d+')
@@ -33,8 +33,16 @@ kill_port_process() {
         echo "Killing process(es) $pids on port $port..."
         for pid in $pids; do
             if [[ $pid =~ ^[0-9]+$ ]]; then  # Ensure it's a valid PID
-                kill -9 $pid
-                sleep 1  # Give time for the system to release the port
+                kill -9 $pid 2>/dev/null
+                if [ $? -ne 0 ]; then
+                    echo "Operation not permitted. Retrying with sudo..."
+                    sudo kill -9 $pid
+                    if [ $? -ne 0 ]; then
+                        echo "Failed to kill process $pid even with sudo. Please handle manually."
+                    fi
+                else
+                    sleep 1  # Give time for the system to release the port
+                fi
             else
                 echo "Invalid PID: $pid, skipping..."
             fi
