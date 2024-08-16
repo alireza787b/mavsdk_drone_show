@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
+# Drone Services Launcher with Tmux, Port Handling, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It handles port conflicts, manages existing sessions, and
 # provides individual windows for each service as well as a combined view
-# window with split panes.
+# window with split panes, including a dedicated pane for logs.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -16,9 +16,15 @@
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
-WAIT_TIME=5   # Wait time between retries (in seconds)
-GRACE_PERIOD=5 # Extra wait time before starting services
-RETRY_LIMIT=10 # Maximum number of retries to free ports
+WAIT_TIME=5     # Wait time between retries (in seconds)
+GRACE_PERIOD=5  # Extra wait time before starting services
+RETRY_LIMIT=10  # Maximum number of retries to free ports
+LOG_FILE="/tmp/drone_services_log.txt"
+
+# Function to log messages
+log() {
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $1" | tee -a $LOG_FILE
+}
 
 # Function to check if a port is in use
 port_in_use() {
@@ -38,10 +44,10 @@ force_kill_port() {
     while port_in_use $port; do
         local pids=$(lsof -t -i:$port)  # Get the PIDs of processes using the port
         if [ -n "$pids" ]; then
-            echo "Attempting to kill processes using port $port: $pids"
+            log "Attempting to kill processes using port $port: $pids"
             kill -9 $pids
         else
-            echo "Warning: No process found for port $port, but it is still in use."
+            log "Warning: No process found for port $port, but it is still in use."
         fi
 
         # Wait and check if the port is free
@@ -50,12 +56,12 @@ force_kill_port() {
 
         if port_in_use $port; then
             if [ $retries -ge $RETRY_LIMIT ]; then
-                echo "Error: Unable to free port $port after $RETRY_LIMIT attempts."
+                log "Error: Unable to free port $port after $RETRY_LIMIT attempts."
                 exit 1
             fi
-            echo "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
+            log "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
         else
-            echo "Port $port is now free."
+            log "Port $port is now free."
             break
         fi
     done
@@ -64,7 +70,7 @@ force_kill_port() {
 # Function to check if tmux is installed
 check_tmux_installed() {
     if ! command -v tmux &> /dev/null; then
-        echo "Error: tmux is not installed."
+        log "Error: tmux is not installed."
         echo "Please install tmux with the following command:"
         echo "  sudo apt-get install -y tmux"
         exit 1
@@ -74,13 +80,13 @@ check_tmux_installed() {
 # Function to check if a tmux session exists and handle it
 check_existing_tmux_session() {
     if tmux has-session -t $SESSION_NAME 2>/dev/null; then
-        echo "Warning: A tmux session named '$SESSION_NAME' is already running."
+        log "Warning: A tmux session named '$SESSION_NAME' is already running."
         read -p "Do you want to kill the existing session? (y/n): " response
         if [[ "$response" == "y" || "$response" == "Y" ]]; then
             tmux kill-session -t $SESSION_NAME
-            echo "Existing tmux session '$SESSION_NAME' has been killed."
+            log "Existing tmux session '$SESSION_NAME' has been killed."
         else
-            echo "Please manually kill the session or attach to it using 'tmux attach -t $SESSION_NAME'."
+            log "Please manually kill the session or attach to it using 'tmux attach -t $SESSION_NAME'."
             exit 1
         fi
     fi
@@ -92,9 +98,9 @@ load_virtualenv() {
     
     if [ -d "$venv_path" ]; then
         source "$venv_path/bin/activate"
-        echo "Virtual environment activated."
+        log "Virtual environment activated."
     else
-        echo "Error: Virtual environment not found at $venv_path."
+        log "Error: Virtual environment not found at $venv_path."
         echo "Please follow the setup instructions at:"
         echo "  https://github.com/alireza787b/mavsdk_drone_show"
         exit 1
@@ -121,7 +127,7 @@ show_tmux_instructions() {
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
-    echo "Creating tmux session '$session'..."
+    log "Creating tmux session '$session'..."
 
     # Create a new tmux session and start the GCS Server in the first window
     tmux new-session -d -s "$session" -n "GCS-Server" "clear; $GCS_COMMAND; bash"
@@ -133,6 +139,8 @@ start_services_in_tmux() {
     tmux new-window -t "$session" -n "Combined-View"
     tmux split-window -h -t "$session:2" "clear; $GCS_COMMAND; bash"
     tmux split-window -v -t "$session:2.0" "clear; $GUI_COMMAND; bash"
+    tmux split-window -v -t "$session:2.1" "tail -f $LOG_FILE; bash"  # Add a pane for logs
+
     tmux select-layout -t "$session:2" tiled  # Organize panes in a tiled layout
 
     # Attach to the tmux session in the combined view window by default
@@ -160,13 +168,17 @@ VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
 # Load the virtual environment
 load_virtualenv "$VENV_PATH"
 
+# Initialize log file
+echo "" > $LOG_FILE
+log "Starting the Drone Services Launcher..."
+
 # Check if ports are in use and handle conflicts
-echo "Checking if ports are in use..."
+log "Checking if ports $GCS_PORT and $GUI_PORT are in use..."
 force_kill_port $GCS_PORT
 force_kill_port $GUI_PORT
 
 # Add a grace period to ensure ports are fully released
-echo "Waiting for $GRACE_PERIOD seconds to ensure ports are fully released..."
+log "Waiting for $GRACE_PERIOD seconds to ensure ports are fully released..."
 sleep $GRACE_PERIOD
 
 # Commands for the GCS Server and the GUI React app
@@ -179,8 +191,4 @@ start_services_in_tmux
 # Show user instructions after tmux session is attached
 show_tmux_instructions
 
-echo ""
-echo "==============================================="
-echo "  All DroneServices components have been started successfully!"
-echo "==============================================="
-echo ""
+log "All DroneServices components have been started successfully!"
