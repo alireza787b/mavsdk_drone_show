@@ -5,7 +5,8 @@
 #
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It sets up individual windows for each service and a
-# combined view window with split panes.
+# combined view window with split panes. It checks for port conflicts
+# and offers the option to kill conflicting processes.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -13,6 +14,8 @@
 
 # Tmux session name
 SESSION_NAME="DroneServices"
+GCS_PORT=5000
+GUI_PORT=3000
 
 # Function to check if tmux is installed
 check_tmux_installed() {
@@ -36,6 +39,26 @@ load_virtualenv() {
         echo "Please follow the setup instructions at:"
         echo "  https://github.com/alireza787b/mavsdk_drone_show"
         exit 1
+    fi
+}
+
+# Function to check if a port is in use and handle conflicts
+check_port_in_use() {
+    local port=$1
+    local service_name=$2
+    local pid=$(lsof -ti :$port)
+
+    if [ -n "$pid" ]; then
+        echo "Warning: Port $port is currently in use by another process."
+        echo "This port is required by the $service_name."
+        read -p "Would you like to kill the process using port $port? (y/n): " choice
+        if [ "$choice" == "y" ]; then
+            kill -9 "$pid"
+            echo "Process on port $port has been terminated."
+        else
+            echo "Please resolve the port conflict and try again."
+            exit 1
+        fi
     fi
 }
 
@@ -93,6 +116,10 @@ VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
 
 # Load the virtual environment
 load_virtualenv "$VENV_PATH"
+
+# Check if ports are in use and handle conflicts
+check_port_in_use $GCS_PORT "GCS Server"
+check_port_in_use $GUI_PORT "GUI React App"
 
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
