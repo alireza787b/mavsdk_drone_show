@@ -6,7 +6,7 @@
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It sets up individual windows for each service and a
 # combined view window with split panes. It checks for port conflicts
-# and offers the option to kill conflicting processes.
+# and handles them before proceeding.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -51,14 +51,23 @@ check_port_in_use() {
     if [ -n "$pid" ]; then
         echo "Warning: Port $port is currently in use by another process."
         echo "This port is required by the $service_name."
-        read -p "Would you like to kill the process using port $port? (y/n): " choice
-        if [ "$choice" == "y" ]; then
-            kill -9 "$pid"
-            echo "Process on port $port has been terminated."
-        else
-            echo "Please resolve the port conflict and try again."
-            exit 1
-        fi
+        while true; do
+            read -p "Would you like to kill the process using port $port? (y/n): " choice
+            case "$choice" in
+                y|Y )
+                    kill -9 "$pid"
+                    echo "Process on port $port has been terminated."
+                    break
+                    ;;
+                n|N )
+                    echo "Please resolve the port conflict and try again."
+                    exit 1
+                    ;;
+                * )
+                    echo "Invalid input. Please enter 'y' or 'n'."
+                    ;;
+            esac
+        done
     fi
 }
 
