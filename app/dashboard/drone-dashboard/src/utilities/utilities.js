@@ -3,21 +3,20 @@
 // Get the base server URL from environment variables
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
 
-// Function to get the backend URL, with an optional port
-export function getBackendURL(servicePort = '') {
-    return servicePort ? `${baseServerURL}:${servicePort}` : baseServerURL;
+// Function to get the backend URL, ensuring that the default Flask port is appended
+export function getBackendURL(servicePort = process.env.REACT_APP_FLASK_PORT || '5000') {
+    return `${baseServerURL}:${servicePort}`;
 }
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    const flaskPort = process.env.REACT_APP_FLASK_PORT || '5000'; // Default Flask port
-    return `${getBackendURL(flaskPort)}/telemetry`;
+    return `${getBackendURL()}/telemetry`;
 }
 
 export function getElevationURL(lat, lon) {
-    const flaskPort = process.env.REACT_APP_FLASK_PORT || '5000'; // Default Flask port
-    return `${getBackendURL(flaskPort)}/elevation?lat=${lat}&lon=${lon}`;
+    return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
 }
+
 
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;
