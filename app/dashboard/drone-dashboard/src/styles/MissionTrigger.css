@@ -22,6 +22,11 @@
     border-color: #007bff;
   }
   
+  .cancel-mission-card {
+    border-color: #ff4d4d;
+    background-color: #ffe6e6;
+  }
+  
   .mission-icon {
     font-size: 36px;
     margin-bottom: 10px;
@@ -85,5 +90,15 @@
   
   .back-button:hover {
     background-color: #5a6268;
+  }
+  
+  .notification {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+    margin-bottom: 20px;
+    border: 1px solid #c3e6cb;
   }
   

@@ -6,6 +6,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [timeDelay, setTimeDelay] = useState(10);  // Default time delay in seconds
   const [useSlider, setUseSlider] = useState(true);  // Toggle between slider and clock
   const [selectedTime, setSelectedTime] = useState('');  // For time picker input
+  const [notification, setNotification] = useState('');  // For user notifications
 
   useEffect(() => {
     // Set default to current time + 30 seconds when component mounts
@@ -17,6 +18,18 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const handleMissionSelect = (missionType) => {
     setSelectedMission(missionType);
     setTimeDelay(10);  // Reset time delay to default when a new mission is selected
+
+    // Handle Cancel Mission directly
+    if (missionType === 'NONE') {
+      if (window.confirm('Are you sure you want to cancel the mission immediately?')) {
+        const commandData = {
+          missionType: missionType,
+          triggerTime: Math.floor(Date.now() / 1000),
+        };
+        onSendCommand(commandData);
+        setNotification('Cancel Mission command sent successfully.');
+      }
+    }
   };
 
   const handleSend = () => {
@@ -54,6 +67,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
       triggerTime,
     };
     onSendCommand(commandData);
+    setNotification(`"${missionName}" command sent successfully.`);
   };
 
   const handleBack = () => {
@@ -62,34 +76,35 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
 
   return (
     <div className="mission-trigger-content">
+      {notification && <div className="notification">{notification}</div>}
+
       {!selectedMission && (
         <div className="mission-cards">
           {Object.entries(missionTypes).map(([key, value]) => (
             <div
               key={value}
-              className="mission-card"
+              className={`mission-card ${key === 'NONE' ? 'cancel-mission-card' : ''}`}
               onClick={() => handleMissionSelect(value)}
             >
               <div className="mission-icon">
                 {key === 'DRONE_SHOW_FROM_CSV' && '🛸'}
                 {key === 'CUSTOM_CSV_DRONE_SHOW' && '🎯'}
-                {key === 'SMART_SWARM' && '🐝'}
-                {key === 'NONE' && '❌'}
+                {key === 'SMART_SWARM' && '🐝🐝🐝'}  {/* Updated to represent multiple bees */}
+                {key === 'NONE' && '🚫'}  {/* Updated icon for Cancel Mission */}
               </div>
-              <div className="mission-name">{key.replace(/_/g, ' ')}</div>
+              <div className="mission-name">{key === 'NONE' ? 'Cancel Mission' : key.replace(/_/g, ' ')}</div>
             </div>
           ))}
         </div>
       )}
 
-      {selectedMission && (
+      {selectedMission && selectedMission !== 'NONE' && (
         <div className="mission-details">
           <div className="selected-mission-card">
             <div className="mission-icon">
               {selectedMission === 'DRONE_SHOW_FROM_CSV' && '🛸'}
               {selectedMission === 'CUSTOM_CSV_DRONE_SHOW' && '🎯'}
-              {selectedMission === 'SMART_SWARM' && '🐝'}
-              {selectedMission === 'NONE' && '❌'}
+              {selectedMission === 'SMART_SWARM' && '🐝🐝🐝'}
             </div>
             <div className="mission-name">
               {Object.keys(missionTypes).find((key) => missionTypes[key] === selectedMission).replace(/_/g, ' ')}
