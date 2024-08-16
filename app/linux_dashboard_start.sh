@@ -10,8 +10,10 @@
 #
 # Usage:
 #   ./linux_dashboard_start.sh [--no-tmux]
+#   Options:
+#     -n, --no-tmux   Run the services in separate terminal windows instead of tmux
 #
-# Author: [Your Name]
+# Author: Alireza Ghaderi
 # Project: MAVSDK Drone Show
 #########################################
 
@@ -23,6 +25,38 @@ GUI_PORT=3000
 WAIT_TIME=5   # Wait time between retries (in seconds)
 GRACE_PERIOD=10 # Extra wait time before starting services to ensure ports are released
 RETRY_LIMIT=10  # Maximum number of retries to free ports
+GCS_PID=""
+GUI_PID=""
+
+#########################################
+# Signal Handling and Cleanup Functions
+#########################################
+
+# Function to handle Ctrl+C and terminate background processes
+cleanup() {
+    echo ""
+    echo "Terminating all background processes..."
+    
+    if [ -n "$GCS_PID" ]; then
+        echo "Killing GCS Server process $GCS_PID"
+        kill -9 "$GCS_PID"
+    fi
+    
+    if [ -n "$GUI_PID" ]; then
+        echo "Killing GUI React app process $GUI_PID"
+        kill -9 "$GUI_PID"
+    fi
+    
+    echo "All background processes terminated."
+    exit 0
+}
+
+# Set the trap to catch Ctrl+C (SIGINT) and clean up
+trap cleanup SIGINT
+
+#########################################
+# Option Parsing and Environment Setup
+#########################################
 
 # Check if the --no-tmux flag is passed
 for arg in "$@"; do
@@ -33,6 +67,10 @@ for arg in "$@"; do
         ;;
     esac
 done
+
+#########################################
+# Utility Functions
+#########################################
 
 # Function to check if a port is in use
 port_in_use() {
@@ -122,15 +160,24 @@ load_virtualenv() {
     fi
 }
 
+#########################################
+# Service Launch Functions
+#########################################
+
 # Function to start services in separate terminal windows (non-tmux mode)
 start_services_no_tmux() {
     if [[ -z "$DISPLAY" ]]; then
         echo "No graphical environment detected. Running services in this terminal."
         echo "Starting GCS Server..."
         bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py &"
-        
+        GCS_PID=$!
+
         echo "Starting GUI React app..."
         bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start &"
+        GUI_PID=$!
+
+        # Wait for background processes to finish
+        wait
     else
         echo "Starting GCS Server in a new terminal..."
         gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
@@ -163,7 +210,9 @@ start_services_in_tmux() {
     tmux attach-session -t "$session"
 }
 
-# Main execution sequence
+#########################################
+# Main Execution Sequence
+#########################################
 
 # Ensure tmux is installed (if using tmux)
 check_tmux_installed
@@ -206,6 +255,7 @@ GUI_COMMAND="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 # Start the services either in tmux or separate terminal windows based on user preference
 if [ "$USE_TMUX" = true ]; then
     start_services_in_tmux
+    show_tmux_instructions
 else
     start_services_no_tmux
 fi
@@ -215,3 +265,25 @@ echo "==============================================="
 echo "  All DroneServices components have been started successfully!"
 echo "==============================================="
 echo ""
+
+#########################################
+# Tmux Instruction Display Function
+#########################################
+
+# Function to display detailed tmux instructions to the user
+show_tmux_instructions() {
+    echo "==============================================="
+    echo "  Tmux Session Management Instructions"
+    echo "==============================================="
+    echo "Tmux Session Name: $SESSION_NAME"
+    echo ""
+    echo "To navigate within tmux:"
+    echo "  - Switch between windows: Prefix (Ctrl+B), then [number key] (e.g., Ctrl+B, 1 for GCS, 2 for GUI)"
+    echo "  - Switch between panes (in combined view): Prefix (Ctrl+B), then arrow keys"
+    echo "  - Detach from the session (leave the processes running): Prefix (Ctrl+B), then D"
+    echo "  - Reattach to the session: Run 'tmux attach -t $SESSION_NAME'"
+    echo "  - Close the session and stop all services: Exit all windows or type 'exit' in each tmux window"
+    echo "  - To kill the session entirely: Run 'tmux kill-session -t $SESSION_NAME' or simply "tmux kill-server"
+    echo "==============================================="
+    echo ""
+}
