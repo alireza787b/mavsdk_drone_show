@@ -4,24 +4,35 @@
 # Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
-# within tmux. It handles port conflicts, manages existing sessions, and
-# provides individual windows for each service as well as a combined view
-# window with split panes.
+# within tmux (by default) or in separate terminal windows if the flag 
+# --no-tmux is passed. It handles port conflicts, manages existing sessions, 
+# and provides individual windows for each service or separate terminal windows.
 #
 # Usage:
-#   ./linux_dashboard_start.sh
+#   ./linux_dashboard_start.sh [--no-tmux]
 #
 # Author: [Your Name]
 # Project: MAVSDK Drone Show
 #########################################
 
 # Configurable Variables
+USE_TMUX=true  # Default behavior is to use tmux. Set to false to run in separate terminals by default.
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
 WAIT_TIME=5   # Wait time between retries (in seconds)
 GRACE_PERIOD=10 # Extra wait time before starting services to ensure ports are released
 RETRY_LIMIT=10  # Maximum number of retries to free ports
+
+# Check if the --no-tmux flag is passed
+for arg in "$@"; do
+    case $arg in
+        -n|--no-tmux)
+        USE_TMUX=false
+        shift
+        ;;
+    esac
+done
 
 # Function to check if a port is in use
 port_in_use() {
@@ -73,7 +84,7 @@ force_kill_port() {
 
 # Function to check if tmux is installed
 check_tmux_installed() {
-    if ! command -v tmux &> /dev/null; then
+    if ! command -v tmux &> /dev/null && [ "$USE_TMUX" = true ]; then
         echo "Error: tmux is not installed."
         echo "Please install tmux with the following command:"
         echo "  sudo apt-get install -y tmux"
@@ -111,22 +122,6 @@ load_virtualenv() {
     fi
 }
 
-# Function to display tmux instructions to the user
-show_tmux_instructions() {
-    echo "==============================================="
-    echo "  Tmux Session Started"
-    echo "==============================================="
-    echo "Prefix key (Ctrl+B), then:"
-    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2, 3)"
-    echo "  - Switch between panes (in combined view): Arrow keys (e.g., Ctrl+B, then →)"
-    echo "  - Detach from session: Ctrl+B, then D"
-    echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
-    echo "  - Close the session and all services: Exit all windows or type 'exit'"
-    echo "  - To kill the session entirely: tmux kill-session -t $SESSION_NAME"
-    echo "==============================================="
-    echo ""
-}
-
 # Function to create a tmux session with individual windows and a combined view
 start_services_in_tmux() {
     local session="$SESSION_NAME"
@@ -150,13 +145,24 @@ start_services_in_tmux() {
     tmux attach-session -t "$session"
 }
 
+# Function to start services in separate terminal windows (non-tmux mode)
+start_services_no_tmux() {
+    echo "Starting GCS Server in a new terminal..."
+    gnome-terminal -- bash -c "cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py; bash"
+
+    echo "Starting GUI React app in a new terminal..."
+    gnome-terminal -- bash -c "cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start; bash"
+}
+
 # Main execution sequence
 
-# Ensure tmux is installed
+# Ensure tmux is installed (if using tmux)
 check_tmux_installed
 
-# Check if the session is already running
-check_existing_tmux_session
+# Check if the session is already running (if using tmux)
+if [ "$USE_TMUX" = true ]; then
+    check_existing_tmux_session
+fi
 
 # Get the directory of the current script
 SCRIPT_DIR="$(dirname "$0")"
@@ -188,30 +194,15 @@ force_kill_port $GUI_PORT
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
 GUI_COMMAND="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 
-# Start the services in tmux
-start_services_in_tmux
-
-# Show user instructions after tmux session is attached
-show_tmux_instructions
+# Start the services either in tmux or separate terminal windows based on user preference
+if [ "$USE_TMUX" = true ]; then
+    start_services_in_tmux
+else
+    start_services_no_tmux
+fi
 
 echo ""
 echo "==============================================="
 echo "  All DroneServices components have been started successfully!"
 echo "==============================================="
 echo ""
-
-# User manual instructions for manual operation
-echo "If you'd like to manually run the services without tmux, follow these instructions:"
-echo ""
-echo "1. Activate the Python virtual environment:"
-echo "   cd ~/mavsdk_drone_show"
-echo "   source venv/bin/activate"
-echo ""
-echo "2. Run the GCS server:"
-echo "   python ~/mavsdk_drone_show/gcs-server/app.py"
-echo ""
-echo "3. Start the React Dashboard:"
-echo "   cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard"
-echo "   npm start"
-echo ""
-echo "Refer to the documentation for further details."
