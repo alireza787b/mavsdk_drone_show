@@ -2,28 +2,27 @@ import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import MissionNotification from './MissionNotification';
+import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay } from '../constants/droneConstants';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [selectedMission, setSelectedMission] = useState('');
-  const [timeDelay, setTimeDelay] = useState(10);  // Default time delay in seconds
-  const [useSlider, setUseSlider] = useState(true);  // Toggle between slider and clock
-  const [selectedTime, setSelectedTime] = useState('');  // For time picker input
-  const [notification, setNotification] = useState(null);  // For user notifications
+  const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
+  const [useSlider, setUseSlider] = useState(true);
+  const [selectedTime, setSelectedTime] = useState('');
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
-    // Set default to user system time + 30 seconds when component mounts
     const now = new Date();
     now.setSeconds(now.getSeconds() + 30);
-    setSelectedTime(now.toTimeString().slice(0, 8)); // Format as HH:MM:SS
+    setSelectedTime(now.toTimeString().slice(0, 8));
   }, []);
 
   const handleMissionSelect = (missionType) => {
     setSelectedMission(missionType);
-    setTimeDelay(10);  // Reset time delay to default when a new mission is selected
+    setTimeDelay(defaultTriggerTimeDelay);
 
-    // Handle Cancel Mission directly
-    if (missionType === 'NONE') {
+    if (missionType === DRONE_MISSION_TYPES.NONE) {
       if (window.confirm('Are you sure you want to cancel the mission immediately?')) {
         const commandData = {
           missionType: missionType,
@@ -70,25 +69,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   };
 
   const handleBack = () => {
-    setSelectedMission(''); // Reset mission selection
+    setSelectedMission('');
   };
-
-  const getMissionDescription = (missionType) => {
-    console.log("Mission Type:", missionType); // Add this to check the missionType
-    switch (missionType) {
-      case 'DRONE_SHOW_FROM_CSV':
-        return 'Smartly runs the Skybrush exported and processed drone show, synchronized with other drones.';
-      case 'CUSTOM_CSV_DRONE_SHOW':
-        return 'Runs the shapes/active.csv that can be either created by the CSV creator script or custom methods.';
-      case 'SMART_SWARM':
-        return 'Can plan clustered leader-follower missions (under development).';
-      case 'NONE':
-        return 'Cancel any currently active mission.';
-      default:
-        return '';
-    }
-  };
-  
 
   return (
     <div className="mission-trigger-content">
@@ -101,25 +83,25 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
               key={value}
               missionType={value}
               icon={
-                key === 'DRONE_SHOW_FROM_CSV' ? '🛸' :
-                key === 'CUSTOM_CSV_DRONE_SHOW' ? '🎯' :
-                key === 'SMART_SWARM' ? '🐝🐝🐝' :
+                value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV ? '🛸' :
+                value === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW ? '🎯' :
+                value === DRONE_MISSION_TYPES.SMART_SWARM ? '🐝🐝🐝' :
                 '🚫'
               }
               label={key === 'NONE' ? 'Cancel Mission' : key.replace(/_/g, ' ')}
               onClick={handleMissionSelect}
-              isCancel={key === 'NONE'}
+              isCancel={value === DRONE_MISSION_TYPES.NONE}
             />
           ))}
         </div>
       )}
 
-      {selectedMission && selectedMission !== 'NONE' && (
+      {selectedMission && selectedMission !== DRONE_MISSION_TYPES.NONE && (
         <MissionDetails
           missionType={selectedMission}
           icon={
-            selectedMission === 'DRONE_SHOW_FROM_CSV' ? '🛸' :
-            selectedMission === 'CUSTOM_CSV_DRONE_SHOW' ? '🎯' :
+            selectedMission === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV ? '🛸' :
+            selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW ? '🎯' :
             '🐝🐝🐝'
           }
           label={Object.keys(missionTypes).find((key) => missionTypes[key] === selectedMission).replace(/_/g, ' ')}
