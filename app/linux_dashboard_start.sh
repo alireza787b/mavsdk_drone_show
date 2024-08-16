@@ -179,6 +179,11 @@ force_kill_port $GUI_PORT
 echo "Waiting for $GRACE_PERIOD seconds to ensure ports are fully released..."
 sleep $GRACE_PERIOD
 
+# Final check for ports after grace period
+echo "Performing final check for ports..."
+force_kill_port $GCS_PORT
+force_kill_port $GUI_PORT
+
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
 GUI_COMMAND="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
@@ -194,3 +199,19 @@ echo "==============================================="
 echo "  All DroneServices components have been started successfully!"
 echo "==============================================="
 echo ""
+
+# User manual instructions for manual operation
+echo "If you'd like to manually run the services without tmux, follow these instructions:"
+echo ""
+echo "1. Activate the Python virtual environment:"
+echo "   cd ~/mavsdk_drone_show"
+echo "   source venv/bin/activate"
+echo ""
+echo "2. Run the GCS server:"
+echo "   python ~/mavsdk_drone_show/gcs-server/app.py"
+echo ""
+echo "3. Start the React Dashboard:"
+echo "   cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard"
+echo "   npm start"
+echo ""
+echo "Refer to the documentation for further details."
