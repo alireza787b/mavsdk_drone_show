@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux, Continuous Port Handling, and Session Management
+# Drone Services Launcher with Tmux, Enhanced Port Handling, and Session Management
 #
 # This script manages the execution of the GUI React App and GCS Server
 # within tmux. It handles port conflicts, manages existing sessions, and
@@ -16,7 +16,9 @@
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
-WAIT_TIME=5  # Wait time between retries (in seconds)
+WAIT_TIME=5   # Wait time between retries (in seconds)
+GRACE_PERIOD=5 # Extra wait time before starting services
+RETRY_LIMIT=10 # Maximum number of retries to free ports
 
 # Function to check if a port is in use
 port_in_use() {
@@ -28,22 +30,30 @@ port_in_use() {
     fi
 }
 
-# Function to force kill a process using a specific port
+# Function to force kill a process using a specific port and retry until the port is free
 force_kill_port() {
     local port=$1
-    
+    local retries=0
+
     while port_in_use $port; do
         local pids=$(lsof -t -i:$port)  # Get the PIDs of processes using the port
         if [ -n "$pids" ]; then
-            echo "Killing processes using port $port: $pids"
+            echo "Attempting to kill processes using port $port: $pids"
             kill -9 $pids
+        else
+            echo "Warning: No process found for port $port, but it is still in use."
         fi
 
         # Wait and check if the port is free
         sleep $WAIT_TIME
+        ((retries++))
 
         if port_in_use $port; then
-            echo "Port $port is still in use. Retrying..."
+            if [ $retries -ge $RETRY_LIMIT ]; then
+                echo "Error: Unable to free port $port after $RETRY_LIMIT attempts."
+                exit 1
+            fi
+            echo "Port $port is still in use. Retrying... ($retries/$RETRY_LIMIT)"
         else
             echo "Port $port is now free."
             break
@@ -68,7 +78,7 @@ check_existing_tmux_session() {
         read -p "Do you want to kill the existing session? (y/n): " response
         if [[ "$response" == "y" || "$response" == "Y" ]]; then
             tmux kill-session -t $SESSION_NAME
-            echo "Existing tmux session '$SESSION_NAME' has been killed. Starting a new session..."
+            echo "Existing tmux session '$SESSION_NAME' has been killed."
         else
             echo "Please manually kill the session or attach to it using 'tmux attach -t $SESSION_NAME'."
             exit 1
@@ -154,6 +164,10 @@ load_virtualenv "$VENV_PATH"
 echo "Checking if ports are in use..."
 force_kill_port $GCS_PORT
 force_kill_port $GUI_PORT
+
+# Add a grace period to ensure ports are fully released
+echo "Waiting for $GRACE_PERIOD seconds to ensure ports are fully released..."
+sleep $GRACE_PERIOD
 
 # Commands for the GCS Server and the GUI React app
 GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
