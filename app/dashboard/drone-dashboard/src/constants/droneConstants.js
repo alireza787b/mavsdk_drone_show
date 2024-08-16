@@ -2,20 +2,20 @@ export const DRONE_MISSION_TYPES = {
   NONE: 0,
   DRONE_SHOW_FROM_CSV: 1,
   SMART_SWARM: 2,
-  CUSTOM_CSV_DRONE_SHOW: 5,  // New Custom CSV Drone Show mission type
+  CUSTOM_CSV_DRONE_SHOW: 3,  // New Custom CSV Drone Show mission type
 };
 
 export const getMissionDescription = (missionType) => {
   console.log("Mission Type:", missionType); // Log the mission type to ensure it's correct
   switch (missionType) {
     case DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV:
-      return 'Smartly runs the Skybrush exported and processed drone show, synchronized with other drones.';
+      return 'Executes a fully synchronized drone show using pre-processed Skybrush CSV data. This mission coordinates multiple drones autonomously, leveraging MAVSDK to maintain precision in complex aerial maneuvers.';
     case DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW:
-      return 'Runs the shapes/active.csv that can be either created by the CSV creator script or custom methods.';
+      return 'Initiates a custom drone show sequence from a user-defined CSV file. This mission allows for flexibility in the drone choreography, utilizing MAVSDK for offboard control to follow intricate trajectories specified in the CSV.';
     case DRONE_MISSION_TYPES.SMART_SWARM:
-      return 'Can plan clustered leader-follower missions (under development).';
+      return 'Implements a smart swarm formation with leader-follower dynamics. This mission is designed for scenarios requiring coordinated movements across multiple drones, where MAVSDK ensures seamless communication and control within the swarm (currently in development).';
     case DRONE_MISSION_TYPES.NONE:
-      return 'Cancel any currently active mission.';
+      return 'Immediately cancels any active mission, bringing all drones back to their default state.';
     default:
       return '';
   }
