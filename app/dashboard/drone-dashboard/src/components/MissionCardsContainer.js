@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import MissionCard from './components/MissionCard';
-import MissionDetails from './components/MissionDetails';
-import MissionNotification from './components/MissionNotification';
-import '../styles/MissionTrigger.css'; // Import the CSS file
+import MissionCard from './MissionCard';
+import MissionDetails from './MissionDetails';
+import MissionNotification from './MissionNotification';
 
-const MissionTrigger = ({ missionTypes, onSendCommand }) => {
+const MissionCardsContainer = ({ missionTypes, onSendCommand }) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(10);  // Default time delay in seconds
   const [useSlider, setUseSlider] = useState(true);  // Toggle between slider and clock
@@ -136,4 +135,4 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   );
 };
 
-export default MissionTrigger;
+export default MissionCardsContainer;
