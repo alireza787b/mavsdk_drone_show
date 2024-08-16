@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #########################################
-# Drone Services Launcher with Tmux Windows and Split Panes
+# Drone Services Launcher with Tmux
 #
-# This script manages the execution of the Drone Dashboard, GCS Server,
-# and a debug terminal, providing both individual windows and a combined
-# split-pane view in tmux.
+# This script manages the execution of the GUI React App and GCS Server
+# within tmux. It sets up individual windows for each service and a
+# combined view window with split panes.
 #
 # Usage:
 #   ./run_droneservices.sh
@@ -14,82 +14,72 @@
 # Tmux session name
 SESSION_NAME="DroneServices"
 
-# Function to check if tmux is installed and install it if not
+# Function to check if tmux is installed
 check_tmux_installed() {
     if ! command -v tmux &> /dev/null; then
-        echo "tmux could not be found. Installing tmux..."
-        sudo apt-get update
-        sudo apt-get install -y tmux
+        echo "Error: tmux is not installed."
+        echo "Please install tmux with the following command:"
+        echo "  sudo apt-get install -y tmux"
+        exit 1
+    fi
+}
+
+# Function to load the virtual environment
+load_virtualenv() {
+    local venv_path="$1"
+    
+    if [ -d "$venv_path" ]; then
+        source "$venv_path/bin/activate"
+        echo "Virtual environment activated."
     else
-        echo "tmux is already installed."
+        echo "Error: Virtual environment not found at $venv_path."
+        echo "Please follow the setup instructions at:"
+        echo "  https://github.com/alireza787b/mavsdk_drone_show"
+        exit 1
     fi
 }
 
 # Function to display tmux instructions to the user
 show_tmux_instructions() {
     echo "==============================================="
-    echo "  Quick tmux Guide:"
+    echo "  Tmux Session Started"
     echo "==============================================="
     echo "Prefix key (Ctrl+B), then:"
     echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2, 3)"
-    echo "  - Switch between panes (in combined view): Arrow keys (e.g., Ctrl+B, then →)"
-    echo "  - Pause scrolling in any window or pane: Ctrl+S (to pause), Ctrl+Q (to resume)"
     echo "  - Detach from session: Ctrl+B, then D"
     echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
-    echo "  - Close a window/pane: Type 'exit' or press Ctrl+D"
+    echo "  - Close the session and all services: Exit all windows or type 'exit'"
+    echo "  - To kill the session entirely: tmux kill-session -t $SESSION_NAME"
     echo "==============================================="
     echo ""
 }
 
-# Function to start a process in a new tmux window
-start_process_tmux() {
-    local session="$1"
-    local window_name="$2"
-    local command="$3"
-    
-    tmux new-window -t "$session" -n "$window_name" "clear; $command"
-    sleep 2
-}
-
-# Function to create a tmux session with both windows and split panes
+# Function to create a tmux session with individual windows and a combined view
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
     echo "Creating tmux session '$session'..."
 
-    # Create separate windows for each service
-    tmux new-session -d -s "$session" -n "GCS" "clear; $GCS_COMMAND; bash"
-    start_process_tmux "$session" "Dashboard" "$DASHBOARD_COMMAND"
-    start_process_tmux "$session" "Debug" "clear; echo 'Debug Terminal (Pane 2)'; bash"
+    # Create a new tmux session and start the GCS Server in the first window
+    tmux new-session -d -s "$session" -n "GCS-Server" "clear; $GCS_COMMAND; bash"
 
-    # Create a window with split panes for a combined view
-    tmux new-window -t "$session" -n "CombinedView"
-    tmux split-window -h -t "$session:3" "clear; $GCS_COMMAND; bash"
-    tmux split-window -v -t "$session:3.0" "clear; $DASHBOARD_COMMAND; bash"
-    tmux split-window -v -t "$session:3.1" "clear; echo 'Debug Terminal (Pane 2)'; bash"
-    tmux select-layout -t "$session:3" tiled  # Organize panes in a tiled layout
+    # Start the GUI React app in a new window
+    tmux new-window -t "$session" -n "GUI-React" "clear; $GUI_COMMAND; bash"
 
-    # Attach to the tmux session in the CombinedView window
-    tmux select-window -t "$session:3"
+    # Create a combined view window with both services in split panes
+    tmux new-window -t "$session" -n "Combined-View"
+    tmux split-window -h -t "$session:2" "clear; $GCS_COMMAND; bash"
+    tmux split-window -v -t "$session:2.0" "clear; $GUI_COMMAND; bash"
+    tmux select-layout -t "$session:2" tiled  # Organize panes in a tiled layout
+
+    # Attach to the tmux session in the combined view window by default
+    tmux select-window -t "$session:2"
     tmux attach-session -t "$session"
 }
 
-# Function to run the DroneServices components
-run_droneservices_components() {
-    echo "Starting DroneServices components in tmux..."
-
-    # Commands for the GCS Server and the Dashboard
-    GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
-    DASHBOARD_COMMAND="cd $REACT_APP_DIR && npm start"
-
-    # Start services in tmux with separate windows and a combined view
-    start_services_in_tmux
-
-    # Show user instructions after tmux session is attached
-    show_tmux_instructions
-}
-
 # Main execution sequence
+
+# Ensure tmux is installed
 check_tmux_installed
 
 # Get the directory of the current script
@@ -100,33 +90,19 @@ USER_HOME=$(eval echo ~$USER)
 
 # Path to the virtual environment
 VENV_PATH="$USER_HOME/mavsdk_drone_show/venv"
-PYTHON_CMD="$VENV_PATH/bin/python"
 
-# Activate virtual environment
-if [ -d "$VENV_PATH" ]; then
-    source "$VENV_PATH/bin/activate"
-    echo "Virtual environment activated."
-else
-    echo "Error: Virtual environment not found at $VENV_PATH. Please check the path and try again."
-    exit 1
-fi
+# Load the virtual environment
+load_virtualenv "$VENV_PATH"
 
-# Check for first-time setup for React app
-REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
-if [ ! -d "$REACT_APP_DIR/node_modules" ]; then
-    echo "WARNING: The 'node_modules' directory is missing. Running 'npm install' now..."
-    cd "$REACT_APP_DIR"
-    npm install
-    if [ $? -eq 0 ]; then
-        echo "'npm install' completed successfully."
-    else
-        echo "Error: 'npm install' failed. Please resolve the issue manually."
-        exit 1
-    fi
-fi
+# Commands for the GCS Server and the GUI React app
+GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
+GUI_COMMAND="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 
 # Start the services in tmux
-run_droneservices_components
+start_services_in_tmux
+
+# Show user instructions after tmux session is attached
+show_tmux_instructions
 
 echo ""
 echo "==============================================="
