@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import MissionCard from './components/MissionCard';
-import MissionDetails from './components/MissionDetails';
-import MissionNotification from './components/MissionNotification';
+import MissionCard from './MissionCard';
+import MissionDetails from './MissionDetails';
+import MissionNotification from './MissionNotification';
 import '../styles/MissionTrigger.css'; // Import the CSS file
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
