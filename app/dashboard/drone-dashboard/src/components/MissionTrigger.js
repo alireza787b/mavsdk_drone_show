@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import MissionNotification from './MissionNotification';
-import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay } from '../constants/droneConstants';
+import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay ,getMissionDescription } from '../constants/droneConstants';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
