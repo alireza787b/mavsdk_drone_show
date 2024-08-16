@@ -9,16 +9,19 @@
 # window with split panes.
 #
 # Usage:
-#   ./run_droneservices.sh
+#   ./linux_dashboard_start.sh
+#
+# Author: [Your Name]
+# Project: MAVSDK Drone Show
 #########################################
 
-# Tmux session name
+# Configurable Variables
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
 WAIT_TIME=5   # Wait time between retries (in seconds)
-GRACE_PERIOD=10 # Extra wait time before starting services
-RETRY_LIMIT=10 # Maximum number of retries to free ports
+GRACE_PERIOD=10 # Extra wait time before starting services to ensure ports are released
+RETRY_LIMIT=10  # Maximum number of retries to free ports
 
 # Function to check if a port is in use
 port_in_use() {

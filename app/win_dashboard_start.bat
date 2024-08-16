@@ -1,55 +1,95 @@
 @echo off
-cls
+REM ============================================
+REM Drone Services Launcher for Windows
+REM ============================================
+REM This script manages the execution of the GUI React App and GCS Server
+REM on Windows. It handles port conflicts and opens separate terminal
+REM windows for each service.
+REM ============================================
+REM Usage:
+REM   Double-click win_dashboard_start.bat or run it from a command prompt
+REM ============================================
 
-echo Welcome to the Drone Dashboard and GCS Terminal App Startup Script!
-echo MAVSDK_Drone_Show Version 1.0
-echo.
-echo This script will do the following:
-echo 1. Check if the Drone Dashboard (a Node.js React app) is running.
-echo 2. If not, it will start the Drone Dashboard. Once started, you can access the dashboard at http://localhost:3000 (can also be done manually with npm start command)
-echo 3. The script will also open the terminal-based GCS (Ground Control Station) app.
-echo.
-echo Please wait as the script checks and initializes the necessary components...
-echo.
+set SESSION_NAME=DroneServices
+set GCS_PORT=5000
+set GUI_PORT=3000
+set WAIT_TIME=10   REM Wait time (in seconds) between retries
+set RETRY_LIMIT=10 REM Maximum number of retries to free ports
 
-REM Get the directory of the current script
-set SCRIPT_DIR=%~dp0
-set REPO_ROOT=%SCRIPT_DIR%\..
-
-REM Check if the Drone Dashboard server is running
-powershell -Command "try { $response = Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing -ErrorAction Stop; exit 0 } catch { exit 1 }"
-
-IF %ERRORLEVEL% NEQ 0 (
-    echo Starting the Drone Dashboard server...
-    cd "%SCRIPT_DIR%\dashboard\drone-dashboard"
-
-    REM Check if node_modules directory exists (indicating npm install has been run)
-    IF NOT EXIST node_modules (
-        echo The 'node_modules' directory is missing. Running 'npm install'...
-        npm install
-        IF %ERRORLEVEL% NEQ 0 (
-            echo Error: 'npm install' failed. Please resolve the issue manually.
-            pause
-            exit /b
-        )
-        echo 'npm install' completed successfully.
-    )
-
-    start cmd /k npm start
-    echo Drone Dashboard server started successfully!
-) ELSE (
-    echo Drone Dashboard server is already running!
+REM Function to check if a port is in use
+:port_in_use
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%1') do (
+    set PID=%%a
+)
+if defined PID (
+    exit /b 0
+) else (
+    exit /b 1
 )
 
-echo Now starting the GCS Terminal App with Flask...
-cd "%REPO_ROOT%\gcs-server"
-start cmd /k python app.py
-echo GCS Terminal App started successfully!
+REM Function to kill a process using a specific port
+:force_kill_port
+setlocal enabledelayedexpansion
+set /a retries=0
 
-echo.
-echo For more details, please check the documentation in the 'docs' folder.
-echo You can also refer to GitHub repo: https://github.com/alireza787b/mavsdk_drone_show
-echo For tutorials and additional content, visit Alireza Ghaderi's YouTube channel: https://www.youtube.com/@alirezaghaderi
-echo.
-echo Press any key to close this script...
+:retry_kill
+call :port_in_use %1
+if %errorlevel%==0 (
+    echo Killing process using port %1 with PID: !PID!
+    taskkill /F /PID !PID! >nul 2>&1
+    if %errorlevel%==0 (
+        echo Successfully killed process !PID! on port %1.
+    ) else (
+        echo Failed to kill process !PID! on port %1.
+    )
+) else (
+    echo Port %1 is now free.
+    goto end_kill
+)
+
+REM Wait and retry if the port is still in use
+timeout /t %WAIT_TIME% /nobreak >nul
+set /a retries+=1
+
+if !retries! geq %RETRY_LIMIT% (
+    echo Error: Unable to free port %1 after %RETRY_LIMIT% attempts.
+    exit /b 1
+)
+
+echo Port %1 is still in use. Retrying... (!retries!/%RETRY_LIMIT%)
+goto retry_kill
+
+:end_kill
+endlocal
+exit /b 0
+
+REM Main Script Execution
+
+echo ============================================
+echo Checking if ports are in use...
+echo ============================================
+
+call :force_kill_port %GCS_PORT%
+if %errorlevel% neq 0 exit /b 1
+call :force_kill_port %GUI_PORT%
+if %errorlevel% neq 0 exit /b 1
+
+echo ============================================
+echo Waiting for ports to fully release...
+timeout /t %WAIT_TIME% /nobreak >nul
+echo ============================================
+
+REM Launch GCS Server in a new terminal window
+start "GCS-Server" powershell -NoExit -Command "cd %cd%\..\gcs-server; ./venv/Scripts/activate; python app.py"
+
+REM Launch GUI React App in a new terminal window
+start "GUI-React" powershell -NoExit -Command "cd %cd%\dashboard\drone-dashboard; ./venv/Scripts/activate; npm start"
+
+REM Display user instructions
+echo ============================================
+echo All Drone Services components have been started successfully!
+echo You can close each terminal window to stop the respective service.
+echo ============================================
+
 pause
+exit /b 0
