@@ -54,6 +54,12 @@
     box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
   }
   
+  .mission-description {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+  }
+  
   .time-selection {
     display: flex;
     justify-content: center;
