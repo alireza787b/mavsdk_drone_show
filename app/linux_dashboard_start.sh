@@ -1,20 +1,14 @@
 #!/bin/bash
 
 #########################################
-# gcs server and dashboard Launcher with Tmux Split Panes and Windows
+# Drone Services Launcher with Tmux Windows and Split Panes
 #
-# Project: MAVSDK Drone Show
-# Author: Alireza Ghaderi
-# Date: August 2024
-#
-# This script manages the execution of the DroneServices system,
-# including the GCS (Ground Control Station) and the Drone Dashboard.
-# Each component runs in its own tmux window, and a combined split-pane view
-# is also provided for easy monitoring of both services side-by-side.
+# This script manages the execution of the Drone Dashboard and GCS
+# application, providing a combined split view as well as separate
+# windows for each service.
 #
 # Usage:
-#   ./app/linux_dashboard_start.sh.sh
-#
+#   ./run_droneservices.sh
 #########################################
 
 # Tmux session name
@@ -37,9 +31,9 @@ show_tmux_instructions() {
     echo "  Quick tmux Guide:"
     echo "==============================================="
     echo "Prefix key (Ctrl+B), then:"
-    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2, 3)"
+    echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2)"
     echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
-    echo "  - Stop scrolling in a pane for debugging: Ctrl+B, then ["
+    echo "  - Pause auto-scrolling: Ctrl+S (pause), Ctrl+Q (resume)"
     echo "  - Detach from session: Ctrl+B, then D"
     echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
     echo "  - Close pane/window: Type 'exit' or press Ctrl+D"
@@ -62,37 +56,36 @@ start_services_in_tmux() {
     local session="$SESSION_NAME"
 
     echo "Creating tmux session '$session'..."
-    tmux new-session -d -s "$session" -n "GCS" "clear; show_tmux_instructions; cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+    tmux new-session -d -s "$session" -n "CombinedView"
+    
+    # Split the CombinedView window into three panes
+    tmux split-window -h -t "$session:0" "clear; $GCS_COMMAND; bash"
+    tmux split-window -v -t "$session:0.0" "clear; $DASHBOARD_COMMAND; bash"
+    tmux split-window -v -t "$session:0.1" "clear; $OTHER_SERVICE_COMMAND; bash"
+    tmux select-layout -t "$session:0" tiled  # Organize panes in a tiled layout
 
-    # Start the Drone Dashboard service in a new window
-    echo "Starting Drone Dashboard server in tmux..."
-    start_process_tmux "$session" "Dashboard" "cd $REACT_APP_DIR && npm start"
-
-    # Create a combined window with split panes for side-by-side view
-    tmux new-window -t "$session" -n "CombinedView"
-    tmux split-window -h -t "$session:3" "clear; cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
-    tmux split-window -v -t "$session:3.0" "clear; cd $REACT_APP_DIR && npm start"
-    tmux select-layout -t "$session:3" tiled
+    # Create separate windows for each service
+    start_process_tmux "$session" "GCS" "$GCS_COMMAND"
+    start_process_tmux "$session" "Dashboard" "$DASHBOARD_COMMAND"
+    start_process_tmux "$session" "OtherService" "$OTHER_SERVICE_COMMAND"
 
     # Attach to the tmux session and display instructions
     tmux attach-session -t "$session"
     show_tmux_instructions
 }
 
-echo "==============================================="
-echo "  Welcome to the Drone Dashboard and GCS Terminal App Startup Script!"
-echo "==============================================="
-echo ""
-echo "MAVSDK_Drone_Show Version 1.0"
-echo ""
-echo "This script will:"
-echo "1. Start the Drone Dashboard (Node.js React app) and GCS (Ground Control Station) in tmux."
-echo "2. Provide both separate windows for each service and a split-screen combined view."
-echo ""
-echo "Please wait as the script checks and initializes the necessary components..."
-echo ""
+# Function to run the DroneServices components
+run_droneservices_components() {
+    echo "Starting DroneServices components in tmux..."
 
-# Check if tmux is installed and install if necessary
+    GCS_COMMAND="cd $SCRIPT_DIR/../gcs-server && $PYTHON_CMD app.py"
+    DASHBOARD_COMMAND="cd $REACT_APP_DIR && npm start"
+    OTHER_SERVICE_COMMAND="cd $SCRIPT_DIR/../other-service && ./run_service.sh"
+
+    start_services_in_tmux
+}
+
+# Main execution sequence
 check_tmux_installed
 
 # Get the directory of the current script
@@ -129,18 +122,10 @@ if [ ! -d "$REACT_APP_DIR/node_modules" ]; then
 fi
 
 # Start the services in tmux
-start_services_in_tmux
+run_droneservices_components
 
 echo ""
 echo "==============================================="
-echo "  All services have been started successfully!"
+echo "  All DroneServices components have been started successfully!"
 echo "==============================================="
 echo ""
-echo "For more details, please check the documentation in the 'docs' folder."
-echo "GitHub repo: https://github.com/alireza787b/mavsdk_drone_show"
-echo "For tutorials and content, visit Alireza Ghaderi's YouTube channel:"
-echo "https://www.youtube.com/@alirezaghaderi"
-echo ""
-
-# End of the script
-read -p "Press any key to exit the script..."
