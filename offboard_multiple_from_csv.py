@@ -108,20 +108,19 @@ async def get_global_position_telemetry(drone_id: int, drone: System):
         logger.error(f"Error fetching global position telemetry for drone {drone_id}: {e}")
 
 async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home_position, home_position_NED, global_position_telemetry: dict, mode_descriptions: dict):
-    """
-    Perform the trajectory for the given drone based on waypoints and telemetry data.
-    """
     logger.info(f"Performing trajectory for drone {drone_id}")
     total_duration = waypoints[-1][0]
     t = 0
     last_mode = 0
     last_waypoint_index = 0
 
+    # Initialize position to None
+    position = None
+
     while t <= total_duration:
         try:
             actual_position = global_position_telemetry[drone_id]
             logger.debug(f"Actual position: {actual_position}, Home position: {home_position}")
-            local_ned_position = functions.global_to_local.global_to_local(actual_position, home_position)
             local_ned_position = functions.global_to_local.global_to_local(actual_position, home_position)
             
             current_waypoint = None
@@ -132,7 +131,6 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
                     break
 
             if t <= INITIAL_CLIMB_DURATION:
-                # Initial climb phase: send velocity setpoints to only take off and climb
                 vz = current_waypoint[6]
                 logger.debug(f"Drone {drone_id+1}: Initial climb phase, sending vertical velocity: {vz}")
                 await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, vz, 0.0))
@@ -155,7 +153,7 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
             await asyncio.sleep(STEP_TIME)
             t += STEP_TIME
             
-            if int(t / STEP_TIME) % 100 == 0:
+            if position is not None and int(t / STEP_TIME) % 100 == 0:
                 deviation = [(a - b) for a, b in zip(position, [local_ned_position.north_m, local_ned_position.east_m, local_ned_position.down_m])]
                 if SHOW_DEVIATIONS:
                     logger.info(f"Drone {drone_id+1} Deviations: {round(deviation[0], 1)} {round(deviation[1], 1)} {round(deviation[2], 1)}")
@@ -168,6 +166,7 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
             break
 
     logger.info(f"Shape completed for drone {drone_id+1}")
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 async def initial_setup_and_connection(drone_id: int, udp_port: int):
