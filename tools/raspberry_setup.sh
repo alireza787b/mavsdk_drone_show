@@ -1,40 +1,57 @@
 #!/bin/bash
 
-# Setup script for configuring a Raspberry Pi for Drone Swarm System
-echo "Starting setup for the Drone Swarm System..."
+# Define the script path
+script_path="$HOME/mavsdk_drone_show/tools/raspberry_setup.sh"
 
-# Check current working directory
-if [[ "$(pwd)" != "$HOME/mavsdk_drone_show/tools" ]]; then
-    echo "Script not running from expected directory."
-    echo "Please run this script from: ~/mavsdk_drone_show/tools"
-    exit 1
+# Get absolute path to avoid issues with 'cd' commands later
+script_path=$(realpath $script_path)
+
+# Calculate initial hash of the script
+initial_hash=$(md5sum $script_path | cut -d ' ' -f 1)
+
+# Define the branch name for the repository operations
+branch_name="real-test-1"  # Default branch
+read -p "Enter the Git branch name you want to use ($branch_name by default): " user_branch
+if [ ! -z "$user_branch" ]; then
+    branch_name="$user_branch"
 fi
 
-# Inform user about potential duplication
+# Navigate to the repository directory
+cd $(dirname $script_path)
+
+# Stashing any local changes and pulling the latest updates from Git
+echo "Stashing any local changes and updating from Git repository..."
+git stash push --include-untracked
+git checkout $branch_name
+git pull origin $branch_name
+
+# Calculate new hash and check if script has changed
+new_hash=$(md5sum $script_path | cut -d ' ' -f 1)
+if [ "$initial_hash" != "$new_hash" ]; then
+    echo "Script has been updated. Restarting with the latest version..."
+    exec bash $script_path
+fi
+
+echo "Starting setup for the Drone Swarm System..."
 echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
 
 # Get user inputs
 read -p "Enter Drone ID (e.g., 1, 2): " drone_id
 echo "You entered Drone ID: $drone_id"
-
-# Ask for Netbird setup key
-read -s -p "Enter Netbird Setup Key: " netbird_key  # -s to hide input for security
+read -s -p "Enter Netbird Setup Key: " netbird_key
 echo
 
 # Optional: Enter Netbird Management URL
 read -p "Enter Netbird Management URL (Press enter for default): " management_url
-management_url="${management_url:-https://nb1.joomtalk.ir}"  # Default URL if not provided
+management_url="${management_url:-https://nb1.joomtalk.ir}"
 echo "Using Netbird Management URL: $management_url"
 
-# Disconnect from Netbird if connected
 echo "Disconnecting from Netbird..."
 netbird down
 
-# Clear Netbird configurations
 echo "Clearing Netbird configurations..."
-sudo rm -rf /etc/netbird/ # Assuming config is stored here; adjust path as necessary
+sudo rm -rf /etc/netbird/
 
-# Configure HWID files
 hwid_file="$HOME/mavsdk_drone_show/${drone_id}.hwID"
 if [ -f "$hwid_file" ]; then
     echo "HWID file exists - updating..."
@@ -43,37 +60,26 @@ fi
 touch "$hwid_file"
 echo "Hardware ID file created/updated at: $hwid_file"
 
-# Configure system name
 echo "Configuring hostname to 'drone$drone_id'..."
 echo "drone$drone_id" | sudo tee /etc/hostname
 sudo sed -i "s/.*127.0.1.1.*/127.0.1.1\tdrone$drone_id/" /etc/hosts
 
-# Reload hostname service and confirm the change
 echo "Reloading hostname service to apply changes immediately..."
 sudo hostnamectl set-hostname "drone$drone_id"
 sudo systemctl restart systemd-logind
-hostname | grep "drone$drone_id" &> /dev/null && echo "Hostname successfully changed to drone$drone_id." || echo "Failed to update hostname."
 
-# Ensure hostname change takes effect
 echo "Restarting avahi-daemon to apply hostname changes..."
 sudo systemctl restart avahi-daemon
 
-# Wait for system to stabilize after hostname change
-sleep 5
-
-# Reconnect to Netbird with new hostname
 echo "Reconnecting to Netbird with new settings..."
 netbird up --management-url "$management_url" --setup-key "$netbird_key"
 echo "Netbird reconnected with new hostname 'drone$drone_id'."
 
-# Securely remove sensitive information
 unset netbird_key
 
-# Setup and start the coordinator service
 echo "Setting up the Drone Swarm System Coordinator service..."
 sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
-# Download and configure the MAVSDK server
 echo "Downloading and configuring MAVSDK server..."
 if [ -f "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh" ]; then
     sudo bash $HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh
