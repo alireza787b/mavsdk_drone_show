@@ -80,13 +80,17 @@ unset netbird_key
 echo "Setting up the Drone Swarm System Coordinator service..."
 sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
-echo "Downloading and configuring MAVSDK server..."
-if [ -f "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh" ]; then
-    cd $HOME/mavsdk_drone_show
-    sudo bash tools/download_mavsdk_server.sh
-    echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
+echo "Checking for MAVSDK server binary..."
+if [ ! -f "$HOME/mavsdk_drone_show/mavsdk_server" ]; then
+    echo "MAVSDK server binary not found, downloading..."
+    if [ -f "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh" ]; then
+        sudo bash $HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh
+        echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
+    else
+        echo "Error: MAVSDK server download script not found."
+    fi
 else
-    echo "Error: MAVSDK server download script not found."
+    echo "MAVSDK server binary already present, no need to download."
 fi
 
 echo "Setup complete! The system is now configured for Drone ID $drone_id."
