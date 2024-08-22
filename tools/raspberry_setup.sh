@@ -3,6 +3,13 @@
 # Setup script for configuring a Raspberry Pi for Drone Swarm System
 echo "Starting setup for the Drone Swarm System..."
 
+# Check current working directory
+if [[ "$(pwd)" != "$HOME/mavsdk_drone_show/tools" ]]; then
+    echo "Script not running from expected directory."
+    echo "Please run this script from: ~/mavsdk_drone_show/tools"
+    exit 1
+fi
+
 # Inform user about potential duplication
 echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
 
@@ -41,9 +48,18 @@ echo "Configuring hostname to 'drone$drone_id'..."
 echo "drone$drone_id" | sudo tee /etc/hostname
 sudo sed -i "s/.*127.0.1.1.*/127.0.1.1\tdrone$drone_id/" /etc/hosts
 
+# Reload hostname service and confirm the change
+echo "Reloading hostname service to apply changes immediately..."
+sudo hostnamectl set-hostname "drone$drone_id"
+sudo systemctl restart systemd-logind
+hostname | grep "drone$drone_id" &> /dev/null && echo "Hostname successfully changed to drone$drone_id." || echo "Failed to update hostname."
+
 # Ensure hostname change takes effect
 echo "Restarting avahi-daemon to apply hostname changes..."
 sudo systemctl restart avahi-daemon
+
+# Wait for system to stabilize after hostname change
+sleep 5
 
 # Reconnect to Netbird with new hostname
 echo "Reconnecting to Netbird with new settings..."
@@ -59,7 +75,11 @@ sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
 # Download and configure the MAVSDK server
 echo "Downloading and configuring MAVSDK server..."
-sudo bash $HOME/mavsdk_drone_show/download_mavsdk_server.sh
-echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
+if [ -f "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh" ]; then
+    sudo bash $HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh
+    echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
+else
+    echo "Error: MAVSDK server download script not found."
+fi
 
 echo "Setup complete! The system is now configured for Drone ID $drone_id."
