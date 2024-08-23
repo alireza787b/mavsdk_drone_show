@@ -43,14 +43,16 @@ Description=Drone Swarm System Coordinator
 After=network.target
 
 [Service]
+
+# Ensure the system's codebase is up-to-date before starting
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo.sh
+
 # Path to the Python executable and the coordinator script
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
 User=droneshow
 Group=droneshow
 
-# Ensure the system's codebase is up-to-date before starting
-ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo.sh
 
 Restart=always
 RestartSec=5s
