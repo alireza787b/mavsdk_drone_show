@@ -1,4 +1,3 @@
-#gcs-server/config.py
 import csv
 import os
 import logging
@@ -8,6 +7,9 @@ CONFIG_FILE_PATH = os.path.join(BASE_DIR, 'config.csv')
 SWARM_FILE_PATH = os.path.join(BASE_DIR, 'swarm.csv')
 
 logger = logging.getLogger(__name__)
+
+# Define the expected column order
+CONFIG_COLUMNS = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip']
 
 def load_csv(file_path):
     """General function to load data from a CSV file."""
@@ -33,15 +35,16 @@ def load_csv(file_path):
 
     return data
 
-def save_csv(data, file_path):
-    """General function to save data to a CSV file."""
+def save_csv(data, file_path, fieldnames=None):
+    """General function to save data to a CSV file with a specified column order."""
     if not data:
         logger.warning(f"No data provided to save in {file_path}. Operation aborted.")
         return
 
     try:
         with open(file_path, mode='w', newline='') as file:
-            writer = csv.DictWriter(file, fieldnames=data[0].keys())
+            # Use the provided fieldnames if available, otherwise use the keys from the data
+            writer = csv.DictWriter(file, fieldnames=fieldnames or data[0].keys())
             writer.writeheader()
             writer.writerows(data)
         logger.info(f"Data successfully saved to {file_path}")
@@ -58,10 +61,12 @@ def load_config(file_path=CONFIG_FILE_PATH):
     return load_csv(file_path)
 
 def save_config(config, file_path=CONFIG_FILE_PATH):
-    save_csv(config, file_path)
+    # Pass the expected column order to ensure consistent column placement
+    save_csv(config, file_path, fieldnames=CONFIG_COLUMNS)
 
 def load_swarm(file_path=SWARM_FILE_PATH):
     return load_csv(file_path)
 
 def save_swarm(swarm, file_path=SWARM_FILE_PATH):
     save_csv(swarm, file_path)
+
