@@ -69,11 +69,27 @@ def setup_routes(app):
 
         logger.info("Received configuration data for saving")
         try:
+            # Save the configuration data
             save_config(config_data)
             logger.info("Configuration saved successfully")
-            return jsonify({'status': 'success', 'message': 'Configuration saved successfully'})
+
+            git_info = None
+            # If auto push to Git is enabled, perform Git operations
+            if Params.GIT_AUTO_PUSH:
+                logger.info("Git auto-push is enabled. Attempting to push configuration changes to repository.")
+                git_info = git_operations(BASE_DIR, f"Update configuration: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                logger.info(git_info)
+
+            # Return a success message, including Git info if applicable
+            response_data = {'status': 'success', 'message': 'Configuration saved successfully'}
+            if git_info:
+                response_data['git_info'] = git_info
+
+            return jsonify(response_data)
         except Exception as e:
+            logger.error(f"Error saving configuration: {e}", exc_info=True)
             return error_response(f"Error saving configuration: {e}")
+
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
