@@ -1,7 +1,7 @@
 # Compiled Python files
-__pycache__/
+**/__pycache__/
 *.py[cod]
-functions/__pycache__
+
 # Packages
 *.egg
 *.egg-info/
@@ -15,7 +15,6 @@ sdist/
 develop-eggs/
 .wheelhouse/
 .installed.cfg
-*.egg-info/
 MANIFEST
 
 # Installer logs
@@ -40,17 +39,17 @@ junit.xml
 *.mo
 *.pot
 
-# Django stuff:
+# Django stuff
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
-# Flask stuff:
+# Flask stuff
 instance/
 .webassets-cache
 
-# Scrapy stuff:
+# Scrapy stuff
 .scrapy
 
 # Sphinx documentation
@@ -60,7 +59,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # PyCharm
 .idea/
@@ -69,8 +68,8 @@ target/
 .vscode/
 
 # Environment files
-#.env write now we need react .env. maybe later put them in constants
-.venv
+# Keeping .env for React, consider ignoring it later
+.venv/
 env/
 venv/
 ENV/
@@ -110,10 +109,10 @@ logs/
 /*.hwID
 
 # Node modules
-/node_modules/
+node_modules/
 
 # Production files
-/dist/
+dist/
 
 # Credentials
 *.pem
@@ -127,20 +126,18 @@ logs/
 .DS_Store
 Thumbs.db
 
-
-
-# dependencies
-/node_modules
-/.pnp
+# Dependencies
+node_modules/
+.pnp/
 .pnp.js
 
-# testing
-/coverage
+# Testing
+/coverage/
 
-# production
-/build
+# Production
+/build/
 
-# misc
+# Miscellaneous
 .DS_Store
 .env.local
 .env.development.local
@@ -151,7 +148,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-src/__pycache__
-gcs-server/__pycache__
-functions/__pycache__
-
+# Exclude __pycache__ in specific subdirectories
+src/__pycache__/
+gcs-server/__pycache__/
+functions/__pycache__/
