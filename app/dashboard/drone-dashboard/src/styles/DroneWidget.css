@@ -84,6 +84,22 @@
 }
 
 
+/* Conditional color classes */
+
+.green {
+    color: green;
+}
+
+.yellow {
+    color: #ffc107;
+    /* Bootstrap yellow color */
+}
+
+.red {
+    color: red;
+}
+
+
 /* Media query for better responsiveness */
 
 @media (max-width: 768px) {
