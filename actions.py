@@ -1,5 +1,3 @@
-#actions.py
-#usage: python action.py --action takeoff --altitude 20 --param MAV_SYS_ID 2 --param PARAM2 3
 import argparse
 import asyncio
 import csv
@@ -9,6 +7,7 @@ import os
 import subprocess
 import logging
 import psutil
+import os
 from src.params import Params
 
 # Configure logging
@@ -82,20 +81,7 @@ def stop_mavsdk_server(mavsdk_server):
     logger.info("Stopping mavsdk_server")
     mavsdk_server.terminate()
 
-async def set_parameters(drone, parameters):
-    """
-    Function to set one or more parameters on the drone.
-    Parameters should be passed as a dictionary, e.g., {"MAV_SYS_ID": 2}
-    """
-    for param_name, param_value in parameters.items():
-        try:
-            logger.info(f"Setting parameter {param_name} to {param_value}")
-            await drone.param.set_param_int(param_name, param_value)
-            logger.info(f"Parameter {param_name} set to {param_value} successfully.")
-        except Exception as e:
-            logger.error(f"Failed to set parameter {param_name}: {e}")
-
-async def perform_action(action, altitude=None, parameters=None):
+async def perform_action(action, altitude=None):
     logging.info("Starting to perform action...")
     droneConfig = read_config()
     if not droneConfig:
@@ -124,11 +110,6 @@ async def perform_action(action, altitude=None, parameters=None):
         return
 
     try:
-        # Set parameters if provided
-        if parameters:
-            await set_parameters(drone, parameters)
-        
-        # Perform action
         if action == "takeoff":
             await takeoff(drone, altitude)
         elif action == "land":
@@ -202,16 +183,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
     parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
-    parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'), help='Set parameters in the form param_name param_value')
+
 
     args = parser.parse_args()
 
-    # Convert parameter arguments to dictionary
-    parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
-
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(perform_action(args.action, args.altitude, parameters))
+        loop.run_until_complete(perform_action(args.action, args.altitude))
     except Exception as e:
         logging.error(f"An error occurred: {e}")
     finally:
