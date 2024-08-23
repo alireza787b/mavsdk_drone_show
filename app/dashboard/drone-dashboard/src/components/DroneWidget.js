@@ -10,8 +10,11 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   // Get the flight mode title from the flight mode code
   const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
 
+  // Determine if the drone is armable or not
+  const armableClass = drone.Is_Armable ? 'armable' : 'not-armable';
+
   return (
-    <div className={`drone-widget ${isExpanded ? 'expanded' : ''}`}>
+    <div className={`drone-widget ${armableClass} ${isExpanded ? 'expanded' : ''}`}>
       <h3 onClick={() => toggleDroneDetails(drone)}>
         <span className={`status-indicator ${isStale ? 'stale' : 'active'}`}></span>
         Drone {drone.hw_ID || 'Unknown'}

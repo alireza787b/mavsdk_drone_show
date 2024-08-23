@@ -47,12 +47,6 @@ def poll_telemetry(drone):
             # Construct the full URI
             full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             
-            # Debug log the full URI being requested
-            # logger.info(
-            #     f"Requesting telemetry data from URI: {full_uri}",
-            #     extra={'drone_id': drone['hw_id']}
-            # )
-
             # Make the HTTP request
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)
 
@@ -78,7 +72,8 @@ def poll_telemetry(drone):
                         'Update_Time': telemetry_data.get('update_time', 'Unknown'),
                         'Timestamp': telemetry_data.get('timestamp', time.time()),
                         'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
-                        'Hdop': telemetry_data.get('hdop', 99.99)
+                        'Hdop': telemetry_data.get('hdop', 99.99),
+                        'Is_Armable': telemetry_data.get('is_armable', False)  # New field for armable status
                     }
                     last_telemetry_time[drone['hw_id']] = time.time()
 
@@ -86,7 +81,8 @@ def poll_telemetry(drone):
                 # logger.info(
                 #     f"Updated telemetry for drone {drone['hw_id']}: State={telemetry_data_all_drones[drone['hw_id']]['State']} | "
                 #     f"Mission={telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
-                #     f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V",
+                #     f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V | "
+                #     f"Armable={telemetry_data_all_drones[drone['hw_id']]['Is_Armable']}",
                 #     extra={'drone_id': drone['hw_id']}
                 # )
 
@@ -126,6 +122,7 @@ def poll_telemetry(drone):
                 telemetry_data_all_drones[drone['hw_id']] = {}
 
         time.sleep(Params.polling_interval)
+
 
 def start_telemetry_polling(drones):
     initialize_telemetry_tracking(drones)

@@ -21,8 +21,8 @@ class LocalMavlinkController:
         
         # Create a dictionary to store the latest message of each type
         self.latest_messages = {}
-        # Set the message filter to include additional types for flight mode and HDOP
-        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT']
+        # Set the message filter to include additional types for flight mode, HDOP, and system status
+        self.message_filter = ['GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS']
         
         # Create a Mavlink connection to the drone. Replace "local_mavlink_port" with the actual port.
         self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
@@ -62,17 +62,39 @@ class LocalMavlinkController:
             self.process_heartbeat(msg)
         elif msg_type == 'GPS_RAW_INT':
             self.process_gps_raw_int(msg)
+        elif msg_type == 'SYS_STATUS':
+            self.process_sys_status(msg)
         else:
             logging.debug(f"Received unhandled message type: {msg.get_type()}")
 
     def process_heartbeat(self, msg):
         # Store the raw flight mode
         self.drone_config.flight_mode_raw = msg.custom_mode
-        # logging.debug(f"Updated raw flight mode to: {self.drone_config.flight_mode_raw}")
+
+        # Check if the system is armable
+        is_armable = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) == 0 and \
+                     (msg.system_status == mavutil.mavlink.MAV_STATE_STANDBY)
+
+        # Update armable status
+        self.drone_config.is_armable = is_armable
+        logging.debug(f"Updated armable status to: {self.drone_config.is_armable}")
+
+    def process_sys_status(self, msg):
+        # Check if sensors are healthy and calibrated
+        is_gyrometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO) != 0
+        is_accelerometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_ACCEL) != 0
+        is_magnetometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_MAG) != 0
+
+        # Update health status in drone_config
+        self.drone_config.is_gyrometer_calibration_ok = is_gyrometer_calibration_ok
+        self.drone_config.is_accelerometer_calibration_ok = is_accelerometer_calibration_ok
+        self.drone_config.is_magnetometer_calibration_ok = is_magnetometer_calibration_ok
+        logging.debug(f"Sensor calibration status updated: Gyro: {is_gyrometer_calibration_ok}, "
+                      f"Accel: {is_accelerometer_calibration_ok}, Mag: {is_magnetometer_calibration_ok}")
 
     def process_gps_raw_int(self, msg):
         # Store HDOP value directly
-        self.drone_config.hdop = msg.eph/ 1E2
+        self.drone_config.hdop = msg.eph / 1E2
         # logging.debug(f"Updated HDOP to: {self.drone_config.hdop}")
 
     def process_attitude(self, msg):

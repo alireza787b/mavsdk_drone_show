@@ -1,71 +1,103 @@
 .drone-widget {
-  border: 1px solid #ccc;
-  padding: 16px;
-  margin: 16px;
-  border-radius: 8px;
-  background-color: #fff;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border: 2px solid #ccc;
+    padding: 16px;
+    margin: 16px;
+    border-radius: 8px;
+    background-color: #fff;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.drone-widget.armable {
+    border-color: green;
+}
+
+.drone-widget.not-armable {
+    border-color: red;
 }
 
 .drone-widget:hover {
-  background-color: #f9f9f9;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .drone-widget h3 {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 1.2em;
+    font-weight: 500;
 }
 
 .drone-widget.expanded {
-  background-color: #f0f0f0;
+    background-color: #f0f0f0;
 }
 
 .status-indicator {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 8px;
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 10px;
 }
 
 .status-indicator.active {
-  background-color: green;
+    background-color: green;
 }
 
 .status-indicator.stale {
-  background-color: red;
+    background-color: red;
 }
 
 .drone-info {
-  margin-bottom: 8px;
+    margin-bottom: 12px;
+    font-size: 0.95em;
+    line-height: 1.5;
 }
 
 .drone-info p {
-  margin: 4px 0;
+    margin: 6px 0;
 }
 
 .drone-actions {
-  text-align: right;
-  margin-top: 10px;
+    text-align: right;
+    margin-top: 12px;
 }
 
 .external-view-btn {
-  background: none;
-  border: none;
-  color: #007bff;
-  cursor: pointer;
-  transition: color 0.3s ease;
+    background: none;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: color 0.3s ease;
 }
 
 .external-view-btn:hover {
-  color: #0056b3;
-  text-decoration: underline;
+    color: #0056b3;
+    text-decoration: underline;
 }
 
 .details-content {
-  margin-top: 16px;
+    margin-top: 16px;
+}
+
+
+/* Media query for better responsiveness */
+
+@media (max-width: 768px) {
+    .drone-widget {
+        padding: 12px;
+        margin: 12px;
+    }
+    .drone-info {
+        font-size: 0.9em;
+    }
+    .drone-widget h3 {
+        font-size: 1.1em;
+    }
+    .external-view-btn {
+        font-size: 0.85em;
+    }
 }

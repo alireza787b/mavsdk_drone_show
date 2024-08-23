@@ -21,7 +21,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
 
   useEffect(() => {
-    const backendURL = getBackendURL(); // Get the dynamic backend URL
+    const backendURL = getBackendURL();
     const url = `${backendURL}/telemetry`;
     const fetchData = () => {
       axios.get(url).then((response) => {
@@ -56,30 +56,48 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       )}
 
       {/* Identifiers & Time */}
-      <p><strong>HW_ID:</strong> {detailedDrone.hw_ID}</p>
-      <p><strong>Update Time (UNIX):</strong> {detailedDrone.Update_Time}</p>
-      <p><strong>Update Time (Local):</strong> {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
+      <div className="detail-group">
+        <p><strong>HW_ID:</strong> {detailedDrone.hw_ID}</p>
+        <p><strong>Update Time (Local):</strong> {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
+      </div>
+
+      {/* Armable Status */}
+      <div className="armable-status">
+        <p><strong>Armable:</strong> 
+          <span className={`armable-badge ${detailedDrone.Is_Armable ? 'armable' : 'not-armable'}`}>
+            {detailedDrone.Is_Armable ? 'Yes' : 'No'}
+          </span>
+        </p>
+      </div>
 
       {/* Mission & Status Information */}
-      <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
-      <p><strong>Flight Mode:</strong> {getFlightModeTitle(detailedDrone.Flight_Mode)}</p> {/* Updated line */}
-      <p><strong>State:</strong> {detailedDrone.State}</p>
-      <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
+      <div className="detail-group">
+        <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
+        <p><strong>Flight Mode:</strong> {getFlightModeTitle(detailedDrone.Flight_Mode)}</p>
+        <p><strong>State:</strong> {detailedDrone.State}</p>
+        <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
+      </div>
 
       {/* Positional Information */}
-      <p><strong>Altitude:</strong> {detailedDrone.Position_Alt.toFixed(1)}m</p>
-      <p><strong>Latitude:</strong> {detailedDrone.Position_Lat}</p>
-      <p><strong>Longitude:</strong> {detailedDrone.Position_Long}</p>
+      <div className="detail-group">
+        <p><strong>Altitude:</strong> {detailedDrone.Position_Alt.toFixed(1)}m</p>
+        <p><strong>Latitude:</strong> {detailedDrone.Position_Lat}</p>
+        <p><strong>Longitude:</strong> {detailedDrone.Position_Long}</p>
+      </div>
 
       {/* Movement & Direction */}
-      <p><strong>Velocity North:</strong> {detailedDrone.Velocity_North.toFixed(1)}m/s</p>
-      <p><strong>Velocity East:</strong> {detailedDrone.Velocity_East.toFixed(1)}m/s</p>
-      <p><strong>Velocity Down:</strong> {detailedDrone.Velocity_Down.toFixed(1)}m/s</p>
-      <p><strong>Yaw:</strong> {detailedDrone.Yaw.toFixed(0)}°</p>
+      <div className="detail-group">
+        <p><strong>Velocity North:</strong> {detailedDrone.Velocity_North.toFixed(1)}m/s</p>
+        <p><strong>Velocity East:</strong> {detailedDrone.Velocity_East.toFixed(1)}m/s</p>
+        <p><strong>Velocity Down:</strong> {detailedDrone.Velocity_Down.toFixed(1)}m/s</p>
+        <p><strong>Yaw:</strong> {detailedDrone.Yaw.toFixed(0)}°</p>
+      </div>
 
       {/* Battery & System Health */}
-      <p><strong>Battery Voltage:</strong> {detailedDrone.Battery_Voltage.toFixed(1)}V</p>
-      <p><strong>HDOP:</strong> {detailedDrone.Hdop}</p> {/* Added field */}
+      <div className="detail-group">
+        <p><strong>Battery Voltage:</strong> {detailedDrone.Battery_Voltage.toFixed(1)}V</p>
+        <p><strong>HDOP:</strong> {detailedDrone.Hdop}</p>
+      </div>
 
       <select value={currentTileLayer} onChange={(e) => setCurrentTileLayer(e.target.value)}>
         <option value="OSM">OpenStreetMap</option>
