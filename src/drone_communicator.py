@@ -252,6 +252,7 @@ class DroneCommunicator:
             "update_time": int(self.drone_config.last_update_timestamp),
             "flight_mode_raw": int(self.drone_config.flight_mode_raw),
             "hdop": self.drone_config.hdop
+            "is_armable": self.drone_config.is_armable
         }
         return self.drone_state
 
