@@ -6,43 +6,67 @@
     border: 1px solid #ddd;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     transition: max-height 0.3s ease, opacity 0.3s ease;
-  }
-  
-  .drone-detail h1 {
+}
+
+.drone-detail h1 {
     display: flex;
     align-items: center;
     margin-bottom: 16px;
-  }
-  
-  .drone-detail p {
+}
+
+.drone-detail p {
     margin: 8px 0;
-  }
-  
-  .detail-group {
+}
+
+.detail-group {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
-  }
-  
-  /* Animation for the accordion effect (expansion and contraction) */
-  .drone-detail-entering,
-  .drone-detail-exiting,
-  .drone-detail-exited {
+    margin-bottom: 16px;
+}
+
+.armable-status {
+    margin-bottom: 16px;
+}
+
+.armable-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 8px;
+}
+
+.armable {
+    background-color: green;
+}
+
+.not-armable {
+    background-color: red;
+}
+
+
+/* Animation for the accordion effect (expansion and contraction) */
+
+.drone-detail-entering,
+.drone-detail-exiting,
+.drone-detail-exited {
     max-height: 0;
     opacity: 0;
     overflow: hidden;
-  }
-  
-  .drone-detail-entered {
-    max-height: 400px; /* Adjust based on your content size */
+}
+
+.drone-detail-entered {
+    max-height: 400px;
+    /* Adjust based on your content size */
     opacity: 1;
-  }
-  
-  select {
+}
+
+select {
     margin-top: 16px;
     padding: 8px;
     border-radius: 4px;
     border: 1px solid #ccc;
     background-color: #fff;
-  }
-  
+}

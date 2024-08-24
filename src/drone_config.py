@@ -34,6 +34,8 @@ class DroneConfig:
         self.drones = drones
         self.kalman_filter = KalmanFilter() # New line
         self.takeoff_altitude = Params.default_takeoff_alt
+        self.hdop = 0
+        self.is_armable = False
 
 
     def get_hw_id(self, hw_id=None):
