@@ -15,9 +15,9 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
 
   // Determine HDOP class based on value
   const getHdopClass = (hdop) => {
+    if (hdop == 0.0) return 'red'
     if (hdop < 0.8) return 'green';
     if (hdop <= 1.0) return 'yellow';
-    if (hdop == 0.0) return 'red'
     return 'red';
   };
 
