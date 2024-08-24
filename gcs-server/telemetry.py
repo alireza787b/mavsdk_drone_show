@@ -73,7 +73,7 @@ def poll_telemetry(drone):
                         'Timestamp': telemetry_data.get('timestamp', time.time()),
                         'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
                         'Hdop': telemetry_data.get('hdop', 99.99),
-                        'Is_Armable': telemetry_data.get('is_armable', False)  # New field for armable status
+                        'Is_Armable': telemetry_data.get('is_armable', False),
                     }
                     last_telemetry_time[drone['hw_id']] = time.time()
 
