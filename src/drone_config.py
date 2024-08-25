@@ -12,30 +12,55 @@ from src.filter import KalmanFilter
 
 class DroneConfig:
     def __init__(self,drones, hw_id=None):
-        self.hw_id = self.get_hw_id(hw_id)
+        self.hw_id = self.get_hw_id(hw_id)  # Unique hardware ID for the drone
         self.trigger_time = 0
-        self.config = self.read_config()
-        self.swarm = self.read_swarm()
-        self.state = 0
-        self.pos_id = self.get_hw_id(hw_id)
-        self.mission = 0
-        self.trigger_time = 0
+        self.config = self.read_config()  # Read configuration settings
+        self.swarm = self.read_swarm()  # Read swarm configuration
+        self.state = 0  # Initial state of the drone
+        self.pos_id = self.get_hw_id(hw_id)  # Position ID, typically same as hardware ID
+        self.mission = 0  # Current mission state
+        self.trigger_time = 0  # Time of the last trigger event
+
+        # Position and velocity information
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity = {'north': 0, 'east': 0, 'down': 0}
-        self.yaw = 0
-        self.battery = 0
-        self.last_update_timestamp = 0
+        self.yaw = 0  # Yaw angle in degrees
+
+        # Battery voltage
+        self.battery = 0  # Voltage in volts
+        self.last_update_timestamp = 0  # Timestamp of the last telemetry update
+
+        # Home position, set after receiving the first valid HOME_POSITION message
         self.home_position = None
+
+        # Setpoints for position and velocity in both LLA (Lat, Long, Alt) and NED (North, East, Down) coordinates
         self.position_setpoint_LLA = {'lat': 0, 'long': 0, 'alt': 0}
         self.position_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
         self.velocity_setpoint_NED = {'north': 0, 'east': 0, 'down': 0}
-        self.yaw_setpoint=0
+        self.yaw_setpoint = 0  # Yaw setpoint in degrees
+
+        # Target drone for swarm operations (if applicable)
         self.target_drone = None
-        self.drones = drones
-        self.kalman_filter = KalmanFilter() # New line
+        self.drones = drones  # List of drones in the swarm
+
+        # Kalman filter instance for state estimation (optional)
+        self.kalman_filter = KalmanFilter()  # Initialize Kalman Filter
+
+        # Altitude for takeoff
         self.takeoff_altitude = Params.default_takeoff_alt
-        self.hdop = 0
-        self.is_armable = False
+
+        # GPS data
+        self.hdop = 0  # Horizontal dilution of precision
+        self.vdop = 0  # Vertical dilution of precision (new field)
+
+        # MAVLink mode and system status (new fields)
+        self.mav_mode = 0  # MAV_MODE value from the MAVLink HEARTBEAT message
+        self.system_status = 0  # System status from the MAVLink HEARTBEAT message
+
+        # Sensor health and calibration statuses
+        self.is_gyrometer_calibration_ok = False
+        self.is_accelerometer_calibration_ok = False
+        self.is_magnetometer_calibration_ok = False
 
 
     def get_hw_id(self, hw_id=None):

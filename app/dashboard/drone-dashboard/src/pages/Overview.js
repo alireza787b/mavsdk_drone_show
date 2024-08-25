@@ -5,6 +5,7 @@ import Globe from '../components/Globe';
 import CommandSender from '../components/CommandSender';
 import DroneWidget from '../components/DroneWidget';
 import { getTelemetryURL } from '../utilities/utilities';
+import { SYSTEM_STATUS_ENUM } from '../constants/systemStatus'; // Import system status enumeration
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
@@ -24,6 +25,7 @@ const Overview = ({ setSelectedDrone }) => {
         const dronesArray = Object.keys(response.data).map((hw_ID) => ({
           hw_ID,
           ...response.data[hw_ID],
+          system_status_name: SYSTEM_STATUS_ENUM[response.data[hw_ID].system_status] || 'Unknown'  // Map system status to a human-readable name
         }));
 
         // Filter out drones with incomplete data (e.g., missing key properties)
@@ -91,12 +93,12 @@ const Overview = ({ setSelectedDrone }) => {
         {drones.length === 0 && !error && <p>No valid drone data available.</p>}
         {drones.map((drone) => (
           <DroneWidget
-          drone={drone}
-          isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
-          toggleDroneDetails={toggleDroneDetails}
-          setSelectedDrone={setSelectedDrone}
-          key={drone.hw_ID}
-        />        
+            drone={drone}
+            isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
+            toggleDroneDetails={toggleDroneDetails}
+            setSelectedDrone={setSelectedDrone}
+            key={drone.hw_ID}
+          />
         ))}
       </div>
 

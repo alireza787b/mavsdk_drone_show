@@ -1,6 +1,7 @@
 import React from 'react';
 import DroneDetail from './DroneDetail';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
+import { STATE_ENUM } from '../constants/stateEnum';  // Import state enumeration
 import '../styles/DroneWidget.css';
 
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
@@ -10,14 +11,17 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   // Get the flight mode title from the flight mode code
   const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
 
+  // Map state code to informative name
+  const stateName = STATE_ENUM[drone.State] || 'Unknown';
+
   // Determine if the drone is armable or not
   const armableClass = drone.Is_Armable ? 'armable' : 'not-armable';
 
-  // Determine HDOP class based on value
-  const getHdopClass = (hdop) => {
-    if (hdop == 0.0) return 'red'
-    if (hdop < 0.8) return 'green';
-    if (hdop <= 1.0) return 'yellow';
+  // Determine HDOP/VDOP class based on value
+  const getHdopVdopClass = (hdop, vdop) => {
+    const avgDop = (hdop + vdop) / 2;
+    if (avgDop < 0.8) return 'green';
+    if (avgDop <= 1.0) return 'yellow';
     return 'red';
   };
 
@@ -37,16 +41,24 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       <div className="drone-info">
         <p><strong>Mission:</strong> {drone.Mission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
-        <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
+        <p><strong>State:</strong> {stateName}</p> {/* State mapped to informative name */}
         <p><strong>Server Time:</strong> {drone.Timestamp ? new Date(drone.Timestamp).toLocaleString() : 'N/A'}</p>
         <p><strong>Altitude:</strong> {drone.Position_Alt !== undefined ? drone.Position_Alt.toFixed(1) : 'N/A'}m</p>
-        <p><strong>HDOP:</strong> <span className={getHdopClass(drone.Hdop)}>{drone.Hdop !== undefined ? drone.Hdop : 'N/A'}</span></p>
-        <p><strong>Battery Voltage:</strong> <span className={getBatteryClass(drone.Battery_Voltage)}>{drone.Battery_Voltage !== undefined ? `${drone.Battery_Voltage}V` : 'N/A'}</span></p>
+        <p>
+          <strong>HDOP/VDOP:</strong>
+          <span className={getHdopVdopClass(drone.Hdop, drone.Vdop)}>
+            {drone.Hdop !== undefined && drone.Vdop !== undefined ? `${drone.Hdop}/${drone.Vdop}` : 'N/A'}
+          </span>
+        </p>
+        <p>
+          <strong>Battery Voltage:</strong> 
+          <span className={getBatteryClass(drone.Battery_Voltage)}>
+            {drone.Battery_Voltage !== undefined ? `${drone.Battery_Voltage}V` : 'N/A'}
+          </span>
+        </p>
       </div>
       <div className="drone-actions">
-        <button className="external-view-btn" onClick={(e) => { e.stopPropagation(); setSelectedDrone(drone); }}>
-          🔗 External View
-        </button>
+        
       </div>
       {isExpanded && (
         <div className="details-content">
