@@ -11,13 +11,15 @@ class LocalMavlinkController:
     Args:
         drone_config: A configuration object which contains drone details like position, velocity, etc.
         params: Configuration parameters such as local Mavlink port and telemetry refresh interval.
+        debug_enabled: A flag that controls whether debug logs are printed.
     """
     
-    def __init__(self, drone_config, params):
+    def __init__(self, drone_config, params, debug_enabled=False):
         """
         Initialize the controller, set up the Mavlink connection, and start the telemetry monitoring thread.
         """
         self.latest_messages = {}
+        self.debug_enabled = debug_enabled
         # Define which message types to listen for
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 
@@ -35,6 +37,11 @@ class LocalMavlinkController:
         self.telemetry_thread = threading.Thread(target=self.mavlink_monitor)
         self.telemetry_thread.start()
         self.home_position_logged = False
+
+    def log_debug(self, message):
+        """Logs a debug message if debugging is enabled."""
+        if self.debug_enabled:
+            logging.debug(message)
 
     def mavlink_monitor(self):
         """
@@ -70,7 +77,7 @@ class LocalMavlinkController:
         elif msg_type == 'SYS_STATUS':
             self.process_sys_status(msg)
         else:
-            logging.debug(f"Received unhandled message type: {msg.get_type()}")
+            self.log_debug(f"Received unhandled message type: {msg.get_type()}")
 
     def process_heartbeat(self, msg):
         """
@@ -79,7 +86,7 @@ class LocalMavlinkController:
         # Store the current MAV mode (e.g., armed, preflight, etc.)
         self.drone_config.mav_mode = msg.base_mode
         self.drone_config.system_status = msg.system_status
-        logging.debug(f"Updated MAV_MODE to: {self.drone_config.mav_mode}, SYSTEM_STATUS to: {self.drone_config.system_status}")
+        self.log_debug(f"Updated MAV_MODE to: {self.drone_config.mav_mode}, SYSTEM_STATUS to: {self.drone_config.system_status}")
 
     def process_sys_status(self, msg):
         """
@@ -89,8 +96,8 @@ class LocalMavlinkController:
         self.drone_config.is_gyrometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_GYRO) != 0
         self.drone_config.is_accelerometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_ACCEL) != 0
         self.drone_config.is_magnetometer_calibration_ok = (msg.onboard_control_sensors_health & mavutil.mavlink.MAV_SYS_STATUS_SENSOR_3D_MAG) != 0
-        logging.debug(f"Sensor health updated: Gyro: {self.drone_config.is_gyrometer_calibration_ok}, "
-                      f"Accel: {self.drone_config.is_accelerometer_calibration_ok}, Mag: {self.drone_config.is_magnetometer_calibration_ok}")
+        self.log_debug(f"Sensor health updated: Gyro: {self.drone_config.is_gyrometer_calibration_ok}, "
+                       f"Accel: {self.drone_config.is_accelerometer_calibration_ok}, Mag: {self.drone_config.is_magnetometer_calibration_ok}")
 
     def process_gps_raw_int(self, msg):
         """
@@ -99,7 +106,7 @@ class LocalMavlinkController:
         # Update GPS data including HDOP and VDOP (if available)
         self.drone_config.hdop = msg.eph / 1E2  # Horizontal dilution of precision
         self.drone_config.vdop = msg.epv / 1E2  # Vertical dilution of precision (if applicable)
-        logging.debug(f"Updated GPS HDOP to: {self.drone_config.hdop}, VDOP to: {self.drone_config.vdop}")
+        self.log_debug(f"Updated GPS HDOP to: {self.drone_config.hdop}, VDOP to: {self.drone_config.vdop}")
 
     def process_attitude(self, msg):
         """
@@ -107,6 +114,7 @@ class LocalMavlinkController:
         """
         if msg.yaw is not None:
             self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
+            self.log_debug(f"Updated yaw to: {self.drone_config.yaw}")
         else:
             logging.error('Received ATTITUDE message with invalid data')
 
@@ -156,6 +164,7 @@ class LocalMavlinkController:
         """
         if msg.voltages and len(msg.voltages) > 0:
             self.drone_config.battery = msg.voltages[0] / 1E3  # Convert from mV to V
+            self.log_debug(f"Updated battery voltage to: {self.drone_config.battery}V")
         else:
             logging.error('Received BATTERY_STATUS message with invalid data')
 

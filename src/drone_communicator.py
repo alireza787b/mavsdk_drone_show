@@ -233,28 +233,43 @@ class DroneCommunicator:
         # TODO: Remember to also add hdop and flight mode using HTTP FLASK
 
     def get_drone_state(self) -> Dict[str, Any]:
-        """Retrieve and return the current state of the drone."""
+        """
+        Retrieve and return the current state of the drone.
+
+        This includes various telemetry data such as position, velocity, yaw, 
+        battery voltage, and MAVLink-specific fields like flight mode and system status.
+
+        Returns:
+            dict: A dictionary containing the current state of the drone.
+        """
+        def safe_int(value, default=0):
+            return int(value) if value is not None else default
+
+        def safe_float(value, default=0.0):
+            return float(value) if value is not None else default
+
         self.drone_state = {
-            "hw_id": int(self.drone_config.hw_id),  # Hardware ID of the drone
-            "pos_id": int(self.drone_config.config['pos_id']),  # Position ID, typically same as hardware ID
-            "state": int(self.drone_config.state),  # Current state of the drone
-            "mission": int(self.drone_config.mission),  # Current mission state
-            "trigger_time": int(self.drone_config.trigger_time),  # Time of the last trigger event
-            "position_lat": self.drone_config.position['lat'],  # Latitude of the current position
-            "position_long": self.drone_config.position['long'],  # Longitude of the current position
-            "position_alt": self.drone_config.position['alt'],  # Altitude of the current position
-            "velocity_north": self.drone_config.velocity['north'],  # Velocity towards north
-            "velocity_east": self.drone_config.velocity['east'],  # Velocity towards east
-            "velocity_down": self.drone_config.velocity['down'],  # Velocity downwards
-            "yaw": self.drone_config.yaw,  # Yaw angle of the drone
-            "battery_voltage": self.drone_config.battery,  # Current battery voltage
-            "follow_mode": int(self.drone_config.swarm['follow']),  # Follow mode in swarm operation
-            "update_time": int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
-            "flight_mode_raw": int(self.drone_config.mav_mode),  # MAVLink flight mode (raw value from MAV_MODE)
-            "system_status": int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
-            "hdop": self.drone_config.hdop,  # Horizontal dilution of precision
-            "vdop": self.drone_config.vdop  # Vertical dilution of precision (new field)
+            "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
+            "pos_id": safe_int(self.drone_config.config.get('pos_id')),  # Position ID, typically same as hardware ID
+            "state": safe_int(self.drone_config.state),  # Current state of the drone
+            "mission": safe_int(self.drone_config.mission),  # Current mission state
+            "trigger_time": safe_int(self.drone_config.trigger_time),  # Time of the last trigger event
+            "position_lat": safe_float(self.drone_config.position.get('lat')),  # Latitude of the current position
+            "position_long": safe_float(self.drone_config.position.get('long')),  # Longitude of the current position
+            "position_alt": safe_float(self.drone_config.position.get('alt')),  # Altitude of the current position
+            "velocity_north": safe_float(self.drone_config.velocity.get('north')),  # Velocity towards north
+            "velocity_east": safe_float(self.drone_config.velocity.get('east')),  # Velocity towards east
+            "velocity_down": safe_float(self.drone_config.velocity.get('down')),  # Velocity downwards
+            "yaw": safe_float(self.drone_config.yaw),  # Yaw angle of the drone
+            "battery_voltage": safe_float(self.drone_config.battery),  # Current battery voltage
+            "follow_mode": safe_int(self.drone_config.swarm.get('follow')),  # Follow mode in swarm operation
+            "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
+            "flight_mode_raw": safe_int(self.drone_config.mav_mode),  # MAVLink flight mode (raw value from MAV_MODE)
+            "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
+            "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
+            "vdop": safe_float(self.drone_config.vdop)  # Vertical dilution of precision
         }
+
         return self.drone_state
 
 

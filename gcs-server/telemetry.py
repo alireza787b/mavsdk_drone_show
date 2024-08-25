@@ -72,19 +72,11 @@ def poll_telemetry(drone):
                         'Update_Time': telemetry_data.get('update_time', 'Unknown'),
                         'Timestamp': telemetry_data.get('timestamp', time.time()),
                         'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
+                        'System_Status': telemetry_data.get('system_status', 'Unknown'),  # MAVLink system status
                         'Hdop': telemetry_data.get('hdop', 99.99),
-                        'Is_Armable': telemetry_data.get('is_armable', False),
+                        'Vdop': telemetry_data.get('vdop', 99.99),  # Vertical dilution of precision
                     }
                     last_telemetry_time[drone['hw_id']] = time.time()
-
-                # Log the main telemetry details
-                # logger.info(
-                #     f"Updated telemetry for drone {drone['hw_id']}: State={telemetry_data_all_drones[drone['hw_id']]['State']} | "
-                #     f"Mission={telemetry_data_all_drones[drone['hw_id']]['Mission']} | "
-                #     f"Batt={telemetry_data_all_drones[drone['hw_id']]['Battery_Voltage']:.2f}V | "
-                #     f"Armable={telemetry_data_all_drones[drone['hw_id']]['Is_Armable']}",
-                #     extra={'drone_id': drone['hw_id']}
-                # )
 
             else:
                 # Log detailed HTTP error information
@@ -122,6 +114,7 @@ def poll_telemetry(drone):
                 telemetry_data_all_drones[drone['hw_id']] = {}
 
         time.sleep(Params.polling_interval)
+
 
 
 def start_telemetry_polling(drones):

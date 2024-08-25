@@ -37,9 +37,48 @@
 @media (max-width: 768px) {
     .detail-group {
         grid-template-columns: 1fr;
-        /* Stacks the columns on smaller screens */
     }
 }
+
+
+/* State and MAV Mode Styles */
+
+.mav-mode {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: 16px;
+}
+
+.mav-mode-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 8px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mav-mode-armed {
+    background-color: #28a745;
+    /* Green */
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.4);
+}
+
+.mav-mode-disarmed {
+    background-color: #dc3545;
+    /* Red */
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.4);
+}
+
+.mav-mode-unknown {
+    background-color: #6c757d;
+    /* Gray */
+    box-shadow: 0 0 10px rgba(108, 117, 125, 0.4);
+}
+
+
+/* Armable Status */
 
 .armable-status {
     margin-bottom: 16px;
@@ -84,7 +123,6 @@
 
 .drone-detail-entered {
     max-height: 400px;
-    /* Adjust based on your content size */
     opacity: 1;
 }
 
@@ -100,7 +138,6 @@ select {
 select:focus {
     border-color: #007bff;
     box-shadow: 0 0 6px rgba(0, 123, 255, 0.5);
-    /* Focus effect */
 }
 
 

@@ -1,7 +1,8 @@
 import React from 'react';
 import DroneDetail from './DroneDetail';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { STATE_ENUM } from '../constants/stateEnum';  // Import state enumeration
+import { STATE_ENUM } from '../constants/stateEnum';
+import { MAV_MODE_ENUM } from '../constants/mavModeEnum';  // Import MAV mode enumeration
 import '../styles/DroneWidget.css';
 
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
@@ -14,8 +15,9 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   // Map state code to informative name
   const stateName = STATE_ENUM[drone.State] || 'Unknown';
 
-  // Determine if the drone is armable or not
-  const armableClass = drone.Is_Armable ? 'armable' : 'not-armable';
+  // Map MAV_MODE to a readable name and determine if the drone is armable
+  const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || `Unknown (${drone.Flight_Mode})`;
+  const isArmable = drone.Flight_Mode !== 0; // Any mode other than PREFLIGHT (0) is considered armable
 
   // Determine HDOP/VDOP class based on value
   const getHdopVdopClass = (hdop, vdop) => {
@@ -32,6 +34,9 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
     return 'red';
   };
 
+  // Determine the border color class based on the armable status
+  const armableClass = isArmable ? 'armable' : 'not-armable';
+
   return (
     <div className={`drone-widget ${armableClass} ${isExpanded ? 'expanded' : ''}`}>
       <h3 onClick={() => toggleDroneDetails(drone)}>
@@ -42,6 +47,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
         <p><strong>Mission:</strong> {drone.Mission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
         <p><strong>State:</strong> {stateName}</p> {/* State mapped to informative name */}
+        <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}
         <p><strong>Server Time:</strong> {drone.Timestamp ? new Date(drone.Timestamp).toLocaleString() : 'N/A'}</p>
         <p><strong>Altitude:</strong> {drone.Position_Alt !== undefined ? drone.Position_Alt.toFixed(1) : 'N/A'}m</p>
         <p>
@@ -58,7 +64,9 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
         </p>
       </div>
       <div className="drone-actions">
-        
+        <button className="external-view-btn" onClick={(e) => { e.stopPropagation(); setSelectedDrone(drone); }}>
+          🔗 External View
+        </button>
       </div>
       {isExpanded && (
         <div className="details-content">

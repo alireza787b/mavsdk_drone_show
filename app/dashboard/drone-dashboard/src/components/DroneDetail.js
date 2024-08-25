@@ -7,6 +7,7 @@ import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { STATE_ENUM } from '../constants/stateEnum';  // Import state enumeration
+import { MAV_MODE_ENUM } from '../constants/mavModeEnum'; // Import MAV mode enumeration
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -67,6 +68,13 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   // Map state code to informative name
   const stateName = STATE_ENUM[detailedDrone.State] || 'Unknown';
 
+  // Map MAV mode to informative name
+  const mavModeName = MAV_MODE_ENUM[detailedDrone.Flight_Mode] || `Unknown (${detailedDrone.Flight_Mode})`;
+
+  // Determine if the drone is armable based on MAV mode
+  const isArmable = detailedDrone.Flight_Mode && detailedDrone.Flight_Mode !== 0; // Any mode except preflight should be armable
+  const armableClass = isArmable ? 'armable' : 'not-armable';
+
   return (
     <div className="drone-detail">
       {!isAccordionView && (
@@ -85,16 +93,17 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       {/* Armable Status */}
       <div className="armable-status">
         <p><strong>Armable:</strong> 
-          <span className={`armable-badge ${detailedDrone.Is_Armable ? 'armable' : 'not-armable'}`}>
-            {detailedDrone.Is_Armable ? 'Yes' : 'No'}
+          <span className={`armable-badge ${armableClass}`}>
+            {isArmable ? 'Yes' : 'No'}
           </span>
         </p>
       </div>
 
-      {/* Mission & Status Information */}
+      {/* MAV Mode & System Status Information */}
       <div className="detail-group">
         <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
         <p><strong>Flight Mode:</strong> {getFlightModeTitle(detailedDrone.Flight_Mode)}</p>
+        <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}
         <p><strong>State:</strong> {stateName}</p>
         <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
       </div>

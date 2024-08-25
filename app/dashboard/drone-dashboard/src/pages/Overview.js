@@ -25,7 +25,6 @@ const Overview = ({ setSelectedDrone }) => {
         const dronesArray = Object.keys(response.data).map((hw_ID) => ({
           hw_ID,
           ...response.data[hw_ID],
-          system_status_name: SYSTEM_STATUS_ENUM[response.data[hw_ID].system_status] || 'Unknown'  // Map system status to a human-readable name
         }));
 
         // Filter out drones with incomplete data (e.g., missing key properties)
