@@ -6,7 +6,6 @@ import L from 'leaflet';
 import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { STATE_ENUM } from '../constants/stateEnum';  // Import state enumeration
 import { MAV_MODE_ENUM } from '../constants/mavModeEnum'; // Import MAV mode enumeration
 
 const POLLING_RATE_HZ = 2;
@@ -65,8 +64,6 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     return 'red';
   };
 
-  // Map state code to informative name
-  const stateName = STATE_ENUM[detailedDrone.State] || 'Unknown';
 
   // Map MAV mode to informative name
   const mavModeName = MAV_MODE_ENUM[detailedDrone.Flight_Mode] || `Unknown (${detailedDrone.Flight_Mode})`;
@@ -104,7 +101,8 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
         <p><strong>Flight Mode:</strong> {getFlightModeTitle(detailedDrone.Flight_Mode)}</p>
         <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}
-        <p><strong>State:</strong> {stateName}</p>
+        <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
+
         <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
       </div>
 

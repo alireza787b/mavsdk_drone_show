@@ -1,7 +1,6 @@
 import React from 'react';
 import DroneDetail from './DroneDetail';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { STATE_ENUM } from '../constants/stateEnum';
 import { MAV_MODE_ENUM } from '../constants/mavModeEnum';  // Import MAV mode enumeration
 import '../styles/DroneWidget.css';
 
@@ -12,8 +11,6 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   // Get the flight mode title from the flight mode code
   const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
 
-  // Map state code to informative name
-  const stateName = STATE_ENUM[drone.State] || 'Unknown';
 
   // Map MAV_MODE to a readable name and determine if the drone is armable
   const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || `Unknown (${drone.Flight_Mode})`;
@@ -46,7 +43,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
       <div className="drone-info">
         <p><strong>Mission:</strong> {drone.Mission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
-        <p><strong>State:</strong> {stateName}</p> {/* State mapped to informative name */}
+        <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
         <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}
         <p><strong>Server Time:</strong> {drone.Timestamp ? new Date(drone.Timestamp).toLocaleString() : 'N/A'}</p>
         <p><strong>Altitude:</strong> {drone.Position_Alt !== undefined ? drone.Position_Alt.toFixed(1) : 'N/A'}m</p>

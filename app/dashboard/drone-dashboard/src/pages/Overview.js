@@ -5,7 +5,6 @@ import Globe from '../components/Globe';
 import CommandSender from '../components/CommandSender';
 import DroneWidget from '../components/DroneWidget';
 import { getTelemetryURL } from '../utilities/utilities';
-import { SYSTEM_STATUS_ENUM } from '../constants/systemStatus'; // Import system status enumeration
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
