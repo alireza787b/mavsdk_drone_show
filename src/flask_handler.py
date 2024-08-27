@@ -23,7 +23,7 @@ class FlaskHandler:
                 else:
                     return jsonify({"error": "Drone State not found"}), 404
             except Exception as e:
-                return jsonify({"error": str(e)}), 500
+                return jsonify({"error_in_get_drone_state": str(e)}), 500
 
         @self.app.route(f"/{Params.send_drone_command_URI}", methods=['POST'])
         def send_drone_command():
