@@ -67,17 +67,21 @@ class DroneSetup:
 
     def synchronize_time(self):
         """
-        Executes the time synchronization script and logs the output.
+        Executes the time synchronization script with sudo and logs the output.
+        If the synchronization fails, the program continues without stopping.
         """
         script_path = self._get_script_path('tools/sync_time_linux.sh')
         try:
-            result = subprocess.run([script_path], capture_output=True, text=True, check=False)
+            # Attempt to run the script with sudo
+            result = subprocess.run(['sudo', script_path], capture_output=True, text=True, check=False)
+            
             if result.returncode == 0:
                 logging.info(f"Time synchronization successful: {result.stdout.strip()}")
                 print("Time synchronization successful.")
             else:
                 logging.error(f"Time synchronization failed: {result.stderr.strip()}")
                 print("Time synchronization failed, continuing without adjustment.")
+        
         except Exception as e:
             logging.error(f"Error executing time synchronization script: {e}")
             print(f"Error during time synchronization, but continuing: {str(e)}")
