@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #########################################
-# Robust Drone Services Launcher with Mouse Support in tmux
+# Robust Drone Services Launcher with Repo Sync and Mouse Support in tmux
 #
-# This script starts the GUI React App and GCS Server, managing port conflicts
-# and ensuring processes run reliably, either in tmux or standalone terminals.
-# Mouse support in tmux is enabled by default but can be disabled with a flag.
+# This script starts the GUI React App and GCS Server, manages port conflicts,
+# ensures processes run reliably in tmux or standalone terminals, and optionally
+# pulls the latest updates from the repository.
 #########################################
 
 # Configurable Variables
@@ -15,6 +15,8 @@ GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 USE_TMUX=true  # Default behavior is to use tmux
 ENABLE_MOUSE=true  # Default behavior is to enable mouse support in tmux
+ENABLE_AUTO_PULL=true  # Enable or disable the automatic pulling and syncing of the repository
+UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
 
 #########################################
 # Utility Functions
@@ -99,6 +101,27 @@ check_tmux_session() {
     fi
 }
 
+# Function to update the repository
+update_repository() {
+    if [ "$ENABLE_AUTO_PULL" = true ]; then
+        echo "Running repository update script..."
+        if [ -f "$UPDATE_SCRIPT_PATH" ]; then
+            bash "$UPDATE_SCRIPT_PATH"
+            if [ $? -ne 0 ]; then
+                echo "Error: Repository update failed. Exiting."
+                exit 1
+            else
+                echo "Repository successfully updated."
+            fi
+        else
+            echo "Error: Update script not found at $UPDATE_SCRIPT_PATH."
+            exit 1
+        fi
+    else
+        echo "Auto-pull is disabled. Skipping repository update."
+    fi
+}
+
 #########################################
 # Service Launch Functions
 #########################################
@@ -142,6 +165,9 @@ done
 
 # Get the script directory
 SCRIPT_DIR="$(dirname "$0")"
+
+# Update repository if auto-pull is enabled
+update_repository
 
 # Load virtual environment
 load_virtualenv

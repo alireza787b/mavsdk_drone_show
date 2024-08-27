@@ -1,8 +1,9 @@
 # Drone Swarm System Coordinator Service
 # This systemd service file configures and manages the Drone Swarm System Coordinator,
 # ensuring that it starts after the network is available and keeps running continuously.
-# The service also includes a pre-start step to ensure all components are up-to-date by
-# pulling the latest changes from the configured Git repository.
+# The service includes pre-start steps to ensure all components are up-to-date by
+# pulling the latest changes from the configured Git repository, synchronizing system time,
+# and verifying if the systemd service file needs to be updated based on the latest repository changes.
 
 # ----------------------------
 # How to Activate This Service
@@ -30,45 +31,41 @@
 # ---------------------
 # Notes
 # ---------------------
-# - Ensure that the 'update_repo.sh' script in the 'tools' directory is executable and
-#   properly configured to pull from the correct Git branch.
-# - Verify that the environment variables and paths set in the service file are accurate
-#   for your deployment environment.
-# - Adjust the security settings according to your operational security policies before
-#   deploying in a production environment.
+# - Ensure that the 'update_repo_https.sh', 'sync_time_linux.sh', and 'check_and_update_service.sh' scripts in the 'tools' directory are executable.
+# - Verify that the environment variables and paths set in the service file are accurate for your deployment environment.
+# - Adjust the security settings according to your operational security policies before deploying in a production environment.
 
 [Unit]
 Description=Drone Swarm System Coordinator
-# Ensure the network is available before starting the service
 After=network.target
 
 [Service]
+# Step 1: Ensure the system's codebase is up-to-date before starting
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_https.sh
 
-# Ensure the system's codebase is up-to-date before starting
-ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo.sh
+# Step 2: Synchronize system time to ensure consistency across the drone network
+ExecStartPre=/usr/bin/sudo /bin/bash /home/droneshow/mavsdk_drone_show/tools/sync_time_linux.sh
 
-# Path to the Python executable and the coordinator script
+# Step 3: Check if the service file in the repository has changed, and update if necessary
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
+
+# Step 4: Start the Drone Swarm Coordinator script
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
 User=droneshow
 Group=droneshow
 
-
+# Restart settings: Always restart the service if it fails
 Restart=always
 RestartSec=5s
+
 # Capabilities required by the service
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+
+# Log output settings
 StandardOutput=journal
 StandardError=inherit
-# Environmental variables that the service requires
-Environment="VAR1=value1" "VAR2=value2"
-
-# Uncomment for stricter security settings
-#ProtectSystem=full
-#ProtectHome=read-only
-#PrivateTmp=true
-#NoNewPrivileges=true
 
 # Service watchdog and timeout settings
 WatchdogSec=10s

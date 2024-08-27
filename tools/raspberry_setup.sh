@@ -77,6 +77,20 @@ echo "Netbird reconnected with new hostname 'drone$drone_id'."
 
 unset netbird_key
 
+# Add sudoers entry for running sync_time_linux.sh without password
+sudoers_file="/etc/sudoers.d/mavsdk_sync_time"
+sync_time_script="$HOME/mavsdk_drone_show/tools/sync_time_linux.sh"
+sudoers_entry="droneshow ALL=(ALL) NOPASSWD: $sync_time_script"
+
+echo "Ensuring sudo permissions for time synchronization script..."
+if [ ! -f "$sudoers_file" ]; then
+    echo "$sudoers_entry" | sudo tee "$sudoers_file"
+    sudo chmod 440 "$sudoers_file"
+    echo "Sudoers entry added for $sync_time_script."
+else
+    echo "Sudoers entry already exists."
+fi
+
 echo "Setting up the Drone Swarm System Coordinator service..."
 sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 

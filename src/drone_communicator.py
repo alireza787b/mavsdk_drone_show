@@ -242,27 +242,53 @@ class DroneCommunicator:
         Returns:
             dict: A dictionary containing the current state of the drone.
         """
+        
         def safe_int(value, default=0):
-            return int(value) if value is not None else default
+            try:
+                if value is None:
+                    logging.warning(f"Expected int, got None. Using default {default}.")
+                    return default
+                return int(value)
+            except (ValueError, TypeError) as e:
+                logging.error(f"Error converting value to int: {e}. Using default {default}.")
+                return default
 
         def safe_float(value, default=0.0):
-            return float(value) if value is not None else default
+            try:
+                if value is None:
+                    logging.warning(f"Expected float, got None. Using default {default}.")
+                    return default
+                return float(value)
+            except (ValueError, TypeError) as e:
+                logging.error(f"Error converting value to float: {e}. Using default {default}.")
+                return default
+
+        # Safely get nested values and handle if dict or key does not exist
+        def safe_get(dct, key, default=None):
+            try:
+                if dct is None or key not in dct:
+                    logging.warning(f"Key '{key}' missing in dict or dict is None. Using default {default}.")
+                    return default
+                return dct[key]
+            except (AttributeError, TypeError) as e:
+                logging.error(f"Error accessing key '{key}' in dict: {e}. Using default {default}.")
+                return default
 
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
-            "pos_id": safe_int(self.drone_config.config.get('pos_id')),  # Position ID, typically same as hardware ID
+            "pos_id": safe_int(safe_get(self.drone_config.config, 'pos_id')),  # Position ID
             "state": safe_int(self.drone_config.state),  # Current state of the drone
             "mission": safe_int(self.drone_config.mission),  # Current mission state
             "trigger_time": safe_int(self.drone_config.trigger_time),  # Time of the last trigger event
-            "position_lat": safe_float(self.drone_config.position.get('lat')),  # Latitude of the current position
-            "position_long": safe_float(self.drone_config.position.get('long')),  # Longitude of the current position
-            "position_alt": safe_float(self.drone_config.position.get('alt')),  # Altitude of the current position
-            "velocity_north": safe_float(self.drone_config.velocity.get('north')),  # Velocity towards north
-            "velocity_east": safe_float(self.drone_config.velocity.get('east')),  # Velocity towards east
-            "velocity_down": safe_float(self.drone_config.velocity.get('down')),  # Velocity downwards
+            "position_lat": safe_float(safe_get(self.drone_config.position, 'lat')),  # Latitude of the current position
+            "position_long": safe_float(safe_get(self.drone_config.position, 'long')),  # Longitude of the current position
+            "position_alt": safe_float(safe_get(self.drone_config.position, 'alt')),  # Altitude of the current position
+            "velocity_north": safe_float(safe_get(self.drone_config.velocity, 'north')),  # Velocity towards north
+            "velocity_east": safe_float(safe_get(self.drone_config.velocity, 'east')),  # Velocity towards east
+            "velocity_down": safe_float(safe_get(self.drone_config.velocity, 'down')),  # Velocity downwards
             "yaw": safe_float(self.drone_config.yaw),  # Yaw angle of the drone
             "battery_voltage": safe_float(self.drone_config.battery),  # Current battery voltage
-            "follow_mode": safe_int(self.drone_config.swarm.get('follow')),  # Follow mode in swarm operation
+            "follow_mode": safe_int(safe_get(self.drone_config.swarm, 'follow')),  # Follow mode in swarm operation
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode_raw": safe_int(self.drone_config.mav_mode),  # MAVLink flight mode (raw value from MAV_MODE)
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
