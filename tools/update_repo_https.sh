@@ -17,50 +17,53 @@
 # and operational monitoring.
 
 # Configuration variables
-REPO_DIR="${HOME}/mavsdk_drone_show"  # Modify this path as needed
-GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"  # Public HTTPS URL to the Git repository
-BRANCH_NAME="real-test-1"  # Branch to synchronize with
+#!/bin/bash
+
+# update_repo_https.sh
+# Ensure the drone's software repository is up-to-date before operations.
+# Adjust the REPO_DIR variable to match the directory where your repository is located.
+
+REPO_DIR="${HOME}/mavsdk_drone_show"
+BRANCH_NAME="real-test-1"
+GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 LOG_FILE="${REPO_DIR}/update_repo.log"
 
 # Ensure the repository directory exists
 if [ ! -d "$REPO_DIR" ]; then
-    echo "$(date): Repository directory does not exist: $REPO_DIR" | tee -a "$LOG_FILE"
+    echo "Repository directory does not exist: $REPO_DIR" | tee -a "$LOG_FILE"
     exit 1
 fi
 
 # Navigate to the project directory
-cd "$REPO_DIR" || { echo "$(date): Failed to navigate to $REPO_DIR" | tee -a "$LOG_FILE"; exit 1; }
-
-# Set the Git remote URL to HTTPS
-git remote set-url origin $GIT_URL
+cd "$REPO_DIR" || { echo "Failed to navigate to $REPO_DIR"; exit 1; }
 
 # Stash any local changes to avoid conflicts
 if ! git stash; then
-    echo "$(date): Failed to stash local changes" | tee -a "$LOG_FILE"
+    echo "Failed to stash local changes" | tee -a "$LOG_FILE"
     exit 1
 fi
 
-# Fetch the latest updates from all branches
+# Fetch the latest updates from the remote repository
 if ! git fetch --all; then
-    echo "$(date): Failed to fetch updates from $GIT_URL" | tee -a "$LOG_FILE"
+    echo "Failed to fetch updates from $GIT_URL" | tee -a "$LOG_FILE"
     exit 1
 fi
 
 # Checkout the specified branch
-if ! git checkout $BRANCH_NAME; then
-    echo "$(date): Failed to checkout branch $BRANCH_NAME" | tee -a "$LOG_FILE"
+if ! git checkout "$BRANCH_NAME"; then
+    echo "Failed to checkout branch $BRANCH_NAME" | tee -a "$LOG_FILE"
     exit 1
 fi
 
 # Reset local changes and ensure the branch is synced with the remote
-if ! git reset --hard origin/$BRANCH_NAME; then
-    echo "$(date): Failed to reset the branch $BRANCH_NAME" | tee -a "$LOG_FILE"
+if ! git reset --hard "origin/$BRANCH_NAME"; then
+    echo "Failed to reset the branch $BRANCH_NAME" | tee -a "$LOG_FILE"
     exit 1
 fi
 
 # Pull the latest updates
 if ! git pull; then
-    echo "$(date): Failed to pull the latest updates from $BRANCH_NAME" | tee -a "$LOG_FILE"
+    echo "Failed to pull the latest updates from $BRANCH_NAME" | tee -a "$LOG_FILE"
     exit 1
 else
     echo "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME" | tee -a "$LOG_FILE"
@@ -68,5 +71,5 @@ fi
 
 # Apply stashed changes if needed
 if ! git stash pop; then
-    echo "$(date): No stashed changes to apply or failed to apply stashed changes." | tee -a "$LOG_FILE"
+    echo "No stashed changes to apply or failed to apply stashed changes." | tee -a "$LOG_FILE"
 fi

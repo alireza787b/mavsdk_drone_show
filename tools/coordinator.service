@@ -43,8 +43,8 @@ After=network.target
 # Step 1: Ensure the system's codebase is up-to-date before starting
 ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_https.sh
 
-# Step 2: Synchronize system time to ensure consistency across the drone network
-ExecStartPre=/usr/bin/sudo /bin/bash /home/droneshow/mavsdk_drone_show/tools/sync_time_linux.sh
+# Step 2: Synchronize system time to ensure consistency across the drone network (without sudo)
+ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/sync_time_linux.sh
 
 # Step 3: Check if the service file in the repository has changed, and update if necessary
 ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
