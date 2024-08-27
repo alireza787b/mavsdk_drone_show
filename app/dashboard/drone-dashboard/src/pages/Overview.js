@@ -91,12 +91,12 @@ const Overview = ({ setSelectedDrone }) => {
         {drones.length === 0 && !error && <p>No valid drone data available.</p>}
         {drones.map((drone) => (
           <DroneWidget
-          drone={drone}
-          isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
-          toggleDroneDetails={toggleDroneDetails}
-          setSelectedDrone={setSelectedDrone}
-          key={drone.hw_ID}
-        />        
+            drone={drone}
+            isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
+            toggleDroneDetails={toggleDroneDetails}
+            setSelectedDrone={setSelectedDrone}
+            key={drone.hw_ID}
+          />
         ))}
       </div>
 
