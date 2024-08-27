@@ -6,10 +6,10 @@ log_message() {
     echo "$(date +"%Y-%m-%d %H:%M:%S") - $message"
 }
 
-# Ensure the script is run with root privileges for necessary commands
+# If the script is not being run as root, re-run it with sudo
 if [ "$(id -u)" != "0" ]; then
-    log_message "This script must be run as root or with sudo privileges."
-    exit 1
+    log_message "This script must be run as root or with sudo privileges. Re-running with sudo..."
+    exec sudo /bin/bash "$0" "$@"
 fi
 
 # Get the current system time before synchronization
