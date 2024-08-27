@@ -1,3 +1,5 @@
 hw_id,follow,offset_n,offset_e,offset_alt
 1,0,0,0,0
 2,1,10,0,0
+3,1,20,0,0
+4,1,30,0,0
