@@ -47,19 +47,12 @@ const SidebarMenu = () => {
       >
         <div className="sidebar-content">
           <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
-          <br />
-
           <div className="sidebar-header">
             <h3>Swarm Dashboard v0.9</h3>
           </div>
-
           <div className="sidebar-time">
             <CurrentTime />
           </div>
-
-          <br />
-
-          {/* Menu */}
           <div className='menu-list'>
             <Menu menuItemStyles={menuItemStyles}>
               <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
@@ -78,12 +71,8 @@ const SidebarMenu = () => {
               </MenuItem></Link>
             </Menu>
           </div>
-
           <div className="sidebar-footer">
-            {/* Git Information */}
             <GitInfo />
-
-            {/* Footer */}
             <div className="developer-info">
               <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
               <a href='https://linkedin.com/in/alireza787b' target='_blank'>LinkedIn</a>

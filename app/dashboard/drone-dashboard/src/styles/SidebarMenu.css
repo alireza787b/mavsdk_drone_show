@@ -1,18 +1,21 @@
-/* Wrapper for the entire sidebar to ensure it takes full height */
+/* Ensure the sidebar-wrapper takes the full height of the viewport */
 
 .sidebar-wrapper {
     height: 100vh;
     display: flex;
-    flex-direction: column;
 }
 
 
-/* Sidebar content should take the full height of the sidebar */
+/* Sidebar content to take the full height */
 
 .sidebar-content {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    /* Allow content to scroll within the sidebar */
 }
 
 
@@ -50,10 +53,8 @@
 
 /* Menu style */
 
-.menu {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+.menu-list {
+    flex-grow: 1;
 }
 
 .menu-list a {
@@ -73,19 +74,24 @@
 }
 
 
-/* Footer and Git info should stick to the bottom */
+/* Footer and Git info stay at the bottom */
 
 .sidebar-footer {
-    margin-top: auto;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    justify-items: center;
+    align-items: end;
+    width: 100%;
 }
+
+
+/* Footer style */
 
 .developer-info {
     background-color: #1f2128;
     padding: 10px;
     color: #aaa;
     text-align: center;
-    position: sticky;
-    bottom: 0;
     width: 100%;
 }
 
@@ -108,19 +114,15 @@
     transform: scale(1.2);
 }
 
-.menu-list {
-    flex-grow: 1;
-}
-
 
 /* Git info container with reduced font size and better spacing */
 
 .git-info-container {
-    padding: 10px;
+    padding: 5px;
     color: #a2a5b9;
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
-    font-size: 0.85em;
+    font-size: 0.8em;
 }
 
 .git-info-container:hover {
@@ -135,14 +137,15 @@
     font-weight: 600;
     display: flex;
     justify-content: space-between;
+    font-size: 0.9em;
 }
 
 .git-info-details {
-    margin-top: 10px;
+    margin-top: 5px;
     background-color: #2a2d36;
     padding: 10px;
     border-radius: 5px;
-    font-size: 0.85em;
+    font-size: 0.8em;
 }
 
 .git-info-details ul {
@@ -167,9 +170,9 @@
         padding: 5px;
     }
     .git-info-container {
-        font-size: 0.8em;
+        font-size: 0.75em;
     }
     .git-info-details {
-        font-size: 0.75em;
+        font-size: 0.7em;
     }
 }
