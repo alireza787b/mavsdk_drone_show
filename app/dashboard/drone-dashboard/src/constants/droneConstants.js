@@ -2,11 +2,15 @@ export const DRONE_MISSION_TYPES = {
   NONE: 0,
   DRONE_SHOW_FROM_CSV: 1,
   SMART_SWARM: 2,
-  CUSTOM_CSV_DRONE_SHOW: 3,  // New Custom CSV Drone Show mission type
+  CUSTOM_CSV_DRONE_SHOW: 3,
+};
+
+export const DRONE_MISSION_IMAGES = {
+  [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: `${getBackendURL()}/get-show-plots/all_drones.png`,
+  [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: `${getCustomShowImageURL()}`,  // Use the function to get the custom show image URL
 };
 
 export const getMissionDescription = (missionType) => {
-  console.log("Mission Type:", missionType); // Log the mission type to ensure it's correct
   switch (missionType) {
     case DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV:
       return 'Executes a fully synchronized drone show using pre-processed Skybrush CSV data. This mission coordinates multiple drones autonomously, leveraging MAVSDK to maintain precision in complex aerial maneuvers.';
@@ -20,6 +24,7 @@ export const getMissionDescription = (missionType) => {
       return '';
   }
 };
+
 
 export const DRONE_ACTION_TYPES = {
   TAKE_OFF: 10,
