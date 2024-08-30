@@ -20,25 +20,20 @@ const MissionDetails = ({
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Reset the image and error state when the mission type changes
-    setImageSrc(null);
-    setErrorMessage('');
-
-    // Fetch the appropriate image based on the mission type
+    // Determine which image to fetch based on the mission type
     async function fetchImage() {
       try {
-        let imageURL = '';
-
+        let response;
         if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
-          imageURL = getCustomShowImageURL();
+          // Fetch the custom show image
+          response = await fetch(getCustomShowImageURL());
         } else if (missionType === 'DRONE_SHOW_FROM_CSV') {
-          imageURL = `${getBackendURL()}/get-show-plots/all_drones.png`;
-        } else {
-          return; // If no image is relevant for the mission type, exit the function
+          // Fetch the drone show plot image
+          const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
+          response = await fetch(plotUrl);
         }
 
-        const response = await fetch(imageURL);
-        if (response.ok) {
+        if (response && response.ok) {
           const imageBlob = await response.blob();
           const imageObjectURL = URL.createObjectURL(imageBlob);
           setImageSrc(imageObjectURL);
@@ -61,11 +56,11 @@ const MissionDetails = ({
         <div className="mission-description">{description}</div>
       </div>
 
-      {/* Display the image only if it exists */}
+      {/* Display the image based on the mission type */}
       {imageSrc && (
-        <div className="image-preview">
-          <h3>Show Preview:</h3>
-          <img src={imageSrc} alt="Drone Show" className="show-image" />
+        <div className="mission-image-preview">
+          <h3>{missionType === 'CUSTOM_CSV_DRONE_SHOW' ? 'Custom Show Preview:' : 'Drone Show Plot Preview:'}</h3>
+          <img src={imageSrc} alt={missionType} className="mission-image" />
         </div>
       )}
 
