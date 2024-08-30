@@ -1,3 +1,10 @@
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
 .sidebar-header {
     display: flex;
     align-items: center;
