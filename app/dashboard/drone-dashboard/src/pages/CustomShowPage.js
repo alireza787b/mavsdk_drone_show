@@ -29,6 +29,12 @@ const CustomShowPage = () => {
     return (
         <div className="custom-show-container">
             <h1>Custom Drone Show</h1>
+            <p className="description">
+                This custom drone show is based on the <code>shape/active.csv</code> file. You can create various shapes using the 
+                <code>csvcreator.py</code> script included in the source code, such as an eight shape, spiral, heart shape, zigzag, 
+                or you can use a custom CSV template. Each drone executes its portion of the CSV independently based on its home 
+                position, unlike the Skybrush-based drone show controlled via the Show Design page.
+            </p>
             {errorMessage && <div className="error-message">{errorMessage}</div>}
             {imageSrc ? (
                 <img src={imageSrc} alt="Custom Drone Show" className="custom-show-image" />
