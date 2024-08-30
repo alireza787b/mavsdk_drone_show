@@ -260,7 +260,7 @@ def setup_routes(app):
         The image is expected to be located at shapes/active.png.
         """
         try:
-            image_path = os.path.join(BASE_DIR, 'shapes', 'active.png')
+            image_path = os.path.join(BASE_DIR, 'shapes', 'trajectory_plot.png')
             print("Debug: Image path being used:", image_path)  # Debug statement
             if os.path.exists(image_path):
                 return send_file(image_path, mimetype='image/png', as_attachment=False)
