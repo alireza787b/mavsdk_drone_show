@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/GitInfo.css';
-import { getGitStatusURL } from '../utilities';  // Import the function to get the correct URL
+import { getGitStatusURL } from '../../utilities/utilities';  // Import the function to get the correct URL
+
 
 const GitInfo = () => {
   const [gitInfo, setGitInfo] = useState({});
