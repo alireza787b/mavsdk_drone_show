@@ -1,0 +1,37 @@
+.git-info-container {
+    padding: 10px;
+    color: #a2a5b9;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.git-info-container:hover {
+    background-color: #00458b;
+    color: #b6c8d9;
+}
+
+.git-info-summary {
+    font-weight: 600;
+}
+
+.git-info-details {
+    margin-top: 10px;
+    background-color: #2a2d36;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.git-info-details ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.git-info-details ul li {
+    padding: 5px 0;
+}
+
+.toggle-details {
+    margin-top: 5px;
+    color: #59d0ff;
+    font-size: 0.9em;
+}

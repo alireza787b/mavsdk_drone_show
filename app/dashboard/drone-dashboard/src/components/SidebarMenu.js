@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Sidebar, Menu, MenuItem, SubMenu } from 'react-pro-sidebar';
-import { FaTachometerAlt, FaGem, FaList, FaGithub, FaRegLaughWink, FaClock, FaCalendar, FaDatabase } from 'react-icons/fa';
+import React, { useState } from 'react';
+import { Sidebar, Menu, MenuItem } from 'react-pro-sidebar';
+import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
-import { FaBars } from 'react-icons/fa';
 import CurrentTime from './CurrentTime';
+import GitInfo from './GitInfo';  // Import the new GitInfo component
 
-// Theme variables
 const themes = {
-  light: {
-    // Light theme variables 
-  },
   dark: {
     sidebar: {
       backgroundColor: '#1f2128',
@@ -24,13 +20,10 @@ const themes = {
       }
     }
   }
-}
-
-// Import other components
+};
 
 const SidebarMenu = () => {
-
-  const [theme, setTheme] = useState('dark');
+  const [theme] = useState('dark');
   const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
 
   const menuItemStyles = {
@@ -38,68 +31,66 @@ const SidebarMenu = () => {
       color: themes[theme].menu.icon,
     },
     hover: {
-      backgroundColor: themes[theme].menu.hover.backgroundColor, 
+      backgroundColor: themes[theme].menu.hover.backgroundColor,
       color: themes[theme].menu.hover.color
     }
   };
 
   return (
-    <div style={{ display: 'flex'}}>
-    <Sidebar collapsed={collapsed}
-      backgroundColor={themes[theme].sidebar.backgroundColor}
-      color={themes[theme].sidebar.color} collapsedWidth={"80px"} className='sidebar'
-    >
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex' }}>
+      <Sidebar
+        collapsed={collapsed}
+        backgroundColor={themes[theme].sidebar.backgroundColor}
+        color={themes[theme].sidebar.color}
+        collapsedWidth={"80px"}
+        className='sidebar'
+      >
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
+          <br />
 
+          <div className="sidebar-header">
+            <h3>Swarm Dashboard v0.9</h3>
+          </div>
 
-      <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
-    <br />
+          <div className="sidebar-time">
+            <CurrentTime />
+          </div>
 
-          
+          <br />
 
-    <div className="sidebar-header">
-      <h3>Swarm Dashboard v0.9</h3>
+          {/* Menu */}
+          <div className='menu-list'>
+            <Menu menuItemStyles={menuItemStyles}>
+              <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
+                Dashboard
+              </MenuItem></Link>
+              <Link to="/mission-config">
+                <MenuItem icon={<FaGem />}>
+                  Mission Config
+                </MenuItem>
+              </Link>
+              <Link to="/swarm-design"><MenuItem icon={<FaList />}>
+                Swarm Design
+              </MenuItem></Link>
+              <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
+                Show Design
+              </MenuItem></Link>
+            </Menu>
+          </div>
+
+          {/* Git Information */}
+          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+
+          {/* Footer */}
+          <div className="developer-info">
+            <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
+            <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
+          </div>
+        </div>
+      </Sidebar>
     </div>
-
-    <div className="sidebar-time">
-    <CurrentTime /> {/* Use the CurrentTime component here for displaying date and time */}
-
-    </div>
-
-    <br />
-
-    {/* Menu */}
-    <div className='menu-list'>
-    <Menu menuItemStyles={menuItemStyles}>
-    <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
-       Dashboard
-      </MenuItem>
-      </Link>
-      <Link to="/mission-config">
-        <MenuItem icon={<FaGem />}>
-       Mission Config
-      </MenuItem>
-      </Link>
-      <Link to="/swarm-design"><MenuItem icon={<FaList />}>
-       Swarm Design
-      </MenuItem>
-      </Link>
-      <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
-       Manage Drone Show
-      </MenuItem></Link>
-    </Menu>
-    </div>
-
-    {/* Copyright Footer */}
-<div className="developer-info">
-  <p>&#169; {new Date().getFullYear()}  <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
-    <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
-</div>
-</div>
-</Sidebar>
-</div>
   );
-
 }
 
 export default SidebarMenu;
