@@ -77,7 +77,6 @@
     position: sticky;
     bottom: 0;
     /* Sticks the footer at the bottom */
-    width: 100%;
 }
 
 .developer-info a {
