@@ -17,24 +17,21 @@
     /* Fixed width to prevent overlap */
     background-color: #1f2128;
     color: #a2a5b9;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .sidebar {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    height: 100vh;
-    overflow-y: auto;
+    height: 100%;
     background-color: #1f2128;
+    color: #a2a5b9;
 }
 
 .sidebar-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-    padding-right: 10px;
-    /* Prevents text from touching the edge */
+    flex-grow: 1;
+    overflow-y: auto;
 }
 
 .sidebar-header {
@@ -75,6 +72,8 @@
     text-align: center;
     position: sticky;
     bottom: 0;
+    left: 0;
+    width: 100%;
 }
 
 .developer-info a {
