@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sidebar, Menu, MenuItem, SubMenu, ProSidebarProvider } from 'react-pro-sidebar';
+import { Sidebar, Menu, MenuItem } from 'react-pro-sidebar';
 import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
@@ -27,59 +27,63 @@ const SidebarMenu = () => {
   const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
 
   const menuItemStyles = {
-    button: {
+    icon: {
       color: themes[theme].menu.icon,
-      '&:hover': {
-        backgroundColor: themes[theme].menu.hover.backgroundColor,
-        color: themes[theme].menu.hover.color
-      }
+    },
+    hover: {
+      backgroundColor: themes[theme].menu.hover.backgroundColor,
+      color: themes[theme].menu.hover.color
     }
   };
 
   return (
-    <ProSidebarProvider>
-      <div style={{ display: 'flex', height: '100vh' }}>
-        <Sidebar
-          collapsed={collapsed}
-          backgroundColor={themes[theme].sidebar.backgroundColor}
-          color={themes[theme].sidebar.color}
-          collapsedWidth={"80px"}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
-            <br />
+    <div className="sidebar-wrapper">
+      <Sidebar
+        collapsed={collapsed}
+        backgroundColor={themes[theme].sidebar.backgroundColor}
+        color={themes[theme].sidebar.color}
+        collapsedWidth={"80px"}
+        className='sidebar'
+      >
+        <div className="sidebar-content">
+          <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
 
-            <div className="sidebar-header">
-              <h3>Swarm Dashboard v0.9</h3>
-            </div>
-
-            <div className="sidebar-time">
-              <CurrentTime />
-            </div>
-
-            <br />
-
-            <div className='menu-list'>
-              <Menu menuItemStyles={menuItemStyles}>
-                <Link to="/"><MenuItem icon={<FaTachometerAlt />}> Dashboard </MenuItem></Link>
-                <Link to="/mission-config"><MenuItem icon={<FaGem />}> Mission Config </MenuItem></Link>
-                <Link to="/swarm-design"><MenuItem icon={<FaList />}> Swarm Design </MenuItem></Link>
-                <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}> Manage Drone Show </MenuItem></Link>
-              </Menu>
-            </div>
-
-            {/* Git Information */}
-            <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
-
-            {/* Footer */}
-            <div className="developer-info">
-              <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
-              <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
-            </div>
+          <div className="sidebar-header">
+            <h3>Swarm Dashboard v0.9</h3>
           </div>
-        </Sidebar>
-      </div>
-    </ProSidebarProvider>
+
+          <div className="sidebar-time">
+            <CurrentTime />
+          </div>
+
+          <div className='menu-list'>
+            <Menu menuItemStyles={menuItemStyles}>
+              <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
+                Dashboard
+              </MenuItem></Link>
+              <Link to="/mission-config">
+                <MenuItem icon={<FaGem />}>
+                  Mission Config
+                </MenuItem>
+              </Link>
+              <Link to="/swarm-design"><MenuItem icon={<FaList />}>
+                Swarm Design
+              </MenuItem></Link>
+              <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
+                Manage Drone Show
+              </MenuItem></Link>
+            </Menu>
+          </div>
+
+          <GitInfo />
+
+          <div className="developer-info">
+            <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank' rel="noopener noreferrer">MAVSDK Drone Show</a><br /> All rights reserved.</p>
+            <a href='https://linkedin.com/in/alireza787b' target='_blank' rel="noopener noreferrer">LinkedIn</a>
+          </div>
+        </div>
+      </Sidebar>
+    </div>
   );
 }
 
