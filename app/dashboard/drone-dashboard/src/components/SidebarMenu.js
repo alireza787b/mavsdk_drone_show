@@ -4,7 +4,7 @@ import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
-import GitInfo from './GitInfo';  // Import the new GitInfo component
+import GitInfo from './GitInfo';
 
 const themes = {
   dark: {
@@ -37,7 +37,7 @@ const SidebarMenu = () => {
   };
 
   return (
-    <div style={{ display: 'flex' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <Sidebar
         collapsed={collapsed}
         backgroundColor={themes[theme].sidebar.backgroundColor}
@@ -45,7 +45,7 @@ const SidebarMenu = () => {
         collapsedWidth={"80px"}
         className='sidebar'
       >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
           <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
           <br />
 
@@ -79,13 +79,15 @@ const SidebarMenu = () => {
             </Menu>
           </div>
 
-          {/* Git Information */}
-          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+          <div className="sidebar-footer">
+            {/* Git Information */}
+            <GitInfo />
 
-          {/* Footer */}
-          <div className="developer-info">
-            <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
-            <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
+            {/* Footer */}
+            <div className="developer-info">
+              <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
+              <a href='https://linkedin.com/in/alireza787b' target='_blank'>LinkedIn</a>
+            </div>
           </div>
         </div>
       </Sidebar>

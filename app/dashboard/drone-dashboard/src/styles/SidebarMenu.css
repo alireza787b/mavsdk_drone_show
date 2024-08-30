@@ -1,5 +1,3 @@
-/* SidebarMenu.css */
-
 .sidebar {
     display: flex;
     flex-direction: column;
@@ -8,9 +6,6 @@
     height: 100%;
 }
 
-
-/* Header style */
-
 .sidebar-header {
     text-align: center;
     padding: 20px 0;
@@ -18,19 +13,12 @@
 
 .sidebar-header h3 {
     color: #59d0ff;
-    /* Header text color */
     margin: 0;
 }
-
-
-/* Time display style */
 
 .sidebar-time {
     text-align: center;
 }
-
-
-/* Style for the links within menu items */
 
 .menu-list a {
     text-decoration: none;
@@ -40,9 +28,6 @@
 .menu-list a:hover {
     color: inherit;
 }
-
-
-/* Menu style */
 
 .menu {
     list-style: none;
@@ -55,7 +40,6 @@
     align-items: center;
     padding: 1em;
     color: #a2a5b9;
-    /* Menu item text color */
     font-weight: 600;
     font-size: 1.02em;
     text-decoration: none;
@@ -67,16 +51,17 @@
     color: #b6c8d9;
 }
 
+.sidebar-footer {
+    margin-top: auto;
+}
+
 .developer-info {
-    position: sticky;
-    bottom: 0;
-    margin-top: 100px;
     background-color: #1f2128;
     padding: 10px;
     color: #aaa;
-    left: 0;
-    right: 0;
     text-align: center;
+    position: relative;
+    bottom: 0;
 }
 
 .developer-info a {
@@ -100,4 +85,56 @@
 
 .menu-list {
     flex-grow: 1;
+}
+
+.git-info-container {
+    padding: 10px;
+    color: #a2a5b9;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+    font-size: 0.9em;
+}
+
+.git-info-container:hover {
+    background-color: #00458b;
+    color: #b6c8d9;
+}
+
+.git-info-summary {
+    font-weight: 600;
+}
+
+.git-info-details {
+    margin-top: 10px;
+    background-color: #2a2d36;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.85em;
+}
+
+.git-info-details ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.git-info-details ul li {
+    padding: 5px 0;
+}
+
+.toggle-details {
+    margin-top: 5px;
+    color: #59d0ff;
+    font-size: 0.8em;
+}
+
+@media (max-width: 768px) {
+    .FaBars-icon {
+        padding: 5px;
+    }
+    .git-info-container {
+        font-size: 0.8em;
+    }
+    .git-info-details {
+        font-size: 0.75em;
+    }
 }
