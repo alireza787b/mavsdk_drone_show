@@ -1,0 +1,17 @@
+.custom-show-page {
+    text-align: center;
+    padding: 20px;
+}
+
+.custom-show-image {
+    max-width: 100%;
+    height: auto;
+    margin-top: 20px;
+    border: 2px solid #59d0ff;
+    border-radius: 10px;
+}
+
+.error-message {
+    color: red;
+    font-weight: bold;
+}

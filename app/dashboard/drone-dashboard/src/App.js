@@ -7,6 +7,8 @@ import SidebarMenu from './components/SidebarMenu';
 import SwarmDesign from './pages/SwarmDesign';
 import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
+import CustomShowPage from './pages/CustomShowPage'; // Import the new page
+
 import ImportShow from './pages/ImportShow';
 import './App.css';
 import ManageDroneShow from './pages/ManageDroneShow';
@@ -25,6 +27,8 @@ const App = () => {
             <Route path="/mission-config" element={<MissionConfig />} />
             <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
             <Route path="/manage-drone-show" element={<ManageDroneShow />} />
+            <Route path="/custom-show" component={CustomShowPage} /> {/* New route */}
+
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
           </Routes>
         </div>

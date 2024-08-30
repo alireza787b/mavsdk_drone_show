@@ -80,6 +80,9 @@ const SidebarMenu = () => {
               <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
                 Drone Show Design
               </MenuItem></Link>
+              <Link to="/custom-show"><MenuItem icon={<FaGem />}>
+                Custom Show
+              </MenuItem></Link> {/* New menu item */}
             </Menu>
           </div>
 
