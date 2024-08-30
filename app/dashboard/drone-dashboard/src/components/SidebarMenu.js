@@ -4,7 +4,7 @@ import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
-import GitInfo from './GitInfo';  // Import the new GitInfo component
+import GitInfo from './GitInfo';
 
 const themes = {
   dark: {
@@ -45,17 +45,21 @@ const SidebarMenu = () => {
         collapsedWidth={"80px"}
         className='sidebar'
       >
-        <div className="sidebar-content">
+        <div className={`sidebar-content ${collapsed ? 'collapsed' : ''}`}>
           <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
           <br />
 
-          <div className="sidebar-header">
-            <h3>Swarm Dashboard v0.9</h3>
-          </div>
+          {!collapsed && (
+            <>
+              <div className="sidebar-header">
+                <h3>Swarm Dashboard v0.9</h3>
+              </div>
 
-          <div className="sidebar-time">
-            <CurrentTime />
-          </div>
+              <div className="sidebar-time">
+                <CurrentTime />
+              </div>
+            </>
+          )}
 
           <br />
 
@@ -74,19 +78,21 @@ const SidebarMenu = () => {
                 Swarm Design
               </MenuItem></Link>
               <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
-                Show Design
+                Manage Drone Show
               </MenuItem></Link>
             </Menu>
           </div>
 
           {/* Git Information */}
-          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+          {!collapsed && <GitInfo />}
 
           {/* Footer */}
-          <div className="developer-info">
-            <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
-            <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
-          </div>
+          {!collapsed && (
+            <div className="developer-info">
+              <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
+              <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
+            </div>
+          )}
         </div>
       </Sidebar>
     </div>
