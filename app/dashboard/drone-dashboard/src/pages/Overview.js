@@ -109,12 +109,7 @@ const Overview = ({ setSelectedDrone }) => {
           altitude: drone.Position_Alt
         }))}
       />
-      
-      {incompleteDrones.length > 0 && (
-        <div className="warning-message">
-          Warning: {incompleteDrones.length} drone(s) have incomplete data and are not displayed.
-        </div>
-      )}
+    
     </div>
   );
 };
