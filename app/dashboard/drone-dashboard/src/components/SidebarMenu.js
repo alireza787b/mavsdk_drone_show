@@ -4,7 +4,8 @@ import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
-import GitInfo from './GitInfo';  // Import the new GitInfo component
+import GitInfo from './GitInfo';
+import { useScrollPosition } from '../hooks/useScrollPosition';  // Import the custom scroll hook
 
 const themes = {
   dark: {
@@ -25,6 +26,7 @@ const themes = {
 const SidebarMenu = () => {
   const [theme] = useState('dark');
   const [collapsed, setCollapsed] = useState(window.innerWidth < 768);
+  const scrollPosition = useScrollPosition();  // Use the scroll hook
 
   const menuItemStyles = {
     icon: {
@@ -34,6 +36,12 @@ const SidebarMenu = () => {
       backgroundColor: themes[theme].menu.hover.backgroundColor,
       color: themes[theme].menu.hover.color
     }
+  };
+
+  // Determine the position of the footer content based on scroll
+  const footerStyle = {
+    transform: `translateY(${scrollPosition > 100 ? '-100%' : '0'})`,
+    transition: 'transform 0.5s ease',
   };
 
   return (
@@ -59,7 +67,6 @@ const SidebarMenu = () => {
 
           <br />
 
-          {/* Menu */}
           <div className='menu-list'>
             <Menu menuItemStyles={menuItemStyles}>
               <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
@@ -80,10 +87,10 @@ const SidebarMenu = () => {
           </div>
 
           {/* Git Information */}
-          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+          <GitInfo />  
 
           {/* Footer */}
-          <div className="developer-info">
+          <div className="developer-info" style={footerStyle}>
             <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
             <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
           </div>

@@ -48,7 +48,6 @@
 .sidebar-time {
     text-align: center;
     color: #a2a5b9;
-    /* Time text color */
 }
 
 .menu-list a {
@@ -58,7 +57,6 @@
 
 .menu-list a:hover {
     color: #59d0ff;
-    /* Improved hover color */
 }
 
 .menu-item:hover {
@@ -73,7 +71,6 @@
     text-align: center;
     position: sticky;
     bottom: 0;
-    /* Sticks the footer at the bottom */
     width: 100%;
 }
 
@@ -138,7 +135,6 @@
 .toggle-details {
     color: #59d0ff;
     font-size: 0.9em;
-    /* Reduced size for cleaner look */
     display: inline-block;
     margin-left: 5px;
 }
