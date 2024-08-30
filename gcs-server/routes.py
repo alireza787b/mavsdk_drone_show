@@ -253,18 +253,19 @@ def setup_routes(app):
         })
 
 
-    @app.route('/get-custom-show-image', methods=['GET'])
-    def get_custom_show_image():
-        """
-        Endpoint to get the custom drone show image.
-        The image is expected to be located at shapes/active.png.
-        """
-        try:
-            image_path = os.path.join(BASE_DIR, 'shapes', 'active.png')
-            if os.path.exists(image_path):
-                return send_file(image_path, mimetype='image/png', as_attachment=False)
-            else:
-                return jsonify({'error': 'Custom show image not found'}), 404
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+        @app.route('/get-custom-show-image', methods=['GET'])
+        def get_custom_show_image():
+            """
+            Endpoint to get the custom drone show image.
+            The image is expected to be located at shapes/active.png.
+            """
+            try:
+                image_path = os.path.join(BASE_DIR, 'shapes', 'active.png')
+                print("Debug: Image path being used:", image_path)  # Debug statement
+                if os.path.exists(image_path):
+                    return send_file(image_path, mimetype='image/png', as_attachment=False)
+                else:
+                    return jsonify({'error': f'Custom show image not found at {image_path}'}), 404
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
 
