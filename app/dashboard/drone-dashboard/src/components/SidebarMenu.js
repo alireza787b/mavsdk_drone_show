@@ -37,7 +37,7 @@ const SidebarMenu = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="sidebar-wrapper">
       <Sidebar
         collapsed={collapsed}
         backgroundColor={themes[theme].sidebar.backgroundColor}
@@ -45,7 +45,7 @@ const SidebarMenu = () => {
         collapsedWidth={"80px"}
         className='sidebar'
       >
-        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+        <div className="sidebar-content">
           <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
           <br />
 

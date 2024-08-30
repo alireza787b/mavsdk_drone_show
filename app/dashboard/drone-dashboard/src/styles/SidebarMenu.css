@@ -1,10 +1,22 @@
-.sidebar {
+/* Wrapper for the entire sidebar to ensure it takes full height */
+
+.sidebar-wrapper {
+    height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    min-height: 100vh;
+}
+
+
+/* Sidebar content should take the full height of the sidebar */
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
     height: 100%;
 }
+
+
+/* Header style */
 
 .sidebar-header {
     text-align: center;
@@ -16,9 +28,15 @@
     margin: 0;
 }
 
+
+/* Time display style */
+
 .sidebar-time {
     text-align: center;
 }
+
+
+/* Style for the links within menu items */
 
 .menu-list a {
     text-decoration: none;
@@ -28,6 +46,9 @@
 .menu-list a:hover {
     color: inherit;
 }
+
+
+/* Menu style */
 
 .menu {
     list-style: none;
@@ -51,6 +72,9 @@
     color: #b6c8d9;
 }
 
+
+/* Footer and Git info should stick to the bottom */
+
 .sidebar-footer {
     margin-top: auto;
 }
@@ -60,8 +84,9 @@
     padding: 10px;
     color: #aaa;
     text-align: center;
-    position: relative;
+    position: sticky;
     bottom: 0;
+    width: 100%;
 }
 
 .developer-info a {
@@ -87,12 +112,15 @@
     flex-grow: 1;
 }
 
+
+/* Git info container with reduced font size and better spacing */
+
 .git-info-container {
     padding: 10px;
     color: #a2a5b9;
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
-    font-size: 0.9em;
+    font-size: 0.85em;
 }
 
 .git-info-container:hover {
@@ -100,8 +128,13 @@
     color: #b6c8d9;
 }
 
+
+/* Git info summary with smaller font */
+
 .git-info-summary {
     font-weight: 600;
+    display: flex;
+    justify-content: space-between;
 }
 
 .git-info-details {
@@ -119,12 +152,14 @@
 
 .git-info-details ul li {
     padding: 5px 0;
+    word-wrap: break-word;
+    /* Ensure long text wraps within the container */
 }
 
 .toggle-details {
-    margin-top: 5px;
     color: #59d0ff;
     font-size: 0.8em;
+    cursor: pointer;
 }
 
 @media (max-width: 768px) {
