@@ -32,7 +32,7 @@ const MissionDetails = ({
           const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
           response = await fetch(plotUrl);
         }
-
+        console.log(response)
         if (response && response.ok) {
           const imageBlob = await response.blob();
           const imageObjectURL = URL.createObjectURL(imageBlob);
