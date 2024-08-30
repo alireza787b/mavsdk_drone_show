@@ -1,13 +1,11 @@
-/* Ensure that the main content does not overlap with the sidebar */
+/* Wrapper for sidebar and main content to prevent overlap */
 
-.main-content {
-    margin-left: 250px;
-    /* Adjust according to your sidebar width */
-    padding: 20px;
+.wrapper {
+    display: flex;
 }
 
 
-/* Sidebar Wrapper */
+/* Sidebar Styles */
 
 .sidebar-wrapper {
     display: flex;
@@ -17,33 +15,27 @@
     left: 0;
     width: 250px;
     /* Fixed width to prevent overlap */
+    background-color: #1f2128;
+    color: #a2a5b9;
 }
-
-
-/* Sidebar Settings */
 
 .sidebar {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     height: 100vh;
-    /* Full height */
+    overflow-y: auto;
     background-color: #1f2128;
-    color: #a2a5b9;
 }
-
-
-/* Sidebar Content */
 
 .sidebar-content {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
+    padding-right: 10px;
+    /* Prevents text from touching the edge */
 }
-
-
-/* Sidebar Header */
 
 .sidebar-header {
     text-align: center;
@@ -55,43 +47,59 @@
     margin: 0;
 }
 
-
-/* Time and Git Info Display */
-
-.sidebar-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 10px 0;
+.sidebar-time {
+    text-align: center;
+    color: #a2a5b9;
+    /* Time text color */
 }
-
-.sidebar-info-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 5px;
-}
-
-.sidebar-info-item .icon {
-    margin-right: 8px;
-}
-
-
-/* Menu Styles */
 
 .menu-list a {
     text-decoration: none;
     color: #a2a5b9;
-    font-size: 1em;
-    font-weight: 600;
 }
 
 .menu-list a:hover {
+    color: #59d0ff;
+    /* Improved hover color */
+}
+
+.menu-item:hover {
     background-color: #00458b;
     color: #b6c8d9;
 }
 
+.developer-info {
+    background-color: #1f2128;
+    padding: 10px;
+    color: #aaa;
+    text-align: center;
+    position: sticky;
+    bottom: 0;
+}
 
-/* Git Info Container */
+.developer-info a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.FaBars-icon {
+    cursor: pointer;
+    transform: scale(1);
+    transition: transform 0.3s ease;
+    padding: 10px;
+    color: rgb(139, 161, 183);
+    font-weight: 600;
+    align-self: flex-start;
+}
+
+.FaBars-icon:hover {
+    transform: scale(1.2);
+}
+
+.menu-list {
+    flex-grow: 1;
+    overflow-y: auto;
+}
 
 .git-info-container {
     padding: 10px;
@@ -99,8 +107,6 @@
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
     background-color: #1f2128;
-    font-size: 0.9em;
-    /* Smaller font size */
 }
 
 .git-info-container:hover {
@@ -130,33 +136,9 @@
 }
 
 .toggle-details {
-    font-size: 0.8em;
-    /* Reduce size of the toggle arrow */
+    color: #59d0ff;
+    font-size: 0.9em;
+    /* Reduced size for cleaner look */
+    display: inline-block;
     margin-left: 5px;
-}
-
-
-/* Footer Styles */
-
-.developer-info {
-    padding: 10px;
-    background-color: #1f2128;
-    color: #aaa;
-    text-align: center;
-}
-
-.developer-info a {
-    text-decoration: none;
-    color: inherit;
-}
-
-.FaBars-icon {
-    cursor: pointer;
-    transition: transform 0.3s ease;
-    padding: 10px;
-    color: rgb(139, 161, 183);
-}
-
-.FaBars-icon:hover {
-    transform: scale(1.2);
 }
