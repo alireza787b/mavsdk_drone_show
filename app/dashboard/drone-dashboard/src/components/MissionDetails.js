@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/MissionDetails.css';
-import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities';
+import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
 
 const MissionDetails = ({
   missionType,
@@ -20,28 +20,33 @@ const MissionDetails = ({
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    // Reset the image and error state when the mission type changes
+    setImageSrc(null);
+    setErrorMessage('');
+
+    // Fetch the appropriate image based on the mission type
     async function fetchImage() {
-      let imageUrl;
+      try {
+        let imageURL = '';
 
-      if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
-        imageUrl = getCustomShowImageURL(); // Fetch custom show image
-      } else if (missionType === 'DRONE_SHOW_FROM_CSV') {
-        imageUrl = `${getBackendURL()}/get-show-plots/all_drones.png`; // Fetch drone show plot image
-      }
-
-      if (imageUrl) {
-        try {
-          const response = await fetch(imageUrl);
-          if (response.ok) {
-            const imageBlob = await response.blob();
-            const imageObjectURL = URL.createObjectURL(imageBlob);
-            setImageSrc(imageObjectURL);
-          } else {
-            setErrorMessage('Failed to load image.');
-          }
-        } catch (error) {
-          setErrorMessage('An error occurred while loading the image.');
+        if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
+          imageURL = getCustomShowImageURL();
+        } else if (missionType === 'DRONE_SHOW_FROM_CSV') {
+          imageURL = `${getBackendURL()}/get-show-plots/all_drones.png`;
+        } else {
+          return; // If no image is relevant for the mission type, exit the function
         }
+
+        const response = await fetch(imageURL);
+        if (response.ok) {
+          const imageBlob = await response.blob();
+          const imageObjectURL = URL.createObjectURL(imageBlob);
+          setImageSrc(imageObjectURL);
+        } else {
+          setErrorMessage('Failed to load the image.');
+        }
+      } catch (error) {
+        setErrorMessage('An error occurred while loading the image.');
       }
     }
 
@@ -56,11 +61,11 @@ const MissionDetails = ({
         <div className="mission-description">{description}</div>
       </div>
 
-      {/* Display the relevant image based on the mission type */}
+      {/* Display the image only if it exists */}
       {imageSrc && (
         <div className="image-preview">
           <h3>Show Preview:</h3>
-          <img src={imageSrc} alt={`${label} Preview`} className="mission-image" />
+          <img src={imageSrc} alt="Drone Show" className="show-image" />
         </div>
       )}
 
