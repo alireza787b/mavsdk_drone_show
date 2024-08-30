@@ -18,6 +18,10 @@ export function getElevationURL(lat, lon) {
     return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
 }
 
+// New function to get the GCS Git status URL
+export function getGitStatusURL() {
+    return `${getBackendURL()}/get-gcs-git-status`;
+}
 
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;

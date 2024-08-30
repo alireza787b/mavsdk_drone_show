@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/GitInfo.css';
+import { getGitStatusURL } from '../utilities';  // Import the function to get the correct URL
 
 const GitInfo = () => {
   const [gitInfo, setGitInfo] = useState({});
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    // Fetch Git info from the GCS API
+    // Fetch Git info from the GCS API using the correct URL
     async function fetchGitInfo() {
       try {
-        const response = await fetch('/get-gcs-git-status'); // Ensure this endpoint is correct
+        const response = await fetch(getGitStatusURL());  // Use the utility function to get the correct URL
         const data = await response.json();
         setGitInfo(data);
       } catch (error) {
