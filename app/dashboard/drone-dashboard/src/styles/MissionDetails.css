@@ -1,0 +1,59 @@
+/* MissionDetails.css */
+
+.mission-details {
+    padding: 20px;
+    background-color: #1f2128;
+    border-radius: 8px;
+    color: #a2a5b9;
+}
+
+.mission-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.mission-name {
+    font-size: 1.5em;
+    color: #59d0ff;
+}
+
+.mission-description {
+    margin-bottom: 20px;
+}
+
+.custom-show-preview,
+.drone-show-preview {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.custom-show-image,
+.drone-show-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.time-selection,
+.time-delay-slider,
+.time-picker {
+    margin-bottom: 20px;
+}
+
+.back-button,
+.mission-button {
+    margin-top: 20px;
+    background-color: #00458b;
+    color: #fff;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    width: 100%;
+}
+
+.back-button:hover,
+.mission-button:hover {
+    background-color: #59d0ff;
+}
