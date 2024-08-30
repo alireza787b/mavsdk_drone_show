@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/MissionDetails.css';
-import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities';
+import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
 
 const MissionDetails = ({
   missionType,
@@ -21,7 +21,8 @@ const MissionDetails = ({
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    if (missionType === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW) {
+    if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
+      // Fetch the custom show image for CUSTOM_CSV_DRONE_SHOW mission
       async function fetchCustomShowImage() {
         try {
           const response = await fetch(getCustomShowImageURL());
@@ -38,21 +39,14 @@ const MissionDetails = ({
       }
       fetchCustomShowImage();
     } else {
-      setCustomShowImageSrc(null); // Clear the image if not the custom mission type
+      setCustomShowImageSrc(null); // Clear the custom show image if the mission type is not CUSTOM_CSV_DRONE_SHOW
     }
 
-    if (missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV) {
-      async function fetchDroneShowPlot() {
-        try {
-          const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
-          setDroneShowPlotSrc(plotUrl);
-        } catch (error) {
-          setErrorMessage('An error occurred while loading the drone show plot image.');
-        }
-      }
-      fetchDroneShowPlot();
+    if (missionType === 'DRONE_SHOW_FROM_CSV') {
+      // Set the plot image for DRONE_SHOW_FROM_CSV mission
+      setDroneShowPlotSrc(`${getBackendURL()}/get-show-plots/all_drones.png`);
     } else {
-      setDroneShowPlotSrc(null); // Clear the image if not the drone show from CSV
+      setDroneShowPlotSrc(null); // Clear the plot image if the mission type is not DRONE_SHOW_FROM_CSV
     }
   }, [missionType]);
 
@@ -72,7 +66,7 @@ const MissionDetails = ({
         </div>
       )}
 
-      {/* Display drone show plot image for DRONE_SHOW_FROM_CSV mission */}
+      {/* Display drone show plot image for DRONE_SHOW_FROM_CSV */}
       {droneShowPlotSrc && (
         <div className="drone-show-preview">
           <h3>Drone Show Plot Preview:</h3>
