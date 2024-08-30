@@ -1,21 +1,20 @@
-#gcs-server/routes.py
 import os
 import subprocess
 import sys
 import time
 import traceback
 import zipfile
+import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
 from telemetry import telemetry_data_all_drones, start_telemetry_polling
-from command import send_commands_to_all , send_command_to_drone
+from command import send_commands_to_all, send_command_to_drone
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 import logging
 from params import Params
 from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
-
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -56,10 +55,8 @@ def setup_routes(app):
             logger.info("Command sent successfully to all drones")
             return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
         except Exception as e:
-            logger.error(f"Error sending command: {e}", exc_info=True) 
+            logger.error(f"Error sending command: {e}", exc_info=True)
             return error_response(f"Error sending command: {e}")
-
-
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
@@ -89,7 +86,6 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error saving configuration: {e}", exc_info=True)
             return error_response(f"Error saving configuration: {e}")
-
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
@@ -195,11 +191,11 @@ def setup_routes(app):
             upload_time = "unknown"
             if 'all_drones.png' in filenames:
                 upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
-            
+
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
             return error_response(f"Failed to list directory: {e}")
-        
+
     @app.route('/elevation', methods=['GET'])
     def elevation_route():
         lat = request.args.get('lat')
@@ -221,24 +217,30 @@ def setup_routes(app):
             return jsonify(elevation_data)
         else:
             return jsonify({'error': 'Failed to fetch elevation data'}), 500
-        
-        
+
+    @app.route('/get-gcs-git-status', methods=['GET'])
+    def get_gcs_git_status():
+        """Retrieve the Git status of the GCS."""
+        gcs_status = get_git_status()
+        return jsonify(gcs_status)
+
     @app.route('/get-drone-git-status', methods=['GET'])
     def check_all_git_status():
         """Compare the GCS Git status with each drone."""
-        drones = load_config()  # Assuming this returns a list of drone URIs
+        drones = load_config()
         gcs_status = get_git_status()
 
         discrepancies = []
         for drone in drones:
-            drone_status = get_drone_git_status(drone['uri'])  # Assuming each drone has a 'uri' field
+            drone_uri = f"http://{drone['ip']}:{Params.drones_flask_port}"
+            drone_status = get_drone_git_status(drone_uri)
             if 'error' in drone_status:
-                discrepancies.append({'drone': drone['uri'], 'error': drone_status['error']})
+                discrepancies.append({'drone': drone_uri, 'error': drone_status['error']})
             else:
                 if (drone_status['branch'] != gcs_status['branch'] or
                         drone_status['commit'] != gcs_status['commit']):
                     discrepancies.append({
-                        'drone': drone['uri'],
+                        'drone': drone_uri,
                         'gcs_branch': gcs_status['branch'],
                         'gcs_commit': gcs_status['commit'],
                         'drone_branch': drone_status['branch'],
@@ -249,3 +251,4 @@ def setup_routes(app):
             'gcs_status': gcs_status,
             'discrepancies': discrepancies if discrepancies else 'All drones are synchronized'
         })
+
