@@ -1,27 +1,49 @@
+/* Ensure that the main content does not overlap with the sidebar */
+
+.main-content {
+    margin-left: 250px;
+    /* Adjust according to your sidebar width */
+    padding: 20px;
+}
+
+
+/* Sidebar Wrapper */
+
 .sidebar-wrapper {
     display: flex;
     height: 100vh;
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
+    width: 250px;
+    /* Fixed width to prevent overlap */
 }
+
+
+/* Sidebar Settings */
 
 .sidebar {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     height: 100vh;
-    position: fixed;
-    overflow-y: auto;
+    /* Full height */
     background-color: #1f2128;
+    color: #a2a5b9;
 }
+
+
+/* Sidebar Content */
 
 .sidebar-content {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     height: 100%;
 }
+
+
+/* Sidebar Header */
 
 .sidebar-header {
     text-align: center;
@@ -33,44 +55,43 @@
     margin: 0;
 }
 
-.sidebar-time {
-    text-align: center;
+
+/* Time and Git Info Display */
+
+.sidebar-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px 0;
 }
+
+.sidebar-info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.sidebar-info-item .icon {
+    margin-right: 8px;
+}
+
+
+/* Menu Styles */
 
 .menu-list a {
     text-decoration: none;
-    color: inherit;
+    color: #a2a5b9;
+    font-size: 1em;
+    font-weight: 600;
 }
 
-.menu-item:hover {
+.menu-list a:hover {
     background-color: #00458b;
     color: #b6c8d9;
 }
 
-.developer-info {
-    background-color: #1f2128;
-    padding: 10px;
-    color: #aaa;
-    text-align: center;
-}
 
-.developer-info a {
-    text-decoration: none;
-    color: inherit;
-}
-
-.FaBars-icon {
-    cursor: pointer;
-    transform: scale(1);
-    transition: transform 0.3s ease;
-    padding: 10px;
-    color: rgb(139, 161, 183);
-    font-weight: 600;
-}
-
-.FaBars-icon:hover {
-    transform: scale(1.2);
-}
+/* Git Info Container */
 
 .git-info-container {
     padding: 10px;
@@ -78,6 +99,8 @@
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
     background-color: #1f2128;
+    font-size: 0.9em;
+    /* Smaller font size */
 }
 
 .git-info-container:hover {
@@ -107,6 +130,33 @@
 }
 
 .toggle-details {
-    color: #59d0ff;
-    font-size: 1.5em;
+    font-size: 0.8em;
+    /* Reduce size of the toggle arrow */
+    margin-left: 5px;
+}
+
+
+/* Footer Styles */
+
+.developer-info {
+    padding: 10px;
+    background-color: #1f2128;
+    color: #aaa;
+    text-align: center;
+}
+
+.developer-info a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.FaBars-icon {
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    padding: 10px;
+    color: rgb(139, 161, 183);
+}
+
+.FaBars-icon:hover {
+    transform: scale(1.2);
 }
