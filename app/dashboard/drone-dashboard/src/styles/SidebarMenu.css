@@ -1,4 +1,4 @@
-/* Wrapper for sidebar and main content to prevent overlap */
+/* Wrapper to ensure sidebar and main content don't overlap */
 
 .wrapper {
     display: flex;
@@ -14,24 +14,25 @@
     top: 0;
     left: 0;
     width: 250px;
-    /* Fixed width to prevent overlap */
     background-color: #1f2128;
     color: #a2a5b9;
-    flex-direction: column;
-    justify-content: space-between;
 }
 
 .sidebar {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     height: 100%;
+    overflow-y: auto;
     background-color: #1f2128;
-    color: #a2a5b9;
 }
 
 .sidebar-content {
-    flex-grow: 1;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: 100%;
+    padding-right: 10px;
 }
 
 .sidebar-header {
@@ -72,7 +73,7 @@
     text-align: center;
     position: sticky;
     bottom: 0;
-    left: 0;
+    /* Sticks the footer at the bottom */
     width: 100%;
 }
 

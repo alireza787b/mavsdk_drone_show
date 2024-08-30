@@ -45,44 +45,42 @@ const SidebarMenu = () => {
         collapsedWidth={"80px"}
         className='sidebar'
       >
-        <div className="sidebar-wrapper">
-          <div className="sidebar-content">
-            <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
-            <br />
+        <div className="sidebar-content">
+          <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
+          <br />
 
-            <div className="sidebar-header">
-              <h3>Swarm Dashboard v0.9</h3>
-            </div>
-
-            <div className="sidebar-time">
-              <CurrentTime />
-            </div>
-
-            <br />
-
-            {/* Menu */}
-            <div className='menu-list'>
-              <Menu menuItemStyles={menuItemStyles}>
-                <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
-                  Dashboard
-                </MenuItem></Link>
-                <Link to="/mission-config">
-                  <MenuItem icon={<FaGem />}>
-                    Mission Config
-                  </MenuItem>
-                </Link>
-                <Link to="/swarm-design"><MenuItem icon={<FaList />}>
-                  Swarm Design
-                </MenuItem></Link>
-                <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
-                  Manage Drone Show
-                </MenuItem></Link>
-              </Menu>
-            </div>
-
-            {/* Git Information */}
-            <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+          <div className="sidebar-header">
+            <h3>Swarm Dashboard v0.9</h3>
           </div>
+
+          <div className="sidebar-time">
+            <CurrentTime />
+          </div>
+
+          <br />
+
+          {/* Menu */}
+          <div className='menu-list'>
+            <Menu menuItemStyles={menuItemStyles}>
+              <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
+                Dashboard
+              </MenuItem></Link>
+              <Link to="/mission-config">
+                <MenuItem icon={<FaGem />}>
+                  Mission Config
+                </MenuItem>
+              </Link>
+              <Link to="/swarm-design"><MenuItem icon={<FaList />}>
+                Swarm Design
+              </MenuItem></Link>
+              <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
+                Manage Drone Show
+              </MenuItem></Link>
+            </Menu>
+          </div>
+
+          {/* Git Information */}
+          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
 
           {/* Footer */}
           <div className="developer-info">
