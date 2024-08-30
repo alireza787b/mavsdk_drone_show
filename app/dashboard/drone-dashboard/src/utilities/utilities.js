@@ -23,6 +23,10 @@ export function getGitStatusURL() {
     return `${getBackendURL()}/get-gcs-git-status`;
 }
 
+export function getCustomShowImageURL() {
+    return `${getBackendURL()}/get-custom-show-image`;
+}
+
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;
 export const LON_TO_METERS = 111321;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/CustomShowPage.css';
+import { getCustomShowImageURL } from '../utilities/utilities';  // Import the new utility function
 
 const CustomShowPage = () => {
     const [imageSrc, setImageSrc] = useState(null);
@@ -9,7 +10,7 @@ const CustomShowPage = () => {
         // Fetch the custom show image from the server
         async function fetchCustomShowImage() {
             try {
-                const response = await fetch('/get-custom-show-image');
+                const response = await fetch(getCustomShowImageURL());  // Use the utility function to get the correct URL
                 if (response.ok) {
                     const imageBlob = await response.blob();
                     const imageObjectURL = URL.createObjectURL(imageBlob);
