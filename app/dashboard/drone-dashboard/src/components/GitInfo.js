@@ -25,7 +25,7 @@ const GitInfo = () => {
       <div className="git-info-summary" onClick={() => setExpanded(!expanded)}>
         <div><strong>Branch:</strong> {gitInfo.branch}</div>
         <div><strong>Commit:</strong> {gitInfo.commit?.slice(0, 7)}</div>
-        <div className="toggle-details">{expanded ? '▲' : '▼'}</div>
+        {/* <div className="toggle-details">{expanded ? '▲' : '▼'}</div> */}
       </div>
 
       {expanded && (
