@@ -23,21 +23,24 @@
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
-    overflow-y: auto;
     background-color: #1f2128;
 }
 
 .sidebar-content {
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: space-between;
     height: 100%;
-    padding-right: 10px;
 }
 
-.sidebar-header {
-    text-align: center;
-    padding: 20px 0;
+.sidebar-header,
+.sidebar-time {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #1f2128;
+    /* Same background as sidebar to avoid transparency issues */
+    padding: 10px;
 }
 
 .sidebar-header h3 {
@@ -46,32 +49,21 @@
 }
 
 .sidebar-time {
-    text-align: center;
     color: #a2a5b9;
 }
 
-.menu-list a {
-    text-decoration: none;
-    color: #a2a5b9;
-}
-
-.menu-list a:hover {
-    color: #59d0ff;
-}
-
-.menu-item:hover {
-    background-color: #00458b;
-    color: #b6c8d9;
+.menu-list {
+    flex-grow: 1;
 }
 
 .developer-info {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
     background-color: #1f2128;
     padding: 10px;
     color: #aaa;
     text-align: center;
-    position: sticky;
-    bottom: 0;
-    width: 100%;
 }
 
 .developer-info a {
@@ -91,11 +83,6 @@
 
 .FaBars-icon:hover {
     transform: scale(1.2);
-}
-
-.menu-list {
-    flex-grow: 1;
-    overflow-y: auto;
 }
 
 .git-info-container {
