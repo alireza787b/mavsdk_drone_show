@@ -4,7 +4,7 @@ import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
-import GitInfo from './GitInfo';
+import GitInfo from './GitInfo';  // Import the new GitInfo component
 
 const themes = {
   dark: {
@@ -49,16 +49,17 @@ const SidebarMenu = () => {
           <FaBars className='FaBars-icon' onClick={() => setCollapsed(!collapsed)} />
           <br />
 
-          <div className="sidebar-header sticky-top">
+          <div className="sidebar-header">
             <h3>Swarm Dashboard v0.9</h3>
           </div>
 
-          <div className="sidebar-time sticky-top">
+          <div className="sidebar-time">
             <CurrentTime />
           </div>
 
           <br />
 
+          {/* Menu */}
           <div className='menu-list'>
             <Menu menuItemStyles={menuItemStyles}>
               <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
@@ -78,8 +79,11 @@ const SidebarMenu = () => {
             </Menu>
           </div>
 
-          <div className="developer-info sticky-bottom">
-            <GitInfo />
+          {/* Git Information */}
+          <GitInfo />  {/* Integrating GitInfo component into the sidebar */}
+
+          {/* Footer */}
+          <div className="developer-info">
             <p>&#169; {new Date().getFullYear()} <a href="https://github.com/alireza787b/mavsdk_drone_show" target='_blank'>MAVSDK Drone Show</a><br /> All rights reserved.</p>
             <a href='https://linkedin.com/in/alireza787b' target='_blank'>Linkedin</a>
           </div>
