@@ -8,18 +8,20 @@ from src.params import Params
 class FlaskHandler:
     def __init__(self, params, drone_communicator):
         self.app = Flask(__name__)
-        CORS(self.app)  # This will enable CORS for all routes
+        CORS(self.app)  # Enable CORS for all routes
         self.params = params
         self.drone_communicator = drone_communicator
         self.setup_routes()
 
     def setup_routes(self):
+        """Defines the routes for the Flask application."""
         @self.app.route(f"/{Params.get_drone_state_URI}", methods=['GET'])
         def get_drone_state():
+            """Endpoint to retrieve the current state of the drone."""
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
-                    # Send timestamp in milliseconds
+                    # Add a timestamp to the drone state
                     drone_state['timestamp'] = int(time.time() * 1000)
                     return jsonify(drone_state)
                 else:
@@ -29,6 +31,7 @@ class FlaskHandler:
 
         @self.app.route(f"/{Params.send_drone_command_URI}", methods=['POST'])
         def send_drone_command():
+            """Endpoint to send a command to the drone."""
             try:
                 command_data = request.get_json()
                 self.drone_communicator.process_command(command_data)
@@ -38,33 +41,35 @@ class FlaskHandler:
 
         @self.app.route('/get-git-status', methods=['GET'])
         def get_git_status():
+            """
+            Endpoint to retrieve the current Git status of the drone.
+            This includes the branch, commit hash, author details, commit date,
+            commit message, remote repository URL, tracking branch, and status of the working directory.
+            """
             try:
-                # Retrieve the current branch
-                branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
-                
-                # Retrieve the latest commit hash
-                commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
-                
-                # Retrieve the author name and email
-                author_name = subprocess.check_output(['git', 'show', '-s', '--format=%an', commit]).strip().decode('utf-8')
-                author_email = subprocess.check_output(['git', 'show', '-s', '--format=%ae', commit]).strip().decode('utf-8')
-                
-                # Retrieve the commit date
-                commit_date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit]).strip().decode('utf-8')
-                
-                # Retrieve the commit message
-                commit_message = subprocess.check_output(['git', 'show', '-s', '--format=%B', commit]).strip().decode('utf-8')
-                
-                # Retrieve the remote URL
-                remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).strip().decode('utf-8')
-                
-                # Retrieve the tracking branch (e.g., origin/main)
-                tracking_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).strip().decode('utf-8')
-                
-                # Check if the working directory is clean or has uncommitted changes
-                status = subprocess.check_output(['git', 'status', '--porcelain']).strip().decode('utf-8')
+                # Retrieve the current branch name
+                branch = self._execute_git_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
 
-                return jsonify({
+                # Retrieve the latest commit hash
+                commit = self._execute_git_command(['git', 'rev-parse', 'HEAD'])
+
+                # Retrieve author details and commit information
+                author_name = self._execute_git_command(['git', 'show', '-s', '--format=%an', commit])
+                author_email = self._execute_git_command(['git', 'show', '-s', '--format=%ae', commit])
+                commit_date = self._execute_git_command(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit])
+                commit_message = self._execute_git_command(['git', 'show', '-s', '--format=%B', commit])
+
+                # Retrieve remote repository URL
+                remote_url = self._execute_git_command(['git', 'config', '--get', 'remote.origin.url'])
+
+                # Retrieve the tracking branch
+                tracking_branch = self._execute_git_command(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+
+                # Check if the working directory is clean or has uncommitted changes
+                status = self._execute_git_command(['git', 'status', '--porcelain'])
+
+                # Build the response dictionary
+                response = {
                     'branch': branch,
                     'commit': commit,
                     'author_name': author_name,
@@ -75,11 +80,23 @@ class FlaskHandler:
                     'tracking_branch': tracking_branch,
                     'status': 'clean' if not status else 'dirty',
                     'uncommitted_changes': status.splitlines() if status else []
-                })
+                }
+
+                return jsonify(response)
             except subprocess.CalledProcessError as e:
                 return jsonify({'error': f"Git command failed: {str(e)}"}), 500
 
+    def _execute_git_command(self, command):
+        """
+        Helper method to execute a Git command and return the output.
+        :param command: List containing the Git command and its arguments.
+        :return: Output of the Git command as a decoded string.
+        :raises: subprocess.CalledProcessError if the Git command fails.
+        """
+        return subprocess.check_output(command).strip().decode('utf-8')
+
     def run(self):
+        """Runs the Flask application."""
         host = '0.0.0.0'
         port = self.params.drones_flask_port
 
