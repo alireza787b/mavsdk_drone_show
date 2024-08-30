@@ -26,7 +26,7 @@ const CustomShowPage = () => {
     }, []);
 
     return (
-        <div className="custom-show-page">
+        <div className="custom-show-container">
             <h1>Custom Drone Show</h1>
             {errorMessage && <div className="error-message">{errorMessage}</div>}
             {imageSrc ? (
