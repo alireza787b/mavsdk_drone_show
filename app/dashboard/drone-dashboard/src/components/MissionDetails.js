@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/MissionDetails.css';
-import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
+import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities';
 
 const MissionDetails = ({
   missionType,
@@ -16,36 +16,44 @@ const MissionDetails = ({
   onSend,
   onBack,
 }) => {
-  const [imageSrc, setImageSrc] = useState(null);
+  const [customShowImageSrc, setCustomShowImageSrc] = useState(null);
+  const [droneShowPlotSrc, setDroneShowPlotSrc] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Determine which image to fetch based on the mission type
-    async function fetchImage() {
-      try {
-        let response;
-        if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
-          // Fetch the custom show image
-          response = await fetch(getCustomShowImageURL());
-        } else if (missionType === 'DRONE_SHOW_FROM_CSV') {
-          // Fetch the drone show plot image
-          const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
-          response = await fetch(plotUrl);
+    if (missionType === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW) {
+      async function fetchCustomShowImage() {
+        try {
+          const response = await fetch(getCustomShowImageURL());
+          if (response.ok) {
+            const imageBlob = await response.blob();
+            const imageObjectURL = URL.createObjectURL(imageBlob);
+            setCustomShowImageSrc(imageObjectURL);
+          } else {
+            setErrorMessage('Failed to load custom show image.');
+          }
+        } catch (error) {
+          setErrorMessage('An error occurred while loading the custom show image.');
         }
-        console.log(response)
-        if (response && response.ok) {
-          const imageBlob = await response.blob();
-          const imageObjectURL = URL.createObjectURL(imageBlob);
-          setImageSrc(imageObjectURL);
-        } else {
-          setErrorMessage('Failed to load the image.');
-        }
-      } catch (error) {
-        setErrorMessage('An error occurred while loading the image.');
       }
+      fetchCustomShowImage();
+    } else {
+      setCustomShowImageSrc(null); // Clear the image if not the custom mission type
     }
 
-    fetchImage();
+    if (missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV) {
+      async function fetchDroneShowPlot() {
+        try {
+          const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
+          setDroneShowPlotSrc(plotUrl);
+        } catch (error) {
+          setErrorMessage('An error occurred while loading the drone show plot image.');
+        }
+      }
+      fetchDroneShowPlot();
+    } else {
+      setDroneShowPlotSrc(null); // Clear the image if not the drone show from CSV
+    }
   }, [missionType]);
 
   return (
@@ -56,15 +64,21 @@ const MissionDetails = ({
         <div className="mission-description">{description}</div>
       </div>
 
-      {/* Display the image based on the mission type */}
-      {imageSrc && (
-        <div className="mission-image-preview">
-          <h3>{missionType === 'CUSTOM_CSV_DRONE_SHOW' ? 'Custom Show Preview:' : 'Drone Show Plot Preview:'}</h3>
-          <img src={imageSrc} alt={missionType} className="mission-image" />
+      {/* Display custom show image if it's the selected mission */}
+      {customShowImageSrc && (
+        <div className="custom-show-preview">
+          <h3>Custom Show Preview:</h3>
+          <img src={customShowImageSrc} alt="Custom Drone Show" className="custom-show-image" />
         </div>
       )}
 
-      {errorMessage && <div className="error-message">{errorMessage}</div>}
+      {/* Display drone show plot image for DRONE_SHOW_FROM_CSV mission */}
+      {droneShowPlotSrc && (
+        <div className="drone-show-preview">
+          <h3>Drone Show Plot Preview:</h3>
+          <img src={droneShowPlotSrc} alt="Drone Show Plot" className="drone-show-image" />
+        </div>
+      )}
 
       <div className="time-selection">
         <label>
