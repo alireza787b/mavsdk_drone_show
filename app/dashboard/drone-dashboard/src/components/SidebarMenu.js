@@ -78,7 +78,7 @@ const SidebarMenu = () => {
                 Swarm Design
               </MenuItem></Link>
               <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
-                Manage Drone Show
+                Drone Show Design
               </MenuItem></Link>
             </Menu>
           </div>

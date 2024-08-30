@@ -72,7 +72,7 @@
     padding: 10px;
     color: #aaa;
     text-align: center;
-    width: 100%;
+    /* width: 100%; */
 }
 
 .developer-info a {
