@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/MissionDetails.css';
-import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
+import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities';
 
 const MissionDetails = ({
   missionType,
@@ -16,40 +16,36 @@ const MissionDetails = ({
   onSend,
   onBack,
 }) => {
-  const [customShowImageSrc, setCustomShowImageSrc] = useState(null);
-  const [droneShowPlotSrc, setDroneShowPlotSrc] = useState(null);
+  const [imageSrc, setImageSrc] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Fetch the custom show image if the mission type is CUSTOM_CSV_DRONE_SHOW
-    if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
-      async function fetchCustomShowImage() {
+    async function fetchImage() {
+      let imageUrl;
+
+      if (missionType === 'CUSTOM_CSV_DRONE_SHOW') {
+        imageUrl = getCustomShowImageURL(); // Fetch custom show image
+      } else if (missionType === 'DRONE_SHOW_FROM_CSV') {
+        imageUrl = `${getBackendURL()}/get-show-plots/all_drones.png`; // Fetch drone show plot image
+      }
+
+      if (imageUrl) {
         try {
-          const response = await fetch(getCustomShowImageURL());
+          const response = await fetch(imageUrl);
           if (response.ok) {
             const imageBlob = await response.blob();
             const imageObjectURL = URL.createObjectURL(imageBlob);
-            setCustomShowImageSrc(imageObjectURL);
+            setImageSrc(imageObjectURL);
           } else {
-            setErrorMessage('Failed to load custom show image.');
+            setErrorMessage('Failed to load image.');
           }
         } catch (error) {
-          setErrorMessage('An error occurred while loading the custom show image.');
+          setErrorMessage('An error occurred while loading the image.');
         }
       }
-      fetchCustomShowImage();
     }
 
-    // Fetch the drone show plot image for all drone missions
-    async function fetchDroneShowPlot() {
-      try {
-        const plotUrl = `${getBackendURL()}/get-show-plots/all_drones.png`;
-        setDroneShowPlotSrc(plotUrl);
-      } catch (error) {
-        setErrorMessage('An error occurred while loading the drone show plot image.');
-      }
-    }
-    fetchDroneShowPlot();
+    fetchImage();
   }, [missionType]);
 
   return (
@@ -60,21 +56,15 @@ const MissionDetails = ({
         <div className="mission-description">{description}</div>
       </div>
 
-      {/* Display custom show image if it's the selected mission */}
-      {customShowImageSrc && (
-        <div className="custom-show-preview">
-          <h3>Custom Show Preview:</h3>
-          <img src={customShowImageSrc} alt="Custom Drone Show" className="custom-show-image" />
+      {/* Display the relevant image based on the mission type */}
+      {imageSrc && (
+        <div className="image-preview">
+          <h3>Show Preview:</h3>
+          <img src={imageSrc} alt={`${label} Preview`} className="mission-image" />
         </div>
       )}
 
-      {/* Display drone show plot image for all missions */}
-      {droneShowPlotSrc && (
-        <div className="drone-show-preview">
-          <h3>Drone Show Plot Preview:</h3>
-          <img src={droneShowPlotSrc} alt="Drone Show Plot" className="drone-show-image" />
-        </div>
-      )}
+      {errorMessage && <div className="error-message">{errorMessage}</div>}
 
       <div className="time-selection">
         <label>

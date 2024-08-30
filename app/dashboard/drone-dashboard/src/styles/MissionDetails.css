@@ -2,7 +2,9 @@
 
 .mission-details {
     padding: 20px;
+    background-color: #1f2128;
     border-radius: 8px;
+    color: #a2a5b9;
 }
 
 .mission-icon {
@@ -19,14 +21,12 @@
     margin-bottom: 20px;
 }
 
-.custom-show-preview,
-.drone-show-preview {
+.image-preview {
     margin-bottom: 20px;
     text-align: center;
 }
 
-.custom-show-image,
-.drone-show-image {
+.mission-image {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
