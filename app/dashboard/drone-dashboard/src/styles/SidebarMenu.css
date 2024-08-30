@@ -1,6 +1,186 @@
 /* Ensure the sidebar-wrapper takes the full height of the viewport */
 
 .sidebar-wrapper {
+    height: 100vh;
+    display: flex;
+}
+
+
+/* Sidebar content to take the full height */
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    /* Allow content to scroll within the sidebar */
+}
+
+
+/* Header style */
+
+.sidebar-header {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.sidebar-header h3 {
+    color: #59d0ff;
+    margin: 0;
+}
+
+
+/* Time display style */
+
+.sidebar-time {
+    text-align: center;
+}
+
+
+/* Style for the links within menu items */
+
+.menu-list a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.menu-list a:hover {
+    color: inherit;
+}
+
+
+/* Menu style */
+
+.menu-list {
+    flex-grow: 1;
+}
+
+.menu-list a {
+    display: flex;
+    align-items: center;
+    padding: 1em;
+    color: #a2a5b9;
+    font-weight: 600;
+    font-size: 1.02em;
+    text-decoration: none;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.menu-item:hover {
+    background-color: #00458b;
+    color: #b6c8d9;
+}
+
+
+/* Footer and Git info stay at the bottom */
+
+.sidebar-footer {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    justify-items: center;
+    align-items: end;
+    width: 100%;
+}
+
+
+/* Footer style */
+
+.developer-info {
+    background-color: #1f2128;
+    padding: 10px;
+    color: #aaa;
+    text-align: center;
+    width: 100%;
+}
+
+.developer-info a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.FaBars-icon {
+    cursor: pointer;
+    transform: scale(1);
+    transition: transform 0.3s ease;
+    margin-left: auto;
+    padding: 10px;
+    color: rgb(139, 161, 183);
+    font-weight: 600;
+}
+
+.FaBars-icon:hover {
+    transform: scale(1.2);
+}
+
+
+/* Git info container with reduced font size and better spacing */
+
+.git-info-container {
+    padding: 5px;
+    color: #a2a5b9;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+    font-size: 0.8em;
+}
+
+.git-info-container:hover {
+    background-color: #00458b;
+    color: #b6c8d9;
+}
+
+
+/* Git info summary with smaller font */
+
+.git-info-summary {
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+}
+
+.git-info-details {
+    margin-top: 5px;
+    background-color: #2a2d36;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.8em;
+}
+
+.git-info-details ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.git-info-details ul li {
+    padding: 5px 0;
+    word-wrap: break-word;
+    /* Ensure long text wraps within the container */
+}
+
+.toggle-details {
+    color: #59d0ff;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .FaBars-icon {
+        padding: 5px;
+    }
+    .git-info-container {
+        font-size: 0.75em;
+    }
+    .git-info-details {
+        font-size: 0.7em;
+    }
+}
+
+
+/* Ensure the sidebar-wrapper takes the full height of the viewport */
+
+.sidebar-wrapper {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
