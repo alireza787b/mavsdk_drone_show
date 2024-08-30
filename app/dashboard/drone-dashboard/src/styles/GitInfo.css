@@ -1,0 +1,48 @@
+.git-info-container {
+    padding: 10px;
+    color: #a2a5b9;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+    background-color: #1f2128;
+    word-wrap: break-word;
+    max-width: 230px;
+    /* Ensure it fits within the sidebar */
+    overflow-wrap: break-word;
+}
+
+.git-info-container:hover {
+    background-color: #00458b;
+    color: #b6c8d9;
+}
+
+.git-info-summary {
+    font-weight: 600;
+}
+
+.git-info-details {
+    margin-top: 10px;
+    background-color: #2a2d36;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 230px;
+    /* Ensuring it doesn't exceed the sidebar width */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+
+.git-info-details ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.git-info-details ul li {
+    padding: 5px 0;
+}
+
+.toggle-details {
+    color: #59d0ff;
+    font-size: 0.9em;
+    /* Reduced size for a cleaner look */
+    display: inline-block;
+    margin-left: 5px;
+}
