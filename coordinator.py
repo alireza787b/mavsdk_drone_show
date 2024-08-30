@@ -90,7 +90,7 @@ drone_config = DroneConfig(drones)
 # Create an instance of LocalMavlinkController. This instance will start a new thread that reads incoming Mavlink
 # messages from the drone, processes these messages, and updates the drone_config object accordingly.
 # When this instance is no longer needed, simply let it fall out of scope or explicitly delete it to stop the telemetry thread.
-local_drone_controller = LocalMavlinkController(drone_config, params)
+local_drone_controller = LocalMavlinkController(drone_config, params,False)
 
 
 

@@ -1,4 +1,6 @@
+#src/flask_handler.py
 import time
+import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from src.params import Params
@@ -33,6 +35,49 @@ class FlaskHandler:
                 return jsonify({"status": "success", "message": "Command received"}), 200
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
+
+        @self.app.route('/get-git-status', methods=['GET'])
+        def get_git_status():
+            try:
+                # Retrieve the current branch
+                branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
+                
+                # Retrieve the latest commit hash
+                commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
+                
+                # Retrieve the author name and email
+                author_name = subprocess.check_output(['git', 'show', '-s', '--format=%an', commit]).strip().decode('utf-8')
+                author_email = subprocess.check_output(['git', 'show', '-s', '--format=%ae', commit]).strip().decode('utf-8')
+                
+                # Retrieve the commit date
+                commit_date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit]).strip().decode('utf-8')
+                
+                # Retrieve the commit message
+                commit_message = subprocess.check_output(['git', 'show', '-s', '--format=%B', commit]).strip().decode('utf-8')
+                
+                # Retrieve the remote URL
+                remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).strip().decode('utf-8')
+                
+                # Retrieve the tracking branch (e.g., origin/main)
+                tracking_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).strip().decode('utf-8')
+                
+                # Check if the working directory is clean or has uncommitted changes
+                status = subprocess.check_output(['git', 'status', '--porcelain']).strip().decode('utf-8')
+
+                return jsonify({
+                    'branch': branch,
+                    'commit': commit,
+                    'author_name': author_name,
+                    'author_email': author_email,
+                    'commit_date': commit_date,
+                    'commit_message': commit_message,
+                    'remote_url': remote_url,
+                    'tracking_branch': tracking_branch,
+                    'status': 'clean' if not status else 'dirty',
+                    'uncommitted_changes': status.splitlines() if status else []
+                })
+            except subprocess.CalledProcessError as e:
+                return jsonify({'error': f"Git command failed: {str(e)}"}), 500
 
     def run(self):
         host = '0.0.0.0'

@@ -1,6 +1,8 @@
 import csv
 import os
 import logging
+import subprocess
+from flask import Flask, jsonify, request
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE_PATH = os.path.join(BASE_DIR, 'config.csv')
@@ -70,3 +72,44 @@ def load_swarm(file_path=SWARM_FILE_PATH):
 def save_swarm(swarm, file_path=SWARM_FILE_PATH):
     save_csv(swarm, file_path)
 
+
+def get_git_status():
+    """Retrieve the Git status of the GCS."""
+    try:
+        branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')
+        author_name = subprocess.check_output(['git', 'show', '-s', '--format=%an', commit]).strip().decode('utf-8')
+        author_email = subprocess.check_output(['git', 'show', '-s', '--format=%ae', commit]).strip().decode('utf-8')
+        commit_date = subprocess.check_output(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit]).strip().decode('utf-8')
+        commit_message = subprocess.check_output(['git', 'show', '-s', '--format=%B', commit]).strip().decode('utf-8')
+        remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).strip().decode('utf-8')
+        tracking_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).strip().decode('utf-8')
+        status = subprocess.check_output(['git', 'status', '--porcelain']).strip().decode('utf-8')
+
+        return {
+            'branch': branch,
+            'commit': commit,
+            'author_name': author_name,
+            'author_email': author_email,
+            'commit_date': commit_date,
+            'commit_message': commit_message,
+            'remote_url': remote_url,
+            'tracking_branch': tracking_branch,
+            'status': 'clean' if not status else 'dirty',
+            'uncommitted_changes': status.splitlines() if status else []
+        }
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get Git status: {e}")
+        return {'error': f"Git command failed: {str(e)}"}
+
+def get_drone_git_status(drone_uri):
+    """Retrieve the Git status from a specific drone."""
+    try:
+        response = request.get(f"{drone_uri}/get-git-status")
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {'error': f"Failed to retrieve status from {drone_uri}"}
+    except Exception as e:
+        logger.error(f"Error contacting drone {drone_uri}: {str(e)}")
+        return {'error': f"Error contacting drone {drone_uri}: {str(e)}"}

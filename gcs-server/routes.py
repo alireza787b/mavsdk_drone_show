@@ -221,3 +221,31 @@ def setup_routes(app):
             return jsonify(elevation_data)
         else:
             return jsonify({'error': 'Failed to fetch elevation data'}), 500
+        
+        
+    @app.route('/get-drone-git-status', methods=['GET'])
+    def check_all_git_status():
+        """Compare the GCS Git status with each drone."""
+        drones = load_config()  # Assuming this returns a list of drone URIs
+        gcs_status = get_git_status()
+
+        discrepancies = []
+        for drone in drones:
+            drone_status = get_drone_git_status(drone['uri'])  # Assuming each drone has a 'uri' field
+            if 'error' in drone_status:
+                discrepancies.append({'drone': drone['uri'], 'error': drone_status['error']})
+            else:
+                if (drone_status['branch'] != gcs_status['branch'] or
+                        drone_status['commit'] != gcs_status['commit']):
+                    discrepancies.append({
+                        'drone': drone['uri'],
+                        'gcs_branch': gcs_status['branch'],
+                        'gcs_commit': gcs_status['commit'],
+                        'drone_branch': drone_status['branch'],
+                        'drone_commit': drone_status['commit']
+                    })
+
+        return jsonify({
+            'gcs_status': gcs_status,
+            'discrepancies': discrepancies if discrepancies else 'All drones are synchronized'
+        })
