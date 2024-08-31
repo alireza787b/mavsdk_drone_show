@@ -6,6 +6,8 @@ import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import { getBackendURL } from '../utilities/utilities';
+import { handleSaveChangesToServer, handleRevertChanges, handleFileChange, exportConfig } from '../utilities/missionConfigUtilities';
+
 
 const MissionConfig = () => {
   const [configData, setConfigData] = useState([]);
