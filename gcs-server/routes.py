@@ -1,3 +1,4 @@
+#gcs-server/routes.py
 import os
 import subprocess
 import sys
@@ -224,33 +225,32 @@ def setup_routes(app):
         gcs_status = get_git_status()
         return jsonify(gcs_status)
 
-    @app.route('/get-drone-git-status', methods=['GET'])
-    def check_all_git_status():
-        """Compare the GCS Git status with each drone."""
-        drones = load_config()
-        gcs_status = get_git_status()
+    @app.route('/get-drone-git-status/<int:drone_id>', methods=['GET'])
+    def get_drone_git_status(drone_id):
+        """
+        Endpoint to retrieve the Git status of a specific drone using its ID.
+        :param drone_id: ID of the drone.
+        :return: JSON response with Git status or an error message.
+        """
+        try:
+            # Load the configuration to get drone IP based on ID
+            drones = load_config()
+            drone = next((d for d in drones if d['id'] == drone_id), None)
+            
+            if not drone:
+                return jsonify({'error': f'Drone with ID {drone_id} not found'}), 404
 
-        discrepancies = []
-        for drone in drones:
             drone_uri = f"http://{drone['ip']}:{Params.drones_flask_port}"
             drone_status = get_drone_git_status(drone_uri)
+            
             if 'error' in drone_status:
-                discrepancies.append({'drone': drone_uri, 'error': drone_status['error']})
-            else:
-                if (drone_status['branch'] != gcs_status['branch'] or
-                        drone_status['commit'] != gcs_status['commit']):
-                    discrepancies.append({
-                        'drone': drone_uri,
-                        'gcs_branch': gcs_status['branch'],
-                        'gcs_commit': gcs_status['commit'],
-                        'drone_branch': drone_status['branch'],
-                        'drone_commit': drone_status['commit']
-                    })
+                return jsonify({'error': drone_status['error']}), 500
+            
+            return jsonify(drone_status), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
-        return jsonify({
-            'gcs_status': gcs_status,
-            'discrepancies': discrepancies if discrepancies else 'All drones are synchronized'
-        })
+
 
 
     @app.route('/get-custom-show-image', methods=['GET'])

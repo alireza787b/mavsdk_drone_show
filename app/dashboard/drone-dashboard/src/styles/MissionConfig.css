@@ -13,7 +13,8 @@
     margin-bottom: 20px;
 }
 
-button, .file-upload-btn {
+button,
+.file-upload-btn {
     margin: 0.5rem 0.5rem;
     padding: 0.5rem 1rem;
     border: none;
@@ -23,7 +24,8 @@ button, .file-upload-btn {
     transition: background-color 0.3s;
 }
 
-button:hover, .file-upload-btn:hover {
+button:hover,
+.file-upload-btn:hover {
     background-color: #1A5276;
 }
 
@@ -31,7 +33,8 @@ button:active {
     background-color: #0E3748;
 }
 
-button.add, .file-upload-btn {
+button.add,
+.file-upload-btn {
     background-color: #3498db;
     display: flex;
     align-items: center;
@@ -47,15 +50,18 @@ button.add .icon {
 }
 
 button.save {
-    background-color: #28a745; /* Green for save */
+    background-color: #28a745;
+    /* Green for save */
 }
 
-button.revert, button.remove {
+button.revert,
+button.remove {
     background-color: #E74C3C;
 }
 
 button.edit {
-    background-color: #f39c12; /* orange color for edit */
+    background-color: #f39c12;
+    /* orange color for edit */
 }
 
 .drone-config-card {
@@ -76,7 +82,8 @@ h4 {
     margin-bottom: 10px;
 }
 
-input[type="text"], select {
+input[type="text"],
+select {
     width: 100%;
     padding: 10px;
     margin: 5px 0;
@@ -97,7 +104,8 @@ input[type="text"], select {
     padding: 1rem;
 }
 
-.drone-cards, .initial-launch-plot {
+.drone-cards,
+.initial-launch-plot {
     flex: 1;
     padding: 1rem;
     border: 1px solid #BDC3C7;
@@ -111,7 +119,8 @@ input[type="text"], select {
 
 .initial-launch-plot {
     max-width: calc(60% - 1rem);
-    overflow-y: auto; /* Enables vertical scrolling */
+    overflow-y: auto;
+    /* Enables vertical scrolling */
 }
 
 .js-plotly-plot {
@@ -121,7 +130,10 @@ input[type="text"], select {
 #csvInput {
     display: none;
 }
+
+
 /* ... Your previous styles ... */
+
 .primary-actions {
     display: flex;
     align-items: center;
@@ -141,60 +153,98 @@ button.saveDrone {
 button.cancelSaveDrone {
     background-color: #E74C3C;
 }
+
+
 /* Primary action button styles */
+
 button.add {
-    background-color: #3498db; /* Blue for add */
+    background-color: #3498db;
+    /* Blue for add */
 }
 
 button.add:hover {
-    background-color: #2980b9; /* Darker Blue for add hover */
+    background-color: #2980b9;
+    /* Darker Blue for add hover */
 }
 
 button.save {
-    background-color: #28a745; /* Green for save */
+    background-color: #28a745;
+    /* Green for save */
 }
 
 button.save:hover {
-    background-color: #219737; /* Darker Green for save hover */
+    background-color: #219737;
+    /* Darker Green for save hover */
 }
 
+
 /* Secondary action button styles */
+
 button.revert {
-    background-color: #E74C3C; /* Red for revert */
+    background-color: #E74C3C;
+    /* Red for revert */
 }
 
 button.revert:hover {
-    background-color: #c0392b; /* Darker Red for revert hover */
+    background-color: #c0392b;
+    /* Darker Red for revert hover */
 }
 
 .file-upload-btn {
-    background-color: #f1c40f; /* Yellow for import */
+    background-color: #f1c40f;
+    /* Yellow for import */
     transition: background-color 0.3s;
 }
 
 .file-upload-btn:hover {
-    background-color: #d4ad00; /* Darker Yellow for import hover */
+    background-color: #d4ad00;
+    /* Darker Yellow for import hover */
 }
 
+
 /* Button to export configuration will retain the default button color */
+
+
 /* ... Your previous styles ... */
 
+
 /* Making the save button a bit bigger */
+
 button.save {
     padding: 0.6rem 1.2rem;
     font-size: 1.1rem;
 }
 
+
 /* Styling for export-config button */
+
 button.export-config {
-    background-color: #3498db; /* Default color */
+    background-color: #3498db;
+    /* Default color */
     transition: background-color 0.3s;
 }
 
 button.export-config:hover {
-    background-color: #1A5276; /* Hover color */
+    background-color: #1A5276;
+    /* Hover color */
 }
 
 button.export-config:active {
-    background-color: #0E3748; /* Active state color */
+    background-color: #0E3748;
+    /* Active state color */
+}
+
+
+/* Updated Git Status Styling */
+
+.drone-git-status .git-status-summary {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.drone-git-status .error-message {
+    color: red;
+    font-weight: bold;
+    margin-top: 10px;
 }

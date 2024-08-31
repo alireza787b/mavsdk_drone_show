@@ -26,6 +26,9 @@ export function getGitStatusURL() {
 export function getCustomShowImageURL() {
     return `${getBackendURL()}/get-custom-show-image`;
 }
+export function getDroneGitStatusURLById(droneID) {
+    return `${getBackendURL()}/get-drone-git-status/${droneID}`;
+}
 
 // Constants for conversions and world setup
 export const LAT_TO_METERS = 111321;
