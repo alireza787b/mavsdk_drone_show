@@ -228,14 +228,14 @@ def setup_routes(app):
     @app.route('/get-drone-git-status/<int:drone_id>', methods=['GET'])
     def get_drone_git_status(drone_id):
         """
-        Endpoint to retrieve the Git status of a specific drone using its ID.
-        :param drone_id: ID of the drone.
+        Endpoint to retrieve the Git status of a specific drone using its hardware ID (hw_id).
+        :param drone_id: Hardware ID (hw_id) of the drone.
         :return: JSON response with Git status or an error message.
         """
         try:
-            # Load the configuration to get drone IP based on ID
+            # Load the configuration to get drone IP based on hardware ID (hw_id)
             drones = load_config()
-            drone = next((d for d in drones if d['id'] == drone_id), None)
+            drone = next((d for d in drones if int(d['hw_id']) == drone_id), None)
             
             if not drone:
                 return jsonify({'error': f'Drone with ID {drone_id} not found'}), 404
@@ -249,6 +249,7 @@ def setup_routes(app):
             return jsonify(drone_status), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
 
 
 

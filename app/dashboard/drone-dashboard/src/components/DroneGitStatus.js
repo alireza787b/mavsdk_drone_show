@@ -41,7 +41,7 @@ const DroneGitStatus = ({ droneID, droneName }) => {
     <div className="drone-git-status">
       <h4>Git Status for {droneName}</h4>
       {errorMessage && <div className="error-message">{errorMessage}</div>}
-      {gitStatus && gcsGitStatus && (
+      {gitStatus && gcsGitStatus ? (
         <div
           className="git-status-summary"
           style={{
@@ -59,6 +59,8 @@ const DroneGitStatus = ({ droneID, droneName }) => {
             <p><strong>Note:</strong> This drone's Git status differs from the GCS.</p>
           )}
         </div>
+      ) : (
+        <div>Loading Git status...</div>
       )}
     </div>
   );
