@@ -54,7 +54,6 @@ const DroneGitStatus = ({ droneID, droneName }) => {
         >
           <p><strong>Branch:</strong> {gitStatus.branch}</p>
           <p><strong>Commit:</strong> {gitStatus.commit}</p>
-          <p><strong>Status:</strong> {gitStatus.status}</p>
           {!isInSync && (
             <p><strong>Note:</strong> This drone's Git status differs from the GCS.</p>
           )}
