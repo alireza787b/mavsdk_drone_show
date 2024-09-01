@@ -233,21 +233,26 @@ def setup_routes(app):
         :return: JSON response with Git status or an error message.
         """
         try:
-            # Load the configuration to get drone IP based on hardware ID (hw_id)
+            logging.debug(f"Fetching drone with ID {drone_id} from configuration")
             drones = load_config()
             drone = next((d for d in drones if int(d['hw_id']) == drone_id), None)
-            
+
             if not drone:
+                logging.error(f'Drone with ID {drone_id} not found')
                 return jsonify({'error': f'Drone with ID {drone_id} not found'}), 404
 
             drone_uri = f"http://{drone['ip']}:{Params.drones_flask_port}"
+            logging.debug(f"Constructed drone URI: {drone_uri}")
             drone_status = get_drone_git_status(drone_uri)
-            
+
             if 'error' in drone_status:
+                logging.error(f"Error in drone status response: {drone_status['error']}")
                 return jsonify({'error': drone_status['error']}), 500
-            
+
+            logging.debug(f"Drone status retrieved successfully: {drone_status}")
             return jsonify(drone_status), 200
         except Exception as e:
+            logging.error(f"Exception occurred: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
 

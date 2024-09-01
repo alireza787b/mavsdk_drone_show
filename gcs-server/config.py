@@ -3,6 +3,7 @@ import csv
 import os
 import logging
 import subprocess
+import requests
 from flask import Flask, jsonify, request
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -106,11 +107,21 @@ def get_git_status():
 def get_drone_git_status(drone_uri):
     """Retrieve the Git status from a specific drone."""
     try:
-        response = request.get(f"{drone_uri}/get-git-status")
+        logging.debug(f"Sending request to {drone_uri}/get-git-status")
+        response = requests.get(f"{drone_uri}/get-git-status")  # Make sure it's `requests`
+        logging.debug(f"Received response with status code {response.status_code}")
+
         if response.status_code == 200:
-            return response.json()
+            try:
+                json_data = response.json()
+                logging.debug(f"Response JSON: {json_data}")
+                return json_data
+            except ValueError as ve:
+                logging.error(f"Error decoding JSON: {str(ve)}")
+                return {'error': 'Failed to decode JSON from response'}
         else:
+            logging.error(f"Failed to retrieve status, status code: {response.status_code}")
             return {'error': f"Failed to retrieve status from {drone_uri}"}
     except Exception as e:
-        logger.error(f"Error contacting drone {drone_uri}: {str(e)}")
+        logging.error(f"Error contacting drone {drone_uri}: {str(e)}")
         return {'error': f"Error contacting drone {drone_uri}: {str(e)}"}
