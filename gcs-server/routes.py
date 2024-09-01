@@ -226,7 +226,7 @@ def setup_routes(app):
         return jsonify(gcs_status)
 
     @app.route('/get-drone-git-status/<int:drone_id>', methods=['GET'])
-    def get_drone_git_status(drone_id):
+    def fetch_drone_git_status(drone_id):
         """
         Endpoint to retrieve the Git status of a specific drone using its hardware ID (hw_id).
         :param drone_id: Hardware ID (hw_id) of the drone.
