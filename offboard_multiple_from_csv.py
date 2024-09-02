@@ -12,6 +12,8 @@ from mavsdk.telemetry import LandedState
 from mavsdk.action import ActionError
 import functions.global_to_local
 from tenacity import retry, stop_after_attempt, wait_fixed
+from src.led_controller import LEDController
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -90,12 +92,16 @@ def read_trajectory_file(filename: str, trajectory_offset: tuple, altitude_offse
                 az = float(row["az"])
                 yaw = float(row["yaw"])
                 mode_code = int(row["mode"])
-                waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code))
+                ledr = int(float(row["ledr"]))  # Read LED Red value
+                ledg = int(float(row["ledg"]))  # Read LED Green value
+                ledb = int(float(row["ledb"]))  # Read LED Blue value
+                waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code, ledr, ledg, ledb))
     except FileNotFoundError as e:
         logger.error(f"Trajectory file not found: {e}")
     except Exception as e:
         logger.error(f"Error reading trajectory file {filename}: {e}")
     return waypoints
+
 
 async def get_global_position_telemetry(drone_id: int, drone: System):
     """
@@ -116,6 +122,9 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
 
     # Initialize position to None
     position = None
+
+    # Initialize LEDController
+    led_controller = LEDController.get_instance()
 
     while t <= total_duration:
         try:
@@ -139,10 +148,14 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
                 velocity = current_waypoint[4:7]
                 acceleration = current_waypoint[7:10]
                 yaw = current_waypoint[10]
-                mode_code = current_waypoint[-1]
+                mode_code = current_waypoint[-4]
                 if last_mode != mode_code:
                     logger.info(f"Drone {drone_id+1}: Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
                     last_mode = mode_code
+
+                # Update LED colors
+                ledr, ledg, ledb = current_waypoint[-3], current_waypoint[-2], current_waypoint[-1]
+                LEDController.set_color(ledr, ledg, ledb)
 
                 await drone.offboard.set_position_velocity_acceleration_ned(
                     PositionNedYaw(*position, yaw),
@@ -166,6 +179,9 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
             break
 
     logger.info(f"Shape completed for drone {drone_id+1}")
+    # Turn off LEDs after trajectory is completed
+    LEDController.turn_off()
+
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))

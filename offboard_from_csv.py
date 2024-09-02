@@ -44,34 +44,34 @@ Note:
 
 
 
-
 import asyncio
 import csv
 import os
-
-from mavsdk import System
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed , OffboardError
-from mavsdk.telemetry import LandedState
 import subprocess
 import signal
 
+from mavsdk import System
+from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed, OffboardError
+from mavsdk.telemetry import LandedState
+from src.led_controller import LEDController  # Import the LEDController
+
 
 async def run():
-    
     # Define a dictionary to map mode codes to their descriptions
     mode_descriptions = {
-    0: "On the ground",
-    10: "Initial climbing state",
-    20: "Initial holding after climb",
-    30: "Moving to start point",
-    40: "Holding at start point",
-    50: "Moving to maneuvering start point",
-    60: "Holding at maneuver start point",
-    70: "Maneuvering (trajectory)",
-    80: "Holding at the end of the trajectory coordinate",
-    90: "Returning to home coordinate",
-    100: "Landing"
+        0: "On the ground",
+        10: "Initial climbing state",
+        20: "Initial holding after climb",
+        30: "Moving to start point",
+        40: "Holding at start point",
+        50: "Moving to maneuvering start point",
+        60: "Holding at maneuver start point",
+        70: "Maneuvering (trajectory)",
+        80: "Holding at the end of the trajectory coordinate",
+        90: "Returning to home coordinate",
+        100: "Landing"
     }
+
     grpc_port = 50040
     drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
     await drone.connect(system_address="udp://:14540")
@@ -120,15 +120,21 @@ async def run():
             ay = float(row["ay"])
             az = float(row["az"])
             yaw = float(row["yaw"])
-            mode_code = int(row["mode"])  # Assuming the mode code is in a column named "mode"
-        
-        
-            waypoints.append((t, px, py, pz, vx, vy, vz,ax,ay,az,mode_code))
+            mode_code = int(row["mode"])
+            ledr = int(float(row["ledr"]))  # Read LED Red value
+            ledg = int(float(row["ledg"]))  # Read LED Green value
+            ledb = int(float(row["ledb"]))  # Read LED Blue value
+
+            waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code, ledr, ledg, ledb))
 
     print("-- Performing trajectory")
     total_duration = waypoints[-1][0]  # Total duration is the time of the last waypoint
     t = 0  # Time variable
     last_mode = 0
+
+    # Initialize LEDController
+    led_controller = LEDController.get_instance()
+
     while t <= total_duration:
         # Find the current waypoint based on time
         current_waypoint = None
@@ -143,31 +149,29 @@ async def run():
 
         position = current_waypoint[1:4]  # Extract position (px, py, pz)
         velocity = current_waypoint[4:7]  # Extract velocity (vx, vy, vz)
-        acceleration = current_waypoint[7:10]  # Extract velocity (ax, ay, az)
-        mode_code = current_waypoint[-1]
+        acceleration = current_waypoint[7:10]  # Extract acceleration (ax, ay, az)
+        yaw = current_waypoint[10]  # Extract yaw
+        mode_code = current_waypoint[11]
+        ledr, ledg, ledb = current_waypoint[12], current_waypoint[13], current_waypoint[14]  # Extract LED colors
+
         if last_mode != mode_code:
-                # Print the mode number and its description
-                print(f" Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
-                last_mode = mode_code
-                
+            # Print the mode number and its description
+            print(f"Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
+            last_mode = mode_code
+
+        # Update LED colors
+        LEDController.set_color(ledr, ledg, ledb)
+
         await drone.offboard.set_position_velocity_acceleration_ned(
             PositionNedYaw(*position, yaw),
             VelocityNedYaw(*velocity, yaw),
             AccelerationNed(*acceleration)
         )
-        # await drone.offboard.set_position_velocity_ned(
-        #     PositionNedYaw(*position, yaw),
-        #     VelocityNedYaw(*velocity, yaw),
-        # )
 
         await asyncio.sleep(0.1)  # Time resolution of 0.1 seconds
         t += 0.1
 
     print("-- Shape completed")
-
-    # print("-- Returning to home")
-    # await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, -10.0, 0.0))
-    # await asyncio.sleep(5)  # Adjust as needed for a stable hover
 
     print("-- Landing")
     await drone.action.land()
@@ -185,11 +189,10 @@ async def run():
     print("-- Disarming")
     await drone.action.disarm()
 
-    # print("-- Changing flight mode")
-    # await drone.action.set_flight_mode("MANUAL")
+    # Turn off LEDs after landing
+    LEDController.turn_off()
 
 async def main():
-
     udp_port = 14540 
 
     # Start mavsdk_server 

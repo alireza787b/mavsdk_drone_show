@@ -79,3 +79,13 @@ class Params():
     GIT_AUTO_PUSH = True
     GIT_BRANCH = 'real-test-1'
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
+    
+    
+    # LED Configuration
+    led_count = 16        # Number of LED pixels.
+    led_pin = 18          # GPIO pin connected to the pixels.
+    led_freq_hz = 800000  # LED signal frequency in hertz.
+    led_dma = 10          # DMA channel to use for generating signal.
+    led_brightness = 255  # Brightness of the LEDs.
+    led_invert = False    # True to invert the signal.
+    led_channel = 0       # GPIO channel.
