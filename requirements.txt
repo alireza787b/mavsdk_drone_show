@@ -13,3 +13,4 @@ matplotlib
 sdnotify
 requests
 tenacity
+rpi_ws281x

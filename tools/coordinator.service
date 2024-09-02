@@ -60,8 +60,9 @@ Restart=always
 RestartSec=5s
 
 # Capabilities required by the service
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME
+
 
 # Log output settings
 StandardOutput=journal

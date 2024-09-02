@@ -91,6 +91,10 @@ else
     echo "Sudoers entry already exists."
 fi
 
+echo "Ensuring droneshow user has direct access to GPIO pins..."
+sudo usermod -aG gpio droneshow
+
+
 echo "Setting up the Drone Swarm System Coordinator service..."
 sudo bash $HOME/mavsdk_drone_show/tools/update_service.sh
 
