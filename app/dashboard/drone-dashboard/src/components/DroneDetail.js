@@ -34,6 +34,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           });
           const currentTime = Math.floor(Date.now() / 1000);
           const isDataStale = currentTime - droneData.Update_Time > STALE_DATA_THRESHOLD_SECONDS;
+
           setIsStale(isDataStale);
         }
       }).catch((error) => {
@@ -84,7 +85,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       {/* Identifiers & Time */}
       <div className="detail-group">
         <p><strong>HW_ID:</strong> {detailedDrone.hw_ID}</p>
-        <p><strong>Update Time:</strong> {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
+        <p><strong>Update Time:</strong> {new Date(detailedDrone.droneData.Update_Time * 1000).toLocaleString()}</p>
       </div>
 
       {/* Armable Status */}
@@ -174,7 +175,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
               />
             )}
             <Marker
-              position={[detailedDrone.Position_Lat, detailedDrone.Position_Long]}
+              position={[detailedDrone.droneData.Position_Lat, detailedDrone.droneData.Position_Long]}
               icon={droneIcon}
             />
           </MapContainer>
