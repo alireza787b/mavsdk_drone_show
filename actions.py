@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import csv
+from led_controller import LEDController
 from mavsdk import System
 import glob
 import os
@@ -152,51 +153,201 @@ async def perform_action(action, altitude=None, parameters=None):
         logging.info("Action completed.")
 
 async def takeoff(drone, altitude):
+    led_controller = LEDController.get_instance()
+
+    # Indicate takeoff initiation with yellow color
+    led_controller.set_color(255, 255, 0)  # Yellow
+    await asyncio.sleep(0.5)
+
     try:
         await drone.action.set_takeoff_altitude(float(altitude))
         await drone.action.arm()
+        
+        # Indicate arming with white color
+        led_controller.set_color(255, 255, 255)  # White
+        await asyncio.sleep(0.5)
+        
         await drone.action.takeoff()
+        
+        # Indicate successful takeoff with green blinks
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)  # Green
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.info("Takeoff successful.")
     except Exception as e:
+        # Indicate takeoff failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.error(f"Takeoff failed: {e}")
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
 
 async def land(drone):
+    led_controller = LEDController.get_instance()
+
+    # Indicate landing initiation with yellow color
+    led_controller.set_color(255, 255, 0)  # Yellow
+    await asyncio.sleep(0.5)
+
     try:
         await drone.action.hold()  # Switch to Hold mode
         await asyncio.sleep(1)  # Wait for a short period
+
+        # Indicate landing in progress with blue slow pulse
+        for _ in range(3):
+            led_controller.set_color(0, 0, 255)  # Blue
+            await asyncio.sleep(0.5)
+            led_controller.turn_off()
+            await asyncio.sleep(0.5)
+
         await drone.action.land()  # Then execute land command
+        
+        # Indicate successful landing with green blinks
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)  # Green
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.info("Landing successful.")
     except Exception as e:
+        # Indicate landing failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.error(f"Landing failed: {e}")
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
 
 async def hold(drone):
+    led_controller = LEDController.get_instance()
+
+    # Indicate hold command received with blue color
+    led_controller.set_color(0, 0, 255)  # Blue
+    await asyncio.sleep(0.5)
+
     try:
         await drone.action.hold()  # Switch to Hold mode
+        
+        # Indicate successful hold with a solid blue or slow blue pulse
+        led_controller.set_color(0, 0, 255)  # Solid Blue
+        await asyncio.sleep(1)
+        
         logging.info("Hold position successful.")
     except Exception as e:
+        # Indicate hold failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.error(f"Hold failed: {e}")
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
+
 
 async def test(drone):
+    # Get the singleton instance of LEDController
+    led_controller = LEDController.get_instance()
+
     try:
+        # Step 1: Set LEDs to red before attempting to arm
+        led_controller.set_color(255, 0, 0)  # Red
+        await asyncio.sleep(1)  # Wait for a moment to show red color
+
+        # Step 2: Arm the drone
         await drone.action.arm()
-        await asyncio.sleep(3)
+
+        # Step 3: Set LEDs to white after arming
+        led_controller.set_color(255, 255, 255)  # White
+        await asyncio.sleep(1)  # Wait for 1 second to show white color
+
+        # Step 4: Change LED colors during the 3-second wait
+        led_controller.set_color(0, 0, 255)  # Blue
+        await asyncio.sleep(1)  # Wait 1 second for blue color
+
+        led_controller.set_color(0, 255, 0)  # Green
+        await asyncio.sleep(1)  # Wait 1 second for green color
+
+        # Step 5: Disarm the drone
         await drone.action.disarm()
         logging.info("Test action successful.")
+
+        # Step 6: Turn off LEDs after disarming
+        led_controller.turn_off()
+        
     except Exception as e:
         logging.error(f"Test failed: {e}")
+    finally:
+        # Ensure LEDs will remain red in case of an exception
+        led_controller.set_color(255, 0, 0)  # Red
+
 
 async def reboot(drone, force_reboot=Params.force_reboot):
+    # Get the singleton instance of LEDController
+    led_controller = LEDController.get_instance()
+
+    # Indicate reboot initiation with yellow color
+    led_controller.set_color(255, 255, 0)  # Yellow
+    await asyncio.sleep(0.5)  # Brief feedback
+
     try:
+        # Attempt to reboot the drone
         await drone.action.reboot()
+        
+        # Indicate successful reboot with green blinks
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)  # Green
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.info("Drone reboot successful.")
+
     except Exception as e:
+        # Indicate reboot failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
         logging.error(f"Drone reboot failed: {e}")
+
+        # Check if force reboot is enabled
         if force_reboot:
             logging.info("Force reboot enabled, proceeding with system reboot despite drone error.")
+            
+            # Indicate force reboot with alternating red and white
+            for _ in range(5):
+                led_controller.set_color(255, 0, 0)  # Red
+                await asyncio.sleep(0.2)
+                led_controller.set_color(255, 255, 255)  # White
+                await asyncio.sleep(0.2)
+            
     finally:
         if force_reboot:
             logging.info("Initiating full system reboot...")
+            led_controller.turn_off()
             os.system('sudo reboot')
+        else:
+            # Turn off LEDs after feedback
+            led_controller.turn_off()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
