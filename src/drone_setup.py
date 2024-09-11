@@ -29,7 +29,7 @@ class DroneSetup:
         Returns a tuple (status, message).
         """
         script_path = self._get_script_path(script_name)
-        command = f"sudo ~/mavsdk_drone_show/gpio_wrapper.sh {script_path} --action={action}"
+        command = f"~/mavsdk_drone_show/gpio_wrapper.sh {script_path} --action={action}"
         logging.debug(f"Executing command: {command}")
         try:
             process = await asyncio.create_subprocess_shell(
