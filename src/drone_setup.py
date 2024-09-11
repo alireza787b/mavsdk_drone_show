@@ -30,7 +30,7 @@ class DroneSetup:
         """
         python_exec_path = self._get_python_exec_path()
         script_path = self._get_script_path(script_name)
-        command = f"sudo -n {python_exec_path} {script_path} --action={action}"
+        command = f"{python_exec_path} {script_path} --action={action}"
         logging.debug(f"Executing command: {command}")
         try:
             process = await asyncio.create_subprocess_shell(
