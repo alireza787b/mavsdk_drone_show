@@ -25,12 +25,11 @@ class DroneSetup:
 
     async def run_mission_script(self, script_name, action):
         """
-        Runs the given mission script asynchronously using full command paths.
+        Runs the given mission script asynchronously using the GPIO wrapper.
         Returns a tuple (status, message).
         """
-        python_exec_path = self._get_python_exec_path()
         script_path = self._get_script_path(script_name)
-        command = f"{python_exec_path} {script_path} --action={action}"
+        command = f"sudo ~/mavsdk_drone_show/gpio_wrapper.sh {script_path} --action={action}"
         logging.debug(f"Executing command: {command}")
         try:
             process = await asyncio.create_subprocess_shell(
