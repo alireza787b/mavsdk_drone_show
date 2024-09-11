@@ -3,7 +3,7 @@
 import argparse
 import asyncio
 import csv
-from led_controller import LEDController
+from src.led_controller import LEDController
 from mavsdk import System
 import glob
 import os
