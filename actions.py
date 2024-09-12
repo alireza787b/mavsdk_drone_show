@@ -292,9 +292,11 @@ async def test(drone):
         
     except Exception as e:
         logging.error(f"Test failed: {e}")
+        led_controller.set_color(255, 0, 0)  # Red
     finally:
         # Ensure LEDs will remain red in case of an exception
-        led_controller.set_color(255, 0, 0)  # Red
+        led_controller.turn_off()
+        
 
 
 async def reboot(drone, force_reboot=Params.force_reboot):
