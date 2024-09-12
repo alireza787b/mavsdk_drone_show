@@ -83,7 +83,7 @@ class Params():
     
     # LED Configuration
     led_count = 24        # Number of LED pixels.
-    led_pin = 18          # GPIO pin connected to the pixels.
+    led_pin = 10          # GPIO pin connected to the pixels.
     led_freq_hz = 800000  # LED signal frequency in hertz.
     led_dma = 10          # DMA channel to use for generating signal.
     led_brightness = 255  # Brightness of the LEDs.
