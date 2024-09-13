@@ -106,7 +106,7 @@ async def get_global_position_telemetry(drone_id, drone):
 
 # Constants
 STEP_TIME = 0.05
-DEFAULT_Z = 0.83
+DEFAULT_Z = 0.0
 GRPC_PORT_BASE = 50041
 SHOW_DEVIATIONS = False
 INITIAL_CLIMB_DURATION = 3  # Duration in seconds for the initial climb phase
