@@ -85,7 +85,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       {/* Identifiers & Time */}
       <div className="detail-group">
         <p><strong>HW_ID:</strong> {detailedDrone.hw_ID}</p>
-        <p><strong>Update Time:</strong> {new Date(detailedDrone.droneData.Update_Time * 1000).toLocaleString()}</p>
+        <p><strong>Update Time:</strong> {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
       </div>
 
       {/* Armable Status */}
@@ -175,7 +175,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
               />
             )}
             <Marker
-              position={[detailedDrone.droneData.Position_Lat, detailedDrone.droneData.Position_Long]}
+              position={[detailedDrone.Position_Lat, detailedDrone.Position_Long]}
               icon={droneIcon}
             />
           </MapContainer>
