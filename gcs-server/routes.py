@@ -134,7 +134,7 @@ def setup_routes(app):
 
         skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
         try:
-            clear_show_directories(skybrush_dir)
+            clear_show_directories(BASE_DIR)
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
             file.save(zip_path)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
