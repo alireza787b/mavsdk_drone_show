@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import asyncio
 import csv
 import subprocess
@@ -10,25 +12,30 @@ from mavsdk import System
 from mavsdk.offboard import PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw, AccelerationNed, OffboardError
 from mavsdk.telemetry import LandedState
 from mavsdk.action import ActionError
-import functions.global_to_local
+import navpy
 from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
 
-
 # Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 # Constants
 STEP_TIME = 0.05
 DEFAULT_Z = 0.83
-GRPC_PORT_BASE = 50041
+GRPC_PORT = 50040  # Fixed port since SIM_MODE is False
+mavsdk_port = 14540  # MAVSDK port for communication
 SHOW_DEVIATIONS = False
 INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
+MAX_RETRIES = 3  # Maximum number of retries for critical operations
+PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
 
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
-SIM_MODE = False
-SEPARATE_CSV = True
+
 HW_ID = None
 global_position_telemetry = {}
 
@@ -43,35 +50,33 @@ def read_hw_id() -> int:
         logger.info(f"Hardware ID {hw_id} detected.")
         return int(hw_id)
     else:
-        logger.warning("Hardware ID file not found.")
+        logger.error("Hardware ID file not found.")
         return None
 
-def read_config(filename: str) -> list:
+def read_config(filename: str) -> Drone:
     """
     Read the drone configuration from a CSV file.
     """
-    drones_config = []
     try:
         with open(filename, newline='') as csvfile:
             reader = csv.reader(csvfile)
-            next(reader, None)  # Skip the header
+            headers = next(reader, None)  # Read the header row
             for row in reader:
-                print("Unpacking config:", row)
                 hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
-                if not SIM_MODE and int(hw_id) == HW_ID:
+                if int(hw_id) == HW_ID:
                     drone = Drone(hw_id, pos_id, float(x), float(y), ip, mavlink_port, debug_port, gcs_ip)
-                    drones_config.append(drone)
-                    break
-                if SIM_MODE:
-                    drone = Drone(hw_id, pos_id, float(x), float(y), ip, mavlink_port, debug_port, gcs_ip)
-                    drones_config.append(drone)
+                    logger.info(f"Drone configuration found: {drone}")
+                    return drone
+        logger.error(f"No configuration found for HW_ID {HW_ID}.")
+        return None
     except FileNotFoundError as e:
         logger.error(f"Config file not found: {e}")
+        return None
     except Exception as e:
         logger.error(f"Error reading config file {filename}: {e}")
-    return drones_config
+        return None
 
-def read_trajectory_file(filename: str, trajectory_offset: tuple, altitude_offset: float) -> list:
+def read_trajectory_file(filename: str) -> list:
     """
     Read the trajectory waypoints from a CSV file.
     """
@@ -81,9 +86,9 @@ def read_trajectory_file(filename: str, trajectory_offset: tuple, altitude_offse
             reader = csv.DictReader(csvfile)
             for row in reader:
                 t = float(row["t"])
-                px = float(row["px"]) + trajectory_offset[0]
-                py = float(row["py"]) + trajectory_offset[1]
-                pz = float(row["pz"]) + trajectory_offset[2] - altitude_offset
+                px = float(row["px"])
+                py = float(row["py"])
+                pz = float(row["pz"])
                 vx = float(row["vx"])
                 vy = float(row["vy"])
                 vz = float(row["vz"])
@@ -91,47 +96,68 @@ def read_trajectory_file(filename: str, trajectory_offset: tuple, altitude_offse
                 ay = float(row["ay"])
                 az = float(row["az"])
                 yaw = float(row["yaw"])
-                mode_code = int(row["mode"])
-                ledr = int(float(row["ledr"]))  # Read LED Red value
-                ledg = int(float(row["ledg"]))  # Read LED Green value
-                ledb = int(float(row["ledb"]))  # Read LED Blue value
-                waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode_code, ledr, ledg, ledb))
+                ledr = int(float(row.get("ledr", 0)))  # Read LED Red value
+                ledg = int(float(row.get("ledg", 0)))  # Read LED Green value
+                ledb = int(float(row.get("ledb", 0)))  # Read LED Blue value
+                waypoints.append((t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, ledr, ledg, ledb))
+        logger.info(f"Trajectory file '{filename}' read successfully with {len(waypoints)} waypoints.")
     except FileNotFoundError as e:
         logger.error(f"Trajectory file not found: {e}")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"Error reading trajectory file {filename}: {e}")
+        sys.exit(1)
     return waypoints
 
-
-async def get_global_position_telemetry(drone_id: int, drone: System):
+def global_to_local(global_position, home_position):
     """
-    Fetch and store global position telemetry for a drone.
+    Convert global coordinates to local NED coordinates.
+    """
+    try:
+        # Convert latitude and longitude to the local coordinate system
+        lla_ref = [home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m]
+        lla = [global_position.latitude_deg, global_position.longitude_deg, global_position.absolute_altitude_m]
+
+        ned = navpy.lla2ned(lla[0], lla[1], lla[2],
+                            lla_ref[0], lla_ref[1], lla_ref[2])
+
+        # Return the local position
+        return PositionNedYaw(ned[0], ned[1], ned[2], 0.0)
+    except Exception as e:
+        logger.error(f"Error converting global to local coordinates: {e}")
+        return PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+
+async def get_global_position_telemetry(drone: System):
+    """
+    Fetch and store global position telemetry for the drone.
     """
     try:
         async for global_position in drone.telemetry.position():
-            global_position_telemetry[drone_id] = global_position
+            global_position_telemetry["drone"] = global_position
     except Exception as e:
-        logger.error(f"Error fetching global position telemetry for drone {drone_id}: {e}")
+        logger.error(f"Error fetching global position telemetry: {e}")
 
-async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home_position, home_position_NED, global_position_telemetry: dict, mode_descriptions: dict):
-    logger.info(f"Performing trajectory for drone {drone_id}")
+async def perform_trajectory(drone: System, waypoints: list, home_position):
+    """
+    Perform the flight trajectory based on waypoints.
+    """
+    logger.info("Performing trajectory.")
     total_duration = waypoints[-1][0]
-    t = 0
-    last_mode = 0
+    t = 0.0
     last_waypoint_index = 0
-
-    # Initialize position to None
-    position = None
 
     # Initialize LEDController
     led_controller = LEDController.get_instance()
 
     while t <= total_duration:
         try:
-            actual_position = global_position_telemetry[drone_id]
-            logger.debug(f"Actual position: {actual_position}, Home position: {home_position}")
-            local_ned_position = functions.global_to_local.global_to_local(actual_position, home_position)
-            
+            actual_position = global_position_telemetry.get("drone")
+            if actual_position and home_position:
+                local_ned_position = global_to_local(actual_position, home_position)
+            else:
+                local_ned_position = PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+
+            # Get current waypoint
             current_waypoint = None
             for i in range(last_waypoint_index, len(waypoints)):
                 if t <= waypoints[i][0]:
@@ -139,22 +165,22 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
                     last_waypoint_index = i
                     break
 
+            if current_waypoint is None:
+                logger.error("No waypoint found for current time.")
+                break
+
             if t <= INITIAL_CLIMB_DURATION:
                 vz = current_waypoint[6]
-                logger.debug(f"Drone {drone_id+1}: Initial climb phase, sending vertical velocity: {vz}")
+                logger.debug(f"Initial climb phase, sending vertical velocity: {vz}")
                 await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, vz, 0.0))
             else:
-                position = tuple(a - b for a, b in zip(current_waypoint[1:4], home_position_NED)) if SEPARATE_CSV else current_waypoint[1:4]
+                position = current_waypoint[1:4]
                 velocity = current_waypoint[4:7]
                 acceleration = current_waypoint[7:10]
                 yaw = current_waypoint[10]
-                mode_code = current_waypoint[-4]
-                if last_mode != mode_code:
-                    logger.info(f"Drone {drone_id+1}: Mode number: {mode_code}, Description: {mode_descriptions[mode_code]}")
-                    last_mode = mode_code
 
                 # Update LED colors
-                ledr, ledg, ledb = current_waypoint[-3], current_waypoint[-2], current_waypoint[-1]
+                ledr, ledg, ledb = current_waypoint[11], current_waypoint[12], current_waypoint[13]
                 LEDController.set_color(ledr, ledg, ledb)
 
                 await drone.offboard.set_position_velocity_acceleration_ned(
@@ -165,251 +191,243 @@ async def perform_trajectory(drone_id: int, drone: System, waypoints: list, home
 
             await asyncio.sleep(STEP_TIME)
             t += STEP_TIME
-            
-            if position is not None and int(t / STEP_TIME) % 100 == 0:
-                deviation = [(a - b) for a, b in zip(position, [local_ned_position.north_m, local_ned_position.east_m, local_ned_position.down_m])]
-                if SHOW_DEVIATIONS:
-                    logger.info(f"Drone {drone_id+1} Deviations: {round(deviation[0], 1)} {round(deviation[1], 1)} {round(deviation[2], 1)}")
+
+            if position is not None and SHOW_DEVIATIONS and int(t / STEP_TIME) % 100 == 0:
+                deviation = [
+                    position[0] - local_ned_position.north_m,
+                    position[1] - local_ned_position.east_m,
+                    position[2] - local_ned_position.down_m
+                ]
+                logger.info(f"Deviations: N:{deviation[0]:.2f} E:{deviation[1]:.2f} D:{deviation[2]:.2f}")
 
         except OffboardError as e:
-            logger.error(f"Offboard error during trajectory for drone {drone_id}: {e}")
+            logger.error(f"Offboard error during trajectory: {e}")
             break
         except Exception as e:
-            logger.error(f"Error during trajectory for drone {drone_id}: {e}")
+            logger.error(f"Error during trajectory: {e}")
             break
 
-    logger.info(f"Shape completed for drone {drone_id+1}")
+    logger.info("Trajectory completed.")
     # Turn off LEDs after trajectory is completed
     LEDController.turn_off()
 
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-async def initial_setup_and_connection(drone_id: int, udp_port: int):
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(5))
+async def initial_setup_and_connection():
     """
     Perform the initial setup and connection for the drone.
     """
     try:
-        drones_config = read_config('config.csv')
-        grpc_port = GRPC_PORT_BASE + drone_id if SIM_MODE else GRPC_PORT_BASE - 1
-        home_position = None
+        # Determine the MAVSDK server address and port
+        grpc_port = GRPC_PORT  # Fixed gRPC port
 
+        # Start the MAVSDK server with the appropriate connection string
 
-        mode_descriptions = {
-            0: "On the ground",
-            10: "Initial climbing state",
-            20: "Initial holding after climb",
-            30: "Moving to start point",
-            40: "Holding at start point",
-            50: "Moving to maneuvering start point",
-            60: "Holding at maneuver start point",
-            70: "Maneuvering (trajectory)",
-            80: "Holding at the end of the trajectory coordinate",
-            90: "Returning to home coordinate",
-            100: "Landing"
-        }
+        # Real drone mode
+        mavsdk_server_address = "127.0.0.1"
 
-        drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
-        await drone.connect(system_address=f"udp://:{udp_port}")
-        logger.info(f"Drone connecting with UDP: {udp_port}")
+        # Create the drone system
+        drone = System(mavsdk_server_address=mavsdk_server_address, port=grpc_port)
+        await drone.connect(system_address=f"udp://:{mavsdk_port}")
 
-        asyncio.ensure_future(get_global_position_telemetry(drone_id, drone))
-        
+        logger.info(f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on udp port {mavsdk_port}.")
+
+        # Wait for connection with a timeout
+        start_time = time.time()
         async for state in drone.core.connection_state():
             if state.is_connected:
-                logger.info(f"Drone {drone_id+1} connected on Port: {udp_port} and grpc Port: {grpc_port}")
+                logger.info(f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}.")
                 break
+            if time.time() - start_time > 10:
+                logger.error("Timeout while waiting for drone connection.")
+                raise TimeoutError("Drone connection timeout.")
+            await asyncio.sleep(1)
 
-        return drone, mode_descriptions, home_position
+        # Start telemetry task
+        telemetry_task = asyncio.create_task(get_global_position_telemetry(drone))
+
+        return drone, telemetry_task
     except Exception as e:
-        logger.error(f"Error in initial setup and connection for drone {drone_id}: {e}")
+        logger.error(f"Error in initial setup and connection: {e}")
         raise
 
-async def pre_flight_checks(drone_id: int, drone: System):
+async def pre_flight_checks(drone: System):
     """
     Perform pre-flight checks to ensure the drone is ready for flight.
     """
-    logger.info(f"Starting pre-flight checks for Drone {drone_id+1}...")
-    
+    logger.info("Starting pre-flight checks.")
     home_position = None
-    
+
+    start_time = time.time()
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
-            logger.info(f"Global position estimate and home position check passed for Drone {drone_id+1}.")
-            home_position = global_position_telemetry[drone_id]
-            logger.info(f"Home Position of Drone {drone_id+1} set to: {home_position}")
+            logger.info("Global position estimate and home position check passed.")
+            home_position = global_position_telemetry.get("drone")
+            logger.info(f"Home Position set to: {home_position}")
             break
         else:
             if not health.is_global_position_ok:
-                logger.warning(f"Waiting for global position to be okay for Drone {drone_id+1}.")
+                logger.warning("Waiting for global position to be okay.")
             if not health.is_home_position_ok:
-                logger.warning(f"Waiting for home position to be set for Drone {drone_id+1}.")
+                logger.warning("Waiting for home position to be set.")
+
+        if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
+            logger.error("Pre-flight checks timed out.")
+            raise TimeoutError("Pre-flight checks timed out.")
+        await asyncio.sleep(1)
 
     if home_position is not None:
-        logger.info(f"Pre-flight checks successful for Drone {drone_id+1}.")
+        logger.info("Pre-flight checks successful.")
     else:
-        logger.error(f"Pre-flight checks failed for Drone {drone_id+1}. Please resolve the issues and try again.")
-    
+        logger.error("Pre-flight checks failed.")
+        raise Exception("Pre-flight checks failed.")
+
     return home_position
 
-@retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-async def arming_and_starting_offboard_mode(drone_id: int, drone: System):
+@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(2))
+async def arming_and_starting_offboard_mode(drone: System):
     """
     Arm the drone and start offboard mode.
     """
     try:
-        logger.info(f"Arming drone {drone_id+1}")
+        logger.info("Arming drone.")
         await drone.action.arm()
-        logger.info(f"Setting initial setpoint for drone {drone_id+1}")
-        #await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+        logger.info("Setting initial setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
-        logger.info(f"Starting offboard mode for drone {drone_id+1}")
+        logger.info("Starting offboard mode.")
         await drone.offboard.start()
     except OffboardError as error:
-        logger.error(f"Error starting offboard mode for drone {drone_id+1}: {error}")
+        logger.error(f"Offboard error: {error}")
         await drone.action.disarm()
         raise
     except Exception as e:
-        logger.error(f"Error arming and starting offboard mode for drone {drone_id+1}: {e}")
+        logger.error(f"Error during arming and starting offboard mode: {e}")
         await drone.action.disarm()
         raise
 
-async def perform_landing(drone_id: int, drone: System):
+async def perform_landing(drone: System):
     """
     Perform landing for the drone.
     """
     try:
-        logger.info(f"Landing drone {drone_id+1}")
+        logger.info("Initiating landing.")
         await drone.action.land()
 
         async for state in drone.telemetry.landed_state():
             if state == LandedState.ON_GROUND:
+                logger.info("Drone has landed.")
                 break
+            await asyncio.sleep(1)
     except ActionError as e:
-        logger.error(f"Error landing drone {drone_id+1}: {e}")
+        logger.error(f"Action error during landing: {e}")
     except Exception as e:
-        logger.error(f"Unexpected error during landing for drone {drone_id+1}: {e}")
+        logger.error(f"Unexpected error during landing: {e}")
 
-async def stop_offboard_mode(drone_id: int, drone: System):
+async def stop_offboard_mode(drone: System):
     """
     Stop offboard mode for the drone.
     """
     try:
-        logger.info(f"Stopping offboard mode for drone {drone_id+1}")
+        logger.info("Stopping offboard mode.")
         await drone.offboard.stop()
     except OffboardError as error:
-        logger.error(f"Error stopping offboard mode for drone {drone_id+1}: {error}")
+        logger.error(f"Error stopping offboard mode: {error}")
     except Exception as e:
-        logger.error(f"Unexpected error stopping offboard mode for drone {drone_id+1}: {e}")
+        logger.error(f"Unexpected error stopping offboard mode: {e}")
 
-async def disarm_drone(drone_id: int, drone: System):
+async def disarm_drone(drone: System):
     """
     Disarm the drone.
     """
     try:
-        logger.info(f"Disarming drone {drone_id+1}")
+        logger.info("Disarming drone.")
         await drone.action.disarm()
     except ActionError as e:
-        logger.error(f"Error disarming drone {drone_id+1}: {e}")
+        logger.error(f"Error disarming drone: {e}")
     except Exception as e:
-        logger.error(f"Unexpected error disarming drone {drone_id+1}: {e}")
+        logger.error(f"Unexpected error disarming drone: {e}")
 
-async def create_drone_configurations(num_drones: int, time_offset: int):
+def start_mavsdk_server(udp_port: int):
     """
-    Create configurations for all drones.
-    """
-    altitude_steps = 0
-    altitude_offsets = [altitude_steps * i for i in range(num_drones)]
-
-    home_positions = [(drone.x, drone.y, DEFAULT_Z) for drone in dronesConfig]
-    trajectory_offset = [(0, 0, 0) for i in range(num_drones)]
-
-    udp_ports = [14540] if not SIM_MODE else [drone.mavlink_port for drone in dronesConfig]
-
-    return home_positions, trajectory_offset, udp_ports, altitude_offsets
-
-def start_mavsdk_servers(num_drones: int, udp_ports: list) -> list:
-    """
-    Start MAVSDK server instances for each drone.
-    """
-    mavsdk_servers = []
-    for i in range(num_drones):
-        port = GRPC_PORT_BASE + i if SIM_MODE else 50040
-        try:
-            mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(port), f"udp://:{udp_ports[i]}"])
-            mavsdk_servers.append(mavsdk_server)
-        except Exception as e:
-            logger.error(f"Error starting MAVSDK server for drone {i+1}: {e}")
-    return mavsdk_servers
-
-async def run_all_drones(num_drones: int, home_positions: list, trajectory_offset: list, udp_ports: list, time_offset: int, altitude_offsets: list):
-    """
-    Run all drones with their respective configurations.
-    """
-    tasks = []
-    for i in range(num_drones):
-        drone_id = i if SIM_MODE else HW_ID
-        tasks.append(asyncio.create_task(run_drone(drone_id, home_positions[i], trajectory_offset[i], udp_ports[i], i * time_offset, altitude_offsets[i])))
-    await asyncio.gather(*tasks)
-
-def stop_all_mavsdk_servers(mavsdk_servers: list):
-    """
-    Stop all MAVSDK server instances.
-    """
-    for mavsdk_server in mavsdk_servers:
-        try:
-            os.kill(mavsdk_server.pid, signal.SIGTERM)
-        except Exception as e:
-            logger.error(f"Error stopping MAVSDK server: {e}")
-
-async def run_drone(drone_id: int, home_position_NED: tuple, trajectory_offset: tuple, udp_port: int, time_offset: int, altitude_offset: float):
-    """
-    Run a single drone with the provided configurations.
+    Start MAVSDK server instance for the drone.
     """
     try:
-        if not SIM_MODE:
-            drone_id = 0
-
-        drone, mode_descriptions, home_position = await initial_setup_and_connection(drone_id, udp_port)
-        
-        await asyncio.sleep(time_offset)
-        home_position = await pre_flight_checks(drone_id, drone)
-        await arming_and_starting_offboard_mode(drone_id, drone)
-
-        filename = f"shapes/swarm/processed/Drone {HW_ID}.csv" if SEPARATE_CSV and not SIM_MODE else f"shapes/swarm/processed/Drone {drone_id + 1}.csv" if SEPARATE_CSV else "shapes/active.csv"
-        waypoints = read_trajectory_file(filename, trajectory_offset, altitude_offset)
-        await perform_trajectory(drone_id, drone, waypoints, home_position, home_position_NED, global_position_telemetry, mode_descriptions)
-        # TODO: We observer suddden transition wild just before switching to landing. When we got RTK we should try to to Land also with Offboard of find a better solution
-        await stop_offboard_mode(drone_id, drone)
-        await perform_landing(drone_id, drone)
-        await disarm_drone(drone_id, drone)
+        mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(GRPC_PORT), f"udp://:{udp_port}"])
+        logger.info(f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}.")
+        return mavsdk_server
     except Exception as e:
-        logger.error(f"Error running drone {drone_id}: {e}")
+        logger.error(f"Error starting MAVSDK server: {e}")
+        return None
 
-async def main():
+def stop_mavsdk_server(mavsdk_server):
     """
-    Main function to run all drones.
+    Stop the MAVSDK server instance.
     """
-    global HW_ID, dronesConfig
-    HW_ID = read_hw_id()
-    if HW_ID is None:
-        logger.error("Failed to read HW ID. Exiting program.")
-        return
+    try:
+        os.kill(mavsdk_server.pid, signal.SIGTERM)
+        logger.info("MAVSDK server stopped.")
+    except Exception as e:
+        logger.error(f"Error stopping MAVSDK server: {e}")
 
-    # Ensure dronesConfig is properly populated
-    dronesConfig = read_config('config.csv')
-    if not dronesConfig:
-        logger.error("No drone configurations available. Exiting program.")
-        return
+async def run_drone():
+    """
+    Run the drone with the provided configurations.
+    """
+    telemetry_task = None
+    mavsdk_server = None
+    try:
+        global HW_ID
 
-    num_drones = len(dronesConfig)
-    time_offset = 0
+        HW_ID = read_hw_id()
+        if HW_ID is None:
+            logger.error("Failed to read HW ID. Exiting program.")
+            sys.exit(1)
 
-    home_positions, trajectory_offset, udp_ports, altitude_offsets = await create_drone_configurations(num_drones, time_offset)
-    mavsdk_servers = start_mavsdk_servers(num_drones, udp_ports)
-    await run_all_drones(num_drones, home_positions, trajectory_offset, udp_ports, time_offset, altitude_offsets)
-    stop_all_mavsdk_servers(mavsdk_servers)
-    logger.info("All tasks completed. Exiting program.")
+        drone_config = read_config('config.csv')
+        if drone_config is None:
+            logger.error("Drone configuration not found. Exiting program.")
+            sys.exit(1)
+
+        udp_port = int(drone_config.mavlink_port)
+        mavsdk_server = start_mavsdk_server(udp_port)
+        if mavsdk_server is None:
+            logger.error("Failed to start MAVSDK server. Exiting program.")
+            sys.exit(1)
+
+        drone, telemetry_task = await initial_setup_and_connection(udp_port)
+
+        home_position = await pre_flight_checks(drone)
+        await arming_and_starting_offboard_mode(drone)
+
+        filename = f"shapes/swarm/processed/Drone {HW_ID}.csv"
+        waypoints = read_trajectory_file(filename)
+        await perform_trajectory(drone, waypoints, home_position)
+
+        await stop_offboard_mode(drone)
+        await perform_landing(drone)
+        await disarm_drone(drone)
+
+        logger.info("Drone mission completed successfully.")
+        sys.exit(0)
+
+    except Exception as e:
+        logger.error(f"Error running drone: {e}")
+        sys.exit(1)
+    finally:
+        if telemetry_task:
+            telemetry_task.cancel()
+            await asyncio.sleep(0)  # Allow cancellation to propagate
+        if mavsdk_server:
+            stop_mavsdk_server(mavsdk_server)
+
+def main():
+    """
+    Main function to run the drone.
+    """
+    try:
+        asyncio.run(run_drone())
+    except Exception as e:
+        logger.error(f"Unhandled exception in main: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
