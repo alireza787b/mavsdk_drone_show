@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 STEP_TIME = 0.05
 DEFAULT_Z = 0.83
 GRPC_PORT = 50040  # Fixed port since SIM_MODE is False
-mavsdk_port = 14540  # MAVSDK port for communication
+MAVSDK_PORT = 14540  # MAVSDK port for communication
 SHOW_DEVIATIONS = False
 INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
 MAX_RETRIES = 3  # Maximum number of retries for critical operations
-PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
+PRE_FLIGHT_TIMEOUT = 60  # Timeout for pre-flight checks in seconds
 
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
 
@@ -179,7 +179,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
                 acceleration = current_waypoint[7:10]
                 yaw = current_waypoint[10]
 
-                # Update LED colors
+                # Update LED colors from trajectory
                 ledr, ledg, ledb = current_waypoint[11], current_waypoint[12], current_waypoint[13]
                 LEDController.set_color(ledr, ledg, ledb)
 
@@ -202,12 +202,18 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
 
         except OffboardError as e:
             logger.error(f"Offboard error during trajectory: {e}")
+            # Set color to red to indicate error
+            LEDController.set_color(255, 0, 0)
             break
         except Exception as e:
             logger.error(f"Error during trajectory: {e}")
+            # Set color to red to indicate error
+            LEDController.set_color(255, 0, 0)
             break
 
     logger.info("Trajectory completed.")
+    # Set color to blue to indicate mission completion
+    LEDController.set_color(0, 0, 255)
     # Turn off LEDs after trajectory is completed
     LEDController.turn_off()
 
@@ -217,19 +223,22 @@ async def initial_setup_and_connection():
     Perform the initial setup and connection for the drone.
     """
     try:
+        # Initialize LEDController
+        led_controller = LEDController.get_instance()
+        # Set color to blue to indicate initialization
+        LEDController.set_color(0, 0, 255)
+
         # Determine the MAVSDK server address and port
         grpc_port = GRPC_PORT  # Fixed gRPC port
-
-        # Start the MAVSDK server with the appropriate connection string
 
         # Real drone mode
         mavsdk_server_address = "127.0.0.1"
 
         # Create the drone system
         drone = System(mavsdk_server_address=mavsdk_server_address, port=grpc_port)
-        await drone.connect(system_address=f"udp://:{mavsdk_port}")
+        await drone.connect(system_address=f"udp://:{MAVSDK_PORT}")
 
-        logger.info(f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on udp port {mavsdk_port}.")
+        logger.info(f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {MAVSDK_PORT}.")
 
         # Wait for connection with a timeout
         start_time = time.time()
@@ -239,6 +248,8 @@ async def initial_setup_and_connection():
                 break
             if time.time() - start_time > 10:
                 logger.error("Timeout while waiting for drone connection.")
+                # Set color to red to indicate error
+                LEDController.set_color(255, 0, 0)
                 raise TimeoutError("Drone connection timeout.")
             await asyncio.sleep(1)
 
@@ -248,6 +259,8 @@ async def initial_setup_and_connection():
         return drone, telemetry_task
     except Exception as e:
         logger.error(f"Error in initial setup and connection: {e}")
+        # Set color to red to indicate error
+        LEDController.set_color(255, 0, 0)
         raise
 
 async def pre_flight_checks(drone: System):
@@ -257,6 +270,8 @@ async def pre_flight_checks(drone: System):
     logger.info("Starting pre-flight checks.")
     home_position = None
 
+    # Set color to yellow to indicate waiting for GPS lock
+    LEDController.set_color(255, 255, 0)
     start_time = time.time()
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
@@ -272,13 +287,19 @@ async def pre_flight_checks(drone: System):
 
         if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
             logger.error("Pre-flight checks timed out.")
+            # Set color to red to indicate error
+            LEDController.set_color(255, 0, 0)
             raise TimeoutError("Pre-flight checks timed out.")
         await asyncio.sleep(1)
 
     if home_position is not None:
         logger.info("Pre-flight checks successful.")
+        # Set LEDs to solid green to indicate success
+        LEDController.set_color(0, 255, 0)
     else:
         logger.error("Pre-flight checks failed.")
+        # Set color to red to indicate error
+        LEDController.set_color(255, 0, 0)
         raise Exception("Pre-flight checks failed.")
 
     return home_position
@@ -289,19 +310,27 @@ async def arming_and_starting_offboard_mode(drone: System):
     Arm the drone and start offboard mode.
     """
     try:
+        # Set color to green to indicate arming
+        LEDController.set_color(0, 255, 0)
         logger.info("Arming drone.")
         await drone.action.arm()
         logger.info("Setting initial setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         logger.info("Starting offboard mode.")
         await drone.offboard.start()
+        # Set LEDs to solid white to indicate ready to fly
+        LEDController.set_color(255, 255, 255)
     except OffboardError as error:
         logger.error(f"Offboard error: {error}")
         await drone.action.disarm()
+        # Set color to red to indicate error
+        LEDController.set_color(255, 0, 0)
         raise
     except Exception as e:
         logger.error(f"Error during arming and starting offboard mode: {e}")
         await drone.action.disarm()
+        # Set color to red to indicate error
+        LEDController.set_color(255, 0, 0)
         raise
 
 async def perform_landing(drone: System):
@@ -324,7 +353,7 @@ async def perform_landing(drone: System):
 
 async def stop_offboard_mode(drone: System):
     """
-    Stop offboard mode for the drone.
+        Stop offboard mode for the drone.
     """
     try:
         logger.info("Stopping offboard mode.")
@@ -341,6 +370,8 @@ async def disarm_drone(drone: System):
     try:
         logger.info("Disarming drone.")
         await drone.action.disarm()
+        # Set LEDs to solid red to indicate disarming
+        LEDController.set_color(255, 0, 0)
     except ActionError as e:
         logger.error(f"Error disarming drone: {e}")
     except Exception as e:
@@ -393,7 +424,10 @@ async def run_drone():
             logger.error("Failed to start MAVSDK server. Exiting program.")
             sys.exit(1)
 
-        drone, telemetry_task = await initial_setup_and_connection(udp_port)
+        # Wait a bit for the MAVSDK server to start
+        await asyncio.sleep(2)
+
+        drone, telemetry_task = await initial_setup_and_connection()
 
         home_position = await pre_flight_checks(drone)
         await arming_and_starting_offboard_mode(drone)
