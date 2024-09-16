@@ -418,8 +418,7 @@ async def run_drone():
             logger.error("Drone configuration not found. Exiting program.")
             sys.exit(1)
 
-        udp_port = int(drone_config.mavlink_port)
-        mavsdk_server = start_mavsdk_server(udp_port)
+        mavsdk_server = start_mavsdk_server(MAVSDK_PORT)
         if mavsdk_server is None:
             logger.error("Failed to start MAVSDK server. Exiting program.")
             sys.exit(1)
