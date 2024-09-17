@@ -152,11 +152,11 @@ def main_loop():
 
                 if current_state == 0:
                     # Idle state on ground
-                    LEDController.set_color(255, 0, 0)  # Red
+                    LEDController.set_color(0, 0, 255)  # Blue
                     logger.debug("Drone is idle on ground (state == 0).")
                 elif current_state == 1:
                     # Trigger time received; ready to fly
-                    LEDController.set_color(255, 255, 255)  # White
+                    LEDController.set_color(255, 165, 0)  # Orange
                     logger.debug("Trigger time received. Drone is ready to fly (state == 1).")
                 elif current_state == 2:
                     # Maneuver started; stop changing LEDs
