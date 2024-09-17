@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/constants/droneConstants.js
 import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
 
 export const DRONE_MISSION_TYPES = {
@@ -33,7 +34,10 @@ export const DRONE_ACTION_TYPES = {
   LAND: 101,
   HOLD: 102,
   TEST: 100,
-  REBOOT: 7,  // Added reboot command
+  REBOOT: 7,
+  TEST_LED: 8,
+  DISARM: 9, // Assign an appropriate code
 };
+
 
 export const defaultTriggerTimeDelay = 10;

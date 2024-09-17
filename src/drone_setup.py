@@ -117,6 +117,8 @@ class DroneSetup:
                 success, message = await self._handle_reboot()
             elif self.drone_config.mission == Mission.CUSTOM_CSV_DRONE_SHOW.value:  # New Custom CSV Drone Show mission
                 success, message = await self._handle_custom_csv_drone_show(current_time)
+            elif self.drone_config.mission == Mission.TEST_LED.value:  # New Custom CSV Drone Show mission
+                success, message = await self._handle_test_led()
 
             self._log_mission_result(success, message)
             await self._reset_mission_if_needed(success)  # double check later in what condition should we retry
@@ -194,6 +196,14 @@ class DroneSetup:
 
         logging.info("Conditions not met for triggering Custom CSV Drone Show")
         return False, "Conditions not met for Custom CSV Drone Show"
+    
+    async def _handle_test_led(self):
+        """
+        Handles the LED test script.
+        """
+        logging.info("Starting LED Test Script")
+        return await self.run_mission_script("test_led_controller.py", "start")
+
 
     def _log_mission_result(self, success, message):
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):

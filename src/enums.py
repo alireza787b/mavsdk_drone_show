@@ -12,6 +12,7 @@ class Mission(Enum):
     HOLD = 102
     TEST = 100
     REBOOT = 7
+    TEST_LED = 8
     
     
 class State(Enum):

@@ -48,6 +48,9 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       <button className="action-button test-button" onClick={() => handleAction('TEST', 'Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?')}>
         Test
       </button>
+      <button className="action-button test-button" onClick={() => handleAction('TEST_LED', 'Test Action: Will run the LED controller test script on the ground. Are you sure you want to proceed?')}>
+        Test Light Show
+      </button>
       <button className="action-button" onClick={() => handleAction('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
               style={{ backgroundColor: 'red', color: 'white' }}>
         Disarm Drones
