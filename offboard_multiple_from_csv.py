@@ -41,6 +41,7 @@ Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip'
 
 HW_ID = None  # Hardware ID of the drone
 global_position_telemetry = {}  # Global position telemetry data
+current_landed_state = None  # Current landed state of the drone
 
 def read_hw_id() -> int:
     """
@@ -140,6 +141,17 @@ async def get_global_position_telemetry(drone: System):
     except Exception as e:
         logger.error(f"Error fetching global position telemetry: {e}")
 
+async def get_landed_state_telemetry(drone: System):
+    """
+    Fetch and store landed state telemetry for the drone.
+    """
+    global current_landed_state
+    try:
+        async for landed_state in drone.telemetry.landed_state():
+            current_landed_state = landed_state
+    except Exception as e:
+        logger.error(f"Error fetching landed state telemetry: {e}")
+
 async def perform_trajectory(drone: System, waypoints: list, home_position):
     """
     Perform the flight trajectory based on waypoints, with safety checks.
@@ -208,9 +220,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
 
                 # Landing checks during the last LANDING_CHECK_DURATION seconds
                 if total_duration - t <= LANDING_CHECK_DURATION:
-                    # Check if drone has landed
-                    landed_state = await drone.telemetry.landed_state()
-                    if landed_state == LandedState.ON_GROUND:
+                    if current_landed_state == LandedState.ON_GROUND:
                         logger.info("Drone has detected landing during trajectory.")
                         await stop_offboard_mode(drone)
                         await disarm_drone(drone)
@@ -281,10 +291,11 @@ async def initial_setup_and_connection():
                 raise TimeoutError("Drone connection timeout.")
             await asyncio.sleep(1)
 
-        # Start telemetry task
+        # Start telemetry tasks
         telemetry_task = asyncio.create_task(get_global_position_telemetry(drone))
+        landed_state_task = asyncio.create_task(get_landed_state_telemetry(drone))
 
-        return drone, telemetry_task
+        return drone, telemetry_task, landed_state_task
     except Exception as e:
         logger.error(f"Error in initial setup and connection: {e}")
         # Set color to red to indicate error
@@ -371,8 +382,7 @@ async def perform_landing(drone: System):
 
         start_time = time.time()
         while True:
-            landed_state = await drone.telemetry.landed_state()
-            if landed_state == LandedState.ON_GROUND:
+            if current_landed_state == LandedState.ON_GROUND:
                 logger.info("Drone has landed.")
                 break
             if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
@@ -437,6 +447,7 @@ async def run_drone():
     Run the drone with the provided configurations.
     """
     telemetry_task = None
+    landed_state_task = None
     mavsdk_server = None
     try:
         global HW_ID
@@ -460,7 +471,7 @@ async def run_drone():
         # Wait a bit for the MAVSDK server to start
         await asyncio.sleep(2)
 
-        drone, telemetry_task = await initial_setup_and_connection()
+        drone, telemetry_task, landed_state_task = await initial_setup_and_connection()
 
         home_position = await pre_flight_checks(drone)
         await arming_and_starting_offboard_mode(drone)
@@ -486,6 +497,9 @@ async def run_drone():
         if telemetry_task:
             telemetry_task.cancel()
             await asyncio.sleep(0)  # Allow cancellation to propagate
+        if landed_state_task:
+            landed_state_task.cancel()
+            await asyncio.sleep(0)
         if mavsdk_server:
             stop_mavsdk_server(mavsdk_server)
 
