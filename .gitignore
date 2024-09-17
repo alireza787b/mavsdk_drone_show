@@ -68,7 +68,6 @@ target/
 .vscode/
 
 # Environment files
-# Keeping .env for React, consider ignoring it later
 .venv/
 env/
 venv/
@@ -127,7 +126,6 @@ dist/
 Thumbs.db
 
 # Dependencies
-node_modules/
 .pnp/
 .pnp.js
 
@@ -147,8 +145,3 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Exclude __pycache__ in specific subdirectories
-src/__pycache__/
-gcs-server/__pycache__/
-functions/__pycache__/
