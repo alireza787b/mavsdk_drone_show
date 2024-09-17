@@ -25,19 +25,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-STEP_TIME = 0.05
-DEFAULT_Z = 0.83
-GRPC_PORT = 50040  # Fixed port since SIM_MODE is False
+STEP_TIME = 0.05  # Time step for trajectory execution loop in seconds
+GRPC_PORT = 50040  # Fixed gRPC port for MAVSDK server
 MAVSDK_PORT = 14540  # MAVSDK port for communication
-SHOW_DEVIATIONS = False
+SHOW_DEVIATIONS = False  # Flag to show deviations during flight
 INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
+MAX_VERTICAL_CLIMB_RATE = 2.0  # Maximum vertical climb rate in m/s
 MAX_RETRIES = 3  # Maximum number of retries for critical operations
-PRE_FLIGHT_TIMEOUT = 60  # Timeout for pre-flight checks in seconds
+PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
+MIN_SAFE_ALTITUDE = 1.0  # Minimum safe altitude in meters
+ENABLE_MIN_ALTITUDE_CHECK = True  # Enable/Disable minimum altitude check
+LANDING_CHECK_DURATION = 5  # Duration in seconds for landing checks during the last n seconds of flight
 
 Drone = namedtuple('Drone', 'hw_id pos_id x y ip mavlink_port debug_port gcs_ip')
 
-HW_ID = None
-global_position_telemetry = {}
+HW_ID = None  # Hardware ID of the drone
+global_position_telemetry = {}  # Global position telemetry data
 
 def read_hw_id() -> int:
     """
@@ -139,7 +142,7 @@ async def get_global_position_telemetry(drone: System):
 
 async def perform_trajectory(drone: System, waypoints: list, home_position):
     """
-    Perform the flight trajectory based on waypoints.
+    Perform the flight trajectory based on waypoints, with safety checks.
     """
     logger.info("Performing trajectory.")
     total_duration = waypoints[-1][0]
@@ -169,29 +172,54 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
                 logger.error("No waypoint found for current time.")
                 break
 
+            # Extract waypoint data
+            position = current_waypoint[1:4]
+            velocity = current_waypoint[4:7]
+            acceleration = current_waypoint[7:10]
+            yaw = current_waypoint[10]
+            ledr, ledg, ledb = current_waypoint[11], current_waypoint[12], current_waypoint[13]
+
+            # Update LED colors from trajectory
+            LEDController.set_color(ledr, ledg, ledb)
+
             if t <= INITIAL_CLIMB_DURATION:
-                vz = current_waypoint[6]
+                # Initial climb phase: send vertical velocity command only
+                vz = current_waypoint[6]  # Vertical velocity (vz)
+                # Limit vertical climb rate
+                if abs(vz) > MAX_VERTICAL_CLIMB_RATE:
+                    vz = MAX_VERTICAL_CLIMB_RATE * (vz / abs(vz))  # Limit to max climb rate
+                    logger.warning(f"Vertical climb rate limited to {vz} m/s")
                 logger.debug(f"Initial climb phase, sending vertical velocity: {vz}")
                 await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, vz, 0.0))
             else:
-                position = current_waypoint[1:4]
-                velocity = current_waypoint[4:7]
-                acceleration = current_waypoint[7:10]
-                yaw = current_waypoint[10]
+                # After initial climb phase: send position, velocity, and acceleration setpoints
+                # Minimum altitude check
+                if ENABLE_MIN_ALTITUDE_CHECK:
+                    if position[2] > -MIN_SAFE_ALTITUDE:
+                        logger.warning(f"Desired altitude {position[2]:.2f}m is below minimum safe altitude. Adjusting to -{MIN_SAFE_ALTITUDE}m.")
+                        position = (position[0], position[1], -MIN_SAFE_ALTITUDE)
 
-                # Update LED colors from trajectory
-                ledr, ledg, ledb = current_waypoint[11], current_waypoint[12], current_waypoint[13]
-                LEDController.set_color(ledr, ledg, ledb)
-
+                # Send setpoints
                 await drone.offboard.set_position_velocity_acceleration_ned(
                     PositionNedYaw(*position, yaw),
                     VelocityNedYaw(*velocity, yaw),
                     AccelerationNed(*acceleration)
                 )
 
+                # Landing checks during the last LANDING_CHECK_DURATION seconds
+                if total_duration - t <= LANDING_CHECK_DURATION:
+                    # Check if drone has landed
+                    landed_state = await drone.telemetry.landed_state()
+                    if landed_state == LandedState.ON_GROUND:
+                        logger.info("Drone has detected landing during trajectory.")
+                        await stop_offboard_mode(drone)
+                        await disarm_drone(drone)
+                        break
+
             await asyncio.sleep(STEP_TIME)
             t += STEP_TIME
 
+            # Show deviations if enabled
             if position is not None and SHOW_DEVIATIONS and int(t / STEP_TIME) % 100 == 0:
                 deviation = [
                     position[0] - local_ned_position.north_m,
@@ -341,9 +369,14 @@ async def perform_landing(drone: System):
         logger.info("Initiating landing.")
         await drone.action.land()
 
-        async for state in drone.telemetry.landed_state():
-            if state == LandedState.ON_GROUND:
+        start_time = time.time()
+        while True:
+            landed_state = await drone.telemetry.landed_state()
+            if landed_state == LandedState.ON_GROUND:
                 logger.info("Drone has landed.")
+                break
+            if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
+                logger.error("Landing timeout.")
                 break
             await asyncio.sleep(1)
     except ActionError as e:
@@ -353,7 +386,7 @@ async def perform_landing(drone: System):
 
 async def stop_offboard_mode(drone: System):
     """
-        Stop offboard mode for the drone.
+    Stop offboard mode for the drone.
     """
     try:
         logger.info("Stopping offboard mode.")
@@ -418,7 +451,8 @@ async def run_drone():
             logger.error("Drone configuration not found. Exiting program.")
             sys.exit(1)
 
-        mavsdk_server = start_mavsdk_server(MAVSDK_PORT)
+        udp_port = int(drone_config.mavlink_port)
+        mavsdk_server = start_mavsdk_server(udp_port)
         if mavsdk_server is None:
             logger.error("Failed to start MAVSDK server. Exiting program.")
             sys.exit(1)
@@ -435,8 +469,11 @@ async def run_drone():
         waypoints = read_trajectory_file(filename)
         await perform_trajectory(drone, waypoints, home_position)
 
+        # Ensure offboard mode is stopped
         await stop_offboard_mode(drone)
+        # Initiate landing
         await perform_landing(drone)
+        # Disarm the drone
         await disarm_drone(drone)
 
         logger.info("Drone mission completed successfully.")
