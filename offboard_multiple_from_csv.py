@@ -62,6 +62,7 @@ Drone = namedtuple(
 # ----------------------------- #
 
 HW_ID = None  # Hardware ID of the drone
+position_id = None # Position ID of the drone
 global_position_telemetry = {}  # Global position telemetry data
 current_landed_state = None  # Current landed state of the drone
 
@@ -661,6 +662,7 @@ async def run_drone():
 
         # Step 3: Start MAVSDK Server
         udp_port = drone_config.mavlink_port
+        position_id = drone_config.pos_id
         mavsdk_server = start_mavsdk_server(udp_port)
         if mavsdk_server is None:
             logger.error("Failed to start MAVSDK server. Exiting program.")
@@ -678,8 +680,8 @@ async def run_drone():
         # Step 6: Arm and Start Offboard Mode
         await arming_and_starting_offboard_mode(drone)
 
-        # Step 7: Read and Adjust Trajectory Waypoints
-        trajectory_filename = f"shapes/swarm/processed/Drone {HW_ID}.csv"
+        # Step 7: Read and Adjust Trajectory Waypoints (for position_id of the drone)
+        trajectory_filename = f"shapes/swarm/processed/Drone {position_id}.csv"
         waypoints = read_trajectory_file(
             trajectory_filename, drone_config.initial_x, drone_config.initial_y
         )
