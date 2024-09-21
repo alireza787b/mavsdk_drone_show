@@ -4,7 +4,7 @@ from enum import Enum
 
 class Params():
 
-    # URLs for configuration files
+    # URLs for configuration files (not used!)
     config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # URL for the configuration file
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'  # URL for the swarm file
 
@@ -12,8 +12,8 @@ class Params():
     sim_mode = False  # Set to True for simulation mode, False for real-life mode
     enable_drones_http_server = True  # Enable HTTP server on drones
     single_drone = False  # Enable single drone mode
-    offline_config = True  # Use offline configuration
-    offline_swarm = True  # Use offline swarm
+    offline_config = True  # Use offline configuration (not used!)
+    offline_swarm = True  # Use offline swarm (not used!)
     default_sitl = True  # Use default 14550 port for single drone simulation
     online_sync_time = True  # Sync time from Internet Time Servers
 
@@ -49,7 +49,8 @@ class Params():
     mavsdk_port = 14540  # MAVSDK port
     local_mavlink_port = 12550  # Local MAVLink port
     shared_gcs_port = True  # Shared GCS port
-    extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550", "100.84.21.128:14550", "100.84.20.178:14550"]  # Extra devices for MAVLink routing
+    #extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550", "100.84.21.128:14550", "100.84.20.178:14550"]  # Extra devices for MAVLink routing
+    extra_devices = [f"127.0.0.1:{local_mavlink_port}", "100.84.110.118:14550"]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Default to not rebooting the system , make sure have root priv
     force_reboot = True
@@ -65,7 +66,7 @@ class Params():
 
     # Offboard Control Configuration
     offboard_follow_update_interval = 0.1  # Offboard follow update interval
-    schedule_mission_frequency = 2  # Frequency for scheduling missions
+    schedule_mission_frequency = 10  # Frequency for scheduling missions
     follow_setpoint_frequency = 4  # Frequency for follow setpoints
 
     # Sleep Interval for Main Loop
