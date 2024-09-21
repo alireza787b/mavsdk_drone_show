@@ -1,259 +1,96 @@
-/* app/dashboard/drone-dashboard/src/styles/MissionConfig.css */
-
-
-/* CSS Variables for Consistent Theming */
-
-:root {
-    --color-blue: #3498db;
-    --color-blue-dark: #2980b9;
-    --color-green: #28a745;
-    --color-green-dark: #219737;
-    --color-red: #E74C3C;
-    --color-red-dark: #c0392b;
-    --color-yellow: #f1c40f;
-    --color-yellow-dark: #d4ad00;
-    --color-gray-light: #f4f4f4;
-    --color-gray: #ddd;
-    --color-gray-dark: #BDC3C7;
-    --color-white: white;
-    --color-black: #222;
-    --color-shadow: #888888;
-    --transition-speed: 0.3s;
-}
-
-
-/* Container Styling */
-
 .mission-config-container {
     font-family: Arial, sans-serif;
     margin: 0 auto;
     padding: 20px;
-    background-color: var(--color-gray-light);
+    background-color: #f4f4f4;
     border-radius: 10px;
-    max-width: 1200px;
-    /* Limit max width for better readability on large screens */
 }
-
-h2 {
-    text-align: center;
-    margin-bottom: 20px;
-    color: var(--color-black);
-}
-
-
-/* Button Styling */
-
-.btn {
-    margin: 0.5rem 0.5rem;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    color: var(--color-white);
-    cursor: pointer;
-    transition: background-color var(--transition-speed), transform 0.2s, box-shadow var(--transition-speed);
-    font-size: 1rem;
-    font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.btn:disabled,
-.btn[disabled] {
-    background-color: #95a5a6;
-    /* Gray color for disabled state */
-    cursor: not-allowed;
-    opacity: 0.7;
-    box-shadow: none;
-}
-
-.btn:focus {
-    outline: 2px dashed var(--color-blue-dark);
-    outline-offset: 2px;
-}
-
-
-/* Primary Buttons */
-
-.btn.add {
-    background-color: var(--color-blue);
-}
-
-.btn.add:hover {
-    background-color: var(--color-blue-dark);
-}
-
-.btn.save {
-    background-color: var(--color-green);
-}
-
-.btn.save:hover {
-    background-color: var(--color-green-dark);
-}
-
-.btn.export-config {
-    background-color: var(--color-blue);
-}
-
-.btn.export-config:hover {
-    background-color: var(--color-blue-dark);
-}
-
-.btn.revert {
-    background-color: var(--color-red);
-}
-
-.btn.revert:hover {
-    background-color: var(--color-red-dark);
-}
-
-
-/* Secondary Buttons */
-
-.btn.edit {
-    background-color: #f39c12;
-    /* Orange for edit */
-}
-
-.btn.edit:hover {
-    background-color: #e67e22;
-    /* Darker orange for edit hover */
-}
-
-.btn.remove {
-    background-color: var(--color-red);
-}
-
-.btn.remove:hover {
-    background-color: var(--color-red-dark);
-}
-
-.btn.import-btn {
-    background-color: var(--color-yellow);
-    color: var(--color-black);
-    /* Better contrast for yellow background */
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-}
-
-.btn.import-btn:hover {
-    background-color: var(--color-yellow-dark);
-    color: var(--color-white);
-}
-
-.btn.import-btn:active {
-    background-color: #b79400;
-    /* Even darker yellow for active state */
-}
-
-
-/* Additional Button Classes */
-
-.btn.cancel {
-    background-color: #95a5a6;
-    /* Gray for cancel */
-}
-
-.btn.cancel:hover {
-    background-color: #7f8c8d;
-    /* Darker gray for hover */
-}
-
-.btn.cancel:active {
-    background-color: #707b7c;
-    /* Even darker gray for active state */
-}
-
-
-/* File Upload Button Styling */
-
-.file-upload-btn {
-    display: inline-block;
-}
-
-
-/* Layout Styling */
 
 .top-buttons {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    flex-wrap: wrap;
-    /* Allow wrapping on smaller screens */
 }
 
-.primary-actions,
-.secondary-actions {
+button,
+.file-upload-btn {
+    margin: 0.5rem 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover,
+.file-upload-btn:hover {
+    background-color: #1A5276;
+}
+
+button:active {
+    background-color: #0E3748;
+}
+
+button.add,
+.file-upload-btn {
+    background-color: #3498db;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
 }
 
-.primary-actions {
-    gap: 1rem;
+button.add .icon {
+    margin-right: 5px;
+    color: white;
 }
 
-.secondary-actions {
-    gap: 0.5rem;
+.addCaption {
+    min-width: 95px;
 }
 
+button.save {
+    background-color: #28a745;
+    /* Green for save */
+}
 
-/* Drone Configuration Cards */
+button.revert,
+button.remove {
+    background-color: #E74C3C;
+}
+
+button.edit {
+    background-color: #f39c12;
+    /* orange color for edit */
+}
 
 .drone-config-card {
     padding: 15px;
     margin: 15px 0;
-    border: 1px solid var(--color-gray);
+    border: 1px solid #ddd;
     border-radius: 10px;
-    transition: transform 0.2s, box-shadow var(--transition-speed);
-    background-color: var(--color-white);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
 }
 
 .drone-config-card:hover {
     transform: scale(1.02);
-    box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.1);
 }
 
 h4 {
-    border-bottom: 2px solid var(--color-black);
+    border-bottom: 2px solid #222;
     display: inline-block;
     margin-bottom: 10px;
-    padding-bottom: 5px;
-    color: var(--color-black);
 }
 
 input[type="text"],
-input[type="number"],
 select {
     width: 100%;
     padding: 10px;
-    margin: 5px 0 15px 0;
-    border: 1px solid var(--color-gray);
+    margin: 5px 0;
+    border: 1px solid #ddd;
     border-radius: 5px;
     box-sizing: border-box;
-    font-size: 1rem;
 }
-
-input[type="text"]:focus,
-input[type="number"]:focus,
-select:focus {
-    border-color: var(--color-blue-dark);
-    outline: none;
-    box-shadow: 0 0 5px var(--color-blue-dark);
-}
-
-
-/* Content Flex Layout */
 
 .content-flex {
     display: flex;
@@ -261,9 +98,9 @@ select:focus {
     justify-content: space-between;
     gap: 1rem;
     margin-top: 1rem;
-    border: 1px solid var(--color-gray-dark);
-    box-shadow: 2px 2px 8px var(--color-shadow);
-    background-color: var(--color-gray-light);
+    border: 1px solid #D5D8DC;
+    box-shadow: 2px 2px 8px #888888;
+    background-color: #F2F3F4;
     padding: 1rem;
 }
 
@@ -271,9 +108,9 @@ select:focus {
 .initial-launch-plot {
     flex: 1;
     padding: 1rem;
-    border: 1px solid var(--color-gray-dark);
+    border: 1px solid #BDC3C7;
     border-radius: 8px;
-    background-color: var(--color-white);
+    background-color: white;
 }
 
 .drone-cards {
@@ -286,26 +123,115 @@ select:focus {
     /* Enables vertical scrolling */
 }
 
-
-/* Plotly Plot Styling */
-
 .js-plotly-plot {
     position: fixed;
 }
-
-
-/* Hidden File Input */
 
 #csvInput {
     display: none;
 }
 
 
+/* ... Your previous styles ... */
+
+.primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.secondary-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+button.saveDrone {
+    background-color: #3498db;
+}
+
+button.cancelSaveDrone {
+    background-color: #E74C3C;
+}
+
+
+/* Primary action button styles */
+
+button.add {
+    background-color: #3498db;
+    /* Blue for add */
+}
+
+button.add:hover {
+    background-color: #2980b9;
+    /* Darker Blue for add hover */
+}
+
+button.save {
+    background-color: #28a745;
+    /* Green for save */
+}
+
+button.save:hover {
+    background-color: #219737;
+    /* Darker Green for save hover */
+}
+
+
+/* Secondary action button styles */
+
+button.revert {
+    background-color: #E74C3C;
+    /* Red for revert */
+}
+
+button.revert:hover {
+    background-color: #c0392b;
+    /* Darker Red for revert hover */
+}
+
+.file-upload-btn {
+    background-color: #f1c40f;
+    /* Yellow for import */
+    transition: background-color 0.3s;
+}
+
+.file-upload-btn:hover {
+    background-color: #d4ad00;
+    /* Darker Yellow for import hover */
+}
+
+
+/* Button to export configuration will retain the default button color */
+
+
+/* ... Your previous styles ... */
+
+
 /* Making the save button a bit bigger */
 
-.btn.save {
+button.save {
     padding: 0.6rem 1.2rem;
     font-size: 1.1rem;
+}
+
+
+/* Styling for export-config button */
+
+button.export-config {
+    background-color: #3498db;
+    /* Default color */
+    transition: background-color 0.3s;
+}
+
+button.export-config:hover {
+    background-color: #1A5276;
+    /* Hover color */
+}
+
+button.export-config:active {
+    background-color: #0E3748;
+    /* Active state color */
 }
 
 
@@ -315,69 +241,10 @@ select:focus {
     margin-top: 10px;
     padding: 10px;
     border-radius: 5px;
-    background-color: #ecf0f1;
 }
 
 .drone-git-status .error-message {
     color: red;
     font-weight: bold;
     margin-top: 10px;
-}
-
-
-/* Action Buttons within DroneConfigCard */
-
-.action-buttons {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 10px;
-}
-
-.action-buttons .btn {
-    /* Inherit styles from .btn */
-}
-
-
-/* Responsive Design */
-
-@media (max-width: 768px) {
-    .drone-cards {
-        max-width: 100%;
-    }
-    .initial-launch-plot {
-        max-width: 100%;
-    }
-    .top-buttons {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .primary-actions,
-    .secondary-actions {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .btn {
-        width: 100%;
-        margin: 0.25rem 0;
-    }
-    .addCaption {
-        min-width: auto;
-        white-space: normal;
-    }
-    .btn.import-btn {
-        padding: 0.5rem 1rem;
-    }
-    .btn .icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 5px;
-    }
-    .action-buttons {
-        flex-direction: column;
-        width: 100%;
-    }
-    .action-buttons .btn {
-        width: 100%;
-    }
 }

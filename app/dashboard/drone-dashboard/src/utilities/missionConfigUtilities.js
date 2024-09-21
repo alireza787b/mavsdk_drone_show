@@ -1,18 +1,10 @@
-// app/dashboard/drone-dashboard/src/utilities/missionConfigUtilities.js
-
 import axios from 'axios';
 import { getBackendURL } from './utilities';
 
-/**
- * Handles saving changes to the server, including configData
- * @param {Array} configData - The current configuration data for drones
- */
-export const handleSaveChangesToServer = async (configData) => {
-    // Validate that there are no missing Drone IDs
-    const hwIds = configData.map(drone => parseInt(drone.hw_id));
-    const maxId = Math.max(...hwIds);
+export const handleSaveChangesToServer = async (configData, setConfigData) => {
+    const maxId = Math.max(...configData.map(drone => parseInt(drone.hw_id)));
     for (let i = 1; i <= maxId; i++) {
-        if (!hwIds.includes(i)) {
+        if (!configData.some(drone => parseInt(drone.hw_id) === i)) {
             alert(`Missing Drone ID: ${i}. Please create the missing drone before saving.`);
             return;
         }
@@ -20,8 +12,7 @@ export const handleSaveChangesToServer = async (configData) => {
 
     const backendURL = getBackendURL();
     try {
-        // Send configData to the backend
-        const response = await axios.post(`${backendURL}/save-config-data`, { configData });
+        const response = await axios.post(`${backendURL}/save-config-data`, configData);
         alert(response.data.message);
     } catch (error) {
         console.error("Error saving updated config data:", error);
@@ -33,38 +24,27 @@ export const handleSaveChangesToServer = async (configData) => {
     }
 };
 
-/**
- * Handles reverting changes by fetching original data from the server
- * @param {Function} setConfigData - Function to update configData state
- */
 export const handleRevertChanges = async (setConfigData) => {
     if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
         const backendURL = getBackendURL();
         try {
             const response = await axios.get(`${backendURL}/get-config-data`);
             setConfigData(response.data);
-            alert("Changes reverted successfully.");
         } catch (error) {
             console.error("Error fetching original config data:", error);
-            alert("Failed to revert changes.");
         }
     }
 };
 
-/**
- * Handles file input changes by parsing CSV and updating configData
- * @param {Object} event - The file input change event
- * @param {Function} setConfigData - Function to update configData state
- */
 export const handleFileChange = (event, setConfigData) => {
     const file = event.target.files[0];
     if (file) {
         const reader = new FileReader();
-        reader.onload = function (e) {
+        reader.onload = function(e) {
             const csvData = e.target.result;
-            const parsedData = parseCSV(csvData);
-            if (parsedData && validateDrones(parsedData)) {
-                setConfigData(parsedData);
+            const drones = parseCSV(csvData);
+            if (drones && validateDrones(drones)) {
+                setConfigData(drones);
             } else {
                 alert("Invalid CSV structure. Please make sure your CSV matches the required format.");
             }
@@ -73,15 +53,9 @@ export const handleFileChange = (event, setConfigData) => {
     }
 };
 
-/**
- * Parses CSV data into an array of drone objects
- * @param {string} data - The CSV data as a string
- * @returns {Array|null} - Array of drone objects or null if invalid
- */
 export const parseCSV = (data) => {
-    const rows = data.trim().split('\n').filter(row => row.trim() !== ''); // Remove empty rows
+    const rows = data.trim().split('\n').filter(row => row.trim() !== ''); // Trim to remove possible whitespace and filter out empty rows
     const drones = [];
-    // Check for correct header
     if (rows[0].trim() !== "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip") {
         console.log("CSV Header Mismatch!");
         return null; // Invalid CSV structure
@@ -108,11 +82,6 @@ export const parseCSV = (data) => {
     return drones;
 };
 
-/**
- * Validates the parsed drone data
- * @param {Array} drones - Array of drone objects
- * @returns {boolean} - True if valid, false otherwise
- */
 export const validateDrones = (drones) => {
     for (const drone of drones) {
         for (const key in drone) {
@@ -126,22 +95,11 @@ export const validateDrones = (drones) => {
     return true;
 };
 
-/**
- * Exports the current configuration data to a CSV file
- * @param {Array} configData - The current configuration data for drones
- */
 export const exportConfig = (configData) => {
-    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip"];
-    const csvRows = configData.map(drone => [
-        drone.hw_id,
-        drone.pos_id,
-        drone.x,
-        drone.y,
-        drone.ip,
-        drone.mavlink_port,
-        drone.debug_port,
-        drone.gcs_ip
-    ].join(","));
+    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port,debug_port,gcs_ip"];
+    const csvRows = configData.map(drone => 
+        [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(",")
+    );
     const csvData = [header.join(",")].concat(csvRows).join("\n");
 
     const blob = new Blob([csvData], { type: "text/csv" });
