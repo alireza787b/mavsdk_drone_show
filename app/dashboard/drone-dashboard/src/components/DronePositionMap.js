@@ -19,25 +19,6 @@ L.Icon.Default.mergeOptions({
 
 const DronePositionMap = ({ originLat, originLon, drones }) => {
   const [dronePositions, setDronePositions] = useState([]);
-  const [selectedLayer, setSelectedLayer] = useState('OpenStreetMap');
-
-  const layerUrls = {
-    OpenStreetMap: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    Satellite: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-    Terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    // Add more layers as needed
-  };
-
-  const layerAttributions = {
-    OpenStreetMap: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    Satellite: 'Map data &copy; <a href="https://www.google.com/intl/en-US_US/help/terms_maps.html">Google</a>',
-    Terrain: '&copy; <a href="https://opentopomap.org/">OpenTopoMap</a> contributors',
-    // Add more attributions as needed
-  };
-
-  const handleLayerChange = (layer) => {
-    setSelectedLayer(layer);
-  };
 
   useEffect(() => {
     if (originLat && originLon && drones.length > 0) {
@@ -84,12 +65,18 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={30} style={{ height: '400px' }}>
+      <MapContainer center={[avgLat, avgLon]} zoom={20} maxZoom={30} style={{ height: '400px' }}>
         <TileLayer
-          url={layerUrls[selectedLayer]}
-          subdomains={selectedLayer === 'Satellite' ? ['mt0', 'mt1', 'mt2', 'mt3'] : undefined}
-          attribution={layerAttributions[selectedLayer]}
+          url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+          subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+          attribution="Map data &copy; Google"
         />
+
+        {/* <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="Map data &copy; OpenStreetMap contributors"
+        // You can replace the URL with a satellite imagery provider
+        /> */}
 
         {dronePositions.map((drone) => (
           <Marker key={drone.hw_id} position={[drone.lat, drone.lon]}>
