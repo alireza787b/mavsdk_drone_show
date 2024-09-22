@@ -1,3 +1,5 @@
+/* app/dashboard/drone-dashboard/src/styles/ControlButtons.css */
+
 .control-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -35,5 +37,29 @@
   
   .file-upload-btn:hover {
     background-color: #d97706;
+  }
+  
+  .export-config {
+    background-color: #10b981;
+  }
+  
+  .export-config:hover {
+    background-color: #059669;
+  }
+  
+  .revert {
+    background-color: #ef4444;
+  }
+  
+  .revert:hover {
+    background-color: #dc2626;
+  }
+  
+  .add {
+    background-color: #22c55e;
+  }
+  
+  .add:hover {
+    background-color: #16a34a;
   }
   

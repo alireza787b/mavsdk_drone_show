@@ -107,4 +107,19 @@
   .drone-config-card p strong {
     color: #1f2937;
   }
+  .drone-config-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s;
+  }
   
+  .drone-config-card:nth-child(odd) {
+    background-color: #f9fafb;
+  }
+  
+  .drone-config-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }

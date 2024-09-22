@@ -6,7 +6,17 @@ import '../styles/ControlButtons.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faPlus, faUpload, faFileCsv, faUndo } from '@fortawesome/free-solid-svg-icons';
 
-const ControlButtons = ({ addNewDrone, handleSaveChangesToServer, handleRevertChanges, handleFileChange, exportConfig }) => {
+const ControlButtons = ({
+  addNewDrone,
+  handleSaveChangesToServer,
+  handleRevertChanges,
+  handleFileChange,
+  exportConfig,
+}) => {
+  const triggerFileInput = () => {
+    document.getElementById('csvInput').click();
+  };
+
   return (
     <div className="control-buttons">
       <div className="primary-actions">
@@ -18,10 +28,16 @@ const ControlButtons = ({ addNewDrone, handleSaveChangesToServer, handleRevertCh
         </button>
       </div>
       <div className="secondary-actions">
-        <label htmlFor="csvInput" className="file-upload-btn" title="Import drone configuration from CSV">
+        <button className="file-upload-btn" onClick={triggerFileInput} title="Import drone configuration from CSV">
           <FontAwesomeIcon icon={faUpload} /> Import CSV
-        </label>
-        <input type="file" id="csvInput" onChange={handleFileChange} />
+        </button>
+        <input
+          type="file"
+          id="csvInput"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+          accept=".csv"
+        />
         <button className="export-config" onClick={exportConfig} title="Export current drone configurations to a CSV file">
           <FontAwesomeIcon icon={faFileCsv} /> Export Config
         </button>

@@ -12,7 +12,7 @@
   }
   
   .mission-config-container {
-    max-width: 1200px;
+    /* max-width: 1200px; */
     margin: 0 auto;
     padding: 20px;
   }
@@ -56,4 +56,7 @@
       max-width: 100%;
     }
   }
-  
+  .drone-cards {
+    max-height: 70vh; /* Adjust as needed */
+    overflow-y: auto;
+  }
