@@ -5,12 +5,47 @@ import { generateKML } from '../utilities/missionConfigUtilities';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDownload, faPrint } from '@fortawesome/free-solid-svg-icons';
 import OriginModal from './OriginModal';
-import '../styles/BriefingExport.css';
+import '../styles/MissionConfig.css'; // Ensure all styles are in MissionConfig.css
 
 const BriefingExport = ({ configData, originLat, originLon, setOriginLat, setOriginLon }) => {
   const [showOriginModal, setShowOriginModal] = useState(false);
 
-  // ... (existing code remains the same)
+  // Handle printing the mission briefing
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Export the drone positions to a KML file for Google Earth
+  const exportToKML = () => {
+    if (!originLat || !originLon) {
+      setShowOriginModal(true);
+      return;
+    }
+
+    if (isNaN(originLat) || isNaN(originLon)) {
+      alert('Origin latitude and longitude must be valid numbers.');
+      return;
+    }
+
+    const kmlContent = generateKML(configData, originLat, originLon);
+    const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'drone_positions.kml';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleOriginSubmit = (lat, lon) => {
+    setOriginLat(lat);
+    setOriginLon(lon);
+    setShowOriginModal(false);
+    // Proceed to generate KML now that we have originLat and originLon
+    exportToKML();
+  };
 
   return (
     <div className="briefing-export-container">
