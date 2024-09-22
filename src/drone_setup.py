@@ -178,7 +178,9 @@ class DroneSetup:
             self.check_running_processes()  # Check the status of running processes before scheduling a new mission
 
             # Determine which mission handler to invoke based on the mission code
-            if self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
+            if self.drone_config.mission == Mission.NONE.value:
+                pass
+            elif self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
                 success, message = await self._handle_drone_show(current_time)
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
                 success, message = await self._handle_smart_swarm(current_time)
