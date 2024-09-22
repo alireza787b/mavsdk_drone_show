@@ -6,6 +6,7 @@ import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
+import BriefingExport from '../components/BriefingExport';
 import { getBackendURL } from '../utilities/utilities';
 import {
   handleSaveChangesToServer,
@@ -13,7 +14,6 @@ import {
   handleFileChange,
   exportConfig,
 } from '../utilities/missionConfigUtilities';
-import BriefingExport from '../components/BriefingExport';
 
 const MissionConfig = () => {
   // State variables

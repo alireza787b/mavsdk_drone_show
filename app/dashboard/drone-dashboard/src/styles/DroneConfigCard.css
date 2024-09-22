@@ -1,0 +1,110 @@
+/* app/dashboard/drone-dashboard/src/styles/DroneConfigCard.css */
+
+/* Drone Config Card Styles */
+
+.drone-config-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s;
+  }
+  
+  .drone-config-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .drone-config-card h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #1f2937;
+  }
+  
+  .drone-config-card label {
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #374151;
+  }
+  
+  .drone-config-card input,
+  .drone-config-card select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+  }
+  
+  .drone-config-card input:focus,
+  .drone-config-card select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px #2563eb;
+  }
+  
+  .error-message {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  
+  .card-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  
+  .card-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+  }
+  
+  .save-drone {
+    background-color: #10b981;
+  }
+  
+  .save-drone:hover {
+    background-color: #059669;
+  }
+  
+  .cancel-edit {
+    background-color: #6b7280;
+  }
+  
+  .cancel-edit:hover {
+    background-color: #4b5563;
+  }
+  
+  .edit-drone {
+    background-color: #3b82f6;
+  }
+  
+  .edit-drone:hover {
+    background-color: #2563eb;
+  }
+  
+  .remove-drone {
+    background-color: #ef4444;
+  }
+  
+  .remove-drone:hover {
+    background-color: #dc2626;
+  }
+  
+  .drone-config-card p {
+    margin: 0.5rem 0;
+    color: #374151;
+  }
+  
+  .drone-config-card p strong {
+    color: #1f2937;
+  }
+  
