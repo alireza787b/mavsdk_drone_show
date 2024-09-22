@@ -31,7 +31,7 @@ const MapSelector = ({ onSelect }) => {
 
   return (
     <div className="map-container">
-      <MapContainer center={[35.6892, 51.3890]} zoom={5} style={{ height: '400px' }}>
+      <MapContainer center={[35.6892, 51.3890]} zoom={6} maxZoom={30} style={{ height: '400px' }}>
         <TileLayer
           url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
           subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
