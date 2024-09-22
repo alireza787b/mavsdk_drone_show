@@ -9,6 +9,8 @@ import ControlButtons from '../components/ControlButtons';
 import BriefingExport from '../components/BriefingExport';
 import OriginModal from '../components/OriginModal'; // Import the OriginModal
 import { getBackendURL } from '../utilities/utilities';
+import DronePositionMap from '../components/DronePositionMap'; // Import the DronePositionMap
+
 import {
   handleSaveChangesToServer,
   handleRevertChanges,
@@ -200,6 +202,7 @@ const MissionConfig = () => {
         </div>
         <div className="initial-launch-plot">
           <InitialLaunchPlot drones={configData} onDroneClick={setEditingDroneId} />
+          <DronePositionMap originLat={originLat} originLon={originLon} drones={configData} />
         </div>
       </div>
     </div>

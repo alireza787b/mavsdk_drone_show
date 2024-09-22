@@ -1,0 +1,14 @@
+/* app/dashboard/drone-dashboard/src/styles/DronePositionMap.css */
+
+.drone-position-map {
+    margin-top: 20px;
+}
+
+.drone-position-map h3 {
+    margin-bottom: 10px;
+}
+
+.leaflet-container {
+    width: 100%;
+    height: 400px;
+}

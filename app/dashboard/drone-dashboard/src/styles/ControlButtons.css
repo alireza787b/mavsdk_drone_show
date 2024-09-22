@@ -5,17 +5,18 @@
     flex-wrap: wrap;
     justify-content: space-between;
     margin-bottom: 1rem;
-  }
-  
-  .primary-actions,
-  .secondary-actions {
+}
+
+.primary-actions,
+.secondary-actions {
     display: flex;
     align-items: center;
     gap: 1rem;
-  }
-  
-  button {
-    display: flex;
+}
+
+button {
+    display: inline-flex;
+    margin: 0 5px;
     align-items: center;
     gap: 0.5rem;
     padding: 0.6rem 1.2rem;
@@ -25,41 +26,40 @@
     color: #fff;
     cursor: pointer;
     transition: background-color 0.3s;
-  }
-  
-  button:hover {
+}
+
+button:hover {
     background-color: #1d4ed8;
-  }
-  
-  .file-upload-btn {
+}
+
+.file-upload-btn {
     background-color: #f59e0b;
-  }
-  
-  .file-upload-btn:hover {
+}
+
+.file-upload-btn:hover {
     background-color: #d97706;
-  }
-  
-  .export-config {
+}
+
+.export-config {
     background-color: #10b981;
-  }
-  
-  .export-config:hover {
+}
+
+.export-config:hover {
     background-color: #059669;
-  }
-  
-  .revert {
+}
+
+.revert {
     background-color: #ef4444;
-  }
-  
-  .revert:hover {
+}
+
+.revert:hover {
     background-color: #dc2626;
-  }
-  
-  .add {
+}
+
+.add {
     background-color: #22c55e;
-  }
-  
-  .add:hover {
+}
+
+.add:hover {
     background-color: #16a34a;
-  }
-  
+}
