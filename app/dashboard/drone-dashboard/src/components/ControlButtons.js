@@ -4,7 +4,14 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ControlButtons.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faPlus, faUpload, faFileCsv, faUndo } from '@fortawesome/free-solid-svg-icons';
+import {
+  faSave,
+  faPlus,
+  faUpload,
+  faFileCsv,
+  faUndo,
+  faMapMarkerAlt, // Import the map marker icon
+} from '@fortawesome/free-solid-svg-icons';
 
 const ControlButtons = ({
   addNewDrone,
@@ -12,6 +19,7 @@ const ControlButtons = ({
   handleRevertChanges,
   handleFileChange,
   exportConfig,
+  openOriginModal, // New prop for opening the Origin Modal
 }) => {
   const triggerFileInput = () => {
     document.getElementById('csvInput').click();
@@ -26,6 +34,10 @@ const ControlButtons = ({
         <button className="add" onClick={addNewDrone} title="Add a new drone">
           <FontAwesomeIcon icon={faPlus} /> Add New Drone
         </button>
+        {/* New Set Origin Reference Button */}
+        <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
+          <FontAwesomeIcon icon={faMapMarkerAlt} /> Set Origin Reference
+        </button>
       </div>
       <div className="secondary-actions">
         <button className="file-upload-btn" onClick={triggerFileInput} title="Import drone configuration from CSV">
@@ -38,7 +50,11 @@ const ControlButtons = ({
           style={{ display: 'none' }}
           accept=".csv"
         />
-        <button className="export-config" onClick={exportConfig} title="Export current drone configurations to a CSV file">
+        <button
+          className="export-config"
+          onClick={exportConfig}
+          title="Export current drone configurations to a CSV file"
+        >
           <FontAwesomeIcon icon={faFileCsv} /> Export Config
         </button>
         <button className="revert" onClick={handleRevertChanges} title="Revert all unsaved changes">
@@ -55,6 +71,7 @@ ControlButtons.propTypes = {
   handleRevertChanges: PropTypes.func.isRequired,
   handleFileChange: PropTypes.func.isRequired,
   exportConfig: PropTypes.func.isRequired,
+  openOriginModal: PropTypes.func.isRequired, // Add prop validation
 };
 
 export default ControlButtons;
