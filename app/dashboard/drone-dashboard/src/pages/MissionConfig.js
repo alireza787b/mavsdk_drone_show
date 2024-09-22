@@ -80,17 +80,18 @@ const MissionConfig = () => {
       />
       <div className="content-flex">
         <div className="drone-cards">
-          {sortedConfigData.map(drone => (
-            <DroneConfigCard
-              key={drone.hw_id}
-              drone={drone}
-              availableHwIds={availableHwIds}
-              editingDroneId={editingDroneId}
-              setEditingDroneId={setEditingDroneId}
-              saveChanges={saveChanges}
-              removeDrone={removeDrone}
-            />
-          ))}
+        {sortedConfigData.map(drone => (
+  <DroneConfigCard
+    key={drone.hw_id}
+    drone={drone}
+    configData={configData}
+    availableHwIds={availableHwIds}
+    editingDroneId={editingDroneId}
+    setEditingDroneId={setEditingDroneId}
+    saveChanges={saveChanges}
+    removeDrone={removeDrone}
+  />
+))}
         </div>
         <div className="initial-launch-plot">
           <InitialLaunchPlot drones={configData} onDroneClick={setEditingDroneId} />
