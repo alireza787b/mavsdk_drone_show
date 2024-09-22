@@ -1,17 +1,29 @@
 // app/dashboard/drone-dashboard/src/components/OriginModal.js
 
 import React, { useState } from 'react';
+import '../styles/OriginModal.css';
 
 const OriginModal = ({ isOpen, onClose, onSubmit }) => {
   const [localOriginLat, setLocalOriginLat] = useState('');
   const [localOriginLon, setLocalOriginLon] = useState('');
+  const [errors, setErrors] = useState({});
+
+  const validateInput = () => {
+    const errors = {};
+    if (isNaN(localOriginLat) || localOriginLat === '') {
+      errors.lat = 'Please enter a valid latitude.';
+    }
+    if (isNaN(localOriginLon) || localOriginLon === '') {
+      errors.lon = 'Please enter a valid longitude.';
+    }
+    setErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = () => {
-    if (isNaN(localOriginLat) || isNaN(localOriginLon)) {
-      alert('Origin latitude and longitude must be valid numbers.');
-      return;
+    if (validateInput()) {
+      onSubmit(localOriginLat, localOriginLon);
     }
-    onSubmit(localOriginLat, localOriginLon);
   };
 
   if (!isOpen) return null;
@@ -28,6 +40,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit }) => {
             onChange={(e) => setLocalOriginLat(e.target.value)}
             placeholder="Enter Origin Latitude"
           />
+          {errors.lat && <span className="error-message">{errors.lat}</span>}
         </label>
         <label>
           Origin Longitude:
@@ -37,10 +50,11 @@ const OriginModal = ({ isOpen, onClose, onSubmit }) => {
             onChange={(e) => setLocalOriginLon(e.target.value)}
             placeholder="Enter Origin Longitude"
           />
+          {errors.lon && <span className="error-message">{errors.lon}</span>}
         </label>
         <div className="modal-buttons">
-          <button onClick={handleSubmit}>OK</button>
-          <button onClick={onClose}>Cancel</button>
+          <button onClick={handleSubmit} className="ok-button">OK</button>
+          <button onClick={onClose} className="cancel-button">Cancel</button>
         </div>
       </div>
     </div>
