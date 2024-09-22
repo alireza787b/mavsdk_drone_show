@@ -388,29 +388,3 @@ button.save {
         max-width: 100%;
     }
 }
-
-.mission-config-container {
-    padding: 20px;
-}
-
-.content-flex {
-    display: flex;
-    flex-direction: row;
-    gap: 20px;
-    margin-top: 20px;
-}
-
-.drone-cards {
-    flex: 1;
-    max-width: 300px;
-    overflow-y: auto;
-    height: 800px;
-    /* Adjust as needed */
-}
-
-.initial-launch-plot {
-    flex: 3;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
