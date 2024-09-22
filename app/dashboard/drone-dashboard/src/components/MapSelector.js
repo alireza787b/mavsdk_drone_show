@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import '../styles/MapSelector.css';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import MapLayerSwitcher from './MapLayerSwitcher'; // Import the MapLayerSwitcher
 
 // Fix the default icon issue in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -51,7 +50,6 @@ const MapSelector = ({ onSelect }) => {
 
   return (
     <div className="map-container">
-      <MapLayerSwitcher selectedLayer={selectedLayer} onLayerChange={handleLayerChange} />
       <MapContainer center={[35.6892, 51.3890]} zoom={6} maxZoom={30} style={{ height: '400px' }}>
         <TileLayer
           url={layerUrls[selectedLayer]}

@@ -5,7 +5,6 @@ import '../styles/DronePositionMap.css';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
-import MapLayerSwitcher from './MapLayerSwitcher'; // Import the MapLayerSwitcher
 
 // Fix the default icon issue in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -85,7 +84,6 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
-      <MapLayerSwitcher selectedLayer={selectedLayer} onLayerChange={handleLayerChange} />
       <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={30} style={{ height: '400px' }}>
         <TileLayer
           url={layerUrls[selectedLayer]}
