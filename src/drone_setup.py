@@ -179,6 +179,7 @@ class DroneSetup:
 
             # Determine which mission handler to invoke based on the mission code
             if self.drone_config.mission == Mission.NONE.value:
+                logging.debug("No Mission is Planned yet!")
                 pass
             elif self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
                 success, message = await self._handle_drone_show(current_time)
