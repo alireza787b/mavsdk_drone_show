@@ -65,7 +65,7 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} style={{ height: '400px' }}>
+      <MapContainer center={[avgLat, avgLon]} zoom={20} style={{ height: '400px' }}>
         <TileLayer
           url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
           subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
