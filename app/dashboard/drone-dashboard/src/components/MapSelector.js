@@ -51,16 +51,8 @@ const MapSelector = ({ onSelect }) => {
 
   return (
     <div className="map-container">
-<<<<<<< HEAD
-<<<<<<< HEAD
       <MapLayerSwitcher selectedLayer={selectedLayer} onLayerChange={handleLayerChange} />
       <MapContainer center={[35.6892, 51.3890]} zoom={6} maxZoom={30} style={{ height: '400px' }}>
-=======
-      <MapContainer center={[35.6892, 51.3890]} zoom={5} style={{ height: '400px' }}>
->>>>>>> parent of 5e7c960... max zoom
-=======
-      <MapContainer center={[35.6892, 51.3890]} zoom={5} style={{ height: '400px' }}>
->>>>>>> parent of 5e7c960... max zoom
         <TileLayer
           url={layerUrls[selectedLayer]}
           subdomains={selectedLayer === 'Satellite' ? ['mt0', 'mt1', 'mt2', 'mt3'] : undefined}
