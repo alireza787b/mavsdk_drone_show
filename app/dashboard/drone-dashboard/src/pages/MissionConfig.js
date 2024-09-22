@@ -12,8 +12,8 @@ import {
   handleRevertChanges,
   handleFileChange,
   exportConfig,
-  generateKML,
 } from '../utilities/missionConfigUtilities';
+import BriefingExport from '../components/BriefingExport';
 
 const MissionConfig = () => {
   // State variables
@@ -95,66 +95,12 @@ const MissionConfig = () => {
     }
   };
 
-  // Handle printing the mission briefing
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // Export the drone positions to a KML file for Google Earth
-  const exportToKML = () => {
-    if (!originLat || !originLon) {
-      alert('Please enter the origin latitude and longitude before exporting to KML.');
-      return;
-    }
-
-    if (isNaN(originLat) || isNaN(originLon)) {
-      alert('Origin latitude and longitude must be valid numbers.');
-      return;
-    }
-
-    const kmlData = generateKML(configData, originLat, originLon);
-    const blob = new Blob([kmlData], { type: 'application/vnd.google-earth.kml+xml' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'drone_positions.kml';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // Sort the configuration data by hardware ID for consistent display
   const sortedConfigData = [...configData].sort((a, b) => parseInt(a.hw_id) - parseInt(b.hw_id));
 
   return (
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
-
-      {/* Reference Point Inputs for KML Export */}
-      <div className="reference-point-inputs">
-        <label>
-          Origin Latitude:
-          <input
-            type="text"
-            value={originLat}
-            onChange={(e) => setOriginLat(e.target.value)}
-            placeholder="Enter Origin Latitude"
-          />
-        </label>
-        <label>
-          Origin Longitude:
-          <input
-            type="text"
-            value={originLon}
-            onChange={(e) => setOriginLon(e.target.value)}
-            placeholder="Enter Origin Longitude"
-          />
-        </label>
-      </div>
-      <p className="origin-info">
-        The origin point is the reference location (latitude and longitude) from which the relative drone positions are calculated. Please enter accurate coordinates to ensure correct placement in Google Earth.
-      </p>
 
       {/* Control Buttons for Adding, Saving, Importing, and Exporting Configuration */}
       <ControlButtons
@@ -165,15 +111,14 @@ const MissionConfig = () => {
         exportConfig={() => exportConfig(configData)}
       />
 
-      {/* Buttons for Exporting to KML and Printing Mission Briefing */}
-      <div className="additional-actions">
-        <button className="export-kml no-print" onClick={exportToKML}>
-          Export to Google Earth (KML)
-        </button>
-        <button className="print-mission no-print" onClick={handlePrint}>
-          Print Mission Briefing
-        </button>
-      </div>
+      {/* Briefing Export Component for Exporting to KML and Printing Mission Briefing */}
+      <BriefingExport
+        configData={configData}
+        originLat={originLat}
+        originLon={originLon}
+        setOriginLat={setOriginLat}
+        setOriginLon={setOriginLon}
+      />
 
       {/* Main Content: Drone Configuration Cards and Initial Launch Plot */}
       <div className="content-flex">

@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/utilities/missionConfigUtilities.js
 import axios from 'axios';
 import { getBackendURL } from './utilities';
 import { convertToLatLon } from './geoutilities'; // Importing the convertToLatLon function
@@ -117,28 +118,28 @@ export const generateKML = (drones, originLat, originLon) => {
     let kml = `<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>`;
-
+  
     drones.forEach((drone) => {
-        const { latitude, longitude } = convertToLatLon(
-            originLat,
-            originLon,
-            parseFloat(drone.x),
-            parseFloat(drone.y)
-        );
-
-        kml += `
-      <Placemark>
-        <name>Drone ${drone.hw_id}</name>
-        <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
-        <Point>
-          <coordinates>${longitude},${latitude},0</coordinates>
-        </Point>
-      </Placemark>`;
+      const { latitude, longitude } = convertToLatLon(
+        originLat,
+        originLon,
+        parseFloat(drone.x),
+        parseFloat(drone.y)
+      );
+  
+      kml += `
+        <Placemark>
+          <name>Drone ${drone.hw_id}</name>
+          <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
+          <Point>
+            <coordinates>${longitude},${latitude},0</coordinates>
+          </Point>
+        </Placemark>`;
     });
-
+  
     kml += `
     </Document>
     </kml>`;
-
+  
     return kml;
-};
+  };

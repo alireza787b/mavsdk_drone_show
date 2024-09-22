@@ -388,3 +388,159 @@ button.save {
         max-width: 100%;
     }
 }
+
+/* Button Styles */
+
+.additional-actions {
+    margin-bottom: 1rem;
+  }
+  
+  .additional-actions button {
+    margin-right: 1rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+  }
+  
+  .export-kml {
+    background-color: #8e44ad;
+  }
+  
+  .export-kml:hover {
+    background-color: #732d91;
+  }
+  
+  .print-mission {
+    background-color: #2c3e50;
+  }
+  
+  .print-mission:hover {
+    background-color: #1a252f;
+  }
+  
+  /* Modal Styles */
+  
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  
+  .modal {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 100%;
+  }
+  
+  .modal h3 {
+    margin-top: 0;
+  }
+  
+  .modal label {
+    display: block;
+    margin-bottom: 1rem;
+  }
+  
+  .modal input {
+    width: 100%;
+    padding: 8px;
+    margin-top: 0.5rem;
+  }
+  
+  .modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .modal-buttons button {
+    margin-left: 1rem;
+  }
+  
+  /* Button Styles */
+
+.additional-actions {
+  margin-bottom: 1rem;
+}
+
+.additional-actions button {
+  margin-right: 1rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+}
+
+.export-kml {
+  background-color: #8e44ad;
+}
+
+.export-kml:hover {
+  background-color: #732d91;
+}
+
+.print-mission {
+  background-color: #2c3e50;
+}
+
+.print-mission:hover {
+  background-color: #1a252f;
+}
+
+/* Modal Styles */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 100%;
+}
+
+.modal h3 {
+  margin-top: 0;
+}
+
+.modal label {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.modal input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 0.5rem;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modal-buttons button {
+  margin-left: 1rem;
+}
