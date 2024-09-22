@@ -1,76 +1,82 @@
-import React, { useState, useEffect } from 'react';
+// MissionConfig.js
+
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import PropTypes from 'prop-types';
 import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import { getBackendURL } from '../utilities/utilities';
-import { handleSaveChangesToServer, handleRevertChanges, handleFileChange, exportConfig } from '../utilities/missionConfigUtilities';
-
+import {
+  handleSaveChangesToServer,
+  handleRevertChanges,
+  handleFileChange,
+  exportConfig,
+  generateKML,
+} from '../utilities/missionConfigUtilities';
 
 const MissionConfig = () => {
   const [configData, setConfigData] = useState([]);
   const [editingDroneId, setEditingDroneId] = useState(null);
+  const [originLat, setOriginLat] = useState('');
+  const [originLon, setOriginLon] = useState('');
 
-  const allHwIds = new Set(configData.map(drone => parseInt(drone.hw_id)));
-  const maxHwId = Math.max(0, ...allHwIds) + 1;
-  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => i + 1).filter(id => !allHwIds.has(id));
+  // ... existing useEffect and functions
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
-      try {
-        const response = await axios.get(`${backendURL}/get-config-data`);
-        setConfigData(response.data);
-      } catch (error) {
-        console.error("Error fetching config data:", error);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const saveChanges = (hw_id, updatedData) => {
-    const { hw_id: newHwId } = updatedData;
-    if (configData.some(d => d.hw_id === newHwId && d.hw_id !== hw_id)) {
-      alert("The selected hardware ID is already in use. Please choose another one.");
+  const exportToKML = () => {
+    if (!originLat || !originLon) {
+      alert('Please enter the origin latitude and longitude before exporting to KML.');
       return;
     }
-    setConfigData(prevConfig => prevConfig.map(drone => drone.hw_id === hw_id ? updatedData : drone));
-    setEditingDroneId(null);
-  };
 
-  const addNewDrone = () => {
-    const newHwId = availableHwIds[0].toString();
-    const allSameGcsIp = configData.every(drone => drone.gcs_ip === configData[0].gcs_ip);
-    const commonSubnet = configData.length > 0 ? configData[0].ip.split('.').slice(0, -1).join('.') + '.' : "";
-
-    const newDrone = {
-      hw_id: newHwId,
-      ip: commonSubnet,
-      mavlink_port: (14550 + parseInt(newHwId)).toString(),
-      debug_port: (13540 + parseInt(newHwId)).toString(),
-      gcs_ip: allSameGcsIp ? configData[0].gcs_ip : "",
-      x: "0",
-      y: "0",
-      pos_id: newHwId
-    };
-
-    setConfigData(prevConfig => [...prevConfig, newDrone]);
-  };
-
-  const removeDrone = (hw_id) => {
-    if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
-      setConfigData(prevConfig => prevConfig.filter(drone => drone.hw_id !== hw_id));
+    if (isNaN(originLat) || isNaN(originLon)) {
+      alert('Origin latitude and longitude must be valid numbers.');
+      return;
     }
+
+    const kmlData = generateKML(configData, originLat, originLon);
+    const blob = new Blob([kmlData], { type: 'application/vnd.google-earth.kml+xml' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'drone_positions.kml';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const sortedConfigData = [...configData].sort((a, b) => a.hw_id - b.hw_id);
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
+      {/* Reference Point Inputs */}
+      <div className="reference-point-inputs">
+        <label>
+          Origin Latitude:
+          <input
+            type="text"
+            value={originLat}
+            onChange={(e) => setOriginLat(e.target.value)}
+            placeholder="Enter Origin Latitude"
+          />
+        </label>
+        <label>
+          Origin Longitude:
+          <input
+            type="text"
+            value={originLon}
+            onChange={(e) => setOriginLon(e.target.value)}
+            placeholder="Enter Origin Longitude"
+          />
+        </label>
+      </div>
+      <p className="origin-info">
+        The origin point is the reference location (latitude and longitude) from which the relative drone positions are calculated. Please enter accurate coordinates to ensure correct placement in Google Earth.
+      </p>
       <ControlButtons
         addNewDrone={addNewDrone}
         handleSaveChangesToServer={() => handleSaveChangesToServer(configData, setConfigData)}
@@ -78,20 +84,26 @@ const MissionConfig = () => {
         handleFileChange={(event) => handleFileChange(event, setConfigData)}
         exportConfig={() => exportConfig(configData)}
       />
+      <button className="export-kml no-print" onClick={exportToKML}>
+        Export to Google Earth (KML)
+      </button>
+      <button className="print-mission no-print" onClick={handlePrint}>
+        Print Mission Briefing
+      </button>
       <div className="content-flex">
         <div className="drone-cards">
-        {sortedConfigData.map(drone => (
-  <DroneConfigCard
-    key={drone.hw_id}
-    drone={drone}
-    configData={configData}
-    availableHwIds={availableHwIds}
-    editingDroneId={editingDroneId}
-    setEditingDroneId={setEditingDroneId}
-    saveChanges={saveChanges}
-    removeDrone={removeDrone}
-  />
-))}
+          {sortedConfigData.map((drone) => (
+            <DroneConfigCard
+              key={drone.hw_id}
+              drone={drone}
+              configData={configData}
+              availableHwIds={availableHwIds}
+              editingDroneId={editingDroneId}
+              setEditingDroneId={setEditingDroneId}
+              saveChanges={saveChanges}
+              removeDrone={removeDrone}
+            />
+          ))}
         </div>
         <div className="initial-launch-plot">
           <InitialLaunchPlot drones={configData} onDroneClick={setEditingDroneId} />
@@ -99,10 +111,6 @@ const MissionConfig = () => {
       </div>
     </div>
   );
-};
-
-MissionConfig.propTypes = {
-  // No props are currently being used, but this is a placeholder for future use
 };
 
 export default MissionConfig;

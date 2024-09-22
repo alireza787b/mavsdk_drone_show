@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getBackendURL } from './utilities';
 
-export const handleSaveChangesToServer = async (configData, setConfigData) => {
+export const handleSaveChangesToServer = async(configData, setConfigData) => {
     const maxId = Math.max(...configData.map(drone => parseInt(drone.hw_id)));
     for (let i = 1; i <= maxId; i++) {
         if (!configData.some(drone => parseInt(drone.hw_id) === i)) {
@@ -24,7 +24,7 @@ export const handleSaveChangesToServer = async (configData, setConfigData) => {
     }
 };
 
-export const handleRevertChanges = async (setConfigData) => {
+export const handleRevertChanges = async(setConfigData) => {
     if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
         const backendURL = getBackendURL();
         try {
@@ -97,9 +97,7 @@ export const validateDrones = (drones) => {
 
 export const exportConfig = (configData) => {
     const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port,debug_port,gcs_ip"];
-    const csvRows = configData.map(drone => 
-        [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(",")
-    );
+    const csvRows = configData.map(drone => [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(","));
     const csvData = [header.join(",")].concat(csvRows).join("\n");
 
     const blob = new Blob([csvData], { type: "text/csv" });
@@ -112,4 +110,34 @@ export const exportConfig = (configData) => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+};
+
+export const generateKML = (drones, originLat, originLon) => {
+    let kml = `<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>`;
+
+    drones.forEach((drone) => {
+        const { latitude, longitude } = convertToLatLon(
+            originLat,
+            originLon,
+            parseFloat(drone.x),
+            parseFloat(drone.y)
+        );
+
+        kml += `
+      <Placemark>
+        <name>Drone ${drone.hw_id}</name>
+        <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
+        <Point>
+          <coordinates>${longitude},${latitude},0</coordinates>
+        </Point>
+      </Placemark>`;
+    });
+
+    kml += `
+    </Document>
+    </kml>`;
+
+    return kml;
 };

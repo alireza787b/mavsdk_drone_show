@@ -3,28 +3,15 @@ import React from 'react';
 import Plot from 'react-plotly.js';
 
 function InitialLaunchPlot({ drones, onDroneClick }) {
-    // Create a mapping from pos_id to position (x, y)
-    const posIdToPosition = {};
-    drones.forEach(drone => {
-        const posId = drone.pos_id;
-        // Use the position associated with the pos_id
-        if (!posIdToPosition[posId]) {
-            posIdToPosition[posId] = {
-                x: parseFloat(drone.x),
-                y: parseFloat(drone.y)
-            };
-        }
-    });
-
-    // Prepare data for plotting
-    const xValues = drones.map(drone => posIdToPosition[drone.pos_id].x);
-    const yValues = drones.map(drone => posIdToPosition[drone.pos_id].y);
-    const labels = drones.map(drone => `HW ${drone.hw_id}`);
+    // Prepare data for plotting based on pos_id
+    const xValues = drones.map(drone => parseFloat(drone.x));
+    const yValues = drones.map(drone => parseFloat(drone.y));
+    const labels = drones.map(drone => drone.hw_id);
     const customData = drones.map(drone => ({
         hw_id: drone.hw_id,
         pos_id: drone.pos_id,
-        x: posIdToPosition[drone.pos_id].x,
-        y: posIdToPosition[drone.pos_id].y
+        x: parseFloat(drone.x),
+        y: parseFloat(drone.y),
     }));
 
     return (
@@ -38,7 +25,7 @@ function InitialLaunchPlot({ drones, onDroneClick }) {
                     type: 'scatter',
                     mode: 'markers+text',
                     marker: {
-                        size: 16,
+                        size: 30, // Increased size for better visibility
                         color: '#3498db',
                         opacity: 0.8,
                         line: {
@@ -48,9 +35,10 @@ function InitialLaunchPlot({ drones, onDroneClick }) {
                     },
                     textfont: {
                         color: 'white',
-                        size: 12
+                        size: 14,
+                        family: 'Arial'
                     },
-                    textposition: 'top center',
+                    textposition: 'middle center', // Center the text inside markers
                     hovertemplate:
                         '<b>Hardware ID:</b> %{customdata.hw_id}<br>' +
                         '<b>Position ID:</b> %{customdata.pos_id}<br>' +
@@ -62,11 +50,17 @@ function InitialLaunchPlot({ drones, onDroneClick }) {
                 title: 'Initial Launch Positions',
                 xaxis: {
                     title: 'North (X)',
+                    showgrid: true,
+                    zeroline: true,
                 },
                 yaxis: {
                     title: 'East (Y)',
+                    showgrid: true,
+                    zeroline: true,
                 },
                 hovermode: 'closest',
+                plot_bgcolor: '#f7f7f7',
+                paper_bgcolor: '#f7f7f7',
             }}
             onClick={(data) => {
                 const clickedDroneHwId = data.points[0].customdata.hw_id;
