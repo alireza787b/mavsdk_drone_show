@@ -1,7 +1,6 @@
 // app/dashboard/drone-dashboard/src/components/BriefingExport.js
 
 import React, { useState } from 'react';
-import '../styles/BriefingExport.css';
 import { generateKML } from '../utilities/missionConfigUtilities';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDownload, faPrint } from '@fortawesome/free-solid-svg-icons';

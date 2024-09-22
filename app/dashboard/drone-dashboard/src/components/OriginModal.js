@@ -1,7 +1,6 @@
 // app/dashboard/drone-dashboard/src/components/OriginModal.js
 
 import React, { useState } from 'react';
-import '../styles/OriginModal.css';
 
 const OriginModal = ({ isOpen, onClose, onSubmit }) => {
   const [localOriginLat, setLocalOriginLat] = useState('');
