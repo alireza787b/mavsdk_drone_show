@@ -543,8 +543,9 @@ async def reboot(drone, force_reboot=Params.force_reboot):
             logger.info("Initiating full system reboot...")
             led_controller.turn_off()
             try:
+                # Use asyncio subprocess to handle the reboot command asynchronously
                 process = await asyncio.create_subprocess_exec(
-                    'sudo', 'reboot',
+                    'sudo', '/sbin/reboot',
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
