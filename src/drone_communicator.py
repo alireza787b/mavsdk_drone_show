@@ -41,7 +41,6 @@ class DroneCommunicator:
 
         # Initialize FlaskHandler for HTTP commands
         self.flask_handler = flask_handler
-
         # Initialize TelemetrySubscriptionManager
         self.subscription_manager = TelemetrySubscriptionManager(drones)
         

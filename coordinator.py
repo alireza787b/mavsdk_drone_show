@@ -202,6 +202,7 @@ def main():
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
     logger.info("LocalMavlinkController initialized.")
     flask_handler = None
+    
     # Initialize DroneCommunicator
     drone_comms = DroneCommunicator(drone_config,flask_handler, params, drones)
     drone_comms.start_communication()
