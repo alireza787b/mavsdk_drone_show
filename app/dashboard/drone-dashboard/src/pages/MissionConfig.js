@@ -25,8 +25,8 @@ const MissionConfig = () => {
   const [originLat, setOriginLat] = useState('');
   const [originLon, setOriginLon] = useState('');
   const [showOriginModal, setShowOriginModal] = useState(false);
-  const [deviationData, setDeviationData] = useState({}); // New state variable for deviation data
-  const [originAvailable, setOriginAvailable] = useState(false); // New state variable to track origin availability
+  const [deviationData, setDeviationData] = useState({});
+  const [originAvailable, setOriginAvailable] = useState(false);
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -42,11 +42,8 @@ const MissionConfig = () => {
       console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
-        const dataWithFlaskPort = response.data.map((drone) => ({
-          ...drone,
-          flask_port: process.env.DRONE_APP_FLASK_PORT || '7070', // Ensure each drone has a flask_port
-        }));
-        setConfigData(dataWithFlaskPort);
+        console.log('Received config data:', response.data);
+        setConfigData(response.data);
       } catch (error) {
         console.error('Error fetching config data:', error);
       }
@@ -79,11 +76,13 @@ const MissionConfig = () => {
   useEffect(() => {
     if (!originAvailable) return; // Do not fetch deviations if origin is not set
 
+    const droneFlaskPort = process.env.DRONE_APP_FLASK_PORT || '7070';
+
     const fetchDeviationData = async () => {
       const promises = configData.map(async (drone) => {
         try {
           const response = await axios.get(
-            `http://${drone.ip}:${drone.flask_port}/get-position-deviation`,
+            `http://${drone.ip}:${droneFlaskPort}/get-position-deviation`,
             { timeout: 5000 }
           );
           return {
@@ -161,7 +160,7 @@ const MissionConfig = () => {
     const newDrone = {
       hw_id: newHwId,
       ip: commonSubnet,
-      flask_port: '8000', // Default Flask port
+      // Removed flask_port
       mavlink_port: (14550 + parseInt(newHwId)).toString(),
       debug_port: (13540 + parseInt(newHwId)).toString(),
       gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
