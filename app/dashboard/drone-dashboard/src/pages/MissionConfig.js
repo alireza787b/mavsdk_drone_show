@@ -107,7 +107,7 @@ const MissionConfig = () => {
     };
 
     fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 5000); // Fetch every 5 seconds
+    const interval = setInterval(fetchDeviationData, 2000); // Fetch every 5 seconds
 
     return () => clearInterval(interval); // Cleanup on unmount
   }, [configData, originAvailable]);
