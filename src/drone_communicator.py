@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
 from src.enums import Mission
 from src.drone_config import DroneConfig
-from src.flask_handler import FlaskHandler
 from src.params import Params
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
 
@@ -49,7 +48,7 @@ class DroneCommunicator:
         # Initialize flask_handler as None; it will be injected later
         self.flask_handler = None
 
-    def set_flask_handler(self, flask_handler: FlaskHandler):
+    def set_flask_handler(self, flask_handler):
         """Setter for injecting FlaskHandler dependency after initialization."""
         self.flask_handler = flask_handler
 

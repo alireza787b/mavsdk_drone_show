@@ -5,7 +5,6 @@ import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
-from src.drone_communicator import DroneCommunicator
 from src.drone_config import DroneConfig
 from functions.data_utils import safe_float, safe_get
 from src.params import Params
@@ -27,7 +26,7 @@ class FlaskHandler:
         self.drone_config = drone_config
         self.setup_routes()
         
-    def set_drone_communicator(self, drone_communicator: DroneCommunicator):
+    def set_drone_communicator(self, drone_communicator):
         """Setter for injecting the DroneCommunicator dependency after initialization."""
         self.drone_communicator = drone_communicator
 
