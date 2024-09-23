@@ -8,7 +8,7 @@ import zipfile
 import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from telemetry import telemetry_data_all_drones, start_telemetry_polling
+from telemetry import telemetry_data_all_drones, start_telemetry_polling , data_lock
 from command import send_commands_to_all, send_command_to_drone
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
@@ -16,7 +16,8 @@ import logging
 from params import Params
 from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
-from origin import save_origin, load_origin
+from origin import save_origin, load_origin, calculate_position_deviations
+
 
 
 # Configure base directory for better path management
@@ -302,4 +303,41 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error loading origin: {e}")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
+        
+        
+    @app.route('/get-position-deviations', methods=['GET'])
+    def get_position_deviations():
+        """
+        Endpoint to calculate the position deviations for all drones.
+        """
+        try:
+            # Step 1: Get the origin coordinates
+            origin = load_origin()
+            if not origin or 'lat' not in origin or 'lon' not in origin:
+                return jsonify({"error": "Origin coordinates not set on GCS"}), 400
+            origin_lat = float(origin['lat'])
+            origin_lon = float(origin['lon'])
+
+            # Step 2: Get the drones' configuration
+            drones_config = load_config()
+            if not drones_config:
+                return jsonify({"error": "No drones configuration found"}), 500
+
+            # Step 3: Get telemetry data with thread-safe access
+            with data_lock:
+                telemetry_data_copy = telemetry_data_all_drones.copy()
+
+            # Step 4: Calculate deviations
+            deviations = calculate_position_deviations(
+                telemetry_data_copy, drones_config, origin_lat, origin_lon
+            )
+
+            # Step 5: Return deviations
+            return jsonify(deviations), 200
+
+        except Exception as e:
+            logger.error(f"Error in get_position_deviations: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
+
+
 
