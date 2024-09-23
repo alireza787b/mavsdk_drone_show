@@ -7,8 +7,10 @@ import csv
 import glob
 import logging
 import os
+import socket
 import subprocess
 import sys
+import time
 
 import psutil
 from mavsdk import System
@@ -60,6 +62,28 @@ def check_mavsdk_server_running(port):
             pass
     return False, None
 
+def wait_for_port(port, host='localhost', timeout=10.0):
+    """
+    Wait until a port starts accepting TCP connections.
+
+    Args:
+        port (int): The port to check.
+        host (str): The hostname to check.
+        timeout (float): The maximum time to wait in seconds.
+
+    Returns:
+        bool: True if the port is open, False if the timeout was reached.
+    """
+    start_time = time.time()
+    while True:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except (ConnectionRefusedError, socket.timeout):
+            if time.time() - start_time >= timeout:
+                return False
+            time.sleep(0.1)
+
 def start_mavsdk_server(grpc_port, udp_port):
     """
     Starts the MAVSDK server on the specified gRPC and UDP ports.
@@ -89,7 +113,19 @@ def start_mavsdk_server(grpc_port, udp_port):
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     try:
-        mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+        mavsdk_server = subprocess.Popen(
+            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        # Wait until the server is listening on the gRPC port
+        if not wait_for_port(grpc_port, timeout=10):
+            logger.error(f"MAVSDK server did not start listening on port {grpc_port} within timeout.")
+            mavsdk_server.terminate()
+            sys.exit(1)
+
+        logger.info("MAVSDK server is now listening on gRPC port.")
         return mavsdk_server
     except FileNotFoundError:
         logger.error("mavsdk_server executable not found. Ensure it's in the current directory.")
@@ -225,15 +261,34 @@ async def perform_action(action, altitude=None, parameters=None):
     # Initialize the MAVSDK drone system
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
     logger.info("Attempting to connect to drone...")
-    await drone.connect(system_address=f"udp://:{udp_port}")
 
-    # Check connection state
+    try:
+        await drone.connect(system_address=f"udp://:{udp_port}")
+    except Exception as e:
+        logger.error(f"Failed to connect to MAVSDK server: {e}")
+        stop_mavsdk_server(mavsdk_server)
+        return
+
+    # Check connection state with a timeout
     logger.info("Checking connection state...")
-    async for state in drone.core.connection_state():
-        if state.is_connected:
-            logger.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
-            break
-    else:
+    connected = False
+    start_time = time.time()
+    timeout = 10  # seconds
+    try:
+        async for state in drone.core.connection_state():
+            if state.is_connected:
+                logger.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
+                connected = True
+                break
+            if time.time() - start_time > timeout:
+                logger.error("Timed out waiting for connection to drone.")
+                break
+    except Exception as e:
+        logger.error(f"Error while checking connection state: {e}")
+        stop_mavsdk_server(mavsdk_server)
+        return
+
+    if not connected:
         logger.error("Could not establish a connection with the drone.")
         stop_mavsdk_server(mavsdk_server)
         return
@@ -406,22 +461,22 @@ async def test(drone):
         # Step 2: Arm the drone
         await drone.action.arm()
 
-        # Step 3: Set LEDs to white after arming
+        # Indicate arming with white color
         led_controller.set_color(255, 255, 255)  # White
         await asyncio.sleep(1)  # Wait to show white color
 
-        # Step 4: Change LED colors during the 3-second wait
+        # Step 3: Change LED colors during the 3-second wait
         led_controller.set_color(0, 0, 255)  # Blue
         await asyncio.sleep(1)  # Wait to show blue color
 
         led_controller.set_color(0, 255, 0)  # Green
         await asyncio.sleep(1)  # Wait to show green color
 
-        # Step 5: Disarm the drone
+        # Step 4: Disarm the drone
         await drone.action.disarm()
         logger.info("Test action successful.")
 
-        # Step 6: Turn off LEDs after disarming
+        # Step 5: Turn off LEDs after disarming
         led_controller.turn_off()
 
     except Exception as e:
@@ -511,11 +566,9 @@ if __name__ == "__main__":
     # Convert parameter arguments to dictionary
     parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
 
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(perform_action(args.action, args.altitude, parameters))
+        asyncio.run(perform_action(args.action, args.altitude, parameters))
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
     finally:
-        loop.close()
-        logger.info("Operation completed, event loop closed.")
+        logger.info("Operation completed.")
