@@ -7,7 +7,6 @@ import csv
 import glob
 import logging
 import os
-import signal
 import subprocess
 import sys
 
@@ -20,9 +19,9 @@ from src.params import Params
 # Configuration Constants
 # =======================
 
-# Define MAVSDK Ports
-MAVSDK_UDP_PORT = 14540
-MAVSDK_GRPC_PORT = 50040
+SIM_MODE = False  # Set to True if in simulation mode
+GRPC_PORT_BASE = 50041
+HW_ID = None  # Will be set by read_hw_id()
 
 # =======================
 # Configure Logging
@@ -37,23 +36,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# =======================
-# Global Shutdown Event
-# =======================
-
-shutdown_event = asyncio.Event()
-
-def handle_termination_signal(signum, frame):
-    """
-    Signal handler to set the shutdown_event when termination signals are received.
-    """
-    logger.info(f"Received termination signal: {signum}. Initiating shutdown...")
-    shutdown_event.set()
-
-# Register signal handlers for graceful termination
-signal.signal(signal.SIGTERM, handle_termination_signal)
-signal.signal(signal.SIGINT, handle_termination_signal)
 
 # =======================
 # Helper Functions
@@ -71,11 +53,11 @@ def check_mavsdk_server_running(port):
     """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
+            pass
     return False, None
 
 def start_mavsdk_server(grpc_port, udp_port):
@@ -107,12 +89,7 @@ def start_mavsdk_server(grpc_port, udp_port):
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     try:
-        mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        logger.info(f"MAVSDK server started with PID: {mavsdk_server.pid}")
+        mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
         return mavsdk_server
     except FileNotFoundError:
         logger.error("mavsdk_server executable not found. Ensure it's in the current directory.")
@@ -144,47 +121,30 @@ def read_hw_id():
         logger.warning("Hardware ID file not found.")
         return None
 
-def read_config(hw_id, filename='config.csv'):
+def read_config(filename='config.csv'):
     """
     Reads the drone configuration from a CSV file based on the hardware ID.
-
-    Args:
-        hw_id (int): The hardware ID to match.
-        filename (str): The path to the configuration CSV file.
 
     Returns:
         dict or None: The drone configuration if found, else None.
     """
+    global HW_ID
     logger.info("Reading drone configuration...")
     try:
         with open(filename, newline='') as csvfile:
             reader = csv.reader(csvfile)
-            header = next(reader, None)  # Read header
-            if header is None:
-                logger.error("Config file is empty.")
-                return None
+            next(reader, None)  # Skip the header
             for row in reader:
-                if len(row) < 8:
-                    logger.warning(f"Incomplete configuration row: {row}")
-                    continue
-                row_hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
-                try:
-                    if int(row_hw_id) == hw_id:
-                        logger.info(f"Matching hardware ID found: {row_hw_id}")
-                        drone_config = {
-                            'hw_id': int(row_hw_id),
-                            'pos_id': pos_id,
-                            'x': float(x),
-                            'y': float(y),
-                            'ip': ip,  # Stored but not used for MAVSDK
-                            'mavlink_port': int(mavlink_port),
-                            'debug_port': int(debug_port),
-                            'gcs_ip': gcs_ip  # Stored but not used for MAVSDK
-                        }
-                        logger.info(f"Drone configuration: {drone_config}")
-                        return drone_config
-                except ValueError as ve:
-                    logger.warning(f"Invalid data format in row: {row}. Error: {ve}")
+                hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
+                if int(hw_id) == HW_ID:
+                    logger.info(f"Matching hardware ID found: {hw_id}")
+                    drone_config = {
+                        'hw_id': int(hw_id),
+                        'udp_port': mavlink_port,
+                        'grpc_port': debug_port
+                    }
+                    logger.info(f"Drone configuration: {drone_config}")
+                    return drone_config
     except FileNotFoundError:
         logger.error(f"Config file '{filename}' not found.")
     except Exception as e:
@@ -229,41 +189,6 @@ async def set_parameters(drone, parameters):
         except Exception as e:
             logger.error(f"Failed to set parameter '{param_name}': {e}")
 
-async def execute_action(drone, action, altitude, parameters):
-    """
-    Executes the specified drone action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-        action (str): The action to perform (takeoff, land, hold, test, reboot).
-        altitude (float): The altitude for takeoff (if applicable).
-        parameters (dict): Parameters to set on the drone (if any).
-    """
-    led_controller = LEDController.get_instance()
-
-    try:
-        # Set parameters if provided
-        if parameters:
-            await set_parameters(drone, parameters)
-
-        # Perform action based on the specified command
-        if action == "takeoff":
-            await takeoff(drone, altitude, led_controller)
-        elif action == "land":
-            await land(drone, led_controller)
-        elif action == "hold":
-            await hold(drone, led_controller)
-        elif action == "test":
-            await test(drone, led_controller)
-        elif action == "reboot":
-            await reboot(drone, led_controller)
-        else:
-            logger.error(f"Invalid action specified: '{action}'")
-    except asyncio.CancelledError:
-        logger.info("Action execution was cancelled.")
-    except Exception as e:
-        logger.error(f"Error performing action '{action}': {e}")
-
 async def perform_action(action, altitude=None, parameters=None):
     """
     Orchestrates the entire action execution process, including starting and stopping the MAVSDK server.
@@ -283,17 +208,16 @@ async def perform_action(action, altitude=None, parameters=None):
         return
 
     # Read Drone Configuration
-    drone_config = read_config(HW_ID)
+    drone_config = read_config()
     if not drone_config:
         logger.error("Drone configuration not found. Exiting...")
         return
 
-    # Define MAVSDK Ports as Constants
-    grpc_port = MAVSDK_GRPC_PORT
-    udp_port = MAVSDK_UDP_PORT
+    # Define MAVSDK Ports
+    grpc_port = GRPC_PORT_BASE + HW_ID if SIM_MODE else GRPC_PORT_BASE - 1
+    udp_port = 14540 if not SIM_MODE else int(drone_config['udp_port'])
 
-    logger.info(f"MAVSDK Ports - gRPC: {grpc_port}, UDP: {udp_port}")
-    logger.info(f"Additional Drone Data: Position ID={drone_config['pos_id']}, X={drone_config['x']}, Y={drone_config['y']}, GCS IP={drone_config['gcs_ip']}")
+    logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
     # Start the MAVSDK server
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
@@ -305,56 +229,53 @@ async def perform_action(action, altitude=None, parameters=None):
 
     # Check connection state
     logger.info("Checking connection state...")
-    try:
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                logger.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
-                break
-    except Exception as e:
-        logger.error(f"Error while checking connection state: {e}")
+    async for state in drone.core.connection_state():
+        if state.is_connected:
+            logger.info(f"Drone connected on UDP Port: {udp_port} and gRPC Port: {grpc_port}")
+            break
+    else:
+        logger.error("Could not establish a connection with the drone.")
         stop_mavsdk_server(mavsdk_server)
         return
-    else:
-        # If the loop completes without a break
-        if not drone.core.is_connected():
-            logger.error("Could not establish a connection with the drone.")
-            stop_mavsdk_server(mavsdk_server)
-            return
 
-    # Create the action execution task
-    action_task = asyncio.create_task(execute_action(drone, action, altitude, parameters))
+    try:
+        # Set parameters if provided
+        if parameters:
+            await set_parameters(drone, parameters)
 
-    # Wait for either the action to complete or a shutdown event
-    done, pending = await asyncio.wait(
-        [action_task, shutdown_event.wait()],
-        return_when=asyncio.FIRST_COMPLETED
-    )
-
-    if shutdown_event.is_set():
-        logger.info("Shutdown event detected. Cancelling action task...")
-        action_task.cancel()
-        try:
-            await action_task
-        except asyncio.CancelledError:
-            logger.info("Action task cancelled successfully.")
-
-    # Ensure MAVSDK server is terminated
-    stop_mavsdk_server(mavsdk_server)
-    logger.info("Action completed.")
+        # Perform action
+        if action == "takeoff":
+            await takeoff(drone, altitude)
+        elif action == "land":
+            await land(drone)
+        elif action == "hold":
+            await hold(drone)
+        elif action == "test":
+            await test(drone)
+        elif action == "reboot":
+            await reboot(drone)
+        else:
+            logger.error(f"Invalid action specified: '{action}'")
+    except Exception as e:
+        logger.error(f"Error performing action '{action}': {e}")
+    finally:
+        stop_mavsdk_server(mavsdk_server)
+        logger.info("Action completed.")
 
 # =======================
 # Action Implementations
 # =======================
 
-async def takeoff(drone, altitude, led_controller):
+async def takeoff(drone, altitude):
     """
     Executes the takeoff action.
 
     Args:
         drone (System): The MAVSDK drone system.
         altitude (float): The altitude to take off to.
-        led_controller (LEDController): The LED controller instance.
     """
+    led_controller = LEDController.get_instance()
+
     # Indicate takeoff initiation with yellow color
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)
@@ -389,14 +310,15 @@ async def takeoff(drone, altitude, led_controller):
         # Turn off LEDs after feedback
         led_controller.turn_off()
 
-async def land(drone, led_controller):
+async def land(drone):
     """
     Executes the land action.
 
     Args:
         drone (System): The MAVSDK drone system.
-        led_controller (LEDController): The LED controller instance.
     """
+    led_controller = LEDController.get_instance()
+
     # Indicate landing initiation with yellow color
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)
@@ -434,14 +356,15 @@ async def land(drone, led_controller):
         # Turn off LEDs after feedback
         led_controller.turn_off()
 
-async def hold(drone, led_controller):
+async def hold(drone):
     """
     Executes the hold position action.
 
     Args:
         drone (System): The MAVSDK drone system.
-        led_controller (LEDController): The LED controller instance.
     """
+    led_controller = LEDController.get_instance()
+
     # Indicate hold command received with blue color
     led_controller.set_color(0, 0, 255)  # Blue
     await asyncio.sleep(0.5)
@@ -466,14 +389,15 @@ async def hold(drone, led_controller):
         # Turn off LEDs after feedback
         led_controller.turn_off()
 
-async def test(drone, led_controller):
+async def test(drone):
     """
     Executes the test action, which includes arming and disarming the drone with LED feedback.
 
     Args:
         drone (System): The MAVSDK drone system.
-        led_controller (LEDController): The LED controller instance.
     """
+    led_controller = LEDController.get_instance()
+
     try:
         # Step 1: Set LEDs to red before attempting to arm
         led_controller.set_color(255, 0, 0)  # Red
@@ -512,15 +436,16 @@ async def test(drone, led_controller):
         # Ensure LEDs are turned off
         led_controller.turn_off()
 
-async def reboot(drone, led_controller, force_reboot=Params.force_reboot):
+async def reboot(drone, force_reboot=Params.force_reboot):
     """
     Executes the reboot action, optionally forcing a system reboot.
 
     Args:
         drone (System): The MAVSDK drone system.
-        led_controller (LEDController): The LED controller instance.
         force_reboot (bool): Whether to force a system reboot despite drone errors.
     """
+    led_controller = LEDController.get_instance()
+
     # Indicate reboot initiation with yellow color
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)  # Brief feedback
@@ -571,13 +496,10 @@ async def reboot(drone, led_controller, force_reboot=Params.force_reboot):
             led_controller.turn_off()
 
 # =======================
-# Main Function
+# Entry Point
 # =======================
 
-async def main():
-    """
-    Main entry point for executing drone actions based on command-line arguments.
-    """
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
     parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
@@ -589,21 +511,11 @@ async def main():
     # Convert parameter arguments to dictionary
     parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
 
+    loop = asyncio.get_event_loop()
     try:
-        await perform_action(args.action, args.altitude, parameters)
+        loop.run_until_complete(perform_action(args.action, args.altitude, parameters))
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
     finally:
-        logger.info("Operation completed.")
-
-# =======================
-# Entry Point
-# =======================
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Program interrupted by user. Exiting...")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        loop.close()
+        logger.info("Operation completed, event loop closed.")
