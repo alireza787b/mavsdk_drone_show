@@ -7,9 +7,9 @@ import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import BriefingExport from '../components/BriefingExport';
-import OriginModal from '../components/OriginModal'; // Import the OriginModal
+import OriginModal from '../components/OriginModal';
 import { getBackendURL } from '../utilities/utilities';
-import DronePositionMap from '../components/DronePositionMap'; // Import the DronePositionMap
+import DronePositionMap from '../components/DronePositionMap';
 
 import {
   handleSaveChangesToServer,
@@ -24,7 +24,9 @@ const MissionConfig = () => {
   const [editingDroneId, setEditingDroneId] = useState(null);
   const [originLat, setOriginLat] = useState('');
   const [originLon, setOriginLon] = useState('');
-  const [showOriginModal, setShowOriginModal] = useState(false); // New state variable
+  const [showOriginModal, setShowOriginModal] = useState(false);
+  const [deviationData, setDeviationData] = useState({}); // New state variable for deviation data
+  const [originAvailable, setOriginAvailable] = useState(false); // New state variable to track origin availability
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -40,7 +42,11 @@ const MissionConfig = () => {
       console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
-        setConfigData(response.data);
+        const dataWithFlaskPort = response.data.map((drone) => ({
+          ...drone,
+          flask_port: drone.flask_port || '8000', // Ensure each drone has a flask_port
+        }));
+        setConfigData(dataWithFlaskPort);
       } catch (error) {
         console.error('Error fetching config data:', error);
       }
@@ -54,14 +60,58 @@ const MissionConfig = () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-origin`);
-        setOriginLat(response.data.lat);
-        setOriginLon(response.data.lon);
+        if (response.data.lat && response.data.lon) {
+          setOriginLat(response.data.lat);
+          setOriginLon(response.data.lon);
+          setOriginAvailable(true); // Origin is available
+        } else {
+          setOriginAvailable(false);
+        }
       } catch (error) {
         console.error('Error fetching origin data:', error);
+        setOriginAvailable(false);
       }
     };
     fetchOrigin();
   }, []);
+
+  // Fetch deviation data periodically (every 5 seconds)
+  useEffect(() => {
+    if (!originAvailable) return; // Do not fetch deviations if origin is not set
+
+    const fetchDeviationData = async () => {
+      const promises = configData.map(async (drone) => {
+        try {
+          const response = await axios.get(
+            `http://${drone.ip}:${drone.flask_port}/get-position-deviation`,
+            { timeout: 5000 }
+          );
+          return {
+            hw_id: drone.hw_id,
+            deviation: response.data,
+          };
+        } catch (error) {
+          console.error(`Error fetching deviation data for drone ${drone.hw_id}:`, error);
+          return {
+            hw_id: drone.hw_id,
+            deviation: null,
+          };
+        }
+      });
+
+      const results = await Promise.all(promises);
+      const deviationMap = {};
+      results.forEach((item) => {
+        deviationMap[item.hw_id] = item.deviation;
+      });
+      setDeviationData(deviationMap);
+    };
+
+    fetchDeviationData();
+    const interval = setInterval(fetchDeviationData, 5000); // Fetch every 5 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [configData, originAvailable]);
 
   // Save changes for a specific drone
   const saveChanges = (originalHwId, updatedData) => {
@@ -73,7 +123,7 @@ const MissionConfig = () => {
       return;
     }
 
-    // Validation: Check for duplicate position ID (allow user to proceed if they confirm)
+    // Validation: Check for duplicate position ID
     if (
       configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)
     ) {
@@ -98,7 +148,9 @@ const MissionConfig = () => {
     const newHwId = availableHwIds[0].toString();
 
     // Determine if all existing drones have the same GCS IP
-    const allSameGcsIp = configData.every((drone) => drone.gcs_ip === configData[0]?.gcs_ip);
+    const allSameGcsIp = configData.every(
+      (drone) => drone.gcs_ip === configData[0]?.gcs_ip
+    );
 
     // Extract the common subnet from the existing IPs
     const commonSubnet =
@@ -109,6 +161,7 @@ const MissionConfig = () => {
     const newDrone = {
       hw_id: newHwId,
       ip: commonSubnet,
+      flask_port: '8000', // Default Flask port
       mavlink_port: (14550 + parseInt(newHwId)).toString(),
       debug_port: (13540 + parseInt(newHwId)).toString(),
       gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
@@ -141,6 +194,7 @@ const MissionConfig = () => {
       })
       .then(() => {
         console.log('Origin saved to backend');
+        setOriginAvailable(true);
       })
       .catch((error) => {
         console.error('Error saving origin to backend:', error);
@@ -159,11 +213,13 @@ const MissionConfig = () => {
       {/* Control Buttons for Adding, Saving, Importing, and Exporting Configuration */}
       <ControlButtons
         addNewDrone={addNewDrone}
-        handleSaveChangesToServer={() => handleSaveChangesToServer(configData, setConfigData)}
+        handleSaveChangesToServer={() =>
+          handleSaveChangesToServer(configData, setConfigData)
+        }
         handleRevertChanges={() => handleRevertChanges(setConfigData)}
         handleFileChange={(event) => handleFileChange(event, setConfigData)}
         exportConfig={() => exportConfig(configData)}
-        openOriginModal={() => setShowOriginModal(true)} // Pass the function to open the modal
+        openOriginModal={() => setShowOriginModal(true)}
       />
 
       {/* Briefing Export Component for Exporting to KML and Printing Mission Briefing */}
@@ -184,6 +240,16 @@ const MissionConfig = () => {
         />
       )}
 
+      {/* Show origin warning if not available */}
+      {!originAvailable && (
+        <div className="origin-warning">
+          <p>
+            Origin coordinates are not set. Please set the origin to display deviation
+            data.
+          </p>
+        </div>
+      )}
+
       {/* Main Content: Drone Configuration Cards and Initial Launch Plot */}
       <div className="content-flex">
         <div className="drone-cards">
@@ -201,8 +267,16 @@ const MissionConfig = () => {
           ))}
         </div>
         <div className="initial-launch-plot">
-          <InitialLaunchPlot drones={configData} onDroneClick={setEditingDroneId} />
-          <DronePositionMap originLat={originLat} originLon={originLon} drones={configData} />
+          <InitialLaunchPlot
+            drones={configData}
+            onDroneClick={setEditingDroneId}
+            deviationData={deviationData} // Pass deviation data to the plot
+          />
+          <DronePositionMap
+            originLat={originLat}
+            originLon={originLon}
+            drones={configData}
+          />
         </div>
       </div>
     </div>
