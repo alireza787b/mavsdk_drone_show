@@ -661,7 +661,7 @@ async def run_drone():
             sys.exit(1)
 
         # Step 3: Start MAVSDK Server
-        udp_port = drone_config.mavlink_port
+        udp_port = MAVSDK_PORT
         position_id = drone_config.pos_id
         mavsdk_server = start_mavsdk_server(udp_port)
         if mavsdk_server is None:
