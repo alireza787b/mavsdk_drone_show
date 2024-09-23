@@ -67,8 +67,8 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
     return L.divIcon({
       html: `<div class="custom-marker">${pos_id}</div>`,
       className: 'custom-icon',
-      iconSize: [30, 30], // Adjust size as needed
-      iconAnchor: [15, 15], // Center the icon
+      iconSize: [20, 20], // Reduced size from 30 to 20
+      iconAnchor: [10, 10], // Center the icon based on new size
     });
   };
 

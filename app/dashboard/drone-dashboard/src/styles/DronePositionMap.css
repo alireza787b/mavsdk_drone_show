@@ -83,3 +83,56 @@
     cursor: pointer;
   }
   
+  /* app/dashboard/drone-dashboard/src/styles/DronePositionMap.css */
+
+.drone-position-map {
+    width: 100%;
+    height: 100%;
+    /* Additional styling as needed */
+  }
+  
+  .drone-position-map h3 {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  
+  .leaflet-container {
+    width: 100%;
+    height: 400px; /* Adjust as needed or make responsive */
+  }
+  
+  @media (max-width: 768px) {
+    .leaflet-container {
+      height: 300px;
+    }
+  }
+  
+  /* Custom Icon Styles */
+  .custom-icon {
+    background: transparent;
+    border: none;
+    /* Ensures that the default marker styles do not interfere */
+  }
+  
+  .custom-marker {
+    width: 20px; /* Reduced from 30px to 20px */
+    height: 20px; /* Reduced from 30px to 20px */
+    background-color: rgba(51, 136, 255, 0.8); /* #3388ff with opacity */
+    border: 2px solid #fff;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px; /* Reduced from 10px to 8px */
+    font-weight: bold;
+    text-align: center;
+    pointer-events: auto;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5); /* Reduced shadow */
+  }
+  
+  .custom-marker:hover {
+    background-color: rgba(51, 136, 255, 1); /* Slightly more opaque on hover */
+    cursor: pointer;
+  }
+  
