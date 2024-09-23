@@ -105,7 +105,7 @@ def read_hw_id():
     hwid_files = glob.glob('*.hwID')
     if hwid_files:
         filename = hwid_files[0]
-        hw_id = os.path.splitext(filename)[0]  # Get filename without extension
+        hw_id = os.path.splitext(os.path.basename(filename))[0]  # Correctly extract filename without extension
         logger.info(f"Hardware ID {hw_id} detected.")
         try:
             return int(hw_id)
@@ -115,6 +115,7 @@ def read_hw_id():
     else:
         logger.warning("Hardware ID file not found.")
         return None
+
 
 def read_config(filename='config.csv'):
     """
@@ -126,6 +127,11 @@ def read_config(filename='config.csv'):
     Returns:
         dict or None: The drone configuration if found, else None.
     """
+    hw_id = read_hw_id()
+    if hw_id is None:
+        logger.error("Hardware ID is not available.")
+        return None
+    
     logger.info("Reading drone configuration...")
     try:
         with open(filename, newline='') as csvfile:
@@ -135,11 +141,11 @@ def read_config(filename='config.csv'):
                 if len(row) < 8:
                     logger.warning(f"Incomplete configuration row: {row}")
                     continue
-                hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
-                if int(hw_id) == HW_ID:
-                    logger.info(f"Matching hardware ID found: {hw_id}")
+                file_hw_id, pos_id, x, y, ip, mavlink_port, debug_port, gcs_ip = row
+                if int(file_hw_id) == hw_id:
+                    logger.info(f"Matching hardware ID found: {file_hw_id}")
                     drone_config = {
-                        'hw_id': int(hw_id),
+                        'hw_id': int(file_hw_id),
                         'udp_port': int(mavlink_port),
                         'grpc_port': int(debug_port)
                     }
@@ -151,6 +157,7 @@ def read_config(filename='config.csv'):
         logger.error(f"Error reading config file '{filename}': {e}")
     logger.warning("No matching hardware ID found in the configuration file.")
     return None
+
 
 def stop_mavsdk_server(mavsdk_server):
     """
