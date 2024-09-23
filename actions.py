@@ -21,8 +21,8 @@ from src.params import Params
 # Configuration Constants
 # =======================
 
-SIM_MODE = False  # Set to True if in simulation mode
-GRPC_PORT_BASE = 50041
+GRPC_PORT = 50040
+UPP_PORT = 14540
 HW_ID = None  # Will be set by read_hw_id()
 
 # =======================
@@ -250,8 +250,8 @@ async def perform_action(action, altitude=None, parameters=None):
         return
 
     # Define MAVSDK Ports
-    grpc_port = GRPC_PORT_BASE + HW_ID if SIM_MODE else GRPC_PORT_BASE - 1
-    udp_port = 14540 if not SIM_MODE else int(drone_config['udp_port'])
+    grpc_port = GRPC_PORT
+    udp_port = UPP_PORT
 
     logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
