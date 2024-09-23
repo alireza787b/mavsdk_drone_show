@@ -1,17 +1,25 @@
 #src/flask_handler.py
+import math
 import time
 import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import requests
+from functions.data_utils import safe_float, safe_get
 from src.params import Params
+import logging
+from pyproj import Proj, Transformer
+
+
 
 class FlaskHandler:
-    def __init__(self, params, drone_communicator):
+    def __init__(self, params, drone_communicator,drone_config):
         self.app = Flask(__name__)
         CORS(self.app)  # Enable CORS for all routes
         self.params = params
         self.drone_communicator = drone_communicator
         self.setup_routes()
+        self.drone_config = drone_config
 
     def setup_routes(self):
         """Defines the routes for the Flask application."""
@@ -85,6 +93,91 @@ class FlaskHandler:
                 return jsonify(response)
             except subprocess.CalledProcessError as e:
                 return jsonify({'error': f"Git command failed: {str(e)}"}), 500
+            
+            
+        @self.app.route(f"/{Params.get_position_deviation_URI}", methods=['GET'])
+        def get_position_deviation():
+            """Endpoint to calculate the drone's position deviation from its intended initial position."""
+            try:
+                # Step 1: Get the origin coordinates from GCS
+                origin = self._get_origin_from_gcs()
+                if not origin:
+                    return jsonify({"error": "Origin coordinates not set on GCS"}), 400
+
+                # Step 2: Get the drone's current position
+                current_lat = safe_float(safe_get(self.drone_config.position, 'lat'))
+                current_lon = safe_float(safe_get(self.drone_config.position, 'long'))
+                if current_lat is None or current_lon is None:
+                    return jsonify({"error": "Drone's current position not available"}), 400
+
+                # Step 3: Get the drone's intended initial position (N, E) from config
+                initial_east = safe_float(safe_get(self.drone_config.config, 'x'))  # 'x' is East
+                initial_north = safe_float(safe_get(self.drone_config.config, 'y'))  # 'y' is North
+                if initial_north is None or initial_east is None:
+                    return jsonify({"error": "Drone's intended initial position not set"}), 400
+
+                # Step 4: Convert current position to NE coordinates relative to the origin
+                current_north, current_east = self._latlon_to_ne(current_lat, current_lon, origin['lat'], origin['lon'])
+
+                # Step 5: Calculate deviations
+                deviation_north = current_north - initial_north
+                deviation_east = current_east - initial_east
+                total_deviation = math.sqrt(deviation_north**2 + deviation_east**2)
+
+                # Step 6: Check if within acceptable range
+                acceptable_range = self.params.acceptable_deviation  # in meters
+                within_range = total_deviation <= acceptable_range
+
+                # Step 7: Prepare and return response
+                response = {
+                    "deviation_north": deviation_north,
+                    "deviation_east": deviation_east,
+                    "total_deviation": total_deviation,
+                    "within_acceptable_range": within_range
+                }
+                return jsonify(response), 200
+
+            except Exception as e:
+                logging.error(f"Error in get_position_deviation: {e}")
+                return jsonify({"error": str(e)}), 500
+
+    # Helper method to get origin from GCS
+    def _get_origin_from_gcs(self):
+        """Fetches the origin coordinates from the GCS."""
+        try:
+            gcs_ip = self.drone_config.config.get('gcs_ip')
+            if not gcs_ip:
+                logging.error("GCS IP not set in drone configuration")
+                return None
+
+            gcs_port = self.params.flask_telem_socket_port
+            gcs_url = f"http://{gcs_ip}:{gcs_port}"
+
+            response = requests.get(f"{gcs_url}/get-origin", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if 'lat' in data and 'lon' in data:
+                    return {'lat': float(data['lat']), 'lon': float(data['lon'])}
+            else:
+                logging.error(f"GCS responded with status code {response.status_code}")
+            return None
+        except requests.RequestException as e:
+            logging.error(f"Error fetching origin from GCS: {e}")
+            return None
+
+    # Helper method to convert lat/lon to NE coordinates
+    def _latlon_to_ne(self, lat, lon, origin_lat, origin_lon):
+        """Converts lat/lon to north-east coordinates relative to the origin."""
+        # Define a local projection centered at the origin
+        proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
+        transformer = Transformer.from_proj(
+            Proj('epsg:4326'),  # Source coordinate system (WGS84)
+            Proj(proj_string)   # Local tangent plane projection
+        )
+        east, north = transformer.transform(lat, lon)
+        return north, east
+
+
 
     def _execute_git_command(self, command):
         """
@@ -104,3 +197,6 @@ class FlaskHandler:
             self.app.run(host=host, port=port, debug=True, use_reloader=False)
         else:
             self.app.run(host=host, port=port, debug=False, use_reloader=False)
+
+
+    

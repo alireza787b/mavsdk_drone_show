@@ -209,7 +209,7 @@ def main():
 
     # Start Flask HTTP server if enabled
     if params.enable_drones_http_server:
-        flask_handler = FlaskHandler(params, drone_comms)
+        flask_handler = FlaskHandler(params, drone_comms,drone_config)
         flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
         flask_thread.start()
         logger.info("Flask HTTP server started.")
