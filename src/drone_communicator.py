@@ -20,7 +20,7 @@ class DroneCommunicator:
     Handles communication with drones, including telemetry and command processing.
     """
 
-    def __init__(self, drone_config: DroneConfig, params: Params, drones: Dict[str, DroneConfig]):
+    def __init__(self, drone_config: DroneConfig,flask_handler: FlaskHandler, params: Params, drones: Dict[str, DroneConfig]):
         """
         Initialize the DroneCommunicator with configuration and drone data.
 
@@ -40,7 +40,7 @@ class DroneCommunicator:
         self.drone_state: Dict[str, Any] = None
 
         # Initialize FlaskHandler for HTTP commands
-        self.flask_handler = FlaskHandler(params, self)
+        self.flask_handler = flask_handler
 
         # Initialize TelemetrySubscriptionManager
         self.subscription_manager = TelemetrySubscriptionManager(drones)
