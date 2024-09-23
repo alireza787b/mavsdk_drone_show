@@ -543,9 +543,18 @@ async def reboot(drone, force_reboot=Params.force_reboot):
             logger.info("Initiating full system reboot...")
             led_controller.turn_off()
             try:
-                subprocess.run(['sudo', 'reboot'], check=True)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to reboot system: {e}")
+                process = await asyncio.create_subprocess_exec(
+                    'sudo', 'reboot',
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                if process.returncode != 0:
+                    logger.error(f"Failed to reboot system: {stderr.decode().strip()}")
+                else:
+                    logger.info("Reboot command executed successfully.")
+            except Exception as e:
+                logger.error(f"Failed to execute reboot command: {e}")
         else:
             # Turn off LEDs after feedback
             led_controller.turn_off()
