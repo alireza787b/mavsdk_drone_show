@@ -3,6 +3,9 @@
 import argparse
 import asyncio
 import csv
+from curses import delay_output
+import sys
+import threading
 from src.led_controller import LEDController
 from mavsdk import System
 import glob
@@ -27,17 +30,33 @@ def check_mavsdk_server_running(port):
             pass
     return False, None
 
-# Modified start_mavsdk_server function
 def start_mavsdk_server(grpc_port, udp_port):
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
         logger.info(f"MAVSDK server already running on port {grpc_port}. Terminating...")
         psutil.Process(pid).terminate()
         psutil.Process(pid).wait()  # Wait for the process to actually terminate
-    
+
     logger.info(f"Starting mavsdk_server on gRPC port: {grpc_port}, UDP port: {udp_port}")
-    mavsdk_server = subprocess.Popen(["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"])
+    try:
+        mavsdk_server = subprocess.Popen(
+            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+    except FileNotFoundError as e:
+        logger.error(f"mavsdk_server not found or not executable: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Failed to start mavsdk_server: {e}")
+        sys.exit(1)
+
+    # Read stdout and stderr
+    threading.Thread(target=delay_output, args=(mavsdk_server.stdout,), daemon=True).start()
+    threading.Thread(target=delay_output, args=(mavsdk_server.stderr,), daemon=True).start()
+
     return mavsdk_server
+
 
 def read_hw_id():
     hwid_files = glob.glob('*.hwID')
