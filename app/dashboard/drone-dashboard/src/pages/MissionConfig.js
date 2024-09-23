@@ -44,7 +44,7 @@ const MissionConfig = () => {
         const response = await axios.get(`${backendURL}/get-config-data`);
         const dataWithFlaskPort = response.data.map((drone) => ({
           ...drone,
-          flask_port: drone.flask_port || '8000', // Ensure each drone has a flask_port
+          flask_port: process.env.REACT_APP_FLASK_PORT || '5000', // Ensure each drone has a flask_port
         }));
         setConfigData(dataWithFlaskPort);
       } catch (error) {
