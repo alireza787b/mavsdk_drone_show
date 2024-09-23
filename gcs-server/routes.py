@@ -16,6 +16,8 @@ import logging
 from params import Params
 from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
+from origin import save_origin, load_origin
+
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -274,4 +276,30 @@ def setup_routes(app):
                 return jsonify({'error': f'Custom show image not found at {image_path}'}), 404
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/set-origin', methods=['POST'])
+    def set_origin():
+        data = request.get_json()
+        lat = data.get('lat')
+        lon = data.get('lon')
+        if lat is None or lon is None:
+            logger.error("Latitude and longitude are required")
+            return jsonify({'status': 'error', 'message': 'Latitude and longitude are required'}), 400
+        try:
+            save_origin({'lat': lat, 'lon': lon})
+            logger.info("Origin coordinates saved")
+            return jsonify({'status': 'success', 'message': 'Origin saved'})
+        except Exception as e:
+            logger.error(f"Error saving origin: {e}")
+            return jsonify({'status': 'error', 'message': 'Error saving origin'}), 500
+
+    @app.route('/get-origin', methods=['GET'])
+    def get_origin():
+        try:
+            data = load_origin()
+            return jsonify(data)
+        except Exception as e:
+            logger.error(f"Error loading origin: {e}")
+            return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
 

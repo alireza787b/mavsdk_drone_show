@@ -9,59 +9,83 @@
     justify-content: center;
     align-items: center;
     z-index: 1000;
-  }
-  
-  .modal {
+}
+
+.modal {
     background-color: #fff;
     padding: 2rem;
     border-radius: 8px;
     max-width: 500px;
     width: 100%;
-  }
-  
-  .modal h3 {
+}
+
+.modal h3 {
     margin-top: 0;
     margin-bottom: 1rem;
-  }
-  
-  .modal label {
+}
+
+.modal label {
     display: block;
     margin-bottom: 1rem;
-  }
-  
-  .modal input {
+}
+
+.modal input {
     width: 100%;
     padding: 0.5rem;
     border: 1px solid #d1d5db;
     border-radius: 4px;
     margin-top: 0.5rem;
-  }
-  
-  .error-message {
+}
+
+.error-message {
     color: #ef4444;
     font-size: 0.875rem;
-  }
-  
-  .modal-buttons {
+}
+
+.modal-buttons {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
     margin-top: 1rem;
-  }
-  
-  .ok-button {
+}
+
+.ok-button {
     background-color: #10b981;
-  }
-  
-  .ok-button:hover {
+}
+
+.ok-button:hover {
     background-color: #059669;
-  }
-  
-  .cancel-button {
+}
+
+.cancel-button {
     background-color: #6b7280;
-  }
-  
-  .cancel-button:hover {
+}
+
+.cancel-button:hover {
     background-color: #4b5563;
-  }
-  
+}
+
+.coordinate-input {
+    margin-bottom: 10px;
+}
+
+.coordinate-input label {
+    display: block;
+}
+
+.coordinate-input input {
+    width: 100%;
+}
+
+.coordinate-input button {
+    margin-top: 5px;
+}
+
+.map-container {
+    margin-bottom: 10px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+}

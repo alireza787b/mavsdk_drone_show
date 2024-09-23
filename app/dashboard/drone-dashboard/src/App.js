@@ -8,6 +8,7 @@ import SwarmDesign from './pages/SwarmDesign';
 import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
 import CustomShowPage from './pages/CustomShowPage'; // Import the new page
+import 'leaflet/dist/leaflet.css';
 
 import './App.css';
 import ManageDroneShow from './pages/ManageDroneShow';
