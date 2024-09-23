@@ -549,6 +549,7 @@ async def reboot(drone, force_reboot=Params.force_reboot):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
+                os.system('sudo reboot')
                 stdout, stderr = await process.communicate()
                 if process.returncode != 0:
                     logger.error(f"Failed to reboot system: {stderr.decode().strip()}")
