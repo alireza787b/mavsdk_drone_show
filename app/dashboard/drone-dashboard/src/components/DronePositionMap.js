@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
 
@@ -62,6 +62,16 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   const avgLon =
     dronePositions.reduce((sum, drone) => sum + drone.lon, 0) / dronePositions.length;
 
+  // Function to create a custom DivIcon with pos_id
+  const createCustomIcon = (pos_id) => {
+    return L.divIcon({
+      html: `<div class="custom-marker">${pos_id}</div>`,
+      className: 'custom-icon',
+      iconSize: [30, 30], // Adjust size as needed
+      iconAnchor: [15, 15], // Center the icon
+    });
+  };
+
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
@@ -81,13 +91,10 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
         */}
 
         {dronePositions.map((drone) => (
-          <CircleMarker
+          <Marker
             key={drone.hw_id}
-            center={[drone.lat, drone.lon]}
-            radius={6} // Adjust radius as needed
-            color="#3388ff" // Border color
-            fillColor="#3388ff" // Fill color
-            fillOpacity={0.8}
+            position={[drone.lat, drone.lon]}
+            icon={createCustomIcon(drone.pos_id)}
           >
             <Popup>
               <strong>Hardware ID:</strong> {drone.hw_id}
@@ -98,7 +105,7 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
               <br />
               <strong>Longitude:</strong> {drone.lon.toFixed(6)}
             </Popup>
-          </CircleMarker>
+          </Marker>
         ))}
       </MapContainer>
     </div>
