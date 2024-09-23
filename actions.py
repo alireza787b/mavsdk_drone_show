@@ -295,8 +295,7 @@ async def test(drone):
         led_controller.set_color(255, 0, 0)  # Red
     finally:
         # Ensure LEDs will remain red in case of an exception
-        #led_controller.turn_off()
-        pass
+        led_controller.turn_off()
         
 
 
