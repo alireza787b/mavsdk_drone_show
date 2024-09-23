@@ -201,25 +201,33 @@ def main():
     # Initialize LocalMavlinkController
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
     logger.info("LocalMavlinkController initialized.")
-    flask_handler = None
-    
-    # Initialize DroneCommunicator
-    drone_comms = DroneCommunicator(drone_config,flask_handler, params, drones)
-    drone_comms.start_communication()
-    logger.info("DroneCommunicator started.")
 
-    # Start Flask HTTP server if enabled
+    # Step 1: Initialize DroneCommunicator and FlaskHandler without dependencies
+    drone_comms = DroneCommunicator(drone_config, params, drones)
+    flask_handler = FlaskHandler(params, drone_config)
+
+    # Step 2: Inject the dependencies afterward (setters)
+    drone_comms.set_flask_handler(flask_handler)
+    logger.info("DroneCommunicator's FlaskHandler set.")
+
+    flask_handler.set_drone_communicator(drone_comms)
+    logger.info("FlaskHandler's DroneCommunicator set.")
+
+    # Step 3: Start DroneCommunicator communication
+    drone_comms.start_communication()
+    logger.info("DroneCommunicator communication started.")
+
+    # Step 4: Start Flask HTTP server if enabled
     if params.enable_drones_http_server:
-        flask_handler = FlaskHandler(params, drone_comms,drone_config)
         flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
         flask_thread.start()
         logger.info("Flask HTTP server started.")
 
-    # Create a DroneSetup object
+    # Step 5: Initialize DroneSetup
     drone_setup = DroneSetup(params, drone_config, offboard_controller)
     logger.info("DroneSetup initialized.")
 
-    # Start the main loop
+    # Step 6: Start the main loop
     main_loop()
 
 if __name__ == "__main__":

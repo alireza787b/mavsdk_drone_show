@@ -5,6 +5,7 @@ import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
+from drone_config import DroneConfig
 from functions.data_utils import safe_float, safe_get
 from src.params import Params
 import logging
@@ -13,13 +14,17 @@ from pyproj import Proj, Transformer
 
 
 class FlaskHandler:
-    def __init__(self, params, drone_communicator,drone_config):
+    def __init__(self, params: Params, drone_config: DroneConfig):
+        """
+        Initialize the FlaskHandler with params and drone_config.
+        DroneCommunicator will be injected later using the set_drone_communicator() method.
+        """
         self.app = Flask(__name__)
         CORS(self.app)  # Enable CORS for all routes
         self.params = params
-        self.drone_communicator = drone_communicator
-        self.setup_routes()
+        self.drone_communicator = None  # DroneCommunicator will be set later
         self.drone_config = drone_config
+        self.setup_routes()
 
     def setup_routes(self):
         """Defines the routes for the Flask application."""

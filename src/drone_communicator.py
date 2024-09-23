@@ -20,7 +20,7 @@ class DroneCommunicator:
     Handles communication with drones, including telemetry and command processing.
     """
 
-    def __init__(self, drone_config: DroneConfig,flask_handler: FlaskHandler, params: Params, drones: Dict[str, DroneConfig]):
+    def __init__(self, drone_config: DroneConfig, params: Params, drones: Dict[str, DroneConfig]):
         """
         Initialize the DroneCommunicator with configuration and drone data.
 
@@ -32,21 +32,33 @@ class DroneCommunicator:
         self.drone_config = drone_config
         self.params = params
         self.drones = drones
-        self.enable_udp_telemetry = Params.enable_udp_telemetry
+        self.enable_udp_telemetry = params.enable_udp_telemetry
         self.sock = self._initialize_socket() if self.enable_udp_telemetry else None
         self.stop_flag = threading.Event()
         self.nodes: List[Dict[str, Any]] = None
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.drone_state: Dict[str, Any] = None
 
-        # Initialize FlaskHandler for HTTP commands
-        self.flask_handler = flask_handler
         # Initialize TelemetrySubscriptionManager
         self.subscription_manager = TelemetrySubscriptionManager(drones)
-        
+
         # Subscribe to all drones if the parameter is enabled
-        if Params.enable_default_subscriptions:
+        if params.enable_default_subscriptions:
             self.subscription_manager.subscribe_to_all()
+
+        # Initialize flask_handler as None; it will be injected later
+        self.flask_handler = None
+
+    def set_flask_handler(self, flask_handler: FlaskHandler):
+        """Setter for injecting FlaskHandler dependency after initialization."""
+        self.flask_handler = flask_handler
+
+    def _initialize_socket(self) -> socket.socket:
+        """Initialize and return a UDP socket for telemetry."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
+        sock.setblocking(False)
+        return sock
 
     def _initialize_socket(self) -> socket.socket:
         """Initialize and return a UDP socket for telemetry."""
