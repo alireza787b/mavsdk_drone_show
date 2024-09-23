@@ -4,8 +4,8 @@
 # Ensures it's run from the directory '~/mavsdk_drone_show', uses sudo for necessary operations,
 # and provides detailed reporting of each step.
 
-# URL for the latest mavsdk_server binary for Raspberry Pi 4 (64-bit) as of September 2024
-BINARY_URL= "https://github.com/mavlink/MAVSDK/releases/download/v2.12.6/mavsdk_server_linux-arm64-musl"
+# URL for the latest mavsdk_server binary for Raspberry Pi 4 (64-bit) as of 23 July 2024
+BINARY_URL="https://github.com/mavlink/MAVSDK/releases/download/v2.12.6/mavsdk_server_linux-arm64-musl"
 
 # Define the expected repository directory dynamically
 EXPECTED_DIR="$(eval echo ~$SUDO_USER)/mavsdk_drone_show"
