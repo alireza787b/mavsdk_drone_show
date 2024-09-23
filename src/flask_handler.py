@@ -5,7 +5,7 @@ import subprocess
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
-from drone_config import DroneConfig
+from src.drone_config import DroneConfig
 from functions.data_utils import safe_float, safe_get
 from src.params import Params
 import logging
