@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
 
-// Fix the default icon issue in Leaflet
+// Fix the default icon issue in Leaflet (optional if not using Marker)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -72,14 +72,23 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
           attribution="Map data &copy; Google"
         />
 
-        {/* <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="Map data &copy; OpenStreetMap contributors"
-        // You can replace the URL with a satellite imagery provider
-        /> */}
+        {/* Alternative TileLayer if needed */}
+        {/* 
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="Map data &copy; OpenStreetMap contributors"
+        /> 
+        */}
 
         {dronePositions.map((drone) => (
-          <Marker key={drone.hw_id} position={[drone.lat, drone.lon]}>
+          <CircleMarker
+            key={drone.hw_id}
+            center={[drone.lat, drone.lon]}
+            radius={6} // Adjust radius as needed
+            color="#3388ff" // Border color
+            fillColor="#3388ff" // Fill color
+            fillOpacity={0.8}
+          >
             <Popup>
               <strong>Hardware ID:</strong> {drone.hw_id}
               <br />
@@ -89,7 +98,7 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
               <br />
               <strong>Longitude:</strong> {drone.lon.toFixed(6)}
             </Popup>
-          </Marker>
+          </CircleMarker>
         ))}
       </MapContainer>
     </div>
