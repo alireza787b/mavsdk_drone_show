@@ -66,7 +66,7 @@ class Params():
 
     # Offboard Control Configuration
     offboard_follow_update_interval = 0.1  # Offboard follow update interval
-    schedule_mission_frequency = 10  # Frequency for scheduling missions
+    schedule_mission_frequency = 2  # Frequency for scheduling missions
     follow_setpoint_frequency = 4  # Frequency for follow setpoints
 
     # Sleep Interval for Main Loop
