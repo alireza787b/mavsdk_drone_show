@@ -46,7 +46,7 @@ MAX_VERTICAL_CLIMB_RATE = 2.0  # Maximum vertical climb rate in m/s
 MAX_RETRIES = 3  # Maximum number of retries for critical operations
 PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
 MIN_SAFE_ALTITUDE = 1.0  # Minimum safe altitude in meters
-ENABLE_MIN_ALTITUDE_CHECK = False  # Enable/Disable minimum altitude check
+ENABLE_MIN_ALTITUDE_CHECK = True  # Enable/Disable minimum altitude check
 LANDING_CHECK_DURATION = 5  # Duration in seconds for landing checks during the last n seconds of flight
 
 # ----------------------------- #
@@ -364,6 +364,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
                 await drone.offboard.set_position_velocity_acceleration_ned(
                     position_setpoint, velocity_setpoint, acceleration_setpoint
                 )
+                logger.debug(f"Sending Waypoint: {px:.2f},{py:.2f},{pz:.2f} ")
 
                 # Landing checks during the last LANDING_CHECK_DURATION seconds
                 if total_duration - t <= LANDING_CHECK_DURATION:
@@ -683,7 +684,7 @@ async def run_drone():
         # Step 7: Read and Adjust Trajectory Waypoints (for position_id of the drone)
         trajectory_filename = f"shapes/swarm/processed/Drone {position_id}.csv"
         waypoints = read_trajectory_file(
-            trajectory_filename, drone_config.x, drone_config.y
+            trajectory_filename, drone_config.initial_x, drone_config.initial_y
         )
 
         # Step 8: Execute Trajectory
