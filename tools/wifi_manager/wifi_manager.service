@@ -1,0 +1,12 @@
+[Unit]
+Description=Wi-Fi Manager Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/droneshow/mavsdk_drone_show/tools/wifi_manager/wifi_manager.py
+Restart=always
+User=root
+WorkingDirectory=/home/droneshow/mavsdk_drone_show/tools/wifi_manager/
+
+[Install]
+WantedBy=multi-user.target
