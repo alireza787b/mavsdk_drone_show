@@ -1,12 +1,13 @@
 // app/dashboard/drone-dashboard/src/components/DronePositionMap.js
-
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
 
-// Fix the default icon issue in Leaflet (optional if not using Marker)
+const { BaseLayer } = LayersControl;
+
+// Fix the default icon issue in Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -22,18 +23,13 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
 
   useEffect(() => {
     if (originLat && originLon && drones.length > 0) {
-      // Convert drones' x, y positions to latitude and longitude
       const origin = new LatLon(parseFloat(originLat), parseFloat(originLon));
 
       const positions = drones.map((drone) => {
-        const x = parseFloat(drone.x); // Easting
-        const y = parseFloat(drone.y); // Northing
-
-        // Calculate the bearing and distance
+        const x = parseFloat(drone.x);
+        const y = parseFloat(drone.y);
         const distance = Math.sqrt(x * x + y * y);
-        const bearing = (Math.atan2(x, y) * 180) / Math.PI; // Convert from radians to degrees
-
-        // Destination point given distance and bearing from origin
+        const bearing = (Math.atan2(x, y) * 180) / Math.PI;
         const destination = origin.destinationPoint(distance, bearing);
 
         return {
@@ -56,19 +52,17 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
     return <p>No drone positions available to display on the map.</p>;
   }
 
-  // Calculate the map center as the average of drone positions
   const avgLat =
     dronePositions.reduce((sum, drone) => sum + drone.lat, 0) / dronePositions.length;
   const avgLon =
     dronePositions.reduce((sum, drone) => sum + drone.lon, 0) / dronePositions.length;
 
-  // Function to create a custom DivIcon with pos_id
   const createCustomIcon = (pos_id) => {
     return L.divIcon({
       html: `<div class="custom-marker">${pos_id}</div>`,
       className: 'custom-icon',
-      iconSize: [20, 20], // Reduced size from 30 to 20
-      iconAnchor: [10, 10], // Center the icon based on new size
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
     });
   };
 
@@ -76,19 +70,27 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
       <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={30} style={{ height: '400px' }}>
-        <TileLayer
-          url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-          subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-          attribution="Map data &copy; Google"
-        />
-
-        {/* Alternative TileLayer if needed */}
-        {/* 
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="Map data &copy; OpenStreetMap contributors"
-        /> 
-        */}
+        <LayersControl position="topright">
+          <BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="Map data &copy; OpenStreetMap contributors"
+            />
+          </BaseLayer>
+          <BaseLayer name="Google Satellite">
+            <TileLayer
+              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+              attribution="Map data &copy; Google"
+            />
+          </BaseLayer>
+          <BaseLayer name="Stamen Terrain">
+            <TileLayer
+              url="https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg"
+              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under ODbL.'
+            />
+          </BaseLayer>
+        </LayersControl>
 
         {dronePositions.map((drone) => (
           <Marker
