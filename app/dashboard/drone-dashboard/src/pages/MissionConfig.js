@@ -72,45 +72,26 @@ const MissionConfig = () => {
     fetchOrigin();
   }, []);
 
-  // Fetch deviation data periodically (every 5 seconds)
+  // Fetch deviation data periodically (every 2 seconds)
   useEffect(() => {
     if (!originAvailable) return; // Do not fetch deviations if origin is not set
 
-    const droneFlaskPort = process.env.DRONE_APP_FLASK_PORT || '7070';
-
     const fetchDeviationData = async () => {
-      const promises = configData.map(async (drone) => {
-        try {
-          const response = await axios.get(
-            `http://${drone.ip}:${droneFlaskPort}/get-position-deviation`,
-            { timeout: 5000 }
-          );
-          return {
-            hw_id: drone.hw_id,
-            deviation: response.data,
-          };
-        } catch (error) {
-          console.error(`Error fetching deviation data for drone ${drone.hw_id}:`, error);
-          return {
-            hw_id: drone.hw_id,
-            deviation: null,
-          };
-        }
-      });
-
-      const results = await Promise.all(promises);
-      const deviationMap = {};
-      results.forEach((item) => {
-        deviationMap[item.hw_id] = item.deviation;
-      });
-      setDeviationData(deviationMap);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      try {
+        const response = await axios.get(`${backendURL}/get-position-deviations`);
+        console.log('Received deviation data:', response.data);
+        setDeviationData(response.data);
+      } catch (error) {
+        console.error('Error fetching deviation data from GCS:', error);
+      }
     };
 
     fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 2000); // Fetch every 5 seconds
+    const interval = setInterval(fetchDeviationData, 2000); // Fetch every 2 seconds
 
     return () => clearInterval(interval); // Cleanup on unmount
-  }, [configData, originAvailable]);
+  }, [originAvailable]);
 
   // Save changes for a specific drone
   const saveChanges = (originalHwId, updatedData) => {
@@ -160,7 +141,6 @@ const MissionConfig = () => {
     const newDrone = {
       hw_id: newHwId,
       ip: commonSubnet,
-      // Removed flask_port
       mavlink_port: (14550 + parseInt(newHwId)).toString(),
       debug_port: (13540 + parseInt(newHwId)).toString(),
       gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
