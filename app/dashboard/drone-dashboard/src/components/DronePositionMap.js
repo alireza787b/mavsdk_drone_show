@@ -69,25 +69,20 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={30} style={{ height: '400px' }}>
+      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} style={{ height: '400px' }}>
         <LayersControl position="topright">
-          <BaseLayer checked name="OpenStreetMap">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="Map data &copy; OpenStreetMap contributors"
-            />
-          </BaseLayer>
-          <BaseLayer name="Google Satellite">
+          <BaseLayer name="Google Satellite" checked>
             <TileLayer
               url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
               attribution="Map data &copy; Google"
             />
           </BaseLayer>
-          <BaseLayer name="Stamen Terrain">
+          <BaseLayer name="OpenStreetMap">
             <TileLayer
-              url="https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg"
-              attribution='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under ODbL.'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="Map data &copy; OpenStreetMap contributors"
+              maxZoom={18}
             />
           </BaseLayer>
         </LayersControl>
