@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import '../styles/MapSelector.css';
-import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 // Fix the default icon issue in Leaflet
@@ -93,4 +93,4 @@ const MapSelector = ({ onSelect }) => {
   );
 };
 
-export default MapSelector;s
+export default MapSelector;
