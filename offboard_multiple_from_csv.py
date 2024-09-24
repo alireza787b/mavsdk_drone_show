@@ -46,7 +46,7 @@ MAX_VERTICAL_CLIMB_RATE = 2.0  # Maximum vertical climb rate in m/s
 MAX_RETRIES = 3  # Maximum number of retries for critical operations
 PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
 MIN_SAFE_ALTITUDE = 1.0  # Minimum safe altitude in meters
-ENABLE_MIN_ALTITUDE_CHECK = True  # Enable/Disable minimum altitude check
+ENABLE_MIN_ALTITUDE_CHECK = False  # Enable/Disable minimum altitude check
 LANDING_CHECK_DURATION = 5  # Duration in seconds for landing checks during the last n seconds of flight
 
 # ----------------------------- #
