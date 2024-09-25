@@ -1,17 +1,17 @@
 [{
-        "ssid": "droneshow_drone2",
-        "password": "droneshow_drone2"
+        "ssid": "ds24_drone2",
+        "password": "ds24_drone2"
     },
     {
-        "ssid": "droneshow_mobinnet1",
-        "password": "droneshow_mobinnet1"
+        "ssid": "ds24_mobinnet1",
+        "password": "ds24_mobinnet1"
     },
     {
-        "ssid": "droneshow_dlink1",
-        "password": "droneshow_dlink1"
+        "ssid": "ds24_dlink1",
+        "password": "ds24_dlink1"
     },
     {
-        "ssid": "droneshow_necton1",
-        "password": "droneshow_necton1"
+        "ssid": "ds24_necton1",
+        "password": "ds24_necton1"
     }
 ]
