@@ -6,6 +6,8 @@ import json
 import logging
 from params import Params
 from pyproj import Proj, Transformer
+from scipy.optimize import minimize
+
 
 
 # Setup logging
@@ -142,3 +144,48 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
         }
 
     return deviations
+
+
+
+def compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east):
+    """
+    Computes the origin lat/lon based on the drone's current lat/lon and intended N,E positions.
+    """
+    try:
+        # Define the function to minimize
+        def error_function(origin_coords):
+            origin_lat, origin_lon = origin_coords
+
+            # Define the projection
+            proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
+            transformer = Transformer.from_proj(
+                Proj('epsg:4326'),  # WGS84
+                Proj(proj_string),
+                always_xy=True
+            )
+
+            # Compute N,E positions of the drone's current lat/lon relative to this origin
+            east, north = transformer.transform(current_lon, current_lat)
+
+            # Compute the difference between computed N,E and intended N,E
+            delta_north = north - intended_north
+            delta_east = east - intended_east
+
+            # Return the squared error
+            return delta_north ** 2 + delta_east ** 2
+
+        # Initial guess for the origin is the drone's current position
+        initial_guess = [current_lat, current_lon]
+
+        # Use scipy.optimize to minimize the error function
+        result = minimize(error_function, initial_guess, method='L-BFGS-B')
+
+        if result.success:
+            origin_lat, origin_lon = result.x
+            return origin_lat, origin_lon
+        else:
+            raise Exception("Optimization failed to find the origin.")
+
+    except Exception as e:
+        logger.error(f"Error computing origin from drone: {e}", exc_info=True)
+        raise

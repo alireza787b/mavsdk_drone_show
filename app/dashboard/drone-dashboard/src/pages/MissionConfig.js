@@ -27,6 +27,7 @@ const MissionConfig = () => {
   const [showOriginModal, setShowOriginModal] = useState(false);
   const [deviationData, setDeviationData] = useState({});
   const [originAvailable, setOriginAvailable] = useState(false);
+  const [telemetryData, setTelemetryData] = useState({}); // New state variable for telemetry data
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -92,6 +93,25 @@ const MissionConfig = () => {
 
     return () => clearInterval(interval); // Cleanup on unmount
   }, [originAvailable]);
+
+  // Fetch telemetry data periodically (every 2 seconds)
+  useEffect(() => {
+    const fetchTelemetryData = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      try {
+        const response = await axios.get(`${backendURL}/telemetry`);
+        console.log('Received telemetry data:', response.data);
+        setTelemetryData(response.data);
+      } catch (error) {
+        console.error('Error fetching telemetry data from GCS:', error);
+      }
+    };
+
+    fetchTelemetryData();
+    const interval = setInterval(fetchTelemetryData, 2000); // Fetch every 2 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
 
   // Save changes for a specific drone
   const saveChanges = (originalHwId, updatedData) => {
@@ -216,6 +236,8 @@ const MissionConfig = () => {
           isOpen={showOriginModal}
           onClose={() => setShowOriginModal(false)}
           onSubmit={handleOriginSubmit}
+          telemetryData={telemetryData} // Pass telemetry data
+          configData={configData} // Pass config data
         />
       )}
 

@@ -16,7 +16,7 @@ import logging
 from params import Params
 from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
-from origin import save_origin, load_origin, calculate_position_deviations
+from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 
 
 
@@ -338,6 +338,29 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error in get_position_deviations: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
+        
+        
+    @app.route('/compute-origin', methods=['POST'])
+    def compute_origin():
+        """
+        Endpoint to compute the origin coordinates based on a drone's current position and intended N,E positions.
+        """
+        try:
+            data = request.get_json()
+            current_lat = float(data.get('current_lat'))
+            current_lon = float(data.get('current_lon'))
+            intended_east = float(data.get('intended_east'))
+            intended_north = float(data.get('intended_north'))
+
+            # Compute the origin
+            origin_lat, origin_lon = compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east)
+
+            return jsonify({'lat': origin_lat, 'lon': origin_lon}), 200
+
+        except Exception as e:
+            logger.error(f"Error in compute_origin: {e}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+
 
 
 
