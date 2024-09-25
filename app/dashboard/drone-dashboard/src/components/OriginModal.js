@@ -120,35 +120,29 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
       <div className="modal">
         <h3>Select Origin Coordinates</h3>
         <div className="origin-method-selection">
-          <label>
-            <input
-              type="radio"
-              value="manual"
-              checked={originMethod === 'manual'}
-              onChange={() => {
-                setOriginMethod('manual');
-                setErrors({});
-                setSelectedDroneId('');
-                setComputedOrigin(null);
-                setDroneError('');
-              }}
-            />
+          <button
+            className={`method-button ${originMethod === 'manual' ? 'active' : ''}`}
+            onClick={() => {
+              setOriginMethod('manual');
+              setErrors({});
+              setSelectedDroneId('');
+              setComputedOrigin(null);
+              setDroneError('');
+            }}
+          >
             Enter Coordinates Manually
-          </label>
-          <label>
-            <input
-              type="radio"
-              value="drone"
-              checked={originMethod === 'drone'}
-              onChange={() => {
-                setOriginMethod('drone');
-                setCoordinateInput('');
-                setSelectedLatLon(null);
-                setErrors({});
-              }}
-            />
+          </button>
+          <button
+            className={`method-button ${originMethod === 'drone' ? 'active' : ''}`}
+            onClick={() => {
+              setOriginMethod('drone');
+              setCoordinateInput('');
+              setSelectedLatLon(null);
+              setErrors({});
+            }}
+          >
             Use Drone as Reference
-          </label>
+          </button>
         </div>
 
         {originMethod === 'manual' && (
@@ -164,10 +158,11 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
                     setSelectedLatLon(null); // Reset map selection
                   }}
                   placeholder='e.g., "35°24&#39;28.0&quot;N 50°09&#39;53.6&quot;E" or "35.4079, 50.1649"'
-                  />
+                />
                 {errors.input && <span className="error-message">{errors.input}</span>}
               </label>
             </div>
+            <p className="or-text">OR</p>
             <MapSelector onSelect={handleMapSelect} />
           </>
         )}
@@ -196,8 +191,8 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
             {computedOrigin && (
               <div className="computed-origin">
                 <p>Computed Origin:</p>
-                <p>Latitude: {computedOrigin.lat}</p>
-                <p>Longitude: {computedOrigin.lon}</p>
+                <p>Latitude: {computedOrigin.lat.toFixed(6)}</p>
+                <p>Longitude: {computedOrigin.lon.toFixed(6)}</p>
               </div>
             )}
           </div>
@@ -205,7 +200,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
 
         <div className="modal-buttons">
           <button onClick={handleSubmit} className="ok-button">
-            OK
+            Set Origin
           </button>
           <button onClick={onClose} className="cancel-button">
             Cancel
@@ -217,7 +212,4 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
 };
 
 export default OriginModal;
-
-
-
 

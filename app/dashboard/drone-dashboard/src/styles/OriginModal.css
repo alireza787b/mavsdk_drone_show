@@ -1,3 +1,8 @@
+/* app/dashboard/drone-dashboard/src/styles/OriginModal.css */
+
+
+/* Modal Overlay */
+
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -11,42 +16,186 @@
     z-index: 1000;
 }
 
+
+/* Modal Container */
+
 .modal {
-    background-color: #fff;
-    padding: 2rem;
+    background-color: #ffffff;
+    padding: 1.5rem;
     border-radius: 8px;
-    max-width: 500px;
-    width: 100%;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
+
+
+/* Modal Header */
 
 .modal h3 {
     margin-top: 0;
     margin-bottom: 1rem;
+    font-size: 1.5rem;
+    color: #111827;
+    text-align: center;
 }
 
-.modal label {
-    display: block;
+
+/* Origin Method Selection */
+
+.origin-method-selection {
+    display: flex;
+    justify-content: center;
     margin-bottom: 1rem;
 }
 
-.modal input {
+.method-button {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    background-color: #f3f4f6;
+    color: #111827;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s;
+}
+
+.method-button:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.method-button:last-child {
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+}
+
+.method-button.active {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+.method-button:not(.active):hover {
+    background-color: #e5e7eb;
+}
+
+
+/* Coordinate Input */
+
+.coordinate-input {
+    margin-bottom: 1rem;
+}
+
+.coordinate-input label {
+    display: block;
+    font-weight: 500;
+    color: #374151;
+}
+
+.coordinate-input input {
     width: 100%;
     padding: 0.5rem;
+    margin-top: 0.5rem;
     border: 1px solid #d1d5db;
     border-radius: 4px;
-    margin-top: 0.5rem;
+    font-size: 1rem;
 }
 
 .error-message {
     color: #ef4444;
     font-size: 0.875rem;
+    margin-top: 0.5rem;
 }
+
+
+/* 'OR' Text */
+
+.or-text {
+    text-align: center;
+    margin: 1rem 0;
+    color: #6b7280;
+    position: relative;
+}
+
+.or-text::before,
+.or-text::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background-color: #d1d5db;
+}
+
+.or-text::before {
+    left: 0;
+}
+
+.or-text::after {
+    right: 0;
+}
+
+
+/* Map Container */
+
+#map {
+    height: 300px;
+    width: 100%;
+    margin-bottom: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+}
+
+
+/* Drone Selection */
+
+.drone-selection label {
+    display: block;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+.drone-selection select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+
+/* Computed Origin Display */
+
+.computed-origin {
+    margin-top: 1rem;
+    background-color: #f9fafb;
+    padding: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+}
+
+.computed-origin p {
+    margin: 0.5rem 0;
+    color: #111827;
+}
+
+
+/* Modal Buttons */
 
 .modal-buttons {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
+}
+
+.modal-buttons button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    color: #ffffff;
+    transition: background-color 0.3s;
 }
 
 .ok-button {
@@ -63,29 +212,4 @@
 
 .cancel-button:hover {
     background-color: #4b5563;
-}
-
-.coordinate-input {
-    margin-bottom: 10px;
-}
-
-.coordinate-input label {
-    display: block;
-}
-
-.coordinate-input input {
-    width: 100%;
-}
-
-.coordinate-input button {
-    margin-top: 5px;
-}
-
-.map-container {
-    margin-bottom: 10px;
-}
-
-.modal-buttons {
-    display: flex;
-    justify-content: flex-end;
 }
