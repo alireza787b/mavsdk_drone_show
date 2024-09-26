@@ -7,6 +7,8 @@ import subprocess
 import signal
 import glob
 import logging
+import socket
+import psutil
 from collections import namedtuple
 from mavsdk import System
 from mavsdk.offboard import (
@@ -37,17 +39,44 @@ logger = logging.getLogger(__name__)
 #           Constants           #
 # ----------------------------- #
 
-STEP_TIME = 0.05  # Time step for trajectory execution loop in seconds
-GRPC_PORT = 50040  # Fixed gRPC port for MAVSDK server
-MAVSDK_PORT = 14540  # MAVSDK port for communication
-SHOW_DEVIATIONS = False  # Flag to show deviations during flight
-INITIAL_CLIMB_DURATION = 5  # Duration in seconds for the initial climb phase
-MAX_VERTICAL_CLIMB_RATE = 2.0  # Maximum vertical climb rate in m/s
-MAX_RETRIES = 3  # Maximum number of retries for critical operations
-PRE_FLIGHT_TIMEOUT = 5  # Timeout for pre-flight checks in seconds
-MIN_SAFE_ALTITUDE = 1.0  # Minimum safe altitude in meters
-ENABLE_MIN_ALTITUDE_CHECK = False  # Enable/Disable minimum altitude check
-LANDING_CHECK_DURATION = 5  # Duration in seconds for landing checks during the last n seconds of flight
+# Time step for trajectory execution loop in seconds
+STEP_TIME = 0.05
+
+# Fixed gRPC port for MAVSDK server
+GRPC_PORT = 50040
+
+# MAVSDK port for communication
+MAVSDK_PORT = 14540
+
+# Flag to show deviations during flight
+SHOW_DEVIATIONS = False
+
+# Duration in seconds for the initial climb phase
+INITIAL_CLIMB_DURATION = 5
+
+# Maximum vertical climb rate in m/s
+MAX_VERTICAL_CLIMB_RATE = 1.0
+
+# Maximum number of retries for critical operations
+MAX_RETRIES = 3
+
+# Timeout for pre-flight checks in seconds
+PRE_FLIGHT_TIMEOUT = 5
+
+# Minimum safe altitude in meters
+MIN_SAFE_ALTITUDE = 1.0
+
+# Enable/Disable minimum altitude check
+ENABLE_MIN_ALTITUDE_CHECK = True
+
+# Duration in seconds for landing checks during the last n seconds of flight
+LANDING_CHECK_DURATION = 5
+
+# Descent speed during landing phase in m/s
+DESCENT_SPEED = 0.3
+
+# Timeout for landing detection during landing phase in seconds
+LANDING_TIMEOUT = 6
 
 # ----------------------------- #
 #        Data Structures        #
@@ -62,7 +91,7 @@ Drone = namedtuple(
 # ----------------------------- #
 
 HW_ID = None  # Hardware ID of the drone
-position_id = None # Position ID of the drone
+position_id = None  # Position ID of the drone
 global_position_telemetry = {}  # Global position telemetry data
 current_landed_state = None  # Current landed state of the drone
 
@@ -73,6 +102,7 @@ current_landed_state = None  # Current landed state of the drone
 def read_hw_id() -> int:
     """
     Read the hardware ID from a file with the extension '.hwID'.
+
     Returns:
         int: Hardware ID if found, else None.
     """
@@ -290,6 +320,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
     total_duration = waypoints[-1][0]
     t = 0.0
     last_waypoint_index = 0
+    landing_detected = False
 
     # Initialize LEDController
     led_controller = LEDController.get_instance()
@@ -297,7 +328,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
     while t <= total_duration:
         try:
             actual_position = global_position_telemetry.get("drone")
-            if actual_position and home_position:
+            if actual_position and home_position and SHOW_DEVIATIONS:
                 local_ned_position = global_to_local(actual_position, home_position)
             else:
                 local_ned_position = PositionNedYaw(0.0, 0.0, 0.0, 0.0)
@@ -347,14 +378,6 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
                 await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, vz_cmd, 0.0))
             else:
                 # After initial climb phase: send position, velocity, and acceleration setpoints
-                # Minimum altitude check
-                if ENABLE_MIN_ALTITUDE_CHECK:
-                    if pz > -MIN_SAFE_ALTITUDE:
-                        logger.warning(
-                            f"Desired altitude {pz:.2f}m is below minimum safe altitude. Adjusting to -{MIN_SAFE_ALTITUDE}m."
-                        )
-                        pz = -MIN_SAFE_ALTITUDE
-
                 # Create setpoints
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
                 velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
@@ -370,8 +393,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
                 if total_duration - t <= LANDING_CHECK_DURATION:
                     if current_landed_state == LandedState.ON_GROUND:
                         logger.info("Drone has detected landing during trajectory.")
-                        await stop_offboard_mode(drone)
-                        await disarm_drone(drone)
+                        landing_detected = True
                         break
 
             await asyncio.sleep(STEP_TIME)
@@ -399,7 +421,48 @@ async def perform_trajectory(drone: System, waypoints: list, home_position):
 
     logger.info("Trajectory completed.")
     LEDController.set_color(0, 0, 255)  # Blue
-    LEDController.turn_off()
+
+    # Begin landing phase
+    logger.info("Beginning landing phase.")
+    landing_start_time = time.time()
+
+    while not landing_detected and (time.time() - landing_start_time) < LANDING_TIMEOUT:
+        try:
+            # Send setpoint with final descent speed
+            velocity_setpoint = VelocityNedYaw(0.0, 0.0, DESCENT_SPEED, 0.0)
+
+            await drone.offboard.set_velocity_ned(
+                velocity_setpoint
+            )
+            logger.debug(f"Landing phase: Descending at ={DESCENT_SPEED:.2f} m/s")
+
+            # Check for landing detection
+            if current_landed_state == LandedState.ON_GROUND:
+                landing_detected = True
+                logger.info("Landing detected during landing phase.")
+                break
+
+            await asyncio.sleep(STEP_TIME)
+        except OffboardError as e:
+            logger.error(f"Offboard error during landing phase: {e}")
+            LEDController.set_color(255, 0, 0)  # Red
+            break
+        except Exception as e:
+            logger.error(f"Error during landing phase: {e}")
+            LEDController.set_color(255, 0, 0)  # Red
+            break
+
+    if landing_detected:
+        await stop_offboard_mode(drone)
+        await disarm_drone(drone)
+    else:
+        # If timeout and still no landing detected, activate default land command
+        logger.warning("Landing not detected within timeout, initiating default land command.")
+        await stop_offboard_mode(drone)
+        await perform_landing(drone)
+
+    # Turn off LEDs
+    LEDController.set_color(0,255,0)
 
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(5))
 async def initial_setup_and_connection():
@@ -596,6 +659,47 @@ async def disarm_drone(drone: System):
 #       MAVSDK Server Control   #
 # ----------------------------- #
 
+def check_mavsdk_server_running(port):
+    """
+    Checks if the MAVSDK server is running on the specified gRPC port.
+
+    Args:
+        port (int): The gRPC port to check.
+
+    Returns:
+        tuple: (is_running (bool), pid (int or None))
+    """
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.connections(kind='inet'):
+                if conn.laddr.port == port:
+                    return True, proc.info['pid']
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False, None
+
+def wait_for_port(port, host='localhost', timeout=10.0):
+    """
+    Wait until a port starts accepting TCP connections.
+
+    Args:
+        port (int): The port to check.
+        host (str): The hostname to check.
+        timeout (float): The maximum time to wait in seconds.
+
+    Returns:
+        bool: True if the port is open, False if the timeout was reached.
+    """
+    start_time = time.time()
+    while True:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except (ConnectionRefusedError, socket.timeout):
+            if time.time() - start_time >= timeout:
+                return False
+            time.sleep(0.1)
+
 def start_mavsdk_server(udp_port: int):
     """
     Start MAVSDK server instance for the drone.
@@ -607,12 +711,39 @@ def start_mavsdk_server(udp_port: int):
         subprocess.Popen: MAVSDK server subprocess if started successfully, else None.
     """
     try:
+        # Check if MAVSDK server is already running
+        is_running, pid = check_mavsdk_server_running(GRPC_PORT)
+        if is_running:
+            logger.info(f"MAVSDK server already running on port {GRPC_PORT}. Terminating...")
+            try:
+                psutil.Process(pid).terminate()
+                psutil.Process(pid).wait(timeout=5)
+                logger.info(f"Terminated existing MAVSDK server with PID: {pid}")
+            except psutil.NoSuchProcess:
+                logger.warning(f"No process found with PID: {pid} to terminate.")
+            except psutil.TimeoutExpired:
+                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
+                psutil.Process(pid).kill()
+                psutil.Process(pid).wait()
+                logger.info(f"Killed MAVSDK server with PID: {pid}")
+
+        # Start the MAVSDK server
         mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(GRPC_PORT), f"udp://:{udp_port}"]
+            ["./mavsdk_server", "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         logger.info(
             f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}."
         )
+
+        # Wait until the server is listening on the gRPC port
+        if not wait_for_port(GRPC_PORT, timeout=10):
+            logger.error(f"MAVSDK server did not start listening on port {GRPC_PORT} within timeout.")
+            mavsdk_server.terminate()
+            return None
+
+        logger.info("MAVSDK server is now listening on gRPC port.")
         return mavsdk_server
     except FileNotFoundError:
         logger.error("mavsdk_server executable not found. Ensure it is present in the current directory.")
@@ -630,8 +761,18 @@ def stop_mavsdk_server(mavsdk_server):
     """
     try:
         if mavsdk_server.poll() is None:
-            os.kill(mavsdk_server.pid, signal.SIGTERM)
-            logger.info("MAVSDK server stopped.")
+            logger.info("Stopping MAVSDK server...")
+            mavsdk_server.terminate()
+            try:
+                mavsdk_server.wait(timeout=5)
+                logger.info("MAVSDK server terminated gracefully.")
+            except subprocess.TimeoutExpired:
+                logger.warning("MAVSDK server did not terminate gracefully. Killing it.")
+                mavsdk_server.kill()
+                mavsdk_server.wait()
+                logger.info("MAVSDK server killed forcefully.")
+        else:
+            logger.debug("MAVSDK server has already terminated.")
     except Exception as e:
         logger.error(f"Error stopping MAVSDK server: {e}")
 
@@ -689,15 +830,6 @@ async def run_drone():
 
         # Step 8: Execute Trajectory
         await perform_trajectory(drone, waypoints, home_position)
-
-        # Step 9: Stop Offboard Mode
-        await stop_offboard_mode(drone)
-
-        # Step 10: Initiate Landing
-        await perform_landing(drone)
-
-        # Step 11: Disarm the Drone
-        await disarm_drone(drone)
 
         logger.info("Drone mission completed successfully.")
         sys.exit(0)
