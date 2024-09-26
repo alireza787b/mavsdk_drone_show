@@ -7,7 +7,7 @@ set -e
 SERVICE_FILE="wifi_manager.service"
 PYTHON_SCRIPT="wifi_manager.py"
 CONFIG_FILE="known_networks.json"  # Optional
-INSTALL_DIR="$HOME/mavsdk_drone_show/tools/wifi_manager"
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_DEST_DIR="/etc/systemd/system"
 SERVICE_DEST_PATH="$SERVICE_DEST_DIR/$SERVICE_FILE"
 SCRIPT_PATH="$INSTALL_DIR/$PYTHON_SCRIPT"
@@ -59,9 +59,9 @@ else
 fi
 
 # Copy the service file to /etc/systemd/system/
-if file_exists "$SERVICE_FILE"; then
+if file_exists "$INSTALL_DIR/$SERVICE_FILE"; then
     echo "Copying service file to $SERVICE_DEST_DIR..."
-    sudo cp "$SERVICE_FILE" "$SERVICE_DEST_PATH"
+    sudo cp "$INSTALL_DIR/$SERVICE_FILE" "$SERVICE_DEST_PATH"
     sudo chmod 644 "$SERVICE_DEST_PATH"
 else
     echo "Error: $SERVICE_FILE not found in $INSTALL_DIR."
