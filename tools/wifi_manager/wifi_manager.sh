@@ -10,9 +10,10 @@
 CONFIG_FILE="$(dirname "$0")/known_networks.conf"  # Path to the known networks configuration
 LOG_FILE="/var/log/wifi_manager.log"               # Log file path
 SCAN_INTERVAL=15                                   # Time between scans in seconds
-SIGNAL_THRESHOLD=10                                # dBm difference to switch networks
+SIGNAL_THRESHOLD=10                                # Percentage difference to switch networks
 MAX_LOG_SIZE=5242880                               # 5 MB in bytes
 BACKUP_COUNT=3                                     # Number of log backups to keep
+LOCK_FILE="/var/run/wifi_manager.lock"            # Lock file to prevent multiple instances
 
 # =======================
 # Initial Setup and Checks
@@ -20,13 +21,25 @@ BACKUP_COUNT=3                                     # Number of log backups to ke
 
 # Ensure the script runs as root
 if [ "$EUID" -ne 0 ]; then
-  printf "ERROR - Please run as root.\n" >&2
+  echo "ERROR - Please run as root." >&2
   exit 1
 fi
 
+# Prevent multiple instances
+if [ -f "$LOCK_FILE" ]; then
+  echo "ERROR - Another instance of the script is running." >&2
+  exit 1
+fi
+
+# Create a lock file
+touch "$LOCK_FILE"
+
+# Ensure the lock file is removed on script exit
+trap "rm -f $LOCK_FILE; exit" INT TERM EXIT
+
 # Setup logging with timestamps
 # All stdout and stderr will be logged with timestamps and also output to the console
-exec >> >(while IFS= read -r line; do printf "%s - %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee -a "$LOG_FILE") 2>&1
+exec >> >(while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S') - $line"; done | tee -a "$LOG_FILE") 2>&1
 
 # =======================
 # Log Rotation Function
@@ -41,20 +54,20 @@ rotate_logs() {
         if [ -f "$LOG_FILE.$i" ]; then
           if [ "$i" -eq "$BACKUP_COUNT" ]; then
             rm -f "$LOG_FILE.$i"
-            printf "INFO - Removed oldest log backup: %s.%d\n" "$LOG_FILE" "$i"
+            echo "INFO - Removed oldest log backup: $LOG_FILE.$i"
           else
             mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
-            printf "INFO - Rotated log: %s.%d -> %s.%d\n" "$LOG_FILE" "$i" "$LOG_FILE" "$((i+1))"
+            echo "INFO - Rotated log: $LOG_FILE.$i -> $LOG_FILE.$((i+1))"
           fi
         fi
       done
       mv "$LOG_FILE" "$LOG_FILE.1"
-      : > "$LOG_FILE"
-      printf "INFO - Rotated log: %s -> %s.1\n" "$LOG_FILE" "$LOG_FILE"
+      touch "$LOG_FILE"
+      echo "INFO - Rotated log: $LOG_FILE -> $LOG_FILE.1"
     fi
   else
-    : > "$LOG_FILE"
-    printf "INFO - Created new log file: %s\n" "$LOG_FILE"
+    touch "$LOG_FILE"
+    echo "INFO - Created new log file: $LOG_FILE"
   fi
 }
 
@@ -64,7 +77,7 @@ rotate_logs() {
 
 load_known_networks() {
   if [ ! -f "$CONFIG_FILE" ]; then
-    printf "ERROR - Configuration file %s not found.\n" "$CONFIG_FILE" >&2
+    echo "ERROR - Configuration file $CONFIG_FILE not found." >&2
     exit 1
   fi
 
@@ -77,8 +90,8 @@ load_known_networks() {
     key=$(echo "$key" | xargs)
     value=$(echo "$value" | xargs)
 
-    # Skip empty lines or lines without '='
-    if [ -z "$key" ] || [ -z "$value" ]; then
+    # Skip empty lines or lines starting with '#'
+    if [[ -z "$key" ]] || [[ -z "$value" ]] || [[ "$key" == \#* ]]; then
       continue
     fi
 
@@ -93,21 +106,21 @@ load_known_networks() {
           ssid=""
           password=""
         else
-          printf "WARNING - Incomplete network entry: SSID='%s', Password='%s'\n" "$ssid" "$password"
+          echo "WARNING - Incomplete network entry: SSID='$ssid', Password='$password'"
         fi
         ;;
       *)
-        printf "WARNING - Unknown key '%s' in configuration file.\n" "$key"
+        echo "WARNING - Unknown key '$key' in configuration file."
         ;;
     esac
   done < "$CONFIG_FILE"
 
   if [ ${#KNOWN_NETWORKS[@]} -eq 0 ]; then
-    printf "ERROR - No known networks loaded from %s.\n" "$CONFIG_FILE" >&2
+    echo "ERROR - No known networks loaded from $CONFIG_FILE." >&2
     exit 1
   fi
 
-  printf "INFO - Loaded %d known networks.\n" "${#KNOWN_NETWORKS[@]}"
+  echo "INFO - Loaded ${#KNOWN_NETWORKS[@]} known networks."
 }
 
 # =======================
@@ -126,7 +139,7 @@ get_wifi_interface() {
 
 # Get the wireless interface
 INTERFACE=$(get_wifi_interface)
-printf "INFO - Using wireless interface: %s\n" "$INTERFACE"
+echo "INFO - Using wireless interface: $INTERFACE"
 
 # =======================
 # Scan Wi-Fi Networks Using nmcli
@@ -138,7 +151,7 @@ scan_wifi_networks() {
   scan_output=$(nmcli -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes)
 
   if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
-    printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'.\n" "$INTERFACE" >&2
+    echo "WARNING - Failed to scan Wi-Fi networks on interface '$INTERFACE'."
     return
   fi
 
@@ -151,7 +164,7 @@ scan_wifi_networks() {
     available_networks+=("$ssid;$signal")
   done <<< "$(echo "$scan_output" | tail -n +2)"
 
-  printf "INFO - Scanned %d available networks.\n" "${#available_networks[@]}"
+  echo "INFO - Scanned ${#available_networks[@]} available networks."
 }
 
 # =======================
@@ -162,17 +175,17 @@ get_current_connection_info() {
   current_ssid=$(nmcli -t -f active,ssid dev wifi | grep '^yes:' | cut -d':' -f2-)
   if [ -n "$current_ssid" ]; then
     # Get signal strength of the current connection
-    current_signal=$(nmcli -t -f SIGNAL,DEVICE connection show --active | grep "$INTERFACE" | cut -d':' -f1)
+    current_signal=$(nmcli -t -f SIGNAL connection show --active | head -n1 | cut -d':' -f1)
     if [ -z "$current_signal" ]; then
       current_signal=0  # Default to 0 if unable to retrieve
-      printf "WARNING - Could not retrieve signal strength for current SSID '%s'. Setting to %d.\n" "$current_ssid" "$current_signal"
+      echo "WARNING - Could not retrieve signal strength for current SSID '$current_ssid'. Setting to $current_signal%."
     else
-      printf "INFO - Currently connected to '%s' with signal strength %d%%.\n" "$current_ssid" "$current_signal"
+      echo "INFO - Currently connected to '$current_ssid' with signal strength $current_signal%."
     fi
   else
     current_ssid=""
     current_signal=0
-    printf "INFO - Not connected to any network.\n"
+    echo "INFO - Not connected to any network."
   fi
 }
 
@@ -184,13 +197,18 @@ connect_to_network() {
   local ssid="$1"
   local password="$2"
 
-  printf "INFO - Attempting to connect to network '%s'.\n" "$ssid"
+  echo "INFO - Attempting to connect to network '$ssid'."
 
-  if nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE"; then
-    printf "INFO - Successfully connected to '%s'.\n" "$ssid"
+  # Capture nmcli output and exit status
+  nmcli_output=$(nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE" 2>&1)
+  nmcli_exit_status=$?
+
+  if [ "$nmcli_exit_status" -eq 0 ]; then
+    echo "INFO - Successfully connected to '$ssid'."
+    echo "INFO - nmcli output: $nmcli_output"
     return 0
   else
-    printf "ERROR - Failed to connect to '%s'.\n" "$ssid" >&2
+    echo "ERROR - Failed to connect to '$ssid'. nmcli output: $nmcli_output" >&2
     return 1
   fi
 }
@@ -233,23 +251,31 @@ main_loop() {
     if [ -n "$best_ssid" ]; then
       if [ "$current_ssid" != "$best_ssid" ]; then
         if [ "$current_ssid" == "" ]; then
-          printf "INFO - Not connected. Connecting to '%s' (%d%% signal).\n" "$best_ssid" "$best_signal"
-          connect_to_network "$best_ssid" "$best_password"
+          echo "INFO - Not connected. Connecting to '$best_ssid' ($best_signal%)."
+          if connect_to_network "$best_ssid" "$best_password"; then
+            echo "INFO - Connected to '$best_ssid'."
+          else
+            echo "ERROR - Could not connect to '$best_ssid'. Will retry in next scan."
+          fi
         else
-          # Compare signal strengths
+          # Calculate signal difference
           signal_diff=$((best_signal - current_signal))
           if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
-            printf "INFO - Found better network '%s' (%d%%) compared to current '%s' (%d%%). Difference: %d%%. Switching...\n" "$best_ssid" "$best_signal" "$current_ssid" "$current_signal" "$signal_diff"
-            connect_to_network "$best_ssid" "$best_password"
+            echo "INFO - Found better network '$best_ssid' ($best_signal%) compared to current '$current_ssid' ($current_signal%). Difference: $signal_diff%. Switching..."
+            if connect_to_network "$best_ssid" "$best_password"; then
+              echo "INFO - Switched to '$best_ssid'."
+            else
+              echo "ERROR - Failed to switch to '$best_ssid'. Will retry in next scan."
+            fi
           else
-            printf "INFO - Current network '%s' (%d%%) is sufficiently strong. Best available: '%s' (%d%%) with a difference of %d%%.\n" "$current_ssid" "$current_signal" "$best_ssid" "$best_signal" "$signal_diff"
+            echo "INFO - Current network '$current_ssid' ($current_signal%) is sufficiently strong. Best available: '$best_ssid' ($best_signal%) with a difference of $signal_diff%."
           fi
         fi
       else
-        printf "INFO - Already connected to the best available network '%s' (%d%%).\n" "$current_ssid" "$current_signal"
+        echo "INFO - Already connected to the best available network '$current_ssid' ($current_signal%)."
       fi
     else
-      printf "WARNING - No known networks available to connect.\n" >&2
+      echo "WARNING - No known networks available to connect."
     fi
 
     sleep "$SCAN_INTERVAL"
