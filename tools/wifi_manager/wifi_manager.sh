@@ -73,6 +73,15 @@ load_known_networks() {
   local password=""
 
   while IFS='=' read -r key value || [ -n "$key" ]; do
+    # Trim leading/trailing whitespace
+    key=$(echo "$key" | xargs)
+    value=$(echo "$value" | xargs)
+    
+    # Skip empty lines or lines without '='
+    if [ -z "$key" ] || [ -z "$value" ]; then
+      continue
+    fi
+
     case "$key" in
       ssid)
         ssid="$value"
@@ -117,26 +126,29 @@ get_wifi_interface() {
   echo "wlan0"  # Default interface name
 }
 
+# Get the wireless interface
+INTERFACE=$(get_wifi_interface)
+echo "INFO - Using wireless interface: $INTERFACE"
+
 # =======================
 # Scan Wi-Fi Networks Function
 # =======================
 
 scan_wifi_networks() {
-  local scan_output
-  local ssid=""
-  local signal=""
   available_networks=()
-
+  local scan_output
   scan_output=$(iwlist "$INTERFACE" scanning 2>/dev/null)
 
-  if [ -z "$scan_output" ]; then
-    echo "WARNING - No Wi-Fi networks found during scan."
+  if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
+    echo "WARNING - Failed to scan Wi-Fi networks on interface '$INTERFACE'."
     return
   fi
 
+  local ssid=""
+  local signal=""
   while IFS= read -r line; do
     line=$(echo "$line" | sed 's/^[ \t]*//')  # Trim leading whitespace
-    if [[ "$line" == Cell* ]]; then
+    if [[ "$line" == "Cell "* ]]; then
       ssid=""
       signal=""
     elif [[ "$line" == ESSID:* ]]; then
@@ -144,6 +156,8 @@ scan_wifi_networks() {
     elif [[ "$line" == *"Signal level="* ]]; then
       # Extract signal level in dBm
       if [[ "$line" =~ Signal\ level=([\-0-9]+) ]]; then
+        signal="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ Quality=[0-9]+/[0-9]+\ +Signal\ level=([\-0-9]+) ]]; then
         signal="${BASH_REMATCH[1]}"
       fi
     fi
@@ -165,10 +179,13 @@ scan_wifi_networks() {
 get_current_connection_info() {
   current_ssid=$(iwgetid -r)
   if [ -n "$current_ssid" ]; then
+    # Extract signal level using iwconfig
     current_signal=$(iwconfig "$INTERFACE" | grep -i --color=never 'signal level' | awk -F'=' '{print $3}' | awk '{print $1}' | sed 's/dBm//g')
     if [ -z "$current_signal" ]; then
       current_signal=-100  # Assign a low value if unable to retrieve
       echo "WARNING - Could not retrieve signal level for current SSID '$current_ssid'. Setting to $current_signal dBm."
+    else
+      echo "INFO - Currently connected to '$current_ssid' with signal level $current_signal dBm."
     fi
   else
     current_ssid=""
@@ -184,6 +201,7 @@ get_current_connection_info() {
 connect_to_network() {
   local ssid="$1"
   local password="$2"
+
   local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
 
   echo "INFO - Generating wpa_supplicant configuration for '$ssid'."
@@ -200,8 +218,14 @@ connect_to_network() {
     return 1
   fi
 
-  # Replace the wpa_supplicant.conf with the new configuration
-  cp /tmp/wpa_temp.conf "$wpa_conf"
+  # Append to existing wpa_supplicant.conf instead of replacing to allow multiple networks
+  if grep -q "^network={" "$wpa_conf" 2>/dev/null; then
+    cat /tmp/wpa_temp.conf >> "$wpa_conf"
+  else
+    # If wpa_supplicant.conf is empty or does not have network block, add the configuration
+    cat /tmp/wpa_temp.conf > "$wpa_conf"
+  fi
+
   rm -f /tmp/wpa_temp.conf
   chmod 600 "$wpa_conf"
   echo "INFO - Updated wpa_supplicant configuration."
