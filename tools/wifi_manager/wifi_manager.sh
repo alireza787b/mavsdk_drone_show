@@ -13,7 +13,7 @@ SCAN_INTERVAL=15                                   # Time between scans in secon
 SIGNAL_THRESHOLD=10                                # dBm difference to switch networks
 MAX_LOG_SIZE=5242880                               # 5 MB in bytes
 BACKUP_COUNT=3                                     # Number of log backups to keep
-COUNTRY_CODE="US"                                  # Country code for regulatory purposes
+COUNTRY_CODE="IR"                                  # Country code for regulatory purposes
 
 # =======================
 # Initial Setup and Checks
