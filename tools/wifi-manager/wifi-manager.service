@@ -1,0 +1,18 @@
+[Unit]
+Description=Wi-Fi Manager for Drones
+After=network.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/wifi-manager.sh
+WorkingDirectory=/home/droneshow/mavsdk_drone_show/tools/wifi-manager
+User=root
+Restart=on-failure
+RestartSec=10
+Type=simple
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=wifi-manager
+
+[Install]
+WantedBy=multi-user.target
