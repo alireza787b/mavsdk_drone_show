@@ -21,13 +21,12 @@ COUNTRY_CODE="US"                                  # Country code for regulatory
 
 # Ensure the script runs as root
 if [ "$EUID" -ne 0 ]; then
-  echo "ERROR - Please run as root." >&2
+  printf "ERROR - Please run as root.\n" >&2
   exit 1
 fi
 
 # Setup logging with timestamps
-# All stdout and stderr will be logged with timestamps and also output to the console
-exec >> >(while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S') - $line"; done | tee -a "$LOG_FILE") 2>&1
+exec >> >(while IFS= read -r line; do printf "%s - %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$line"; done | tee -a "$LOG_FILE") 2>&1
 
 # =======================
 # Log Rotation Function
@@ -35,26 +34,27 @@ exec >> >(while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S') - $line
 
 rotate_logs() {
   if [ -f "$LOG_FILE" ]; then
-    LOG_SIZE=$(stat -c%s "$LOG_FILE")
-    if [ "$LOG_SIZE" -ge "$MAX_LOG_SIZE" ]; then
+    local log_size
+    log_size=$(stat -c%s "$LOG_FILE")
+    if [ "$log_size" -ge "$MAX_LOG_SIZE" ]; then
       for ((i=BACKUP_COUNT; i>=1; i--)); do
         if [ -f "$LOG_FILE.$i" ]; then
           if [ "$i" -eq "$BACKUP_COUNT" ]; then
             rm -f "$LOG_FILE.$i"
-            echo "INFO - Removed oldest log backup: $LOG_FILE.$i"
+            printf "INFO - Removed oldest log backup: %s.%d\n" "$LOG_FILE" "$i"
           else
             mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
-            echo "INFO - Rotated log: $LOG_FILE.$i -> $LOG_FILE.$((i+1))"
+            printf "INFO - Rotated log: %s.%d -> %s.%d\n" "$LOG_FILE" "$i" "$LOG_FILE" "$((i+1))"
           fi
         fi
       done
       mv "$LOG_FILE" "$LOG_FILE.1"
-      touch "$LOG_FILE"
-      echo "INFO - Rotated log: $LOG_FILE -> $LOG_FILE.1"
+      : > "$LOG_FILE"  # Clear the current log file
+      printf "INFO - Rotated log: %s -> %s.1\n" "$LOG_FILE" "$LOG_FILE"
     fi
   else
-    touch "$LOG_FILE"
-    echo "INFO - Created new log file: $LOG_FILE"
+    : > "$LOG_FILE"
+    printf "INFO - Created new log file: %s\n" "$LOG_FILE"
   fi
 }
 
@@ -64,7 +64,7 @@ rotate_logs() {
 
 load_known_networks() {
   if [ ! -f "$CONFIG_FILE" ]; then
-    echo "ERROR - Configuration file $CONFIG_FILE not found."
+    printf "ERROR - Configuration file %s not found.\n" "$CONFIG_FILE" >&2
     exit 1
   fi
 
@@ -73,11 +73,9 @@ load_known_networks() {
   local password=""
 
   while IFS='=' read -r key value || [ -n "$key" ]; do
-    # Trim leading/trailing whitespace
     key=$(echo "$key" | xargs)
     value=$(echo "$value" | xargs)
-    
-    # Skip empty lines or lines without '='
+
     if [ -z "$key" ] || [ -z "$value" ]; then
       continue
     fi
@@ -93,21 +91,21 @@ load_known_networks() {
           ssid=""
           password=""
         else
-          echo "WARNING - Incomplete network entry: SSID='$ssid', Password='$password'"
+          printf "WARNING - Incomplete network entry: SSID='%s', Password='%s'\n" "$ssid" "$password"
         fi
         ;;
       *)
-        echo "WARNING - Unknown key '$key' in configuration file."
+        printf "WARNING - Unknown key '%s' in configuration file.\n" "$key"
         ;;
     esac
   done < "$CONFIG_FILE"
 
   if [ ${#KNOWN_NETWORKS[@]} -eq 0 ]; then
-    echo "ERROR - No known networks loaded from $CONFIG_FILE."
+    printf "ERROR - No known networks loaded from %s.\n" "$CONFIG_FILE" >&2
     exit 1
   fi
 
-  echo "INFO - Loaded ${#KNOWN_NETWORKS[@]} known networks."
+  printf "INFO - Loaded %d known networks.\n" "${#KNOWN_NETWORKS[@]}"
 }
 
 # =======================
@@ -115,20 +113,19 @@ load_known_networks() {
 # =======================
 
 get_wifi_interface() {
-  local interfaces
+  local interfaces iface
   interfaces=$(ls /sys/class/net/)
   for iface in $interfaces; do
     if [[ "$iface" == wlan* ]] || [[ "$iface" == wifi* ]]; then
-      echo "$iface"
+      printf "%s" "$iface"
       return
     fi
   done
-  echo "wlan0"  # Default interface name
+  printf "wlan0"
 }
 
-# Get the wireless interface
 INTERFACE=$(get_wifi_interface)
-echo "INFO - Using wireless interface: $INTERFACE"
+printf "INFO - Using wireless interface: %s\n" "$INTERFACE"
 
 # =======================
 # Initialize wpa_supplicant Configuration
@@ -137,15 +134,13 @@ echo "INFO - Using wireless interface: $INTERFACE"
 initialize_wpa_supplicant() {
   local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
 
-  echo "INFO - Initializing wpa_supplicant configuration with known networks."
+  printf "INFO - Initializing wpa_supplicant configuration with known networks.\n"
 
-  # Backup existing wpa_supplicant.conf
   if [ -f "$wpa_conf" ]; then
     cp "$wpa_conf" "${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
-    echo "INFO - Backed up existing wpa_supplicant.conf to ${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
+    printf "INFO - Backed up existing wpa_supplicant.conf to %s\n" "${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
   fi
 
-  # Start with a clean wpa_supplicant.conf
   cat <<EOF > "$wpa_conf"
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
@@ -153,20 +148,19 @@ country=$COUNTRY_CODE
 
 EOF
 
-  # Add all known networks to wpa_supplicant.conf
   for ssid in "${!KNOWN_NETWORKS[@]}"; do
-    password="${KNOWN_NETWORKS[$ssid]}"
-    echo "INFO - Adding network block for SSID '$ssid'."
+    local password="${KNOWN_NETWORKS[$ssid]}"
+    printf "INFO - Adding network block for SSID '%s'.\n" "$ssid"
     wpa_passphrase "$ssid" "$password" >> "$wpa_conf" 2>/dev/null
     if [ $? -ne 0 ]; then
-      echo "ERROR - Failed to add network '$ssid' to wpa_supplicant.conf."
+      printf "ERROR - Failed to add network '%s' to wpa_supplicant.conf.\n" "$ssid" >&2
     else
-      echo "INFO - Added network '$ssid' to wpa_supplicant.conf."
+      printf "INFO - Added network '%s' to wpa_supplicant.conf.\n" "$ssid"
     fi
   done
 
   chmod 600 "$wpa_conf"
-  echo "INFO - wpa_supplicant.conf initialized with known networks."
+  printf "INFO - wpa_supplicant.conf initialized with known networks.\n"
 }
 
 # =======================
@@ -174,18 +168,16 @@ EOF
 # =======================
 
 restart_wpa_supplicant() {
-  local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
-
-  echo "INFO - Restarting wpa_supplicant service."
+  printf "INFO - Restarting wpa_supplicant service.\n"
   systemctl restart wpa_supplicant.service
 
   if [ $? -ne 0 ]; then
-    echo "ERROR - Failed to restart wpa_supplicant.service."
+    printf "ERROR - Failed to restart wpa_supplicant.service.\n" >&2
     return 1
   fi
 
-  echo "INFO - wpa_supplicant service restarted successfully."
-  sleep 5  # Wait a few seconds for the service to establish connection
+  printf "INFO - wpa_supplicant service restarted successfully.\n"
+  sleep 5
 }
 
 # =======================
@@ -198,21 +190,20 @@ scan_wifi_networks() {
   scan_output=$(iwlist "$INTERFACE" scanning 2>/dev/null)
 
   if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
-    echo "WARNING - Failed to scan Wi-Fi networks on interface '$INTERFACE'."
+    printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'.\n" "$INTERFACE" >&2
     return
   fi
 
   local ssid=""
   local signal=""
   while IFS= read -r line; do
-    line=$(echo "$line" | sed 's/^[ \t]*//')  # Trim leading whitespace
+    line=$(echo "$line" | sed 's/^[ \t]*//')
     if [[ "$line" == "Cell "* ]]; then
       ssid=""
       signal=""
     elif [[ "$line" == ESSID:* ]]; then
       ssid=$(echo "$line" | sed 's/ESSID:"\(.*\)"/\1/')
     elif [[ "$line" == *"Signal level="* ]]; then
-      # Extract signal level in dBm
       if [[ "$line" =~ Signal\ level=([\-0-9]+) ]]; then
         signal="${BASH_REMATCH[1]}"
       elif [[ "$line" =~ Quality=[0-9]+/[0-9]+\ +Signal\ level=([\-0-9]+) ]]; then
@@ -227,7 +218,7 @@ scan_wifi_networks() {
     fi
   done <<< "$scan_output"
 
-  echo "INFO - Scanned ${#available_networks[@]} available networks."
+  printf "INFO - Scanned %d available networks.\n" "${#available_networks[@]}"
 }
 
 # =======================
@@ -237,18 +228,17 @@ scan_wifi_networks() {
 get_current_connection_info() {
   current_ssid=$(iwgetid -r)
   if [ -n "$current_ssid" ]; then
-    # Extract signal level using iwconfig
-    current_signal=$(iwconfig "$INTERFACE" | grep -i --color=never 'signal level' | awk -F'=' '{print $3}' | awk '{print $1}' | sed 's/dBm//g')
+    current_signal=$(iwconfig "$INTERFACE" | grep -i 'signal level' | awk -F'=' '{print $3}' | awk '{print $1}' | sed 's/dBm//g')
     if [ -z "$current_signal" ]; then
-      current_signal=-100  # Assign a low value if unable to retrieve
-      echo "WARNING - Could not retrieve signal level for current SSID '$current_ssid'. Setting to $current_signal dBm."
+      current_signal=-100
+      printf "WARNING - Could not retrieve signal level for current SSID '%s'. Setting to %d dBm.\n" "$current_ssid" "$current_signal"
     else
-      echo "INFO - Currently connected to '$current_ssid' with signal level $current_signal dBm."
+      printf "INFO - Currently connected to '%s' with signal level %d dBm.\n" "$current_ssid" "$current_signal"
     fi
   else
     current_ssid=""
     current_signal=-100
-    echo "INFO - Not connected to any network."
+    printf "INFO - Not connected to any network.\n"
   fi
 }
 
@@ -260,50 +250,42 @@ connect_to_network() {
   local ssid="$1"
   local password="$2"
 
-  echo "INFO - Attempting to connect to network '$ssid'."
+  printf "INFO - Attempting to connect to network '%s'.\n" "$ssid"
 
-  # Attempt to connect using wpa_cli
-  # Find the network ID
+  local network_id
   network_id=$(wpa_cli -i "$INTERFACE" list_networks | awk -v ssid="$ssid" '$2 == ssid {print $1}')
-  
+
   if [ -z "$network_id" ]; then
-    # Add network if it doesn't exist
     network_id=$(wpa_cli -i "$INTERFACE" add_network)
     if [ -z "$network_id" ]; then
-      echo "ERROR - Failed to add network '$ssid' via wpa_cli."
+      printf "ERROR - Failed to add network '%s' via wpa_cli.\n" "$ssid" >&2
       return 1
     fi
 
-    # Set SSID and PSK
     wpa_cli -i "$INTERFACE" set_network "$network_id" ssid "\"$ssid\""
     wpa_cli -i "$INTERFACE" set_network "$network_id" psk "\"$password\""
-
-    # Enable the network
     wpa_cli -i "$INTERFACE" enable_network "$network_id"
     wpa_cli -i "$INTERFACE" select_network "$network_id"
 
-    echo "INFO - Network '$ssid' added and selected."
+    printf "INFO - Network '%s' added and selected.\n" "$ssid"
   else
-    # Enable and select the existing network
     wpa_cli -i "$INTERFACE" enable_network "$network_id"
     wpa_cli -i "$INTERFACE" select_network "$network_id"
-    echo "INFO - Network '$ssid' enabled and selected."
+    printf "INFO - Network '%s' enabled and selected.\n" "$ssid"
   fi
 
-  # Save the configuration
   wpa_cli -i "$INTERFACE" save_config
 
-  # Wait for the connection to establish
-  echo "INFO - Waiting for 10 seconds to establish connection to '$ssid'."
+  printf "INFO - Waiting for 10 seconds to establish connection to '%s'.\n" "$ssid"
   sleep 10
 
-  # Verify connection
+  local new_ssid
   new_ssid=$(iwgetid -r)
   if [ "$new_ssid" == "$ssid" ]; then
-    echo "INFO - Successfully connected to '$ssid'."
+    printf "INFO - Successfully connected to '%s'.\n" "$ssid"
     return 0
   else
-    echo "ERROR - Failed to connect to '$ssid'."
+    printf "ERROR - Failed to connect to '%s'.\n" "$ssid" >&2
     return 1
   fi
 }
@@ -319,17 +301,17 @@ main_loop() {
     get_current_connection_info
     scan_wifi_networks
 
-    best_ssid=""
-    best_signal=-100
+    local best_ssid=""
+    local best_signal=-100
 
-    # Identify the best known network based on signal strength
     for entry in "${available_networks[@]}"; do
+      local ssid
+      local signal
       ssid=$(echo "$entry" | cut -d';' -f1)
       signal=$(echo "$entry" | cut -d';' -f2)
 
-      # Ensure signal is a valid number
       if ! [[ "$signal" =~ ^-?[0-9]+$ ]]; then
-        echo "WARNING - Invalid signal level '$signal' for SSID '$ssid'. Skipping."
+        printf "WARNING - Invalid signal level '%s' for SSID '%s'. Skipping.\n" "$signal" "$ssid"
         continue
       fi
 
@@ -345,31 +327,30 @@ main_loop() {
     if [ -n "$best_ssid" ]; then
       if [ "$current_ssid" != "$best_ssid" ]; then
         if [ "$current_ssid" == "" ]; then
-          echo "INFO - Not connected. Connecting to '$best_ssid' ($best_signal dBm)."
+          printf "INFO - Not connected. Connecting to '%s' (%d dBm).\n" "$best_ssid" "$best_signal"
           if connect_to_network "$best_ssid" "$best_password"; then
-            echo "INFO - Connected to '$best_ssid'."
+            printf "INFO - Connected to '%s'.\n" "$best_ssid"
           else
-            echo "ERROR - Could not connect to '$best_ssid'. Will retry in next scan."
+            printf "ERROR - Could not connect to '%s'. Will retry in next scan.\n" "$best_ssid" >&2
           fi
         else
-          # Calculate signal difference
-          signal_diff=$((best_signal - current_signal))
+          local signal_diff=$((best_signal - current_signal))
           if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
-            echo "INFO - Found better network '$best_ssid' ($best_signal dBm) compared to current '$current_ssid' ($current_signal dBm). Difference: $signal_diff dBm. Switching..."
+            printf "INFO - Found better network '%s' (%d dBm) compared to current '%s' (%d dBm). Difference: %d dBm. Switching...\n" "$best_ssid" "$best_signal" "$current_ssid" "$current_signal" "$signal_diff"
             if connect_to_network "$best_ssid" "$best_password"; then
-              echo "INFO - Switched to '$best_ssid'."
+              printf "INFO - Switched to '%s'.\n" "$best_ssid"
             else
-              echo "ERROR - Failed to switch to '$best_ssid'. Will retry in next scan."
+              printf "ERROR - Failed to switch to '%s'. Will retry in next scan.\n" "$best_ssid" >&2
             fi
           else
-            echo "INFO - Current network '$current_ssid' ($current_signal dBm) is sufficient. No switch needed. Best available: '$best_ssid' ($best_signal dBm) with difference $signal_diff dBm."
+            printf "INFO - Current network '%s' (%d dBm) is sufficient. No switch needed. Best available: '%s' (%d dBm) with difference %d dBm.\n" "$current_ssid" "$current_signal" "$best_ssid" "$best_signal" "$signal_diff"
           fi
         fi
       else
-        echo "INFO - Already connected to the best network '$current_ssid' ($current_signal dBm)."
+        printf "INFO - Already connected to the best network '%s' (%d dBm).\n" "$current_ssid" "$current_signal"
       fi
     else
-      echo "WARNING - No known networks available to connect."
+      printf "WARNING - No known networks available to connect.\n" >&2
     fi
 
     sleep "$SCAN_INTERVAL"
@@ -380,11 +361,12 @@ main_loop() {
 # Start the Script
 # =======================
 
-# Initialize wpa_supplicant with all known networks
 initialize_wpa_supplicant
 
-# Restart wpa_supplicant service to apply initial configuration
-restart_wpa_supplicant
+if ! restart_wpa_supplicant; then
+  printf "ERROR - Could not restart wpa_supplicant. Exiting...\n" >&2
+  exit 1
+fi
 
-# Start the main loop
+# Begin the main loop for monitoring and connecting to the strongest Wi-Fi network
 main_loop
