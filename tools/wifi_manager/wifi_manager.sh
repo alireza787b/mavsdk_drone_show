@@ -13,7 +13,7 @@ SCAN_INTERVAL=15                                   # Time between scans in secon
 SIGNAL_THRESHOLD=10                                # dBm difference to switch networks
 MAX_LOG_SIZE=5242880                               # 5 MB in bytes
 BACKUP_COUNT=3                                     # Number of log backups to keep
-COUNTRY_CODE="IR"                                  # Country code for regulatory purposes
+COUNTRY_CODE="US"                                  # Country code for regulatory purposes
 
 # =======================
 # Initial Setup and Checks
@@ -131,6 +131,64 @@ INTERFACE=$(get_wifi_interface)
 echo "INFO - Using wireless interface: $INTERFACE"
 
 # =======================
+# Initialize wpa_supplicant Configuration
+# =======================
+
+initialize_wpa_supplicant() {
+  local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
+
+  echo "INFO - Initializing wpa_supplicant configuration with known networks."
+
+  # Backup existing wpa_supplicant.conf
+  if [ -f "$wpa_conf" ]; then
+    cp "$wpa_conf" "${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
+    echo "INFO - Backed up existing wpa_supplicant.conf to ${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
+  fi
+
+  # Start with a clean wpa_supplicant.conf
+  cat <<EOF > "$wpa_conf"
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=$COUNTRY_CODE
+
+EOF
+
+  # Add all known networks to wpa_supplicant.conf
+  for ssid in "${!KNOWN_NETWORKS[@]}"; do
+    password="${KNOWN_NETWORKS[$ssid]}"
+    echo "INFO - Adding network block for SSID '$ssid'."
+    wpa_passphrase "$ssid" "$password" >> "$wpa_conf" 2>/dev/null
+    if [ $? -ne 0 ]; then
+      echo "ERROR - Failed to add network '$ssid' to wpa_supplicant.conf."
+    else
+      echo "INFO - Added network '$ssid' to wpa_supplicant.conf."
+    fi
+  done
+
+  chmod 600 "$wpa_conf"
+  echo "INFO - wpa_supplicant.conf initialized with known networks."
+}
+
+# =======================
+# Restart wpa_supplicant Service
+# =======================
+
+restart_wpa_supplicant() {
+  local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
+
+  echo "INFO - Restarting wpa_supplicant service."
+  systemctl restart wpa_supplicant.service
+
+  if [ $? -ne 0 ]; then
+    echo "ERROR - Failed to restart wpa_supplicant.service."
+    return 1
+  fi
+
+  echo "INFO - wpa_supplicant service restarted successfully."
+  sleep 5  # Wait a few seconds for the service to establish connection
+}
+
+# =======================
 # Scan Wi-Fi Networks Function
 # =======================
 
@@ -202,40 +260,38 @@ connect_to_network() {
   local ssid="$1"
   local password="$2"
 
-  local wpa_conf="/etc/wpa_supplicant/wpa_supplicant.conf"
+  echo "INFO - Attempting to connect to network '$ssid'."
 
-  echo "INFO - Generating wpa_supplicant configuration for '$ssid'."
+  # Attempt to connect using wpa_cli
+  # Find the network ID
+  network_id=$(wpa_cli -i "$INTERFACE" list_networks | awk -v ssid="$ssid" '$2 == ssid {print $1}')
+  
+  if [ -z "$network_id" ]; then
+    # Add network if it doesn't exist
+    network_id=$(wpa_cli -i "$INTERFACE" add_network)
+    if [ -z "$network_id" ]; then
+      echo "ERROR - Failed to add network '$ssid' via wpa_cli."
+      return 1
+    fi
 
-  # Backup existing wpa_supplicant.conf
-  if [ -f "$wpa_conf" ]; then
-    cp "$wpa_conf" "${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
-    echo "INFO - Backed up existing wpa_supplicant.conf to ${wpa_conf}.bak_$(date '+%Y%m%d%H%M%S')"
-  fi
+    # Set SSID and PSK
+    wpa_cli -i "$INTERFACE" set_network "$network_id" ssid "\"$ssid\""
+    wpa_cli -i "$INTERFACE" set_network "$network_id" psk "\"$password\""
 
-  # Generate wpa_supplicant configuration using wpa_passphrase for security
-  if ! wpa_passphrase "$ssid" "$password" > /tmp/wpa_temp.conf; then
-    echo "ERROR - Failed to generate wpa_supplicant configuration for '$ssid'."
-    return 1
-  fi
+    # Enable the network
+    wpa_cli -i "$INTERFACE" enable_network "$network_id"
+    wpa_cli -i "$INTERFACE" select_network "$network_id"
 
-  # Append to existing wpa_supplicant.conf instead of replacing to allow multiple networks
-  if grep -q "^network={" "$wpa_conf" 2>/dev/null; then
-    cat /tmp/wpa_temp.conf >> "$wpa_conf"
+    echo "INFO - Network '$ssid' added and selected."
   else
-    # If wpa_supplicant.conf is empty or does not have network block, add the configuration
-    cat /tmp/wpa_temp.conf > "$wpa_conf"
+    # Enable and select the existing network
+    wpa_cli -i "$INTERFACE" enable_network "$network_id"
+    wpa_cli -i "$INTERFACE" select_network "$network_id"
+    echo "INFO - Network '$ssid' enabled and selected."
   fi
 
-  rm -f /tmp/wpa_temp.conf
-  chmod 600 "$wpa_conf"
-  echo "INFO - Updated wpa_supplicant configuration."
-
-  # Restart wpa_supplicant service to apply changes
-  echo "INFO - Restarting wpa_supplicant service."
-  if ! systemctl restart wpa_supplicant.service; then
-    echo "ERROR - Failed to restart wpa_supplicant.service."
-    return 1
-  fi
+  # Save the configuration
+  wpa_cli -i "$INTERFACE" save_config
 
   # Wait for the connection to establish
   echo "INFO - Waiting for 10 seconds to establish connection to '$ssid'."
@@ -324,4 +380,11 @@ main_loop() {
 # Start the Script
 # =======================
 
+# Initialize wpa_supplicant with all known networks
+initialize_wpa_supplicant
+
+# Restart wpa_supplicant service to apply initial configuration
+restart_wpa_supplicant
+
+# Start the main loop
 main_loop
