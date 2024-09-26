@@ -247,6 +247,15 @@ configure_gpio() {
     sudo usermod -aG gpio droneshow
 }
 
+
+# =============================================================================
+# Function: Setup Wifi-Manager Service
+# =============================================================================
+setup_wifi-manager_service() {
+    echo "Setting up the Wifi-Manager System Coordinator service..."
+    sudo bash "$HOME/mavsdk_drone_show/tools/wifi-manager/update_wifi-manager_service.sh"
+}
+
 # =============================================================================
 # Function: Setup Coordinator Service
 # =============================================================================
@@ -366,6 +375,9 @@ fi
 if [[ "$SKIP_GPIO" == false ]]; then
     configure_gpio
 fi
+
+# Setup Wifi-Manager Service
+setup_wifi-manager_service
 
 # Setup Coordinator Service
 setup_coordinator_service
