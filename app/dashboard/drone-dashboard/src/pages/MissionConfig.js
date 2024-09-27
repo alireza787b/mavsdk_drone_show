@@ -1,5 +1,3 @@
-// app/dashboard/drone-dashboard/src/pages/MissionConfig.js
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
@@ -27,7 +25,8 @@ const MissionConfig = () => {
   const [showOriginModal, setShowOriginModal] = useState(false);
   const [deviationData, setDeviationData] = useState({});
   const [originAvailable, setOriginAvailable] = useState(false);
-  const [telemetryData, setTelemetryData] = useState({}); // New state variable for telemetry data
+  const [telemetryData, setTelemetryData] = useState({});
+  const [networkInfo, setNetworkInfo] = useState({}); // New state for network info
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -110,6 +109,22 @@ const MissionConfig = () => {
     fetchTelemetryData();
     const interval = setInterval(fetchTelemetryData, 2000); // Fetch every 2 seconds
 
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
+
+  // Fetch network info for each drone
+  useEffect(() => {
+    const fetchNetworkInfo = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      try {
+        const response = await axios.get(`${backendURL}/network-info`); // Get network info from Flask API
+        setNetworkInfo(response.data); // Store network info
+      } catch (error) {
+        console.error('Error fetching network information:', error);
+      }
+    };
+    fetchNetworkInfo();
+    const interval = setInterval(fetchNetworkInfo, 5000); // Fetch network info every 5 seconds
     return () => clearInterval(interval); // Cleanup on unmount
   }, []);
 
@@ -264,6 +279,7 @@ const MissionConfig = () => {
               setEditingDroneId={setEditingDroneId}
               saveChanges={saveChanges}
               removeDrone={removeDrone}
+              networkInfo={networkInfo} // Pass network info to DroneConfigCard
             />
           ))}
         </div>

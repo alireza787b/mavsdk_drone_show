@@ -12,7 +12,6 @@ body {
     padding: 20px;
 }
 
-
 /* Heading Styles */
 
 h2 {
@@ -29,6 +28,24 @@ h4 {
     display: inline-block;
 }
 
+/* Network Info Styles */
+.network-info {
+    margin-top: 10px;
+    background-color: #e8f5e9; /* Light green background for network info */
+    border-left: 4px solid #66bb6a; /* Green border to signify connection status */
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    color: #2e7d32;
+}
+
+.network-info p {
+    margin: 4px 0;
+}
+
+.network-info strong {
+    color: #1b5e20;
+}
 
 /* Reference Point Inputs */
 
@@ -57,7 +74,6 @@ h4 {
     color: #555;
     margin-bottom: 1.5rem;
 }
-
 
 /* Button Styles */
 
@@ -125,49 +141,6 @@ button.remove:hover {
     background-color: #c0392b;
 }
 
-button.saveDrone {
-    background-color: #28a745;
-}
-
-button.cancelSaveDrone {
-    background-color: #e74c3c;
-}
-
-button.export-config,
-button.export-kml {
-    background-color: #8e44ad;
-}
-
-button.export-config:hover,
-button.export-kml:hover {
-    background-color: #732d91;
-}
-
-button.print-mission {
-    background-color: #2c3e50;
-}
-
-button.print-mission:hover {
-    background-color: #1a252f;
-}
-
-button:disabled {
-    background-color: #bdc3c7;
-    cursor: not-allowed;
-}
-
-
-/* File Upload Button */
-
-.file-upload-btn {
-    background-color: #f1c40f;
-}
-
-.file-upload-btn:hover {
-    background-color: #d4ad00;
-}
-
-
 /* Input Field Styles */
 
 input[type="text"],
@@ -180,7 +153,6 @@ select {
     border-radius: 4px;
     box-sizing: border-box;
 }
-
 
 /* Drone Config Card Styles */
 
@@ -201,7 +173,6 @@ select {
 .drone-config-card h4 {
     margin-bottom: 1rem;
 }
-
 
 /* Content Layout */
 
@@ -230,14 +201,12 @@ select {
     max-width: 60%;
 }
 
-
 /* Plot Container */
 
 .initial-launch-plot {
     background-color: #f7f7f7;
     padding: 15px;
 }
-
 
 /* Git Status Styling */
 
@@ -254,20 +223,11 @@ select {
     margin-top: 10px;
 }
 
-
 /* Hover Effects */
 
 button:hover {
     opacity: 0.9;
 }
-
-
-/* No Print Class */
-
-.no-print {
-    display: none;
-}
-
 
 /* Print Styles */
 
@@ -305,77 +265,6 @@ button:hover {
         margin: 0;
     }
 }
-
-
-/* Miscellaneous */
-
-#csvInput {
-    display: none;
-}
-
-.primary-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
-}
-
-.secondary-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.addCaption {
-    min-width: 95px;
-}
-
-
-/* Ensuring Consistent Button Styles */
-
-button,
-.file-upload-btn {
-    font-size: 1rem;
-}
-
-button.save {
-    padding: 0.6rem 1.2rem;
-    font-size: 1rem;
-}
-
-
-/* Drone Config Card Input Alignment */
-
-.drone-config-card label {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-}
-
-.drone-config-card p {
-    margin: 0.5rem 0;
-}
-
-
-/* Adjusting Margin for Drone Config Card Buttons */
-
-.drone-config-card div {
-    margin-top: 1rem;
-}
-
-.drone-config-card button {
-    margin-right: 0.5rem;
-}
-
-
-/* Plotly.js Override */
-
-.js-plotly-plot {
-    width: 100% !important;
-    height: auto !important;
-}
-
 
 /* Responsive Design */
 

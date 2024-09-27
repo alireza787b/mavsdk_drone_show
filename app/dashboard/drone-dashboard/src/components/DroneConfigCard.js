@@ -1,5 +1,3 @@
-// app/dashboard/drone-dashboard/src/components/DroneConfigCard.js
-
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
@@ -15,6 +13,7 @@ const DroneConfigCard = ({
   setEditingDroneId,
   saveChanges,
   removeDrone,
+  networkInfo // Network information passed down as a prop
 }) => {
   const isEditing = editingDroneId === drone.hw_id;
 
@@ -91,6 +90,9 @@ const DroneConfigCard = ({
     // Save changes and exit editing mode
     saveChanges(drone.hw_id, droneData);
   };
+
+  // Network info for the current drone
+  const droneNetworkInfo = networkInfo[drone.hw_id] || null;
 
   return (
     <div className="drone-config-card" data-hw-id={drone.hw_id}>
@@ -246,8 +248,21 @@ const DroneConfigCard = ({
           <p>
             <strong>Position ID:</strong> {drone.pos_id}
           </p>
+
+          {/* Network Information Display */}
+          {droneNetworkInfo ? (
+            <div className="network-info">
+              <p><strong>Network SSID:</strong> {droneNetworkInfo.ssid}</p>
+              <p><strong>Signal Strength:</strong> {droneNetworkInfo.signal}%</p>
+              <p><strong>Connection Type:</strong> {droneNetworkInfo.connection_type}</p>
+            </div>
+          ) : (
+            <p><strong>Network Info:</strong> Not available</p>
+          )}
+
           {/* Drone Git Status */}
           <DroneGitStatus droneID={drone.hw_id} droneName={`Drone ${drone.hw_id}`} />
+
           <div className="card-buttons">
             <button
               className="edit-drone"
@@ -278,6 +293,7 @@ DroneConfigCard.propTypes = {
   setEditingDroneId: PropTypes.func.isRequired,
   saveChanges: PropTypes.func.isRequired,
   removeDrone: PropTypes.func.isRequired,
+  networkInfo: PropTypes.object, // New prop for network info
 };
 
 export default DroneConfigCard;
