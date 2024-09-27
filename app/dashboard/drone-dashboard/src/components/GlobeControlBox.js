@@ -1,14 +1,26 @@
+// app/dashboard/drone-dashboard/src/components/GlobeControlBox.js
 import React from 'react';
-import '../styles/GlobeControlBox.css'; // Import the CSS
+import '../styles/GlobeControlBox.css';
 
-function GlobeControlBox({ setShowGround, showGround, setGroundLevel, groundLevel, toggleDroneVisibility, droneVisibility, isToolboxOpen,showGrid, setShowGrid,handleGetTerrainClick }) {
+function GlobeControlBox({ 
+  setShowGround, 
+  showGround, 
+  setGroundLevel, 
+  groundLevel, 
+  toggleDroneVisibility, 
+  droneVisibility, 
+  isToolboxOpen,
+  showGrid, 
+  setShowGrid, 
+  handleGetTerrainClick 
+}) {
   return (
-    <div className={`globe-control-box ${isToolboxOpen ? 'show' : ''}`}>
-      <h4>Control Box</h4>
+    <div className={`globe-control-box ${isToolboxOpen ? 'show' : 'hide'}`}>
+      <h4>Control Panel</h4>
       
       {/* Show/Hide Ground */}
-      <div>
-        <label>
+      <div className="control-section">
+        <label className="control-label">
           <input
             type="checkbox"
             checked={showGround}
@@ -18,44 +30,45 @@ function GlobeControlBox({ setShowGround, showGround, setGroundLevel, groundLeve
         </label>
       </div>
       
-     
+      {/* Set Ground Level */}
+      <div className="control-section">
+        <label className="control-label">
+          Ground Level (m):
+          <input 
+            type="number" 
+            min={-2000} 
+            max={15000} 
+            step="1" 
+            value={groundLevel} 
+            onChange={(e) => setGroundLevel(Number(e.target.value))}
+            className="number-input"
+          />
+        </label>
+        <button 
+          onClick={handleGetTerrainClick} 
+          className="get-terrain-button"
+        >
+          Get Terrain
+        </button>
+      </div>
 
-     {/* Set Ground Level */}
-<div>
-  <label>Ground Level (meters): </label>
-  <input 
-    type="number" 
-    min={-2000} 
-    max={15000} 
-    step="1" 
-    value={groundLevel} 
-    onChange={(e) => setGroundLevel(Number(e.target.value))}
-  />
-</div>
-<button 
-        onClick={handleGetTerrainClick} 
-        className="get-terrain-button"
-      >
-        Get Online Terrain</button>
-
-
- {/* Set Grid Visibile */}
- <div>
-      <label>
-  <input
-    type="checkbox"
-    checked={showGrid}
-    onChange={() => setShowGrid(!showGrid)}
-  />
-    Show Grid
-</label>
-</div>
+      {/* Show/Hide Grid */}
+      <div className="control-section">
+        <label className="control-label">
+          <input
+            type="checkbox"
+            checked={showGrid}
+            onChange={() => setShowGrid(!showGrid)}
+          />
+          Show Grid
+        </label>
+      </div>
       
-      {/* Show/Hide Drones */}
-      <div>
-        <h5>Show Drones:</h5>
+      {/* Drone Visibility Toggles */}
+      <div className="control-section drone-toggles">
+        <h5>Drone Visibility:</h5>
         {Object.keys(droneVisibility).map((droneId) => (
-          <div key={droneId}>
+          <div key={droneId} className="drone-toggle">
             <label>
               <input
                 type="checkbox"

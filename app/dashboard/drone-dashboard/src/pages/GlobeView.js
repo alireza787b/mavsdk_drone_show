@@ -1,7 +1,8 @@
-//app/dashboard/drone-dashboard/src/pages/GlobeView.js
+// app/dashboard/drone-dashboard/src/pages/GlobeView.js
 import React from 'react';
 import Globe from '../components/Globe';
 import PropTypes from 'prop-types';
+import '../styles/GlobeView.css';
 
 const GlobeView = ({ drones }) => {
   return (
@@ -21,7 +22,14 @@ const GlobeView = ({ drones }) => {
 };
 
 GlobeView.propTypes = {
-  drones: PropTypes.array.isRequired,
+  drones: PropTypes.arrayOf(PropTypes.shape({
+    hw_ID: PropTypes.string.isRequired,
+    Position_Lat: PropTypes.number.isRequired,
+    Position_Long: PropTypes.number.isRequired,
+    Position_Alt: PropTypes.number.isRequired,
+    State: PropTypes.string.isRequired,
+    Follow_Mode: PropTypes.number.isRequired,
+  })).isRequired,
 };
 
 export default GlobeView;
