@@ -8,6 +8,8 @@ import SwarmDesign from './pages/SwarmDesign';
 import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
 import CustomShowPage from './pages/CustomShowPage'; // Import the new page
+import GlobeView from './pages/GlobeView';
+
 import 'leaflet/dist/leaflet.css';
 
 import './App.css';
@@ -28,6 +30,8 @@ const App = () => {
             <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
             <Route path="/manage-drone-show" element={<ManageDroneShow />} />
             <Route path="/custom-show" element={<CustomShowPage />}  /> {/* New route */}
+            <Route path="/globe-view" element={<GlobeView drones={drones} />} />
+
 
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
           </Routes>

@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
 import { Sidebar, Menu, MenuItem } from 'react-pro-sidebar';
 import { FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa';
@@ -69,22 +70,41 @@ const SidebarMenu = () => {
               <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
                 Dashboard
               </MenuItem></Link>
+
+              {/* New menu item for 3D View */}
+              <Link to="/globe-view">
+                <MenuItem icon={<FaGlobe />}>
+                  Drone 3D View
+                </MenuItem>
+              </Link>
+              
               <Link to="/mission-config">
                 <MenuItem icon={<FaGem />}>
                   Mission Config
                 </MenuItem>
               </Link>
-              <Link to="/swarm-design"><MenuItem icon={<FaList />}>
-                Swarm Design
-              </MenuItem></Link>
-              <Link to="/manage-drone-show"><MenuItem icon={<FaGithub />}>
-                Drone Show Design
-              </MenuItem></Link>
-              <Link to="/custom-show"><MenuItem icon={<FaGem />}>
-                Custom Show
-              </MenuItem></Link> {/* New menu item */}
+              
+              <Link to="/swarm-design">
+                <MenuItem icon={<FaList />}>
+                  Swarm Design
+                </MenuItem>
+              </Link>
+              
+              <Link to="/manage-drone-show">
+                <MenuItem icon={<FaGithub />}>
+                  Drone Show Design
+                </MenuItem>
+              </Link>
+              
+              <Link to="/custom-show">
+                <MenuItem icon={<FaGem />}>
+                  Custom Show
+                </MenuItem>
+              </Link>
+            
             </Menu>
           </div>
+
 
           {/* Git Information */}
           {!collapsed && <GitInfo />}
