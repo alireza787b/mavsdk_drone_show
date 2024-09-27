@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { 
   FaPlaneDeparture, 
   FaHandHolding, 
+  FaPlaneArrival, 
   FaVial, 
   FaLightbulb, 
   FaBatteryFull, 
@@ -72,7 +73,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
         className="action-button land-button"
         onClick={() => handleActionClick('LAND', 'Land All: This will land all drones at their current positions. Are you sure you want to proceed?')}
       >
-        <FaPlaneLanding className="action-icon" />
+        <FaPlaneArrival className="action-icon" />
         Land All
       </button>
 
