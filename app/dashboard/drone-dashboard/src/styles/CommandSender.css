@@ -30,6 +30,7 @@
     font-size: 16px;
     transition: background-color 0.3s, color 0.3s;
     padding-left: 20px;
+    font-weight: bold;
 }
 
 .tab-button:hover {
@@ -39,6 +40,7 @@
 .tab-button.active {
     background-color: #2196F3;
     color: white;
+    font-weight: bolder;
 }
 
 .tab-content {
