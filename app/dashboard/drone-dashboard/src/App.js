@@ -30,7 +30,7 @@ const App = () => {
             <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
             <Route path="/manage-drone-show" element={<ManageDroneShow />} />
             <Route path="/custom-show" element={<CustomShowPage />}  /> {/* New route */}
-            <Route path="/globe-view" element={<GlobeView drones={drones} />} />
+            <Route path="/globe-view" element={<GlobeView />} />
 
 
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
