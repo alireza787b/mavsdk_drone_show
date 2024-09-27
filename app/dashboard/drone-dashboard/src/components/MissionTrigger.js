@@ -52,7 +52,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     setCurrentAction(null);
   };
 
-  cconst handleSend = () => {
+  const handleSend = () => {
     let triggerTime;
   
     if (useSlider) {
