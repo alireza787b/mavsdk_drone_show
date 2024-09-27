@@ -149,6 +149,22 @@ class FlaskHandler:
             except Exception as e:
                 logging.error(f"Error in get_position_deviation: {e}")
                 return jsonify({"error": str(e)}), 500
+            
+        @self.app.route("/network-info", methods=['GET'])
+        def get_network_info():
+            """
+            Endpoint to retrieve current network information.
+            This includes both Wi-Fi and wired network (if connected).
+            """
+            try:
+                network_info = self._get_network_info()
+                if network_info:
+                    return jsonify(network_info), 200
+                else:
+                    return jsonify({"error": "No network information available"}), 404
+            except Exception as e:
+                logging.error(f"Error in network-info endpoint: {e}")
+                return jsonify({"error": str(e)}), 500
 
     # Helper method to get origin from GCS
     def _get_origin_from_gcs(self):
@@ -196,6 +212,70 @@ class FlaskHandler:
         :raises: subprocess.CalledProcessError if the Git command fails.
         """
         return subprocess.check_output(command).strip().decode('utf-8')
+    
+    
+    # Helper method to retrieve network information using nmcli
+    def _get_network_info(self):
+        """
+        Fetch the current network information (Wi-Fi and Wired LAN).
+        This method checks both wireless and wired interfaces and returns details if connected.
+        :return: A dictionary containing Wi-Fi and Ethernet information if available.
+        """
+        try:
+            # Gather Wi-Fi information
+            wifi_ssid = subprocess.check_output(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"], universal_newlines=True)
+            wifi_signal = subprocess.check_output(["nmcli", "-t", "-f", "signal", "dev", "wifi"], universal_newlines=True)
+
+            # Gather Wired LAN information (assuming eth0 is the primary wired interface)
+            eth_connection = subprocess.check_output(["nmcli", "-t", "-f", "device,state,connection", "device", "status"], universal_newlines=True)
+
+            # Initialize the network info structure
+            network_info = {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000)  # Add a timestamp in milliseconds
+            }
+
+            # Extract Wi-Fi details
+            active_wifi_ssid = None
+            active_wifi_signal = None
+            for line in wifi_ssid.splitlines():
+                parts = line.split(':')
+                if parts[0] == 'yes':  # Check if Wi-Fi is active
+                    active_wifi_ssid = parts[1]
+            for line in wifi_signal.splitlines():
+                if line:
+                    active_wifi_signal = line
+
+            # If Wi-Fi is connected, add it to the network info
+            if active_wifi_ssid:
+                network_info["wifi"] = {
+                    "ssid": active_wifi_ssid,
+                    "signal_strength_percent": active_wifi_signal if active_wifi_signal else "Unknown"
+                }
+
+            # Extract Ethernet details
+            active_eth_connection = None
+            active_eth_device = None
+            for line in eth_connection.splitlines():
+                parts = line.split(':')
+                if parts[1] == 'connected' and 'eth' in parts[0]:  # Look for connected Ethernet device (e.g., eth0)
+                    active_eth_device = parts[0]
+                    active_eth_connection = parts[2]  # Connection name
+
+            # If Ethernet is connected, add it to the network info
+            if active_eth_device and active_eth_connection:
+                network_info["ethernet"] = {
+                    "interface": active_eth_device,
+                    "connection_name": active_eth_connection
+                }
+
+            # Return network information
+            return network_info
+        
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Error fetching network info: {e}")
+            return None
 
     def run(self):
         """Runs the Flask application."""
@@ -206,6 +286,10 @@ class FlaskHandler:
             self.app.run(host=host, port=port, debug=True, use_reloader=False)
         else:
             self.app.run(host=host, port=port, debug=False, use_reloader=False)
+            
+            
+
+    
 
 
     
