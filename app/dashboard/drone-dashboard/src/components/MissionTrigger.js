@@ -52,9 +52,9 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     setCurrentAction(null);
   };
 
-  const handleSend = () => {
+  cconst handleSend = () => {
     let triggerTime;
-
+  
     if (useSlider) {
       triggerTime = Math.floor(Date.now() / 1000) + parseInt(timeDelay);
     } else {
@@ -62,19 +62,20 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
       const [hours, minutes, seconds] = selectedTime.split(':').map(Number);
       const selectedDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, seconds);
       triggerTime = Math.floor(selectedDateTime.getTime() / 1000);
-
+  
       if (selectedDateTime < now) {
         alert('The selected time has already passed. Please select a future time.');
         return;
       }
     }
-
-    const missionName = missionTypes[selectedMission];
+  
+    const missionName = Object.keys(missionTypes).find(key => missionTypes[key] === selectedMission);
     const confirmationMessage = `Are you sure you want to send the "${missionName}" command to all drones?\nTrigger time: ${new Date(triggerTime * 1000).toLocaleString()}`;
-
+  
     setCurrentAction({ actionType: selectedMission, confirmationMessage });
     setModalOpen(true);
   };
+  
 
   const handleBack = () => {
     setSelectedMission('');
