@@ -1,81 +1,59 @@
-.command-sender {
-    background-color: #f5f5f5;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* src/styles/CommandSender.css */
+
+.command-sender-container {
+    background-color: #ffffff;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.command-sender-header {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #333333;
 }
 
 .tab-bar {
     display: flex;
+    border-bottom: 2px solid #e0e0e0;
     margin-bottom: 20px;
 }
 
-.tab-bar button {
+.tab-button {
     flex: 1;
-    padding: 10px;
+    padding: 12px 0;
+    background-color: #f5f5f5;
+    color: #555555;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.tab-button:hover {
     background-color: #e0e0e0;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.3s;
 }
 
-.tab-bar button.active {
+.tab-button.active {
     background-color: #2196F3;
     color: white;
 }
 
-.mission-trigger-content,
-.actions-content {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+.tab-content {
+    /* Additional styling if needed */
 }
 
-.mission-selection,
-.time-delay,
-.takeoff-section {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
 
-select,
-input[type="number"] {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.action-button,
-.mission-button {
-    background-color: #2196F3;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.action-button:hover,
-.mission-button:hover {
-    background-color: #1976D2;
-}
-
-.action-button.test-button {
-    background-color: #4CAF50;
-}
-
-.action-button.test-button:hover {
-    background-color: #45a049;
-}
+/* Responsive Design */
 
 @media (max-width: 768px) {
-    .actions-content {
-        flex-direction: column;
+    .command-sender-container {
+        padding: 20px;
     }
-    .action-button {
-        margin-bottom: 10px;
+    .tab-button {
+        padding: 10px 0;
+        font-size: 14px;
     }
 }

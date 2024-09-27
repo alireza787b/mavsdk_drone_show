@@ -1,8 +1,10 @@
+// src/components/MissionTrigger.js
 import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import MissionNotification from './MissionNotification';
-import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay ,getMissionDescription } from '../constants/droneConstants';
+import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay, getMissionDescription } from '../constants/droneConstants';
+import { FaTimesCircle } from 'react-icons/fa';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
@@ -11,6 +13,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [useSlider, setUseSlider] = useState(true);
   const [selectedTime, setSelectedTime] = useState('');
   const [notification, setNotification] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [currentAction, setCurrentAction] = useState(null);
 
   useEffect(() => {
     const now = new Date();
@@ -23,16 +27,29 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     setTimeDelay(defaultTriggerTimeDelay);
 
     if (missionType === DRONE_MISSION_TYPES.NONE) {
-      if (window.confirm('Are you sure you want to cancel the mission immediately?')) {
-        const commandData = {
-          missionType: missionType,
-          triggerTime: Math.floor(Date.now() / 1000),
-        };
-        onSendCommand(commandData);
-        setNotification('Cancel Mission command sent successfully.');
-        setTimeout(() => setNotification(null), 3000);
-      }
+      setCurrentAction({ actionType: missionType, confirmationMessage: 'Are you sure you want to cancel the mission immediately?' });
+      setModalOpen(true);
     }
+  };
+
+  const handleConfirm = () => {
+    if (currentAction) {
+      const { actionType } = currentAction;
+      const commandData = {
+        missionType: actionType,
+        triggerTime: Math.floor(Date.now() / 1000),
+      };
+      onSendCommand(commandData);
+      setNotification('Cancel Mission command sent successfully.');
+      setTimeout(() => setNotification(null), 3000);
+    }
+    setModalOpen(false);
+    setCurrentAction(null);
+  };
+
+  const handleCancel = () => {
+    setModalOpen(false);
+    setCurrentAction(null);
   };
 
   const handleSend = () => {
@@ -55,17 +72,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     const missionName = missionTypes[selectedMission];
     const confirmationMessage = `Are you sure you want to send the "${missionName}" command to all drones?\nTrigger time: ${new Date(triggerTime * 1000).toLocaleString()}`;
 
-    if (!window.confirm(confirmationMessage)) {
-      return;
-    }
-
-    const commandData = {
-      missionType: selectedMission,
-      triggerTime,
-    };
-    onSendCommand(commandData);
-    setNotification(`"${missionName}" command sent successfully.`);
-    setTimeout(() => setNotification(null), 3000);
+    setCurrentAction({ actionType: selectedMission, confirmationMessage });
+    setModalOpen(true);
   };
 
   const handleBack = () => {
@@ -73,7 +81,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   };
 
   return (
-    <div className="mission-trigger-content">
+    <div className="mission-trigger-container">
       {notification && <MissionNotification message={notification} />}
 
       {!selectedMission && (
@@ -89,7 +97,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
                 '🚫'
               }
               label={key === 'NONE' ? 'Cancel Mission' : key.replace(/_/g, ' ')}
-              onClick={handleMissionSelect}
+              onClick={() => handleMissionSelect(value)}
               isCancel={value === DRONE_MISSION_TYPES.NONE}
             />
           ))}
@@ -115,6 +123,20 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
           onSend={handleSend}
           onBack={handleBack}
         />
+      )}
+
+      {/* Confirmation Modal */}
+      {modalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Confirm Action</h3>
+            <p>{currentAction?.confirmationMessage}</p>
+            <div className="modal-actions">
+              <button className="confirm-button" onClick={handleConfirm}>Yes</button>
+              <button className="cancel-button" onClick={handleCancel}>No</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

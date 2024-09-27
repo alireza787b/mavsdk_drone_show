@@ -1,4 +1,4 @@
-// app/dashboard/drone-dashboard/src/components/CommandSender.js
+// src/components/CommandSender.js
 import React, { useState } from 'react';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
@@ -24,28 +24,36 @@ const CommandSender = () => {
   };
 
   return (
-    <div className="command-sender">
-      <h2>Command Control</h2>
+    <div className="command-sender-container">
+      <h2 className="command-sender-header">Command Control</h2>
       <div className="tab-bar">
-        <button className={activeTab === 'missionTrigger' ? 'active' : ''} onClick={() => setActiveTab('missionTrigger')}>
+        <button 
+          className={`tab-button ${activeTab === 'missionTrigger' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('missionTrigger')}
+        >
           Mission Trigger
         </button>
-        <button className={activeTab === 'actions' ? 'active' : ''} onClick={() => setActiveTab('actions')}>
+        <button 
+          className={`tab-button ${activeTab === 'actions' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('actions')}
+        >
           Actions
         </button>
       </div>
-      {activeTab === 'missionTrigger' && (
-        <MissionTrigger 
-          missionTypes={DRONE_MISSION_TYPES}
-          onSendCommand={handleSendCommand}
-        />
-      )}
-      {activeTab === 'actions' && (
-        <DroneActions
-          actionTypes={DRONE_ACTION_TYPES}
-          onSendCommand={handleSendCommand}
-        />
-      )}
+      <div className="tab-content">
+        {activeTab === 'missionTrigger' && (
+          <MissionTrigger 
+            missionTypes={DRONE_MISSION_TYPES}
+            onSendCommand={handleSendCommand}
+          />
+        )}
+        {activeTab === 'actions' && (
+          <DroneActions
+            actionTypes={DRONE_ACTION_TYPES}
+            onSendCommand={handleSendCommand}
+          />
+        )}
+      </div>
     </div>
   );
 };
