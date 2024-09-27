@@ -170,6 +170,7 @@ class DroneSetup:
         current_time = int(time.time())
         success = False
         message = ""
+        earlier_trigger_time = self.drone_config.trigger_time - self.params.trigger_sooner_seconds
 
         logging.info(f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
                      f"Current mission: {Mission(self.drone_config.mission).name}, State: {self.drone_config.state}")
@@ -182,9 +183,9 @@ class DroneSetup:
                 logging.debug("No Mission is Planned yet!")
                 pass
             elif self.drone_config.mission == Mission.DRONE_SHOW_FROM_CSV.value:
-                success, message = await self._handle_drone_show(current_time)
+                success, message = await self._handle_drone_show(current_time,earlier_trigger_time)
             elif self.drone_config.mission == Mission.SMART_SWARM.value:
-                success, message = await self._handle_smart_swarm(current_time)
+                success, message = await self._handle_smart_swarm(current_time,earlier_trigger_time)
             elif self.drone_config.mission == Mission.TAKE_OFF.value:
                 success, message = await self._handle_takeoff()
             elif self.drone_config.mission == Mission.LAND.value:
@@ -196,7 +197,7 @@ class DroneSetup:
             elif self.drone_config.mission == Mission.REBOOT.value:
                 success, message = await self._handle_reboot()
             elif self.drone_config.mission == Mission.CUSTOM_CSV_DRONE_SHOW.value:
-                success, message = await self._handle_custom_csv_drone_show(current_time)
+                success, message = await self._handle_custom_csv_drone_show(current_time,earlier_trigger_time)
             elif self.drone_config.mission == Mission.TEST_LED.value:
                 success, message = await self._handle_test_led()
             else:
@@ -211,7 +212,7 @@ class DroneSetup:
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
 
-    async def _handle_drone_show(self, current_time):
+    async def _handle_drone_show(self, current_time,earlier_trigger_time):
         """
         Handles the Drone Show mission progression based on the trigger time and state.
 
@@ -221,7 +222,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
+        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
@@ -231,7 +232,7 @@ class DroneSetup:
         logging.info("Conditions not met for triggering Drone Show")
         return False, "Conditions not met for Drone Show"
 
-    async def _handle_smart_swarm(self, current_time):
+    async def _handle_smart_swarm(self, current_time,earlier_trigger_time):
         """
         Handles the Smart Swarm mission progression based on the trigger time and state.
 
@@ -241,7 +242,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
+        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
@@ -311,7 +312,7 @@ class DroneSetup:
         logging.info("Starting Reboot")
         return await self.run_mission_script("actions.py", "reboot")
 
-    async def _handle_custom_csv_drone_show(self, current_time):
+    async def _handle_custom_csv_drone_show(self, current_time,earlier_trigger_time):
         """
         Handles the Custom CSV Drone Show mission progression based on the trigger time and state.
 
@@ -321,7 +322,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= self.drone_config.trigger_time:
+        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
