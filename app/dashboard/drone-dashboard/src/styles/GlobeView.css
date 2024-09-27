@@ -6,6 +6,7 @@
     /* Dark background */
     min-height: 100vh;
     color: #ffffff;
+    margin: -20px;
 }
 
 .globe-view-container h2 {
