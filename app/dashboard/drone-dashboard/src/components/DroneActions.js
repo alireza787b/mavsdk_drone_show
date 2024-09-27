@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { 
   FaPlaneDeparture, 
-  FaPlaneLanding, 
   FaHandHolding, 
   FaVial, 
   FaLightbulb, 
