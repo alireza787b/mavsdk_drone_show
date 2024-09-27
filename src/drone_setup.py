@@ -224,10 +224,11 @@ class DroneSetup:
         """
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
+            real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
             logging.info("Starting Drone Show from CSV")
-            return await self.run_mission_script("offboard_multiple_from_csv.py", "start")
+            return await self.run_mission_script("offboard_multiple_from_csv.py", f"--start_time={real_trigger_time}")
 
         logging.info("Conditions not met for triggering Drone Show")
         return False, "Conditions not met for Drone Show"
@@ -324,10 +325,11 @@ class DroneSetup:
         """
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
+            real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
             logging.info("Starting Custom CSV Drone Show")
-            return await self.run_mission_script("offboard_from_csv.py", "start")
+            return await self.run_mission_script("offboard_from_csv.py", f"--start_time={real_trigger_time}")
 
         logging.info("Conditions not met for triggering Custom CSV Drone Show")
         return False, "Conditions not met for Custom CSV Drone Show"
