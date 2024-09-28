@@ -141,10 +141,10 @@ scan_wifi_networks() {
   fi
 
   printf "INFO - Available networks:\n"
-  # Parse SSID and signal strength from the scan output
+  # Parse SSID and signal strength correctly
   while IFS= read -r line; do
+    ssid=$(echo "$line" | awk '{print substr($0, 1, index($0,$NF)-1)}' | xargs)  # Extract SSID correctly
     signal=$(echo "$line" | awk '{print $NF}')
-    ssid=$(echo "$line" | sed "s/$signal\$//" | xargs)  # Trim trailing spaces properly
     available_networks+=("$ssid;$signal")
     printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
   done <<< "$(echo "$scan_output" | tail -n +2)"  # Skip the header
@@ -237,9 +237,10 @@ main_loop() {
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
         printf "INFO - Decided to switch to better network '%s' (Signal: %s%%, Improvement: %s%%).\n" "$best_ssid" "$best_signal" "$signal_diff"
         connect_to_network "$best_ssid" "$best_password"
-      else
-        printf "INFO - Signal improvement for '%s' (%s%%) is below threshold (%s%%). Staying connected to '%s'.\n" "$best_ssid" "$signal_diff" "$SIGNAL_THRESHOLD" "$current_ssid"
       fi
+    elif [ -z "$current_ssid" ] && [ -n "$best_ssid" ]; then
+      printf "INFO - Currently disconnected. Attempting to connect to best network '%s' (Signal: %s%%).\n" "$best_ssid" "$best_signal"
+      connect_to_network "$best_ssid" "$best_password"
     else
       printf "INFO - No better network found. Staying connected to '%s'.\n" "$current_ssid"
     fi
