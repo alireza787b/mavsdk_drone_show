@@ -34,15 +34,17 @@ class DroneSetup:
         self.running_processes = {}  # Dictionary to store running mission scripts
         self.process_lock = asyncio.Lock()  # Async lock to prevent race conditions
 
-        # Validate 'params' object
+        # Validate configuration objects
         self._validate_params()
+        self._validate_drone_config()
 
     def _validate_params(self):
         """
         Validates that the 'params' object contains necessary attributes with correct types.
+        Attempts to convert them if they are strings.
         """
         required_attrs = {
-            'trigger_sooner_seconds': (int, float)
+            'trigger_sooner_seconds': (int, float, str)
             # Add other required attributes here if necessary
         }
 
@@ -50,9 +52,57 @@ class DroneSetup:
             if not hasattr(self.params, attr):
                 logging.error(f"Missing required attribute '{attr}' in params.")
                 raise AttributeError(f"params object must have '{attr}' attribute.")
-            if not isinstance(getattr(self.params, attr), expected_types):
-                logging.error(f"Attribute '{attr}' must be of type {expected_types}.")
-                raise TypeError(f"'{attr}' must be of type {expected_types}.")
+
+            attr_value = getattr(self.params, attr)
+
+            if isinstance(attr_value, str):
+                try:
+                    # Attempt to convert to float or int
+                    if '.' in attr_value:
+                        converted_value = float(attr_value)
+                    else:
+                        converted_value = int(attr_value)
+                    setattr(self.params, attr, converted_value)
+                    logging.info(f"Converted 'params.{attr}' from str to {type(converted_value).__name__}.")
+                except ValueError:
+                    logging.error(f"Attribute '{attr}' must be a number, got string '{attr_value}'.")
+                    raise TypeError(f"'{attr}' must be a number, got string '{attr_value}'.")
+            elif not isinstance(attr_value, expected_types[:-1]):  # Exclude str from expected types for validation
+                logging.error(f"Attribute '{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+                raise TypeError(f"'{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+
+    def _validate_drone_config(self):
+        """
+        Validates that the 'drone_config' object contains necessary attributes with correct types.
+        Attempts to convert them if they are strings.
+        """
+        required_attrs = {
+            'trigger_time': (int, float, str)
+            # Add other required attributes here if necessary
+        }
+
+        for attr, expected_types in required_attrs.items():
+            if not hasattr(self.drone_config, attr):
+                logging.error(f"Missing required attribute '{attr}' in drone_config.")
+                raise AttributeError(f"drone_config object must have '{attr}' attribute.")
+
+            attr_value = getattr(self.drone_config, attr)
+
+            if isinstance(attr_value, str):
+                try:
+                    # Attempt to convert to float or int
+                    if '.' in attr_value:
+                        converted_value = float(attr_value)
+                    else:
+                        converted_value = int(attr_value)
+                    setattr(self.drone_config, attr, converted_value)
+                    logging.info(f"Converted 'drone_config.{attr}' from str to {type(converted_value).__name__}.")
+                except ValueError:
+                    logging.error(f"Attribute '{attr}' must be a number, got string '{attr_value}'.")
+                    raise TypeError(f"'{attr}' must be a number, got string '{attr_value}'.")
+            elif not isinstance(attr_value, expected_types[:-1]):  # Exclude str from expected types for validation
+                logging.error(f"Attribute '{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+                raise TypeError(f"'{attr}' must be of type int or float, got {type(attr_value).__name__}.")
 
     def _get_python_exec_path(self) -> str:
         """
