@@ -167,7 +167,7 @@ class DroneSetup:
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
-            command = f"{python_exec_path} {script_path} --action={action}"
+            command = f"{python_exec_path} {script_path} {action}"
             logging.debug(f"Executing command: {command}")
 
             try:
@@ -375,7 +375,7 @@ class DroneSetup:
             return False, f"Invalid takeoff altitude: {e}"
 
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.run_mission_script("actions.py", f"takeoff --altitude={altitude}")
+        return await self.run_mission_script("actions.py", f"--action=takeoff --altitude={altitude}")
 
     async def _handle_land(self) -> tuple:
         """
@@ -396,7 +396,7 @@ class DroneSetup:
             logging.error(f"Error accessing offboard controller attributes: {e}")
             return False, f"Offboard controller error: {e}"
 
-        return await self.run_mission_script("actions.py", "land")
+        return await self.run_mission_script("actions.py", "--action=land")
 
     async def _handle_hold(self) -> tuple:
         """
@@ -406,7 +406,7 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Hold Position")
-        return await self.run_mission_script("actions.py", "hold")
+        return await self.run_mission_script("actions.py", "--action=hold")
 
     async def _handle_test(self) -> tuple:
         """
@@ -416,7 +416,7 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Test")
-        return await self.run_mission_script("actions.py", "test")
+        return await self.run_mission_script("actions.py", "--action=test")
 
     async def _handle_reboot(self) -> tuple:
         """
@@ -426,7 +426,7 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Reboot")
-        return await self.run_mission_script("actions.py", "reboot")
+        return await self.run_mission_script("actions.py", "--action=reboot")
 
     async def _handle_custom_csv_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
@@ -458,7 +458,7 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting LED Test Script")
-        return await self.run_mission_script("test_led_controller.py", "start")
+        return await self.run_mission_script("test_led_controller.py", "--action=start")
 
     def _log_mission_result(self, success: bool, message: str):
         """
