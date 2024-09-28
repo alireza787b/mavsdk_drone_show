@@ -26,6 +26,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# Disable wpa_supplicant control over Wi-Fi
+sudo systemctl stop wpa_supplicant
+sudo systemctl disable wpa_supplicant
+
 # Create and acquire a lock to prevent multiple instances of the script from running
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "ERROR - Another instance of the script is running."; exit 1; }
@@ -167,6 +171,15 @@ get_current_connection_info() {
 }
 
 # =======================
+# Disconnect from Current Network Function
+# =======================
+
+disconnect_network() {
+  printf "INFO - Disconnecting from current network: SSID='%s'\n" "$current_ssid"
+  nmcli device disconnect ifname "$INTERFACE"
+}
+
+# =======================
 # Connect to Network Function Using nmcli
 # =======================
 
@@ -241,6 +254,7 @@ main_loop() {
       signal_diff=$((best_signal - current_signal))
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
         printf "INFO - Decided to switch to better network '%s' (Signal: %s%%, Improvement: %s%%).\n" "$best_ssid" "$best_signal" "$signal_diff"
+        disconnect_network  # Disconnect before switching
         if ! connect_to_network "$best_ssid" "$best_password"; then
           printf "WARNING - Failed to switch to network '%s'. Retrying...\n" "$best_ssid"
         fi
