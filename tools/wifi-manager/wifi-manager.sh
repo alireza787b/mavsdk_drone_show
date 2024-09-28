@@ -150,7 +150,8 @@ scan_wifi_networks() {
 get_current_connection_info() {
   current_ssid=$(nmcli -t -f active,ssid dev wifi | grep '^yes:' | cut -d':' -f2-)
   if [ -n "$current_ssid" ]; then
-    current_signal=$(nmcli -t -f SIGNAL connection show --active | head -n1 | cut -d':' -f1)
+    # Corrected the nmcli command for signal extraction
+    current_signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi | grep '^*' | cut -d':' -f2)
     printf "INFO - Connected to '%s' with signal strength %s%%.\n" "$current_ssid" "$current_signal"
   else
     current_ssid=""
