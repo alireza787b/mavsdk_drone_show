@@ -1,3 +1,4 @@
+```bash
 #!/bin/bash
 
 # Wi-Fi Manager Script for Raspberry Pi
@@ -106,6 +107,8 @@ load_known_networks() {
     printf "ERROR - No known networks loaded from %s.\n" "$CONFIG_FILE" >&2
     exit 1
   fi
+
+  printf "INFO - Loaded %d known networks from configuration.\n" "${#KNOWN_NETWORKS[@]}"
 }
 
 # =======================
@@ -135,12 +138,18 @@ scan_wifi_networks() {
     return
   fi
 
+  printf "INFO - Available networks found during scan:\n"
+  printf "--------------------------------------------\n"
+
   # Parse SSID and signal strength from the scan output
   while IFS= read -r line; do
     signal=$(echo "$line" | awk '{print $NF}')
     ssid=$(echo "$line" | sed "s/$signal\$//" | xargs)
     available_networks+=("$ssid;$signal")
+    printf "  SSID: %s, Signal Strength: %s%%\n" "$ssid" "$signal"
   done <<< "$(echo "$scan_output" | tail -n +2)"  # Skip the header
+
+  printf "--------------------------------------------\n"
 }
 
 # =======================
@@ -152,7 +161,7 @@ get_current_connection_info() {
   if [ -n "$current_ssid" ]; then
     # Corrected the nmcli command for signal extraction
     current_signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi | grep '^*' | cut -d':' -f2)
-    printf "INFO - Connected to '%s' with signal strength %s%%.\n" "$current_ssid" "$current_signal"
+    printf "INFO - Currently connected to '%s' with signal strength %s%%.\n" "$current_ssid" "$current_signal"
   else
     current_ssid=""
     current_signal=0
@@ -213,13 +222,21 @@ main_loop() {
       fi
     done
 
-    # Connect to the best available network if it's different from the current one
-    if [ "$current_ssid" != "$best_ssid" ] && [ -n "$best_ssid" ]; then
+    # Logging decision-making details
+    if [ "$current_ssid" != "$best_ssid" ]; then
       signal_diff=$((best_signal - current_signal))
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
-        printf "INFO - Switching to better network '%s' (Signal: %s%%).\n" "$best_ssid" "$best_signal"
+        printf "INFO - Signal strength difference is %d%% (Current: %s%%, Best: %s%%).\n" "$signal_diff" "$current_signal" "$best_signal"
+        printf "INFO - Switching to better network '%s'.\n" "$best_ssid"
         connect_to_network "$best_ssid" "$best_password"
+      else
+        printf "INFO - Stronger network found ('%s'), but signal improvement (%d%%) is below threshold (%d%%). Staying connected to '%s'.\n" \
+          "$best_ss
+
+id" "$signal_diff" "$SIGNAL_THRESHOLD" "$current_ssid"
       fi
+    else
+      printf "INFO - Already connected to the strongest network '%s'. No switch necessary.\n" "$current_ssid"
     fi
 
     sleep "$SCAN_INTERVAL"  # Wait before next scan
@@ -231,3 +248,4 @@ main_loop() {
 # =======================
 
 main_loop  # Start the main loop for continuously checking Wi-Fi status and switching networks
+```
