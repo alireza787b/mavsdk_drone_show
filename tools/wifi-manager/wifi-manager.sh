@@ -132,24 +132,34 @@ printf "INFO - Using Wi-Fi interface: %s\n" "$INTERFACE"
 # =======================
 
 scan_wifi_networks() {
-  available_networks=()
-  local scan_output
-  printf "INFO - Scanning for available Wi-Fi networks...\n"
-  scan_output=$(nmcli -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes 2>&1)
+    available_networks=()
+    local scan_output
+    printf "INFO - Scanning for available Wi-Fi networks...\n"
+    
+    # Use terse output with colon as delimiter
+    scan_output=$(nmcli -t -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes 2>&1)
 
-  if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
-    printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'. Output: %s\n" "$INTERFACE" "$scan_output"
-    return
-  fi
+    if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
+        printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'. Output: %s\n" "$INTERFACE" "$scan_output"
+        return
+    fi
 
-  printf "INFO - Available networks:\n"
-  # Parse SSID and signal strength correctly
-  while IFS= read -r line; do
-    ssid=$(echo "$line" | awk '{print substr($0, 1, length($0)-length($NF)-1)}' | xargs)  # Extract SSID correctly
-    signal=$(echo "$line" | awk '{print $NF}')
-    available_networks+=("$ssid;$signal")
-    printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
-  done <<< "$(echo "$scan_output" | tail -n +2)"  # Skip the header
+    printf "INFO - Available networks:\n"
+
+    # Parse SSID and signal strength using colon as delimiter
+    while IFS=: read -r ssid signal; do
+        # Trim any leading/trailing whitespace
+        ssid=$(echo "$ssid" | xargs)
+        signal=$(echo "$signal" | xargs)
+        
+        # Handle empty SSIDs (hidden networks)
+        if [ -z "$ssid" ]; then
+            ssid="<Hidden SSID>"
+        fi
+
+        available_networks+=("$ssid;$signal")
+        printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
+    done <<< "$scan_output"
 }
 
 # =======================
@@ -250,7 +260,7 @@ main_loop() {
       fi
     elif [ -z "$current_ssid" ] && [ -n "$best_ssid" ]; then
       printf "INFO - Currently disconnected. Attempting to connect to best network '%s' (Signal: %s%%).\n" "$best_ssid" "$best_signal"
-      if ! connect_to_network "$best_ssid" "$best_password"; then
+      if ! connect_to_network "$best_ssid" "$best_signal"; then
         printf "WARNING - Failed to connect to network '%s'. Retrying...\n" "$best_ssid"
       fi
     else
