@@ -144,7 +144,7 @@ scan_wifi_networks() {
   # Parse SSID and signal strength from the scan output
   while IFS= read -r line; do
     signal=$(echo "$line" | awk '{print $NF}')
-    ssid=$(echo "$line" | sed "s/$signal\$//" | xargs)
+    ssid=$(echo "$line" | sed "s/$signal\$//" | xargs)  # Trim trailing spaces properly
     available_networks+=("$ssid;$signal")
     printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
   done <<< "$(echo "$scan_output" | tail -n +2)"  # Skip the header
@@ -217,6 +217,7 @@ main_loop() {
       printf "INFO - Checking network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
 
       # Check if this SSID is a known network and has a stronger signal
+      # Use strict string comparison to avoid errors with trailing spaces
       if [[ -v "KNOWN_NETWORKS[$ssid]" ]]; then
         printf "INFO - SSID='%s' is a known network.\n" "$ssid"
         if [ "$signal" -gt "$best_signal" ]; then
