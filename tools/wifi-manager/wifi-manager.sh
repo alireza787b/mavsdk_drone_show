@@ -10,8 +10,8 @@
 
 CONFIG_FILE="$(dirname "$0")/known_networks.conf"  # Path to known networks configuration file
 LOG_FILE="/var/log/wifi-manager.log"               # Log file to record all activities
-SCAN_INTERVAL=15                                   # Time (in seconds) between Wi-Fi scans
-SIGNAL_THRESHOLD=10                                # Minimum signal strength improvement to trigger a switch
+SCAN_INTERVAL=10                                   # Time (in seconds) between Wi-Fi scans
+SIGNAL_THRESHOLD=20                                # Minimum signal strength improvement to trigger a switch
 MAX_LOG_SIZE=5242880                               # Maximum log file size (5 MB)
 BACKUP_COUNT=3                                     # Number of rotated log files to keep
 LOCK_FILE="/var/run/wifi-manager.lock"             # Lock file to prevent multiple instances
