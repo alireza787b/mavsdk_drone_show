@@ -26,10 +26,6 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Disable wpa_supplicant control over Wi-Fi
-sudo systemctl stop wpa_supplicant
-sudo systemctl disable wpa_supplicant
-
 # Create and acquire a lock to prevent multiple instances of the script from running
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "ERROR - Another instance of the script is running."; exit 1; }
@@ -61,9 +57,11 @@ rotate_logs() {
       done
       mv "$LOG_FILE" "$LOG_FILE.1"
       : > "$LOG_FILE"  # Truncate current log file
+      printf "INFO - Log rotated. Created %s.1\n" "$LOG_FILE"
     fi
   else
     : > "$LOG_FILE"  # Create log file if it doesn't exist
+    printf "INFO - Log file created: %s\n" "$LOG_FILE"
   fi
 }
 
@@ -137,17 +135,17 @@ scan_wifi_networks() {
   available_networks=()
   local scan_output
   printf "INFO - Scanning for available Wi-Fi networks...\n"
-  scan_output=$(nmcli -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes)
+  scan_output=$(nmcli -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes 2>&1)
 
   if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
-    printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'.\n" "$INTERFACE"
+    printf "WARNING - Failed to scan Wi-Fi networks on interface '%s'. Output: %s\n" "$INTERFACE" "$scan_output"
     return
   fi
 
   printf "INFO - Available networks:\n"
   # Parse SSID and signal strength correctly
   while IFS= read -r line; do
-    ssid=$(echo "$line" | awk '{print substr($0, 1, index($0,$NF)-1)}' | xargs)  # Extract SSID correctly
+    ssid=$(echo "$line" | awk '{print substr($0, 1, length($0)-length($NF)-1)}' | xargs)  # Extract SSID correctly
     signal=$(echo "$line" | awk '{print $NF}')
     available_networks+=("$ssid;$signal")
     printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
@@ -159,24 +157,15 @@ scan_wifi_networks() {
 # =======================
 
 get_current_connection_info() {
-  current_ssid=$(nmcli -t -f active,ssid dev wifi | grep '^yes:' | cut -d':' -f2-)
+  current_ssid=$(nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes:' | cut -d':' -f2-)
   if [ -n "$current_ssid" ]; then
-    current_signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi | grep '^*' | cut -d':' -f2)
+    current_signal=$(nmcli -t -f ACTIVE,SIGNAL dev wifi | grep '^yes:' | cut -d':' -f2)
     printf "INFO - Currently connected to '%s' with signal strength %s%%.\n" "$current_ssid" "$current_signal"
   else
     current_ssid=""
     current_signal=0
     printf "INFO - Not connected to any network.\n"
   fi
-}
-
-# =======================
-# Disconnect from Current Network Function
-# =======================
-
-disconnect_network() {
-  printf "INFO - Disconnecting from current network: SSID='%s'\n" "$current_ssid"
-  nmcli device disconnect ifname "$INTERFACE"
 }
 
 # =======================
@@ -235,7 +224,6 @@ main_loop() {
       printf "INFO - Checking network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
 
       # Check if this SSID is a known network and has a stronger signal
-      # Use strict string comparison to avoid errors with trailing spaces
       if [[ -v "KNOWN_NETWORKS[$ssid]" ]]; then
         printf "INFO - SSID='%s' is a known network.\n" "$ssid"
         if [ "$signal" -gt "$best_signal" ]; then
@@ -254,10 +242,11 @@ main_loop() {
       signal_diff=$((best_signal - current_signal))
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
         printf "INFO - Decided to switch to better network '%s' (Signal: %s%%, Improvement: %s%%).\n" "$best_ssid" "$best_signal" "$signal_diff"
-        disconnect_network  # Disconnect before switching
         if ! connect_to_network "$best_ssid" "$best_password"; then
           printf "WARNING - Failed to switch to network '%s'. Retrying...\n" "$best_ssid"
         fi
+      else
+        printf "INFO - Signal improvement (%s%%) is less than the threshold (%s%%). Not switching.\n" "$signal_diff" "$SIGNAL_THRESHOLD"
       fi
     elif [ -z "$current_ssid" ] && [ -n "$best_ssid" ]; then
       printf "INFO - Currently disconnected. Attempting to connect to best network '%s' (Signal: %s%%).\n" "$best_ssid" "$best_signal"
