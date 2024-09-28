@@ -17,6 +17,8 @@ from params import Params
 from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
+from network import get_network_info_for_all_drones
+
 
 
 
@@ -361,6 +363,14 @@ def setup_routes(app):
             logger.error(f"Error in compute_origin: {e}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/get-network-info', methods=['GET'])
+    def get_network_info():
+        """
+        Endpoint to get network information for all drones.
+        Each drone is queried individually, and the results are aggregated into a single JSON response.
+        """
+        network_info, status_code = get_network_info_for_all_drones()
+        return jsonify(network_info), status_code
 
 
 
