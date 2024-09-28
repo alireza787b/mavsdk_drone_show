@@ -214,7 +214,7 @@ class FlaskHandler:
         return subprocess.check_output(command).strip().decode('utf-8')
     
     
-    # Helper method to retrieve network information using nmcli
+
     def _get_network_info(self):
         """
         Fetch the current network information (Wi-Fi and Wired LAN).
@@ -222,12 +222,17 @@ class FlaskHandler:
         :return: A dictionary containing Wi-Fi and Ethernet information if available.
         """
         try:
-            # Gather Wi-Fi information
-            wifi_ssid = subprocess.check_output(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"], universal_newlines=True)
-            wifi_signal = subprocess.check_output(["nmcli", "-t", "-f", "signal", "dev", "wifi"], universal_newlines=True)
-
+            # Gather Wi-Fi information with active status, SSID, and signal strength
+            wifi_info = subprocess.check_output(
+                ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"],
+                universal_newlines=True
+            )
+            
             # Gather Wired LAN information (assuming eth0 is the primary wired interface)
-            eth_connection = subprocess.check_output(["nmcli", "-t", "-f", "device,state,connection", "device", "status"], universal_newlines=True)
+            eth_connection = subprocess.check_output(
+                ["nmcli", "-t", "-f", "device,state,connection", "device", "status"],
+                universal_newlines=True
+            )
 
             # Initialize the network info structure
             network_info = {
@@ -239,19 +244,24 @@ class FlaskHandler:
             # Extract Wi-Fi details
             active_wifi_ssid = None
             active_wifi_signal = None
-            for line in wifi_ssid.splitlines():
+            for line in wifi_info.splitlines():
                 parts = line.split(':')
-                if parts[0] == 'yes':  # Check if Wi-Fi is active
+                if len(parts) >= 3 and parts[0].lower() == 'yes':  # Check if Wi-Fi is active
                     active_wifi_ssid = parts[1]
-            for line in wifi_signal.splitlines():
-                if line:
-                    active_wifi_signal = line
+                    active_wifi_signal = parts[2]
+                    break  # Assuming only one active Wi-Fi connection
 
             # If Wi-Fi is connected, add it to the network info
             if active_wifi_ssid:
+                # Validate that signal strength is a number
+                if active_wifi_signal.isdigit():
+                    signal_strength = int(active_wifi_signal)
+                else:
+                    signal_strength = "Unknown"
+
                 network_info["wifi"] = {
                     "ssid": active_wifi_ssid,
-                    "signal_strength_percent": active_wifi_signal if active_wifi_signal else "Unknown"
+                    "signal_strength_percent": signal_strength
                 }
 
             # Extract Ethernet details
@@ -259,9 +269,10 @@ class FlaskHandler:
             active_eth_device = None
             for line in eth_connection.splitlines():
                 parts = line.split(':')
-                if parts[1] == 'connected' and 'eth' in parts[0]:  # Look for connected Ethernet device (e.g., eth0)
+                if len(parts) >= 3 and parts[1].lower() == 'connected' and 'eth' in parts[0].lower():
                     active_eth_device = parts[0]
                     active_eth_connection = parts[2]  # Connection name
+                    break  # Assuming only one active Ethernet connection
 
             # If Ethernet is connected, add it to the network info
             if active_eth_device and active_eth_connection:
@@ -272,6 +283,26 @@ class FlaskHandler:
 
             # Return network information
             return network_info
+
+        except subprocess.CalledProcessError as e:
+            # Log the error if needed
+            network_info = {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000),
+                "error": f"Command failed: {e}"
+            }
+            return network_info
+        except Exception as e:
+            # Handle other exceptions
+            network_info = {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000),
+                "error": f"Unexpected error: {e}"
+            }
+            return network_info
+
         
         except subprocess.CalledProcessError as e:
             logging.error(f"Error fetching network info: {e}")
