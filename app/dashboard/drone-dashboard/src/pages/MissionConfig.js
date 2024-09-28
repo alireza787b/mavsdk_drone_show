@@ -113,9 +113,10 @@ const MissionConfig = () => {
   }, []);
 
   // Fetch network info for each drone
+  //TODO: Later on craete endpoing in GCS and ask wifi fom that insead of asking each drone 
   useEffect(() => {
     const fetchNetworkInfo = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      const backendURL = getBackendURL(process.env.DRONE_APP_FLASK_PORT || '7070');
       try {
         const response = await axios.get(`${backendURL}/network-info`); // Get network info from Flask API
         setNetworkInfo(response.data); // Store network info
