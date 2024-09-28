@@ -1,5 +1,7 @@
+//app/dashboard/drone-dashboard/src/components/DroneGitStatus.js
 import React, { useState, useEffect } from 'react';
 import { getDroneGitStatusURLById, getGitStatusURL } from '../utilities/utilities';
+import '../styles/DroneGitStatus.css'; // Import for consistent styling
 
 const DroneGitStatus = ({ droneID, droneName }) => {
   const [gitStatus, setGitStatus] = useState(null);
@@ -39,26 +41,18 @@ const DroneGitStatus = ({ droneID, droneName }) => {
 
   return (
     <div className="drone-git-status">
-      {errorMessage && <div className="error-message">{errorMessage}</div>}
+      {errorMessage && <div className="git-error-message">{errorMessage}</div>}
       {gitStatus && gcsGitStatus ? (
-        <div
-          className="git-status-summary"
-          style={{
-            color: isInSync ? 'green' : 'red',
-            border: `1px solid ${isInSync ? 'green' : 'red'}`,
-            padding: '10px',
-            borderRadius: '5px',
-            marginBottom: '10px',
-          }}
-        >
+        <div className={`git-status-summary ${isInSync ? 'sync' : 'not-sync'}`}>
+          <p><strong>{droneName} Git Status</strong></p>
           <p><strong>Branch:</strong> {gitStatus.branch}</p>
           <p><strong>Commit:</strong> {gitStatus.commit}</p>
           {!isInSync && (
-            <p><strong>Note:</strong> This drone's Git status differs from the GCS.</p>
+            <p className="warning-text"><strong>Warning:</strong> This drone's Git status differs from the GCS.</p>
           )}
         </div>
       ) : (
-        <div>Loading Git status...</div>
+        <div className="git-loading">Loading Git status...</div>
       )}
     </div>
   );
