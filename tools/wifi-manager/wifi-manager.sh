@@ -173,17 +173,22 @@ get_current_connection_info() {
 connect_to_network() {
   local ssid="$1"
   local password="$2"
+  local timeout=10  # Set a timeout of 10 seconds for the connection attempt
+
   printf "INFO - Attempting to connect to network: SSID='%s'\n" "$ssid"
-  nmcli_output=$(nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE" 2>&1)
+  
+  nmcli_output=$(timeout "$timeout" nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE" 2>&1)
   nmcli_exit_status=$?
 
   if [ "$nmcli_exit_status" -eq 0 ]; then
     printf "INFO - Successfully connected to '%s'.\n" "$ssid"
     return 0
+  elif [ "$nmcli_exit_status" -eq 124 ]; then  # 124 is the exit code when timeout is reached
+    printf "ERROR - Connection attempt to '%s' timed out after %d seconds.\n" "$ssid" "$timeout" >&2
   else
     printf "ERROR - Failed to connect to '%s'. Output: %s\n" "$ssid" "$nmcli_output" >&2
-    return 1
   fi
+  return 1
 }
 
 # =======================
@@ -236,11 +241,15 @@ main_loop() {
       signal_diff=$((best_signal - current_signal))
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
         printf "INFO - Decided to switch to better network '%s' (Signal: %s%%, Improvement: %s%%).\n" "$best_ssid" "$best_signal" "$signal_diff"
-        connect_to_network "$best_ssid" "$best_password"
+        if ! connect_to_network "$best_ssid" "$best_password"; then
+          printf "WARNING - Failed to switch to network '%s'. Retrying...\n" "$best_ssid"
+        fi
       fi
     elif [ -z "$current_ssid" ] && [ -n "$best_ssid" ]; then
       printf "INFO - Currently disconnected. Attempting to connect to best network '%s' (Signal: %s%%).\n" "$best_ssid" "$best_signal"
-      connect_to_network "$best_ssid" "$best_password"
+      if ! connect_to_network "$best_ssid" "$best_password"; then
+        printf "WARNING - Failed to connect to network '%s'. Retrying...\n" "$best_ssid"
+      fi
     else
       printf "INFO - No better network found. Staying connected to '%s'.\n" "$current_ssid"
     fi
