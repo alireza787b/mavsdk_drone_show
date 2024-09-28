@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash
 
 # Wi-Fi Manager Script for Raspberry Pi
@@ -78,6 +77,8 @@ load_known_networks() {
   local ssid=""
   local password=""
 
+  printf "INFO - Loading known networks from configuration file...\n"
+  
   while IFS='=' read -r key value || [ -n "$key" ]; do
     key=$(echo "$key" | xargs)  # Trim leading/trailing whitespace
     value=$(echo "$value" | xargs)
@@ -96,6 +97,7 @@ load_known_networks() {
         password="$value"
         if [ -n "$ssid" ] && [ -n "$password" ]; then
           KNOWN_NETWORKS["$ssid"]="$password"
+          printf "INFO - Loaded network: SSID='%s'\n" "$ssid"
           ssid=""
           password=""
         fi
@@ -107,8 +109,6 @@ load_known_networks() {
     printf "ERROR - No known networks loaded from %s.\n" "$CONFIG_FILE" >&2
     exit 1
   fi
-
-  printf "INFO - Loaded %d known networks from configuration.\n" "${#KNOWN_NETWORKS[@]}"
 }
 
 # =======================
@@ -123,6 +123,7 @@ get_wifi_interface() {
 
 # Get the wireless interface for later use
 INTERFACE=$(get_wifi_interface)
+printf "INFO - Using Wi-Fi interface: %s\n" "$INTERFACE"
 
 # =======================
 # Scan Wi-Fi Networks Function
@@ -131,6 +132,7 @@ INTERFACE=$(get_wifi_interface)
 scan_wifi_networks() {
   available_networks=()
   local scan_output
+  printf "INFO - Scanning for available Wi-Fi networks...\n"
   scan_output=$(nmcli -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes)
 
   if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
@@ -138,18 +140,14 @@ scan_wifi_networks() {
     return
   fi
 
-  printf "INFO - Available networks found during scan:\n"
-  printf "--------------------------------------------\n"
-
+  printf "INFO - Available networks:\n"
   # Parse SSID and signal strength from the scan output
   while IFS= read -r line; do
     signal=$(echo "$line" | awk '{print $NF}')
     ssid=$(echo "$line" | sed "s/$signal\$//" | xargs)
     available_networks+=("$ssid;$signal")
-    printf "  SSID: %s, Signal Strength: %s%%\n" "$ssid" "$signal"
+    printf "INFO - Found network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
   done <<< "$(echo "$scan_output" | tail -n +2)"  # Skip the header
-
-  printf "--------------------------------------------\n"
 }
 
 # =======================
@@ -159,7 +157,6 @@ scan_wifi_networks() {
 get_current_connection_info() {
   current_ssid=$(nmcli -t -f active,ssid dev wifi | grep '^yes:' | cut -d':' -f2-)
   if [ -n "$current_ssid" ]; then
-    # Corrected the nmcli command for signal extraction
     current_signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi | grep '^*' | cut -d':' -f2)
     printf "INFO - Currently connected to '%s' with signal strength %s%%.\n" "$current_ssid" "$current_signal"
   else
@@ -176,6 +173,7 @@ get_current_connection_info() {
 connect_to_network() {
   local ssid="$1"
   local password="$2"
+  printf "INFO - Attempting to connect to network: SSID='%s'\n" "$ssid"
   nmcli_output=$(nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE" 2>&1)
   nmcli_exit_status=$?
 
@@ -203,6 +201,7 @@ main_loop() {
     local best_signal=-100
 
     # Find the best available network based on signal strength
+    printf "INFO - Evaluating networks for best connection...\n"
     for entry in "${available_networks[@]}"; do
       local ssid
       local signal
@@ -211,32 +210,37 @@ main_loop() {
 
       # Ensure signal is a valid number (handle negative signal values like -70 dBm)
       if ! [[ "$signal" =~ ^-?[0-9]+$ ]]; then
+        printf "WARNING - Invalid signal strength for SSID='%s'. Skipping...\n" "$ssid"
         continue
       fi
 
+      printf "INFO - Checking network: SSID='%s', Signal='%s%%'\n" "$ssid" "$signal"
+
       # Check if this SSID is a known network and has a stronger signal
-      if [[ -v "KNOWN_NETWORKS[$ssid]" ]] && [ "$signal" -gt "$best_signal" ]; then
-        best_signal="$signal"
-        best_ssid="$ssid"
-        best_password="${KNOWN_NETWORKS[$ssid]}"
+      if [[ -v "KNOWN_NETWORKS[$ssid]" ]]; then
+        printf "INFO - SSID='%s' is a known network.\n" "$ssid"
+        if [ "$signal" -gt "$best_signal" ]; then
+          printf "INFO - SSID='%s' has a better signal (%s%%) compared to current best (%s%%).\n" "$ssid" "$signal" "$best_signal"
+          best_signal="$signal"
+          best_ssid="$ssid"
+          best_password="${KNOWN_NETWORKS[$ssid]}"
+        fi
+      else
+        printf "INFO - SSID='%s' is not in the list of known networks. Skipping...\n" "$ssid"
       fi
     done
 
-    # Logging decision-making details
-    if [ "$current_ssid" != "$best_ssid" ]; then
+    # Decision-making based on the best available network
+    if [ "$current_ssid" != "$best_ssid" ] && [ -n "$best_ssid" ]; then
       signal_diff=$((best_signal - current_signal))
       if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ]; then
-        printf "INFO - Signal strength difference is %d%% (Current: %s%%, Best: %s%%).\n" "$signal_diff" "$current_signal" "$best_signal"
-        printf "INFO - Switching to better network '%s'.\n" "$best_ssid"
+        printf "INFO - Decided to switch to better network '%s' (Signal: %s%%, Improvement: %s%%).\n" "$best_ssid" "$best_signal" "$signal_diff"
         connect_to_network "$best_ssid" "$best_password"
       else
-        printf "INFO - Stronger network found ('%s'), but signal improvement (%d%%) is below threshold (%d%%). Staying connected to '%s'.\n" \
-          "$best_ss
-
-id" "$signal_diff" "$SIGNAL_THRESHOLD" "$current_ssid"
+        printf "INFO - Signal improvement for '%s' (%s%%) is below threshold (%s%%). Staying connected to '%s'.\n" "$best_ssid" "$signal_diff" "$SIGNAL_THRESHOLD" "$current_ssid"
       fi
     else
-      printf "INFO - Already connected to the strongest network '%s'. No switch necessary.\n" "$current_ssid"
+      printf "INFO - No better network found. Staying connected to '%s'.\n" "$current_ssid"
     fi
 
     sleep "$SCAN_INTERVAL"  # Wait before next scan
@@ -248,4 +252,3 @@ id" "$signal_diff" "$SIGNAL_THRESHOLD" "$current_ssid"
 # =======================
 
 main_loop  # Start the main loop for continuously checking Wi-Fi status and switching networks
-```
