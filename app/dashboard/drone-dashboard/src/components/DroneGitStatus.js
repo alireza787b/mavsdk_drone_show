@@ -44,7 +44,7 @@ const DroneGitStatus = ({ droneID, droneName }) => {
       {errorMessage && <div className="git-error-message">{errorMessage}</div>}
       {gitStatus && gcsGitStatus ? (
         <div className={`git-status-summary ${isInSync ? 'sync' : 'not-sync'}`}>
-          <p><strong>{droneName} Git Status</strong></p>
+          <p><strong>Git Status</strong></p>
           <p><strong>Branch:</strong> {gitStatus.branch}</p>
           <p><strong>Commit:</strong> {gitStatus.commit}</p>
           {!isInSync && (

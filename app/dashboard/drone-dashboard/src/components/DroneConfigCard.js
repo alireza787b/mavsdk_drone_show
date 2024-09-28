@@ -230,6 +230,7 @@ const DroneConfigCard = ({
           {/* Network Information Display */}
           {droneNetworkInfo ? (
             <div className="network-info">
+              <p><strong>Network Status</strong></p>
               <p><strong>SSID:</strong> {droneNetworkInfo.wifi?.ssid || 'N/A'}</p>
               <p style={{ color: getWifiStrengthColor(wifiStrength) }}>
                 <strong>Signal Strength:</strong> {wifiStrength || 'N/A'}%
