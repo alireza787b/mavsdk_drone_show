@@ -150,7 +150,7 @@ class FlaskHandler:
                 logging.error(f"Error in get_position_deviation: {e}")
                 return jsonify({"error": str(e)}), 500
             
-        @self.app.route("/network-info", methods=['GET'])
+        @self.app.route("/get-network-status", methods=['GET'])
         def get_network_info():
             """
             Endpoint to retrieve current network information.
