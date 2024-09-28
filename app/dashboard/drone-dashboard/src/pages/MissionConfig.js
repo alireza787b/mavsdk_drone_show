@@ -26,7 +26,7 @@ const MissionConfig = () => {
   const [deviationData, setDeviationData] = useState({});
   const [originAvailable, setOriginAvailable] = useState(false);
   const [telemetryData, setTelemetryData] = useState({});
-  const [networkInfo, setNetworkInfo] = useState({}); // New state for network info
+  const [networkInfo, setNetworkInfo] = useState([]); // New state for network info
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -39,10 +39,8 @@ const MissionConfig = () => {
   useEffect(() => {
     const fetchData = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      console.log(`Fetching config data from URL: ${backendURL}/get-config-data`);
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
-        console.log('Received config data:', response.data);
         setConfigData(response.data);
       } catch (error) {
         console.error('Error fetching config data:', error);
@@ -60,7 +58,7 @@ const MissionConfig = () => {
         if (response.data.lat && response.data.lon) {
           setOriginLat(response.data.lat);
           setOriginLon(response.data.lon);
-          setOriginAvailable(true); // Origin is available
+          setOriginAvailable(true);
         } else {
           setOriginAvailable(false);
         }
@@ -74,23 +72,21 @@ const MissionConfig = () => {
 
   // Fetch deviation data periodically (every 2 seconds)
   useEffect(() => {
-    if (!originAvailable) return; // Do not fetch deviations if origin is not set
+    if (!originAvailable) return;
 
     const fetchDeviationData = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-position-deviations`);
-        console.log('Received deviation data:', response.data);
         setDeviationData(response.data);
       } catch (error) {
-        console.error('Error fetching deviation data from GCS:', error);
+        console.error('Error fetching deviation data:', error);
       }
     };
 
     fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 2000); // Fetch every 2 seconds
-
-    return () => clearInterval(interval); // Cleanup on unmount
+    const interval = setInterval(fetchDeviationData, 2000);
+    return () => clearInterval(interval);
   }, [originAvailable]);
 
   // Fetch telemetry data periodically (every 2 seconds)
@@ -99,34 +95,32 @@ const MissionConfig = () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/telemetry`);
-        console.log('Received telemetry data:', response.data);
         setTelemetryData(response.data);
       } catch (error) {
-        console.error('Error fetching telemetry data from GCS:', error);
+        console.error('Error fetching telemetry data:', error);
       }
     };
 
     fetchTelemetryData();
-    const interval = setInterval(fetchTelemetryData, 2000); // Fetch every 2 seconds
-
-    return () => clearInterval(interval); // Cleanup on unmount
+    const interval = setInterval(fetchTelemetryData, 2000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Fetch network info for each drone
-  //TODO: Later on craete endpoing in GCS and ask wifi fom that insead of asking each drone 
+  // Fetch network info for all drones
   useEffect(() => {
     const fetchNetworkInfo = async () => {
-      const backendURL = getBackendURL(process.env.DRONE_APP_FLASK_PORT || '7070');
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
-        const response = await axios.get(`${backendURL}/network-info`); // Get network info from Flask API
-        setNetworkInfo(response.data); // Store network info
+        const response = await axios.get(`${backendURL}/get-network-info`);
+        setNetworkInfo(response.data);
       } catch (error) {
         console.error('Error fetching network information:', error);
       }
     };
+
     fetchNetworkInfo();
     const interval = setInterval(fetchNetworkInfo, 5000); // Fetch network info every 5 seconds
-    return () => clearInterval(interval); // Cleanup on unmount
+    return () => clearInterval(interval);
   }, []);
 
   // Save changes for a specific drone
@@ -162,13 +156,9 @@ const MissionConfig = () => {
   // Add a new drone to the configuration
   const addNewDrone = () => {
     const newHwId = availableHwIds[0].toString();
-
-    // Determine if all existing drones have the same GCS IP
     const allSameGcsIp = configData.every(
       (drone) => drone.gcs_ip === configData[0]?.gcs_ip
     );
-
-    // Extract the common subnet from the existing IPs
     const commonSubnet =
       configData.length > 0
         ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
@@ -200,7 +190,6 @@ const MissionConfig = () => {
     setOriginLat(lat);
     setOriginLon(lon);
     setShowOriginModal(false);
-    // Send origin to backend to store it
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     axios
       .post(`${backendURL}/set-origin`, {
@@ -208,7 +197,6 @@ const MissionConfig = () => {
         lon: lon,
       })
       .then(() => {
-        console.log('Origin saved to backend');
         setOriginAvailable(true);
       })
       .catch((error) => {
@@ -216,7 +204,6 @@ const MissionConfig = () => {
       });
   };
 
-  // Sort the configuration data by hardware ID for consistent display
   const sortedConfigData = [...configData].sort(
     (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
   );
@@ -225,7 +212,6 @@ const MissionConfig = () => {
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
 
-      {/* Control Buttons for Adding, Saving, Importing, and Exporting Configuration */}
       <ControlButtons
         addNewDrone={addNewDrone}
         handleSaveChangesToServer={() =>
@@ -237,7 +223,6 @@ const MissionConfig = () => {
         openOriginModal={() => setShowOriginModal(true)}
       />
 
-      {/* Briefing Export Component for Exporting to KML and Printing Mission Briefing */}
       <BriefingExport
         configData={configData}
         originLat={originLat}
@@ -246,28 +231,24 @@ const MissionConfig = () => {
         setOriginLon={setOriginLon}
       />
 
-      {/* Origin Modal */}
       {showOriginModal && (
         <OriginModal
           isOpen={showOriginModal}
           onClose={() => setShowOriginModal(false)}
           onSubmit={handleOriginSubmit}
-          telemetryData={telemetryData} // Pass telemetry data
-          configData={configData} // Pass config data
+          telemetryData={telemetryData}
+          configData={configData}
         />
       )}
 
-      {/* Show origin warning if not available */}
       {!originAvailable && (
         <div className="origin-warning">
           <p>
-            Origin coordinates are not set. Please set the origin to display deviation
-            data.
+            Origin coordinates are not set. Please set the origin to display deviation data.
           </p>
         </div>
       )}
 
-      {/* Main Content: Drone Configuration Cards and Initial Launch Plot */}
       <div className="content-flex">
         <div className="drone-cards">
           {sortedConfigData.map((drone) => (
@@ -280,7 +261,7 @@ const MissionConfig = () => {
               setEditingDroneId={setEditingDroneId}
               saveChanges={saveChanges}
               removeDrone={removeDrone}
-              networkInfo={networkInfo} // Pass network info to DroneConfigCard
+              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)} // Pass network info for this drone
             />
           ))}
         </div>
@@ -288,13 +269,9 @@ const MissionConfig = () => {
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}
-            deviationData={deviationData} // Pass deviation data to the plot
+            deviationData={deviationData}
           />
-          <DronePositionMap
-            originLat={originLat}
-            originLon={originLon}
-            drones={configData}
-          />
+          <DronePositionMap originLat={originLat} originLon={originLon} drones={configData} />
         </div>
       </div>
     </div>

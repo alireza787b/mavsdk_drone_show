@@ -37,38 +37,20 @@ const DroneConfigCard = ({
   // Input validation
   const validateInputs = () => {
     const errors = {};
-    if (!droneData.hw_id) {
-      errors.hw_id = 'Hardware ID is required.';
-    }
-    if (!droneData.ip) {
-      errors.ip = 'IP Address is required.';
-    }
-    if (!droneData.mavlink_port) {
-      errors.mavlink_port = 'MavLink Port is required.';
-    }
-    if (!droneData.debug_port) {
-      errors.debug_port = 'Debug Port is required.';
-    }
-    if (!droneData.gcs_ip) {
-      errors.gcs_ip = 'GCS IP is required.';
-    }
-    if (!droneData.x || isNaN(droneData.x)) {
-      errors.x = 'Valid X coordinate is required.';
-    }
-    if (!droneData.y || isNaN(droneData.y)) {
-      errors.y = 'Valid Y coordinate is required.';
-    }
-    if (!droneData.pos_id) {
-      errors.pos_id = 'Position ID is required.';
-    }
+    if (!droneData.hw_id) errors.hw_id = 'Hardware ID is required.';
+    if (!droneData.ip) errors.ip = 'IP Address is required.';
+    if (!droneData.mavlink_port) errors.mavlink_port = 'MavLink Port is required.';
+    if (!droneData.debug_port) errors.debug_port = 'Debug Port is required.';
+    if (!droneData.gcs_ip) errors.gcs_ip = 'GCS IP is required.';
+    if (!droneData.x || isNaN(droneData.x)) errors.x = 'Valid X coordinate is required.';
+    if (!droneData.y || isNaN(droneData.y)) errors.y = 'Valid Y coordinate is required.';
+    if (!droneData.pos_id) errors.pos_id = 'Position ID is required.';
     setErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSave = () => {
-    if (!validateInputs()) {
-      return;
-    }
+    if (!validateInputs()) return;
 
     // Validation: Check for duplicate hw_id
     if (configData.some(d => d.hw_id === droneData.hw_id && d.hw_id !== drone.hw_id)) {
@@ -92,7 +74,15 @@ const DroneConfigCard = ({
   };
 
   // Network info for the current drone
-  const droneNetworkInfo = networkInfo[drone.hw_id] || null;
+  const droneNetworkInfo = networkInfo || {};
+  const wifiStrength = droneNetworkInfo.wifi?.signal_strength_percent;
+
+  // Helper function to color-code WiFi strength
+  const getWifiStrengthColor = (strength) => {
+    if (strength >= 80) return 'green';
+    if (strength >= 50) return 'orange';
+    return 'red';
+  };
 
   return (
     <div className="drone-config-card" data-hw-id={drone.hw_id}>
@@ -230,31 +220,22 @@ const DroneConfigCard = ({
         </>
       ) : (
         <>
-          <p>
-            <strong>IP:</strong> {drone.ip}
-          </p>
-          <p>
-            <strong>MavLink Port:</strong> {drone.mavlink_port}
-          </p>
-          <p>
-            <strong>Debug Port:</strong> {drone.debug_port}
-          </p>
-          <p>
-            <strong>GCS IP:</strong> {drone.gcs_ip}
-          </p>
-          <p>
-            <strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})
-          </p>
-          <p>
-            <strong>Position ID:</strong> {drone.pos_id}
-          </p>
+          <p><strong>IP:</strong> {drone.ip}</p>
+          <p><strong>MavLink Port:</strong> {drone.mavlink_port}</p>
+          <p><strong>Debug Port:</strong> {drone.debug_port}</p>
+          <p><strong>GCS IP:</strong> {drone.gcs_ip}</p>
+          <p><strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})</p>
+          <p><strong>Position ID:</strong> {drone.pos_id}</p>
 
           {/* Network Information Display */}
           {droneNetworkInfo ? (
             <div className="network-info">
-              <p><strong>Network SSID:</strong> {droneNetworkInfo.ssid}</p>
-              <p><strong>Signal Strength:</strong> {droneNetworkInfo.signal}%</p>
-              <p><strong>Connection Type:</strong> {droneNetworkInfo.connection_type}</p>
+              <p><strong>SSID:</strong> {droneNetworkInfo.wifi?.ssid || 'N/A'}</p>
+              <p style={{ color: getWifiStrengthColor(wifiStrength) }}>
+                <strong>Signal Strength:</strong> {wifiStrength || 'N/A'}%
+              </p>
+              <p><strong>Ethernet Interface:</strong> {droneNetworkInfo.ethernet?.interface || 'N/A'}</p>
+              <p><strong>Connection Type:</strong> {droneNetworkInfo.ethernet ? 'Ethernet' : 'Wi-Fi'}</p>
             </div>
           ) : (
             <p><strong>Network Info:</strong> Not available</p>
