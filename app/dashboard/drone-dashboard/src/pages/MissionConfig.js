@@ -119,7 +119,7 @@ const MissionConfig = () => {
     };
 
     fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 5000); // Fetch network info every 5 seconds
+    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
