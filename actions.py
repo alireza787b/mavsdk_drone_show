@@ -493,7 +493,7 @@ async def test(drone):
         # Ensure LEDs are turned off
         led_controller.turn_off()
 
-async def reboot(drone, fc_flag, sys_flag, force_reboot):
+async def reboot(drone, fc_flag, sys_flag, force_reboot=Params.force_reboot):
     """
     Reboots the flight controller, system, or both, with optional forced reboot.
     
