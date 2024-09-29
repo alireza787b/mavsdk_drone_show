@@ -437,8 +437,15 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        logging.info("Starting system Reboot")
-        os.system('systemctl reboot --force')
+        logging.info("Starting system reboot")
+
+        try:
+            # Perform the reboot using subprocess.run for better control
+            subprocess.run(['systemctl', 'reboot', '--force'], check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Reboot command failed: {e}")
+            return False, "System reboot failed"
+
         return await self.run_mission_script("actions.py", "--action=reboot_sys")
 
     async def _handle_custom_csv_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
