@@ -438,7 +438,7 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting system Reboot")
-        os.system('sudo reboot --force')
+        os.system('systemctl reboot --force')
         return await self.run_mission_script("actions.py", "--action=reboot_sys")
 
     async def _handle_custom_csv_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
