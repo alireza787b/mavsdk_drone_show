@@ -541,33 +541,43 @@ async def reboot(drone, fc_flag, sys_flag, force_reboot=Params.force_reboot):
             logger.info("Initiating system reboot...")
             led_controller.turn_off()
 
-            # Reboot system asynchronously with subprocess and sudo
-            process = await asyncio.create_subprocess_exec(
-                'sudo', 'reboot',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                logger.error(f"System reboot failed: {stderr.decode().strip()}")
-                if force_reboot:
-                    logger.info("Forcing system reboot due to failure.")
-                    os.system('reboot --force')
-            else:
-                logger.info("System reboot command executed successfully.")
+            # Use the reboot_system() function to reboot
+            await reboot_system()
         except Exception as e:
             logger.error(f"System reboot failed: {e}")
 
             if force_reboot:
                 logger.info("Force reboot enabled, attempting forced system reboot.")
                 try:
-                    os.system('sudo reboot --force')
+                    await reboot_system()
                 except Exception as e:
                     logger.error(f"Forced system reboot failed: {e}")
     
     # Final LED cleanup
     led_controller.turn_off()
+    
+    
+async def reboot_system():
+    """
+    Reboots the Raspberry Pi using the D-Bus system interface.
+    """
+    try:
+        # Use D-Bus to initiate the reboot without sudo
+        process = await asyncio.create_subprocess_exec(
+            'dbus-send', '--system', '--print-reply', '--dest=org.freedesktop.login1',
+            '/org/freedesktop/login1', 'org.freedesktop.login1.Manager.Reboot', 'boolean:true',
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.error(f"System reboot via D-Bus failed: {stderr.decode().strip()}")
+        else:
+            logger.info("System reboot command executed successfully via D-Bus.")
+    except Exception as e:
+        logger.error(f"System reboot failed: {e}")
+
+
 
 # =======================
 # Entry Point
