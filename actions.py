@@ -307,8 +307,10 @@ async def perform_action(action, altitude=None, parameters=None):
             await hold(drone)
         elif action == "test":
             await test(drone)
-        elif action == "reboot":
-            await reboot(drone)
+        elif action == "reboot_fc":
+            await reboot(drone,True,False)
+        elif action == "reboot_sys":
+            await reboot(drone,False,True)
         else:
             logger.error(f"Invalid action specified: '{action}'")
     except Exception as e:
@@ -491,13 +493,15 @@ async def test(drone):
         # Ensure LEDs are turned off
         led_controller.turn_off()
 
-async def reboot(drone, force_reboot=Params.force_reboot):
+async def reboot(drone, fc_flag, sys_flag, force_reboot):
     """
-    Executes the reboot action, optionally forcing a system reboot.
-
+    Reboots the flight controller, system, or both, with optional forced reboot.
+    
     Args:
-        drone (System): The MAVSDK drone system.
-        force_reboot (bool): Whether to force a system reboot despite drone errors.
+        drone (System): MAVSDK drone system.
+        fc_flag (bool): Whether to reboot the flight controller.
+        sys_flag (bool): Whether to reboot the Raspberry Pi system.
+        force_reboot (bool): Whether to force a system reboot if the initial reboot fails.
     """
     led_controller = LEDController.get_instance()
 
@@ -505,61 +509,65 @@ async def reboot(drone, force_reboot=Params.force_reboot):
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)  # Brief feedback
 
-    try:
-        # Attempt to reboot the drone
-        await drone.action.reboot()
-
-        # Indicate successful reboot with green blinks
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)  # Green
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("Drone reboot successful.")
-
-    except Exception as e:
-        logger.error(f"Drone reboot failed: {e}")
-        # Indicate reboot failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        # Check if force reboot is enabled
-        if force_reboot:
-            logger.info("Force reboot enabled, proceeding with system reboot despite drone error.")
-
-            # Indicate force reboot with alternating red and white
-            for _ in range(5):
+    if fc_flag:
+        try:
+            # Attempt to reboot the flight controller (drone)
+            await drone.action.reboot()
+            
+            # Indicate success with green blinks
+            for _ in range(3):
+                led_controller.set_color(0, 255, 0)  # Green
+                await asyncio.sleep(0.2)
+                led_controller.turn_off()
+                await asyncio.sleep(0.2)
+            
+            logger.info("Flight controller reboot successful.")
+        except Exception as e:
+            logger.error(f"Flight controller reboot failed: {e}")
+            
+            # Indicate failure with red blinks
+            for _ in range(3):
                 led_controller.set_color(255, 0, 0)  # Red
                 await asyncio.sleep(0.2)
-                led_controller.set_color(255, 255, 255)  # White
+                led_controller.turn_off()
                 await asyncio.sleep(0.2)
 
-    finally:
-        if force_reboot:
-            logger.info("Initiating full system reboot...")
+            if force_reboot:
+                logger.info("Force reboot enabled after flight controller reboot failure.")
+
+    if sys_flag:
+        try:
+            # Attempt system (Raspberry Pi) reboot
+            logger.info("Initiating system reboot...")
             led_controller.turn_off()
-            try:
-                # Use asyncio subprocess to handle the reboot command asynchronously
-                process = await asyncio.create_subprocess_exec(
-                    'sudo', '/sbin/reboot',
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                os.system('sudo reboot')
-                stdout, stderr = await process.communicate()
-                if process.returncode != 0:
-                    logger.error(f"Failed to reboot system: {stderr.decode().strip()}")
-                else:
-                    logger.info("Reboot command executed successfully.")
-            except Exception as e:
-                logger.error(f"Failed to execute reboot command: {e}")
-        else:
-            # Turn off LEDs after feedback
-            led_controller.turn_off()
+
+            # Reboot system asynchronously with subprocess and sudo
+            process = await asyncio.create_subprocess_exec(
+                'sudo', 'reboot',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                logger.error(f"System reboot failed: {stderr.decode().strip()}")
+                if force_reboot:
+                    logger.info("Forcing system reboot due to failure.")
+                    os.system('sudo reboot --force')
+            else:
+                logger.info("System reboot command executed successfully.")
+        except Exception as e:
+            logger.error(f"System reboot failed: {e}")
+
+            if force_reboot:
+                logger.info("Force reboot enabled, attempting forced system reboot.")
+                try:
+                    os.system('sudo reboot --force')
+                except Exception as e:
+                    logger.error(f"Forced system reboot failed: {e}")
+    
+    # Final LED cleanup
+    led_controller.turn_off()
 
 # =======================
 # Entry Point
@@ -567,7 +575,7 @@ async def reboot(drone, force_reboot=Params.force_reboot):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, reboot')
+    parser.add_argument('--action', type=str, required=True, help='Action to perform: takeoff, land, hold, test, test_led, reboot_fc, reboot_sys')
     parser.add_argument('--altitude', type=float, default=10, help='Altitude for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
                         help='Set parameters in the form param_name param_value')

@@ -111,10 +111,18 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
       <button 
         className="action-button reboot-button"
-        onClick={() => handleActionClick('REBOOT', 'Reboot Drones: This will reboot all drones. Are you sure you want to proceed?')}
+        onClick={() => handleActionClick('REBOOT_FC', 'Reboot Flight Controls: This will reboot all Pixhawk Flight controller boards. Are you sure you want to proceed?')}
       >
         <FaSyncAlt className="action-icon" />
-        Reboot Drones
+        Reboot Flight Controls
+      </button>
+
+      <button 
+        className="action-button reboot-button"
+        onClick={() => handleActionClick('REBOOT_SYS', 'Reboot Companion Computer: This will reboot all Companion Computer boards. Are you sure you want to proceed?')}
+      >
+        <FaSyncAlt className="action-icon" />
+        Reboot Companion Computer
       </button>
 
       {/* Confirmation Modal */}

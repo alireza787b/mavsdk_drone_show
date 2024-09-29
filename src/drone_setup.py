@@ -292,8 +292,10 @@ class DroneSetup:
                 success, message = await self._handle_hold()
             elif self.drone_config.mission == Mission.TEST.value:
                 success, message = await self._handle_test()
-            elif self.drone_config.mission == Mission.REBOOT.value:
-                success, message = await self._handle_reboot()
+            elif self.drone_config.mission == Mission.REBOOT_FC.value:
+                success, message = await self._handle_reboot_fc()
+            elif self.drone_config.mission == Mission.REBOOT_SYS.value:
+                success, message = await self._handle_reboot_sys()
             elif self.drone_config.mission == Mission.CUSTOM_CSV_DRONE_SHOW.value:
                 success, message = await self._handle_custom_csv_drone_show(current_time, earlier_trigger_time)
             elif self.drone_config.mission == Mission.TEST_LED.value:
@@ -418,15 +420,25 @@ class DroneSetup:
         logging.info("Starting Test")
         return await self.run_mission_script("actions.py", "--action=test")
 
-    async def _handle_reboot(self) -> tuple:
+    async def _handle_reboot_fc(self) -> tuple:
         """
-        Handles the Reboot mission by executing the 'reboot' action script.
+        Handles the Flight Control Reboot mission by executing the 'reboot_fc' action script.
 
         Returns:
             tuple: (status (bool), message (str))
         """
-        logging.info("Starting Reboot")
-        return await self.run_mission_script("actions.py", "--action=reboot")
+        logging.info("Starting Flight Control Reboot")
+        return await self.run_mission_script("actions.py", "--action=reboot_fc")
+    
+    async def _handle_reboot_sys(self) -> tuple:
+        """
+        Handles the Reboot system mission by executing the 'reboot_sys' action script.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        logging.info("Starting system Reboot")
+        return await self.run_mission_script("actions.py", "--action=reboot_sys")
 
     async def _handle_custom_csv_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
