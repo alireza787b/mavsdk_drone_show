@@ -553,7 +553,7 @@ async def reboot(drone, fc_flag, sys_flag, force_reboot=Params.force_reboot):
                 logger.error(f"System reboot failed: {stderr.decode().strip()}")
                 if force_reboot:
                     logger.info("Forcing system reboot due to failure.")
-                    os.system('sudo reboot --force')
+                    os.system('reboot --force')
             else:
                 logger.info("System reboot command executed successfully.")
         except Exception as e:
