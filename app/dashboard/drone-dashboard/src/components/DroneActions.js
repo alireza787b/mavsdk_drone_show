@@ -7,7 +7,8 @@ import {
   FaVial, 
   FaLightbulb, 
   FaBatteryFull, 
-  FaSyncAlt 
+  FaSyncAlt,
+  FaPowerOff
 } from 'react-icons/fa';
 import '../styles/DroneActions.css';
 
@@ -113,7 +114,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
         className="action-button reboot-button"
         onClick={() => handleActionClick('REBOOT_FC', 'Reboot Flight Controls: This will reboot all Pixhawk Flight controller boards. Are you sure you want to proceed?')}
       >
-        <FaSyncAlt className="action-icon" />
+        <FaPowerOff className="action-icon" />
         Reboot Flight Controls
       </button>
 
