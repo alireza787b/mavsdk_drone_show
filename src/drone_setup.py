@@ -227,7 +227,7 @@ class DroneSetup:
         try:
             # Run the synchronization script with sudo
             result = subprocess.run(
-                ['sudo', script_path],
+                [script_path],
                 capture_output=True,
                 text=True,
                 check=False
