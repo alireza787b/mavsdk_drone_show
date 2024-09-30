@@ -432,7 +432,7 @@ async def perform_trajectory(drone, waypoints, home_position, start_time):
 
             # Check for landing during trajectory
             #temporaary after land
-            if current_landed_state == LandedState.ON_GROUND & elapsed_time >= 20:
+            if (current_landed_state == LandedState.ON_GROUND & elapsed_time >= 20):
                 logger.info("Drone has detected landing during trajectory.")
                 await stop_offboard_mode(drone)
                 await disarm_drone(drone)
