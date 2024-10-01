@@ -55,11 +55,20 @@ MAX_RETRIES = 3
 # Timeout for pre-flight checks in seconds
 PRE_FLIGHT_TIMEOUT = 5
 
-# Timeout for landing detection during landing phase in seconds
-LANDING_TIMEOUT = 6
+# Altitude threshold to switch to landing phase (meters)
+LANDING_ALTITUDE_THRESHOLD = 5.0
 
-# Descent speed during landing phase in m/s
+# Minimum altitude to consider the drone has landed (meters)
+LANDING_ALTITUDE_MIN = 0.2
+
+# Descent speed during landing phase (m/s)
 DESCENT_SPEED = 0.3
+
+# Minimum descent speed (m/s)
+MIN_DESCENT_SPEED = 0.1
+
+# Timeout for landing detection during landing phase (seconds)
+LANDING_TIMEOUT = 15
 
 # ----------------------------- #
 #        Data Structures        #
@@ -78,6 +87,7 @@ position_id = None  # Position ID of the drone
 global_position_telemetry = {}  # Global position telemetry data
 current_landed_state = None  # Current landed state of the drone
 global_synchronized_start_time = None
+
 # ----------------------------- #
 #         Helper Functions      #
 # ----------------------------- #
@@ -303,13 +313,12 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     logger.info("Performing trajectory with time synchronization.")
     total_waypoints = len(waypoints)
     waypoint_index = 0
-    landing_detected = False
 
     # Initialize LEDController
     led_controller = LEDController.get_instance()
 
-    while waypoint_index < total_waypoints:
-        try:
+    try:
+        while waypoint_index < total_waypoints:
             current_time = time.time()
             elapsed_time = current_time - start_time
 
@@ -361,66 +370,96 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     logger.warning(f"Behind schedule by {-sleep_duration:.2f}s, skipping waypoint at t={t_wp:.2f}s.")
                     waypoint_index += 1
 
-            # Landing checks after trajectory completion
-            if waypoint_index >= total_waypoints and not landing_detected:
-                if current_landed_state == LandedState.ON_GROUND:
-                    logger.info("Drone has landed.")
-                    landing_detected = True
-                    break
-
-        except OffboardError as e:
-            logger.error(f"Offboard error during trajectory: {e}")
-            led_controller.set_color(255, 0, 0)  # Red
-            break
-        except Exception as e:
-            logger.error(f"Error during trajectory: {e}")
-            led_controller.set_color(255, 0, 0)  # Red
-            break
+    except OffboardError as e:
+        logger.error(f"Offboard error during trajectory: {e}")
+        led_controller.set_color(255, 0, 0)  # Red
+    except Exception as e:
+        logger.error(f"Error during trajectory: {e}")
+        led_controller.set_color(255, 0, 0)  # Red
 
     logger.info("Trajectory completed.")
     led_controller.set_color(0, 0, 255)  # Blue
 
-    # Begin landing phase
-    logger.info("Beginning landing phase.")
+    # Determine landing method based on last waypoint altitude
+    last_waypoint = waypoints[-1]
+    last_waypoint_altitude = last_waypoint[3]  # pz
+
+    if last_waypoint_altitude > LANDING_ALTITUDE_THRESHOLD:
+        # Mission ends high in the sky, initiate PX4 native land
+        logger.info("Mission ended at high altitude. Initiating PX4 native land.")
+        await stop_offboard_mode(drone)
+        await perform_landing(drone)
+    else:
+        # Mission ends near the ground, proceed with controlled landing
+        logger.info("Mission ended near the ground. Proceeding with controlled landing.")
+        await controlled_landing(drone)
+
+async def controlled_landing(drone: System):
+    """
+    Perform a controlled landing by sending only descend commands,
+    reducing descent speed in the final meters, and robust landing detection.
+    """
+    logger.info("Starting controlled landing.")
+    led_controller = LEDController.get_instance()
+    landing_detected = False
     landing_start_time = time.time()
 
     while not landing_detected and (time.time() - landing_start_time) < LANDING_TIMEOUT:
         try:
-            # Send setpoint with final descent speed
-            velocity_setpoint = VelocityNedYaw(0.0, 0.0, DESCENT_SPEED, 0.0)
+            # Get current altitude
+            global_position = global_position_telemetry.get("drone")
+            if global_position:
+                current_altitude = global_position.relative_altitude_m
+            else:
+                current_altitude = None
+                logger.warning("No global position data available.")
 
-            await drone.offboard.set_velocity_ned(
-                velocity_setpoint
-            )
-            logger.debug(f"Landing phase: Descending at {DESCENT_SPEED:.2f} m/s")
+            # Adjust descent speed based on altitude
+            if current_altitude is not None and current_altitude <= LANDING_ALTITUDE_THRESHOLD:
+                # Reduce descent speed in final meters
+                descent_speed = max(DESCENT_SPEED * (current_altitude / LANDING_ALTITUDE_THRESHOLD), MIN_DESCENT_SPEED)
+            else:
+                descent_speed = DESCENT_SPEED
 
-            # Check for landing detection
+            # Send descend command with zero horizontal movement
+            velocity_setpoint = VelocityNedYaw(0.0, 0.0, descent_speed, 0.0)
+            await drone.offboard.set_velocity_ned(velocity_setpoint)
+            logger.debug(f"Controlled Landing: Descending at {descent_speed:.2f} m/s")
+
+            # LED feedback
+            led_controller.set_color(0, 0, 255)  # Blue during landing
+
+            # Landing detection
             if current_landed_state == LandedState.ON_GROUND:
                 landing_detected = True
-                logger.info("Landing detected during landing phase.")
+                logger.info("Landing detected based on landed state.")
+                break
+            elif current_altitude is not None and current_altitude <= LANDING_ALTITUDE_MIN and abs(descent_speed) < 0.1:
+                # Consider landed if altitude is very low and descent speed is minimal
+                landing_detected = True
+                logger.info("Landing detected based on altitude and speed.")
                 break
 
             await asyncio.sleep(0.1)
         except OffboardError as e:
-            logger.error(f"Offboard error during landing phase: {e}")
+            logger.error(f"Offboard error during controlled landing: {e}")
             led_controller.set_color(255, 0, 0)  # Red
             break
         except Exception as e:
-            logger.error(f"Error during landing phase: {e}")
+            logger.error(f"Error during controlled landing: {e}")
             led_controller.set_color(255, 0, 0)  # Red
             break
 
     if landing_detected:
         await stop_offboard_mode(drone)
         await disarm_drone(drone)
+        led_controller.set_color(0, 255, 0)  # Green
+        logger.info("Drone has landed and disarmed.")
     else:
         # If timeout and still no landing detected, activate default land command
         logger.warning("Landing not detected within timeout, initiating default land command.")
         await stop_offboard_mode(drone)
         await perform_landing(drone)
-
-    # Turn off LEDs
-    led_controller.set_color(0, 255, 0)  # Green
 
 @retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(5))
 async def initial_setup_and_connection():
@@ -560,28 +599,34 @@ async def arming_and_starting_offboard_mode(drone: System):
 
 async def perform_landing(drone: System):
     """
-    Perform landing for the drone.
+    Perform landing for the drone using PX4 native land command.
 
     Args:
         drone (System): MAVSDK drone system instance.
     """
     try:
-        logger.info("Initiating landing.")
+        logger.info("Initiating PX4 native landing.")
         await drone.action.land()
+        led_controller = LEDController.get_instance()
+        led_controller.set_color(0, 0, 255)  # Blue during landing
 
         start_time = time.time()
         while True:
             if current_landed_state == LandedState.ON_GROUND:
                 logger.info("Drone has landed.")
+                led_controller.set_color(0, 255, 0)  # Green after landing
                 break
-            if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
+            if time.time() - start_time > LANDING_TIMEOUT:
                 logger.error("Landing timeout.")
+                led_controller.set_color(255, 0, 0)  # Red on error
                 break
             await asyncio.sleep(1)
     except ActionError as e:
         logger.error(f"Action error during landing: {e}")
+        led_controller.set_color(255, 0, 0)  # Red on error
     except Exception as e:
         logger.error(f"Unexpected error during landing: {e}")
+        led_controller.set_color(255, 0, 0)  # Red on error
 
 async def stop_offboard_mode(drone: System):
     """
@@ -608,7 +653,7 @@ async def disarm_drone(drone: System):
     try:
         logger.info("Disarming drone.")
         await drone.action.disarm()
-        # Set LEDs to solid red to indicate disarming
+        # Set LEDs to solid red to indicate disarmed
         led_controller = LEDController.get_instance()
         led_controller.set_color(255, 0, 0)
     except ActionError as e:
@@ -849,6 +894,7 @@ def main():
     else:
         synchronized_start_time = time.time()
         
+    global global_synchronized_start_time
     global_synchronized_start_time = synchronized_start_time
 
     try:
