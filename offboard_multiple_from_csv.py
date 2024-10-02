@@ -63,13 +63,13 @@ LANDING_TIMEOUT = 15  # Adjusted as per requirement
 GROUND_ALTITUDE_THRESHOLD = 1.0  # Configurable
 
 # Minimum altitude to start controlled landing in meters
-CONTROLLED_LANDING_ALTITUDE = 5.0  # Configurable
+CONTROLLED_LANDING_ALTITUDE = 3.0  # Configurable
 
 # Minimum time before end of trajectory to start controlled landing in seconds
-CONTROLLED_LANDING_TIME = 10.0  # Configurable
+CONTROLLED_LANDING_TIME = 5.0  # Configurable
 
 # Descent speed during controlled landing in m/s
-CONTROLLED_DESCENT_SPEED = 0.3  # Configurable
+CONTROLLED_DESCENT_SPEED = 0.4  # Configurable
 
 # Maximum time to wait during controlled landing before initiating PX4 native landing
 CONTROLLED_LANDING_TIMEOUT = 15  # Configurable
