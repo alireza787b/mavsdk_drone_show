@@ -902,7 +902,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         # Step 5: Read and Adjust Trajectory Waypoints
         if custom_csv:
             # Custom CSV mode
-            trajectory_filename = f"shapes/{custom_csv}.csv" 
+            trajectory_filename = f"shapes/{custom_csv}" 
             waypoints = read_trajectory_file(trajectory_filename)
         else:
             # Drone show mode
@@ -961,7 +961,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description='Drone Show Script')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
-    parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file eg. active')
+    parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file eg. active.csv')
     args = parser.parse_args()
 
     # Get the synchronized start time
