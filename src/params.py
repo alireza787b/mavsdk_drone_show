@@ -93,3 +93,7 @@ class Params():
     led_brightness = 255  # Brightness of the LEDs.
     led_invert = False    # True to invert the signal.
     led_channel = 0       # GPIO channel.
+    
+    
+    custom_csv_file_name = "active.csv" # Name of custom csv execution
+    main_offboard_executer = "offboard_multiple_from_csv.py" #name of script that executes offboard missions from csv
