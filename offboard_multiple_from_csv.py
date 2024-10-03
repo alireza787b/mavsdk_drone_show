@@ -163,6 +163,14 @@ def read_config(filename: str) -> Drone:
     except Exception as e:
         logger.error(f"Error reading config file {filename}: {e}")
         return None
+    
+def clamp_led_value(value):
+    try:
+        return int(max(0, min(255, float(value))))
+    except ValueError:
+        logger.warning(f"Invalid LED value '{value}'. Defaulting to 0.")
+        return 0  # Default to 0 if the value cannot be converted
+
 
 def read_trajectory_file(filename: str, initial_x: float = 0.0, initial_y: float = 0.0) -> list:
     """
@@ -183,8 +191,8 @@ def read_trajectory_file(filename: str, initial_x: float = 0.0, initial_y: float
             for row in reader:
                 try:
                     t = float(row["t"])
-                    px = float(row["px"]) - initial_x  # Adjust x-coordinate
-                    py = float(row["py"]) - initial_y  # Adjust y-coordinate
+                    px = float(row["px"]) - initial_x
+                    py = float(row["py"]) - initial_y
                     pz = float(row["pz"])
                     vx = float(row["vx"])
                     vy = float(row["vy"])
@@ -193,10 +201,10 @@ def read_trajectory_file(filename: str, initial_x: float = 0.0, initial_y: float
                     ay = float(row["ay"])
                     az = float(row["az"])
                     yaw = float(row["yaw"])
-                    ledr = int(float(row.get("ledr", 0)))
-                    ledg = int(float(row.get("ledg", 0)))
-                    ledb = int(float(row.get("ledb", 0)))
-                    mode = row.get("mode", "0")  # Assuming 'mode' is an integer string
+                    ledr = clamp_led_value(row.get("ledr", 0))
+                    ledg = clamp_led_value(row.get("ledg", 0))
+                    ledb = clamp_led_value(row.get("ledb", 0))
+                    mode = row.get("mode", "0")
                     waypoints.append(
                         (
                             t,
@@ -232,6 +240,7 @@ def read_trajectory_file(filename: str, initial_x: float = 0.0, initial_y: float
         logger.error(f"Error reading trajectory file {filename}: {e}")
         sys.exit(1)
     return waypoints
+
 
 def global_to_local(global_position, home_position):
     """
@@ -312,15 +321,6 @@ async def get_landed_state_telemetry(drone: System):
 # ----------------------------- #
 
 async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
-    """
-    Perform the flight trajectory based on waypoints, with time synchronization.
-
-    Args:
-        drone (System): MAVSDK drone system instance.
-        waypoints (list): List of waypoints to execute.
-        home_position: Home position telemetry data.
-        start_time (float): Synchronized start time (UNIX timestamp).
-    """
     logger.info("Performing trajectory with time synchronization.")
     total_waypoints = len(waypoints)
     waypoint_index = 0
@@ -367,6 +367,13 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     ledg,
                     ledb,
                 ) = waypoint
+
+                # Log waypoint details
+                logger.debug(
+                    f"Waypoint {waypoint_index}: t={t_wp}, px={px}, py={py}, pz={pz}, "
+                    f"vx={vx}, vy={vy}, vz={vz}, ax={ax}, ay={ay}, az={az}, "
+                    f"yaw={yaw}, mode={mode}, ledr={ledr}, ledg={ledg}, ledb={ledb}"
+                )
 
                 # Update LED colors from trajectory
                 led_controller.set_color(ledr, ledg, ledb)
@@ -425,13 +432,11 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     # After trajectory completion
     if not landing_detected:
         if trajectory_ends_high:
-            # Scenario 1: Trajectory ends high in the sky
             logger.info("Trajectory completed. Initiating PX4 native landing.")
             await stop_offboard_mode(drone)
             await perform_landing(drone)
             await wait_for_landing(drone)
         else:
-            # Scenario 2: Trajectory guides back to ground level but controlled landing not initiated
             logger.warning("Controlled landing not initiated as expected. Initiating controlled landing now.")
             await controlled_landing(drone)
 
