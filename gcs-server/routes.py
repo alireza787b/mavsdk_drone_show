@@ -349,19 +349,39 @@ def setup_routes(app):
         """
         try:
             data = request.get_json()
-            current_lat = float(data.get('current_lat'))
-            current_lon = float(data.get('current_lon'))
-            intended_east = float(data.get('intended_east'))
-            intended_north = float(data.get('intended_north'))
+            logger.info(f"Received /compute-origin request data: {data}")
+
+            # Validate input data
+            required_fields = ['current_lat', 'current_lon', 'intended_east', 'intended_north']
+            for field in required_fields:
+                if field not in data:
+                    logger.error(f"Missing required field: {field}")
+                    return jsonify({'error': f"Missing required field: {field}"}), 400
+
+            # Parse and validate numerical inputs
+            try:
+                current_lat = float(data.get('current_lat'))
+                current_lon = float(data.get('current_lon'))
+                intended_east = float(data.get('intended_east'))
+                intended_north = float(data.get('intended_north'))
+            except (TypeError, ValueError) as e:
+                logger.error(f"Invalid input data types: {e}")
+                return jsonify({'error': f"Invalid input data types: {e}"}), 400
+
+            logger.info(f"Parsed inputs - current_lat: {current_lat}, current_lon: {current_lon}, intended_east: {intended_east}, intended_north: {intended_north}")
 
             # Compute the origin
             origin_lat, origin_lon = compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east)
 
+            # Save the origin
+            save_origin({'lat': origin_lat, 'lon': origin_lon})
+
             return jsonify({'lat': origin_lat, 'lon': origin_lon}), 200
 
         except Exception as e:
-            logger.error(f"Error in compute_origin: {e}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            logger.error(f"Error in compute_origin endpoint: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
 
     @app.route('/get-network-info', methods=['GET'])
     def get_network_info():

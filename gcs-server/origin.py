@@ -152,40 +152,63 @@ def compute_origin_from_drone(current_lat, current_lon, intended_north, intended
     Computes the origin lat/lon based on the drone's current lat/lon and intended N,E positions.
     """
     try:
-        # Define the function to minimize
+        logger.info(f"Starting origin computation with current_lat={current_lat}, current_lon={current_lon}, intended_north={intended_north}, intended_east={intended_east}")
+
+        # Define the error function to minimize
         def error_function(origin_coords):
-            origin_lat, origin_lon = origin_coords
+            try:
+                origin_lat, origin_lon = origin_coords
 
-            # Define the projection
-            proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
-            transformer = Transformer.from_proj(
-                Proj('epsg:4326'),  # WGS84
-                Proj(proj_string),
-                always_xy=True
-            )
+                # Define the projection
+                proj_string = f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} +k=1 +units=m +ellps=WGS84"
+                transformer = Transformer.from_proj(
+                    Proj('epsg:4326'),  # WGS84
+                    Proj(proj_string),
+                    always_xy=True
+                )
 
-            # Compute N,E positions of the drone's current lat/lon relative to this origin
-            east, north = transformer.transform(current_lon, current_lat)
+                # Compute N,E positions of the drone's current lat/lon relative to this origin
+                east, north = transformer.transform(current_lon, current_lat)
 
-            # Compute the difference between computed N,E and intended N,E
-            delta_north = north - intended_north
-            delta_east = east - intended_east
+                # Compute the difference between computed N,E and intended N,E
+                delta_north = north - intended_north
+                delta_east = east - intended_east
 
-            # Return the squared error
-            return delta_north ** 2 + delta_east ** 2
+                error = delta_north ** 2 + delta_east ** 2
+
+                logger.debug(f"Origin ({origin_lat}, {origin_lon}): Delta N={delta_north}, Delta E={delta_east}, Error={error}")
+
+                return error
+            except Exception as e:
+                logger.error(f"Exception in error_function with origin_coords={origin_coords}: {e}", exc_info=True)
+                return 1e10  # Return a large error to penalize invalid origins
 
         # Initial guess for the origin is the drone's current position
         initial_guess = [current_lat, current_lon]
+        logger.debug(f"Initial guess for origin: {initial_guess}")
+
+        # Set bounds for latitude and longitude
+        bounds = [(-90, 90), (-180, 180)]
 
         # Use scipy.optimize to minimize the error function
-        result = minimize(error_function, initial_guess, method='L-BFGS-B')
+        result = minimize(
+            error_function,
+            initial_guess,
+            method='L-BFGS-B',
+            bounds=bounds
+        )
+
+        logger.info(f"Optimization result: {result}")
 
         if result.success:
             origin_lat, origin_lon = result.x
+            logger.info(f"Origin computed successfully: ({origin_lat}, {origin_lon})")
             return origin_lat, origin_lon
         else:
-            raise Exception("Optimization failed to find the origin.")
+            logger.error(f"Optimization failed: {result.message}")
+            raise Exception(f"Optimization failed: {result.message}")
 
     except Exception as e:
         logger.error(f"Error computing origin from drone: {e}", exc_info=True)
         raise
+
