@@ -66,7 +66,10 @@ GROUND_ALTITUDE_THRESHOLD = 1.0  # Configurable
 CONTROLLED_LANDING_ALTITUDE = 3.0  # Configurable
 
 # Minimum time before end of trajectory to start controlled landing in seconds
-CONTROLLED_LANDING_TIME = 5.0  # Configurable
+CONTROLLED_LANDING_TIME = 5.0  # 
+
+# Minimum mission progress percentage before considering controlled landing
+MISSION_PROGRESS_THRESHOLD = 0.5  # 50%
 
 # Descent speed during controlled landing in m/s
 CONTROLLED_DESCENT_SPEED = 0.4  # Configurable
@@ -381,11 +384,18 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 await drone.offboard.set_position_velocity_acceleration_ned(
                     position_setpoint, velocity_setpoint, acceleration_setpoint
                 )
-                logger.debug(f"At time {elapsed_time:.2f}s, executing waypoint at t={t_wp:.2f}s.")
+
+                # Calculate time to end and mission progress
+                time_to_end = waypoints[-1][0] - t_wp
+                mission_progress = waypoint_index / total_waypoints
+
+                logger.debug(
+                    f"At time {elapsed_time:.2f}s, executing waypoint at t={t_wp:.2f}s. "
+                    f"Time to end: {time_to_end:.2f}s, Mission progress: {mission_progress:.2%}"
+                )
 
                 # Check if we should initiate controlled landing
-                if not trajectory_ends_high:
-                    time_to_end = waypoints[-1][0] - t_wp
+                if not trajectory_ends_high and mission_progress >= MISSION_PROGRESS_THRESHOLD:
                     if (time_to_end <= CONTROLLED_LANDING_TIME) or (pz <= CONTROLLED_LANDING_ALTITUDE):
                         logger.info("Initiating controlled landing phase.")
                         await controlled_landing(drone)
@@ -427,6 +437,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     logger.info("Drone mission completed.")
     led_controller.set_color(0, 255, 0)  # Green
+
 
 async def controlled_landing(drone: System):
     """
