@@ -403,7 +403,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
                 # Check if we should initiate controlled landing
                 if not trajectory_ends_high and mission_progress >= MISSION_PROGRESS_THRESHOLD:
-                    if (time_to_end <= CONTROLLED_LANDING_TIME) or (pz <= CONTROLLED_LANDING_ALTITUDE):
+                    if (time_to_end <= CONTROLLED_LANDING_TIME) or (-1*pz < CONTROLLED_LANDING_ALTITUDE):
                         logger.info("Initiating controlled landing phase.")
                         await controlled_landing(drone)
                         landing_detected = True
