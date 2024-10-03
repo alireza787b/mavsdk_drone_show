@@ -400,12 +400,14 @@ fi
 
 # Handle Hardware ID (HWID) File
 hwid_file="$HOME/mavsdk_drone_show/${DRONE_ID}.hwID"
-if [[ -f "$hwid_file" ]]; then
-    echo "HWID file exists - updating..."
-    rm "$hwid_file"
-fi
+
+# Remove any existing HWID files for this drone
+find "$HOME/mavsdk_drone_show" -name "*.hwID" -type f -exec rm -f {} \;
+
+# Create the new HWID file
 touch "$hwid_file"
 echo "Hardware ID file created/updated at: $hwid_file"
+
 
 # Configure Hostname
 configure_hostname
