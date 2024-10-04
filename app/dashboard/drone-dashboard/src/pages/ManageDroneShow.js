@@ -1,9 +1,9 @@
 // src/pages/ManageDroneShow.js
 
 import React, { useState } from 'react';
-import ImportSection from './ImportSection';
-import ExportSection from './ExportSection';
-import VisualizationSection from './VisualizationSection';
+import ImportSection from '../components/ImportSection';
+import ExportSection from '../components/ExportSection';
+import VisualizationSection from '../components/VisualizationSection';
 import '../styles/ManageDroneShow.css';
 import { ToastContainer } from 'react-toastify'; // Import ToastContainer
 
