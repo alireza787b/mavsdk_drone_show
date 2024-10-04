@@ -1,8 +1,10 @@
+// src/components/FileUpload.js
+
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import '../styles/FileUpload.css'; // Create a separate CSS file for styling if needed
+import '../styles/FileUpload.css';
 
-const FileUpload = ({ onFileSelect }) => {
+const FileUpload = ({ onFileSelect, selectedFile }) => {
   const [dragging, setDragging] = useState(false);
 
   const handleFileChange = (e) => {
@@ -48,13 +50,22 @@ const FileUpload = ({ onFileSelect }) => {
       onDragLeave={handleDragLeave}
     >
       <input type="file" accept=".zip" onChange={handleFileChange} />
-      {dragging && <div>Drop here ...</div>}
+      <p>
+        {selectedFile ? (
+          <>
+            Selected File: <strong>{selectedFile.name}</strong>
+          </>
+        ) : (
+          'Drag & drop a ZIP file here, or click to select one'
+        )}
+      </p>
     </div>
   );
 };
 
 FileUpload.propTypes = {
   onFileSelect: PropTypes.func.isRequired,
+  selectedFile: PropTypes.object,
 };
 
 export default FileUpload;

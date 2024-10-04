@@ -173,3 +173,37 @@
     margin-top: 5px;
     font-size: 0.9rem;
 }
+
+
+/* src/styles/ImportShow.css */
+
+.drop-zone {
+    border: 2px dashed #6b7280;
+    padding: 20px;
+    text-align: center;
+    border-radius: 4px;
+    background-color: #f3f4f6;
+    transition: border-color 0.3s, background-color 0.3s;
+    cursor: pointer;
+}
+
+.drop-zone p {
+    margin: 0;
+    font-size: 1rem;
+    color: #374151;
+}
+
+.drop-zone.dragging {
+    border-color: #2563eb;
+    background-color: #e0f2fe;
+}
+
+.progress-bar {
+    margin-top: 10px;
+}
+
+.progress-bar p {
+    text-align: center;
+    margin-top: 5px;
+    font-size: 0.9rem;
+}

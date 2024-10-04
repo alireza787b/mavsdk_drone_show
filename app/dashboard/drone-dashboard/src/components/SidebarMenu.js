@@ -69,14 +69,7 @@ const SidebarMenu = () => {
             <Menu menuItemStyles={menuItemStyles}>
               <Link to="/"><MenuItem icon={<FaTachometerAlt />}>
                 Dashboard
-              </MenuItem></Link>
-
-              {/* New menu item for 3D View */}
-              <Link to="/globe-view">
-                <MenuItem icon={<FaGlobe />}>
-                  Drone 3D View
-                </MenuItem>
-              </Link>
+              </MenuItem></Link>              
               
               <Link to="/mission-config">
                 <MenuItem icon={<FaGem />}>
@@ -99,6 +92,12 @@ const SidebarMenu = () => {
               <Link to="/custom-show">
                 <MenuItem icon={<FaGem />}>
                   Custom Show
+                </MenuItem>
+              </Link>
+
+              <Link to="/globe-view">
+                <MenuItem icon={<FaGlobe />}>
+                  Drone 3D View
                 </MenuItem>
               </Link>
             
