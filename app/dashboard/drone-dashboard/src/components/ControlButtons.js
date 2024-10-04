@@ -1,5 +1,6 @@
 // src/components/ControlButtons.js
 
+
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ControlButtons.css';
@@ -12,6 +13,7 @@ import {
   faUndo,
   faMapMarkerAlt,
 } from '@fortawesome/free-solid-svg-icons';
+import { CircularProgress } from '@mui/material';
 
 const ControlButtons = ({
   addNewDrone,
@@ -20,6 +22,9 @@ const ControlButtons = ({
   handleFileChange,
   exportConfig,
   openOriginModal,
+  configData,
+  setConfigData,
+  loading, // Receive loading state
 }) => {
   const fileInputRef = useRef(null);
 
@@ -32,13 +37,26 @@ const ControlButtons = ({
   return (
     <div className="control-buttons">
       <div className="primary-actions">
-        <button className="save" onClick={handleSaveChangesToServer} title="Save all changes">
-          <FontAwesomeIcon icon={faSave} /> Save Changes
+        <button
+          className="save"
+          onClick={handleSaveChangesToServer}
+          title="Save all changes"
+          disabled={loading} // Disable button when loading
+        >
+          {loading ? (
+            <>
+              <CircularProgress size={20} color="inherit" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <FontAwesomeIcon icon={faSave} /> Save Changes
+            </>
+          )}
         </button>
         <button className="add" onClick={addNewDrone} title="Add a new drone">
           <FontAwesomeIcon icon={faPlus} /> Add New Drone
         </button>
-        {/* New Set Origin Reference Button */}
         <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
           <FontAwesomeIcon icon={faMapMarkerAlt} /> Set Origin Reference
         </button>
@@ -76,6 +94,9 @@ ControlButtons.propTypes = {
   handleFileChange: PropTypes.func.isRequired,
   exportConfig: PropTypes.func.isRequired,
   openOriginModal: PropTypes.func.isRequired,
+  configData: PropTypes.array.isRequired,
+  setConfigData: PropTypes.func.isRequired,
+  loading: PropTypes.bool.isRequired,
 };
 
 export default ControlButtons;

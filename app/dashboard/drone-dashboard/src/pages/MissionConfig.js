@@ -1,3 +1,5 @@
+// src/pages/MissionConfig.js
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
@@ -26,7 +28,8 @@ const MissionConfig = () => {
   const [deviationData, setDeviationData] = useState({});
   const [originAvailable, setOriginAvailable] = useState(false);
   const [telemetryData, setTelemetryData] = useState({});
-  const [networkInfo, setNetworkInfo] = useState([]); // New state for network info
+  const [networkInfo, setNetworkInfo] = useState([]);
+  const [loading, setLoading] = useState(false); // Add loading state for save operation
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
@@ -119,7 +122,7 @@ const MissionConfig = () => {
     };
 
     fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 5 seconds
+    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -204,6 +207,26 @@ const MissionConfig = () => {
       });
   };
 
+  // Handle file change for importing configuration
+  const handleFileChangeWrapper = (event) => {
+    handleFileChange(event, setConfigData);
+  };
+
+  // Handle revert changes
+  const handleRevertChangesWrapper = () => {
+    handleRevertChanges(setConfigData);
+  };
+
+  // Handle save changes to server with loading state
+  const handleSaveChangesToServerWrapper = () => {
+    handleSaveChangesToServer(configData, setConfigData, setLoading);
+  };
+
+  // Handle export configuration
+  const handleExportConfigWrapper = () => {
+    exportConfig(configData);
+  };
+
   const sortedConfigData = [...configData].sort(
     (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
   );
@@ -214,13 +237,14 @@ const MissionConfig = () => {
 
       <ControlButtons
         addNewDrone={addNewDrone}
-        handleSaveChangesToServer={() =>
-          handleSaveChangesToServer(configData, setConfigData)
-        }
-        handleRevertChanges={() => handleRevertChanges(setConfigData)}
-        handleFileChange={(event) => handleFileChange(event, setConfigData)}
-        exportConfig={() => exportConfig(configData)}
+        handleSaveChangesToServer={handleSaveChangesToServerWrapper}
+        handleRevertChanges={handleRevertChangesWrapper}
+        handleFileChange={handleFileChangeWrapper}
+        exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
+        configData={configData} // Pass configData
+        setConfigData={setConfigData} // Pass setConfigData
+        loading={loading} // Pass loading state
       />
 
       <BriefingExport

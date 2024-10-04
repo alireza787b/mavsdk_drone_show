@@ -5,7 +5,7 @@ import { convertToLatLon } from './geoutilities'; // Importing the convertToLatL
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-export const handleSaveChangesToServer = async(configData, setConfigData) => {
+export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
     const hwIds = configData.map(drone => parseInt(drone.hw_id));
     const missingIds = [];
     const maxId = Math.max(...hwIds);
@@ -23,7 +23,9 @@ export const handleSaveChangesToServer = async(configData, setConfigData) => {
     }
 
     const backendURL = getBackendURL();
+
     try {
+        setLoading(true); // Set loading state to true
         const response = await axios.post(`${backendURL}/save-config-data`, configData);
         toast.success(response.data.message);
     } catch (error) {
@@ -33,6 +35,8 @@ export const handleSaveChangesToServer = async(configData, setConfigData) => {
         } else {
             toast.error('Error saving data.');
         }
+    } finally {
+        setLoading(false); // Set loading state to false
     }
 };
 

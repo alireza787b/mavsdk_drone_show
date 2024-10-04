@@ -163,3 +163,13 @@
         flex: 1 1 100%;
     }
 }
+
+.progress-bar {
+    margin-top: 10px;
+}
+
+.progress-bar p {
+    text-align: center;
+    margin-top: 5px;
+    font-size: 0.9rem;
+}
