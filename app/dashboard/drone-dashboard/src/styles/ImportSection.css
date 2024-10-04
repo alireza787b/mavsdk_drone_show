@@ -1,0 +1,57 @@
+/* src/styles/ImportSection.css */
+
+.import-section {
+    margin-top: 20px;
+}
+
+.file-upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-input-label {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.file-input-label:hover {
+    background-color: #1d4ed8;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+button:disabled {
+    background-color: #6b7280;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    background-color: #059669;
+}
+
+.progress-container {
+    margin-top: 10px;
+}
+
+.progress-container p {
+    text-align: center;
+    margin-top: 5px;
+    font-size: 0.9rem;
+}

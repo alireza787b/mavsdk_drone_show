@@ -1,83 +1,110 @@
-import React, { useState } from 'react';
-import { getBackendURL } from '../utilities/utilities'; // Ensure this utility is correctly implemented
+// src/pages/ImportSection.js
 
-const ImportSection = ({ setUploadCount, setResponseMessage }) => {
+import React, { useState } from 'react';
+import { getBackendURL } from '../utilities/utilities';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import '../styles/ImportSection.css';
+import { CircularProgress, LinearProgress } from '@mui/material';
+
+const ImportSection = ({ setUploadCount }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadError, setUploadError] = useState('');
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) {
-            setResponseMessage('No file selected. Please choose a file.');
+            toast.warn('No file selected. Please choose a file.');
             return;
         }
         if (!file.name.endsWith('.zip')) {
-            setResponseMessage('Invalid file type. Please select a ZIP file.');
+            toast.error('Invalid file type. Please select a ZIP file.');
             return;
         }
         setSelectedFile(file);
-        setResponseMessage('');
-        setUploadError('');
         setUploadProgress(0);
     };
 
-    const uploadFile = async () => {
+    const uploadFile = () => {
         if (!selectedFile) {
-            setResponseMessage('Please select a file to upload.');
+            toast.warn('Please select a file to upload.');
             return;
         }
-        setIsUploading(true);
+
         const formData = new FormData();
         formData.append('file', selectedFile);
 
-        try {
-            const response = await fetch(`${getBackendURL()}/import-show`, {
-                method: 'POST',
-                body: formData,
-            }, {
-                onUploadProgress: progressEvent => {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    setUploadProgress(percentCompleted);
-                }
-            });
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${getBackendURL()}/import-show`);
 
-            if (!response.ok) {
-                throw new Error('Network response was not ok.');
+        xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+                const percentCompleted = Math.round((event.loaded * 100) / event.total);
+                setUploadProgress(percentCompleted);
             }
+        });
 
-            const result = await response.json();
-            if (result.success) {
-                setResponseMessage('File uploaded and processed successfully!');
-                setUploadCount(prev => prev + 1); // Increment to trigger re-fetching plots
+        xhr.addEventListener('readystatechange', () => {
+            if (xhr.readyState === XMLHttpRequest.OPENED) {
+                setIsUploading(true);
+            } else if (xhr.readyState === XMLHttpRequest.DONE) {
                 setIsUploading(false);
-            } else {
-                throw new Error(result.error || 'Unknown error during file upload.');
+                if (xhr.status === 200) {
+                    const result = JSON.parse(xhr.responseText);
+                    if (result.success) {
+                        toast.success('File uploaded and processed successfully!');
+                        setUploadCount(prev => prev + 1);
+                        setSelectedFile(null);
+                        setUploadProgress(0);
+                    } else {
+                        toast.error(result.error || 'Unknown error during file upload.');
+                    }
+                } else {
+                    toast.error('Network error. Please try again.');
+                }
             }
-        } catch (error) {
-            console.error('Upload failed:', error);
-            setResponseMessage('Upload failed: ' + error.message);
-            setUploadError(error.message);
+        });
+
+        xhr.addEventListener('error', () => {
             setIsUploading(false);
-        }
+            toast.error('Network error. Please try again.');
+        });
+
+        xhr.send(formData);
     };
 
     return (
         <div className="import-section">
             <h2>Import Drone Show</h2>
-            <input type="file" accept=".zip" onChange={handleFileChange} />
-            {selectedFile && <p>File selected: {selectedFile.name}</p>}
-            <button onClick={uploadFile} disabled={!selectedFile || isUploading}>Upload</button>
+            <div className="file-upload">
+                <input
+                    type="file"
+                    accept=".zip"
+                    onChange={handleFileChange}
+                    id="file-input"
+                    style={{ display: 'none' }}
+                />
+                <label htmlFor="file-input" className="file-input-label">
+                    {selectedFile ? selectedFile.name : 'Choose ZIP File'}
+                </label>
+                <button onClick={uploadFile} disabled={!selectedFile || isUploading}>
+                    {isUploading ? (
+                        <>
+                            <CircularProgress size={20} color="inherit" />
+                            Uploading... {uploadProgress}%
+                        </>
+                    ) : (
+                        'Upload'
+                    )}
+                </button>
+            </div>
             {isUploading && (
-                <div>
-                    <p>Uploading... {uploadProgress}%</p>
-                    <div className="progress-bar">
-                        <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
-                    </div>
+                <div className="progress-container">
+                    <LinearProgress variant="determinate" value={uploadProgress} />
+                    <p>{uploadProgress}%</p>
                 </div>
             )}
-            {uploadError && <p className="error-message">{uploadError}</p>}
         </div>
     );
 };
