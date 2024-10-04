@@ -5,12 +5,11 @@ import { getBackendURL } from '../utilities/utilities';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import '../styles/ImportSection.css';
-import { CircularProgress, LinearProgress } from '@mui/material';
+import { CircularProgress } from '@mui/material';
 
 const ImportSection = ({ setUploadCount }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -23,7 +22,6 @@ const ImportSection = ({ setUploadCount }) => {
             return;
         }
         setSelectedFile(file);
-        setUploadProgress(0);
     };
 
     const uploadFile = () => {
@@ -38,39 +36,33 @@ const ImportSection = ({ setUploadCount }) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${getBackendURL()}/import-show`);
 
-        xhr.upload.addEventListener('progress', (event) => {
-            if (event.lengthComputable) {
-                const percentCompleted = Math.round((event.loaded * 100) / event.total);
-                setUploadProgress(percentCompleted);
-            }
-        });
-
-        xhr.addEventListener('readystatechange', () => {
-            if (xhr.readyState === XMLHttpRequest.OPENED) {
-                setIsUploading(true);
-            } else if (xhr.readyState === XMLHttpRequest.DONE) {
-                setIsUploading(false);
-                if (xhr.status === 200) {
+        xhr.onload = () => {
+            setIsUploading(false);
+            if (xhr.status === 200) {
+                try {
                     const result = JSON.parse(xhr.responseText);
                     if (result.success) {
                         toast.success('File uploaded and processed successfully!');
                         setUploadCount(prev => prev + 1);
                         setSelectedFile(null);
-                        setUploadProgress(0);
                     } else {
                         toast.error(result.error || 'Unknown error during file upload.');
                     }
-                } else {
-                    toast.error('Network error. Please try again.');
+                } catch (error) {
+                    console.error('Error parsing response:', error);
+                    toast.error('Invalid server response.');
                 }
+            } else {
+                toast.error('Network error. Please try again.');
             }
-        });
+        };
 
-        xhr.addEventListener('error', () => {
+        xhr.onerror = () => {
             setIsUploading(false);
             toast.error('Network error. Please try again.');
-        });
+        };
 
+        setIsUploading(true);
         xhr.send(formData);
     };
 
@@ -78,11 +70,11 @@ const ImportSection = ({ setUploadCount }) => {
         <div className="import-section">
             <h2>Import Drone Show</h2>
             <div className="intro-section">
-                <p>Welcome to the Drone Show Import Utility of our Swarm Dashboard. This tool simplifies the entire workflow for your drone shows. Here's what you can do:</p>
+                <p>Welcome to the Drone Show Import Utility of our Swarm Dashboard. This tool streamlines the entire workflow for your drone shows. Here's what you can do:</p>
                 <ul>
-                    <li><strong>Upload</strong>: Effortlessly upload ZIP files exported from SkyBrush with just one click.</li>
+                    <li><strong>Upload</strong>:Upload ZIP files exported from SkyBrush with just one click.</li>
                     <li><strong>Process</strong>: Our system automatically processes and adapts these files for compatibility.</li>
-                    <li><strong>Visualize</strong>: Generate insightful plots for your drone paths automatically.</li>
+                    <li><strong>Visualize</strong>: Generate plots for your drone paths automatically.</li>
                     <li><strong>Update</strong>: Your mission configuration file is auto-updated based on the processed data.</li>
                     <li><strong>Access</strong>: Retrieve processed plot images and CSV files from the <code>shapes/swarm</code> directory.</li>
                 </ul>
@@ -109,21 +101,16 @@ const ImportSection = ({ setUploadCount }) => {
                     {isUploading ? (
                         <>
                             <CircularProgress size={20} color="inherit" />
-                            Uploading... {uploadProgress}%
+                            Uploading...
                         </>
                     ) : (
                         'Upload'
                     )}
                 </button>
             </div>
-            {isUploading && (
-                <div className="progress-container">
-                    <LinearProgress variant="determinate" value={uploadProgress} />
-                    <p>{uploadProgress}%</p>
-                </div>
-            )}
         </div>
     );
+
 };
 
 export default ImportSection;
