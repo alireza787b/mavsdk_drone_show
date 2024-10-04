@@ -80,8 +80,17 @@ def setup_routes(app):
             # If auto push to Git is enabled, perform Git operations
             if Params.GIT_AUTO_PUSH:
                 logger.info("Git auto-push is enabled. Attempting to push configuration changes to repository.")
-                git_info = git_operations(BASE_DIR, f"Update configuration: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                logger.info(git_info)
+                git_result = git_operations(
+                    BASE_DIR,
+                    f"Update configuration: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                if git_result.get('success'):
+                    logger.info("Git operations successful.")
+                    logger.debug(f"Git output:\n{git_result.get('output')}")
+                else:
+                    logger.error(f"Git operations failed: {git_result.get('message')}")
+                    logger.debug(f"Git error output:\n{git_result.get('output')}")
+                git_info = git_result
 
             # Return a success message, including Git info if applicable
             response_data = {'status': 'success', 'message': 'Configuration saved successfully'}
@@ -152,8 +161,17 @@ def setup_routes(app):
             logger.info(f"Process formation output: {output}")
 
             if Params.GIT_AUTO_PUSH:
-                git_result = git_operations(BASE_DIR, f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}")
-                logger.info(git_result)
+                logger.info("Git auto-push is enabled. Attempting to push show changes to repository.")
+                git_result = git_operations(
+                    BASE_DIR,
+                    f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}"
+                )
+                if git_result.get('success'):
+                    logger.info("Git operations successful.")
+                    logger.debug(f"Git output:\n{git_result.get('output')}")
+                else:
+                    logger.error(f"Git operations failed: {git_result.get('message')}")
+                    logger.debug(f"Git error output:\n{git_result.get('output')}")
                 return jsonify({'success': True, 'message': output, 'git_info': git_result})
             else:
                 return jsonify({'success': True, 'message': output})

@@ -5,6 +5,8 @@ import logging
 import subprocess
 
 from flask import current_app
+from git import Repo, GitCommandError
+
 
 from params import Params
 
@@ -56,30 +58,40 @@ def ensure_directory(directory):
 # Utility function for Git operations
 def git_operations(base_dir, commit_message):
     """
-    Handles Git operations including add, commit, and an intelligent push that handles possible upstream changes.
-    This function uses configured branch names from Params.GIT_BRANCH.
+    Handles Git operations using GitPython for better control and error handling.
     """
     try:
-        # Staging changes
-        subprocess.check_call(['git', 'add', '.'], cwd=base_dir)
-        subprocess.check_call(['git', 'commit', '-m', commit_message], cwd=base_dir)
-        
-        # Fetch the latest changes from the repository to prepare for rebase
-        subprocess.check_call(['git', 'fetch'], cwd=base_dir)
-        
-        try:
-            # Attempt to rebase onto the fetched branch
-            subprocess.check_call(['git', 'rebase', f'origin/{Params.GIT_BRANCH}'], cwd=base_dir)
-        except subprocess.CalledProcessError:
-            # If rebase fails, log the failure and suggest manual intervention
-            logging.error("Rebase failed, attempting to abort.")
-            subprocess.check_call(['git', 'rebase', '--abort'], cwd=base_dir)
-            return "Rebase failed; manual intervention required."
+        repo = Repo(base_dir)
+        git = repo.git
 
-        # Push the changes if rebase was successful
-        subprocess.check_call(['git', 'push', 'origin', Params.GIT_BRANCH], cwd=base_dir)
-        return "Changes pushed to repository successfully."
-    except subprocess.CalledProcessError as e:
-        # Log the specific error and return a friendly message
-        logging.error(f"Git operation failed: {e}")
-        return f"Failed to push changes to repository: {e.output}"
+        # Check for uncommitted changes
+        if repo.is_dirty(untracked_files=True):
+            logging.info("Staging changes...")
+            repo.git.add('--all')
+
+            logging.info("Committing changes...")
+            repo.index.commit(commit_message)
+        else:
+            message = "No changes to commit."
+            logging.info(message)
+
+        # Pull latest changes with rebase
+        logging.info("Rebasing local changes on top of remote changes...")
+        git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+
+        # Push changes to remote
+        logging.info("Pushing changes to remote repository...")
+        git.push('origin', Params.GIT_BRANCH)
+
+        success_message = "Changes pushed to repository successfully."
+        logging.info(success_message)
+        return {'success': True, 'message': success_message}
+
+    except GitCommandError as e:
+        error_message = f"Git command error: {str(e)}"
+        logging.error(error_message)
+        return {'success': False, 'message': error_message}
+    except Exception as e:
+        error_message = f"Exception during git operations: {str(e)}"
+        logging.error(error_message, exc_info=True)
+        return {'success': False, 'message': error_message}

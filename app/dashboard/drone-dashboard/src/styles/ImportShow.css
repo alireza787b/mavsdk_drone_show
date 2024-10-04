@@ -1,131 +1,165 @@
-/* ImportShow.css */
+/* src/styles/ImportShow.css */
 
 .import-show-container {
     padding: 20px;
-    border: 1px solid #ccc;
     border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  }
-  
-  .intro-section {
+    background-color: #f9fafb;
+}
+
+.intro-section {
     margin-bottom: 20px;
-  }
-  
-  .intro-section ul {
+    color: #374151;
+}
+
+.intro-section p {
+    line-height: 1.6;
+}
+
+.intro-section ul {
     margin-top: 10px;
     margin-bottom: 10px;
-  }
-  
-  .tutorial-link {
+    padding-left: 20px;
+}
+
+.intro-section li {
+    margin-bottom: 5px;
+}
+
+.tutorial-link {
     display: inline-block;
     margin-top: 10px;
     text-decoration: underline;
-  }
-  
-  .upload-section {
+    color: #2563eb;
+}
+
+.tutorial-link:hover {
+    color: #1d4ed8;
+}
+
+.upload-section {
     display: flex;
     align-items: center;
-  }
-  
-  .upload-button {
+    margin-bottom: 10px;
+}
+
+.upload-button {
     margin-left: 15px;
     padding: 10px 20px;
-    background-color: #007bff;
+    background-color: #2563eb;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-  }
-  
-  .file-requirements {
+    transition: background-color 0.3s;
+}
+
+.upload-button:hover {
+    background-color: #1d4ed8;
+}
+
+.file-requirements {
     display: block;
-    margin-top: 15px;
+    margin-top: 5px;
     font-size: 12px;
-    color: #777;
-  }
-  .response-message {
-    margin-top: 20px;
+    color: #6b7280;
+}
+
+.upload-info {
+    margin-top: 15px;
     font-size: 14px;
-  }
+    color: #374151;
+}
 
-
-
-  .all-drones-plot img {
+.all-drones-plot img {
     width: 100%;
-    max-width: 800px; /* Adjust this value as needed */
-    margin: 0 auto;
+    max-width: 800px;
+    margin: 20px auto;
     display: block;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .other-plots {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
+    justify-content: center;
+    margin-top: 20px;
 }
 
-.other-plots img {
-    flex: 1;
-    min-width: calc(33.333% - 20px); /* Adjust this value as needed */
+.other-plots div {
+    flex: 1 1 300px;
     margin: 10px;
 }
 
+.other-plots img {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.response-message.success {
+    color: #22c55e;
+    font-weight: bold;
+}
+
+.response-message.failure {
+    color: #ef4444;
+    font-weight: bold;
+}
+
+.drop-zone {
+    border: 2px dashed #6b7280;
+    padding: 20px;
+    text-align: center;
+    border-radius: 4px;
+    background-color: #f3f4f6;
+    transition: border-color 0.3s, background-color 0.3s;
+}
+
+.drop-zone.dragging {
+    border-color: #2563eb;
+    background-color: #e0f2fe;
+}
+
+.warning-message {
+    color: #b91c1c;
+    background-color: #fee2e2;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 1em;
+    display: flex;
+    align-items: center;
+}
+
+.soft-warning-message {
+    color: #92400e;
+    background-color: #ffedd5;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 4px;
+    font-size: 1em;
+    display: flex;
+    align-items: center;
+}
+
 @media (max-width: 768px) {
-    .other-plots img {
-        min-width: calc(50% - 20px);
+    .other-plots div {
+        flex: 1 1 45%;
     }
 }
 
 @media (max-width: 480px) {
-    .other-plots img {
-        min-width: calc(100% - 20px);
+    .upload-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .upload-button {
+        margin-left: 0;
+        margin-top: 10px;
+        width: 100%;
+    }
+    .other-plots div {
+        flex: 1 1 100%;
     }
 }
-.response-message.success {
-    color: green;
-    font-weight: bold;
-  }
-  
-  .response-message.failure {
-    color: red;
-    font-weight: bold;
-  }
-  
-
-  .drop-zone {
-    border: 2px dashed grey;
-    padding: 20px;
-    text-align: center;
-  }
-  
-  .drop-zone.dragging {
-    border: 2px solid blue;
-  }
-  .warning-message {
-    color: #D32F2F;  /* Red */
-    background-color: #FFCDD2;  /* Light Red */
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 4px;
-    font-size: 1.1em;
-    display: flex;
-    align-items: center;
-  }
-  
-  .warning-message a {
-    color: #1976D2;  /* Blue */
-    margin-left: 5px;
-    text-decoration: underline;
-  }
-  
-  .soft-warning-message {
-    color: #FF9800;  /* Orange */
-    background-color: #FFECB3;  /* Light Orange */
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 4px;
-    font-size: 1.1em;
-    display: flex;
-    align-items: center;
-  }
-  
-  

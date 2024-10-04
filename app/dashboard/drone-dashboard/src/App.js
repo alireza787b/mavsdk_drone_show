@@ -9,7 +9,8 @@ import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
 import CustomShowPage from './pages/CustomShowPage'; // Import the new page
 import GlobeView from './pages/GlobeView';
-
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import 'leaflet/dist/leaflet.css';
 
 import './App.css';
@@ -37,6 +38,7 @@ const App = () => {
           </Routes>
         </div>
       </div>
+      <ToastContainer />
     </Router>
   );
 };

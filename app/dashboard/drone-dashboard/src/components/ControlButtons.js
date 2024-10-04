@@ -1,6 +1,6 @@
-// app/dashboard/drone-dashboard/src/components/ControlButtons.js
+// src/components/ControlButtons.js
 
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ControlButtons.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -10,7 +10,7 @@ import {
   faUpload,
   faFileCsv,
   faUndo,
-  faMapMarkerAlt, // Import the map marker icon
+  faMapMarkerAlt,
 } from '@fortawesome/free-solid-svg-icons';
 
 const ControlButtons = ({
@@ -19,10 +19,14 @@ const ControlButtons = ({
   handleRevertChanges,
   handleFileChange,
   exportConfig,
-  openOriginModal, // New prop for opening the Origin Modal
+  openOriginModal,
 }) => {
+  const fileInputRef = useRef(null);
+
   const triggerFileInput = () => {
-    document.getElementById('csvInput').click();
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -45,7 +49,7 @@ const ControlButtons = ({
         </button>
         <input
           type="file"
-          id="csvInput"
+          ref={fileInputRef}
           onChange={handleFileChange}
           style={{ display: 'none' }}
           accept=".csv"
@@ -71,7 +75,7 @@ ControlButtons.propTypes = {
   handleRevertChanges: PropTypes.func.isRequired,
   handleFileChange: PropTypes.func.isRequired,
   exportConfig: PropTypes.func.isRequired,
-  openOriginModal: PropTypes.func.isRequired, // Add prop validation
+  openOriginModal: PropTypes.func.isRequired,
 };
 
 export default ControlButtons;
