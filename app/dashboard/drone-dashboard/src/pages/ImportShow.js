@@ -185,8 +185,22 @@ const ImportShow = () => {
     <div className="import-show-container">
       <h1>Import Drone Show</h1>
       <div className="intro-section">
-        {/* ... existing intro content ... */}
+        <p>Welcome to the advanced Drone Show Import utility of our Swarm Dashboard. This powerful tool automates and streamlines the entire workflow for your drone shows. Here's what you can accomplish:</p>
+        <ul>
+          <li><strong>Upload</strong>: Seamlessly upload ZIP files that you've exported from SkyBrush.</li>
+          <li><strong>Process</strong>: Our algorithm will automatically process and adapt these files to be compatible with our system.</li>
+          <li><strong>Visualize</strong>: Automatically generate insightful plots for your drone paths.</li>
+          <li><strong>Update</strong>: Your mission configuration file will be auto-updated based on the processed data.</li>
+          <li><strong>Access</strong>: Retrieve the processed plot images and CSV files from the <code>shapes/swarm</code> directory.</li>
+        </ul>
+        <p>
+          SkyBrush is a plugin compatible with Blender and 3D Max, designed for creating drone show animations. Learn how to create stunning animations for your drones in our <a href="https://youtu.be/wctmCIzpMpY" target="_blank" rel="noreferrer" className="tutorial-link">YouTube tutorial</a>.
+        </p>
+        <p>
+          For advanced users who require more control over the processing parameters, you can directly execute our <code>process_formation.py</code> Python script. The files will be exported to the <code>shapes/swarm</code> directory.
+        </p>
       </div>
+
 
       <div className="upload-section">
         <FileUpload onFileSelect={setSelectedFile} selectedFile={selectedFile} />
