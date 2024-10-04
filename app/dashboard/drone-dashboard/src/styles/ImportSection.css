@@ -2,6 +2,37 @@
 
 .import-section {
     margin-top: 20px;
+    padding: 20px;
+    background-color: #f9fafb;
+    border-radius: 8px;
+}
+
+.intro-section {
+    margin-bottom: 20px;
+    color: #374151;
+}
+
+.intro-section p {
+    line-height: 1.6;
+}
+
+.intro-section ul {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding-left: 20px;
+}
+
+.intro-section li {
+    margin-bottom: 5px;
+}
+
+.tutorial-link {
+    text-decoration: underline;
+    color: #2563eb;
+}
+
+.tutorial-link:hover {
+    color: #1d4ed8;
 }
 
 .file-upload {
@@ -32,7 +63,7 @@ button {
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 5px;
 }
