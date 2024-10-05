@@ -1,20 +1,35 @@
-//app/dashboard/drone-dashboard/src/pages/ImportShow.js
+// src/pages/ImportShow.js
 
 import React, { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
 import '../styles/ImportShow.css';
 import { getBackendURL } from '../utilities/utilities';
+import { toast } from 'react-toastify';
+
+// Import MUI components
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  CircularProgress,
+  LinearProgress,
+} from '@mui/material';
+
+// Import the FileUpload component
+import FileUpload from '../components/FileUpload';
 
 const ImportShow = () => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [responseMessage, setResponseMessage] = useState('');
   const [plotList, setPlotList] = useState([]);
-  const [uploadTime, setUploadTime] = useState(null);
+  const [uploadTime, setUploadTime] = useState('N/A');
   const [uploadCount, setUploadCount] = useState(0);
   const [dronesMismatchWarning, setDronesMismatchWarning] = useState(null);
   const [coordinateWarnings, setCoordinateWarnings] = useState([]);
   const [returnWarnings, setReturnWarnings] = useState([]);
-  const [dragging, setDragging] = useState(false);
+  const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
@@ -28,16 +43,16 @@ const ImportShow = () => {
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
         const data = await response.json();
         setPlotList(data.filenames || []);
-        setUploadTime(data.uploadTime || "N/A");
-        console.log("Fetched plot list:", data.filenames);
+        setUploadTime(data.uploadTime || 'N/A');
+        console.log('Fetched plot list:', data.filenames);
       } catch (error) {
         console.error('Fetch plots failed:', error);
-        setResponseMessage('Error fetching plot list.');
+        toast.error('Error fetching plot list.');
       }
     };
 
     fetchPlots();
-  }, [backendURL, responseMessage, uploadCount]);
+  }, [backendURL, uploadCount]);
 
   // Check for drone mismatches after plot list updates
   useEffect(() => {
@@ -58,10 +73,11 @@ const ImportShow = () => {
         const returnWarnings = [];
         let droneCountWarning = null;
 
-        if (configData.length !== (plotList.length - 1)) {
+        if (configData.length !== plotList.length - 1) {
           droneCountWarning = `The number of drones in the uploaded show (${plotList.length - 1}) does not match the number in the config file (${configData.length}).`;
         }
 
+        // For each drone, check for coordinate mismatches
         for (const [hw_id, { x: configX, y: configY }] of Object.entries(configMap)) {
           try {
             const rowResponse = await fetch(`${backendURL}/get-first-last-row/${hw_id}`);
@@ -74,13 +90,16 @@ const ImportShow = () => {
             const lastRowY = parseFloat(rowData.lastRow.y);
 
             if (configX !== firstRowX || configY !== firstRowY) {
-              coordinateWarnings.push(`Drone ${hw_id} has mismatch in initial launch point. Config: (${configX}, ${configY}), CSV: (${firstRowX}, ${firstRowY})`);
+              coordinateWarnings.push(
+                `Drone ${hw_id} has mismatch in initial launch point. Config: (${configX}, ${configY}), CSV: (${firstRowX}, ${firstRowY})`
+              );
             }
 
             if (firstRowX !== lastRowX || firstRowY !== lastRowY) {
-              returnWarnings.push(`Drone ${hw_id} has different return point. Start: (${firstRowX}, ${firstRowY}), End: (${lastRowX}, ${lastRowY})`);
+              returnWarnings.push(
+                `Drone ${hw_id} has different return point. Start: (${firstRowX}, ${firstRowY}), End: (${lastRowX}, ${lastRowY})`
+              );
             }
-
           } catch (error) {
             console.warn(`Could not fetch data for drone ${hw_id}. Skipping...`, error);
           }
@@ -91,7 +110,7 @@ const ImportShow = () => {
         setDronesMismatchWarning(droneCountWarning);
       } catch (error) {
         console.error('Error checking drone mismatches:', error);
-        setResponseMessage('Error checking drone mismatches.');
+        toast.error('Error checking drone mismatches.');
       }
     };
 
@@ -99,75 +118,67 @@ const ImportShow = () => {
   }, [plotList, backendURL]);
 
   // File upload handler
-  const uploadFile = async () => {
-    const userConfirmed = window.confirm("Any existing drone show configuration will be overwritten. Are you sure you want to proceed?");
-    if (!userConfirmed) {
-      setResponseMessage('Upload cancelled by user.');
+  const uploadFile = () => {
+    if (!selectedFile) {
+      toast.warn('No file selected. Please select a file to upload.');
       return;
     }
 
-    if (!selectedFile) {
-      setResponseMessage('No file selected. Please select a file to upload.');
-      return;
-    }
+    // Open confirmation dialog
+    setOpenConfirmDialog(true);
+  };
+
+  const handleConfirmUpload = () => {
+    setOpenConfirmDialog(false);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
     console.log(`Uploading file to URL: ${backendURL}/import-show`);
 
-    try {
-      const response = await fetch(`${backendURL}/import-show`, {
-        method: 'POST',
-        body: formData
-      });
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${backendURL}/import-show`);
 
-      const result = await response.json();
-      if (result.success) {
-        setResponseMessage('File uploaded successfully.');
-        setUploadCount(prevCount => prevCount + 1);
-      } else {
-        setResponseMessage('Error: ' + result.error);
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const percentComplete = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percentComplete);
       }
-    } catch (error) {
-      console.error('Upload failed:', error);
-      setResponseMessage('Network error. Please try again.');
-    }
+    });
+
+    xhr.addEventListener('readystatechange', () => {
+      if (xhr.readyState === XMLHttpRequest.LOADING) {
+        setLoading(true);
+      } else if (xhr.readyState === XMLHttpRequest.DONE) {
+        setLoading(false);
+        if (xhr.status === 200) {
+          const result = JSON.parse(xhr.responseText);
+          if (result.success) {
+            toast.success('File uploaded successfully.');
+            setUploadCount((prevCount) => prevCount + 1);
+            setSelectedFile(null);
+            setUploadProgress(0);
+          } else {
+            toast.error('Error: ' + result.error);
+          }
+        } else {
+          toast.error('Network error. Please try again.');
+        }
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      setLoading(false);
+      setUploadProgress(0);
+      toast.error('Network error. Please try again.');
+    });
+
+    setLoading(true);
+    xhr.send(formData);
   };
 
-  // File change handler
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
-
-  // Drag and drop handlers
-  const handleDragEnter = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(false);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragging(false);
-    let files = [...e.dataTransfer.files];
-    if (files.length > 0) {
-      setSelectedFile(files[0]);
-    }
+  const handleCancelUpload = () => {
+    setOpenConfirmDialog(false);
+    toast.info('Upload cancelled.');
   };
 
   return (
@@ -190,33 +201,45 @@ const ImportShow = () => {
         </p>
       </div>
 
+
       <div className="upload-section">
-        <div
-          className={`drop-zone ${dragging ? 'dragging' : ''}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
+        <FileUpload onFileSelect={setSelectedFile} selectedFile={selectedFile} />
+        <button
+          className="upload-button"
+          onClick={uploadFile}
+          disabled={loading || !selectedFile}
         >
-          <input type="file" accept=".zip" onChange={handleFileChange} />
-          {dragging && <div>Drop here ...</div>}
-        </div>
-        <button className="upload-button" onClick={uploadFile}>Upload</button>
+          {loading ? (
+            <>
+              <CircularProgress size={20} color="inherit" />
+              Uploading... {uploadProgress}%
+            </>
+          ) : (
+            'Upload'
+          )}
+        </button>
       </div>
       <small className="file-requirements">File should be a ZIP containing CSV files.</small>
 
-      <p className={`response-message ${responseMessage.includes('successfully') ? 'success' : 'failure'}`}>{responseMessage}</p>
+      {loading && (
+        <div className="progress-bar">
+          <LinearProgress variant="determinate" value={uploadProgress} />
+          <p>{uploadProgress}%</p>
+        </div>
+      )}
 
       {dronesMismatchWarning && (
-        <p className="warning-message">
-          {dronesMismatchWarning}
-        </p>
+        <p className="warning-message">{dronesMismatchWarning}</p>
       )}
       {coordinateWarnings.map((warning, index) => (
-        <p key={index} className="warning-message">{warning}</p>
+        <p key={index} className="warning-message">
+          {warning}
+        </p>
       ))}
       {returnWarnings.map((warning, index) => (
-        <p key={index} className="soft-warning-message">{warning}</p>
+        <p key={index} className="soft-warning-message">
+          {warning}
+        </p>
       ))}
 
       <div className="upload-info">
@@ -224,23 +247,43 @@ const ImportShow = () => {
       </div>
 
       <div className="all-drones-plot">
-        <img src={`${backendURL}/get-show-plots/all_drones.png?key=${uploadCount}`} alt="All Drones" />
+        <img
+          src={`${backendURL}/get-show-plots/all_drones.png?key=${uploadCount}`}
+          alt="All Drones"
+        />
       </div>
 
       <div className="other-plots">
-        {plotList.filter(name => name !== "all_drones.png").map(filename => (
-          <div key={filename}>
-            <img src={`${backendURL}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`} alt={filename} />
-          </div>
-        ))}
+        {plotList
+          .filter((name) => name !== 'all_drones.png')
+          .map((filename) => (
+            <div key={filename}>
+              <img
+                src={`${backendURL}/get-show-plots/${encodeURIComponent(filename)}?key=${uploadCount}`}
+                alt={filename}
+              />
+            </div>
+          ))}
       </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={openConfirmDialog} onClose={handleCancelUpload}>
+        <DialogTitle>Confirm Upload</DialogTitle>
+        <DialogContent>
+          Any existing drone show configuration will be overwritten. Are you sure you want to
+          proceed?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelUpload} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmUpload} color="secondary">
+            Proceed
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
-};
-
-// Define PropTypes for better validation
-ImportShow.propTypes = {
-  // No props are currently being used, but this is a placeholder for future use
 };
 
 export default ImportShow;

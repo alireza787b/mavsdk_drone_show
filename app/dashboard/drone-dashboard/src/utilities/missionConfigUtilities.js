@@ -2,27 +2,41 @@
 import axios from 'axios';
 import { getBackendURL } from './utilities';
 import { convertToLatLon } from './geoutilities'; // Importing the convertToLatLon function
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
-export const handleSaveChangesToServer = async(configData, setConfigData) => {
-    const maxId = Math.max(...configData.map(drone => parseInt(drone.hw_id)));
+export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
+    const hwIds = configData.map(drone => parseInt(drone.hw_id));
+    const missingIds = [];
+    const maxId = Math.max(...hwIds);
+
     for (let i = 1; i <= maxId; i++) {
-        if (!configData.some(drone => parseInt(drone.hw_id) === i)) {
-            alert(`Missing Drone ID: ${i}. Please create the missing drone before saving.`);
-            return;
+        if (!hwIds.includes(i)) {
+            missingIds.push(i);
         }
     }
 
+    if (missingIds.length > 0) {
+        toast.warn(`Missing Drone IDs: ${missingIds.join(', ')}. Please check before saving.`);
+        // Optionally, you can stop the function here if needed
+        // return;
+    }
+
     const backendURL = getBackendURL();
+
     try {
+        setLoading(true); // Set loading state to true
         const response = await axios.post(`${backendURL}/save-config-data`, configData);
-        alert(response.data.message);
+        toast.success(response.data.message);
     } catch (error) {
-        console.error("Error saving updated config data:", error);
+        console.error('Error saving updated config data:', error);
         if (error.response && error.response.data.message) {
-            alert(error.response.data.message);
+            toast.error(error.response.data.message);
         } else {
-            alert('Error saving data.');
+            toast.error('Error saving data.');
         }
+    } finally {
+        setLoading(false); // Set loading state to false
     }
 };
 
@@ -118,16 +132,16 @@ export const generateKML = (drones, originLat, originLon) => {
     let kml = `<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>`;
-  
+
     drones.forEach((drone) => {
-      const { latitude, longitude } = convertToLatLon(
-        originLat,
-        originLon,
-        parseFloat(drone.x),
-        parseFloat(drone.y)
-      );
-  
-      kml += `
+        const { latitude, longitude } = convertToLatLon(
+            originLat,
+            originLon,
+            parseFloat(drone.x),
+            parseFloat(drone.y)
+        );
+
+        kml += `
         <Placemark>
           <name>Drone ${drone.hw_id}</name>
           <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
@@ -136,10 +150,10 @@ export const generateKML = (drones, originLat, originLon) => {
           </Point>
         </Placemark>`;
     });
-  
+
     kml += `
     </Document>
     </kml>`;
-  
+
     return kml;
-  };
+};

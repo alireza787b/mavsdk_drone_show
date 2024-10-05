@@ -1,5 +1,4 @@
 # src/drone_setup.py
-
 import asyncio
 import datetime
 import logging
@@ -42,8 +41,8 @@ class DroneSetup:
         # Mapping of mission codes to their handler functions
         self.mission_handlers = {
             Mission.NONE.value: self._handle_no_mission,
-            Mission.DRONE_SHOW_FROM_CSV.value: self._execute_standard_drone_show,
-            Mission.CUSTOM_CSV_DRONE_SHOW.value: self._execute_custom_drone_show,
+            Mission.DRONE_SHOW_FROM_CSV.value: self._execute_drone_show,
+            Mission.CUSTOM_CSV_DRONE_SHOW.value: self._execute_drone_show,
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
@@ -61,7 +60,9 @@ class DroneSetup:
         Converts string representations of numbers to their respective numeric types.
         """
         required_attrs = {
-            'trigger_sooner_seconds': (int, float, str)
+            'trigger_sooner_seconds': (int, float, str),
+            'main_offboard_executer': str,
+            'custom_csv_file_name': str
             # Add other required attributes here if necessary
         }
 
@@ -72,7 +73,7 @@ class DroneSetup:
 
             attr_value = getattr(self.params, attr)
 
-            if isinstance(attr_value, str):
+            if isinstance(attr_value, str) and expected_types != str:
                 try:
                     # Attempt to convert to float or int
                     converted_value = float(attr_value) if '.' in attr_value else int(attr_value)
@@ -81,9 +82,9 @@ class DroneSetup:
                 except ValueError:
                     logging.error(f"Attribute '{attr}' must be a number, got string '{attr_value}'.")
                     raise TypeError(f"'{attr}' must be a number, got string '{attr_value}'.")
-            elif not isinstance(attr_value, expected_types[:-1]):  # Exclude str from expected types for validation
-                logging.error(f"Attribute '{attr}' must be of type int or float, got {type(attr_value).__name__}.")
-                raise TypeError(f"'{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+            elif not isinstance(attr_value, expected_types):
+                logging.error(f"Attribute '{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
+                raise TypeError(f"'{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
 
     def _validate_drone_config(self):
         """
@@ -160,8 +161,8 @@ class DroneSetup:
 
     async def execute_mission_script(self, script_name: str, action: str) -> tuple:
         """
-        Executes the specified mission script asynchronously. Ensures that no other mission scripts
-        are running by terminating them before starting the new mission.
+        Executes the specified mission script asynchronously. Waits for its completion.
+        Ensures that no other mission scripts are running by terminating them before starting the new mission.
 
         Args:
             script_name (str): Name of the mission script to execute.
@@ -215,6 +216,74 @@ class DroneSetup:
                 if script_name in self.running_processes:
                     del self.running_processes[script_name]
                 return False, f"Exception: {str(e)}"
+
+    async def start_mission_script(self, script_name: str, action: str) -> tuple:
+        """
+        Starts the specified mission script asynchronously without awaiting its completion.
+        Ensures that no other mission scripts are running by terminating them before starting the new mission.
+
+        Args:
+            script_name (str): Name of the mission script to execute.
+            action (str): Action parameter to pass to the script.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        async with self.process_lock:
+            # Terminate any existing running processes
+            if self.running_processes:
+                logging.info("New mission command received. Terminating existing mission scripts.")
+                await self.terminate_all_running_processes()
+
+            python_exec_path = self._get_python_exec_path()
+            script_path = self._get_script_path(script_name)
+            command = f"{python_exec_path} {script_path} {action}"
+            logging.debug(f"Starting mission script: {command}")
+
+            try:
+                # Start the mission script as a subprocess
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                self.running_processes[script_name] = process
+
+                # Start tasks to read the process output
+                asyncio.create_task(self._read_process_output(process, script_name))
+
+                logging.info(f"Mission script '{script_name}' started with PID {process.pid}")
+                return True, f"Mission script '{script_name}' started."
+            except Exception as e:
+                logging.error(f"Exception in start_mission_script: {e}")
+                if script_name in self.running_processes:
+                    del self.running_processes[script_name]
+                return False, f"Exception: {str(e)}"
+
+    async def _read_process_output(self, process, script_name):
+        """
+        Reads the stdout and stderr of the process asynchronously.
+
+        Args:
+            process: The subprocess.
+            script_name: The name of the script.
+        """
+        try:
+            while True:
+                line = await process.stdout.readline()
+                if line:
+                    logging.info(f"[{script_name} stdout] {line.decode().rstrip()}")
+                else:
+                    break
+
+            while True:
+                line = await process.stderr.readline()
+                if line:
+                    logging.error(f"[{script_name} stderr] {line.decode().rstrip()}")
+                else:
+                    break
+        except Exception as e:
+            logging.error(f"Error reading output from '{script_name}': {e}")
 
     def check_running_processes(self):
         """
@@ -273,9 +342,12 @@ class DroneSetup:
             logging.error(f"Error calculating trigger time: {e}")
             return
 
+        mission_name = Mission(self.drone_config.mission).name
+        state_name = State(self.drone_config.state).name if self.drone_config.state in [state.value for state in State] else "UNKNOWN"
+
         logging.info(
             f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
-            f"Current mission: {Mission(self.drone_config.mission).name}, State: {State(self.drone_config.state).name}"
+            f"Current mission: {mission_name}, State: {state_name}"
         )
 
         try:
@@ -322,9 +394,9 @@ class DroneSetup:
         logging.error(f"Unknown mission code: {self.drone_config.mission}")
         return False, "Unknown mission code."
 
-    async def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    async def _execute_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
-        Executes the Standard Drone Show mission based on the trigger time and state.
+        Executes the Drone Show mission (standard or custom) based on the presence of a custom CSV file.
 
         Args:
             current_time (int): The current Unix timestamp.
@@ -333,52 +405,34 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
-            self.drone_config.state = 2  # Move to the active mission state
+        if self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+            self.drone_config.state = State.TRIGGERED.value  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
+
             main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
 
-            logging.info(f"Starting Standard Drone Show from CSV using file {main_offboard_executer}")
+            if not main_offboard_executer:
+                logging.error("Main offboard executer script not specified in params.")
+                return False, "Main offboard executer script not specified."
 
-            return await self.execute_mission_script(
-                main_offboard_executer,
-                f"--start_time={real_trigger_time}"
-            )
-
-        logging.info("Conditions not met for triggering Standard Drone Show")
-        return False, "Conditions not met for Standard Drone Show"
-
-    async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
-        """
-        Executes the Custom CSV Drone Show mission based on the trigger time and state.
-
-        Args:
-            current_time (int): The current Unix timestamp.
-            earlier_trigger_time (int): The adjusted trigger time.
-
-        Returns:
-            tuple: (status (bool), message (str))
-        """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
-            self.drone_config.state = 2  # Move to the active mission state
-            real_trigger_time = self.drone_config.trigger_time
-            self.drone_config.trigger_time = 0  # Reset the trigger time
+            # Determine if a custom CSV is specified
             custom_csv_file_name = getattr(self.params, 'custom_csv_file_name', None)
-            main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
-
             if custom_csv_file_name:
-                csv_filename = f"{custom_csv_file_name}"
-                logging.info(f"Starting Custom Drone Show with file: {csv_filename} using file {main_offboard_executer}")
+                logging.info(f"Starting Custom Drone Show with file: {custom_csv_file_name} using script {main_offboard_executer}")
                 action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
-                
-            return await self.execute_mission_script(
+            else:
+                logging.info(f"Starting Standard Drone Show using script {main_offboard_executer}")
+                action = f"--start_time={real_trigger_time}"
+
+            # Start the mission script without awaiting its completion
+            return await self.start_mission_script(
                 main_offboard_executer,
                 action
             )
 
-        logging.info("Conditions not met for triggering Custom CSV Drone Show")
-        return False, "Conditions not met for Custom CSV Drone Show"
+        logging.info("Conditions not met for triggering Drone Show")
+        return False, "Conditions not met for Drone Show"
 
     async def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
@@ -391,8 +445,8 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
-            self.drone_config.state = 2  # Move to the active mission state
+        if self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+            self.drone_config.state = State.TRIGGERED.value  # Move to the active mission state
             self.drone_config.trigger_time = 0  # Reset the trigger time
 
             logging.info("Starting Smart Swarm Mission")

@@ -1,0 +1,90 @@
+/* src/styles/ImportSection.css */
+
+.import-section {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f9fafb;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.intro-section {
+    margin-bottom: 20px;
+    color: #374151;
+}
+
+.intro-section p {
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+.intro-section ul {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding-left: 20px;
+}
+
+.intro-section li {
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.tutorial-link {
+    text-decoration: underline;
+    color: #2563eb;
+}
+
+.tutorial-link:hover {
+    color: #1d4ed8;
+}
+
+.file-upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-input-label {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-size: 16px;
+}
+
+.file-input-label:hover {
+    background-color: #1d4ed8;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 16px;
+}
+
+button:disabled {
+    background-color: #6b7280;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    background-color: #059669;
+}
+
+
+/* Optional: Adjust the spinner alignment inside the button */
+
+button .MuiCircularProgress-root {
+    margin-right: 5px;
+}
