@@ -25,7 +25,7 @@ class Params():
     flask_telem_socket_port = 5000  # Flask telemetry socket port
     
     get_position_deviation_URI = 'get-position-deviation'
-    acceptable_deviation = 4.0  # Acceptable deviation in meters
+    acceptable_deviation = 3.0  # Acceptable deviation in meters
     
     TELEMETRY_POLLING_TIMEOUT = 10  # Threshold in seconds to check for telemetry timeout
     HTTP_REQUEST_TIMEOUT = 5  # Timeout in seconds for HTTP request
@@ -74,7 +74,7 @@ class Params():
 
     # Sleep Interval for Main Loop
     sleep_interval = 0.1  # Sleep interval for the main loop in seconds
-    trigger_sooner_seconds = 2 # trigger mission a bit early to compensate for initialization
+    trigger_sooner_seconds = 6 # trigger mission a bit early to compensate for initialization
 
        
     max_takeoff_alt = 100
