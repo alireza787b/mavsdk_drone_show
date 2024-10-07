@@ -418,6 +418,7 @@ class DroneSetup:
 
             # Determine if a custom CSV is specified
             custom_csv_file_name = getattr(self.params, 'custom_csv_file_name', None)
+            custom_csv_file_name = None
             if custom_csv_file_name:
                 logging.info(f"Starting Custom Drone Show with file: {custom_csv_file_name} using script {main_offboard_executer}")
                 action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
