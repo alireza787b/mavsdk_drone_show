@@ -423,8 +423,9 @@ class DroneSetup:
                 action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
             else:
                 logging.info(f"Starting Standard Drone Show using script {main_offboard_executer}")
-                action = f"--start_time={real_trigger_time}"
-
+                # action = f"--start_time={real_trigger_time}"
+                action = ""
+                
             # Start the mission script without awaiting its completion
             return await self.start_mission_script(
                 main_offboard_executer,
