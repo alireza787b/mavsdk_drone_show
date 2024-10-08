@@ -4,7 +4,6 @@ import time
 import asyncio
 import csv
 import subprocess
-import signal
 import glob
 import logging
 import logging.handlers
@@ -25,41 +24,6 @@ from mavsdk.action import ActionError
 import navpy
 from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
-
-# ----------------------------- #
-#          Logging Setup        #
-# ----------------------------- #
-
-# Create logs directory if it doesn't exist
-logs_directory = os.path.join("logs", "offboard_mission_logs")
-os.makedirs(logs_directory, exist_ok=True)
-
-# Configure the root logger
-logger = logging.getLogger("offboard_mission_logger")
-logger.setLevel(logging.DEBUG)
-
-# Create formatter
-formatter = logging.Formatter(
-    fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-# Create console handler with a higher log level
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)  # Adjust as needed
-console_handler.setFormatter(formatter)
-
-# Create rotating file handler
-log_file = os.path.join(logs_directory, "offboard_mission.log")
-file_handler = logging.handlers.RotatingFileHandler(
-    log_file, maxBytes=10*1024*1024, backupCount=5
-)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-
-# Add handlers to the logger
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
 
 # ----------------------------- #
 #           Constants           #
@@ -90,7 +54,7 @@ GROUND_ALTITUDE_THRESHOLD = 1.0  # Configurable
 CONTROLLED_LANDING_ALTITUDE = 3.0  # Configurable
 
 # Minimum time before end of trajectory to start controlled landing in seconds
-CONTROLLED_LANDING_TIME = 5.0  #
+CONTROLLED_LANDING_TIME = 2.0  #
 
 # Minimum mission progress percentage before considering controlled landing
 MISSION_PROGRESS_THRESHOLD = 0.5  # 50%
@@ -126,6 +90,46 @@ initial_position_drift = None  # Initial position drift in NED coordinates
 # ----------------------------- #
 #         Helper Functions      #
 # ----------------------------- #
+
+def configure_logging():
+    """
+    Configures logging for the script, ensuring logs are written to file and displayed on the console.
+    This function avoids reconfiguring logging if it's already set up, especially when imported by other scripts.
+    """
+    # Check if the root logger already has handlers configured
+    if logging.getLogger().hasHandlers():
+        return
+
+    # Create logs directory if it doesn't exist
+    logs_directory = os.path.join("logs", "offboard_mission_logs")
+    os.makedirs(logs_directory, exist_ok=True)
+
+    # Configure the root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # Create formatter
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)  # Adjust as needed
+    console_handler.setFormatter(formatter)
+
+    # Create rotating file handler
+    log_file = os.path.join(logs_directory, "offboard_mission.log")
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+
+    # Add handlers to the root logger
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
 
 def read_hw_id() -> int:
     """
@@ -191,6 +195,15 @@ def read_config(filename: str) -> Drone:
         return None
 
 def clamp_led_value(value):
+    """
+    Clamps the LED value to be within 0 to 255.
+
+    Args:
+        value: The input value for the LED.
+
+    Returns:
+        int: Clamped LED value.
+    """
     logger = logging.getLogger(__name__)
     try:
         return int(max(0, min(255, float(value))))
@@ -350,6 +363,15 @@ async def get_landed_state_telemetry(drone: System):
 # ----------------------------- #
 
 async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
+    """
+    Executes the trajectory by sending setpoints to the drone.
+
+    Args:
+        drone (System): MAVSDK drone system instance.
+        waypoints (list): List of trajectory waypoints.
+        home_position: Home position telemetry data.
+        start_time (float): Synchronized start time.
+    """
     logger = logging.getLogger(__name__)
     logger.info("Performing trajectory with time synchronization.")
     total_waypoints = len(waypoints)
@@ -1016,7 +1038,10 @@ def main():
     """
     Main function to run the drone.
     """
+    # Configure logging
+    configure_logging()
     logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='Drone Show Script')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
     parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file eg. active.csv')
