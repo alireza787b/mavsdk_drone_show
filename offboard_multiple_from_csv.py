@@ -10,6 +10,7 @@ import logging.handlers
 import socket
 import psutil
 import argparse
+from datetime import datetime
 from collections import namedtuple
 from mavsdk import System
 from mavsdk.offboard import (
@@ -60,13 +61,16 @@ CONTROLLED_LANDING_TIME = 2.0  #
 MISSION_PROGRESS_THRESHOLD = 0.5  # 50%
 
 # Descent speed during controlled landing in m/s
-CONTROLLED_DESCENT_SPEED = 0.4  # Configurable
+CONTROLLED_DESCENT_SPEED = 0.5  # Configurable
 
 # Maximum time to wait during controlled landing before initiating PX4 native landing
 CONTROLLED_LANDING_TIMEOUT = 15  # Configurable
 
 # Enable initial position correction to account for GPS drift before takeoff
 ENABLE_INITIAL_POSITION_CORRECTION = True  # Set to False to disable this feature
+
+# Maximum number of log files to keep
+MAX_LOG_FILES = 100  # Keep the last 100 log files
 
 # ----------------------------- #
 #        Data Structures        #
@@ -93,8 +97,8 @@ initial_position_drift = None  # Initial position drift in NED coordinates
 
 def configure_logging():
     """
-    Configures logging for the script, ensuring logs are written to file and displayed on the console.
-    This function avoids reconfiguring logging if it's already set up, especially when imported by other scripts.
+    Configures logging for the script, ensuring logs are written to a per-session file
+    and displayed on the console. It also limits the number of log files to MAX_LOG_FILES.
     """
     # Check if the root logger already has handlers configured
     if logging.getLogger().hasHandlers():
@@ -119,17 +123,42 @@ def configure_logging():
     console_handler.setLevel(logging.INFO)  # Adjust as needed
     console_handler.setFormatter(formatter)
 
-    # Create rotating file handler
-    log_file = os.path.join(logs_directory, "offboard_mission.log")
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5
-    )
+    # Create file handler with per-session log file
+    session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"offboard_mission_{session_time}.log"
+    log_file = os.path.join(logs_directory, log_filename)
+    file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
     # Add handlers to the root logger
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
+
+    # Limit the number of log files
+    limit_log_files(logs_directory, MAX_LOG_FILES)
+
+def limit_log_files(logs_directory, max_files):
+    """
+    Limits the number of log files in the specified directory to the max_files.
+    Deletes the oldest files when the limit is exceeded.
+
+    Args:
+        logs_directory (str): Path to the logs directory.
+        max_files (int): Maximum number of log files to keep.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        log_files = [os.path.join(logs_directory, f) for f in os.listdir(logs_directory) if os.path.isfile(os.path.join(logs_directory, f))]
+        if len(log_files) > max_files:
+            # Sort files by creation time
+            log_files.sort(key=os.path.getctime)
+            files_to_delete = log_files[:len(log_files) - max_files]
+            for file_path in files_to_delete:
+                os.remove(file_path)
+                logger.info(f"Deleted old log file: {file_path}")
+    except Exception:
+        logger.exception("Error limiting log files")
 
 def read_hw_id() -> int:
     """
@@ -938,7 +967,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
 
     Args:
         synchronized_start_time (float): Synchronized start time (UNIX timestamp).
-        custom_csv (str): Path to custom trajectory CSV file.
+        custom_csv (str): Name of the custom trajectory CSV file.
     """
     logger = logging.getLogger(__name__)
     telemetry_task = None
