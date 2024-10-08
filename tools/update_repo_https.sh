@@ -23,6 +23,11 @@
 # Ensure the drone's software repository is up-to-date before operations.
 # Adjust the REPO_DIR variable to match the directory where your repository is located.
 
+# update_repo_https.sh
+# Script to update the software repository.
+
+set -euo pipefail
+
 REPO_DIR="${HOME}/mavsdk_drone_show"
 BRANCH_NAME="real-test-1"
 GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
@@ -35,41 +40,21 @@ if [ ! -d "$REPO_DIR" ]; then
 fi
 
 # Navigate to the project directory
-cd "$REPO_DIR" || { echo "Failed to navigate to $REPO_DIR"; exit 1; }
+cd "$REPO_DIR"
 
-# Stash any local changes to avoid conflicts
-if ! git stash; then
-    echo "Failed to stash local changes" | tee -a "$LOG_FILE"
+# Check network connectivity
+if ! ping -c 1 github.com >/dev/null 2>&1; then
+    echo "No network connectivity. Cannot update repository." | tee -a "$LOG_FILE"
     exit 1
 fi
 
-# Fetch the latest updates from the remote repository
-if ! git fetch --all; then
-    echo "Failed to fetch updates from $GIT_URL" | tee -a "$LOG_FILE"
-    exit 1
-fi
+# Fetch the latest updates
+git fetch --all
 
 # Checkout the specified branch
-if ! git checkout "$BRANCH_NAME"; then
-    echo "Failed to checkout branch $BRANCH_NAME" | tee -a "$LOG_FILE"
-    exit 1
-fi
-
-# Reset local changes and ensure the branch is synced with the remote
-if ! git reset --hard "origin/$BRANCH_NAME"; then
-    echo "Failed to reset the branch $BRANCH_NAME" | tee -a "$LOG_FILE"
-    exit 1
-fi
+git checkout "$BRANCH_NAME"
 
 # Pull the latest updates
-if ! git pull; then
-    echo "Failed to pull the latest updates from $BRANCH_NAME" | tee -a "$LOG_FILE"
-    exit 1
-else
-    echo "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME" | tee -a "$LOG_FILE"
-fi
+git pull --rebase
 
-# Apply stashed changes if needed
-if ! git stash pop; then
-    echo "No stashed changes to apply or failed to apply stashed changes." | tee -a "$LOG_FILE"
-fi
+echo "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME" | tee -a "$LOG_FILE"

@@ -37,13 +37,14 @@
 
 [Unit]
 Description=Drone Swarm System Coordinator
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 # Pre-start steps
-ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_https.sh
-ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
-ExecStartPre=/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
+ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_https.sh
+ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
+ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 
 # Main start command
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
@@ -62,16 +63,19 @@ RestartSec=5s
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 
-
 # Log output settings
 StandardOutput=journal
 StandardError=inherit
 
+# Log output settings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=coordinator
+
 # Service watchdog and timeout settings
 WatchdogSec=10s
-TimeoutStartSec=30
+TimeoutStartSec=60
 TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
-
