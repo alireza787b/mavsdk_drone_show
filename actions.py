@@ -277,9 +277,9 @@ async def perform_action(action, altitude=None, parameters=None):
         logger.error("Drone configuration not found. Exiting...")
         return
 
-    # Define MAVSDK Ports
-    grpc_port = drone_config.get('grpc_port', GRPC_PORT)
-    udp_port = drone_config.get('udp_port', UDP_PORT)
+    # Define MAVSDK Ports since its on each system its constant
+    grpc_port = GRPC_PORT
+    udp_port = UDP_PORT
 
     logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
