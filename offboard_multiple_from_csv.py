@@ -46,7 +46,7 @@ MAX_RETRIES = 3
 PRE_FLIGHT_TIMEOUT = 5
 
 # Timeout for landing detection during landing phase in seconds
-LANDING_TIMEOUT = 15  # Adjusted as per requirement
+LANDING_TIMEOUT = 10  # Adjusted as per requirement
 
 # Altitude threshold to determine if trajectory ends high or at ground level
 GROUND_ALTITUDE_THRESHOLD = 1.0  # Configurable
@@ -73,7 +73,7 @@ ENABLE_INITIAL_POSITION_CORRECTION = True  # Set to False to disable this featur
 MAX_LOG_FILES = 100  # Keep the last 100 log files
 
 # Altitude threshold for initial climb phase in meters
-INITIAL_CLIMB_ALTITUDE_THRESHOLD = 5.0  # Configurable
+INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Configurable
 
 # Time threshold for initial climb phase in seconds
 INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable

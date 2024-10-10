@@ -42,4 +42,4 @@ tenacity==9.0.0
 tzdata==2024.1
 urllib3==2.2.2
 Werkzeug==3.0.4
-GitPython=
+GitPython
