@@ -74,7 +74,7 @@ class Params():
 
     # Sleep Interval for Main Loop
     sleep_interval = 0.1  # Sleep interval for the main loop in seconds
-    trigger_sooner_seconds = 0 # trigger mission a bit early to compensate for initialization
+    trigger_sooner_seconds = 4 # trigger mission a bit early to compensate for initialization
 
        
     max_takeoff_alt = 100

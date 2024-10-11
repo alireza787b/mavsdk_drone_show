@@ -46,7 +46,7 @@ MAX_RETRIES = 3
 PRE_FLIGHT_TIMEOUT = 5
 
 # Timeout for landing detection during landing phase in seconds
-LANDING_TIMEOUT = 15  # Adjusted as per requirement
+LANDING_TIMEOUT = 10  # Adjusted as per requirement
 
 # Altitude threshold to determine if trajectory ends high or at ground level
 GROUND_ALTITUDE_THRESHOLD = 1.0  # Configurable
@@ -71,6 +71,12 @@ ENABLE_INITIAL_POSITION_CORRECTION = True  # Set to False to disable this featur
 
 # Maximum number of log files to keep
 MAX_LOG_FILES = 100  # Keep the last 100 log files
+
+# Altitude threshold for initial climb phase in meters
+INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Configurable
+
+# Time threshold for initial climb phase in seconds
+INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable
 
 # ----------------------------- #
 #        Data Structures        #
@@ -406,6 +412,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     total_waypoints = len(waypoints)
     waypoint_index = 0
     landing_detected = False
+    initial_climb_phase = True  # Flag to track if we are in the initial climb phase
 
     # Initialize LEDController
     led_controller = LEDController.get_instance()
@@ -464,14 +471,27 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
 
-                # Send setpoints to drone
-                position_setpoint = PositionNedYaw(px, py, pz, yaw)
-                velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
-                acceleration_setpoint = AccelerationNed(ax, ay, az)
-
-                await drone.offboard.set_position_velocity_acceleration_ned(
-                    position_setpoint, velocity_setpoint, acceleration_setpoint
+                # Determine if we are in initial climb phase
+                is_initial_climb_phase = (
+                    waypoint_index < total_waypoints / 2 and
+                    (-pz) < INITIAL_CLIMB_ALTITUDE_THRESHOLD and
+                    elapsed_time < INITIAL_CLIMB_TIME_THRESHOLD
                 )
+
+                if is_initial_climb_phase:
+                    # Initial climb phase: only send vertical velocity command
+                    velocity_setpoint = VelocityBodyYawspeed(0.0, 0.0, vz, 0.0)
+                    await drone.offboard.set_velocity_body(velocity_setpoint)
+                    logger.debug(f"Initial climb phase: Sending vertical velocity command vz={vz:.2f} m/s")
+                else:
+                    # Normal operation: send full setpoints
+                    position_setpoint = PositionNedYaw(px, py, pz, yaw)
+                    velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
+                    acceleration_setpoint = AccelerationNed(ax, ay, az)
+                    await drone.offboard.set_position_velocity_acceleration_ned(
+                        position_setpoint, velocity_setpoint, acceleration_setpoint
+                    )
+                    logger.debug("Normal operation: Sending full setpoints")
 
                 # Calculate time to end and mission progress
                 time_to_end = waypoints[-1][0] - t_wp
