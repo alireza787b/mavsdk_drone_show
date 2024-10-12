@@ -126,7 +126,7 @@ def configure_logging():
 
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)  # Adjust as needed
+    console_handler.setLevel(logging.debug)  # Adjust as needed
     console_handler.setFormatter(formatter)
 
     # Create file handler with per-session log file
