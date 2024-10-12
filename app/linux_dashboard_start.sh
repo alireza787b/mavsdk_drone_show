@@ -40,7 +40,7 @@ ENABLE_MOUSE=true      # Default behavior is to enable mouse support in tmux
 ENABLE_AUTO_PULL=true  # Enable or disable the automatic pulling and syncing of the repository
 
 # Configurable Variables
-SESSION_NAME="Drone-Show-GCS"
+SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
@@ -259,7 +259,7 @@ start_services_no_tmux() {
 #########################################
 
 echo "==============================================="
-echo "  Initializing DroneServices System..."
+echo "  Initializing c System..."
 echo "==============================================="
 echo ""
 
