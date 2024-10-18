@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def plot_drone_paths(base_dir, show_plots=True):
     """
-    Plots the drone paths from processed data.
+    Plots the drone paths from processed data, with drone IDs labeled at initial points.
 
     Parameters:
         base_dir (str): The base directory containing the 'shapes/swarm' subdirectories.
@@ -56,10 +56,22 @@ def plot_drone_paths(base_dir, show_plots=True):
 
         # Plot the drone path
         ax.plot(east, north, altitude, color=color, linewidth=2)
-        ax.scatter(east, north, altitude, color=color, s=5, alpha=0.5)
+
+        # Plot the initial point with a small marker
+        ax.scatter(east.iloc[0], north.iloc[0], altitude.iloc[0], color=color, s=20)
+
+        # Extract drone ID from file name (assuming format 'drone<ID>.csv')
+        drone_id = ''.join(filter(str.isdigit, file))
+
+        # Add drone ID label near the initial point
+        ax.text(
+            east.iloc[0], north.iloc[0], altitude.iloc[0],
+            f' {drone_id}',  # Prepend a space for better spacing
+            color=color, fontsize=8, ha='left', va='center'
+        )
 
         # Set plot titles and labels
-        ax.set_title('Drone Path for ' + file.replace('.csv', ''))
+        ax.set_title(f'Drone Path for Drone {drone_id}')
         ax.set_xlabel('East (m)')
         ax.set_ylabel('North (m)')
         ax.set_zlabel('Altitude (m)')
@@ -96,7 +108,7 @@ def plot_drone_paths(base_dir, show_plots=True):
     ax_all = fig_all.add_subplot(111, projection='3d')
 
     # Loop through all the files again to plot all drones on the same plot
-    for file in processed_files:
+    for i, file in enumerate(processed_files):
         data = pd.read_csv(os.path.join(processed_dir, file))
         color = color_dict[file]
         east = data['py']
@@ -104,7 +116,19 @@ def plot_drone_paths(base_dir, show_plots=True):
         altitude = -data['pz']  # Invert 'pz' for correct altitude
 
         ax_all.plot(east, north, altitude, color=color, linewidth=2)
-        ax_all.scatter(east, north, altitude, color=color, s=5, alpha=0.5)
+
+        # Plot the initial point with a small marker
+        ax_all.scatter(east.iloc[0], north.iloc[0], altitude.iloc[0], color=color, s=20)
+
+        # Extract drone ID from file name
+        drone_id = ''.join(filter(str.isdigit, file))
+
+        # Add drone ID label near the initial point
+        ax_all.text(
+            east.iloc[0], north.iloc[0], altitude.iloc[0],
+            f' {drone_id}',  # Prepend a space for better spacing
+            color=color, fontsize=8, ha='left', va='center'
+        )
 
     # Set combined plot titles and labels
     ax_all.set_title('Drone Paths for All Drones')
