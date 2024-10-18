@@ -126,7 +126,7 @@ def configure_logging():
 
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)  # Adjust as needed
+    console_handler.setLevel(logging.DEBUG)  # Adjust as needed
     console_handler.setFormatter(formatter)
 
     # Create file handler with per-session log file
@@ -475,7 +475,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 is_initial_climb_phase = (
                     waypoint_index < total_waypoints / 2 and
                     (-pz) < INITIAL_CLIMB_ALTITUDE_THRESHOLD and
-                    elapsed_time < INITIAL_CLIMB_TIME_THRESHOLD
+                    t_wp < INITIAL_CLIMB_TIME_THRESHOLD
                 )
 
                 if is_initial_climb_phase:
