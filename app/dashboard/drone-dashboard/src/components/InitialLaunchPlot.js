@@ -4,9 +4,9 @@ import React from 'react';
 import Plot from 'react-plotly.js';
 
 function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
-  // Swap axis mappings: North (Y), East (X)
-  const xValues = drones.map((drone) => parseFloat(drone.e)); // East
-  const yValues = drones.map((drone) => parseFloat(drone.n)); // North
+  // Prepare data for plotting
+  const xValues = drones.map((drone) => parseFloat(drone.x)); // North (X)
+  const yValues = drones.map((drone) => parseFloat(drone.y)); // East (Y)
   const labels = drones.map((drone) => drone.hw_id);
 
   const customData = drones.map((drone) => {
@@ -14,8 +14,8 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
     return {
       hw_id: drone.hw_id,
       pos_id: drone.pos_id,
-      e: parseFloat(drone.e),
-      n: parseFloat(drone.n),
+      x: parseFloat(drone.x),
+      y: parseFloat(drone.y),
       deviation_north: deviation?.deviation_north?.toFixed(2) || 'N/A',
       deviation_east: deviation?.deviation_east?.toFixed(2) || 'N/A',
       total_deviation: deviation?.total_deviation?.toFixed(2) || 'N/A',
@@ -29,14 +29,25 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
     return '#3498db'; // Default color if deviation data is unavailable
   });
 
+  // Swap x and y for plotting to make North (X) be on vertical axis
+  const xPlotValues = yValues; // East (Y)
+  const yPlotValues = xValues; // North (X)
+
+  // Adjust customData for plotting if necessary
+  const plotCustomData = customData.map((data) => ({
+    ...data,
+    plot_x: data.y, // East (Y)
+    plot_y: data.x, // North (X)
+  }));
+
   return (
     <Plot
       data={[
         {
-          x: xValues, // East
-          y: yValues, // North
+          x: xPlotValues,
+          y: yPlotValues,
           text: labels,
-          customdata: customData,
+          customdata: plotCustomData,
           type: 'scatter',
           mode: 'markers+text',
           marker: {
@@ -57,8 +68,8 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
           hovertemplate:
             '<b>Hardware ID:</b> %{customdata.hw_id}<br>' +
             '<b>Position ID:</b> %{customdata.pos_id}<br>' +
-            '<b>North (Y):</b> %{customdata.n}<br>' +
-            '<b>East (X):</b> %{customdata.e}<br>' +
+            '<b>North (X):</b> %{customdata.x}<br>' +
+            '<b>East (Y):</b> %{customdata.y}<br>' +
             '<b>Deviation North:</b> %{customdata.deviation_north}<br>' +
             '<b>Deviation East:</b> %{customdata.deviation_east}<br>' +
             '<b>Total Deviation:</b> %{customdata.total_deviation}<extra></extra>',
@@ -67,63 +78,25 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       layout={{
         title: 'Initial Launch Positions',
         xaxis: {
-          title: 'East (X)',
+          title: 'East (Y)',
           showgrid: true,
           zeroline: true,
-          autorange: true,
-          scaleanchor: 'y',
-          scaleratio: 1,
         },
         yaxis: {
-          title: 'North (Y)',
+          title: 'North (X)',
           showgrid: true,
           zeroline: true,
-          autorange: true,
-          scaleanchor: 'x',
-          scaleratio: 1,
         },
         hovermode: 'closest',
         plot_bgcolor: '#f7f7f7',
         paper_bgcolor: '#f7f7f7',
-        // Optional: Add a compass or direction indicators
-        annotations: [
-          {
-            x: 1.05,
-            y: 1,
-            xref: 'paper',
-            yref: 'paper',
-            text: 'North',
-            showarrow: false,
-            font: {
-              size: 14,
-              color: '#1A5276',
-            },
-          },
-          {
-            x: 0,
-            y: 1.05,
-            xref: 'paper',
-            yref: 'paper',
-            text: 'East',
-            showarrow: false,
-            font: {
-              size: 14,
-              color: '#1A5276',
-            },
-          },
-        ],
       }}
       onClick={(data) => {
-        if (data.points.length > 0) {
-          const clickedDroneHwId = data.points[0].customdata.hw_id;
-          onDroneClick(clickedDroneHwId);
-          document
-            .querySelector(`.drone-config-card[data-hw-id="${clickedDroneHwId}"]`)
-            ?.scrollIntoView({ behavior: 'smooth' });
-        }
-      }}
-      config={{
-        responsive: true,
+        const clickedDroneHwId = data.points[0].customdata.hw_id;
+        onDroneClick(clickedDroneHwId);
+        document
+          .querySelector(`.drone-config-card[data-hw-id="${clickedDroneHwId}"]`)
+          ?.scrollIntoView({ behavior: 'smooth' });
       }}
     />
   );
