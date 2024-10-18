@@ -78,6 +78,13 @@ INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Configurable
 # Time threshold for initial climb phase in seconds
 INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable
 
+# Set to False to disable feedforward velocity setpoints
+FEEDFORWARD_VELOCITY_ENABLED = False  
+
+# Set to False to disable feedforward acceleration setpoints (if acceleration is true, velocity should be true as well, otherwise only position would be executed)
+#Since MAVSDK doesnt support position + acceleration yet
+FEEDFORWARD_ACCELERATION_ENABLED = False  
+
 # ----------------------------- #
 #        Data Structures        #
 # ----------------------------- #
@@ -397,6 +404,7 @@ async def get_landed_state_telemetry(drone: System):
 #        Core Functionalities   #
 # ----------------------------- #
 
+
 async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
     """
     Executes the trajectory by sending setpoints to the drone.
@@ -484,14 +492,23 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     await drone.offboard.set_velocity_body(velocity_setpoint)
                     logger.debug(f"Initial climb phase: Sending vertical velocity command vz={vz:.2f} m/s")
                 else:
-                    # Normal operation: send full setpoints
+                    # Send setpoints based on configuration
                     position_setpoint = PositionNedYaw(px, py, pz, yaw)
-                    velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
-                    acceleration_setpoint = AccelerationNed(ax, ay, az)
-                    await drone.offboard.set_position_velocity_acceleration_ned(
-                        position_setpoint, velocity_setpoint, acceleration_setpoint
-                    )
-                    logger.debug("Normal operation: Sending full setpoints")
+
+                    if FEEDFORWARD_VELOCITY_ENABLED and FEEDFORWARD_ACCELERATION_ENABLED:
+                        velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
+                        acceleration_setpoint = AccelerationNed(ax, ay, az)
+                        await drone.offboard.set_position_velocity_acceleration_ned(
+                            position_setpoint, velocity_setpoint, acceleration_setpoint
+                        )
+                        logger.debug("Position, velocity, and acceleration mode: Sending full setpoints")
+                    elif FEEDFORWARD_VELOCITY_ENABLED:
+                        velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
+                        await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
+                        logger.debug("Position and velocity mode: Sending position and velocity setpoints")
+                    else:
+                        await drone.offboard.set_position_ned(position_setpoint)
+                        logger.debug("Position-only mode: Sending position setpoints")
 
                 # Calculate time to end and mission progress
                 time_to_end = waypoints[-1][0] - t_wp
@@ -543,6 +560,8 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     logger.info("Drone mission completed.")
     led_controller.set_color(0, 255, 0)  # Green
+
+# Rest of the controlled landing function remains unchanged
 
 async def controlled_landing(drone: System):
     """
@@ -610,6 +629,7 @@ async def controlled_landing(drone: System):
 
     # Turn off LEDs
     led_controller.set_color(0, 255, 0)  # Green
+
 
 async def wait_for_landing(drone: System):
     """
