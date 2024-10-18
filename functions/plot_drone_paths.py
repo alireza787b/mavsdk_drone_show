@@ -67,7 +67,7 @@ def plot_drone_paths(base_dir, show_plots=True):
         ax.text(
             east.iloc[0], north.iloc[0], altitude.iloc[0],
             f' {drone_id}',  # Prepend a space for better spacing
-            color=color, fontsize=8, ha='left', va='center'
+            color=color, fontsize=10, ha='left', va='center'
         )
 
         # Set plot titles and labels
