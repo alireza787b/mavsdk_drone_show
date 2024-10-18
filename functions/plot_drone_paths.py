@@ -49,39 +49,14 @@ def plot_drone_paths(base_dir, show_plots=True):
         data = pd.read_csv(os.path.join(processed_dir, file))
         color = color_dict[file]
 
-        # Extract coordinates
+        # Extract coordinates and adjust altitude
         east = data['py']  # East corresponds to 'py'
         north = data['px']  # North corresponds to 'px'
-        altitude = data['pz']
-
-        # Ensure paths start and end at (0, 0, 0)
-        if (north.iloc[0], east.iloc[0], altitude.iloc[0]) != (0, 0, 0):
-            north = pd.concat([pd.Series([0]), north]).reset_index(drop=True)
-            east = pd.concat([pd.Series([0]), east]).reset_index(drop=True)
-            altitude = pd.concat([pd.Series([0]), altitude]).reset_index(drop=True)
-        if (north.iloc[-1], east.iloc[-1], altitude.iloc[-1]) != (0, 0, 0):
-            north = pd.concat([north, pd.Series([0])]).reset_index(drop=True)
-            east = pd.concat([east, pd.Series([0])]).reset_index(drop=True)
-            altitude = pd.concat([altitude, pd.Series([0])]).reset_index(drop=True)
+        altitude = -data['pz']  # Invert 'pz' to represent altitude upwards
 
         # Plot the drone path
         ax.plot(east, north, altitude, color=color, linewidth=2)
         ax.scatter(east, north, altitude, color=color, s=5, alpha=0.5)
-
-        # Add arrows to indicate direction
-        arrow_indices = np.linspace(0, len(east) - 2, num=10, dtype=int)
-        for idx in arrow_indices:
-            ax.quiver(
-                east.iloc[idx], north.iloc[idx], altitude.iloc[idx],
-                east.iloc[idx + 1] - east.iloc[idx],
-                north.iloc[idx + 1] - north.iloc[idx],
-                altitude.iloc[idx + 1] - altitude.iloc[idx],
-                color=color, arrow_length_ratio=0.1, linewidth=0.5
-            )
-
-        # Annotate start and end points
-        ax.text(east.iloc[0], north.iloc[0], altitude.iloc[0], 'Start', color='green', fontsize=10)
-        ax.text(east.iloc[-1], north.iloc[-1], altitude.iloc[-1], 'End', color='red', fontsize=10)
 
         # Set plot titles and labels
         ax.set_title('Drone Path for ' + file.replace('.csv', ''))
@@ -126,34 +101,10 @@ def plot_drone_paths(base_dir, show_plots=True):
         color = color_dict[file]
         east = data['py']
         north = data['px']
-        altitude = data['pz']
-
-        # Ensure paths start and end at (0, 0, 0)
-        if (north.iloc[0], east.iloc[0], altitude.iloc[0]) != (0, 0, 0):
-            north = pd.concat([pd.Series([0]), north]).reset_index(drop=True)
-            east = pd.concat([pd.Series([0]), east]).reset_index(drop=True)
-            altitude = pd.concat([pd.Series([0]), altitude]).reset_index(drop=True)
-        if (north.iloc[-1], east.iloc[-1], altitude.iloc[-1]) != (0, 0, 0):
-            north = pd.concat([north, pd.Series([0])]).reset_index(drop=True)
-            east = pd.concat([east, pd.Series([0])]).reset_index(drop=True)
-            altitude = pd.concat([altitude, pd.Series([0])]).reset_index(drop=True)
+        altitude = -data['pz']  # Invert 'pz' for correct altitude
 
         ax_all.plot(east, north, altitude, color=color, linewidth=2)
         ax_all.scatter(east, north, altitude, color=color, s=5, alpha=0.5)
-
-        # Add arrows to indicate direction
-        arrow_indices = np.linspace(0, len(east) - 2, num=10, dtype=int)
-        for idx in arrow_indices:
-            ax_all.quiver(
-                east.iloc[idx], north.iloc[idx], altitude.iloc[idx],
-                east.iloc[idx + 1] - east.iloc[idx],
-                north.iloc[idx + 1] - north.iloc[idx],
-                altitude.iloc[idx + 1] - altitude.iloc[idx],
-                color=color, arrow_length_ratio=0.1, linewidth=0.5
-            )
-
-    # Annotate start point on combined plot
-    ax_all.text(0, 0, 0, 'Start', color='green', fontsize=12)
 
     # Set combined plot titles and labels
     ax_all.set_title('Drone Paths for All Drones')
@@ -167,12 +118,7 @@ def plot_drone_paths(base_dir, show_plots=True):
     # Set equal scaling
     all_east = pd.concat([pd.read_csv(os.path.join(processed_dir, f))['py'] for f in processed_files])
     all_north = pd.concat([pd.read_csv(os.path.join(processed_dir, f))['px'] for f in processed_files])
-    all_altitude = pd.concat([pd.read_csv(os.path.join(processed_dir, f))['pz'] for f in processed_files])
-
-    # Ensure paths start and end at (0, 0, 0) in combined data
-    all_east = pd.concat([pd.Series([0]), all_east, pd.Series([0])]).reset_index(drop=True)
-    all_north = pd.concat([pd.Series([0]), all_north, pd.Series([0])]).reset_index(drop=True)
-    all_altitude = pd.concat([pd.Series([0]), all_altitude, pd.Series([0])]).reset_index(drop=True)
+    all_altitude = pd.concat([-pd.read_csv(os.path.join(processed_dir, f))['pz'] for f in processed_files])  # Invert 'pz'
 
     max_range = np.array([
         all_east.max() - all_east.min(),
