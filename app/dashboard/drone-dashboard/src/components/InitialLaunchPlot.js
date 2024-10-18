@@ -67,12 +67,12 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       layout={{
         title: 'Initial Launch Positions',
         xaxis: {
-          title: 'East (X)',
+          title: 'North (X)',
           showgrid: true,
           zeroline: true,
         },
         yaxis: {
-          title: 'North (Y)',
+          title: 'East (Y)',
           showgrid: true,
           zeroline: true,
         },
