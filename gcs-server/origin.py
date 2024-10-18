@@ -90,8 +90,8 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
 
         # Get initial positions from config
         try:
-            initial_east = float(drone.get('x', 0))  # 'x' is East
-            initial_north = float(drone.get('y', 0))  # 'y' is North
+            initial_north = float(drone.get('x', 0))  # 'x' is East
+            initial_east = float(drone.get('y', 0))  # 'y' is North
         except (TypeError, ValueError):
             deviations[hw_id] = {
                 "error": "Invalid initial position in configuration"
