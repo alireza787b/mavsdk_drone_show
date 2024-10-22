@@ -88,17 +88,24 @@ const CustomOrbitControls = ({ controlsRef }) => {
 };
 
 export default function Globe({ drones }) {
+  // State and Ref Declarations
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showGround, setShowGround] = useState(false); // Default to false
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
-  const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
-  const [groundLevel, setGroundLevel] = useState(0);
   const controlsRef = useRef();
   const [hasFocused, setHasFocused] = useState(false);
 
+  // Custom Hook
+  const realElevation = useElevation(
+    referencePoint ? referencePoint[0] : null,
+    referencePoint ? referencePoint[1] : null
+  );
+  const [groundLevel, setGroundLevel] = useState(0);
+
+  // Handlers and Utilities
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
       setGroundLevel(realElevation);
@@ -106,7 +113,7 @@ export default function Globe({ drones }) {
   };
 
   const toggleFullscreen = () => {
-    const element = document.getElementById("scene-container");
+    const element = document.getElementById('scene-container');
 
     if (!document.fullscreenElement) {
       if (element.requestFullscreen) {
@@ -119,58 +126,10 @@ export default function Globe({ drones }) {
     }
   };
 
-  // Initial setup of reference point
-  useEffect(() => {
-    if (drones?.length && !referencePoint) {
-      setIsLoading(true);
-      const setReferencePointAsync = async () => {
-        const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-        const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-        const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
-
-        const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
-        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
-        setReferencePoint(localReference);
-
-        if (groundLevel === 0) {
-          setGroundLevel(elevation ?? avgAlt);
-        }
-        setIsLoading(false);
-      };
-      setReferencePointAsync();
-    }
-  }, [drones, referencePoint]);
-
-  // Update drone visibility when drones change
-  useEffect(() => {
-    if (drones?.length) {
-      const newDroneVisibility = {};
-      drones.forEach(drone => {
-        newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID] ?? true;
-      });
-      setDroneVisibility(newDroneVisibility);
-    }
-  }, [drones]);
-
-  useEffect(() => {
-    if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
-      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
-    }
-  }, [groundLevel]);
-
-  if (isLoading || !referencePoint) {
-    return <LoadingSpinner />;
-  }
-
-  const convertedDrones = drones.map(drone => ({
-    ...drone,
-    position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
-  }));
-
   const toggleDroneVisibility = (droneId) => {
-    setDroneVisibility(prevState => ({
+    setDroneVisibility((prevState) => ({
       ...prevState,
-      [droneId]: !prevState[droneId]
+      [droneId]: !prevState[droneId],
     }));
   };
 
@@ -214,12 +173,70 @@ export default function Globe({ drones }) {
     }
   };
 
+  // Data Transformation
+  const convertedDrones = drones.map((drone) => ({
+    ...drone,
+    position: llaToLocal(
+      drone.position[0],
+      drone.position[1],
+      drone.position[2],
+      referencePoint
+    ),
+  }));
+
+  // Hooks
   useEffect(() => {
+    // Initial setup of reference point
+    if (drones?.length && !referencePoint) {
+      setIsLoading(true);
+      const setReferencePointAsync = async () => {
+        const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
+        const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
+        const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+
+        const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
+        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
+        setReferencePoint(localReference);
+
+        if (groundLevel === 0) {
+          setGroundLevel(elevation ?? avgAlt);
+        }
+        setIsLoading(false);
+      };
+      setReferencePointAsync();
+    }
+  }, [drones, referencePoint, groundLevel]);
+
+  useEffect(() => {
+    // Update drone visibility when drones change
+    if (drones?.length) {
+      const newDroneVisibility = {};
+      drones.forEach((drone) => {
+        newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID] ?? true;
+      });
+      setDroneVisibility(newDroneVisibility);
+    }
+  }, [drones]);
+
+  useEffect(() => {
+    // Update reference point when ground level changes
+    if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
+      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
+    }
+  }, [groundLevel, referencePoint]);
+
+  useEffect(() => {
+    // Focus on drones when the component mounts and drones are loaded
     if (!hasFocused && controlsRef.current && convertedDrones.length > 0) {
       focusOnDrones();
       setHasFocused(true);
     }
-  }, [hasFocused, controlsRef.current, convertedDrones]);
+  }, [hasFocused, controlsRef, convertedDrones, focusOnDrones]);
+
+  // Early Return if Loading
+  if (isLoading || !referencePoint) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <div id="scene-container" className="scene-container">
@@ -235,9 +252,10 @@ export default function Globe({ drones }) {
         {showGround && <Environment groundLevel={groundLevel} />}
 
         {/* Render Drones */}
-        {convertedDrones.map(drone => (
-          droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
-        ))}
+        {convertedDrones.map(
+          (drone) =>
+            droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
+        )}
 
         {/* Grid Helper */}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
