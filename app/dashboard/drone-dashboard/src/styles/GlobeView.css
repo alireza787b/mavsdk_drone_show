@@ -1,16 +1,62 @@
-/* app/dashboard/drone-dashboard/src/styles/GlobeView.css */
-
 .globe-view-container {
     padding: 20px;
     background-color: #1e1e1e;
-    /* Dark background */
     min-height: 100vh;
     color: #ffffff;
-    margin: -20px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .globe-view-container h2 {
     text-align: center;
     margin-bottom: 20px;
     font-size: 24px;
+}
+
+.loading-container,
+.error-message,
+.no-data-message {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.loading-spinner {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3498db;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 2s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.error-message p {
+    color: #e74c3c;
+}
+
+.error-message button {
+    background-color: #e74c3c;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.error-message button:hover {
+    background-color: #c0392b;
 }
