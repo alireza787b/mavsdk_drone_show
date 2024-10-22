@@ -1,6 +1,6 @@
 // app/dashboard/drone-dashboard/src/components/Modal.js
 import React from 'react';
-import '../stylesModal.css'; // We'll create this CSS file for styling
+import '../styles/Modal.css'; // We'll create this CSS file for styling
 
 const Modal = ({ isOpen, onClose, children }) => {
     if (!isOpen) return null;
