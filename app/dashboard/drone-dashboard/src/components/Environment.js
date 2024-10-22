@@ -9,6 +9,7 @@ const Environment = ({ groundLevel }) => {
   grassTexture.wrapS = grassTexture.wrapT = RepeatWrapping;
   grassTexture.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
 
+  
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, groundLevel, 0]} receiveShadow>
       <planeGeometry args={[WORLD_SIZE, WORLD_SIZE]} />
