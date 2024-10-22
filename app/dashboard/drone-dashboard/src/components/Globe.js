@@ -120,6 +120,20 @@ export default function Globe({ drones }) {
   );
   const [groundLevel, setGroundLevel] = useState(0);
 
+  // Data Transformation
+  const convertedDrones = useMemo(() => {
+    if (!referencePoint) return [];
+    return drones.map((drone) => ({
+      ...drone,
+      position: llaToLocal(
+        drone.position[0],
+        drone.position[1],
+        drone.position[2],
+        referencePoint
+      ),
+    }));
+  }, [drones, referencePoint]);
+
   // Handlers and Utilities
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -187,20 +201,6 @@ export default function Globe({ drones }) {
       controlsRef.current.update();
     }
   }, [controlsRef, convertedDrones, computeDronesCenter]);
-
-  // Data Transformation
-  const convertedDrones = useMemo(() => {
-    if (!referencePoint) return [];
-    return drones.map((drone) => ({
-      ...drone,
-      position: llaToLocal(
-        drone.position[0],
-        drone.position[1],
-        drone.position[2],
-        referencePoint
-      ),
-    }));
-  }, [drones, referencePoint]);
 
   // Hooks
   useEffect(() => {
