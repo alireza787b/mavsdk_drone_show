@@ -1,5 +1,5 @@
-// app/dashboard/drone-dashboard/src/components/Globe.js
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+// src/components/Globe.js
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color } from 'three';
@@ -44,7 +44,7 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
   </div>
 );
 
-const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
+const Drone = React.memo(({ position, hw_ID, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
 
@@ -64,7 +64,7 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
         e.stopPropagation();
         setIsHovered(true);
       }}
-      onPointerOut={(e) => setIsHovered(false)}
+      onPointerOut={() => setIsHovered(false)}
     >
       <sphereGeometry args={[0.5, 16, 16]} />
       <meshStandardMaterial
@@ -85,9 +85,7 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
       </Html>
     </mesh>
   );
-};
-
-const MemoizedDrone = React.memo(Drone);
+});
 
 const CustomOrbitControls = ({ controlsRef }) => {
   const { camera, gl } = useThree();
@@ -150,7 +148,7 @@ export default function Globe({ drones }) {
     }));
   };
 
-  const computeDronesCenter = (drones) => {
+  const computeDronesCenter = useCallback((drones) => {
     if (drones.length === 0) return [0, 0, 0];
     const sum = drones.reduce(
       (acc, drone) => {
@@ -162,9 +160,9 @@ export default function Globe({ drones }) {
       { x: 0, y: 0, z: 0 }
     );
     return [sum.x / drones.length, sum.y / drones.length, sum.z / drones.length];
-  };
+  }, []);
 
-  const focusOnDrones = () => {
+  const focusOnDrones = useCallback(() => {
     if (controlsRef.current && convertedDrones.length > 0) {
       const dronesCenter = computeDronesCenter(convertedDrones);
 
@@ -188,7 +186,7 @@ export default function Globe({ drones }) {
       controlsRef.current.target.set(...dronesCenter);
       controlsRef.current.update();
     }
-  };
+  }, [controlsRef, convertedDrones, computeDronesCenter]);
 
   // Data Transformation
   const convertedDrones = useMemo(() => {
@@ -215,7 +213,7 @@ export default function Globe({ drones }) {
         const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
 
         const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
-        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
+        const localReference = [avgLat, avgLon, 0]; // Set altitude to 0
         setReferencePoint(localReference);
 
         if (groundLevel === 0) {
@@ -239,20 +237,12 @@ export default function Globe({ drones }) {
   }, [drones]);
 
   useEffect(() => {
-    // Update reference point when ground level changes
-    if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
-      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
-    }
-  }, [groundLevel, referencePoint]);
-
-  useEffect(() => {
     // Focus on drones when the component mounts and drones are loaded
     if (!hasFocused && controlsRef.current && convertedDrones.length > 0) {
       focusOnDrones();
       setHasFocused(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFocused, controlsRef, convertedDrones]);
+  }, [hasFocused, controlsRef, convertedDrones, focusOnDrones]);
 
   // Early Return if Loading
   if (isLoading || !referencePoint) {
@@ -270,12 +260,12 @@ export default function Globe({ drones }) {
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
 
         {/* Environment and Ground */}
-        {showGround && <Environment groundLevel={groundLevel} />}
+        {showGround && <Environment />}
 
         {/* Render Drones */}
         {convertedDrones.map(
           (drone) =>
-            droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
+            droneVisibility[drone.hw_ID] && <Drone key={drone.hw_ID} {...drone} />
         )}
 
         {/* Grid Helper */}
@@ -285,20 +275,29 @@ export default function Globe({ drones }) {
         <CustomOrbitControls controlsRef={controlsRef} />
       </Canvas>
 
-      {/* Toolbox and Fullscreen Buttons */}
-      <div
-        className="toolbox-button"
-        onClick={() => setIsToolboxOpen(!isToolboxOpen)}
-        title="Toggle Control Panel"
-      >
-        🛠️
-      </div>
-      <div
-        className="fullscreen-button"
-        onClick={toggleFullscreen}
-        title="Toggle Fullscreen"
-      >
-        ⛶
+      {/* Control Icons */}
+      <div className="control-icons">
+        <div
+          className="focus-button"
+          onClick={focusOnDrones}
+          title="Focus on Drones"
+        >
+          🎯
+        </div>
+        <div
+          className="fullscreen-button"
+          onClick={toggleFullscreen}
+          title="Toggle Fullscreen"
+        >
+          ⛶
+        </div>
+        <div
+          className="toolbox-button"
+          onClick={() => setIsToolboxOpen(!isToolboxOpen)}
+          title="Toggle Control Panel"
+        >
+          🛠️
+        </div>
       </div>
 
       {/* Control Panel */}
@@ -313,7 +312,6 @@ export default function Globe({ drones }) {
         showGrid={showGrid}
         setShowGrid={setShowGrid}
         handleGetTerrainClick={handleGetTerrainClick}
-        focusOnDrones={focusOnDrones}
       />
     </div>
   );

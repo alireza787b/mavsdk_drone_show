@@ -1,11 +1,14 @@
-// app/dashboard/drone-dashboard/src/components/Environment.js
+// src/components/Environment.js
 import React from 'react';
 import { useLoader } from '@react-three/fiber';
 import { RepeatWrapping, TextureLoader } from 'three';
 import { TEXTURE_REPEAT, WORLD_SIZE } from '../utilities/utilities';
 
-const Environment = ({ groundLevel }) => {
-  const grassTexture = useLoader(TextureLoader, '/grass1.jpg');
+const Environment = () => {
+  const grassTexture = useLoader(TextureLoader, '/grass1.jpg', (loader) => {
+    loader.crossOrigin = 'Anonymous';
+  });
+
   grassTexture.wrapS = grassTexture.wrapT = RepeatWrapping;
   grassTexture.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
 
@@ -13,7 +16,7 @@ const Environment = ({ groundLevel }) => {
     <>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, groundLevel, 0]}
+        position={[0, 0, 0]}
         receiveShadow
         castShadow
       >
@@ -23,7 +26,7 @@ const Environment = ({ groundLevel }) => {
           attach="material"
           side={2}
           transparent
-          opacity={0.5} // Semi-transparent ground
+          opacity={0.8}
         />
       </mesh>
       <ambientLight intensity={0.6} />
