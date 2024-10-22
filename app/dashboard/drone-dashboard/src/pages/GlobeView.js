@@ -4,6 +4,7 @@ import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
 import axios from 'axios'; // Ensure axios is installed: npm install axios
 import PropTypes from 'prop-types';
+import { getTelemetryURL } from '../utilities/utilities';
 
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
@@ -12,9 +13,11 @@ const GlobeView = () => {
 
   // Function to fetch drones from the backend
   const fetchDrones = async () => {
+    const url = getTelemetryURL();
+
     try {
       setIsLoading(true);
-      const response = await axios.get('/api/drones'); // Update the API endpoint as needed
+      const response = await axios.get(url); // Update the API endpoint as needed
       setDrones(response.data);
       setIsLoading(false);
     } catch (err) {
