@@ -10,11 +10,18 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-.toolbox-button,
-.fullscreen-button,
-.focus-button {
+.button-container {
     position: absolute;
     top: 15px;
+    right: 15px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.button-container .fullscreen-button,
+.button-container .focus-button,
+.button-container .toolbox-button {
     width: 40px;
     height: 40px;
     background-color: rgba(255, 255, 255, 0.1);
@@ -25,24 +32,11 @@
     border-radius: 50%;
     cursor: pointer;
     transition: transform 0.2s ease, background-color 0.3s ease;
-    z-index: 1000;
 }
 
-.toolbox-button {
-    right: 15px;
-}
-
-.fullscreen-button {
-    left: 15px;
-}
-
-.focus-button {
-    right: 65px;
-}
-
-.toolbox-button:hover,
-.fullscreen-button:hover,
-.focus-button:hover {
+.button-container .fullscreen-button:hover,
+.button-container .focus-button:hover,
+.button-container .toolbox-button:hover {
     transform: scale(1.2);
     background-color: rgba(255, 255, 255, 0.2);
 }

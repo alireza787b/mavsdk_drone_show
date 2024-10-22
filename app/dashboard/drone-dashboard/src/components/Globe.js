@@ -72,9 +72,8 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
 
 const MemoizedDrone = React.memo(Drone);
 
-const CustomOrbitControls = ({ targetPosition }) => {
+const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
-  const controlsRef = useRef();
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -100,6 +99,7 @@ export default function Globe({ drones }) {
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
+  const controlsRef = useRef();
 
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -176,7 +176,28 @@ export default function Globe({ drones }) {
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
       const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
 
-      setTargetPosition([avgX, avgY, avgZ]);
+      const center = [avgX, avgY, avgZ];
+
+      let maxDistance = 0;
+      convertedPositions.forEach(pos => {
+        const dx = pos[0] - center[0];
+        const dy = pos[1] - center[1];
+        const dz = pos[2] - center[2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance > maxDistance) {
+          maxDistance = distance;
+        }
+      });
+
+      setTargetPosition(center);
+
+      if (controlsRef.current && controlsRef.current.object) {
+        const camera = controlsRef.current.object;
+        const offset = maxDistance * 2 + 10;
+        camera.position.set(center[0] + offset, center[1] + offset, center[2] + offset);
+        camera.updateProjectionMatrix();
+        controlsRef.current.update();
+      }
     }
   };
 
@@ -207,28 +228,30 @@ export default function Globe({ drones }) {
           droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
-        <CustomOrbitControls targetPosition={targetPosition} />
+        <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
       </Canvas>
-      <div
-        className="toolbox-button"
-        onClick={() => setIsToolboxOpen(!isToolboxOpen)}
-        title="Toggle Control Panel"
-      >
-        🛠️
-      </div>
-      <div
-        className="fullscreen-button"
-        onClick={toggleFullscreen}
-        title="Toggle Fullscreen"
-      >
-        ⛶
-      </div>
-      <div
-        className="focus-button"
-        onClick={focusOnDrones}
-        title="Focus on Drones"
-      >
-        🎯
+      <div className="button-container">
+        <div
+          className="fullscreen-button"
+          onClick={toggleFullscreen}
+          title="Toggle Fullscreen"
+        >
+          ⛶
+        </div>
+        <div
+          className="focus-button"
+          onClick={focusOnDrones}
+          title="Focus on Drones"
+        >
+          🎯
+        </div>
+        <div
+          className="toolbox-button"
+          onClick={() => setIsToolboxOpen(!isToolboxOpen)}
+          title="Toggle Control Panel"
+        >
+          🛠️
+        </div>
       </div>
       <GlobeControlBox
         setShowGround={setShowGround}
