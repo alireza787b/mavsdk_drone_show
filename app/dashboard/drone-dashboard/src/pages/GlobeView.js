@@ -1,5 +1,5 @@
 // src/pages/GlobeView.js
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
 import axios from 'axios';
@@ -8,50 +8,47 @@ import { getTelemetryURL } from '../utilities/utilities';
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [error, setError] = useState(null);
-  const intervalRef = useRef(null);
 
   const fetchDrones = useCallback(async () => {
     const url = getTelemetryURL();
 
     try {
-      setIsLoading(true);
-      const response = await axios.get(url);
+      if (isFirstLoad) setIsLoading(true);
 
+      const response = await axios.get(url);
       const dronesData = Object.entries(response.data)
-        .filter(([id, drone]) => {
-          return (
-            Object.keys(drone).length > 0 &&
-            drone.Position_Lat !== 0 &&
-            drone.Position_Long !== 0
-          );
-        })
+        .filter(([id, drone]) => Object.keys(drone).length > 0)
         .map(([id, drone]) => ({
           hw_ID: id,
           position: [
             drone.Position_Lat || 0,
             drone.Position_Long || 0,
-            drone.Position_Alt || 0
+            drone.Position_Alt || 0,
           ],
           state: drone.State || 'UNKNOWN',
           follow_mode: drone.Follow_Mode || 0,
-          altitude: drone.Position_Alt || 0
+          altitude: drone.Position_Alt || 0,
         }));
 
       setDrones(dronesData);
-      setIsLoading(false);
+
+      if (isFirstLoad) {
+        setIsLoading(false);
+        setIsFirstLoad(false);
+      }
     } catch (err) {
       console.error('Error fetching drones:', err);
       setError('Failed to load drones. Please try again later.');
       setIsLoading(false);
     }
-  }, []);
+  }, [isFirstLoad]);
 
   useEffect(() => {
     fetchDrones();
-    intervalRef.current = setInterval(fetchDrones, 1000);
-
-    return () => clearInterval(intervalRef.current);
+    const interval = setInterval(fetchDrones, 1000);
+    return () => clearInterval(interval);
   }, [fetchDrones]);
 
   if (isLoading) {

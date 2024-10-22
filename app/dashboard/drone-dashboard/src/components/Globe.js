@@ -1,19 +1,17 @@
 // app/dashboard/drone-dashboard/src/components/Globe.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Html, useTexture, Stars } from '@react-three/drei';
+import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
-import { TEXTURE_REPEAT, WORLD_SIZE } from '../utilities/utilities';
+import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 
-// Timeout Promise for fetch operations
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 
-// Loading Spinner Component
 const LoadingSpinner = () => (
   <div className="loading-container">
     <div className="spinner"></div>
@@ -21,7 +19,6 @@ const LoadingSpinner = () => (
   </div>
 );
 
-// Tooltip for drones
 const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
   <div
     className="drone-tooltip"
@@ -39,7 +36,6 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
   </div>
 );
 
-// Drone component
 const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
@@ -76,7 +72,6 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
 
 const MemoizedDrone = React.memo(Drone);
 
-// Custom Camera Controls for Responsive Design
 const CustomOrbitControls = () => {
   const { camera, gl } = useThree();
   const controlsRef = useRef();
@@ -93,7 +88,6 @@ const CustomOrbitControls = () => {
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };
 
-// Main Globe component
 export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,59 +118,48 @@ export default function Globe({ drones }) {
     }
   };
 
+  // Initial setup of reference point
   useEffect(() => {
-    if (referencePoint && groundLevel !== referencePoint[2]) {
-      setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
-    }
-  }, [groundLevel, referencePoint]);
+    if (drones?.length && !referencePoint) {
+      setIsLoading(true);
+      const setReferencePointAsync = async () => {
+        const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
+        const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
+        const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
 
-  useEffect(() => {
-    const setInitialReferencePoint = async () => {
-      if (drones?.length) {
-        setIsLoading(true);
+        const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
+        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
+        setReferencePoint(localReference);
 
-        if (drones?.length && !referencePoint) {
-          const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-          const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-          const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
-
-          const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
-          const localReference = [avgLat, avgLon, elevation ?? avgAlt];
-          setReferencePoint(localReference);
-
-          if (groundLevel === 0) {
-            setGroundLevel(elevation ?? avgAlt);
-          }
+        if (groundLevel === 0) {
+          setGroundLevel(elevation ?? avgAlt);
         }
-
-        // Update the droneVisibility state based on the new drones list
-        const newDroneVisibility = {};
-        drones.forEach(drone => {
-          if (droneVisibility[drone.hw_ID] !== undefined) {
-            // Keep existing visibility status if drone already exists
-            newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID];
-          } else {
-            // Otherwise, set new drone to be visible
-            newDroneVisibility[drone.hw_ID] = true;
-          }
-        });
-        setDroneVisibility(newDroneVisibility);
-
         setIsLoading(false);
-      }
-    };
-
-    setInitialReferencePoint();
+      };
+      setReferencePointAsync();
+    }
   }, [drones, referencePoint]);
 
+  // Update drone visibility when drones change
   useEffect(() => {
-    if (referencePoint && groundLevel !== null) {
+    if (drones?.length) {
+      const newDroneVisibility = {};
+      drones.forEach(drone => {
+        newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID] ?? true;
+      });
+      setDroneVisibility(newDroneVisibility);
+    }
+  }, [drones]);
+
+  useEffect(() => {
+    if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
       setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
     }
   }, [groundLevel]);
 
-  if (isLoading || !drones?.length || !referencePoint) 
+  if (isLoading || !referencePoint) {
     return <LoadingSpinner />;
+  }
 
   const convertedDrones = drones.map(drone => ({
     ...drone,
