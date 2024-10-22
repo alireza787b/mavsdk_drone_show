@@ -1,4 +1,5 @@
 /* General container and layout styles */
+
 .manage-drone-show-container {
     margin: 0 auto;
     padding: 20px;
@@ -7,7 +8,8 @@
     font-family: 'Arial', sans-serif;
 }
 
-h1, h2 {
+h1,
+h2 {
     color: #0056b3;
 }
 
@@ -23,8 +25,12 @@ h2 {
     border-bottom: 1px solid #eee;
 }
 
+
 /* Styling for section containers */
-.import-section, .export-section, .visualization-section {
+
+.import-section,
+.export-section,
+.visualization-section {
     background: white;
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -32,7 +38,9 @@ h2 {
     margin-top: 20px;
 }
 
+
 /* Buttons and inputs */
+
 button {
     background-color: #007bff;
     color: white;
@@ -58,7 +66,9 @@ input[type="file"] {
     margin-top: 5px;
 }
 
+
 /* Drag and drop area */
+
 .drop-zone {
     border: 2px dashed #007bff;
     padding: 20px;
@@ -72,7 +82,9 @@ input[type="file"] {
     border-color: #0056b3;
 }
 
+
 /* Response and info messages */
+
 .response-message {
     margin-top: 20px;
     font-size: 16px;
@@ -93,7 +105,9 @@ input[type="file"] {
     color: red;
 }
 
+
 /* Progress Bar Styles */
+
 .progress-bar {
     width: 100%;
     background-color: #f1f1f1;
@@ -104,30 +118,32 @@ input[type="file"] {
 .progress-bar-fill {
     height: 20px;
     background-color: #007bff;
-    width: 0%; /* Default width, will be set dynamically */
+    width: 0%;
+    /* Default width, will be set dynamically */
     border-radius: 5px;
     transition: width 0.4s ease-in-out;
 }
 
+
 /* Styling for image display and galleries */
+
 .visualization-section img {
     width: 100%;
-    max-width: 300px;
     margin: 10px;
     border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
+
 /* Responsive design */
+
 @media (max-width: 768px) {
     .manage-drone-show-container {
         padding: 10px;
     }
-
     button {
         width: 100%;
     }
-
     .export-buttons button {
         margin-top: 10px;
     }
@@ -141,7 +157,6 @@ input[type="file"] {
     display: flex;
     flex-direction: column;
 }
-
 
 .plot-grid {
     display: grid;
@@ -163,8 +178,10 @@ input[type="file"] {
 }
 
 .plot-full-width img {
-    width: 80%; /* Adjust this value as needed to make it bigger than the rest */
-    max-width: 800px; /* Ensures it doesn't get too large on wider screens */
+    width: 80%;
+    /* Adjust this value as needed to make it bigger than the rest */
+    max-width: 800px;
+    /* Ensures it doesn't get too large on wider screens */
     display: block;
     cursor: pointer;
 }
