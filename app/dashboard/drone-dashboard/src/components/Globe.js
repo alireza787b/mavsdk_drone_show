@@ -1,5 +1,5 @@
 // app/dashboard/drone-dashboard/src/components/Globe.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color } from 'three';
@@ -28,10 +28,18 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
     }}
   >
     <ul className="tooltip-list">
-      <li><strong>HW_ID:</strong> {hw_ID}</li>
-      <li><strong>State:</strong> {state}</li>
-      <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
-      <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
+      <li>
+        <strong>HW_ID:</strong> {hw_ID}
+      </li>
+      <li>
+        <strong>State:</strong> {state}
+      </li>
+      <li>
+        <strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}
+      </li>
+      <li>
+        <strong>Altitude:</strong> {altitude.toFixed(1)}m
+      </li>
     </ul>
   </div>
 );
@@ -52,7 +60,10 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
   return (
     <mesh
       position={position}
-      onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setIsHovered(true);
+      }}
       onPointerOut={(e) => setIsHovered(false)}
     >
       <sphereGeometry args={[0.5, 16, 16]} />
@@ -64,7 +75,13 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
         roughness={0.3}
       />
       <Html>
-        <DroneTooltip hw_ID={hw_ID} state={state} follow_mode={follow_mode} altitude={altitude} opacity={opacity} />
+        <DroneTooltip
+          hw_ID={hw_ID}
+          state={state}
+          follow_mode={follow_mode}
+          altitude={altitude}
+          opacity={opacity}
+        />
       </Html>
     </mesh>
   );
@@ -174,15 +191,18 @@ export default function Globe({ drones }) {
   };
 
   // Data Transformation
-  const convertedDrones = drones.map((drone) => ({
-    ...drone,
-    position: llaToLocal(
-      drone.position[0],
-      drone.position[1],
-      drone.position[2],
-      referencePoint
-    ),
-  }));
+  const convertedDrones = useMemo(() => {
+    if (!referencePoint) return [];
+    return drones.map((drone) => ({
+      ...drone,
+      position: llaToLocal(
+        drone.position[0],
+        drone.position[1],
+        drone.position[2],
+        referencePoint
+      ),
+    }));
+  }, [drones, referencePoint]);
 
   // Hooks
   useEffect(() => {
@@ -231,7 +251,8 @@ export default function Globe({ drones }) {
       focusOnDrones();
       setHasFocused(true);
     }
-  }, [hasFocused, controlsRef, convertedDrones, focusOnDrones]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFocused, controlsRef, convertedDrones]);
 
   // Early Return if Loading
   if (isLoading || !referencePoint) {
