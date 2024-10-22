@@ -1,6 +1,6 @@
 // app/dashboard/drone-dashboard/src/components/Globe.js
 import React, { useState, useEffect, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
@@ -72,31 +72,17 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
 
 const MemoizedDrone = React.memo(Drone);
 
-const CustomOrbitControls = () => {
-  const { camera, gl } = useThree();
-  const controlsRef = useRef();
-  
-  useEffect(() => {
-    if (controlsRef.current) {
-      controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.1;
-      controlsRef.current.minDistance = 5;
-      controlsRef.current.maxDistance = 50;
-    }
-  }, []);
-
-  return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
-};
-
 export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showGround, setShowGround] = useState(true);
+  const [showGround, setShowGround] = useState(false); // Hide ground by default
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
+
+  const controlsRef = useRef();
 
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -173,9 +159,65 @@ export default function Globe({ drones }) {
     }));
   };
 
+  // Function to focus the camera on the drones
+  const focusOnDrones = () => {
+    if (controlsRef.current && convertedDrones.length > 0) {
+      const positions = convertedDrones.map(drone => drone.position);
+      // Calculate the center
+      const center = positions.reduce((acc, pos) => {
+        return [acc[0] + pos[0], acc[1] + pos[1], acc[2] + pos[2]];
+      }, [0, 0, 0]).map(coord => coord / positions.length);
+
+      // Calculate the maximum distance from the center
+      const distances = positions.map(pos => {
+        const dx = pos[0] - center[0];
+        const dy = pos[1] - center[1];
+        const dz = pos[2] - center[2];
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+      });
+      const maxDistance = Math.max(...distances);
+
+      // Adjust camera position
+      const cameraDistance = maxDistance * 2 || 10; // Default to 10 if maxDistance is 0
+      const camera = controlsRef.current.object;
+      camera.position.set(
+        center[0] + cameraDistance,
+        center[1] + cameraDistance,
+        center[2] + cameraDistance
+      );
+
+      // Update controls target
+      controlsRef.current.target.set(center[0], center[1], center[2]);
+      controlsRef.current.update();
+    }
+  };
+
+  // Focus on drones upon initialization or when drones update
+  useEffect(() => {
+    if (convertedDrones.length > 0 && controlsRef.current) {
+      focusOnDrones();
+    }
+  }, [convertedDrones]);
+
+  // Custom Camera Controls
+  const CustomOrbitControls = () => {
+    const { camera, gl } = useThree();
+
+    useEffect(() => {
+      if (controlsRef.current) {
+        controlsRef.current.enableDamping = true;
+        controlsRef.current.dampingFactor = 0.1;
+        controlsRef.current.minDistance = 5;
+        controlsRef.current.maxDistance = 5000;
+      }
+    }, []);
+
+    return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
+  };
+
   return (
     <div id="scene-container" className="scene-container">
-      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
+      <Canvas camera={{ position: [0, 0, 10], up: [0, 1, 0] }}>
         {/* Ambient and Directional Lighting */}
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -184,7 +226,7 @@ export default function Globe({ drones }) {
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
 
         {/* Environment and Ground */}
-        {showGround && <Environment groundLevel={groundLevel} />}
+        {showGround && <Environment groundLevel={groundLevel} opacity={0.5} />}
 
         {/* Render Drones */}
         {convertedDrones.map(drone => (
@@ -192,7 +234,7 @@ export default function Globe({ drones }) {
         ))}
 
         {/* Grid Helper */}
-        {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}  
+        {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
 
         {/* Custom Orbit Controls */}
         <CustomOrbitControls />
@@ -212,6 +254,13 @@ export default function Globe({ drones }) {
         title="Toggle Fullscreen"
       >
         ⛶
+      </div>
+      <div 
+        className="focus-button"
+        onClick={focusOnDrones}
+        title="Focus on Drones"
+      >
+        🎯
       </div>
 
       {/* Control Panel */}

@@ -5,14 +5,14 @@
     height: 80vh;
     position: relative;
     background-color: #121212;
-    /* Dark background for dark mode */
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 .toolbox-button,
-.fullscreen-button {
+.fullscreen-button,
+.focus-button {
     position: absolute;
     top: 15px;
     width: 40px;
@@ -32,67 +32,21 @@
     right: 15px;
 }
 
+.focus-button {
+    right: 65px;
+    /* Adjust spacing between buttons */
+}
+
 .fullscreen-button {
     left: 15px;
 }
 
 .toolbox-button:hover,
-.fullscreen-button:hover {
+.fullscreen-button:hover,
+.focus-button:hover {
     transform: scale(1.2);
     background-color: rgba(255, 255, 255, 0.2);
 }
 
-.drone-tooltip {
-    background: rgba(0, 0, 0, 0.7);
-    color: #ffffff;
-    padding: 8px 12px;
-    border-radius: 5px;
-    pointer-events: none;
-    white-space: nowrap;
-    font-size: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
 
-.tooltip-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 80vh;
-    width: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    /* Dark semi-transparent background */
-}
-
-.spinner {
-    border: 6px solid rgba(255, 255, 255, 0.2);
-    border-top: 6px solid #ffffff;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 20px;
-}
-
-.loading-message {
-    padding: 10px 20px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.7);
-    /* Semi-transparent background */
-    color: #ffffff;
-    font-size: 16px;
-    font-weight: 500;
-    text-align: center;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
+/* Rest of your styles */
