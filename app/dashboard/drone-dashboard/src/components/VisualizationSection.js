@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
 import Modal from './Modal'; // Import the custom Modal component
-import '../styles/VisualizationSection.css'; // Optional: Create for additional styling
 
 const VisualizationSection = ({ uploadCount }) => {
     const [plots, setPlots] = useState([]);
