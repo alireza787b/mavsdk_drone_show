@@ -2,22 +2,30 @@
 import React from 'react';
 import '../styles/GlobeControlBox.css';
 
-function GlobeControlBox({ 
-  setShowGround, 
-  showGround, 
-  setGroundLevel, 
-  groundLevel, 
-  toggleDroneVisibility, 
-  droneVisibility, 
+function GlobeControlBox({
+  setShowGround,
+  showGround,
+  setGroundLevel,
+  groundLevel,
+  toggleDroneVisibility,
+  droneVisibility,
   isToolboxOpen,
-  showGrid, 
-  setShowGrid, 
-  handleGetTerrainClick 
+  showGrid,
+  setShowGrid,
+  handleGetTerrainClick,
+  focusOnDrones,
 }) {
   return (
     <div className={`globe-control-box ${isToolboxOpen ? 'show' : 'hide'}`}>
       <h4>Control Panel</h4>
-      
+
+      {/* Focus on Drones Button */}
+      <div className="control-section">
+        <button onClick={focusOnDrones} className="focus-drones-button">
+          Focus on Drones
+        </button>
+      </div>
+
       {/* Show/Hide Ground */}
       <div className="control-section">
         <label className="control-label">
@@ -29,25 +37,22 @@ function GlobeControlBox({
           Show Ground
         </label>
       </div>
-      
+
       {/* Set Ground Level */}
       <div className="control-section">
         <label className="control-label">
           Ground Level (m):
-          <input 
-            type="number" 
-            min={-2000} 
-            max={15000} 
-            step="1" 
-            value={groundLevel} 
+          <input
+            type="number"
+            min={-2000}
+            max={15000}
+            step="1"
+            value={groundLevel}
             onChange={(e) => setGroundLevel(Number(e.target.value))}
             className="number-input"
           />
         </label>
-        <button 
-          onClick={handleGetTerrainClick} 
-          className="get-terrain-button"
-        >
+        <button onClick={handleGetTerrainClick} className="get-terrain-button">
           Get Terrain
         </button>
       </div>
@@ -63,7 +68,7 @@ function GlobeControlBox({
           Show Grid
         </label>
       </div>
-      
+
       {/* Drone Visibility Toggles */}
       <div className="control-section drone-toggles">
         <h5>Drone Visibility:</h5>
