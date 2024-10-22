@@ -1,4 +1,3 @@
-// src/pages/GlobeView.js
 import React, { useState, useEffect, useCallback } from 'react';
 import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
