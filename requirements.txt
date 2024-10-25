@@ -45,7 +45,7 @@ Werkzeug==3.0.4
 GitPython
 
 sdnotify
-geographiclib
+
 
 
 rpi-ws281x==5.0.0
