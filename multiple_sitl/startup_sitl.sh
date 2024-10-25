@@ -4,8 +4,7 @@
 # Script Name: startup_sitl.sh
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
 #              Configures environment, updates repository, sets system IDs, and
-#              starts the SITL simulation. The coordinator process is managed
-#              by coordinator.service by default, with an option to run it manually.
+#              starts the SITL simulation along with coordinator.py.
 # Author: Alireza Ghaderi
 # Date: September 2024
 # =============================================================================
@@ -23,7 +22,7 @@ set -euo pipefail
 
 # GitHub Repository Details
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="real-test-1"
+DEFAULT_GIT_BRANCH="docker-sitl-2"
 GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
 # Option to use global Python
@@ -44,6 +43,13 @@ PX4_DIR="$HOME/PX4-Autopilot"
 SCRIPT_NAME=$(basename "$0")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Default Simulation Mode (h: headless, g: graphical, j: jmavsim)
+SIMULATION_MODE="h"
+
+# Initialize Git variables
+GIT_REMOTE="$DEFAULT_GIT_REMOTE"
+GIT_BRANCH="$DEFAULT_GIT_BRANCH"
+
 # =============================================================================
 # Function Definitions
 # =============================================================================
@@ -54,15 +60,15 @@ usage() {
 Usage: $SCRIPT_NAME [options]
 
 Options:
-  -r <git_remote>       Specify the GitHub repository remote name (default: origin)
-  -b <git_branch>       Specify the GitHub repository branch name (default: real-test-1)
-  -m                    Manually run coordinator.py instead of using coordinator.service
+  -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
+  -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
+  -s <simulation_mode>  Specify simulation mode: 'g' for graphical, 'h' for headless, 'j' for jmavsim (default: $SIMULATION_MODE)
   -h, --help            Display this help message
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME -r upstream -b develop
-  $SCRIPT_NAME -m
+  $SCRIPT_NAME -s g
 EOF
     exit 1
 }
@@ -74,10 +80,10 @@ cleanup() {
     if [[ -n "${simulation_pid:-}" ]]; then
         kill "$simulation_pid" 2>/dev/null || true
     fi
-    if [ "${RUN_MANUALLY:-false}" = true ] && [[ -n "${coordinator_pid:-}" ]]; then
+    if [[ -n "${coordinator_pid:-}" ]]; then
         kill "$coordinator_pid" 2>/dev/null || true
     fi
-    if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
+    if [ "$USE_GLOBAL_PYTHON" = false ]; then
         deactivate 2>/dev/null || true
     fi
     exit 0
@@ -94,7 +100,6 @@ install_bc() {
 
 # Function to parse script arguments
 parse_args() {
-    RUN_MANUALLY=false
     while [[ $# -gt 0 ]]; do
         case $1 in
             -r)
@@ -115,9 +120,14 @@ parse_args() {
                     usage
                 fi
                 ;;
-            -m)
-                RUN_MANUALLY=true
-                shift
+            -s)
+                if [[ -n "${2:-}" && ! $2 =~ ^- ]]; then
+                    SIMULATION_MODE="$2"
+                    shift 2
+                else
+                    echo "ERROR: -s requires a non-empty option argument."
+                    usage
+                fi
                 ;;
             -h|--help)
                 usage
@@ -147,13 +157,18 @@ check_dependencies() {
 # Function to wait for the .hwID file
 wait_for_hwid() {
     echo "Waiting for .hwID file in $BASE_DIR..."
-    while ! ls "$BASE_DIR"/*.hwID &> /dev/null; do
-        echo "  - .hwID file not found. Retrying in 1 second..."
-        sleep 1
+    while true; do
+        HWID_FILE=$(ls "$BASE_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
+        if [[ -n "$HWID_FILE" ]]; then
+            HWID=$(basename "$HWID_FILE" .hwID)
+            echo "Found .hwID file: $HWID.hwID"
+            break
+        else
+            echo "  - .hwID file not found. Retrying in 1 second..."
+            sleep 1
+        fi
     done
-    HWID=$(basename "$BASE_DIR"/*.hwID .hwID)
-    echo "Found .hwID file: $HWID.hwID"
-    
+
     # Validate that HWID is a positive integer
     if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
         echo "ERROR: Extracted HWID '$HWID' is not a positive integer."
@@ -203,7 +218,7 @@ setup_python_env() {
         source "$VENV_DIR/bin/activate"
 
         echo "Installing Python requirements..."
-        if ! pip install --upgrade pip && pip install -r requirements.txt; then
+        if ! pip install --upgrade pip && pip install -r "$BASE_DIR/requirements.txt"; then
             echo "ERROR: Failed to install Python requirements."
             exit 1
         fi
@@ -304,40 +319,22 @@ start_simulation() {
     # Export instance identifier
     export px4_instance="${HWID}-1"
 
-    # Handle headless mode if applicable
-    if [[ "$SIMULATION_COMMAND" == HEADLESS* ]]; then
-        export HEADLESS=1
-    fi
-
     # Execute the simulation command in the background
-    $SIMULATION_COMMAND &
+    eval "$SIMULATION_COMMAND" &
     simulation_pid=$!
     echo "SITL simulation started with PID: $simulation_pid"
 }
 
 # Function to manually run coordinator.py
 run_coordinator_manually() {
-    echo "Manually starting coordinator.py..."
+    echo "Starting coordinator.py..."
     cd "$BASE_DIR"
+    if [ "$USE_GLOBAL_PYTHON" = false ]; then
+        source "$VENV_DIR/bin/activate"
+    fi
     python3 "$BASE_DIR/coordinator.py" &
     coordinator_pid=$!
     echo "coordinator.py started with PID: $coordinator_pid"
-}
-
-# Function to enable and start coordinator.service
-start_coordinator_service() {
-    echo "Enabling and starting coordinator.service..."
-    if ! systemctl enable coordinator.service; then
-        echo "ERROR: Failed to enable coordinator.service."
-        exit 1
-    fi
-
-    if ! systemctl start coordinator.service; then
-        echo "ERROR: Failed to start coordinator.service."
-        exit 1
-    fi
-
-    echo "coordinator.service is enabled and running."
 }
 
 # =============================================================================
@@ -359,8 +356,7 @@ echo "  Git Remote: $GIT_REMOTE"
 echo "  Git Branch: $GIT_BRANCH"
 echo "  Use Global Python: $USE_GLOBAL_PYTHON"
 echo "  Base Directory: $BASE_DIR"
-echo "  Simulation Mode: ${SIMULATION_MODE:-h}"
-echo "  Run Coordinator Manually: $RUN_MANUALLY"
+echo "  Simulation Mode: $SIMULATION_MODE"
 echo ""
 
 # Check for necessary dependencies
@@ -387,34 +383,19 @@ calculate_new_coordinates
 # Export environment variables
 export_env_vars
 
-# Determine simulation mode from remaining arguments or default to headless
-if [ "$#" -ge 0 ]; then
-    # If simulation mode is provided as an argument after options
-    SIMULATION_MODE="${SIMULATION_MODE:-h}"
-else
-    SIMULATION_MODE="h"  # Default to headless mode
-fi
-
+# Determine simulation mode
 determine_simulation_command
 
 # Start SITL simulation
 start_simulation
 
-# Start coordinator process based on the flag
-if [ "$RUN_MANUALLY" = true ]; then
-    run_coordinator_manually
-else
-    start_coordinator_service
-fi
+# Start coordinator.py
+run_coordinator_manually
 
 echo ""
 echo "=============================================="
 echo "All processes have been initialized."
-if [ "$RUN_MANUALLY" = true ]; then
-    echo "coordinator.py is running manually."
-else
-    echo "coordinator.service is running."
-fi
+echo "coordinator.py is running."
 echo "Press Ctrl+C to terminate the simulation."
 echo "=============================================="
 echo ""
@@ -422,13 +403,9 @@ echo ""
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
-# Keep the script running to maintain the environment
-# The coordinator.service is managed by systemd, so no need to keep the script running
-# However, if you want to keep the script alive when running manually, uncomment the following lines:
-if [ "$RUN_MANUALLY" = true ]; then
-    echo "Waiting for coordinator.py process to complete..."
-    wait "$coordinator_pid"
-fi
+# Wait for coordinator.py process to complete
+echo "Waiting for coordinator.py process to complete..."
+wait "$coordinator_pid"
 
 # Exit successfully
 exit 0

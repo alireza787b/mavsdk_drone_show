@@ -81,8 +81,14 @@ offboard_controller = OffboardController(drone_config)  # OffboardController ins
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
-# Initialize LEDController
-led_controller = LEDController.get_instance()
+# Initialize LEDController only if not in simulation mode
+if not Params.sim_mode:
+    try:
+        led_controller = LEDController.get_instance()
+    except Exception as e:
+        logger.error("Failed to initialize LEDController: %s", e)
+else:
+    led_controller = None  # Or use a mock controller if needed
 
 # Systemd watchdog notifier
 notifier = sdnotify.SystemdNotifier()
@@ -107,6 +113,7 @@ def main_loop():
     """
     global mavlink_manager, offboard_controller, drone_comms, drone_setup  # Declare as global variables
     try:
+        
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
         logger.info("Starting the main loop...")
@@ -116,11 +123,7 @@ def main_loop():
             drone_setup.synchronize_time()
             logger.info("Time synchronized.")
 
-        # Initialize MAVLink communication
-        mavlink_manager = MavlinkManager(params, drone_config)
-        logger.info("Initializing MAVLink...")
-        mavlink_manager.initialize()
-        time.sleep(2)  # Wait for initialization
+        
 
         # Initialization successful
         LEDController.set_color(0, 255, 0)  # Green
@@ -195,8 +198,14 @@ def main():
     """
     Main function to start the coordinator application.
     """
-    global drone_comms, drone_setup  # Declare as global variables
+    global drone_comms, drone_setup , mavlink_manager # Declare as global variables
     logger.info("Starting the coordinator application...")
+
+    # Initialize MAVLink communication
+    mavlink_manager = MavlinkManager(params, drone_config)
+    logger.info("Initializing MAVLink...")
+    mavlink_manager.initialize()
+    time.sleep(2)  # Wait for initialization
 
     # Initialize LocalMavlinkController
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
