@@ -23,7 +23,7 @@ set -euo pipefail
 
 # GitHub Repository Details
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="real-test-1"
+DEFAULT_GIT_BRANCH="docker-sitl-2"
 GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
 # Option to use global Python
