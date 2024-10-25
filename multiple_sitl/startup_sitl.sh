@@ -4,17 +4,16 @@
 # Script Name: startup_sitl.sh
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
 #              Configures environment, updates repository, sets system IDs, and
-#              starts the SITL simulation. The coordinator process is now run
-#              directly using a Python virtual environment (no systemd).
+#              starts the SITL simulation along with coordinator.py.
 # Author: Alireza Ghaderi
-# Date: October 2024
+# Date: September 2024
 # =============================================================================
 
-# Exit immediately if a command exits with a non-zero status, if an undefined
-# variable is used, or if any command in a pipeline fails
+# Exit immediately if a command exits with a non-zero status,
+# if an undefined variable is used, or if any command in a pipeline fails
 set -euo pipefail
 
-# Enable debug mode for easier troubleshooting (optional)
+# Enable debug mode if needed (uncomment the following line for debugging)
 # set -x
 
 # =============================================================================
@@ -23,11 +22,11 @@ set -euo pipefail
 
 # GitHub Repository Details
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="docker-sitl-2"
+DEFAULT_GIT_BRANCH="real-test-1"
 GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
-# Option to use global Python (set to true to use global Python instead of venv)
-USE_GLOBAL_PYTHON=false
+# Option to use global Python
+USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
 
 # Default geographic position: Azadi Stadium
 DEFAULT_LAT=35.725125060059966
@@ -44,6 +43,13 @@ PX4_DIR="$HOME/PX4-Autopilot"
 SCRIPT_NAME=$(basename "$0")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Default Simulation Mode (h: headless, g: graphical, j: jmavsim)
+SIMULATION_MODE="h"
+
+# Initialize Git variables
+GIT_REMOTE="$DEFAULT_GIT_REMOTE"
+GIT_BRANCH="$DEFAULT_GIT_BRANCH"
+
 # =============================================================================
 # Function Definitions
 # =============================================================================
@@ -54,15 +60,15 @@ usage() {
 Usage: $SCRIPT_NAME [options]
 
 Options:
-  -r <git_remote>       Specify the GitHub repository remote name (default: origin)
-  -b <git_branch>       Specify the GitHub repository branch name (default: docker-sitl-2)
-  -m                    Manually run coordinator.py (without systemd services)
+  -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
+  -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
+  -s <simulation_mode>  Specify simulation mode: 'g' for graphical, 'h' for headless, 'j' for jmavsim (default: $SIMULATION_MODE)
   -h, --help            Display this help message
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME -r upstream -b develop
-  $SCRIPT_NAME -m
+  $SCRIPT_NAME -s g
 EOF
     exit 1
 }
@@ -74,10 +80,10 @@ cleanup() {
     if [[ -n "${simulation_pid:-}" ]]; then
         kill "$simulation_pid" 2>/dev/null || true
     fi
-    if [ "${RUN_MANUALLY:-false}" = true ] && [[ -n "${coordinator_pid:-}" ]]; then
+    if [[ -n "${coordinator_pid:-}" ]]; then
         kill "$coordinator_pid" 2>/dev/null || true
     fi
-    if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
+    if [ "$USE_GLOBAL_PYTHON" = false ]; then
         deactivate 2>/dev/null || true
     fi
     exit 0
@@ -87,14 +93,13 @@ cleanup() {
 install_bc() {
     echo "'bc' is not installed. Installing 'bc'..."
     if ! sudo apt-get update && sudo apt-get install -y bc; then
-        echo "ERROR: Failed to install 'bc'. Please install it manually." >&2
+        echo "ERROR: Failed to install 'bc'. Please install it manually."
         exit 1
     fi
 }
 
 # Function to parse script arguments
 parse_args() {
-    RUN_MANUALLY=false
     while [[ $# -gt 0 ]]; do
         case $1 in
             -r)
@@ -102,7 +107,7 @@ parse_args() {
                     GIT_REMOTE="$2"
                     shift 2
                 else
-                    echo "ERROR: -r requires a non-empty option argument." >&2
+                    echo "ERROR: -r requires a non-empty option argument."
                     usage
                 fi
                 ;;
@@ -111,19 +116,24 @@ parse_args() {
                     GIT_BRANCH="$2"
                     shift 2
                 else
-                    echo "ERROR: -b requires a non-empty option argument." >&2
+                    echo "ERROR: -b requires a non-empty option argument."
                     usage
                 fi
                 ;;
-            -m)
-                RUN_MANUALLY=true
-                shift
+            -s)
+                if [[ -n "${2:-}" && ! $2 =~ ^- ]]; then
+                    SIMULATION_MODE="$2"
+                    shift 2
+                else
+                    echo "ERROR: -s requires a non-empty option argument."
+                    usage
+                fi
                 ;;
             -h|--help)
                 usage
                 ;;
             *)
-                echo "ERROR: Unknown option: $1" >&2
+                echo "ERROR: Unknown option: $1"
                 usage
                 ;;
         esac
@@ -138,7 +148,7 @@ check_dependencies() {
     if ! command -v git &> /dev/null; then
         echo "'git' is not installed. Installing 'git'..."
         if ! sudo apt-get update && sudo apt-get install -y git; then
-            echo "ERROR: Failed to install 'git'. Please install it manually." >&2
+            echo "ERROR: Failed to install 'git'. Please install it manually."
             exit 1
         fi
     fi
@@ -147,15 +157,21 @@ check_dependencies() {
 # Function to wait for the .hwID file
 wait_for_hwid() {
     echo "Waiting for .hwID file in $BASE_DIR..."
-    while ! ls "$BASE_DIR"/*.hwID &> /dev/null; do
-        echo "  - .hwID file not found. Retrying in 1 second..."
-        sleep 1
+    while true; do
+        HWID_FILE=$(ls "$BASE_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
+        if [[ -n "$HWID_FILE" ]]; then
+            HWID=$(basename "$HWID_FILE" .hwID)
+            echo "Found .hwID file: $HWID.hwID"
+            break
+        else
+            echo "  - .hwID file not found. Retrying in 1 second..."
+            sleep 1
+        fi
     done
-    HWID=$(basename "$BASE_DIR"/*.hwID .hwID)
-    echo "Found .hwID file: $HWID.hwID"
-    
+
+    # Validate that HWID is a positive integer
     if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
-        echo "ERROR: Extracted HWID '$HWID' is not a positive integer." >&2
+        echo "ERROR: Extracted HWID '$HWID' is not a positive integer."
         exit 1
     fi
 }
@@ -173,19 +189,19 @@ update_repository() {
 
     echo "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH." >&2
+        echo "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
         exit 1
     fi
 
     echo "Checking out branch $GIT_BRANCH..."
     if ! git checkout "$GIT_BRANCH"; then
-        echo "ERROR: Failed to checkout branch $GIT_BRANCH." >&2
+        echo "ERROR: Failed to checkout branch $GIT_BRANCH."
         exit 1
     fi
 
     echo "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH." >&2
+        echo "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
         exit 1
     fi
 }
@@ -202,8 +218,8 @@ setup_python_env() {
         source "$VENV_DIR/bin/activate"
 
         echo "Installing Python requirements..."
-        if ! pip install --upgrade pip && pip install -r requirements.txt; then
-            echo "ERROR: Failed to install Python requirements." >&2
+        if ! pip install --upgrade pip && pip install -r "$BASE_DIR/requirements.txt"; then
+            echo "ERROR: Failed to install Python requirements."
             exit 1
         fi
     else
@@ -215,7 +231,7 @@ setup_python_env() {
 set_mav_sys_id() {
     echo "Setting MAV_SYS_ID using set_sys_id.py..."
     if ! python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
-        echo "ERROR: Failed to set MAV_SYS_ID." >&2
+        echo "ERROR: Failed to set MAV_SYS_ID."
         exit 1
     fi
 }
@@ -228,7 +244,7 @@ read_offsets() {
     OFFSET_Y=0
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        echo "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)." >&2
+        echo "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)."
         return
     fi
 
@@ -241,15 +257,20 @@ read_offsets() {
         fi
     done < "$CONFIG_FILE"
 
-    echo "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)." >&2
+    echo "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
 }
 
 # Function to calculate new geographic coordinates
 calculate_new_coordinates() {
     echo "Calculating new geographic coordinates based on offsets..."
 
+    # Convert latitude from degrees to radians
     LAT_RAD=$(echo "scale=10; $DEFAULT_LAT * (4*a(1)/180)" | bc -l)
+
+    # Calculate meters per degree longitude at the given latitude
     M_PER_DEGREE=$(echo "scale=10; 111320 * c($LAT_RAD)" | bc -l)
+
+    # Calculate new latitude and longitude
     NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
     NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
@@ -282,7 +303,7 @@ determine_simulation_command() {
             echo "Simulation Mode: Headless (Graphics Disabled)"
             ;;
         *)
-            echo "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode." >&2
+            echo "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode."
             SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
             ;;
     esac
@@ -294,21 +315,23 @@ determine_simulation_command() {
 start_simulation() {
     echo "Starting SITL simulation..."
     cd "$PX4_DIR"
+
+    # Export instance identifier
     export px4_instance="${HWID}-1"
 
-    if [[ "$SIMULATION_COMMAND" == HEADLESS* ]]; then
-        export HEADLESS=1
-    fi
-
-    $SIMULATION_COMMAND &
+    # Execute the simulation command in the background
+    eval "$SIMULATION_COMMAND" &
     simulation_pid=$!
     echo "SITL simulation started with PID: $simulation_pid"
 }
 
 # Function to manually run coordinator.py
 run_coordinator_manually() {
-    echo "Manually starting coordinator.py..."
+    echo "Starting coordinator.py..."
     cd "$BASE_DIR"
+    if [ "$USE_GLOBAL_PYTHON" = false ]; then
+        source "$VENV_DIR/bin/activate"
+    fi
     python3 "$BASE_DIR/coordinator.py" &
     coordinator_pid=$!
     echo "coordinator.py started with PID: $coordinator_pid"
@@ -333,8 +356,7 @@ echo "  Git Remote: $GIT_REMOTE"
 echo "  Git Branch: $GIT_BRANCH"
 echo "  Use Global Python: $USE_GLOBAL_PYTHON"
 echo "  Base Directory: $BASE_DIR"
-echo "  Simulation Mode: ${SIMULATION_MODE:-h}"
-echo "  Run Coordinator Manually: $RUN_MANUALLY"
+echo "  Simulation Mode: $SIMULATION_MODE"
 echo ""
 
 # Check for necessary dependencies
@@ -361,31 +383,19 @@ calculate_new_coordinates
 # Export environment variables
 export_env_vars
 
-# Determine simulation mode from remaining arguments or default to headless
-if [ "$#" -ge 0 ]; then
-    SIMULATION_MODE="${SIMULATION_MODE:-h}"
-else
-    SIMULATION_MODE="h"  # Default to headless mode
-fi
-
+# Determine simulation mode
 determine_simulation_command
 
 # Start SITL simulation
 start_simulation
 
-# Start coordinator process based on the flag
-if [ "$RUN_MANUALLY" = true ]; then
-    run_coordinator_manually
-fi
+# Start coordinator.py
+run_coordinator_manually
 
 echo ""
 echo "=============================================="
 echo "All processes have been initialized."
-if [ "$RUN_MANUALLY" = true ]; then
-    echo "coordinator.py is running manually."
-else
-    echo "coordinator.service is running."
-fi
+echo "coordinator.py is running."
 echo "Press Ctrl+C to terminate the simulation."
 echo "=============================================="
 echo ""
@@ -393,11 +403,9 @@ echo ""
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
-# Wait for coordinator.py if running manually
-if [ "$RUN_MANUALLY" = true ]; then
-    echo "Waiting for coordinator.py process to complete..."
-    wait "$coordinator_pid"
-fi
+# Wait for coordinator.py process to complete
+echo "Waiting for coordinator.py process to complete..."
+wait "$coordinator_pid"
 
 # Exit successfully
 exit 0
