@@ -81,8 +81,14 @@ offboard_controller = OffboardController(drone_config)  # OffboardController ins
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
-# Initialize LEDController
-led_controller = LEDController.get_instance()
+# Initialize LEDController only if not in simulation mode
+if not Params.sim_mode:
+    try:
+        led_controller = LEDController.get_instance()
+    except Exception as e:
+        logger.error("Failed to initialize LEDController: %s", e)
+else:
+    led_controller = None  # Or use a mock controller if needed
 
 # Systemd watchdog notifier
 notifier = sdnotify.SystemdNotifier()

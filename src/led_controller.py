@@ -1,3 +1,5 @@
+# src/led_controller.py
+
 import time
 import logging
 from rpi_ws281x import PixelStrip, Color
@@ -9,7 +11,6 @@ class LEDController:
     LEDController is a singleton class that provides methods to control a WS2812 LED strip.
     It uses parameters defined in the Params class for configuration.
     """
-
     _instance = None
     _lock = threading.Lock()
 
@@ -20,23 +21,32 @@ class LEDController:
         """
         if LEDController._instance is not None:
             raise Exception("This class is a singleton!")
-        
+
         # Setup logging
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
+        if Params.sim_mode:
+            self.logger.info("Simulation mode active. LEDController will not initialize hardware.")
+            self.strip = None  # No hardware initialization
+            return
+
         # Initialize LED strip
-        self.strip = PixelStrip(
-            Params.led_count,
-            Params.led_pin,
-            Params.led_freq_hz,
-            Params.led_dma,
-            Params.led_invert,
-            Params.led_brightness,
-            Params.led_channel
-        )
-        self.strip.begin()
-        self.logger.info("LEDController initialized with %d LEDs on GPIO pin %d", Params.led_count, Params.led_pin)
+        try:
+            self.strip = PixelStrip(
+                Params.led_count,
+                Params.led_pin,
+                Params.led_freq_hz,
+                Params.led_dma,
+                Params.led_invert,
+                Params.led_brightness,
+                Params.led_channel
+            )
+            self.strip.begin()
+            self.logger.info("LEDController initialized with %d LEDs on GPIO pin %d", Params.led_count, Params.led_pin)
+        except Exception as e:
+            self.logger.error("Failed to initialize LEDController: %s", e)
+            self.strip = None
 
     @staticmethod
     def get_instance():
@@ -44,20 +54,20 @@ class LEDController:
         Returns the singleton instance of LEDController. If it doesn't exist, it creates one.
         """
         if LEDController._instance is None:
-            LEDController._instance = LEDController()
+            with LEDController._lock:
+                if LEDController._instance is None:
+                    LEDController._instance = LEDController()
         return LEDController._instance
 
     @staticmethod
     def set_color(r: int, g: int, b: int):
         """
         Sets all LEDs to the specified RGB color.
-
-        :param r: Red component (0-255)
-        :param g: Green component (0-255)
-        :param b: Blue component (0-255)
         """
         with LEDController._lock:
             instance = LEDController.get_instance()
+            if instance.strip is None:
+                return  # Simulation mode; do nothing
             color = Color(r, g, b)
             for i in range(instance.strip.numPixels()):
                 instance.strip.setPixelColor(i, color)
@@ -68,14 +78,11 @@ class LEDController:
     def color_wipe(r: int, g: int, b: int, wait_ms=50):
         """
         Wipes the specified color across the LED strip one pixel at a time.
-
-        :param r: Red component (0-255)
-        :param g: Green component (0-255)
-        :param b: Blue component (0-255)
-        :param wait_ms: Delay between each LED update in milliseconds
         """
         with LEDController._lock:
             instance = LEDController.get_instance()
+            if instance.strip is None:
+                return  # Simulation mode; do nothing
             color = Color(r, g, b)
             for i in range(instance.strip.numPixels()):
                 instance.strip.setPixelColor(i, color)
@@ -87,15 +94,11 @@ class LEDController:
     def theater_chase(r: int, g: int, b: int, wait_ms=50, iterations=10):
         """
         Creates a theater chase animation with the specified color.
-
-        :param r: Red component (0-255)
-        :param g: Green component (0-255)
-        :param b: Blue component (0-255)
-        :param wait_ms: Delay between each LED update in milliseconds
-        :param iterations: Number of iterations for the chase animation
         """
         with LEDController._lock:
             instance = LEDController.get_instance()
+            if instance.strip is None:
+                return  # Simulation mode; do nothing
             color = Color(r, g, b)
             for j in range(iterations):
                 for q in range(3):
@@ -115,6 +118,8 @@ class LEDController:
         """
         with LEDController._lock:
             instance = LEDController.get_instance()
+            if instance.strip is None:
+                return  # Simulation mode; do nothing
             for i in range(instance.strip.numPixels()):
                 instance.strip.setPixelColor(i, Color(0, 0, 0))
             instance.strip.show()
