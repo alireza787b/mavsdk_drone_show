@@ -34,7 +34,7 @@ pyproj==3.6.1
 python-dateutil==2.9.0.post0
 pytz==2024.1
 requests==2.32.3
-rpi-ws281x==5.0.0
+
 scipy==1.14.1
 sdnotify==0.3.2
 six==1.16.0
@@ -45,3 +45,7 @@ Werkzeug==3.0.4
 GitPython
 
 sdnotify
+geographiclib
+
+
+rpi-ws281x==5.0.0
