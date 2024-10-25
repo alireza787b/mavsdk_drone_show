@@ -4,17 +4,17 @@
 # Script Name: startup_sitl.sh
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
 #              Configures environment, updates repository, sets system IDs, and
-#              starts the SITL simulation. The coordinator process is managed
-#              by coordinator.service by default, with an option to run it manually.
+#              starts the SITL simulation. The coordinator process is now run
+#              directly using a Python virtual environment (no systemd).
 # Author: Alireza Ghaderi
-# Date: September 2024
+# Date: October 2024
 # =============================================================================
 
-# Exit immediately if a command exits with a non-zero status,
-# if an undefined variable is used, or if any command in a pipeline fails
+# Exit immediately if a command exits with a non-zero status, if an undefined
+# variable is used, or if any command in a pipeline fails
 set -euo pipefail
 
-# Enable debug mode if needed (uncomment the following line for debugging)
+# Enable debug mode for easier troubleshooting (optional)
 # set -x
 
 # =============================================================================
@@ -26,8 +26,8 @@ DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="docker-sitl-2"
 GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
-# Option to use global Python
-USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
+# Option to use global Python (set to true to use global Python instead of venv)
+USE_GLOBAL_PYTHON=false
 
 # Default geographic position: Azadi Stadium
 DEFAULT_LAT=35.725125060059966
@@ -55,8 +55,8 @@ Usage: $SCRIPT_NAME [options]
 
 Options:
   -r <git_remote>       Specify the GitHub repository remote name (default: origin)
-  -b <git_branch>       Specify the GitHub repository branch name (default: real-test-1)
-  -m                    Manually run coordinator.py instead of using coordinator.service
+  -b <git_branch>       Specify the GitHub repository branch name (default: docker-sitl-2)
+  -m                    Manually run coordinator.py (without systemd services)
   -h, --help            Display this help message
 
 Examples:
@@ -87,7 +87,7 @@ cleanup() {
 install_bc() {
     echo "'bc' is not installed. Installing 'bc'..."
     if ! sudo apt-get update && sudo apt-get install -y bc; then
-        echo "ERROR: Failed to install 'bc'. Please install it manually."
+        echo "ERROR: Failed to install 'bc'. Please install it manually." >&2
         exit 1
     fi
 }
@@ -102,7 +102,7 @@ parse_args() {
                     GIT_REMOTE="$2"
                     shift 2
                 else
-                    echo "ERROR: -r requires a non-empty option argument."
+                    echo "ERROR: -r requires a non-empty option argument." >&2
                     usage
                 fi
                 ;;
@@ -111,7 +111,7 @@ parse_args() {
                     GIT_BRANCH="$2"
                     shift 2
                 else
-                    echo "ERROR: -b requires a non-empty option argument."
+                    echo "ERROR: -b requires a non-empty option argument." >&2
                     usage
                 fi
                 ;;
@@ -123,7 +123,7 @@ parse_args() {
                 usage
                 ;;
             *)
-                echo "ERROR: Unknown option: $1"
+                echo "ERROR: Unknown option: $1" >&2
                 usage
                 ;;
         esac
@@ -138,7 +138,7 @@ check_dependencies() {
     if ! command -v git &> /dev/null; then
         echo "'git' is not installed. Installing 'git'..."
         if ! sudo apt-get update && sudo apt-get install -y git; then
-            echo "ERROR: Failed to install 'git'. Please install it manually."
+            echo "ERROR: Failed to install 'git'. Please install it manually." >&2
             exit 1
         fi
     fi
@@ -154,9 +154,8 @@ wait_for_hwid() {
     HWID=$(basename "$BASE_DIR"/*.hwID .hwID)
     echo "Found .hwID file: $HWID.hwID"
     
-    # Validate that HWID is a positive integer
     if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
-        echo "ERROR: Extracted HWID '$HWID' is not a positive integer."
+        echo "ERROR: Extracted HWID '$HWID' is not a positive integer." >&2
         exit 1
     fi
 }
@@ -174,19 +173,19 @@ update_repository() {
 
     echo "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
+        echo "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH." >&2
         exit 1
     fi
 
     echo "Checking out branch $GIT_BRANCH..."
     if ! git checkout "$GIT_BRANCH"; then
-        echo "ERROR: Failed to checkout branch $GIT_BRANCH."
+        echo "ERROR: Failed to checkout branch $GIT_BRANCH." >&2
         exit 1
     fi
 
     echo "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
+        echo "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH." >&2
         exit 1
     fi
 }
@@ -204,7 +203,7 @@ setup_python_env() {
 
         echo "Installing Python requirements..."
         if ! pip install --upgrade pip && pip install -r requirements.txt; then
-            echo "ERROR: Failed to install Python requirements."
+            echo "ERROR: Failed to install Python requirements." >&2
             exit 1
         fi
     else
@@ -216,7 +215,7 @@ setup_python_env() {
 set_mav_sys_id() {
     echo "Setting MAV_SYS_ID using set_sys_id.py..."
     if ! python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
-        echo "ERROR: Failed to set MAV_SYS_ID."
+        echo "ERROR: Failed to set MAV_SYS_ID." >&2
         exit 1
     fi
 }
@@ -229,7 +228,7 @@ read_offsets() {
     OFFSET_Y=0
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        echo "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)."
+        echo "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)." >&2
         return
     fi
 
@@ -242,20 +241,15 @@ read_offsets() {
         fi
     done < "$CONFIG_FILE"
 
-    echo "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
+    echo "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)." >&2
 }
 
 # Function to calculate new geographic coordinates
 calculate_new_coordinates() {
     echo "Calculating new geographic coordinates based on offsets..."
 
-    # Convert latitude from degrees to radians
     LAT_RAD=$(echo "scale=10; $DEFAULT_LAT * (4*a(1)/180)" | bc -l)
-
-    # Calculate meters per degree longitude at the given latitude
     M_PER_DEGREE=$(echo "scale=10; 111320 * c($LAT_RAD)" | bc -l)
-
-    # Calculate new latitude and longitude
     NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
     NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
@@ -288,7 +282,7 @@ determine_simulation_command() {
             echo "Simulation Mode: Headless (Graphics Disabled)"
             ;;
         *)
-            echo "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode."
+            echo "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode." >&2
             SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
             ;;
     esac
@@ -300,16 +294,12 @@ determine_simulation_command() {
 start_simulation() {
     echo "Starting SITL simulation..."
     cd "$PX4_DIR"
-
-    # Export instance identifier
     export px4_instance="${HWID}-1"
 
-    # Handle headless mode if applicable
     if [[ "$SIMULATION_COMMAND" == HEADLESS* ]]; then
         export HEADLESS=1
     fi
 
-    # Execute the simulation command in the background
     $SIMULATION_COMMAND &
     simulation_pid=$!
     echo "SITL simulation started with PID: $simulation_pid"
@@ -322,22 +312,6 @@ run_coordinator_manually() {
     python3 "$BASE_DIR/coordinator.py" &
     coordinator_pid=$!
     echo "coordinator.py started with PID: $coordinator_pid"
-}
-
-# Function to enable and start coordinator.service
-start_coordinator_service() {
-    echo "Enabling and starting coordinator.service..."
-    if ! systemctl enable coordinator.service; then
-        echo "ERROR: Failed to enable coordinator.service."
-        exit 1
-    fi
-
-    if ! systemctl start coordinator.service; then
-        echo "ERROR: Failed to start coordinator.service."
-        exit 1
-    fi
-
-    echo "coordinator.service is enabled and running."
 }
 
 # =============================================================================
@@ -389,7 +363,6 @@ export_env_vars
 
 # Determine simulation mode from remaining arguments or default to headless
 if [ "$#" -ge 0 ]; then
-    # If simulation mode is provided as an argument after options
     SIMULATION_MODE="${SIMULATION_MODE:-h}"
 else
     SIMULATION_MODE="h"  # Default to headless mode
@@ -403,8 +376,6 @@ start_simulation
 # Start coordinator process based on the flag
 if [ "$RUN_MANUALLY" = true ]; then
     run_coordinator_manually
-else
-    start_coordinator_service
 fi
 
 echo ""
@@ -422,9 +393,7 @@ echo ""
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
-# Keep the script running to maintain the environment
-# The coordinator.service is managed by systemd, so no need to keep the script running
-# However, if you want to keep the script alive when running manually, uncomment the following lines:
+# Wait for coordinator.py if running manually
 if [ "$RUN_MANUALLY" = true ]; then
     echo "Waiting for coordinator.py process to complete..."
     wait "$coordinator_pid"

@@ -1,87 +1,83 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status.
+# Exit on any command failure
 set -e
 
-# Enable debug mode for easier troubleshooting (optional)
-# set -x
+# Global variables
+STARTUP_SCRIPT="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
+TEMPLATE_IMAGE="drone-template-1"
 
-# Function to display usage information
+# Function: display usage information
 usage() {
-    echo "Usage: $0 <number_of_instances>"
+    printf "Usage: %s <number_of_instances>\n" "$0"
     exit 1
 }
 
-# Check if the number of instances is provided
-if [ -z "$1" ]; then
-    echo "Error: Number of instances not provided."
-    usage
-fi
+# Validate the number of instances input
+validate_input() {
+    if [[ -z "$1" ]]; then
+        printf "Error: Number of instances not provided.\n" >&2
+        usage
+    elif ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+        printf "Error: Number of instances must be a positive integer.\n" >&2
+        usage
+    fi
+}
 
-NUM_INSTANCES=$1
-
-# Validate that NUM_INSTANCES is a positive integer
-if ! [[ "$NUM_INSTANCES" =~ ^[1-9][0-9]*$ ]]; then
-    echo "Error: Number of instances must be a positive integer."
-    usage
-fi
-
-# Function to create and configure a single Docker container instance
+# Function: create and configure a single Docker container instance
 create_instance() {
     local instance_num=$1
     local container_name="drone-$instance_num"
     local hwid_file="${instance_num}.hwID"
-    local template_image="drone-template-1"
-    local startup_script="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 
-    echo "Creating instance ${container_name}..."
+    printf "Creating container '%s'...\n" "$container_name"
 
-    # Create an empty .hwID file
+    # Create an empty .hwID file for the container
     touch "$hwid_file"
 
-    # Run the Docker container in detached mode
-    docker run --name "$container_name" -d "$template_image" bash "$startup_script"
+    # Run the container and execute startup script
+    docker run --name "$container_name" -d "$TEMPLATE_IMAGE" bash "$STARTUP_SCRIPT"
 
-    echo "Container ${container_name} started. Waiting for initialization..."
+    printf "Container '%s' started. Waiting for initialization...\n" "$container_name"
+    sleep 5  # Allow some time for initialization
 
-    # Wait briefly to allow the container to initialize
-    sleep 5
-
-    # Copy the .hwID file into the container
+    # Transfer the .hwID file to the container
     docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"
+    rm "$hwid_file"  # Clean up local .hwID file
 
-    # Remove the local .hwID file
-    rm "$hwid_file"
+    # Run the startup SITL script
+    printf "Running '%s' in container '%s'...\n" "$STARTUP_SCRIPT" "$container_name"
+    if ! docker exec "$container_name" bash "$STARTUP_SCRIPT"; then
+        printf "Error: Failed to run '%s' in '%s'\n" "$STARTUP_SCRIPT" "$container_name" >&2
+        docker stop "$container_name"  # Stop container if startup fails
+        docker rm "$container_name"
+        return 1
+    fi
 
-    # Stop the container to modify its services
-    echo "Stopping container ${container_name} to modify services..."
-    docker stop "$container_name"
-
-    # Remove the coordinator.service from the container
-    echo "Removing coordinator.service from ${container_name}..."
-    docker start "$container_name" >/dev/null
-    docker exec "$container_name" bash -c "systemctl stop coordinator.service || true"
-    docker exec "$container_name" bash -c "systemctl disable coordinator.service || true"
-    docker exec "$container_name" rm -f /etc/systemd/system/coordinator.service
-
-    # Run the startup_sitl.sh script
-    echo "Running startup_sitl.sh in ${container_name}..."
-    docker exec "$container_name" bash "$startup_script"
-
-    # Re-add the coordinator.service
-    echo "Re-adding and starting coordinator.service in ${container_name}..."
-    docker exec "$container_name" bash -c "systemctl enable coordinator.service"
-    docker exec "$container_name" bash -c "systemctl start coordinator.service"
-
-    # Commit the changes to the container (optional)
-    # docker commit "$container_name" "${container_name}-configured"
-
-    echo "Instance ${container_name} configured successfully."
+    printf "Instance '%s' configured successfully.\n" "$container_name"
 }
 
-# Loop to create the specified number of instances
-for ((i=1; i<=NUM_INSTANCES; i++)); do
-    create_instance "$i"
-done
+# Main function: loop to create multiple instances
+main() {
+    local num_instances=$1
 
-echo "All ${NUM_INSTANCES} instances created and configured successfully."
+    # Create instances loop
+    for ((i=1; i<=num_instances; i++)); do
+        if ! create_instance "$i"; then
+            printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
+            exit 1
+        fi
+    done
+
+    printf "All %d instances created and configured successfully.\n" "$num_instances"
+}
+
+# Validate input and ensure the startup script exists
+validate_input "$1"
+if [[ ! -f "$STARTUP_SCRIPT" ]]; then
+    printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT" >&2
+    exit 1
+fi
+
+# Execute the main function
+main "$1"
