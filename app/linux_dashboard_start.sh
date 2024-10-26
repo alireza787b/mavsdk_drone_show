@@ -12,22 +12,19 @@
 # pulls the latest updates from the repository.
 #
 # Usage:
-#   ./run_droneservices.sh [-g|-u|-n|-s|-h]
+#   ./run_droneservices.sh [-g|-u|-n|-s|-h] [--sitl] [-b <branch>]
 #   Flags:
 #     -g : Do NOT run GCS Server (default: enabled)
 #     -u : Do NOT run GUI React App (default: enabled)
 #     -n : Do NOT use tmux (default: uses tmux)
 #     -s : Run components in Separate windows (default: Combined view)
+#     --sitl : Use SITL branch (docker-sitl-2) for the repository sync
+#     -b <branch> : Specify a custom branch to sync with
 #     -h : Display help
 #
 # Example:
-#   ./run_droneservices.sh -g -s
-#   (Runs GUI React App in a separate window, skips the GCS Server)
-#
-# Note:
-#   This script assumes all configurations and initializations are complete.
-#   If not, please refer to the GitHub repository and documentation.
-#   https://github.com/alireza787b/mavsdk_drone_show
+#   ./run_droneservices.sh -g -s --sitl
+#   (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch)
 #
 #########################################
 
@@ -45,21 +42,25 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
+BRANCH_NAME="real-test-1"  # Default branch to sync
+SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
 
 # Function to display usage instructions
 display_usage() {
-    echo "Usage: $0 [-g|-u|-n|-s|-h]"
+    echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl] [-b <branch>]"
     echo "Flags:"
     echo "  -g : Do NOT run GCS Server (default: enabled)"
     echo "  -u : Do NOT run GUI React App (default: enabled)"
     echo "  -n : Do NOT use tmux (default: uses tmux)"
     echo "  -s : Run components in Separate windows (default: Combined view)"
+    echo "  --sitl : Use SITL branch (docker-sitl-2) for repository sync"
+    echo "  -b <branch> : Specify a custom branch to sync with"
     echo "  -h : Display this help message"
-    echo "Example: $0 -g -s (Runs GUI React App in separate window, skips the GCS Server)"
+    echo "Example: $0 -g -s --sitl"
 }
 
 # Parse command-line options
-while getopts "gunsh" opt; do
+while getopts "gunshb:" opt; do
     case ${opt} in
         g) RUN_GCS_SERVER=false ;;
         u) RUN_GUI_APP=false ;;
@@ -69,11 +70,19 @@ while getopts "gunsh" opt; do
             display_usage
             exit 0
             ;;
+        b) BRANCH_NAME="$OPTARG" ;;
         *)
             display_usage
             exit 1
             ;;
     esac
+done
+
+# Check for --sitl flag (outside getopts to handle long options)
+for arg in "$@"; do
+    if [ "$arg" == "--sitl" ]; then
+        BRANCH_NAME="$SITL_BRANCH"
+    fi
 done
 
 # Function to check if a command is installed and install it if not
@@ -145,9 +154,9 @@ GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 # Function to update the repository
 update_repository() {
     if [ "$ENABLE_AUTO_PULL" = true ]; then
-        echo "Running repository update script..."
+        echo "Running repository update script for branch '$BRANCH_NAME'..."
         if [ -f "$UPDATE_SCRIPT_PATH" ]; then
-            bash "$UPDATE_SCRIPT_PATH"
+            bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
             if [ $? -ne 0 ]; then
                 echo "Error: Repository update failed. Exiting."
                 exit 1
@@ -259,7 +268,7 @@ start_services_no_tmux() {
 #########################################
 
 echo "==============================================="
-echo "  Initializing c System..."
+echo "  Initializing DroneServices System..."
 echo "==============================================="
 echo ""
 

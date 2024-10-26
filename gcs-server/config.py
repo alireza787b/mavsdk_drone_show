@@ -5,10 +5,11 @@ import logging
 import subprocess
 import requests
 from flask import Flask, jsonify, request
+from params import Params
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE_PATH = os.path.join(BASE_DIR, 'config.csv')
-SWARM_FILE_PATH = os.path.join(BASE_DIR, 'swarm.csv')
+CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
+SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
 
 logger = logging.getLogger(__name__)
 

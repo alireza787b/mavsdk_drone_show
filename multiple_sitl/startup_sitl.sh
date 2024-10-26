@@ -36,7 +36,7 @@ DEFAULT_ALT=1278.5
 # Directory Paths
 BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
-CONFIG_FILE="$BASE_DIR/../config.csv"
+CONFIG_FILE="$BASE_DIR/../config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
 
 # Script Metadata

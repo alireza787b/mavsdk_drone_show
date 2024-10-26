@@ -179,7 +179,7 @@ def read_hw_id():
         logger.warning("Hardware ID file not found.")
         return None
 
-def read_config(filename='config.csv'):
+def read_config(filename=Params.config_csv_name):
     """
     Reads the drone configuration from a CSV file based on the hardware ID.
 

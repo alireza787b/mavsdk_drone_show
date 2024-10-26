@@ -85,13 +85,13 @@ class DroneCommunicator:
         """Retrieve node information from config.csv file."""
         if self.nodes is None:
             try:
-                with open("config.csv", "r") as file:
+                with open(Params.config_csv_name, "r") as file:
                     self.nodes = list(csv.DictReader(file))
             except FileNotFoundError:
-                logging.error("config.csv file not found")
+                logging.error("config file not found")
                 self.nodes = []
             except csv.Error as e:
-                logging.error(f"Error reading config.csv: {e}")
+                logging.error(f"Error reading config: {e}")
                 self.nodes = []
         return self.nodes
 

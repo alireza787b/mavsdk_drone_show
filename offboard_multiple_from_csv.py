@@ -25,6 +25,7 @@ from mavsdk.action import ActionError
 import navpy
 from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
+from src.params import Params
 
 # ----------------------------- #
 #           Constants           #
@@ -103,6 +104,10 @@ global_position_telemetry = {}  # Global position telemetry data
 current_landed_state = None  # Current landed state of the drone
 global_synchronized_start_time = None  # Synchronized start time
 initial_position_drift = None  # Initial position drift in NED coordinates
+
+CONFIG_CSV_NAME = Params.config_csv_name
+SWARM_CSV_NAME = Params.swarm_csv_name
+
 
 # ----------------------------- #
 #         Helper Functions      #
@@ -1061,7 +1066,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
                 sys.exit(1)
 
             # Read Drone Configuration
-            drone_config = read_config("config.csv")
+            drone_config = read_config(CONFIG_CSV_NAME)
             if drone_config is None:
                 logger.error("Drone configuration not found. Exiting program.")
                 sys.exit(1)

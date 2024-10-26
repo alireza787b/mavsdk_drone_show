@@ -10,6 +10,20 @@ class Params():
 
     # Simulation and Mode Switches
     sim_mode = False  # Set to True for simulation mode, False for real-life mode
+    GIT_AUTO_PUSH = True
+    GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
+    
+    # Conditional Configuration File Names
+    if sim_mode:
+        config_csv_name = "config_sitl.csv"
+        swarm_csv_name = "swarm_sitl.csv"
+        GIT_BRANCH = 'docker-sitl-2'  # Example branch for simulation mode
+    else:
+        config_csv_name = "config.csv"
+        swarm_csv_name = "swarm.csv"
+        GIT_BRANCH = 'real-test-1'  # Example branch for real-life mode
+    
+
     enable_drones_http_server = True  # Enable HTTP server on drones
     single_drone = False  # Enable single drone mode
     offline_config = True  # Use offline configuration (not used!)
@@ -80,9 +94,7 @@ class Params():
     max_takeoff_alt = 100
     default_takeoff_alt = 10
     
-    GIT_AUTO_PUSH = True
-    GIT_BRANCH = 'real-test-1'
-    GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
+
     
     
     # LED Configuration
