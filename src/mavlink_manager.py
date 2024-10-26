@@ -30,7 +30,7 @@ class MavlinkManager:
 
             if self.params.sim_mode:
                 #already sends to 14550 and 14540
-                # endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.mavsdk_port}")
+                endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
                 pass
             else:
                 endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
