@@ -2,6 +2,7 @@
 
 # Exit on any command failure
 set -e
+set -o pipefail
 
 # Introductory banner
 cat << "EOF"
@@ -25,10 +26,11 @@ echo
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 TEMPLATE_IMAGE="drone-template"
+VERBOSE=false
 
 # Function: display usage information
 usage() {
-    printf "Usage: %s <number_of_instances>\n" "$0"
+    printf "Usage: %s <number_of_instances> [--verbose]\n" "$0"
     exit 1
 }
 
@@ -60,14 +62,14 @@ create_instance() {
     # Create an empty .hwID file for the container
     if ! touch "$hwid_file"; then
         printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
-        exit 1
+        return 1
     fi
 
     # Run the container and keep it running
     if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
         rm -f "$hwid_file"  # Clean up local .hwID file
-        exit 1
+        return 1
     fi
 
     printf "Container '%s' started.\n" "$container_name"
@@ -78,7 +80,7 @@ create_instance() {
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
         rm -f "$hwid_file"
-        exit 1
+        return 1
     fi
 
     # Transfer the .hwID file to the container
@@ -87,7 +89,7 @@ create_instance() {
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
         rm -f "$hwid_file"
-        exit 1
+        return 1
     fi
     rm -f "$hwid_file"  # Clean up local .hwID file
 
@@ -96,7 +98,7 @@ create_instance() {
         printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
-        exit 1
+        return 1
     fi
 
     # Make the startup script executable inside the container
@@ -104,7 +106,7 @@ create_instance() {
         printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
         docker rm "$container_name" >/dev/null
-        exit 1
+        return 1
     fi
 
     # Run the startup SITL script inside the container
@@ -119,15 +121,51 @@ create_instance() {
     printf "Instance '%s' configured successfully.\n" "$container_name"
 }
 
+# Function: report system resource usage
+report_resources() {
+    local container_name=$1
+    local cpu_usage memory_usage storage_usage
+
+    # Get CPU usage
+    cpu_usage=$(docker stats "$container_name" --no-stream --format "{{.CPUPerc}}")
+    memory_usage=$(docker stats "$container_name" --no-stream --format "{{.MemUsage}}")
+    storage_usage=$(docker exec "$container_name" df -h / | tail -1 | awk '{print $3 "/" $2}')
+
+    printf "Resources for container '%s': CPU: %s, Memory: %s, Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
+}
+
 # Main function: loop to create multiple instances
 main() {
     local num_instances=$1
+    shift
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
 
     # Create instances loop
     for ((i=1; i<=num_instances; i++)); do
         if ! create_instance "$i"; then
             printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
             exit 1
+        fi
+
+        # Report resources after container setup
+        report_resources "drone-$i"
+
+        # Output verbose logs if --verbose is enabled
+        if $VERBOSE; then
+            printf "Verbose log for container 'drone-%d':\n" "$i"
+            docker logs "drone-$i"
         fi
     done
 
@@ -142,4 +180,4 @@ if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
 fi
 
 # Execute the main function
-main "$1"
+main "$@"
