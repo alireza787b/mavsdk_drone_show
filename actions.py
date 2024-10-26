@@ -22,7 +22,7 @@ from src.params import Params
 # Configuration Constants
 # =======================
 
-GRPC_PORT = 50051
+GRPC_PORT = 50040
 UDP_PORT = 14540
 HW_ID = None  # Will be set by read_hw_id()
 
@@ -135,8 +135,13 @@ def start_mavsdk_server(grpc_port, udp_port):
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     try:
+        # mavsdk_server = subprocess.Popen(
+        #     ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.PIPE
+        # )
         mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
+            ["./mavsdk_server", "-p", str(grpc_port)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
