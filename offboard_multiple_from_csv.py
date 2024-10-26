@@ -882,6 +882,80 @@ async def disarm_drone(drone: System):
 #       MAVSDK Server Control   #
 # ----------------------------- #
 
+
+def start_mavsdk_server(udp_port: int):
+    """
+    Start MAVSDK server instance for the drone.
+
+    Args:
+        udp_port (int): UDP port for MAVSDK server communication.
+
+    Returns:
+        subprocess.Popen: MAVSDK server subprocess if started successfully, else None.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        # Check if MAVSDK server is already running
+        is_running, pid = check_mavsdk_server_running(GRPC_PORT)
+        if is_running:
+            logger.info(f"MAVSDK server already running on port {GRPC_PORT}. Terminating...")
+            try:
+                psutil.Process(pid).terminate()
+                psutil.Process(pid).wait(timeout=5)
+                logger.info(f"Terminated existing MAVSDK server with PID: {pid}")
+            except psutil.NoSuchProcess:
+                logger.warning(f"No process found with PID: {pid} to terminate.")
+            except psutil.TimeoutExpired:
+                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
+                psutil.Process(pid).kill()
+                psutil.Process(pid).wait()
+                logger.info(f"Killed MAVSDK server with PID: {pid}")
+
+        # Construct the absolute path to mavsdk_server
+        home_dir = os.path.expanduser("~")
+        mavsdk_drone_show_dir = os.path.join(home_dir, "mavsdk_drone_show")
+        mavsdk_server_path = os.path.join(mavsdk_drone_show_dir, "mavsdk_server")
+
+        logger.debug(f"Constructed MAVSDK server path: {mavsdk_server_path}")
+
+        if not os.path.isfile(mavsdk_server_path):
+            logger.error(f"mavsdk_server executable not found at '{mavsdk_server_path}'.")
+            sys.exit(1)  # Exit the program as the server is essential
+
+        if not os.access(mavsdk_server_path, os.X_OK):
+            logger.info(f"Setting executable permissions for '{mavsdk_server_path}'.")
+            os.chmod(mavsdk_server_path, 0o755)
+
+        # Start the MAVSDK server
+        mavsdk_server = subprocess.Popen(
+            [mavsdk_server_path, "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        logger.info(
+            f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}."
+        )
+
+        # Optionally, you can start logging the MAVSDK server output asynchronously
+        asyncio.create_task(log_mavsdk_output(mavsdk_server))
+
+        # Wait until the server is listening on the gRPC port
+        if not wait_for_port(GRPC_PORT, timeout=10):
+            logger.error(f"MAVSDK server did not start listening on port {GRPC_PORT} within timeout.")
+            mavsdk_server.terminate()
+            return None
+
+        logger.info("MAVSDK server is now listening on gRPC port.")
+        return mavsdk_server
+
+    except FileNotFoundError:
+        logger.error("mavsdk_server executable not found. Ensure it is present in the specified directory.")
+        return None
+    except Exception:
+        logger.exception("Error starting MAVSDK server")
+        return None
+    
+
 def check_mavsdk_server_running(port):
     """
     Checks if the MAVSDK server is running on the specified gRPC port.
@@ -919,64 +993,62 @@ def wait_for_port(port, host='localhost', timeout=10.0):
         try:
             with socket.create_connection((host, port), timeout=1):
                 return True
-        except (ConnectionRefusedError, socket.timeout):
+        except (ConnectionRefusedError, socket.timeout, OSError):
             if time.time() - start_time >= timeout:
                 return False
             time.sleep(0.1)
 
-def start_mavsdk_server(udp_port: int):
+async def log_mavsdk_output(mavsdk_server):
     """
-    Start MAVSDK server instance for the drone.
+    Asynchronously logs the stdout and stderr of the MAVSDK server.
 
     Args:
-        udp_port (int): UDP port for MAVSDK server communication.
-
-    Returns:
-        subprocess.Popen: MAVSDK server subprocess if started successfully, else None.
+        mavsdk_server (subprocess.Popen): The subprocess running the MAVSDK server.
     """
     logger = logging.getLogger(__name__)
     try:
-        # Check if MAVSDK server is already running
-        is_running, pid = check_mavsdk_server_running(GRPC_PORT)
-        if is_running:
-            logger.info(f"MAVSDK server already running on port {GRPC_PORT}. Terminating...")
-            try:
-                psutil.Process(pid).terminate()
-                psutil.Process(pid).wait(timeout=5)
-                logger.info(f"Terminated existing MAVSDK server with PID: {pid}")
-            except psutil.NoSuchProcess:
-                logger.warning(f"No process found with PID: {pid} to terminate.")
-            except psutil.TimeoutExpired:
-                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
-                psutil.Process(pid).kill()
-                psutil.Process(pid).wait()
-                logger.info(f"Killed MAVSDK server with PID: {pid}")
-
-        # Start the MAVSDK server
-        mavsdk_server = subprocess.Popen(
-            [os.path.join(os.getcwd(), "mavsdk_server"), "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        logger.info(
-            f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}."
-        )
-
-        # Wait until the server is listening on the gRPC port
-        if not wait_for_port(GRPC_PORT, timeout=10):
-            logger.error(f"MAVSDK server did not start listening on port {GRPC_PORT} within timeout.")
-            mavsdk_server.terminate()
-            return None
-
-        logger.info("MAVSDK server is now listening on gRPC port.")
-        return mavsdk_server
-    except FileNotFoundError:
-        logger.error("mavsdk_server executable not found. Ensure it is present in the current directory.")
-        return None
+        while True:
+            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stdout.readline)
+            if not line:
+                break
+            logger.debug(f"MAVSDK Server: {line.decode().strip()}")
     except Exception:
-        logger.exception("Error starting MAVSDK server")
-        return None
+        logger.exception("Error while reading MAVSDK server stdout")
 
+    try:
+        while True:
+            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stderr.readline)
+            if not line:
+                break
+            logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
+    except Exception:
+        logger.exception("Error while reading MAVSDK server stderr")
+
+
+def stop_mavsdk_server(mavsdk_server):
+    """
+    Stop the MAVSDK server instance.
+
+    Args:
+        mavsdk_server (subprocess.Popen): MAVSDK server subprocess.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        if mavsdk_server.poll() is None:
+            logger.info("Stopping MAVSDK server...")
+            mavsdk_server.terminate()
+            try:
+                mavsdk_server.wait(timeout=5)
+                logger.info("MAVSDK server terminated gracefully.")
+            except subprocess.TimeoutExpired:
+                logger.warning("MAVSDK server did not terminate gracefully. Killing it.")
+                mavsdk_server.kill()
+                mavsdk_server.wait()
+                logger.info("MAVSDK server killed forcefully.")
+        else:
+            logger.debug("MAVSDK server has already terminated.")
+    except Exception:
+        logger.exception("Error stopping MAVSDK server")
 
 # ----------------------------- #
 #         Main Drone Runner     #
