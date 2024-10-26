@@ -62,6 +62,7 @@ class Params():
     serial_mavlink_port = '/dev/ttyS0'  # Serial port for Raspberry Pi Zero TTL
     serial_baudrate = 57600  # Serial connection baudrate
     sitl_port = 14550  # SITL port
+    hw_udp_port = 14550
     gcs_mavlink_port = 34550  # Port for sending MAVLink messages to GCS
     mavsdk_port = 14540  # MAVSDK port
     local_mavlink_port = 12550  # Local MAVLink port
