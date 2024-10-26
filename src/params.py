@@ -10,6 +10,11 @@ class Params():
 
     # Simulation and Mode Switches
     sim_mode = True  # Set to True for simulation mode, False for real-life mode
+    GIT_AUTO_PUSH = True
+    GIT_BRANCH = 'real-test-1' # if set to sim_mode = true, change this to the currect branch. eg. docker-sitl-2 and when on real test to eg. real-test-1
+    GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
+    
+    
     enable_drones_http_server = True  # Enable HTTP server on drones
     single_drone = False  # Enable single drone mode
     offline_config = True  # Use offline configuration (not used!)
@@ -80,9 +85,7 @@ class Params():
     max_takeoff_alt = 100
     default_takeoff_alt = 10
     
-    GIT_AUTO_PUSH = True
-    GIT_BRANCH = 'real-test-1'
-    GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
+
     
     
     # LED Configuration
