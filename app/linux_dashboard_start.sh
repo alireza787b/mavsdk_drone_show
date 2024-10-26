@@ -78,7 +78,10 @@ while getopts "gunshb:" opt; do
     esac
 done
 
-# Check for --sitl flag (outside getopts to handle long options)
+# Shift the processed options so we can handle the remaining arguments
+shift $((OPTIND - 1))
+
+# Check for --sitl flag (manually handle long options)
 for arg in "$@"; do
     if [ "$arg" == "--sitl" ]; then
         BRANCH_NAME="$SITL_BRANCH"
