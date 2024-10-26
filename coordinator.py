@@ -113,7 +113,6 @@ def main_loop():
     """
     global mavlink_manager, offboard_controller, drone_comms, drone_setup  # Declare as global variables
     try:
-        
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
         logger.info("Starting the main loop...")
@@ -123,7 +122,11 @@ def main_loop():
             drone_setup.synchronize_time()
             logger.info("Time synchronized.")
 
-        
+        # Initialize MAVLink communication
+        mavlink_manager = MavlinkManager(params, drone_config)
+        logger.info("Initializing MAVLink...")
+        mavlink_manager.initialize()
+        time.sleep(2)  # Wait for initialization
 
         # Initialization successful
         LEDController.set_color(0, 255, 0)  # Green
@@ -198,14 +201,8 @@ def main():
     """
     Main function to start the coordinator application.
     """
-    global drone_comms, drone_setup , mavlink_manager # Declare as global variables
+    global drone_comms, drone_setup  # Declare as global variables
     logger.info("Starting the coordinator application...")
-
-    # Initialize MAVLink communication
-    mavlink_manager = MavlinkManager(params, drone_config)
-    logger.info("Initializing MAVLink...")
-    mavlink_manager.initialize()
-    time.sleep(2)  # Wait for initialization
 
     # Initialize LocalMavlinkController
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
