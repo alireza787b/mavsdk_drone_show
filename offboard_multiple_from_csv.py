@@ -954,7 +954,7 @@ def start_mavsdk_server(udp_port: int):
 
         # Start the MAVSDK server
         mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
+            [os.path.join(os.getcwd(), "mavsdk_server"), "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -977,30 +977,6 @@ def start_mavsdk_server(udp_port: int):
         logger.exception("Error starting MAVSDK server")
         return None
 
-def stop_mavsdk_server(mavsdk_server):
-    """
-    Stop the MAVSDK server instance.
-
-    Args:
-        mavsdk_server (subprocess.Popen): MAVSDK server subprocess.
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        if mavsdk_server.poll() is None:
-            logger.info("Stopping MAVSDK server...")
-            mavsdk_server.terminate()
-            try:
-                mavsdk_server.wait(timeout=5)
-                logger.info("MAVSDK server terminated gracefully.")
-            except subprocess.TimeoutExpired:
-                logger.warning("MAVSDK server did not terminate gracefully. Killing it.")
-                mavsdk_server.kill()
-                mavsdk_server.wait()
-                logger.info("MAVSDK server killed forcefully.")
-        else:
-            logger.debug("MAVSDK server has already terminated.")
-    except Exception:
-        logger.exception("Error stopping MAVSDK server")
 
 # ----------------------------- #
 #         Main Drone Runner     #
