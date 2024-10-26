@@ -5,7 +5,7 @@ set -e
 
 # Global variables
 STARTUP_SCRIPT="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template-1"
+TEMPLATE_IMAGE="drone-template"
 
 # Function: display usage information
 usage() {
