@@ -77,34 +77,61 @@ def check_mavsdk_server_running(port):
     """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     return False, None
 
-def wait_for_port(port, host='127.0.0.1', timeout=10.0):
+
+def wait_for_port(grpc_port, udp_port, host='127.0.0.1', timeout=10.0):
     """
-    Wait until a port starts accepting TCP connections.
+    Wait until both gRPC and UDP ports start accepting TCP and UDP connections respectively.
 
     Args:
-        port (int): The port to check.
-        host (str): The hostname to check.
+        grpc_port (int): The gRPC port to check.
+        udp_port (int): The UDP port to check.
+        host (str): The hostname or IP address to check.
         timeout (float): The maximum time to wait in seconds.
 
     Returns:
-        bool: True if the port is open, False if the timeout was reached.
+        bool: True if both ports are open, False if the timeout was reached.
     """
     start_time = time.time()
+    grpc_open = False
+    udp_open = False
     while True:
         try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
+            # Check gRPC port (TCP)
+            with socket.create_connection((host, grpc_port), timeout=1):
+                grpc_open = True
         except (ConnectionRefusedError, socket.timeout):
-            if time.time() - start_time >= timeout:
-                return False
-            time.sleep(0.1)
+            grpc_open = False
+
+        try:
+            # Check UDP port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(1)
+            try:
+                sock.sendto(b'', (host, udp_port))
+                udp_open = True
+            except Exception:
+                udp_open = False
+            finally:
+                sock.close()
+        except Exception as e:
+            logger.error(f"Error checking UDP port {udp_port}: {e}")
+            udp_open = False
+
+        if grpc_open and udp_open:
+            return True
+
+        if time.time() - start_time >= timeout:
+            return False
+
+        time.sleep(0.1)
+
 
 def start_mavsdk_server(grpc_port, udp_port):
     """
@@ -135,13 +162,8 @@ def start_mavsdk_server(grpc_port, udp_port):
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
     try:
-        # mavsdk_server = subprocess.Popen(
-        #     ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE
-        # )
         mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(grpc_port)],
+            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -168,7 +190,7 @@ def start_mavsdk_server(grpc_port, udp_port):
         asyncio.create_task(log_mavsdk_error(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
-        if not wait_for_port(grpc_port, timeout=10):
+        if not wait_for_port(grpc_port, udp_port=udp_port, timeout=10):
             logger.error(f"MAVSDK server did not start listening on port {grpc_port} within timeout.")
             mavsdk_server.terminate()
             stdout, stderr = mavsdk_server.communicate()
@@ -184,6 +206,7 @@ def start_mavsdk_server(grpc_port, udp_port):
     except Exception as e:
         logger.exception("Failed to start MAVSDK server")
         sys.exit(1)
+
 
 
 def read_hw_id():
