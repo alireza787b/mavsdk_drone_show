@@ -106,7 +106,7 @@ class DroneConfig:
         Read configuration either from a local CSV file or from an online source.
         """
         if Params.offline_config:
-            return self.read_file('config.csv', 'local CSV file', self.hw_id)
+            return self.read_file(Params.config_csv_name, 'local CSV file', self.hw_id)
         else:
             return self.fetch_online_config(Params.config_url, 'online_config.csv')
 
@@ -115,7 +115,7 @@ class DroneConfig:
         Reads the swarm configuration file, which includes the list of nodes in the swarm.
         """
         if Params.offline_swarm:
-            return self.read_file('swarm.csv', 'local CSV file', self.hw_id)
+            return self.read_file(Params.swarm_csv_name, 'local CSV file', self.hw_id)
         else:
             return self.fetch_online_config(Params.swarm_url, 'online_swarm.csv')
 

@@ -11,9 +11,17 @@ class Params():
     # Simulation and Mode Switches
     sim_mode = True  # Set to True for simulation mode, False for real-life mode
     GIT_AUTO_PUSH = True
-    GIT_BRANCH = 'real-test-1' # if set to sim_mode = true, change this to the currect branch. eg. docker-sitl-2 and when on real test to eg. real-test-1
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     
+    # Conditional Configuration File Names
+    if sim_mode:
+        config_csv_name = "config_sitl.csv"
+        swarm_csv_name = "swarm_sitl.csv"
+        GIT_BRANCH = 'docker-sitl-2'  # Example branch for simulation mode
+    else:
+        config_csv_name = "config.csv"
+        swarm_csv_name = "swarm.csv"
+        GIT_BRANCH = 'real-test-1'  # Example branch for real-life mode
     
     enable_drones_http_server = True  # Enable HTTP server on drones
     single_drone = False  # Enable single drone mode
