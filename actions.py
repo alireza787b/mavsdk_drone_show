@@ -84,7 +84,7 @@ def check_mavsdk_server_running(port):
             pass
     return False, None
 
-def wait_for_port(port, host='localhost', timeout=10.0):
+def wait_for_port(port, host='127.0.0.1', timeout=10.0):
     """
     Wait until a port starts accepting TCP connections.
 
@@ -141,10 +141,34 @@ def start_mavsdk_server(grpc_port, udp_port):
             stderr=subprocess.PIPE
         )
 
+        # Log the MAVSDK server's stdout and stderr asynchronously
+        async def log_mavsdk_output(proc):
+            while True:
+                output = proc.stdout.readline()
+                if output:
+                    logger.debug(f"MAVSDK Server: {output.decode().strip()}")
+                else:
+                    break
+
+        asyncio.create_task(log_mavsdk_output(mavsdk_server))
+
+        async def log_mavsdk_error(proc):
+            while True:
+                error = proc.stderr.readline()
+                if error:
+                    logger.error(f"MAVSDK Server Error: {error.decode().strip()}")
+                else:
+                    break
+
+        asyncio.create_task(log_mavsdk_error(mavsdk_server))
+
         # Wait until the server is listening on the gRPC port
         if not wait_for_port(grpc_port, timeout=10):
             logger.error(f"MAVSDK server did not start listening on port {grpc_port} within timeout.")
             mavsdk_server.terminate()
+            stdout, stderr = mavsdk_server.communicate()
+            logger.error(f"MAVSDK Server stdout: {stdout.decode().strip()}")
+            logger.error(f"MAVSDK Server stderr: {stderr.decode().strip()}")
             sys.exit(1)
 
         logger.info("MAVSDK server is now listening on gRPC port.")
@@ -155,6 +179,7 @@ def start_mavsdk_server(grpc_port, udp_port):
     except Exception as e:
         logger.exception("Failed to start MAVSDK server")
         sys.exit(1)
+
 
 def read_hw_id():
     """
@@ -287,7 +312,7 @@ async def perform_action(action, altitude=None, parameters=None):
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
 
     # Initialize the MAVSDK drone system
-    drone = System(mavsdk_server_address="localhost", port=grpc_port)
+    drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
     logger.info("Attempting to connect to drone...")
 
     try:
