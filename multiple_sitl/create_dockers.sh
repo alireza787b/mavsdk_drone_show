@@ -109,9 +109,9 @@ create_instance() {
         return 1
     fi
 
-    # Run the startup SITL script inside the container
-    printf "Running startup script in container '%s'...\n" "$container_name"
-    if ! docker exec "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
+    # Run the startup SITL script inside the container in detached mode
+    printf "Running startup script in container '%s' (detached)...\n" "$container_name"
+    if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
         printf "Error: Failed to run startup script in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null  # Stop container if startup fails
         docker rm "$container_name" >/dev/null
