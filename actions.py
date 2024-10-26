@@ -317,11 +317,11 @@ async def perform_action(action, altitude=None, parameters=None):
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
 
     # Initialize the MAVSDK drone system
-    drone = System(mavsdk_server_address="localhost", port=grpc_port)
+    drone = System(mavsdk_server_address="127.0.0.1", port=grpc_port)
     logger.info("Attempting to connect to drone...")
 
     try:
-        await drone.connect(system_address=f"udp://:{udp_port}")
+        await drone.connect(system_address=f"udp://127.0.0.1:{udp_port}")
     except Exception:
         logger.exception("Failed to connect to MAVSDK server")
         stop_mavsdk_server(mavsdk_server)
