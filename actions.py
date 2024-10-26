@@ -316,7 +316,7 @@ async def perform_action(action, altitude=None, parameters=None):
     logger.info("Attempting to connect to drone...")
 
     try:
-        await drone.connect(system_address=f"udp://:{udp_port}")
+        await drone.connect(system_address=f"udp://127.0.0.1:{udp_port}")
     except Exception:
         logger.exception("Failed to connect to MAVSDK server")
         stop_mavsdk_server(mavsdk_server)
