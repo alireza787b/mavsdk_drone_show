@@ -109,6 +109,14 @@ create_instance() {
         return 1
     fi
 
+    # If verbose mode is enabled, run attached mode for debugging purposes
+    if $VERBOSE; then
+        printf "\nVerbose mode is ON. Running one container in attached mode for debugging.\n"
+        printf "Container '%s' will run in attached mode. Check logs for any errors inside the container.\n" "$container_name"
+        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
+        return 0
+    fi
+
     # Run the startup SITL script inside the container in detached mode
     printf "Running startup script in container '%s' (detached)...\n" "$container_name"
     if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
@@ -154,22 +162,28 @@ main() {
 
     # Create instances loop
     for ((i=1; i<=num_instances; i++)); do
+        if $VERBOSE && [[ $i -gt 1 ]]; then
+            printf "Verbose mode only supports running one container for debugging purposes.\n"
+            printf "Skipping creation of container 'drone-%d'.\n" "$i"
+            break
+        fi
+
         if ! create_instance "$i"; then
             printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
             exit 1
         fi
 
-        # Report resources after container setup
-        report_resources "drone-$i"
-
-        # Output verbose logs if --verbose is enabled
-        if $VERBOSE; then
-            printf "Verbose log for container 'drone-%d':\n" "$i"
-            docker logs "drone-$i"
+        # Report resources after container setup (only in non-verbose mode)
+        if ! $VERBOSE; then
+            report_resources "drone-$i"
         fi
     done
 
     printf "\nAll %d instances created and configured successfully.\n" "$num_instances"
+
+    # Provide cleanup command to remove all drone containers
+    printf "\nTo remove all created containers, you can run the following command:\n"
+    printf "  docker rm -f $(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
 }
 
 # Validate input and ensure the startup script exists
