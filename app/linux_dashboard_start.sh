@@ -3,7 +3,7 @@
 #########################################
 # Robust Drone Services Launcher with Repo Sync and Mouse Support in tmux
 #
-# Project: Drone Show GCS Server
+# Project: MAVSDK_DRONE_SHOW
 # Author: Alireza Ghaderi
 # Date: October 2024
 #
