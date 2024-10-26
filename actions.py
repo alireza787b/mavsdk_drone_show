@@ -23,7 +23,7 @@ from src.params import Params
 # =======================
 
 GRPC_PORT = 50040
-UDP_PORT = 14540
+UDP_PORT = 14550
 HW_ID = None  # Will be set by read_hw_id()
 
 # =======================
