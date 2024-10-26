@@ -59,7 +59,33 @@ display_usage() {
     echo "Example: $0 -g -s --sitl"
 }
 
-# Parse command-line options
+# Manually handle long options (--sitl) and combine with getopts for short options
+PARSED_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --sitl)
+            BRANCH_NAME="$SITL_BRANCH"
+            shift
+            ;;
+        -g|-u|-n|-s|-h|-b)
+            PARSED_ARGS+=("$1" "$2")
+            shift 2
+            ;;
+        -b)
+            BRANCH_NAME="$2"
+            shift 2
+            ;;
+        *)
+            PARSED_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Repass parsed options to getopts for short options processing
+set -- "${PARSED_ARGS[@]}"
+
+# Parse command-line options using getopts for short options
 while getopts "gunshb:" opt; do
     case ${opt} in
         g) RUN_GCS_SERVER=false ;;
@@ -76,13 +102,6 @@ while getopts "gunshb:" opt; do
             exit 1
             ;;
     esac
-done
-
-# Check for --sitl flag (outside getopts to handle long options)
-for arg in "$@"; do
-    if [ "$arg" == "--sitl" ]; then
-        BRANCH_NAME="$SITL_BRANCH"
-    fi
 done
 
 # Function to check if a command is installed and install it if not
@@ -106,16 +125,12 @@ check_tmux_installed() {
 # Function to check if a port is in use and kill the process using it
 check_and_kill_port() {
     local port="$1"
-    # Ensure lsof is installed
     check_command_installed "lsof" "lsof"
-    # Find the process ID (PID) using the port
     pid=$(lsof -t -i :"$port")
     if [ -n "$pid" ]; then
         echo "⚠️  Port $port is in use by process $pid."
-        # Get the process name
         process_name=$(ps -p "$pid" -o comm=)
         echo "Process using port $port: $process_name (PID: $pid)"
-        # Kill the process
         echo "Killing process $pid..."
         kill -9 "$pid"
         echo "✅ Process $pid killed."
@@ -187,7 +202,6 @@ load_virtualenv() {
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
-    # Kill existing session if it exists
     if tmux has-session -t "$session" 2>/dev/null; then
         echo "⚠️  Killing existing tmux session '$session'..."
         tmux kill-session -t "$session"
@@ -197,10 +211,9 @@ start_services_in_tmux() {
     tmux new-session -d -s "$session"
 
     if [ "$ENABLE_MOUSE" = true ]; then
-        tmux set-option -g mouse on  # Enable mouse support
+        tmux set-option -g mouse on
     fi
 
-    # Create an associative array to hold enabled components
     declare -A components
 
     if [ "$RUN_GCS_SERVER" = true ]; then
@@ -212,7 +225,6 @@ start_services_in_tmux() {
     fi
 
     if [ "$COMBINED_VIEW" = true ]; then
-        # Combined view with split panes
         tmux rename-window -t "$session:0" "CombinedView"
         local pane_index=0
         for component_name in "${!components[@]}"; do
@@ -225,16 +237,13 @@ start_services_in_tmux() {
             fi
             pane_index=$((pane_index + 1))
         done
-
         if [ $pane_index -gt 1 ]; then
             tmux select-layout -t "$session:CombinedView" tiled
         fi
     else
-        # Start components in separate windows
         local window_index=0
         for component_name in "${!components[@]}"; do
             if [ $window_index -eq 0 ]; then
-                # Rename the first window (created by default)
                 tmux rename-window -t "$session:0" "$component_name"
                 tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
             else
@@ -245,10 +254,7 @@ start_services_in_tmux() {
         done
     fi
 
-    # Display tmux instructions before attaching
     show_tmux_instructions
-
-    # Attach to the tmux session
     tmux attach-session -t "$session"
 }
 
@@ -272,17 +278,13 @@ echo "  Initializing DroneServices System..."
 echo "==============================================="
 echo ""
 
-# Check if required commands are installed
 check_tmux_installed
 check_command_installed "lsof" "lsof"
 
-# Update repository if auto-pull is enabled
 update_repository
 
-# Load virtual environment
 load_virtualenv
 
-# Check and kill processes using default ports
 echo "-----------------------------------------------"
 echo "Checking and freeing up default ports..."
 echo "-----------------------------------------------"
@@ -294,9 +296,7 @@ if [ "$RUN_GUI_APP" = true ]; then
     check_and_kill_port "$GUI_PORT"
 fi
 
-# Function to run the DroneServices components
 run_droneservices_components() {
-    echo ""
     echo "-----------------------------------------------"
     echo "Starting DroneServices components..."
     echo "-----------------------------------------------"
@@ -326,10 +326,8 @@ run_droneservices_components() {
     fi
 }
 
-# Run the components
 run_droneservices_components
 
-echo ""
 echo "==============================================="
 echo "  DroneServices System Startup Complete!"
 echo "==============================================="
