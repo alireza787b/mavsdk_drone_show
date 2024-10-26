@@ -315,8 +315,8 @@ async def perform_action(action, altitude=None, parameters=None):
         return
 
     # Define MAVSDK Ports since it's on each system its constant
-    grpc_port = drone_config['grpc_port']
-    udp_port = drone_config['udp_port']
+    grpc_port = grpc_port
+    udp_port = UDP_PORT
 
     logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
