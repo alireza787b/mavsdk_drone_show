@@ -22,8 +22,8 @@ from src.params import Params
 # Configuration Constants
 # =======================
 
-GRPC_PORT = 50040
-UDP_PORT = 14580
+GRPC_PORT = 50051
+UDP_PORT = 14540
 HW_ID = None  # Will be set by read_hw_id()
 
 # =======================
