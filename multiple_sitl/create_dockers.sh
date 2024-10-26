@@ -183,7 +183,7 @@ main() {
 
     # Provide cleanup command to remove all drone containers
     printf "\nTo remove all created containers, you can run the following command:\n"
-    printf "  docker rm -f $(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
+    printf "docker rm -f \$(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
 }
 
 # Validate input and ensure the startup script exists
