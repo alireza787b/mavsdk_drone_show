@@ -32,23 +32,41 @@ create_instance() {
 
     printf "Creating container '%s'...\n" "$container_name"
 
+    # Remove existing container if it exists
+    if docker ps -a --format '{{.Names}}' | grep -Eq "^${container_name}\$"; then
+        printf "Container '%s' already exists. Removing it...\n" "$container_name"
+        docker rm -f "$container_name"
+    fi
+
     # Create an empty .hwID file for the container
-    touch "$hwid_file"
+    if ! touch "$hwid_file"; then
+        printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
+        exit 1
+    fi
 
-    # Run the container and execute startup script
-    docker run --name "$container_name" -d "$TEMPLATE_IMAGE" bash "$STARTUP_SCRIPT"
+    # Run the container and keep it running
+    if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null; then
+        printf "Error: Failed to start container '%s'\n" "$container_name" >&2
+        rm -f "$hwid_file"  # Clean up local .hwID file
+        exit 1
+    fi
 
-    printf "Container '%s' started. Waiting for initialization...\n" "$container_name"
-    sleep 5  # Allow some time for initialization
+    printf "Container '%s' started.\n" "$container_name"
 
     # Transfer the .hwID file to the container
-    docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"
-    rm "$hwid_file"  # Clean up local .hwID file
+    if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
+        printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
+        docker stop "$container_name"
+        docker rm "$container_name"
+        rm -f "$hwid_file"
+        exit 1
+    fi
+    rm -f "$hwid_file"  # Clean up local .hwID file
 
     # Run the startup SITL script
-    printf "Running '%s' in container '%s'...\n" "$STARTUP_SCRIPT" "$container_name"
+    printf "Running startup script in container '%s'...\n" "$container_name"
     if ! docker exec "$container_name" bash "$STARTUP_SCRIPT"; then
-        printf "Error: Failed to run '%s' in '%s'\n" "$STARTUP_SCRIPT" "$container_name" >&2
+        printf "Error: Failed to run startup script in '%s'\n" "$container_name" >&2
         docker stop "$container_name"  # Stop container if startup fails
         docker rm "$container_name"
         return 1
