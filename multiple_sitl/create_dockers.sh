@@ -20,24 +20,73 @@ echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
 echo
+echo "Usage:"
+echo "  $0 [--verbose] <number_of_instances>"
+echo
+echo "Options:"
+echo "  --verbose          Enable detailed logging."
+echo
+echo "Hints and Guides:"
+echo "  - To create a drone container manually:"
+echo "      docker run -it --name my-drone drone-template:latest /bin/bash"
+echo "  - Remember to remove containers once finished:"
+echo "      docker rm -f <container_name>"
+echo "  - We recommend using Portainer for container management."
+echo "  - Check out the GitHub repo docs for all details and guides."
+echo
 
 # Global variables
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 TEMPLATE_IMAGE="drone-template"
+VERBOSE=false
 
 # Function: display usage information
 usage() {
-    printf "Usage: %s <number_of_instances>\n" "$0"
+    printf "Usage: %s [--verbose] <number_of_instances>\n" "$0"
     exit 1
 }
 
+# Function: verbose logging
+log_verbose() {
+    if [ "$VERBOSE" = true ]; then
+        printf "$@"
+    fi
+}
+
+# Parse arguments
+NUM_INSTANCES=""
+
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        --verbose)
+        VERBOSE=true
+        shift # past argument
+        ;;
+        -h|--help)
+        usage
+        ;;
+        *)
+        # positional argument (number_of_instances)
+        if [[ -z "$NUM_INSTANCES" ]]; then
+            NUM_INSTANCES="$1"
+            shift # past argument
+        else
+            printf "Error: Unknown argument or multiple positional arguments provided: '%s'\n" "$1" >&2
+            usage
+        fi
+        ;;
+    esac
+done
+
 # Validate the number of instances input
 validate_input() {
-    if [[ -z "$1" ]]; then
+    local num_instances="$1"
+    if [[ -z "$num_instances" ]]; then
         printf "Error: Number of instances not provided.\n" >&2
         usage
-    elif ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    elif ! [[ "$num_instances" =~ ^[1-9][0-9]*$ ]]; then
         printf "Error: Number of instances must be a positive integer.\n" >&2
         usage
     fi
@@ -49,11 +98,11 @@ create_instance() {
     local container_name="drone-$instance_num"
     local hwid_file="${instance_num}.hwID"
 
-    printf "\nCreating container '%s'...\n" "$container_name"
+    printf "Creating container '%s'...\n" "$container_name"
 
     # Remove existing container if it exists
     if docker ps -a --format '{{.Names}}' | grep -Eq "^${container_name}\$"; then
-        printf "Container '%s' already exists. Removing it...\n" "$container_name"
+        log_verbose "[%s] Container already exists. Removing it...\n" "$container_name"
         docker rm -f "$container_name" >/dev/null 2>&1
     fi
 
@@ -73,6 +122,7 @@ create_instance() {
     printf "Container '%s' started.\n" "$container_name"
 
     # Ensure the directory exists inside the container
+    log_verbose "[%s] Ensuring directories exist inside the container...\n" "$container_name"
     if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
         printf "Error: Failed to create directory in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -82,6 +132,7 @@ create_instance() {
     fi
 
     # Transfer the .hwID file to the container
+    log_verbose "[%s] Copying hwID file to container...\n" "$container_name"
     if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
         printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -92,6 +143,7 @@ create_instance() {
     rm -f "$hwid_file"  # Clean up local .hwID file
 
     # Transfer the startup script to the container
+    log_verbose "[%s] Copying startup script to container...\n" "$container_name"
     if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
         printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -100,6 +152,7 @@ create_instance() {
     fi
 
     # Make the startup script executable inside the container
+    log_verbose "[%s] Making startup script executable inside container...\n" "$container_name"
     if ! docker exec "$container_name" chmod +x "$STARTUP_SCRIPT_CONTAINER"; then
         printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -108,7 +161,7 @@ create_instance() {
     fi
 
     # Run the startup SITL script inside the container
-    printf "Running startup script in container '%s'...\n" "$container_name"
+    log_verbose "[%s] Running startup script inside container...\n" "$container_name"
     if ! docker exec "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
         printf "Error: Failed to run startup script in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null  # Stop container if startup fails
@@ -135,11 +188,11 @@ main() {
 }
 
 # Validate input and ensure the startup script exists
-validate_input "$1"
+validate_input "$NUM_INSTANCES"
 if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
     printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT_HOST" >&2
     exit 1
 fi
 
 # Execute the main function
-main "$1"
+main "$NUM_INSTANCES"
