@@ -229,7 +229,7 @@ setup_python_env() {
 
 # Function to set MAV_SYS_ID
 set_mav_sys_id() {
-    
+    echo "Setting MAV_SYS_ID using set_sys_id.py..."
 }
 
 # Function to read offsets from config.csv
