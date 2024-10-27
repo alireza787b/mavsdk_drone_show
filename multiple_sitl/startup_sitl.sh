@@ -229,11 +229,7 @@ setup_python_env() {
 
 # Function to set MAV_SYS_ID
 set_mav_sys_id() {
-    echo "Setting MAV_SYS_ID using set_sys_id.py..."
-    if ! python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
-        echo "ERROR: Failed to set MAV_SYS_ID."
-        exit 1
-    fi
+    
 }
 
 # Function to read offsets from config.csv
