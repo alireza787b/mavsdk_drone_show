@@ -74,6 +74,9 @@ fi
 # Navigate to the project directory
 cd "$REPO_DIR" || log_error_and_exit "Failed to navigate to $REPO_DIR"
 
+# Do a stash
+git stash
+
 # Check network connectivity
 if ! ping -c 1 github.com >/dev/null 2>&1; then
     log_error_and_exit "No network connectivity. Cannot update repository."
