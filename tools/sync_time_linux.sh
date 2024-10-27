@@ -53,7 +53,7 @@ before_sync_time=$(date +"%Y-%m-%d %H:%M:%S")
 log_message "Current system time before synchronization: $before_sync_time"
 
 # Synchronize system time with a time server using ntpdate
-ntp_server="pool.ntp.org"
+ntp_server="de.pool.ntp.org"
 
 log_message "Synchronizing system time with NTP server: $ntp_server"
 if ! $SUDO_CMD ntpdate "$ntp_server"; then
