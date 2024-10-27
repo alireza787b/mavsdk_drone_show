@@ -113,10 +113,10 @@ def main_loop():
     """
     global mavlink_manager, offboard_controller, drone_comms, drone_setup  # Declare as global variables
     try:
-        
+        logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
-        logger.info("Starting the main loop...")
+        logger.info("After intial LED set color...")
 
         # Synchronize time if enabled
         if params.online_sync_time:

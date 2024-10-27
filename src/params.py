@@ -9,7 +9,7 @@ class Params():
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'  # URL for the swarm file
 
     # Simulation and Mode Switches
-    sim_mode = False  # Set to True for simulation mode, False for real-life mode
+    sim_mode = True  # Set to True for simulation mode, False for real-life mode
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     
@@ -62,6 +62,7 @@ class Params():
     serial_mavlink_port = '/dev/ttyS0'  # Serial port for Raspberry Pi Zero TTL
     serial_baudrate = 57600  # Serial connection baudrate
     sitl_port = 14550  # SITL port
+    hw_udp_port = 14550
     gcs_mavlink_port = 34550  # Port for sending MAVLink messages to GCS
     mavsdk_port = 14540  # MAVSDK port
     local_mavlink_port = 12550  # Local MAVLink port

@@ -101,7 +101,8 @@ def wait_for_port(port, host='localhost', timeout=10.0):
         try:
             with socket.create_connection((host, port), timeout=1):
                 return True
-        except (ConnectionRefusedError, socket.timeout):
+        except (ConnectionRefusedError, socket.timeout, OSError) as e:
+            logger.debug(f"Waiting for port {port} on {host}: {e}")
             if time.time() - start_time >= timeout:
                 return False
             time.sleep(0.1)
@@ -134,12 +135,23 @@ def start_mavsdk_server(grpc_port, udp_port):
             logger.info(f"Killed MAVSDK server with PID: {pid}")
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
+
+    # Define absolute path to mavsdk_server
+    mavsdk_server_path = os.path.join(os.getcwd(), "mavsdk_server")
+
+    if not os.path.isfile(mavsdk_server_path):
+        logger.error(f"mavsdk_server executable not found at '{mavsdk_server_path}'.")
+        sys.exit(1)
+
     try:
         mavsdk_server = subprocess.Popen(
-            ["./mavsdk_server", "-p", str(grpc_port), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
+
+        # Log MAVSDK server output for debugging
+        asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
         if not wait_for_port(grpc_port, timeout=10):
@@ -155,6 +167,31 @@ def start_mavsdk_server(grpc_port, udp_port):
     except Exception as e:
         logger.exception("Failed to start MAVSDK server")
         sys.exit(1)
+
+async def log_mavsdk_output(mavsdk_server):
+    """
+    Asynchronously logs the stdout and stderr of the MAVSDK server.
+
+    Args:
+        mavsdk_server (subprocess.Popen): The subprocess running the MAVSDK server.
+    """
+    try:
+        while True:
+            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stdout.readline)
+            if not line:
+                break
+            logger.debug(f"MAVSDK Server: {line.decode().strip()}")
+    except Exception:
+        logger.exception("Error while reading MAVSDK server stdout")
+
+    try:
+        while True:
+            line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stderr.readline)
+            if not line:
+                break
+            logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
+    except Exception:
+        logger.exception("Error while reading MAVSDK server stderr")
 
 def read_hw_id():
     """
@@ -277,7 +314,7 @@ async def perform_action(action, altitude=None, parameters=None):
         logger.error("Drone configuration not found. Exiting...")
         return
 
-    # Define MAVSDK Ports since its on each system its constant
+    # Define MAVSDK Ports since it's on each system its constant
     grpc_port = GRPC_PORT
     udp_port = UDP_PORT
 

@@ -2,14 +2,43 @@
 
 # Exit on any command failure
 set -e
+set -o pipefail
+
+
+cat << "EOF"
+
+
+  __  __   ___   _____ ___  _  __  ___  ___  ___  _  _ ___   ___ _  _  _____      __   ____  __ ___  _____  
+ |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
+ | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) \ \/\/ /  | || |\/| | |) \__ \| |
+ |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
+                                                                                      \_\               /_/ 
+
+
+EOF
+
+echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
+echo "Version: 1.0 (October 2024)"
+echo
+echo "This script creates and configures multiple Docker container instances for the drone show simulation."
+echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
+echo "To debug and see full console logs of the container workflow, run:"
+echo "  bash create_dockers.sh 1 --verbose"
+echo "You can also manually create containers with the command:"
+echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
+echo "==============================================================="
+echo
+
 
 # Global variables
-STARTUP_SCRIPT="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template-1"
+STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
+STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
+TEMPLATE_IMAGE="drone-template"
+VERBOSE=false
 
 # Function: display usage information
 usage() {
-    printf "Usage: %s <number_of_instances>\n" "$0"
+    printf "Usage: %s <number_of_instances> [--verbose]\n" "$0"
     exit 1
 }
 
@@ -24,60 +53,240 @@ validate_input() {
     fi
 }
 
+# Function: report system resource usage
+report_system_resources() {
+    echo "---------------------------------------------------------------"
+    echo "System Resource Usage:"
+    
+    # CPU Usage
+    cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk '{print $8}' | cut -d '.' -f1)
+    cpu_usage=$((100 - cpu_idle))
+    echo "CPU Usage      : ${cpu_usage}%"
+
+    # Memory Usage
+    mem_total=$(free -h | awk '/^Mem:/ {print $2}')
+    mem_used=$(free -h | awk '/^Mem:/ {print $3}')
+    mem_free=$(free -h | awk '/^Mem:/ {print $4}')
+    echo "Memory Usage   : Used ${mem_used} / Total ${mem_total} (Free: ${mem_free})"
+
+    # Disk Usage
+    disk_total=$(df -h / | awk 'NR==2 {print $2}')
+    disk_used=$(df -h / | awk 'NR==2 {print $3}')
+    disk_available=$(df -h / | awk 'NR==2 {print $4}')
+    echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
+
+    # Network Usage (optional, can be added if needed)
+    # net_usage=$(ifstat -i eth0 1 1 | tail -1)
+    # echo "Network Usage  : ${net_usage}"
+
+    echo "---------------------------------------------------------------"
+    echo
+}
+
 # Function: create and configure a single Docker container instance
 create_instance() {
     local instance_num=$1
     local container_name="drone-$instance_num"
     local hwid_file="${instance_num}.hwID"
 
-    printf "Creating container '%s'...\n" "$container_name"
+    printf "\nCreating container '%s'...\n" "$container_name"
+
+    # Remove existing container if it exists
+    if docker ps -a --format '{{.Names}}' | grep -Eq "^${container_name}\$"; then
+        printf "Container '%s' already exists. Removing it...\n" "$container_name"
+        docker rm -f "$container_name" >/dev/null 2>&1
+    fi
 
     # Create an empty .hwID file for the container
-    touch "$hwid_file"
-
-    # Run the container and execute startup script
-    docker run --name "$container_name" -d "$TEMPLATE_IMAGE" bash "$STARTUP_SCRIPT"
-
-    printf "Container '%s' started. Waiting for initialization...\n" "$container_name"
-    sleep 5  # Allow some time for initialization
-
-    # Transfer the .hwID file to the container
-    docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"
-    rm "$hwid_file"  # Clean up local .hwID file
-
-    # Run the startup SITL script
-    printf "Running '%s' in container '%s'...\n" "$STARTUP_SCRIPT" "$container_name"
-    if ! docker exec "$container_name" bash "$STARTUP_SCRIPT"; then
-        printf "Error: Failed to run '%s' in '%s'\n" "$STARTUP_SCRIPT" "$container_name" >&2
-        docker stop "$container_name"  # Stop container if startup fails
-        docker rm "$container_name"
+    if ! touch "$hwid_file"; then
+        printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
         return 1
     fi
 
-    printf "Instance '%s' configured successfully.\n" "$container_name"
+    # Run the container and keep it running
+    if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
+        printf "Error: Failed to start container '%s'\n" "$container_name" >&2
+        rm -f "$hwid_file"  # Clean up local .hwID file
+        return 1
+    fi
+
+    printf "Container '%s' started successfully.\n" "$container_name"
+
+    # Ensure the directory exists inside the container
+    if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
+        printf "Error: Failed to create directory in '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        rm -f "$hwid_file"
+        return 1
+    fi
+
+    # Transfer the .hwID file to the container
+    if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
+        printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        rm -f "$hwid_file"
+        return 1
+    fi
+    rm -f "$hwid_file"  # Clean up local .hwID file
+
+    # Transfer the startup script to the container
+    if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
+        printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        return 1
+    fi
+
+    # Make the startup script executable inside the container
+    if ! docker exec "$container_name" chmod +x "$STARTUP_SCRIPT_CONTAINER"; then
+        printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        return 1
+    fi
+
+    # If verbose mode is enabled, run attached mode for debugging purposes
+    if $VERBOSE; then
+        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
+        printf "To exit the attached mode, press CTRL+C.\n"
+        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
+        return 0
+    fi
+
+    # Run the startup SITL script inside the container in detached mode
+    printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
+    if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
+        printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null  # Stop container if startup fails
+        docker rm "$container_name" >/dev/null
+        return 1
+    fi
+
+    printf "Instance '%s' configured and started successfully.\n" "$container_name"
+}
+
+# Function: report container-specific resource usage
+report_container_resources() {
+    local container_name=$1
+    local cpu_usage memory_usage storage_usage
+
+    # Get CPU usage
+    cpu_usage=$(docker stats "$container_name" --no-stream --format "{{.CPUPerc}}")
+    # Get Memory usage
+    memory_usage=$(docker stats "$container_name" --no-stream --format "{{.MemUsage}}")
+    # Get Storage usage (assuming root filesystem)
+    storage_usage=$(docker exec "$container_name" df -h / | tail -1 | awk '{print $3 "/" $2}')
+
+    printf "Resources for '%s': CPU: %s | Memory: %s | Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
+}
+
+# Function: report all system and container resources
+report_all_resources() {
+    echo
+    echo "================ System Resource Report ================ "
+    report_system_resources
+    echo "================ Container Resource Report =============="
+    for container in $(docker ps --filter "name=drone-" --format "{{.Names}}"); do
+        report_container_resources "$container"
+    done
+    echo "========================================================="
+    echo
 }
 
 # Main function: loop to create multiple instances
 main() {
     local num_instances=$1
+    shift
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
 
     # Create instances loop
     for ((i=1; i<=num_instances; i++)); do
+        if $VERBOSE && [[ $i -gt 1 ]]; then
+            printf "\nVerbose mode only supports running one container for debugging purposes.\n"
+            printf "Skipping creation of container 'drone-%d'.\n" "$i"
+            break
+        fi
+
         if ! create_instance "$i"; then
             printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
             exit 1
         fi
+
+        # Report system resources after each container setup (only in non-verbose mode)
+        if ! $VERBOSE; then
+            report_system_resources
+        fi
     done
 
-    printf "All %d instances created and configured successfully.\n" "$num_instances"
+
+    # Introductory banner
+cat << "EOF"
+___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
+|  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
+| .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
+| |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
+| |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
+\_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
+                                                                                                      \_\                   /_/                                                                                                                                                                                                                                                
+EOF
+
+    echo
+    printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
+    echo "========================================================="
+    echo
+
+    # Final system resource summary
+    printf "Final System Resource Summary:\n"
+    report_system_resources
+
+    # Provide guidance to the user
+    echo "To monitor resources in real-time, consider using 'htop':"
+    echo "  sudo apt-get install htop   # Install htop if not already installed"
+    echo "  htop                        # Run htop to view real-time system metrics"
+    echo
+
+    # Print success message with additional instructions
+    printf "To run the Swarm Dashboard, execute the following command:\n"
+    printf "  bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
+    printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3000\n\n"
+
+    printf "To access QGC on another system, ensure 'mavlink-router' is installed:\n"
+    printf "  bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n\n"
+
+    printf "Then run one of the following commands:\n"
+    printf "  mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
+    printf "  bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n\n"
+
+    printf "Now you can connect via QGC on port 24550 UDP from the remote GCS client.\n"
+
+    # Provide cleanup command to remove all drone containers
+    echo
+    printf "To remove all created containers, execute the following command:\n"
+    printf "  docker rm -f \$(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
+    echo
 }
 
 # Validate input and ensure the startup script exists
 validate_input "$1"
-if [[ ! -f "$STARTUP_SCRIPT" ]]; then
-    printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT" >&2
+if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
+    printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT_HOST" >&2
     exit 1
 fi
 
 # Execute the main function
-main "$1"
+main "$@"
+
