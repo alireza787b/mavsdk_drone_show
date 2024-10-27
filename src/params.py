@@ -9,7 +9,7 @@ class Params():
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'  # URL for the swarm file
 
     # Simulation and Mode Switches
-    sim_mode = False  # Set to True for simulation mode, False for real-life mode
+    sim_mode = True  # Set to True for simulation mode, False for real-life mode
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     
