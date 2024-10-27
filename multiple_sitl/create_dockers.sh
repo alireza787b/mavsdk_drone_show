@@ -196,7 +196,7 @@ main() {
     printf "bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n"
     printf "Then run this command:\n"
     printf "mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
-    printf "or bash ~/mavsdk_drone_show/tools/bash mavlink_route.sh EXTRA_GCS_IP:24550\n"
+    printf "or bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n"
     printf "Now you can connec via QGC on port 24550 UDP from remote GCS client.\n"
 
     # Provide cleanup command to remove all drone containers
