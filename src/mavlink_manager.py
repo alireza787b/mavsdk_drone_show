@@ -34,10 +34,10 @@ class MavlinkManager:
             else:
                 endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
 
-                if self.params.shared_gcs_port:
-                    endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
-                else:
-                    endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{int(self.drone_config.config['mavlink_port'])}")
+            if self.params.shared_gcs_port:
+                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
+            else:
+                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{int(self.drone_config.config['mavlink_port'])}")
 
             mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
             logging.info(f"Starting MAVLink router with command: {mavlink_router_cmd}")
