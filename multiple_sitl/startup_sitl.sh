@@ -3,8 +3,9 @@
 # =============================================================================
 # Script Name: startup_sitl.sh
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
-#              Configures environment, updates repository, sets system IDs, and
-#              starts the SITL simulation along with coordinator.py.
+#              Configures environment, updates repository, sets system IDs, synchronizes
+#              system time with NTP using an external script, and starts the SITL simulation
+#              along with coordinator.py.
 # Author: Alireza Ghaderi
 # Date: September 2024
 # =============================================================================
@@ -38,6 +39,9 @@ BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
+
+# Path to the external time synchronization script
+SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
 
 # Script Metadata
 SCRIPT_NAME=$(basename "$0")
@@ -73,29 +77,39 @@ EOF
     exit 1
 }
 
+# Function to log messages to the terminal with timestamps
+log_message() {
+    local message="$1"
+    echo "$(date +"%Y-%m-%d %H:%M:%S") - $message"
+}
+
 # Function to handle script termination and cleanup
 cleanup() {
     echo ""
-    echo "Received interrupt signal. Terminating background processes..."
+    log_message "Received interrupt signal. Terminating background processes..."
     if [[ -n "${simulation_pid:-}" ]]; then
         kill "$simulation_pid" 2>/dev/null || true
+        log_message "Terminated SITL simulation with PID: $simulation_pid"
     fi
     if [[ -n "${coordinator_pid:-}" ]]; then
         kill "$coordinator_pid" 2>/dev/null || true
+        log_message "Terminated coordinator.py with PID: $coordinator_pid"
     fi
-    if [ "$USE_GLOBAL_PYTHON" = false ]; then
+    if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
         deactivate 2>/dev/null || true
+        log_message "Deactivated Python virtual environment."
     fi
     exit 0
 }
 
 # Function to install 'bc' if not present
 install_bc() {
-    echo "'bc' is not installed. Installing 'bc'..."
+    log_message "'bc' is not installed. Installing 'bc'..."
     if ! sudo apt-get update && sudo apt-get install -y bc; then
-        echo "ERROR: Failed to install 'bc'. Please install it manually."
+        log_message "ERROR: Failed to install 'bc'. Please install it manually."
         exit 1
     fi
+    log_message "'bc' installed successfully."
 }
 
 # Function to parse script arguments
@@ -107,7 +121,7 @@ parse_args() {
                     GIT_REMOTE="$2"
                     shift 2
                 else
-                    echo "ERROR: -r requires a non-empty option argument."
+                    log_message "ERROR: -r requires a non-empty option argument."
                     usage
                 fi
                 ;;
@@ -116,7 +130,7 @@ parse_args() {
                     GIT_BRANCH="$2"
                     shift 2
                 else
-                    echo "ERROR: -b requires a non-empty option argument."
+                    log_message "ERROR: -b requires a non-empty option argument."
                     usage
                 fi
                 ;;
@@ -125,7 +139,7 @@ parse_args() {
                     SIMULATION_MODE="$2"
                     shift 2
                 else
-                    echo "ERROR: -s requires a non-empty option argument."
+                    log_message "ERROR: -s requires a non-empty option argument."
                     usage
                 fi
                 ;;
@@ -133,7 +147,7 @@ parse_args() {
                 usage
                 ;;
             *)
-                echo "ERROR: Unknown option: $1"
+                log_message "ERROR: Unknown option: $1"
                 usage
                 ;;
         esac
@@ -144,107 +158,149 @@ parse_args() {
 check_dependencies() {
     if ! command -v bc &> /dev/null; then
         install_bc
+    else
+        log_message "'bc' is already installed."
     fi
     if ! command -v git &> /dev/null; then
-        echo "'git' is not installed. Installing 'git'..."
+        log_message "'git' is not installed. Installing 'git'..."
         if ! sudo apt-get update && sudo apt-get install -y git; then
-            echo "ERROR: Failed to install 'git'. Please install it manually."
+            log_message "ERROR: Failed to install 'git'. Please install it manually."
             exit 1
         fi
+        log_message "'git' installed successfully."
+    else
+        log_message "'git' is already installed."
+    fi
+}
+
+# Function to synchronize system time with NTP using external script
+sync_time() {
+    log_message "Starting external time synchronization script: $SYNC_SCRIPT"
+
+    if [[ -f "$SYNC_SCRIPT" ]]; then
+        if [[ ! -x "$SYNC_SCRIPT" ]]; then
+            log_message "Time synchronization script is not executable. Attempting to set execute permissions."
+            if chmod +x "$SYNC_SCRIPT"; then
+                log_message "Set execute permissions on $SYNC_SCRIPT successfully."
+            else
+                log_message "ERROR: Failed to set execute permissions on $SYNC_SCRIPT."
+                exit 1
+            fi
+        fi
+
+        # Execute the synchronization script
+        if "$SYNC_SCRIPT"; then
+            log_message "Time synchronization completed successfully."
+        else
+            log_message "ERROR: Time synchronization script encountered an error."
+            exit 1
+        fi
+    else
+        log_message "ERROR: Time synchronization script not found at $SYNC_SCRIPT."
+        exit 1
     fi
 }
 
 # Function to wait for the .hwID file
 wait_for_hwid() {
-    echo "Waiting for .hwID file in $BASE_DIR..."
+    log_message "Waiting for .hwID file in $BASE_DIR..."
     while true; do
         HWID_FILE=$(ls "$BASE_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
         if [[ -n "$HWID_FILE" ]]; then
             HWID=$(basename "$HWID_FILE" .hwID)
-            echo "Found .hwID file: $HWID.hwID"
+            log_message "Found .hwID file: $HWID.hwID"
             break
         else
-            echo "  - .hwID file not found. Retrying in 1 second..."
+            log_message "  - .hwID file not found. Retrying in 1 second..."
             sleep 1
         fi
     done
 
     # Validate that HWID is a positive integer
     if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
-        echo "ERROR: Extracted HWID '$HWID' is not a positive integer."
+        log_message "ERROR: Extracted HWID '$HWID' is not a positive integer."
         exit 1
     fi
 }
 
 # Function to update the repository
 update_repository() {
-    echo "Navigating to $BASE_DIR..."
+    log_message "Navigating to $BASE_DIR..."
     cd "$BASE_DIR"
 
-    echo "Stashing any local changes..."
+    log_message "Stashing any local changes..."
     git stash
 
-    echo "Setting Git remote to $GIT_REMOTE..."
+    log_message "Setting Git remote to $GIT_REMOTE..."
     git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL" || true
 
-    echo "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
+    log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git fetch "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
+        log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH."
         exit 1
     fi
 
-    echo "Checking out branch $GIT_BRANCH..."
+    log_message "Checking out branch $GIT_BRANCH..."
     if ! git checkout "$GIT_BRANCH"; then
-        echo "ERROR: Failed to checkout branch $GIT_BRANCH."
+        log_message "ERROR: Failed to checkout branch $GIT_BRANCH."
         exit 1
     fi
 
-    echo "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
+    log_message "Pulling latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! git pull "$GIT_REMOTE" "$GIT_BRANCH"; then
-        echo "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
+        log_message "ERROR: Failed to pull latest changes from $GIT_REMOTE/$GIT_BRANCH."
         exit 1
     fi
+
+    log_message "Repository updated successfully."
 }
 
 # Function to set up Python environment
 setup_python_env() {
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
         if [ ! -d "$VENV_DIR" ]; then
-            echo "Creating a Python virtual environment at $VENV_DIR..."
+            log_message "Creating a Python virtual environment at $VENV_DIR..."
             python3 -m venv "$VENV_DIR"
+            log_message "Virtual environment created successfully."
+        else
+            log_message "Python virtual environment already exists at $VENV_DIR."
         fi
 
-        echo "Activating the virtual environment..."
+        log_message "Activating the virtual environment..."
         source "$VENV_DIR/bin/activate"
 
-        echo "Installing Python requirements..."
-        if ! pip install --upgrade pip && pip install -r "$BASE_DIR/requirements.txt"; then
-            echo "ERROR: Failed to install Python requirements."
+        log_message "Installing Python requirements..."
+        if pip install --upgrade pip && pip install -r "$BASE_DIR/requirements.txt"; then
+            log_message "Python requirements installed successfully."
+        else
+            log_message "ERROR: Failed to install Python requirements."
             exit 1
         fi
     else
-        echo "Using global Python installation."
+        log_message "Using global Python installation."
     fi
 }
 
 # Function to set MAV_SYS_ID
 set_mav_sys_id() {
-    echo "Setting MAV_SYS_ID using set_sys_id.py..."
-    if ! python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
-        echo "ERROR: Failed to set MAV_SYS_ID."
+    log_message "Setting MAV_SYS_ID using set_sys_id.py..."
+    if python3 "$BASE_DIR/multiple_sitl/set_sys_id.py"; then
+        log_message "MAV_SYS_ID set successfully."
+    else
+        log_message "ERROR: Failed to set MAV_SYS_ID."
         exit 1
     fi
 }
 
 # Function to read offsets from config.csv
 read_offsets() {
-    echo "Reading offsets from $CONFIG_FILE for HWID: $HWID..."
+    log_message "Reading offsets from $CONFIG_FILE for HWID: $HWID..."
 
     OFFSET_X=0
     OFFSET_Y=0
 
     if [ ! -f "$CONFIG_FILE" ]; then
-        echo "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)."
+        log_message "WARNING: Configuration file $CONFIG_FILE does not exist. Using default offsets (0,0)."
         return
     fi
 
@@ -252,17 +308,17 @@ read_offsets() {
         if [ "$hw_id" == "$HWID" ]; then
             OFFSET_X="$x"
             OFFSET_Y="$y"
-            echo "Found offsets - X: $OFFSET_X, Y: $OFFSET_Y"
+            log_message "Found offsets - X: $OFFSET_X, Y: $OFFSET_Y"
             return
         fi
     done < "$CONFIG_FILE"
 
-    echo "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
+    log_message "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
 }
 
 # Function to calculate new geographic coordinates
 calculate_new_coordinates() {
-    echo "Calculating new geographic coordinates based on offsets..."
+    log_message "Calculating new geographic coordinates based on offsets..."
 
     # Convert latitude from degrees to radians
     LAT_RAD=$(echo "scale=10; $DEFAULT_LAT * (4*a(1)/180)" | bc -l)
@@ -274,17 +330,17 @@ calculate_new_coordinates() {
     NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
     NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
-    echo "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
+    log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
 
 # Function to export environment variables for PX4 SITL
 export_env_vars() {
-    echo "Exporting environment variables for PX4 SITL..."
+    log_message "Exporting environment variables for PX4 SITL..."
     export PX4_HOME_LAT="$NEW_LAT"
     export PX4_HOME_LON="$NEW_LON"
     export PX4_HOME_ALT="$DEFAULT_ALT"
     export MAV_SYS_ID="$HWID"
-    echo "MAV_SYS_ID set to $MAV_SYS_ID"
+    log_message "Environment variables set: PX4_HOME_LAT=$PX4_HOME_LAT, PX4_HOME_LON=$PX4_HOME_LON, PX4_HOME_ALT=$PX4_HOME_ALT, MAV_SYS_ID=$MAV_SYS_ID"
 }
 
 # Function to determine the simulation command
@@ -292,28 +348,28 @@ determine_simulation_command() {
     case $SIMULATION_MODE in
         g)
             SIMULATION_COMMAND="make px4_sitl gazebo"
-            echo "Simulation Mode: Graphics Enabled (Gazebo)"
+            log_message "Simulation Mode: Graphics Enabled (Gazebo)"
             ;;
         j)
             SIMULATION_COMMAND="make px4_sitl jmavsim"
-            echo "Simulation Mode: Using jmavsim"
+            log_message "Simulation Mode: Using jmavsim"
             ;;
         h)
             SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
-            echo "Simulation Mode: Headless (Graphics Disabled)"
+            log_message "Simulation Mode: Headless (Graphics Disabled)"
             ;;
         *)
-            echo "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode."
+            log_message "Invalid simulation mode: $SIMULATION_MODE. Defaulting to headless mode."
             SIMULATION_COMMAND="HEADLESS=1 make px4_sitl gazebo"
             ;;
     esac
 
-    echo "Simulation Command: $SIMULATION_COMMAND"
+    log_message "Simulation Command: $SIMULATION_COMMAND"
 }
 
 # Function to start SITL simulation
 start_simulation() {
-    echo "Starting SITL simulation..."
+    log_message "Starting SITL simulation..."
     cd "$PX4_DIR"
 
     # Export instance identifier
@@ -322,19 +378,19 @@ start_simulation() {
     # Execute the simulation command in the background
     eval "$SIMULATION_COMMAND" &
     simulation_pid=$!
-    echo "SITL simulation started with PID: $simulation_pid"
+    log_message "SITL simulation started with PID: $simulation_pid"
 }
 
 # Function to manually run coordinator.py
 run_coordinator_manually() {
-    echo "Starting coordinator.py..."
+    log_message "Starting coordinator.py..."
     cd "$BASE_DIR"
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
         source "$VENV_DIR/bin/activate"
     fi
     python3 "$BASE_DIR/coordinator.py" &
     coordinator_pid=$!
-    echo "coordinator.py started with PID: $coordinator_pid"
+    log_message "coordinator.py started with PID: $coordinator_pid"
 }
 
 # =============================================================================
@@ -347,20 +403,23 @@ parse_args "$@"
 # Trap SIGINT and SIGTERM to execute cleanup
 trap 'cleanup' INT TERM
 
-echo "=============================================="
-echo " Welcome to the SITL Startup Script!"
-echo "=============================================="
-echo ""
-echo "Configuration:"
-echo "  Git Remote: $GIT_REMOTE"
-echo "  Git Branch: $GIT_BRANCH"
-echo "  Use Global Python: $USE_GLOBAL_PYTHON"
-echo "  Base Directory: $BASE_DIR"
-echo "  Simulation Mode: $SIMULATION_MODE"
-echo ""
+log_message "=============================================="
+log_message " Welcome to the SITL Startup Script!"
+log_message "=============================================="
+log_message ""
+log_message "Configuration:"
+log_message "  Git Remote: $GIT_REMOTE"
+log_message "  Git Branch: $GIT_BRANCH"
+log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
+log_message "  Base Directory: $BASE_DIR"
+log_message "  Simulation Mode: $SIMULATION_MODE"
+log_message ""
 
 # Check for necessary dependencies
 check_dependencies
+
+# Synchronize system time with NTP using external script
+sync_time
 
 # Wait for the .hwID file
 wait_for_hwid
@@ -392,19 +451,19 @@ start_simulation
 # Start coordinator.py
 run_coordinator_manually
 
-echo ""
-echo "=============================================="
-echo "All processes have been initialized."
-echo "coordinator.py is running."
-echo "Press Ctrl+C to terminate the simulation."
-echo "=============================================="
-echo ""
+log_message ""
+log_message "=============================================="
+log_message "All processes have been initialized."
+log_message "coordinator.py is running."
+log_message "Press Ctrl+C to terminate the simulation."
+log_message "=============================================="
+log_message ""
 
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
 # Wait for coordinator.py process to complete
-echo "Waiting for coordinator.py process to complete..."
+log_message "Waiting for coordinator.py process to complete..."
 wait "$coordinator_pid"
 
 # Exit successfully
