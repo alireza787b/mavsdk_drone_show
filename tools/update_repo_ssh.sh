@@ -82,6 +82,9 @@ fi
 # Navigate to the project directory
 cd "$REPO_DIR" || log_error_and_exit "Failed to navigate to $REPO_DIR"
 
+# Do a stash
+git stash
+
 # Set the Git remote URL to the chosen protocol
 git remote set-url origin "$GIT_URL"
 
