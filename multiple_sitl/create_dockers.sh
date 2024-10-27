@@ -20,8 +20,11 @@ echo "Version: 1.0 (October 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
-echo "To debug, run bash create_dockers.sh 1 --verbose to see full console logs of the container workflow."
-echo "You can also manually craete containers with command:  docker run -it --name my-drone drone-template:latest /bin/bash "
+echo "To debug and see full console logs of the container workflow, run:"
+echo "bash create_dockers.sh 1 --verbose"
+echo "You can also manually craete containers with command:"
+echo "docker run -it --name my-drone drone-template:latest /bin/bash "
+echo "==============================================================="
 echo
 
 # Global variables
@@ -182,7 +185,7 @@ main() {
     done
 
     printf "\nAll %d instances created and configured successfully.\n" "$num_instances"
-    echo "=====================================================\n"
+    printf "=====================================================\n"
     echo
 
         # Print success message
