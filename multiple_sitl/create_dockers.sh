@@ -182,6 +182,16 @@ main() {
     done
 
     printf "\nAll %d instances created and configured successfully.\n" "$num_instances"
+        # Print success message
+    printf "To Run Swarm Dashboard run this command:"
+    printf "bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl"
+    printf "Now you can access the swarm dashboard at http://GCS_SERVER_IP:3000"
+    printf "To access to QGC on another system, first make sure you have mavlink-router installed:"
+    printf "bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh"
+    printf "Then run this command:"
+    printf "mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550"
+    printf "or ~/mavsdk_drone_show/tools/bash mavlink_route.sh EXTRA_GCS_IP:24550"
+    printf "Now you can connec via QGC on port 24550 UDP from remote GCS client."
 
     # Provide cleanup command to remove all drone containers
     printf "\nTo remove all created containers, you can run the following command:\n"
