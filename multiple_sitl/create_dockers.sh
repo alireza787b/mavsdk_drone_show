@@ -11,7 +11,7 @@ cat << "EOF"
  |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
  | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) \ \/\/ /  | || |\/| | |) \__ \| |
  |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
-                                                                                      \_\               /_/ 
+                                                                                          \_\               /_/ 
 
 EOF
 
@@ -21,9 +21,9 @@ echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
 echo "To debug and see full console logs of the container workflow, run:"
-echo "bash create_dockers.sh 1 --verbose"
-echo "You can also manually craete containers with command:"
-echo "docker run -it --name my-drone drone-template:latest /bin/bash "
+echo "  bash create_dockers.sh 1 --verbose"
+echo "You can also manually create containers with the command:"
+echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
 echo "==============================================================="
 echo
 
@@ -48,6 +48,36 @@ validate_input() {
         printf "Error: Number of instances must be a positive integer.\n" >&2
         usage
     fi
+}
+
+# Function: report system resource usage
+report_system_resources() {
+    echo "---------------------------------------------------------------"
+    echo "System Resource Usage:"
+    
+    # CPU Usage
+    cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk '{print $8}' | cut -d '.' -f1)
+    cpu_usage=$((100 - cpu_idle))
+    echo "CPU Usage      : ${cpu_usage}%"
+
+    # Memory Usage
+    mem_total=$(free -h | awk '/^Mem:/ {print $2}')
+    mem_used=$(free -h | awk '/^Mem:/ {print $3}')
+    mem_free=$(free -h | awk '/^Mem:/ {print $4}')
+    echo "Memory Usage   : Used ${mem_used} / Total ${mem_total} (Free: ${mem_free})"
+
+    # Disk Usage
+    disk_total=$(df -h / | awk 'NR==2 {print $2}')
+    disk_used=$(df -h / | awk 'NR==2 {print $3}')
+    disk_available=$(df -h / | awk 'NR==2 {print $4}')
+    echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
+
+    # Network Usage (optional, can be added if needed)
+    # net_usage=$(ifstat -i eth0 1 1 | tail -1)
+    # echo "Network Usage  : ${net_usage}"
+
+    echo "---------------------------------------------------------------"
+    echo
 }
 
 # Function: create and configure a single Docker container instance
@@ -77,7 +107,7 @@ create_instance() {
         return 1
     fi
 
-    printf "Container '%s' started.\n" "$container_name"
+    printf "Container '%s' started successfully.\n" "$container_name"
 
     # Ensure the directory exists inside the container
     if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
@@ -116,35 +146,50 @@ create_instance() {
 
     # If verbose mode is enabled, run attached mode for debugging purposes
     if $VERBOSE; then
-        printf "\nVerbose mode is ON. Running one container in attached mode for debugging.\n"
-        printf "Container '%s' will run in attached mode. Check logs for any errors inside the container.\n" "$container_name"
+        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
+        printf "To exit the attached mode, press CTRL+C.\n"
         docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
         return 0
     fi
 
     # Run the startup SITL script inside the container in detached mode
-    printf "Running startup script in container '%s' (detached)...\n" "$container_name"
+    printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
     if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to run startup script in '%s'\n" "$container_name" >&2
+        printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null  # Stop container if startup fails
         docker rm "$container_name" >/dev/null
         return 1
     fi
 
-    printf "Instance '%s' configured successfully.\n" "$container_name"
+    printf "Instance '%s' configured and started successfully.\n" "$container_name"
 }
 
-# Function: report system resource usage
-report_resources() {
+# Function: report container-specific resource usage
+report_container_resources() {
     local container_name=$1
     local cpu_usage memory_usage storage_usage
 
     # Get CPU usage
     cpu_usage=$(docker stats "$container_name" --no-stream --format "{{.CPUPerc}}")
+    # Get Memory usage
     memory_usage=$(docker stats "$container_name" --no-stream --format "{{.MemUsage}}")
+    # Get Storage usage (assuming root filesystem)
     storage_usage=$(docker exec "$container_name" df -h / | tail -1 | awk '{print $3 "/" $2}')
 
-    printf "Resources for container '%s': CPU: %s, Memory: %s, Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
+    printf "Resources for '%s': CPU: %s | Memory: %s | Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
+}
+
+# Function: report all system and container resources
+report_all_resources() {
+    echo
+    echo "================ System Resource Report ================ "
+    report_system_resources
+    echo "================ Container Resource Report =============="
+    for container in $(docker ps --filter "name=drone-" --format "{{.Names}}"); do
+        report_container_resources "$container"
+    done
+    echo "========================================================="
+    echo
 }
 
 # Main function: loop to create multiple instances
@@ -168,7 +213,7 @@ main() {
     # Create instances loop
     for ((i=1; i<=num_instances; i++)); do
         if $VERBOSE && [[ $i -gt 1 ]]; then
-            printf "Verbose mode only supports running one container for debugging purposes.\n"
+            printf "\nVerbose mode only supports running one container for debugging purposes.\n"
             printf "Skipping creation of container 'drone-%d'.\n" "$i"
             break
         fi
@@ -178,30 +223,46 @@ main() {
             exit 1
         fi
 
-        # Report resources after container setup (only in non-verbose mode)
+        # Report system resources after each container setup (only in non-verbose mode)
         if ! $VERBOSE; then
-            report_resources "drone-$i"
+            report_system_resources
         fi
     done
 
-    printf "\nAll %d instances created and configured successfully.\n" "$num_instances"
-    printf "=====================================================\n"
+    echo
+    printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
+    echo "========================================================="
     echo
 
-        # Print success message
-    printf "To Run Swarm Dashboard run this command:\n"
-    printf "bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
-    printf "Now you can access the swarm dashboard at http://GCS_SERVER_IP:3000\n"
-    printf "To access to QGC on another system, first make sure you have mavlink-router installed:\n"
-    printf "bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n"
-    printf "Then run this command:\n"
-    printf "mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
-    printf "or bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n"
-    printf "Now you can connec via QGC on port 24550 UDP from remote GCS client.\n"
+    # Final system resource summary
+    printf "Final System Resource Summary:\n"
+    report_system_resources
+
+    # Provide guidance to the user
+    echo "To monitor resources in real-time, consider using 'htop':"
+    echo "  sudo apt-get install htop   # Install htop if not already installed"
+    echo "  htop                        # Run htop to view real-time system metrics"
+    echo
+
+    # Print success message with additional instructions
+    printf "To run the Swarm Dashboard, execute the following command:\n"
+    printf "  bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
+    printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3000\n\n"
+
+    printf "To access QGC on another system, ensure 'mavlink-router' is installed:\n"
+    printf "  bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n\n"
+
+    printf "Then run one of the following commands:\n"
+    printf "  mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
+    printf "  bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n\n"
+
+    printf "Now you can connect via QGC on port 24550 UDP from the remote GCS client.\n"
 
     # Provide cleanup command to remove all drone containers
-    printf "\nTo remove all created containers, you can run the following command:\n"
-    printf "docker rm -f \$(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
+    echo
+    printf "To remove all created containers, execute the following command:\n"
+    printf "  docker rm -f \$(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
+    echo
 }
 
 # Validate input and ensure the startup script exists
@@ -213,3 +274,4 @@ fi
 
 # Execute the main function
 main "$@"
+
