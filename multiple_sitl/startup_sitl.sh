@@ -391,8 +391,6 @@ log_message ""
 # Check for necessary dependencies
 check_dependencies
 
-# Synchronize system time with NTP using external script
-sync_time
 
 # Wait for the .hwID file
 wait_for_hwid
