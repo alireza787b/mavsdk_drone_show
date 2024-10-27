@@ -20,6 +20,8 @@ echo "Version: 1.0 (October 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
+echo "To debug, run bash create_dockers.sh 1 --verbose to see full console logs of the container workflow."
+echo "You can also manually craete containers with command:  docker run -it --name my-drone drone-template:latest /bin/bash "
 echo
 
 # Global variables
