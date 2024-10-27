@@ -115,7 +115,7 @@ def main_loop():
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
-        # LEDController.set_color(0, 0, 255)  # Blue
+        LEDController.set_color(0, 0, 255)  # Blue
         logger.info("After intial LED set color...")
 
         # Synchronize time if enabled

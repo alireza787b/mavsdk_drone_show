@@ -64,6 +64,8 @@ class LEDController:
         """
         Sets all LEDs to the specified RGB color.
         """
+        if Params.sim_mode:
+            return
         with LEDController._lock:
             instance = LEDController.get_instance()
             if instance.strip is None:
