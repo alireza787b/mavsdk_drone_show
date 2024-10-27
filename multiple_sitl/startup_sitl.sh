@@ -41,7 +41,7 @@ CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
 
 # Path to the external time synchronization script
-SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
+# SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
 
 # Script Metadata
 SCRIPT_NAME=$(basename "$0")
