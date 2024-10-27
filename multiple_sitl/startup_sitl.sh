@@ -29,14 +29,14 @@ GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
 
 # Default geographic position: Azadi Stadium
-DEFAULT_LAT=35.725125060059966
-DEFAULT_LON=51.27585107671351
-DEFAULT_ALT=1278.5
+DEFAULT_LAT=35.724435686078365
+DEFAULT_LON=51.275581311948706
+DEFAULT_ALT=1278
 
 # Directory Paths
 BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
-CONFIG_FILE="$BASE_DIR/../config_sitl.csv"
+CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
 
 # Script Metadata
