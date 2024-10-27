@@ -64,6 +64,7 @@ class LEDController:
         """
         Sets all LEDs to the specified RGB color.
         """
+        #in sim_mode we have no LED
         if Params.sim_mode:
             return
         with LEDController._lock:
@@ -81,6 +82,9 @@ class LEDController:
         """
         Wipes the specified color across the LED strip one pixel at a time.
         """
+        #in sim_mode we have no LED
+        if Params.sim_mode:
+            return
         with LEDController._lock:
             instance = LEDController.get_instance()
             if instance.strip is None:
@@ -93,6 +97,9 @@ class LEDController:
             instance.logger.debug("Performed color wipe with R:%d, G:%d, B:%d", r, g, b)
 
     @staticmethod
+    #in sim_mode we have no LED
+    if Params.sim_mode:
+        return
     def theater_chase(r: int, g: int, b: int, wait_ms=50, iterations=10):
         """
         Creates a theater chase animation with the specified color.
@@ -118,6 +125,9 @@ class LEDController:
         """
         Turns off all LEDs.
         """
+        #in sim_mode we have no LED
+        if Params.sim_mode:
+            return
         with LEDController._lock:
             instance = LEDController.get_instance()
             if instance.strip is None:
