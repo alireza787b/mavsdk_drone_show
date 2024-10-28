@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Import Show</title>
+</head>
+<body>
+    <h1>Test Import Drone Show</h1>
+    <input type="file" id="fileInput" accept=".zip">
+    <button onclick="uploadFile()">Upload</button>
+    <div id="response"></div>
+
+    <script>
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                document.getElementById('response').innerText = 'Please select a file to upload.';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('http://localhost:5000/import-show', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('response').innerText = JSON.stringify(data);
+            })
+            .catch(error => {
+                document.getElementById('response').innerText = 'Failed to upload. Error: ' + error;
+            });
+        }
+    </script>
+</body>
+</html>

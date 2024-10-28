@@ -1,18 +1,118 @@
 .drone-detail {
-    margin-top: 15px;
-    background-color: #eaeaea;
-    padding: 10px;
+    margin-top: 16px;
+    background-color: #f9f9f9;
+    padding: 16px;
     border-radius: 8px;
-    transition: max-height 0.3s ease, opacity 0.3s ease;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: max-height 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+
+.drone-detail:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.drone-detail h1 {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.drone-detail p {
+    margin: 8px 0;
+    font-size: 0.95em;
+    line-height: 1.5;
 }
 
 .detail-group {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 16px;
+    margin-bottom: 16px;
 }
 
+@media (max-width: 768px) {
+    .detail-group {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* State and MAV Mode Styles */
+
+.mav-mode {
+    font-size: 1.1em;
+    font-weight: bold;
+    margin-bottom: 16px;
+}
+
+.mav-mode-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 8px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mav-mode-armed {
+    background-color: #28a745;
+    /* Green */
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.4);
+}
+
+.mav-mode-disarmed {
+    background-color: #dc3545;
+    /* Red */
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.4);
+}
+
+.mav-mode-unknown {
+    background-color: #6c757d;
+    /* Gray */
+    box-shadow: 0 0 10px rgba(108, 117, 125, 0.4);
+}
+
+
+/* Armable Status */
+
+.armable-status {
+    margin-bottom: 16px;
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+.armable-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    color: #fff;
+    margin-left: 8px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.armable-badge.armable {
+    background-color: green;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+}
+
+.armable-badge.not-armable {
+    background-color: red;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.4);
+}
+
+.armable-badge:hover {
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+}
+
+
 /* Animation for the accordion effect (expansion and contraction) */
+
 .drone-detail-entering,
 .drone-detail-exiting,
 .drone-detail-exited {
@@ -22,6 +122,49 @@
 }
 
 .drone-detail-entered {
-    max-height: 400px;  /* Adjust based on your content size */
+    max-height: 400px;
     opacity: 1;
+}
+
+select {
+    margin-top: 16px;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    transition: border-color 0.3s ease;
+}
+
+select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 6px rgba(0, 123, 255, 0.5);
+}
+
+
+/* Improved button styling */
+
+button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background-color 0.3s, box-shadow 0.3s;
+}
+
+button:hover {
+    background-color: #0056b3;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+button:focus {
+    outline: none;
+    box-shadow: 0 0 6px rgba(0, 123, 255, 0.5);
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 }

@@ -1,39 +1,163 @@
 .drone-widget {
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin: 10px;
-    transition: background-color 0.3s ease;
-  }
-
-.drone-widget h3{
-  cursor: pointer;
+    border: 2px solid #ccc;
+    padding: 16px;
+    margin: 16px;
+    border-radius: 8px;
+    background-color: #fff;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    /* Prevent content overflow */
 }
-  
-  .drone-widget.expanded {
-    background-color: #f2f2f2;
-  }
-  
-  .status-indicator {
+
+
+/* Armable and Not-Armable Styles with Inward Tinted Shadow */
+
+.drone-widget.armable {
+    border-color: green;
+    box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.3), 0 2px 8px rgba(0, 255, 0, 0.15);
+    /* Inward green shadow with a subtle outward glow */
+}
+
+.drone-widget.not-armable {
+    border-color: red;
+    box-shadow: inset 0 0 10px rgba(255, 0, 0, 0.3), 0 2px 8px rgba(255, 0, 0, 0.15);
+    /* Inward red shadow with a subtle outward glow */
+}
+
+
+/* Hover Effect */
+
+.drone-widget:hover {
+    background-color: #f9f9f9;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+
+/* Heading Styling */
+
+.drone-widget h3 {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 1.2em;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+
+/* Expanded State */
+
+.drone-widget.expanded {
+    background-color: #f0f0f0;
+}
+
+
+/* Status Indicator */
+
+.status-indicator {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
-    margin-right: 5px;
-  }
-  
-  .status-indicator.active {
+    margin-right: 10px;
+    transition: background-color 0.3s ease;
+}
+
+.status-indicator.active {
     background-color: green;
-  }
-  
-  .status-indicator.stale {
+}
+
+.status-indicator.stale {
     background-color: red;
-  }
-  
-  .drone-actions {
-    margin-top: 10px;
-  }
-  
-  .details-content {
-    margin-top: 10px;
-  }
-  
+}
+
+
+/* Drone Info Styling */
+
+.drone-info {
+    margin-bottom: 12px;
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+
+.drone-info p {
+    margin: 6px 0;
+}
+
+
+/* Drone Actions */
+
+.drone-actions {
+    text-align: right;
+    margin-top: 12px;
+}
+
+.external-view-btn {
+    background: none;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: color 0.3s ease;
+}
+
+.external-view-btn:hover {
+    color: #0056b3;
+    text-decoration: underline;
+}
+
+.details-content {
+    margin-top: 16px;
+}
+
+
+/* Conditional Color Classes */
+
+.green {
+    color: green;
+}
+
+.yellow {
+    color: #ffc107;
+    /* Bootstrap yellow color */
+}
+
+.red {
+    color: red;
+}
+
+
+/* Improved Responsiveness */
+
+@media (max-width: 768px) {
+    .drone-widget {
+        padding: 12px;
+        margin: 12px;
+    }
+    .drone-info {
+        font-size: 0.9em;
+    }
+    .drone-widget h3 {
+        font-size: 1.1em;
+    }
+    .external-view-btn {
+        font-size: 0.85em;
+    }
+}
+
+
+/* Focus States for Better Accessibility */
+
+.drone-widget:focus-within {
+    border-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+}
+
+
+/* Subtle Animation for Status Change */
+
+.drone-widget {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}

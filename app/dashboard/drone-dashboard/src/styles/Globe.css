@@ -1,19 +1,95 @@
-.loading-container {
+/* src/styles/Globe.css */
+
+.scene-container {
+    width: 100%;
+    height: 80vh;
+    position: relative;
+    background-color: #121212;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.button-container {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.button-container .fullscreen-button,
+.button-container .focus-button,
+.button-container .toolbox-button {
+    width: 40px;
+    height: 40px;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 70vh;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.3s ease;
+}
+
+.button-container .fullscreen-button:hover,
+.button-container .focus-button:hover,
+.button-container .toolbox-button:hover {
+    transform: scale(1.2);
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.drone-tooltip {
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 5px;
+    pointer-events: none;
+    white-space: nowrap;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
     width: 100%;
-    background-color: rgba(0,0,0,0.7); /* Semi-transparent black */
-  }
-  
-  .loading-message {
-    padding: 20px;
-    border-radius: 10px;
-    background: #ffffff; /* White background */
-    color: #000000; /* Black text */
-    font-size: 18px;
-    font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.85);
+}
+
+.spinner {
+    border: 6px solid rgba(255, 255, 255, 0.2);
+    border-top: 6px solid #ffffff;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+.loading-message {
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 500;
     text-align: center;
-  }
-  
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

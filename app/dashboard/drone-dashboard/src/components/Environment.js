@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLoader } from '@react-three/fiber';  // Removed TextureLoader from this import
 import { RepeatWrapping, TextureLoader } from 'three';  // Added TextureLoader from 'three' instead
-import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities';
+import { TEXTURE_REPEAT, WORLD_SIZE} from '../utilities/utilities';
 
 
 

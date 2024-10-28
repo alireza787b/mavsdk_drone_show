@@ -1,0 +1,39 @@
+.drone-git-status {
+    margin-top: 10px;
+}
+
+.git-error-message {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-bottom: 10px;
+    border-left: 4px solid #ef4444;
+    padding-left: 10px;
+}
+
+.git-status-summary {
+    border: 1px solid #e5e7eb;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+.git-status-summary.sync {
+    border-left: 5px solid #10b981;
+    background-color: #e6fffa;
+}
+
+.git-status-summary.not-sync {
+    border-left: 5px solid #ef4444;
+    background-color: #ffefef;
+}
+
+.warning-text {
+    color: #ef4444;
+}
+
+.git-loading {
+    color: #374151;
+    font-size: 0.875rem;
+    font-style: italic;
+}

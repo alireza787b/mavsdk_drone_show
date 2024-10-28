@@ -19,25 +19,25 @@ class MavlinkManager:
             else:
                 if self.params.serial_mavlink:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via serial...")
-                    mavlink_source = f"/dev/{self.params.serial_mavlink}:{self.params.serial_baudrate}"
+                    mavlink_source = f"{self.params.serial_mavlink_port}:{self.params.serial_baudrate}"
                 else:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via UDP...")
-                    mavlink_source = f"127.0.0.1:{self.params.sitl_port}"
+                    mavlink_source = f"127.0.0.1:{self.params.hw_udp_port}"
 
             logging.info(f"Using MAVLink source: {mavlink_source}")
 
             endpoints = [f"-e {device}" for device in self.params.extra_devices]
 
             if self.params.sim_mode:
-                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.mavsdk_port}")
+                #already sends to 14550 and 14540
+                pass
             else:
-                if self.params.serial_mavlink:
-                    endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
+                endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
 
-                if self.params.shared_gcs_port:
-                    endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
-                else:
-                    endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{int(self.drone_config.config['mavlink_port'])}")
+            if self.params.shared_gcs_port:
+                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
+            else:
+                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{int(self.drone_config.config['mavlink_port'])}")
 
             mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
             logging.info(f"Starting MAVLink router with command: {mavlink_router_cmd}")

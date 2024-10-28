@@ -1,99 +1,100 @@
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-min-height: 100vh;
-height: 100%;
+/* Sidebar Styles */
+
+.sidebar-wrapper {
+    display: flex;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 250px;
+    background-color: #1f2128;
+    color: #a2a5b9;
 }
 
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    overflow-y: auto;
+    background-color: #1f2128;
+}
 
-/* Header style */
+.sidebar-content {
+    display: flex;
+    position: fixed;
+    flex-direction: column;
+    justify-content: flex-start;
+    height: 100%;
+    padding-right: 10px;
+    width: 250px;
+    transition: all 0.3s ease;
+}
+
+.sidebar-content.collapsed {
+    width: 80px;
+    overflow: hidden;
+}
+
 .sidebar-header {
-  text-align: center;
-  padding: 20px 0;
+    text-align: center;
+    padding: 20px 0;
 }
 
 .sidebar-header h3 {
-  color: #59d0ff; /* Header text color */
-  margin: 0;
+    color: #59d0ff;
+    margin: 0;
 }
 
-/* Time display style */
 .sidebar-time {
-  text-align: center;
+    text-align: center;
+    color: #a2a5b9;
+    /* Time text color */
 }
 
-/* Style for the links within menu items */
 .menu-list a {
-  text-decoration: none; /* Remove underlines from links */
-  color: inherit; /* Inherit text color from the parent .menu-item */
+    text-decoration: none;
+    color: #a2a5b9;
 }
 
 .menu-list a:hover {
-  color: inherit; /* Text color on hover */
-}
-
-.menu-list:hover {
-  background-color: inherit; /* Background color on hover */
-}
-
-
-/* Menu style */
-.menu {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.menu-list a {
-  display: flex;
-  align-items: center;
-  padding: 1em;
-  color: #a2a5b9; /* Menu item text color */
-  font-weight: 600;
-  font-size: 1.02em;
-  text-decoration: none; /* Remove underlines from links */
-  transition: background-color 0.3s, color 0.3s;
+    color: #59d0ff;
+    /* Improved hover color */
 }
 
 .menu-item:hover {
-  background-color: #00458b; /* Background color on hover */
-  color: #b6c8d9; /* Text color on hover */
+    background-color: #00458b;
+    color: #b6c8d9;
 }
 
 .developer-info {
-  position: sticky;
-  bottom: 0;
-  margin-top: 100px ;
-  background-color: #1f2128; /* Background color for the developer info section */
-  padding: 10px; /* Add some padding for better visibility */
-  color: #aaa;
-  left: 0;
-  right: 0;
-  text-align: center;
+    background-color: #1f2128;
+    padding: 10px;
+    color: #aaa;
+    text-align: center;
+    /* width: 100%; */
 }
 
-.developer-info a{
-  text-decoration: none; /* Remove underlines from links */
-  color: inherit; /* Inherit text color from the parent .menu-item */
+.developer-info a {
+    text-decoration: none;
+    color: inherit;
 }
 
-/* Icon style */
 .FaBars-icon {
-  cursor: pointer;
-  transform: scale(1);
-  transition: transform 0.3s ease;
-  margin-left: auto;
-  padding: 10px;
-  color: rgb(139, 161, 183);
-  font-weight: 600;
+    cursor: pointer;
+    transform: scale(1);
+    transition: transform 0.3s ease;
+    padding: 10px;
+    color: rgb(139, 161, 183);
+    font-weight: 600;
+    align-self: flex-start;
 }
 
 .FaBars-icon:hover {
-  transform: scale(1.2);
+    transform: scale(1.2);
 }
 
-/* Menu style */
 .menu-list {
-  flex-grow: 1; /* Allow the menu to expand and push the developer info section to the bottom */
+    flex-grow: 1;
+    overflow-y: auto;
 }

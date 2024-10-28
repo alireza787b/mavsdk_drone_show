@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getElevation } from './utilities'; // Make sure to correct the import path if needed
+import { getElevation } from './utilities/utilities'; // Make sure to correct the import path if needed
 
 const useElevation = (lat, lon) => {
   const [elevation, setElevation] = useState(null);

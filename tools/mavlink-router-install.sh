@@ -49,6 +49,7 @@ cd ~
 echo "mavlink-router installed successfully. You're good to go!"
 echo "Use this command:"
 echo "mavlink-routerd -e GCS_IP:24550 0.0.0.0:34550"
+echo "or bash mavlink_route.sh EXTRA_GCS_IP:24550"
 
 # Exit the script
 exit 0

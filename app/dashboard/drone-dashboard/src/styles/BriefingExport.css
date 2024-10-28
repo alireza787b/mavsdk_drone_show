@@ -1,0 +1,41 @@
+/* app/dashboard/drone-dashboard/src/styles/BriefingExport.css */
+
+.briefing-export-container {
+    margin-bottom: 1rem;
+  }
+  
+  .briefing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .briefing-actions button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .export-kml {
+    background-color: #8e44ad;
+  }
+  
+  .export-kml:hover {
+    background-color: #732d91;
+  }
+  
+  .print-mission {
+    background-color: #2c3e50;
+  }
+  
+  .print-mission:hover {
+    background-color: #1a252f;
+  }
+  
