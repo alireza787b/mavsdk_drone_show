@@ -33,7 +33,7 @@ echo
 # Global variables
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template"
+TEMPLATE_IMAGE="drone-template:latest"
 VERBOSE=false
 
 # Function: display usage information
