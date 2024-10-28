@@ -45,6 +45,9 @@ UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to
 BRANCH_NAME="real-test-1"  # Default branch to sync
 SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
 
+# Path to the .env file
+ENV_FILE_PATH="$HOME/mavsdk_drone_show/dashboard/drone-dashboard/.env"
+
 # Function to display usage instructions
 display_usage() {
     echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl] [-b <branch>]"
@@ -198,6 +201,61 @@ load_virtualenv() {
     fi
 }
 
+handle_env_file() {
+    echo "-----------------------------------------------"
+    echo "  Checking for .env configuration file..."
+    echo "-----------------------------------------------"
+
+    if [ -f "$ENV_FILE_PATH" ]; then
+        echo "✅ .env file found at $ENV_FILE_PATH."
+        echo "Current Configuration:"
+        echo "---------------------------------"
+        # Extract and display relevant variables
+        REACT_APP_SERVER_URL=$(grep '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+        REACT_APP_FLASK_PORT=$(grep '^REACT_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+        DRONE_APP_FLASK_PORT=$(grep '^DRONE_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+        GENERATE_SOURCEMAP=$(grep '^GENERATE_SOURCEMAP=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+
+        echo "REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL"
+        echo "REACT_APP_FLASK_PORT=$REACT_APP_FLASK_PORT"
+        echo "DRONE_APP_FLASK_PORT=$DRONE_APP_FLASK_PORT"
+        echo "GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP"
+        echo "---------------------------------"
+    else
+        echo "⚠️  .env file not found at $ENV_FILE_PATH."
+        echo "Please provide the server IP accessible from the client."
+
+        # Prompt the user for server IP
+        read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
+
+        # Validate the input (basic validation)
+        if [[ ! $SERVER_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid IP address format. Exiting."
+            exit 1
+        fi
+
+        # Create the .env file with the provided IP
+        echo "Creating .env file at $ENV_FILE_PATH..."
+        cat <<EOL > "$ENV_FILE_PATH"
+# .env file
+# REACT_APP_SERVER_URL=http://<SERVER_IP_OR_HOSTNAME>
+REACT_APP_SERVER_URL=http://$SERVER_IP
+REACT_APP_FLASK_PORT=5000
+DRONE_APP_FLASK_PORT=7070
+
+GENERATE_SOURCEMAP=false
+EOL
+
+        if [ $? -eq 0 ]; then
+            echo "✅ .env file created successfully."
+            echo "You can manually edit the .env file later if needed."
+        else
+            echo "❌ Failed to create .env file. Please check permissions."
+            exit 1
+        fi
+    fi
+}
+
 # Function to start services in tmux
 start_services_in_tmux() {
     local session="$SESSION_NAME"
@@ -284,6 +342,9 @@ check_command_installed "lsof" "lsof"
 update_repository
 
 load_virtualenv
+
+# NEW SECTION: Handle .env file
+handle_env_file
 
 echo "-----------------------------------------------"
 echo "Checking and freeing up default ports..."
