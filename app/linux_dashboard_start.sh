@@ -18,7 +18,7 @@
 #     -u : Do NOT run GUI React App (default: enabled)
 #     -n : Do NOT use tmux (default: uses tmux)
 #     -s : Run components in Separate windows (default: Combined view)
-#     --sitl : Use SITL branch (docker-sitl-2) for the repository sync
+#     --sitl : Use SITL branch (docker-sitl-2) for repository sync
 #     -b <branch> : Specify a custom branch to sync with
 #     -h : Display help
 #
@@ -45,8 +45,11 @@ UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to
 BRANCH_NAME="real-test-1"  # Default branch to sync
 SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
 
-# Path to the .env file
-ENV_FILE_PATH="$SCRIPT_DIR/app/dashboard/drone-dashboard/.env"
+# Get the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Path to the .env file (Corrected Path)
+ENV_FILE_PATH="$SCRIPT_DIR/dashboard/drone-dashboard/.env"
 
 # Function to display usage instructions
 display_usage() {
@@ -162,9 +165,6 @@ show_tmux_instructions() {
     echo ""
 }
 
-# Get the script directory
-SCRIPT_DIR="$(dirname "$0")"
-
 # Paths to component scripts
 GCS_SERVER_SCRIPT="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
 GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
@@ -269,7 +269,6 @@ EOL
         fi
     fi
 }
-s
 
 # Function to start services in tmux
 start_services_in_tmux() {
