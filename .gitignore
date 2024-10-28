@@ -78,6 +78,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Ignore environment variables
+.env
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -148,3 +151,5 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+app/dashboard/drone-dashboard/.env
