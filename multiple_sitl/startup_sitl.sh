@@ -41,7 +41,7 @@ CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
 
 # Path to the external time synchronization script
-SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
+# SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
 
 # Script Metadata
 SCRIPT_NAME=$(basename "$0")
@@ -173,33 +173,6 @@ check_dependencies() {
     fi
 }
 
-# Function to synchronize system time with NTP using external script
-sync_time() {
-    log_message "Starting external time synchronization script: $SYNC_SCRIPT"
-
-    if [[ -f "$SYNC_SCRIPT" ]]; then
-        if [[ ! -x "$SYNC_SCRIPT" ]]; then
-            log_message "Time synchronization script is not executable. Attempting to set execute permissions."
-            if chmod +x "$SYNC_SCRIPT"; then
-                log_message "Set execute permissions on $SYNC_SCRIPT successfully."
-            else
-                log_message "ERROR: Failed to set execute permissions on $SYNC_SCRIPT."
-                exit 1
-            fi
-        fi
-
-        # Execute the synchronization script
-        if "$SYNC_SCRIPT"; then
-            log_message "Time synchronization completed successfully."
-        else
-            log_message "ERROR: Time synchronization script encountered an error."
-            exit 1
-        fi
-    else
-        log_message "ERROR: Time synchronization script not found at $SYNC_SCRIPT."
-        exit 1
-    fi
-}
 
 # Function to wait for the .hwID file
 wait_for_hwid() {
@@ -418,8 +391,6 @@ log_message ""
 # Check for necessary dependencies
 check_dependencies
 
-# Synchronize system time with NTP using external script
-sync_time
 
 # Wait for the .hwID file
 wait_for_hwid
