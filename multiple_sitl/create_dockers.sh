@@ -1,10 +1,36 @@
 #!/bin/bash
 
-# Exit on any command failure
-set -e
-set -o pipefail
+#########################################
+# Robust Drone Services Launcher with Repo Sync and Mouse Support in tmux
+#
+# Project: Drone Show GCS Server
+# Author: Alireza Ghaderi
+# Date: October 2024
+#
+# This script starts the GUI React App and GCS Server, manages port conflicts,
+# ensures processes run reliably in tmux or standalone terminals, and optionally
+# pulls the latest updates from the repository.
+#
+# Usage:
+#   ./run_droneservices.sh [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]
+#   Flags:
+#     -g : Do NOT run GCS Server (default: enabled)
+#     -u : Do NOT run GUI React App (default: enabled)
+#     -n : Do NOT use tmux (default: uses tmux)
+#     -s : Run components in Separate windows (default: Combined view)
+#     --sitl : Checkout to SITL branch (docker-sitl-2)
+#     --real : Checkout to Real branch (real-test-1)
+#     --overwrite-ip <IP> : Overwrite the server IP in .env
+#     -b <branch> : Specify a custom branch to sync with
+#     -h : Display help
+#
+# Example:
+#   ./run_droneservices.sh -g -s --sitl --overwrite-ip 100.84.222.4
+#   (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)
+#
+#########################################
 
-
+# Display ASCII Art Banner
 cat << "EOF"
 
 
@@ -17,276 +43,488 @@ cat << "EOF"
 
 EOF
 
-echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.0 (October 2024)"
-echo
-echo "This script creates and configures multiple Docker container instances for the drone show simulation."
-echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
-echo "To debug and see full console logs of the container workflow, run:"
-echo "  bash create_dockers.sh 1 --verbose"
-echo "You can also manually create containers with the command:"
-echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
-echo "==============================================================="
-echo
+# Default flag values (all components enabled by default)
+RUN_GCS_SERVER=true
+RUN_GUI_APP=true
+USE_TMUX=true          # Default behavior is to use tmux
+COMBINED_VIEW=true     # Default is combined view
+ENABLE_MOUSE=true      # Default behavior is to enable mouse support in tmux
+ENABLE_AUTO_PULL=true  # Enable or disable the automatic pulling and syncing of the repository
 
+# Configurable Variables
+SESSION_NAME="DroneServices"
+GCS_PORT=5000
+GUI_PORT=3000
+VENV_PATH="$HOME/mavsdk_drone_show/venv"
+UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
+DEFAULT_REAL_BRANCH="real-test-1"   # Real branch to use with --real flag
+DEFAULT_SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
 
-# Global variables
-STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template:latest"
-VERBOSE=false
+# Get the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Function: display usage information
-usage() {
-    printf "Usage: %s <number_of_instances> [--verbose]\n" "$0"
-    exit 1
+# Path to the .env file
+ENV_FILE_PATH="$SCRIPT_DIR/dashboard/drone-dashboard/.env"
+
+# Initialize variables for new arguments
+USE_SITL=false
+USE_REAL=false
+OVERWRITE_IP=""
+
+# Function to display usage instructions
+display_usage() {
+    echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]"
+    echo "Flags:"
+    echo "  -g : Do NOT run GCS Server (default: enabled)"
+    echo "  -u : Do NOT run GUI React App (default: enabled)"
+    echo "  -n : Do NOT use tmux (default: uses tmux)"
+    echo "  -s : Run components in Separate windows (default: Combined view)"
+    echo "  --sitl : Checkout to SITL branch (docker-sitl-2)"
+    echo "  --real : Checkout to Real branch (real-test-1)"
+    echo "  --overwrite-ip <IP> : Overwrite the server IP in .env"
+    echo "  -b <branch> : Specify a custom branch to sync with"
+    echo "  -h : Display this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 -g -s --sitl --overwrite-ip 100.84.222.4"
+    echo "    (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)"
+    echo ""
+    echo "  $0 --real"
+    echo "    (Uses the real branch and prompts for server IP if .env is missing)"
 }
 
-# Validate the number of instances input
-validate_input() {
-    if [[ -z "$1" ]]; then
-        printf "Error: Number of instances not provided.\n" >&2
-        usage
-    elif ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
-        printf "Error: Number of instances must be a positive integer.\n" >&2
-        usage
+# Manually handle long options (--sitl, --real, --overwrite-ip) and combine with getopts for short options
+PARSED_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --sitl)
+            if [ "$USE_REAL" = true ]; then
+                echo "❌ Cannot use --sitl and --real simultaneously."
+                exit 1
+            fi
+            USE_SITL=true
+            BRANCH_NAME="$DEFAULT_SITL_BRANCH"
+            shift
+            ;;
+        --real)
+            if [ "$USE_SITL" = true ]; then
+                echo "❌ Cannot use --sitl and --real simultaneously."
+                exit 1
+            fi
+            USE_REAL=true
+            BRANCH_NAME="$DEFAULT_REAL_BRANCH"
+            shift
+            ;;
+        --overwrite-ip)
+            if [ -n "$2" ]; then
+                OVERWRITE_IP="$2"
+                shift 2
+            else
+                echo "❌ --overwrite-ip requires an argument."
+                display_usage
+                exit 1
+            fi
+            ;;
+        -g|-u|-n|-s|-h|-b)
+            PARSED_ARGS+=("$1" "$2")
+            if [ "$1" = "-b" ]; then
+                shift 2
+            else
+                shift 1
+            fi
+            ;;
+        *)
+            PARSED_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Repass parsed options to getopts for short options processing
+set -- "${PARSED_ARGS[@]}"
+
+# Parse command-line options using getopts for short options
+while getopts "gunshb:" opt; do
+    case ${opt} in
+        g) RUN_GCS_SERVER=false ;;
+        u) RUN_GUI_APP=false ;;
+        n) USE_TMUX=false ;;
+        s) COMBINED_VIEW=false ;;
+        h)
+            display_usage
+            exit 0
+            ;;
+        b) BRANCH_NAME="$OPTARG" ;;
+        *)
+            display_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Function to check if a command is installed and install it if not
+check_command_installed() {
+    local cmd="$1"
+    local pkg="$2"
+    if ! command -v "$cmd" &> /dev/null; then
+        echo "⚠️  $cmd could not be found. Installing $pkg..."
+        sudo apt-get update
+        sudo apt-get install -y "$pkg"
+    else
+        echo "✅ $cmd is already installed."
     fi
 }
 
-# Function: report system resource usage
-report_system_resources() {
-    echo "---------------------------------------------------------------"
-    echo "System Resource Usage:"
-    
-    # CPU Usage
-    cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk '{print $8}' | cut -d '.' -f1)
-    cpu_usage=$((100 - cpu_idle))
-    echo "CPU Usage      : ${cpu_usage}%"
-
-    # Memory Usage
-    mem_total=$(free -h | awk '/^Mem:/ {print $2}')
-    mem_used=$(free -h | awk '/^Mem:/ {print $3}')
-    mem_free=$(free -h | awk '/^Mem:/ {print $4}')
-    echo "Memory Usage   : Used ${mem_used} / Total ${mem_total} (Free: ${mem_free})"
-
-    # Disk Usage
-    disk_total=$(df -h / | awk 'NR==2 {print $2}')
-    disk_used=$(df -h / | awk 'NR==2 {print $3}')
-    disk_available=$(df -h / | awk 'NR==2 {print $4}')
-    echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
-
-    # Network Usage (optional, can be added if needed)
-    # net_usage=$(ifstat -i eth0 1 1 | tail -1)
-    # echo "Network Usage  : ${net_usage}"
-
-    echo "---------------------------------------------------------------"
-    echo
+# Function to check if tmux is installed and install it if not
+check_tmux_installed() {
+    check_command_installed "tmux" "tmux"
 }
 
-# Function: create and configure a single Docker container instance
-create_instance() {
-    local instance_num=$1
-    local container_name="drone-$instance_num"
-    local hwid_file="${instance_num}.hwID"
-
-    printf "\nCreating container '%s'...\n" "$container_name"
-
-    # Remove existing container if it exists
-    if docker ps -a --format '{{.Names}}' | grep -Eq "^${container_name}\$"; then
-        printf "Container '%s' already exists. Removing it...\n" "$container_name"
-        docker rm -f "$container_name" >/dev/null 2>&1
+# Function to check if a port is in use and kill the process using it
+check_and_kill_port() {
+    local port="$1"
+    check_command_installed "lsof" "lsof"
+    pid=$(lsof -t -i :"$port")
+    if [ -n "$pid" ]; then
+        echo "⚠️  Port $port is in use by process $pid."
+        process_name=$(ps -p "$pid" -o comm=)
+        echo "Process using port $port: $process_name (PID: $pid)"
+        echo "Killing process $pid..."
+        kill -9 "$pid"
+        echo "✅ Process $pid killed."
+    else
+        echo "✅ Port $port is free."
     fi
-
-    # Create an empty .hwID file for the container
-    if ! touch "$hwid_file"; then
-        printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
-        return 1
-    fi
-
-    # Run the container and keep it running
-    if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
-        printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-        rm -f "$hwid_file"  # Clean up local .hwID file
-        return 1
-    fi
-
-    printf "Container '%s' started successfully.\n" "$container_name"
-
-    # Ensure the directory exists inside the container
-    if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
-        printf "Error: Failed to create directory in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -f "$hwid_file"
-        return 1
-    fi
-
-    # Transfer the .hwID file to the container
-    if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
-        printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -f "$hwid_file"
-        return 1
-    fi
-    rm -f "$hwid_file"  # Clean up local .hwID file
-
-    # Transfer the startup script to the container
-    if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
-        printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # Make the startup script executable inside the container
-    if ! docker exec "$container_name" chmod +x "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # If verbose mode is enabled, run attached mode for debugging purposes
-    if $VERBOSE; then
-        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
-        printf "To exit the attached mode, press CTRL+C.\n"
-        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
-        return 0
-    fi
-
-    # Run the startup SITL script inside the container in detached mode
-    printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
-    if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null  # Stop container if startup fails
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    printf "Instance '%s' configured and started successfully.\n" "$container_name"
 }
 
-# Function: report container-specific resource usage
-report_container_resources() {
-    local container_name=$1
-    local cpu_usage memory_usage storage_usage
-
-    # Get CPU usage
-    cpu_usage=$(docker stats "$container_name" --no-stream --format "{{.CPUPerc}}")
-    # Get Memory usage
-    memory_usage=$(docker stats "$container_name" --no-stream --format "{{.MemUsage}}")
-    # Get Storage usage (assuming root filesystem)
-    storage_usage=$(docker exec "$container_name" df -h / | tail -1 | awk '{print $3 "/" $2}')
-
-    printf "Resources for '%s': CPU: %s | Memory: %s | Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
+# Function to display tmux instructions
+show_tmux_instructions() {
+    echo ""
+    echo "==============================================="
+    echo "  Quick tmux Guide:"
+    echo "==============================================="
+    echo "Prefix key (Ctrl+B), then:"
+    if [ "$COMBINED_VIEW" = true ]; then
+        echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
+        echo "  - Resize panes: Hold Ctrl+B, then press and hold an arrow key"
+    else
+        echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2)"
+    fi
+    echo "  - Detach from session: Ctrl+B, then D"
+    echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
+    echo "  - Close pane/window: Type 'exit' or press Ctrl+D"
+    echo "==============================================="
+    echo ""
 }
 
-# Function: report all system and container resources
-report_all_resources() {
-    echo
-    echo "================ System Resource Report ================ "
-    report_system_resources
-    echo "================ Container Resource Report =============="
-    for container in $(docker ps --filter "name=drone-" --format "{{.Names}}"); do
-        report_container_resources "$container"
-    done
-    echo "========================================================="
-    echo
+# Paths to component scripts
+GCS_SERVER_SCRIPT="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
+GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
+
+# Function to update the repository
+update_repository() {
+    if [ -n "$BRANCH_NAME" ]; then
+        echo "🔄 Running repository update script for branch '$BRANCH_NAME'..."
+        if [ -f "$UPDATE_SCRIPT_PATH" ]; then
+            bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
+            if [ $? -ne 0 ]; then
+                echo "❌ Error: Repository update failed. Exiting."
+                exit 1
+            else
+                echo "✅ Repository successfully updated."
+            fi
+        else
+            echo "❌ Error: Update script not found at $UPDATE_SCRIPT_PATH."
+            exit 1
+        fi
+    else
+        echo "🔄 No branch flag provided. Keeping the current branch."
+    fi
 }
 
-# Main function: loop to create multiple instances
-main() {
-    local num_instances=$1
-    shift
+# Function to load the virtual environment
+load_virtualenv() {
+    if [ -d "$VENV_PATH" ]; then
+        source "$VENV_PATH/bin/activate"
+        echo "✅ Virtual environment activated."
+    else
+        echo "❌ Error: Virtual environment not found at $VENV_PATH."
+        exit 1
+    fi
+}
 
-    # Parse options
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --verbose)
-                VERBOSE=true
-                shift
-                ;;
-            *)
-                shift
-                ;;
-        esac
-    done
+# Function to handle .env file with overwrite option
+handle_env_file() {
+    echo "-----------------------------------------------"
+    echo "  Checking for .env configuration file..."
+    echo "-----------------------------------------------"
 
-    # Create instances loop
-    for ((i=1; i<=num_instances; i++)); do
-        if $VERBOSE && [[ $i -gt 1 ]]; then
-            printf "\nVerbose mode only supports running one container for debugging purposes.\n"
-            printf "Skipping creation of container 'drone-%d'.\n" "$i"
-            break
+    if [ -f "$ENV_FILE_PATH" ]; then
+        echo "✅ .env file found at $ENV_FILE_PATH."
+        if [ -n "$OVERWRITE_IP" ]; then
+            echo "🔧 Overwriting server IP to $OVERWRITE_IP in .env."
+            # Create a backup before modifying
+            cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to create backup of .env file. Please check permissions."
+                exit 1
+            fi
+            # Update the REACT_APP_SERVER_URL in .env
+            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            if [ $? -eq 0 ]; then
+                echo "✅ REACT_APP_SERVER_URL updated to http://$OVERWRITE_IP"
+                echo "✅ Backup of original .env saved as .env.bak"
+            else
+                echo "❌ Failed to update REACT_APP_SERVER_URL. Please check permissions."
+                exit 1
+            fi
+        else
+            echo "Current Configuration:"
+            echo "---------------------------------"
+            # Extract and display relevant variables
+            REACT_APP_SERVER_URL=$(grep '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            REACT_APP_FLASK_PORT=$(grep '^REACT_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            DRONE_APP_FLASK_PORT=$(grep '^DRONE_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            GENERATE_SOURCEMAP=$(grep '^GENERATE_SOURCEMAP=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+
+            echo "REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL"
+            echo "REACT_APP_FLASK_PORT=$REACT_APP_FLASK_PORT"
+            echo "DRONE_APP_FLASK_PORT=$DRONE_APP_FLASK_PORT"
+            echo "GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP"
+            echo "---------------------------------"
+        fi
+    else
+        echo "⚠️  .env file not found at $ENV_FILE_PATH."
+        echo "Please provide the server IP accessible from the client."
+
+        # Determine if overwrite IP is provided
+        if [ -n "$OVERWRITE_IP" ]; then
+            SERVER_IP="$OVERWRITE_IP"
+            echo "🔧 Overwrite IP provided. Using IP: $SERVER_IP"
+        else
+            # Prompt the user for server IP
+            read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
         fi
 
-        if ! create_instance "$i"; then
-            printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
+        # Validate the input (basic validation)
+        if [[ ! $SERVER_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid IP address format. Exiting."
             exit 1
         fi
 
-        # Report system resources after each container setup (only in non-verbose mode)
-        if ! $VERBOSE; then
-            report_system_resources
+        # Ensure the directory exists
+        TARGET_DIR=$(dirname "$ENV_FILE_PATH")
+        if [ ! -d "$TARGET_DIR" ]; then
+            echo "📁 Directory $TARGET_DIR does not exist. Creating it..."
+            mkdir -p "$TARGET_DIR"
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to create directory $TARGET_DIR. Please check permissions."
+                exit 1
+            else
+                echo "✅ Directory $TARGET_DIR created successfully."
+            fi
         fi
-    done
 
+        # Create the .env file with the provided IP
+        echo "Creating .env file at $ENV_FILE_PATH..."
+        cat <<EOL > "$ENV_FILE_PATH"
+# .env file
+# REACT_APP_SERVER_URL=http://<SERVER_IP_OR_HOSTNAME>
+REACT_APP_SERVER_URL=http://$SERVER_IP
+REACT_APP_FLASK_PORT=5000
+DRONE_APP_FLASK_PORT=7070
 
-    # Introductory banner
-cat << "EOF"
-___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
-|  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
-| .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
-| |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
-| |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
-\_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
-                                                                                                      \_\                   /_/                                                                                                                                                                                                                                                
-EOF
+GENERATE_SOURCEMAP=false
+EOL
 
-    echo
-    printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
-    echo "========================================================="
-    echo
-
-    # Final system resource summary
-    printf "Final System Resource Summary:\n"
-    report_system_resources
-
-    # Provide guidance to the user
-    echo "To monitor resources in real-time, consider using 'htop':"
-    echo "  sudo apt-get install htop   # Install htop if not already installed"
-    echo "  htop                        # Run htop to view real-time system metrics"
-    echo
-
-    # Print success message with additional instructions
-    printf "To run the Swarm Dashboard, execute the following command:\n"
-    printf "  bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
-    printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3000\n\n"
-
-    printf "To access QGC on another system, ensure 'mavlink-router' is installed:\n"
-    printf "  bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n\n"
-
-    printf "Then run one of the following commands:\n"
-    printf "  mavlink-routerd -e REMOTE_GCS_IP:24550 0.0.0.0:34550\n"
-    printf "  bash ~/mavsdk_drone_show/tools/mavlink_route.sh REMOTE_GCS_IP:24550\n\n"
-
-    printf "Now you can connect via QGC on port 24550 UDP from the remote GCS client.\n"
-
-    # Provide cleanup command to remove all drone containers
-    echo
-    printf "To remove all created containers, execute the following command:\n"
-    printf "  docker rm -f \$(docker ps -a --filter 'name=drone-' --format '{{.Names}}')\n"
-    echo
+        if [ $? -eq 0 ]; then
+            echo "✅ .env file created successfully."
+            echo "You can manually edit the .env file later if needed."
+        else
+            echo "❌ Failed to create .env file. Please check permissions."
+            exit 1
+        fi
+    fi
 }
 
-# Validate input and ensure the startup script exists
-validate_input "$1"
-if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
-    printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT_HOST" >&2
-    exit 1
+# Function to start services in tmux
+start_services_in_tmux() {
+    local session="$SESSION_NAME"
+
+    if tmux has-session -t "$session" 2>/dev/null; then
+        echo "⚠️  Killing existing tmux session '$session'..."
+        tmux kill-session -t "$session"
+    fi
+
+    echo "🟢 Creating tmux session '$session'..."
+    tmux new-session -d -s "$session"
+
+    if [ "$ENABLE_MOUSE" = true ]; then
+        tmux set-option -g mouse on
+    fi
+
+    declare -A components
+
+    if [ "$RUN_GCS_SERVER" = true ]; then
+        components["GCS-Server"]="$GCS_SERVER_SCRIPT"
+    fi
+
+    if [ "$RUN_GUI_APP" = true ]; then
+        components["GUI-React"]="$GUI_APP_SCRIPT"
+    fi
+
+    if [ "$COMBINED_VIEW" = true ]; then
+        tmux rename-window -t "$session:0" "CombinedView"
+        local pane_index=0
+        for component_name in "${!components[@]}"; do
+            if [ $pane_index -eq 0 ]; then
+                tmux send-keys -t "$session:CombinedView.$pane_index" "clear; ${components[$component_name]}; bash" C-m
+            else
+                tmux split-window -t "$session:CombinedView" -h
+                tmux select-pane -t "$session:CombinedView.$pane_index"
+                tmux send-keys -t "$session:CombinedView.$pane_index" "clear; ${components[$component_name]}; bash" C-m
+            fi
+            pane_index=$((pane_index + 1))
+        done
+        if [ $pane_index -gt 1 ]; then
+            tmux select-layout -t "$session:CombinedView" tiled
+        fi
+    else
+        local window_index=0
+        for component_name in "${!components[@]}"; do
+            if [ $window_index -eq 0 ]; then
+                tmux rename-window -t "$session:0" "$component_name"
+                tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
+            else
+                tmux new-window -t "$session" -n "$component_name"
+                tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
+            fi
+            window_index=$((window_index + 1))
+        done
+    fi
+
+    show_tmux_instructions
+    tmux attach-session -t "$session"
+}
+
+# Function to start services without tmux
+start_services_no_tmux() {
+    echo "🟢 Starting services without tmux..."
+    if [ "$RUN_GCS_SERVER" = true ]; then
+        gnome-terminal -- bash -c "$GCS_SERVER_SCRIPT; bash"
+    fi
+    if [ "$RUN_GUI_APP" = true ]; then
+        gnome-terminal -- bash -c "$GUI_APP_SCRIPT; bash"
+    fi
+}
+
+#########################################
+# Main Execution Sequence
+#########################################
+
+echo "==============================================="
+echo "  Initializing DroneServices System..."
+echo "==============================================="
+echo ""
+
+# Check for required commands
+check_tmux_installed
+check_command_installed "lsof" "lsof"
+
+# Update repository based on branch selection
+update_repository
+
+# Load the virtual environment
+load_virtualenv
+
+# Handle .env file with overwrite option
+handle_env_file
+
+# Display summary of selected options
+echo ""
+echo "==============================================="
+echo "  Configuration Summary:"
+echo "==============================================="
+if [ "$USE_SITL" = true ]; then
+    echo "✔️  Branch: SITL ($DEFAULT_SITL_BRANCH)"
+elif [ "$USE_REAL" = true ]; then
+    echo "✔️  Branch: Real ($DEFAULT_REAL_BRANCH)"
+elif [ -n "$BRANCH_NAME" ]; then
+    echo "✔️  Branch: Custom ($BRANCH_NAME)"
+else
+    CURRENT_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)
+    echo "✔️  Branch: Current ($CURRENT_BRANCH)"
 fi
 
-# Execute the main function
-main "$@"
+echo "✔️  GCS Server: $([ "$RUN_GCS_SERVER" = true ] && echo "Enabled" || echo "Disabled")"
+echo "✔️  GUI React App: $([ "$RUN_GUI_APP" = true ] && echo "Enabled" || echo "Disabled")"
+echo "✔️  Use tmux: $([ "$USE_TMUX" = true ] && echo "Yes" || echo "No")"
+echo "✔️  View Mode: $([ "$COMBINED_VIEW" = true ] && echo "Combined" || echo "Separate Windows")"
+if [ -n "$OVERWRITE_IP" ]; then
+    echo "✔️  Server IP Overwrite: Enabled ($OVERWRITE_IP)"
+else
+    echo "✔️  Server IP Overwrite: Disabled"
+fi
+echo "==============================================="
+echo ""
 
+echo "-----------------------------------------------"
+echo "Checking and freeing up default ports..."
+echo "-----------------------------------------------"
+if [ "$RUN_GCS_SERVER" = true ]; then
+    check_and_kill_port "$GCS_PORT"
+fi
+
+if [ "$RUN_GUI_APP" = true ]; then
+    check_and_kill_port "$GUI_PORT"
+fi
+
+# Start DroneServices components
+run_droneservices_components() {
+    echo "-----------------------------------------------"
+    echo "Starting DroneServices components..."
+    echo "-----------------------------------------------"
+
+    if [ "$RUN_GCS_SERVER" = true ]; then
+        echo "✅ GCS Server will be started."
+    else
+        echo "❌ GCS Server is disabled."
+    fi
+
+    if [ "$RUN_GUI_APP" = true ]; then
+        echo "✅ GUI React App will be started."
+    else
+        echo "❌ GUI React App is disabled."
+    fi
+
+    if [ "$USE_TMUX" = true ]; then
+        if [ "$COMBINED_VIEW" = true ]; then
+            echo "🟢 Components will be started in a combined view (split panes)."
+        else
+            echo "🟢 Components will be started in separate tmux windows."
+        fi
+        start_services_in_tmux
+    else
+        echo "🟢 Starting services without tmux..."
+        start_services_no_tmux
+    fi
+}
+
+run_droneservices_components
+
+echo "==============================================="
+echo "  DroneServices System Startup Complete!"
+echo "==============================================="
+echo ""
+echo "All selected components are now running."
+if [ "$USE_TMUX" = true ]; then
+    echo "You can detach from the tmux session without stopping the services."
+    echo "Use 'tmux attach -t $SESSION_NAME' to reattach to the session."
+    echo ""
+    echo "To kill the tmux session and stop all components, run:"
+    echo "👉 tmux kill-session -t $SESSION_NAME"
+    echo ""
+    echo "To kill all tmux sessions (caution: this will kill all tmux sessions on the system), run:"
+    echo "👉 tmux kill-server"
+    echo ""
+fi
