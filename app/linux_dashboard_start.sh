@@ -12,19 +12,21 @@
 # pulls the latest updates from the repository.
 #
 # Usage:
-#   ./run_droneservices.sh [-g|-u|-n|-s|-h] [--sitl] [-b <branch>]
+#   ./run_droneservices.sh [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]
 #   Flags:
 #     -g : Do NOT run GCS Server (default: enabled)
 #     -u : Do NOT run GUI React App (default: enabled)
 #     -n : Do NOT use tmux (default: uses tmux)
 #     -s : Run components in Separate windows (default: Combined view)
-#     --sitl : Use SITL branch (docker-sitl-2) for the repository sync
+#     --sitl : Checkout to SITL branch (docker-sitl-2)
+#     --real : Checkout to Real branch (real-test-1)
+#     --overwrite-ip <IP> : Overwrite the server IP in .env
 #     -b <branch> : Specify a custom branch to sync with
 #     -h : Display help
 #
 # Example:
-#   ./run_droneservices.sh -g -s --sitl
-#   (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch)
+#   ./run_droneservices.sh -g -s --sitl --overwrite-ip 100.84.222.4
+#   (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)
 #
 #########################################
 
@@ -42,41 +44,81 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
-BRANCH_NAME="real-test-1"  # Default branch to sync
-SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
+DEFAULT_REAL_BRANCH="real-test-1"   # Real branch to use with --real flag
+DEFAULT_SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
+
+# Get the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Path to the .env file
-ENV_FILE_PATH="$SCRIPT_DIR/app/dashboard/drone-dashboard/.env"
+ENV_FILE_PATH="$SCRIPT_DIR/dashboard/drone-dashboard/.env"
+
+# Initialize variables for new arguments
+USE_SITL=false
+USE_REAL=false
+OVERWRITE_IP=""
 
 # Function to display usage instructions
 display_usage() {
-    echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl] [-b <branch>]"
+    echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]"
     echo "Flags:"
     echo "  -g : Do NOT run GCS Server (default: enabled)"
     echo "  -u : Do NOT run GUI React App (default: enabled)"
     echo "  -n : Do NOT use tmux (default: uses tmux)"
     echo "  -s : Run components in Separate windows (default: Combined view)"
-    echo "  --sitl : Use SITL branch (docker-sitl-2) for repository sync"
+    echo "  --sitl : Checkout to SITL branch (docker-sitl-2)"
+    echo "  --real : Checkout to Real branch (real-test-1)"
+    echo "  --overwrite-ip <IP> : Overwrite the server IP in .env"
     echo "  -b <branch> : Specify a custom branch to sync with"
     echo "  -h : Display this help message"
-    echo "Example: $0 -g -s --sitl"
+    echo ""
+    echo "Examples:"
+    echo "  $0 -g -s --sitl --overwrite-ip 100.84.222.4"
+    echo "    (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)"
+    echo ""
+    echo "  $0 --real"
+    echo "    (Uses the real branch and prompts for server IP if .env is missing)"
 }
 
-# Manually handle long options (--sitl) and combine with getopts for short options
+# Manually handle long options (--sitl, --real, --overwrite-ip) and combine with getopts for short options
 PARSED_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --sitl)
-            BRANCH_NAME="$SITL_BRANCH"
+            if [ "$USE_REAL" = true ]; then
+                echo "❌ Cannot use --sitl and --real simultaneously."
+                exit 1
+            fi
+            USE_SITL=true
+            BRANCH_NAME="$DEFAULT_SITL_BRANCH"
             shift
+            ;;
+        --real)
+            if [ "$USE_SITL" = true ]; then
+                echo "❌ Cannot use --sitl and --real simultaneously."
+                exit 1
+            fi
+            USE_REAL=true
+            BRANCH_NAME="$DEFAULT_REAL_BRANCH"
+            shift
+            ;;
+        --overwrite-ip)
+            if [ -n "$2" ]; then
+                OVERWRITE_IP="$2"
+                shift 2
+            else
+                echo "❌ --overwrite-ip requires an argument."
+                display_usage
+                exit 1
+            fi
             ;;
         -g|-u|-n|-s|-h|-b)
             PARSED_ARGS+=("$1" "$2")
-            shift 2
-            ;;
-        -b)
-            BRANCH_NAME="$2"
-            shift 2
+            if [ "$1" = "-b" ]; then
+                shift 2
+            else
+                shift 1
+            fi
             ;;
         *)
             PARSED_ARGS+=("$1")
@@ -162,16 +204,13 @@ show_tmux_instructions() {
     echo ""
 }
 
-# Get the script directory
-SCRIPT_DIR="$(dirname "$0")"
-
 # Paths to component scripts
 GCS_SERVER_SCRIPT="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
 GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 
 # Function to update the repository
 update_repository() {
-    if [ "$ENABLE_AUTO_PULL" = true ]; then
+    if [ -n "$BRANCH_NAME" ]; then
         echo "Running repository update script for branch '$BRANCH_NAME'..."
         if [ -f "$UPDATE_SCRIPT_PATH" ]; then
             bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
@@ -186,7 +225,7 @@ update_repository() {
             exit 1
         fi
     else
-        echo "Auto-pull is disabled. Skipping repository update."
+        echo "No branch flag provided. Keeping the current branch."
     fi
 }
 
@@ -194,14 +233,14 @@ update_repository() {
 load_virtualenv() {
     if [ -d "$VENV_PATH" ]; then
         source "$VENV_PATH/bin/activate"
-        echo "Virtual environment activated."
+        echo "✅ Virtual environment activated."
     else
-        echo "Error: Virtual environment not found at $VENV_PATH."
+        echo "❌ Error: Virtual environment not found at $VENV_PATH."
         exit 1
     fi
 }
 
-# NEW SECTION: Function to handle .env file
+# Function to handle .env file with overwrite option
 handle_env_file() {
     echo "-----------------------------------------------"
     echo "  Checking for .env configuration file..."
@@ -209,25 +248,50 @@ handle_env_file() {
 
     if [ -f "$ENV_FILE_PATH" ]; then
         echo "✅ .env file found at $ENV_FILE_PATH."
-        echo "Current Configuration:"
-        echo "---------------------------------"
-        # Extract and display relevant variables
-        REACT_APP_SERVER_URL=$(grep '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-        REACT_APP_FLASK_PORT=$(grep '^REACT_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-        DRONE_APP_FLASK_PORT=$(grep '^DRONE_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-        GENERATE_SOURCEMAP=$(grep '^GENERATE_SOURCEMAP=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+        if [ -n "$OVERWRITE_IP" ]; then
+            echo "⚠️  Overwrite IP option detected. Updating REACT_APP_SERVER_URL..."
+            # Create a backup before modifying
+            cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to create backup of .env file. Please check permissions."
+                exit 1
+            fi
+            # Update the REACT_APP_SERVER_URL in .env
+            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            if [ $? -eq 0 ]; then
+                echo "✅ REACT_APP_SERVER_URL updated to http://$OVERWRITE_IP"
+                echo "✅ Backup of original .env saved as .env.bak"
+            else
+                echo "❌ Failed to update REACT_APP_SERVER_URL. Please check permissions."
+                exit 1
+            fi
+        else
+            echo "Current Configuration:"
+            echo "---------------------------------"
+            # Extract and display relevant variables
+            REACT_APP_SERVER_URL=$(grep '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            REACT_APP_FLASK_PORT=$(grep '^REACT_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            DRONE_APP_FLASK_PORT=$(grep '^DRONE_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
+            GENERATE_SOURCEMAP=$(grep '^GENERATE_SOURCEMAP=' "$ENV_FILE_PATH" | cut -d '=' -f2)
 
-        echo "REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL"
-        echo "REACT_APP_FLASK_PORT=$REACT_APP_FLASK_PORT"
-        echo "DRONE_APP_FLASK_PORT=$DRONE_APP_FLASK_PORT"
-        echo "GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP"
-        echo "---------------------------------"
+            echo "REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL"
+            echo "REACT_APP_FLASK_PORT=$REACT_APP_FLASK_PORT"
+            echo "DRONE_APP_FLASK_PORT=$DRONE_APP_FLASK_PORT"
+            echo "GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP"
+            echo "---------------------------------"
+        fi
     else
         echo "⚠️  .env file not found at $ENV_FILE_PATH."
         echo "Please provide the server IP accessible from the client."
 
-        # Prompt the user for server IP
-        read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
+        # Determine if overwrite IP is provided
+        if [ -n "$OVERWRITE_IP" ]; then
+            SERVER_IP="$OVERWRITE_IP"
+            echo "⚠️  Overwrite IP provided. Using IP: $SERVER_IP"
+        else
+            # Prompt the user for server IP
+            read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
+        fi
 
         # Validate the input (basic validation)
         if [[ ! $SERVER_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -269,7 +333,6 @@ EOL
         fi
     fi
 }
-s
 
 # Function to start services in tmux
 start_services_in_tmux() {
@@ -358,7 +421,7 @@ update_repository
 
 load_virtualenv
 
-# NEW SECTION: Handle .env file
+# Handle .env file with overwrite option
 handle_env_file
 
 echo "-----------------------------------------------"
