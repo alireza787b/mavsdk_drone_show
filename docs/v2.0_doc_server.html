@@ -327,6 +327,8 @@ pip install -r requirements.txt
   <p>Run the automated webserver setup and run script:</p>
 bash  ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 </code></pre>
+            <p>If it's your first time running the server, it will ask you to enter the webserver IP which is accessible by client. It can be your server public IP.</p>
+            <p>To change the IP next times, either remove the .env file or user <code>--overwrite-ip "YOUR_SERVER_IP"</code> argument.</p>
             <p>You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). eg. <code>http://drone.joomtalk.ir:3000</code></p>
             <p>If you cant access the page, make sure your firewall rules allow communication on port 3000, 7070, 5000 (defined in params and .evn)</p>
             <h3>Mission Configuration and Customization (Optional)</h3>
