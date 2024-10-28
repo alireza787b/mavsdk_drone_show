@@ -30,6 +30,19 @@
 #
 #########################################
 
+# Display ASCII Art Banner
+cat << "EOF"
+
+
+  __  __   ___   _____ ___  _  __  ___  ___  ___  _  _ ___   ___ _  _  _____      __   ____  __ ___  _____  
+ |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
+ | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) \ \/\/ /  | || |\/| | |) \__ \| |
+ |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
+                                                                                      \_\               /_/ 
+
+
+EOF
+
 # Default flag values (all components enabled by default)
 RUN_GCS_SERVER=true
 RUN_GUI_APP=true
@@ -211,21 +224,21 @@ GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 # Function to update the repository
 update_repository() {
     if [ -n "$BRANCH_NAME" ]; then
-        echo "Running repository update script for branch '$BRANCH_NAME'..."
+        echo "🔄 Running repository update script for branch '$BRANCH_NAME'..."
         if [ -f "$UPDATE_SCRIPT_PATH" ]; then
             bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
             if [ $? -ne 0 ]; then
-                echo "Error: Repository update failed. Exiting."
+                echo "❌ Error: Repository update failed. Exiting."
                 exit 1
             else
-                echo "Repository successfully updated."
+                echo "✅ Repository successfully updated."
             fi
         else
-            echo "Error: Update script not found at $UPDATE_SCRIPT_PATH."
+            echo "❌ Error: Update script not found at $UPDATE_SCRIPT_PATH."
             exit 1
         fi
     else
-        echo "No branch flag provided. Keeping the current branch."
+        echo "🔄 No branch flag provided. Keeping the current branch."
     fi
 }
 
@@ -249,7 +262,7 @@ handle_env_file() {
     if [ -f "$ENV_FILE_PATH" ]; then
         echo "✅ .env file found at $ENV_FILE_PATH."
         if [ -n "$OVERWRITE_IP" ]; then
-            echo "⚠️  Overwrite IP option detected. Updating REACT_APP_SERVER_URL..."
+            echo "🔧 Overwriting server IP to $OVERWRITE_IP in .env."
             # Create a backup before modifying
             cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
             if [ $? -ne 0 ]; then
@@ -287,7 +300,7 @@ handle_env_file() {
         # Determine if overwrite IP is provided
         if [ -n "$OVERWRITE_IP" ]; then
             SERVER_IP="$OVERWRITE_IP"
-            echo "⚠️  Overwrite IP provided. Using IP: $SERVER_IP"
+            echo "🔧 Overwrite IP provided. Using IP: $SERVER_IP"
         else
             # Prompt the user for server IP
             read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
@@ -343,7 +356,7 @@ start_services_in_tmux() {
         tmux kill-session -t "$session"
     fi
 
-    echo "Creating tmux session '$session'..."
+    echo "🟢 Creating tmux session '$session'..."
     tmux new-session -d -s "$session"
 
     if [ "$ENABLE_MOUSE" = true ]; then
@@ -396,7 +409,7 @@ start_services_in_tmux() {
 
 # Function to start services without tmux
 start_services_no_tmux() {
-    echo "Starting services without tmux..."
+    echo "🟢 Starting services without tmux..."
     if [ "$RUN_GCS_SERVER" = true ]; then
         gnome-terminal -- bash -c "$GCS_SERVER_SCRIPT; bash"
     fi
@@ -414,15 +427,46 @@ echo "  Initializing DroneServices System..."
 echo "==============================================="
 echo ""
 
+# Check for required commands
 check_tmux_installed
 check_command_installed "lsof" "lsof"
 
+# Update repository based on branch selection
 update_repository
 
+# Load the virtual environment
 load_virtualenv
 
 # Handle .env file with overwrite option
 handle_env_file
+
+# Display summary of selected options
+echo ""
+echo "==============================================="
+echo "  Configuration Summary:"
+echo "==============================================="
+if [ "$USE_SITL" = true ]; then
+    echo "✔️  Branch: SITL ($DEFAULT_SITL_BRANCH)"
+elif [ "$USE_REAL" = true ]; then
+    echo "✔️  Branch: Real ($DEFAULT_REAL_BRANCH)"
+elif [ -n "$BRANCH_NAME" ]; then
+    echo "✔️  Branch: Custom ($BRANCH_NAME)"
+else
+    CURRENT_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)
+    echo "✔️  Branch: Current ($CURRENT_BRANCH)"
+fi
+
+echo "✔️  GCS Server: $([ "$RUN_GCS_SERVER" = true ] && echo "Enabled" || echo "Disabled")"
+echo "✔️  GUI React App: $([ "$RUN_GUI_APP" = true ] && echo "Enabled" || echo "Disabled")"
+echo "✔️  Use tmux: $([ "$USE_TMUX" = true ] && echo "Yes" || echo "No")"
+echo "✔️  View Mode: $([ "$COMBINED_VIEW" = true ] && echo "Combined" || echo "Separate Windows")"
+if [ -n "$OVERWRITE_IP" ]; then
+    echo "✔️  Server IP Overwrite: Enabled ($OVERWRITE_IP)"
+else
+    echo "✔️  Server IP Overwrite: Disabled"
+fi
+echo "==============================================="
+echo ""
 
 echo "-----------------------------------------------"
 echo "Checking and freeing up default ports..."
@@ -435,6 +479,7 @@ if [ "$RUN_GUI_APP" = true ]; then
     check_and_kill_port "$GUI_PORT"
 fi
 
+# Start DroneServices components
 run_droneservices_components() {
     echo "-----------------------------------------------"
     echo "Starting DroneServices components..."
@@ -454,13 +499,13 @@ run_droneservices_components() {
 
     if [ "$USE_TMUX" = true ]; then
         if [ "$COMBINED_VIEW" = true ]; then
-            echo "Components will be started in a combined view (split panes)."
+            echo "🟢 Components will be started in a combined view (split panes)."
         else
-            echo "Components will be started in separate tmux windows."
+            echo "🟢 Components will be started in separate tmux windows."
         fi
         start_services_in_tmux
     else
-        echo "Starting services without tmux..."
+        echo "🟢 Starting services without tmux..."
         start_services_no_tmux
     fi
 }
