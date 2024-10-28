@@ -238,14 +238,14 @@ mediafire-dl https://www.mediafire.com/file/cpq37hcovq2cev9/drone-template_v2.0.
 
         <pre>
 <code>
-sudo apt install docker.io
+sudo apt install docker.io -y
 </code></pre>
 
         <p>Load the downloaded image into Docker:</p>
 
         <pre>
 <code>
-docker load &lt; drone-template-v2.0.tar
+docker load &lt; drone-template_v2.0.tar
 </code></pre>
 
         <h5>Image Features and Components</h5>
@@ -311,20 +311,24 @@ sudo docker ps
 cd ~
 git clone https://github.com/alireza787b/mavsdk_drone_show
 cd mavsdk_drone_show
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 </code></pre>
 
             <h3>Webserver Software Installations</h3>
 
-            <p>MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the <a href="https://nodejs.org/en/download/package-manager">official Node.js website (version 20 using nvm is recoomended)</a>.</p>
+            <p>MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the <a href="https://nodejs.org/en/download/package-manager" target="_blank">official Node.js website </a> (version 20 using nvm is recoomended).</p>
 
+            <p>hint: If you get an error of nvm command not found, exit the ssh session and login again (or source bashrc)</p>
             <p>Navigate to the React web server directory and install packages:</p>
-
+            <pre><code>
+                cd ~/mavsdk_drone_show/app/dashboard/drone-dashboard
+                npm install
+                </code></pre>
             <pre>
-<code>
   <p>Run the automated webserver setup and run script:</p>
+  <code>
 bash  ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 </code></pre>
             <p>You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). eg. <code>http://drone.joomtalk.ir:3000</code></p>
@@ -344,9 +348,6 @@ bash  ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ssh root@Your_Server_IP
 </code></pre>
 
-            <p>
-                Once connected, navigate to the repo directory:
-            </p>
 
             <pre><code>
 cd ~/mavsdk_drone_show
@@ -357,7 +358,7 @@ cd ~/mavsdk_drone_show
             </p>
 
             <pre><code>
-sudo bash multiple_sitl/create_dockers.sh 2
+sudo bash ~/mavsdk_drone_show/multiple_sitl/create_dockers.sh 2
 </code></pre>
 
             <p>
