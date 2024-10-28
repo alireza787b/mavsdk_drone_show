@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>MAVSDK Drone Show (MDS) Simulation Server Setup Guide</title>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+
+            const codeBlocks = document.querySelectorAll('pre code')
+
+            codeBlocks.forEach(block => {
+
+                const button = document.createElement('button')
+
+                // Use SVG icon for consistency
+                button.innerHTML = '<svg al xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path fill="none" d="M0 0h24v24H0z"/><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>'
+
+                // Style as plain icon button
+                button.style.background = 'none'
+                button.style.float = 'right'
+                button.style.border = 'none'
+                button.style.padding = '2px'
+                button.style.cursor = 'pointer'
+
+                // Insert before code 
+                block.parentElement.insertBefore(button, block)
+
+                // Copy text on click
+                button.addEventListener('click', () => {
+                    const text = block.textContent
+                    navigator.clipboard.writeText(text)
+                })
+
+            })
+
+        })
+    </script>
+    <style>
+        /* General Styles */
+        
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        main {
+            max-width: 800px;
+            margin: 40px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            border-bottom: 2px solid #333;
+        }
+        
+        h2 {
+            font-size: 2em;
+        }
+        
+        h3,
+        h4 {
+            font-size: 1.5em;
+        }
+        
+        p,
+        ul,
+        pre {
+            margin-bottom: 20px;
+        }
+        
+        pre {
+            background-color: #eee;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        
+        code {
+            font-family: 'Courier New', monospace;
+        }
+        
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        /* Custom Classes */
+        
+        .troubleshooting,
+        .known-issues {
+            background-color: #fafafa;
+            border-left: 4px solid #dc3545;
+            padding: 10px;
+            margin: 20px 0;
+        }
+        
+        footer {
+            background: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .footer-copyright {
+            font-size: 14px;
+        }
+        
+        .footer-info {
+            font-size: 12px;
+        }
+        
+        .footer-license {
+            font-size: 10px;
+        }
+        
+        footer a {
+            color: #1D9BF0;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>MDS Simulation Server Setup Guide MDS 2.0</h1>
+
+        <h2>Introduction</h2>
+
+        <p>Welcome to the MDS Simulation Server Setup Guide. This document aims to provide a comprehensive set of instructions to set up your own drone simulation server, based on the <code>mavsdk_drone_show</code> GitHub repository. The repository was created
+            in Nov 2024 and is based on version 2.0 of the original project.</p>
+
+        <p>For a step-by-step walkthrough from version 0.1, you can follow our YouTube tutorial playlist. Links to these tutorials are available in the <a href="https://github.com/alireza787b/mavsdk_drone_show">GitHub repository</a>.</p>
+
+        <h2>Resource Allocation</h2>
+
+        <p>The minimum resource allocation required for running two drone instances is 2 CPU cores and 4 GB of RAM.</p>
+        <p>For testing, start with at least 2 CPUs and 4GB RAM. Increase proportional to the number of drones being simulated.</p>
+        <p>Each drone instance requires significant compute for SITL, so plan accordingly. A good starting point is 1 core and 1GB RAM per drone.</p>
+
+        <h2>Initial Server Setup</h2>
+
+        <p>Create a Virtual Machine (VM) based on your requirements. For example, using Linode, choose sufficient resources based on the number of drones you want to simulate. Recommended OS: Ubuntu 22.04.</p>
+
+
+        <h3>Pointing a Domain or Subdomain (Optional)</h3>
+
+        <p>Although it's optional, it's highly recommended to point a domain or subdomain to your drone server for ease of access and identification. You can use your existing domain or purchase a new one. If you are running on local system it is not needed.</p>
+
+        <p><strong>Role of Cloudflare in This Project:</strong></p>
+        <ul>
+            <li><strong>DNS Management:</strong> The primary role Cloudflare will serve in this project is as a DNS (Domain Name System) management service. DNS is the mechanism that translates human-friendly domain names into IP addresses where servers are
+                hosted.
+            </li>
+            <li><strong>Simple Configuration:</strong> Cloudflare offers an easy-to-use interface for pointing your domain or subdomain to your server IP.</li>
+            <li><strong>No Proxy:</strong> For this setup, we turn off Cloudflare's proxy feature, ensuring that Cloudflare only serves as a DNS manager and does not interfere with your server configurations or data traffic.</li>
+        </ul>
+
+        <p><strong>Setting Up Cloudflare:</strong></p>
+        <ol>
+            <li>Go to <a href="https://www.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare's website</a> and sign up for a free account if you don't have one already.</li>
+            <li>After logging in, click on 'Add a Site' to add your domain to Cloudflare.</li>
+            <li>Follow the on-screen instructions to verify ownership and import existing DNS settings (if applicable).</li>
+            <li>Once the domain is added, proceed to the DNS management section.</li>
+        </ol>
+
+        <p><strong>How to Add an A Record in Cloudflare:</strong></p>
+        <ol>
+            <li>Log in to your Cloudflare account if you are not already logged in.</li>
+            <li>Navigate to the 'DNS' tab.</li>
+            <li>Click on 'Add Record.'</li>
+            <li>Select 'A' in the 'Type' dropdown.</li>
+            <li>Enter 'drone' in the 'Name' field to create a subdomain like <code>drone.yourdomain.com</code>.</li>
+            <li>Enter your server IP address in the 'IPv4 Address' field.</li>
+            <li>Ensure the 'Proxy Status' is set to 'DNS Only.'</li>
+            <li>Click 'Save.'</li>
+        </ol>
+
+
+        <p>Tip: If you prefer, you can also continue to use the IP address of the server or Reverse DNS URLs.</p>
+
+        <h2>Server Configuration: Basic Setup</h2>
+        <h3>Access to your server using SSH</h3>
+        <pre>
+<code>
+ssh root@your_server_ip
+</code></pre>
+
+        <h3>Package and Software Installation</h3>
+
+        <pre><code>
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip tmux lsof
+</code></pre>
+
+        <p>First, ensure that your system package list and Python3 pip package are up-to-date by running the above commands.</p>
+
+        <h4>Installing Mediafire Downloader</h4>
+
+        <p>Install the Mediafire downloader to fetch the specialized drone image:</p>
+
+        <pre><code>
+pip3 install git+https://github.com/Juvenal-Yescas/mediafire-dl
+</code></pre>
+
+        <h4>Downloading the Custom Drone Image</h4>
+
+        <p>In your home directory, download the latest image:</p>
+
+        <pre><code>
+mediafire-dl https://www.mediafire.com/file/cpq37hcovq2cev9/drone-template_v2.0.tar/file
+</code></pre>
+
+        <p>If the srcipt failed to download automatically from Mediafire, open <a href="https://www.mediafire.com/file/cpq37hcovq2cev9/drone-template_v2.0.tar/file" target="_blank"> this link </a> in your browser, start download the file.<br /> Then pause
+            the download and copy the download link. Now you can use wget to download the file as a walkaround.</p>
+        <pre><code>
+    cd ~ & wget COPIED_DOWNLOAD_LINK_FROM_BROWSER
+    </code></pre>
+        <p>This docker image is a fully-functional, ready-to-use drone instance. Details and customization options will be described in the next section.</p>
+
+        <h3>Docker Installation</h3>
+
+        <pre>
+<code>
+sudo apt install docker.io
+</code></pre>
+
+        <p>Load the downloaded image into Docker:</p>
+
+        <pre>
+<code>
+docker load &lt; drone-template-v2.0.tar
+</code></pre>
+
+        <h5>Image Features and Components</h5>
+
+        <p>This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes:</p>
+
+        <ul>
+            <li>PX4 1.15</li>
+            <li>mavsdk_drone_show</li>
+            <li>mavlink-router</li>
+            <li>Gazebo</li>
+            <li>SITL</li>
+            <li>All other necessary dependencies</li>
+        </ul>
+
+        <p>Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.</p>
+
+        <h4>Customizing the Image (Optional)</h4>
+
+        <p>If you wish to customize this image, you'll need to load it into a Docker container and access its terminal bash for modifications. Follow these steps:</p>
+
+        <ol>
+            <li>Load the image into a Docker container (for example, name it "updated_drone_template").</li>
+            <li>Access the container's terminal bash.</li>
+            <li>Fork the mavsdk_drone_show repository and clone your fork into the container home directory (instead of current official repository).</li>
+            <li>Copy the 'mavsdk_server' binary into the same directory.</li>
+            <li>Once all modifications are complete, commit the changes to the Docker image using:</li>
+        </ol>
+
+        <pre><code>
+sudo docker commit updated_drone_template custom-drone-template:latest
+</code></pre>
+
+        <p>This will save your customizations into the Docker image. You can now proceed to use this customized image for your drone instances.</p>
+
+        <h3>Portainer Installation (Optional but Highly Recommended)</h3>
+
+        <pre>
+<code>
+docker volume create portainer_data
+docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+</code></pre>
+
+        <p>Check for correct installation:</p>
+
+        <pre>
+<code>
+sudo docker ps
+</code></pre>
+
+        <p>You can access Portainer via the browser using your domain, IP address, or the reverse DNS provided by your hosting service like Linode. eg. <code>https://drone.YOUR_DOMAIN.com:9443</code></p>
+
+        <h2>Drone Configuration and Setup</h2>
+
+        <h3>Forking the GitHub Repo (Optional)</h3>
+
+        <p>Forking the <code>mavsdk_drone_show</code> GitHub repo is required only if you are planning to customize the code and shows.<br /> If you need help for your custom projects, contact me on <a href="https://www.linkedin.com/in/alireza787b/" target="_blank">LinkedIn</a>            or <a href="mailto:p30planets@gmail.com">Email</a>.
+
+            <h3>GCS Server Setup</h3>
+
+            <pre>
+<code>
+cd ~
+git clone https://github.com/alireza787b/mavsdk_drone_show
+cd mavsdk_drone_show
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+</code></pre>
+
+            <h3>Webserver Software Installations</h3>
+
+            <p>MDS's swarm dashboard requires Node.js and npm. Install them by following the instructions for your operating system on the <a href="https://nodejs.org/en/download/package-manager">official Node.js website (version 20 using nvm is recoomended)</a>.</p>
+
+            <p>Navigate to the React web server directory and install packages:</p>
+
+            <pre>
+<code>
+  <p>Run the automated webserver setup and run script:</p>
+bash  ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
+</code></pre>
+            <p>You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). eg. <code>http://drone.joomtalk.ir:3000</code></p>
+            <p>If you cant access the page, make sure your firewall rules allow communication on port 3000, 7070, 5000 (defined in params and .evn)</p>
+            <h3>Mission Configuration and Customization (Optional)</h3>
+            <p>
+                You can configure your mission, swarm design, or drone show using SkyBrush or similar tools.</p>
+            <p> Remember, if you want to make any changes to these configurations, you should push those changes to your own forked GitHub repo, otherwise none of these settings will take effect and will be overwritten (pulled) form main MDS repo.
+            </p>
+
+            <h3>Run Drone Instances</h3>
+            <p>
+                Open a new terminal tab and SSH into your server:
+            </p>
+
+            <pre><code>
+ssh root@Your_Server_IP
+</code></pre>
+
+            <p>
+                Once connected, navigate to the repo directory:
+            </p>
+
+            <pre><code>
+cd ~/mavsdk_drone_show
+</code></pre>
+
+            <p>
+                Create the drone instances using the following script:
+            </p>
+
+            <pre><code>
+sudo bash multiple_sitl/create_dockers.sh 2
+</code></pre>
+
+            <p>
+                Explanation: The script <code>create_dockers.sh</code> creates instances for your simulated drones. The number "2" specifies how many drones you want to create. Make sure your server has enough resources allocated for the drone instances
+                you plan to run. The instances should automatically appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
+            </p>
+            <p>
+                hints: For debugging, you can use <code> 1 --verbose</code> argument to create only one drone and get all logs and progress on the drone container workflow.
+            </p>
+
+            <h3>Netbird VPN Setup (Optional but Recommended for Local Mavlink)</h3>
+
+            <p>
+                Netbird is a zero-config VPN solution that allows you to easily and securely connect your devices, including your server and local PC. This is especially useful if you want to set up a Ground Control Station (e.g., QGroundControl) on your local PC or
+                smartphone and monitor your drone's data in real-time. Netbird is recommended for this setup to ensure efficient and secure data transmission.
+            </p>
+
+            <h4>Why Use Netbird?</h4>
+            <p>
+                While you have the option to use port forwarding, ZeroTier, Netbird or even VNC for a server remote desktop (not recommended), Netbird stands out for its ease of use, reliability, security and able to self-host.
+
+                <h4>Local vs Server Setup</h4>
+                <p>
+                    Netbird is primarily needed if you are running your GCS and webserver on a remote server (like in this example in the cloud). If you are running everything locally, you won't need to set up Netbird.
+                </p>
+                <h4>How to Install Netbird</h4>
+
+                <h5>Remote-Side Installation</h5>
+                <p>
+                    Open a new terminal tab and SSH into your server:
+                </p>
+
+                <pre><code>
+ssh root@Your_Server_IP
+</code></pre>
+
+                <p>
+                    Once connected, run following command:
+                </p>
+                <pre>
+<code>
+  curl -fsSL https://pkgs.netbird.io/install.sh | sh
+</code></pre>
+
+                <h5>Authenticate and Join Netbird Network</h5>
+
+                <p>Run:</p>
+                <pre><code>sudo netbird up</code> </pre>
+                <p>If you are runnig your own selfhosted Netbird server, add <code>--management-url YOUR_NETBIRD_SERVER_URL </code> to above command.</p>
+                <p>on your server terminal. You will be provided with a join request link. Copy this link and open it on your local PC or smartphone, logging in with the same account you used to set up Netbird on your PC. This ensures both the server and
+                    your local PC are on the same network with assigned Netbird IPs.</p>
+
+                <h5>Client-Side Installation</h5>
+
+                <p>
+                    To receive MAVLink packets on your local machine and use a GCS like QGroundControl, you will need to install Netbird on your local device. Netbird is available for a wide range of platforms including Windows, macOS, Linux, Android, and iOS.
+                </p>
+
+                <p>
+                    Follow the installation guidelines for your specific platform from the <a href="https://docs.netbird.io/how-to/installation">Netbird official download page</a>.
+                </p>
+
+                <h5>Login and Join Network</h5>
+
+                <p>
+                    After installation, open Netbird and login using the same account credentials you used for the server-side installation. This action will automatically join your device to your Netbird network and assign a unique N IP address to your device.
+                </p>
+
+                <h5>Manage Your Network</h5>
+
+                <p>
+                    You can manage your devices, check their statuses, and even revoke access via the <a href="https://app.netbird.io/">Netbird admin panel or your own domain if you self-hosted Netbird.</a>.
+                </p>
+                <p>
+                    To access each drone container node, you can create a route on docker subnet "172.17.0.0/16" on the server node from Netbird management panel.
+                </p>
+
+                <h4>Test Connections</h4>
+
+                <pre>
+<code>
+# On the local system
+ping SERVER_GCS_NETBIRD_IP
+
+# On the server
+ping LOCAL_GCS_NETBIRD_IP
+</code></pre>
+                <p>
+                    Running these ping tests ensures that both the server and local machines are connected within the Netbird network. If the pings are successful, you can proceed to set up the MAVLink routing.
+                </p>
+
+                <h4>Using MAVLink Router</h4>
+
+                <p>
+                    MAVLink Router serves as a middleware to forward MAVLink packets between different endpoints. In this setup, it's essential for routing MAVLink data from your server GCS to your local GCS.
+                </p>
+                <h5>Why Use MAVLink Router?</h5>
+                <p>
+                    When your drones are being managed by a GCS on the server, the MAVLink data packets they generate are initially sent to that server-side GCS. However, you may also want this data to be accessible on a local GCS for easier monitoring and control. MAVLink
+                    Router allows you to achieve this by routing these data packets to another GCS located on your local machine or your smartphone.
+                </p>
+                <h5>Installing MAVLink Router</h5>
+                <p>
+                    Before we proceed with the MAVLink routing, we first need to ensure MAVLink Router is installed on the server. Follow these steps to install MAVLink Router:
+                </p>
+                <pre><code>
+cd ~/mavsdk_drone_show
+sudo bash tools/mavlink-router-install.sh
+</code></pre>
+                <p>
+                    This script will handle the installation process for MAVLink Router. Once completed, you can proceed with configuring the router.
+                </p>
+
+
+
+                <h5>Understanding the Command</h5>
+                <pre><code>
+  mavlink-routerd -e LOCAL_GCS_NETBIRD_IP:24550 0.0.0.0:34550
+</code></pre>
+                <p>
+                    Here's what each parameter means:
+                    <ul>
+                        <li><code>-e LOCAL_GCS_NETBIRD_IP:24550</code>: This specifies the endpoint where MAVLink messages will be forwarded. Replace "LOCAL_GCS_NETBIRD_IP" with the Netbird IP of your local machine. The port "24550" is where your local GCS
+                            is listening for incoming MAVLink messages.</li>
+                        <li><code>0.0.0.0:34550</code>: This is the port on the server where the MAVLink messages are received from the drones. In this example, it's port "34550".</li>
+                    </ul>
+                </p>
+
+                <h5>Ports Configuration</h5>
+                <p>
+                    In the given command, MAVLink messages are being sent initially on port "34550" to the first GCS (server-side), and then routed to port "24550" for the second GCS (local). These port numbers can be modified in the "params.py" file as per your requirements.
+                </p>
+
+
+
+                <h4>QGroundControl Settings</h4>
+
+                <p>On your local GCS, open QGroundControl and navigate to &#39;Application Settings&#39; &gt; &#39;Comm Links&#39;. Create a new comm link, name it (e.g., &#39;server1&#39;), check the &#39;High Latency&#39; mode, set the connection type
+                    to &#39;UDP&#39;, set the port to &#39;24550&#39;, and add the server (<code>SERVER_GCS_NETBIRD_IP</code>). Save and select this comm link to connect. All your drones should now be auto-detected.</p>
+
+                <h2>Clean-Up</h2>
+
+                <p>Once you are done, head over to the Portainer container menu and remove the drone instances you created. This will help save disk resources.</p>
+
+                <h4>Troubleshooting</h4>
+
+                <p>If you encounter any issues during this setup, here are some common troubleshooting steps:</p>
+
+                <ul>
+                    <li>Ensure both the server and the local PC are connected to the same Netbird network.</li>
+                    <li>Check the Netbird admin interface to confirm that your devices are online.</li>
+                    <li>If pings are unsuccessful, verify firewall rules and consult Netbird documentation for network issues.</li>
+                </ul>
+
+                <h2>Conclusion</h2>
+
+                <p>Congratulations, you've successfully set up a drone swarm SITL on a remote server! You're now able to:</p>
+                <ul>
+                    <li>Access the swarm dashboard</li>
+                    <li>Monitor ongoing missions</li>
+                    <li>Trigger new missions</li>
+                    <li>Upload and modify missions</li>
+                    <li>And much more!</li>
+                </ul>
+
+
+                <h3>Additional Resources</h3>
+
+                <p>If any part of this documentation was unclear, I highly recommend revisiting my <a href="https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk" target="_blank">YouTube playlist on Drone Show series</a> and the videos
+                    related to <a href="https://www.youtube.com/playlist?list=PLVZvZdBQdm_7E_wxfXWKyZoaK7yucl6w4" target="_blank">IoT-based telemetry and video drone concepts</a>.</p>
+
+                <h3>Caveats and Future Work</h3>
+
+                <p>Please note that this project is still in its early development phases. Many aspects have not been designed with security or performance in mind. Your contributions to improve these aspects are welcome. Feel free to collaborate, post recommendations,
+                    or report issues.</p>
+
+                <h3>Warning</h3>
+
+                <p>While SITL simulations are great for testing, they are not a substitute for real-world validation. Do not use this software in real-world applications unless you have conducted extensive tests in SITL and are confident about the network,
+                    drone hardware, and environment you're operating in. Even then, proceed with the utmost caution and at your own risk and be prepared with failsafe scenarios.</p>
+
+                <p>We are committed to regularly updating this project to make it a reliable product soon. Thank you for your interest, and happy flying!</p>
+
+
+                <h2>Known Issues as of September 2023</h2>
+
+                <ul>
+                    <li>Leader Follower mode temporarily disabled. Will be updated in next release.</li>
+                    <li>Need more robust command handling specially we want to send command while last command is still running.</li>
+                </ul>
+
+
+
+                <h4>Additional Resources</h4>
+
+                <p>For more detailed information, you can consult the following:</p>
+
+                <ul>
+                    <li><a href="https://www.youtube.com/watch?v=iX0HbrfRyvc" target="_blank">Portainer Guide by Network Chuck</a></li>
+                    <li><a href="https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk" target="_blank">My YouTube Playlist on Project History</a></li>
+                    <li><a href="https://github.com/alireza787b/mavsdk_drone_show" target="_blank">My GitHub Repository</a></li>
+                    <li><a href="https://tailscale.com/kb/">Netbird Knowledge Base</a></li>
+                    <li><a href="https://mavlink.io/en/">Mavlink Official Documentation</a></li>
+                    <li><a href="https://docs.qgroundcontrol.com/master/en/">QGroundControl Documentation</a></li>
+                </ul>
+
+                <p>For more tutorials, code samples, and ways to contact me, check out the following resources:</p>
+
+                <ul>
+                    <li>Email: <a href="mailto:p30planets@gmail.com">p30planets@gmail.com</a></li>
+                    <li><a href="https://www.linkedin.com/in/alireza787b/" target="_blank">My LinkedIn Profile</a></li>
+                </ul>
+    </main>
+    <footer>
+
+        <div class="footer-copyright">
+            &copy; 2024 Alireza Ghaderi
+        </div>
+
+        <div class="footer-info">
+            <a href="https://github.com/alireza787b/mavsdk_drone_show">mavsdk_drone_show</a> -
+            <a href="https://www.linkedin.com/in/alireza787b/">Alireza Ghaderi</a>
+        </div>
+
+        <div class="footer-license">
+            This documentation is licensed under CC BY-SA 4.0. Feel free to reuse or modify according to the terms. Please attribute and link back to the original repository.
+        </div>
+
+    </footer>
+</body>
