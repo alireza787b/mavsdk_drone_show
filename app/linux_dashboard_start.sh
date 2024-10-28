@@ -46,7 +46,7 @@ BRANCH_NAME="real-test-1"  # Default branch to sync
 SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
 
 # Path to the .env file
-ENV_FILE_PATH="$HOME/mavsdk_drone_show/dashboard/drone-dashboard/.env"
+ENV_FILE_PATH="$SCRIPT_DIR/app/dashboard/drone-dashboard/.env"
 
 # Function to display usage instructions
 display_usage() {
@@ -201,6 +201,7 @@ load_virtualenv() {
     fi
 }
 
+# NEW SECTION: Function to handle .env file
 handle_env_file() {
     echo "-----------------------------------------------"
     echo "  Checking for .env configuration file..."
@@ -234,6 +235,19 @@ handle_env_file() {
             exit 1
         fi
 
+        # Ensure the directory exists
+        TARGET_DIR=$(dirname "$ENV_FILE_PATH")
+        if [ ! -d "$TARGET_DIR" ]; then
+            echo "📁 Directory $TARGET_DIR does not exist. Creating it..."
+            mkdir -p "$TARGET_DIR"
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to create directory $TARGET_DIR. Please check permissions."
+                exit 1
+            else
+                echo "✅ Directory $TARGET_DIR created successfully."
+            fi
+        fi
+
         # Create the .env file with the provided IP
         echo "Creating .env file at $ENV_FILE_PATH..."
         cat <<EOL > "$ENV_FILE_PATH"
@@ -255,6 +269,7 @@ EOL
         fi
     fi
 }
+s
 
 # Function to start services in tmux
 start_services_in_tmux() {
