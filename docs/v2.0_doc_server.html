@@ -224,10 +224,10 @@ pip3 install git+https://github.com/Juvenal-Yescas/mediafire-dl
         <p>In your home directory, download the latest image:</p>
 
         <pre><code>
-mediafire-dl https://www.mediafire.com/file/cpq37hcovq2cev9/drone-template_v2.0.tar/file
+mediafire-dl https://www.mediafire.com/file/lnh91qk2zpaa0ue/drone-template_v2.tar/file
 </code></pre>
 
-        <p>If the srcipt failed to download automatically from Mediafire, open <a href="https://www.mediafire.com/file/cpq37hcovq2cev9/drone-template_v2.0.tar/file" target="_blank"> this link </a> in your browser, start download the file.<br /> Then pause
+        <p>If the srcipt failed to download automatically from Mediafire, open <a href="https://www.mediafire.com/file/lnh91qk2zpaa0ue/drone-template_v2.tar/file" target="_blank"> this link </a> in your browser, start download the file.<br /> Then pause
             the download and copy the download link. Now you can use wget to download the file as a walkaround.</p>
         <pre><code>
     cd ~ & wget COPIED_DOWNLOAD_LINK_FROM_BROWSER
@@ -331,6 +331,8 @@ pip install -r requirements.txt
   <code>
 bash  ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 </code></pre>
+            <p>If it's your first time running the server, it will ask you to enter the webserver IP which is accessible by client. It can be your server public IP.</p>
+            <p>To change the IP next times, either remove the .env file or user <code>--overwrite-ip "YOUR_SERVER_IP"</code> argument.</p>
             <p>You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). eg. <code>http://drone.joomtalk.ir:3000</code></p>
             <p>If you cant access the page, make sure your firewall rules allow communication on port 3000, 7070, 5000 (defined in params and .evn)</p>
             <h3>Mission Configuration and Customization (Optional)</h3>
