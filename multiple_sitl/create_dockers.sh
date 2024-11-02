@@ -4,7 +4,6 @@
 set -e
 set -o pipefail
 
-
 cat << "EOF"
 
 
@@ -18,10 +17,26 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.0 (October 2024)"
+echo "Version: 1.4 (November 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
+echo
+echo "Usage: bash create_dockers.sh <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]"
+echo
+echo "Parameters:"
+echo "  <number_of_instances>   Number of drone instances to create."
+echo "  --verbose               Run in verbose mode for debugging (only creates one instance)."
+echo "  --subnet SUBNET         Specify a custom Docker network subnet (default: 172.18.0.0/24)."
+echo "  --start-id START_ID     Specify the starting drone ID (default: 1)."
+echo "  --start-ip START_IP     Specify the starting IP address's last octet within the subnet (default: 2)."
+echo
+echo "Notes:"
+echo "  - Drones are assigned IP addresses starting from the specified START_IP."
+echo "    For example, with START_IP=2, the first drone will have IP '172.18.0.2' in the default subnet."
+echo "  - Drone IDs and IP addresses are assigned independently."
+echo "  - Reserved IP addresses (.0, .255) are skipped to avoid conflicts."
+echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
 echo "You can also manually create containers with the command:"
@@ -29,27 +44,70 @@ echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
 echo "==============================================================="
 echo
 
-
 # Global variables
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 TEMPLATE_IMAGE="drone-template:latest"
 VERBOSE=false
 
+# Variables for custom network, starting drone ID, and starting IP
+CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
+START_ID=1
+START_IP=2
+DOCKER_NETWORK_NAME="drone-network"
+NETWORK_PREFIX=""
+CIDR=0
+HOST_BITS=0
+
 # Function: display usage information
 usage() {
-    printf "Usage: %s <number_of_instances> [--verbose]\n" "$0"
+    printf "Usage: %s <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]\n" "$0"
     exit 1
 }
 
-# Validate the number of instances input
+# Validate the number of instances and inputs
 validate_input() {
-    if [[ -z "$1" ]]; then
+    local num_instances="$1"
+    shift
+
+    if [[ -z "$num_instances" ]]; then
         printf "Error: Number of instances not provided.\n" >&2
         usage
-    elif ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    elif ! [[ "$num_instances" =~ ^[1-9][0-9]*$ ]]; then
         printf "Error: Number of instances must be a positive integer.\n" >&2
         usage
+    fi
+
+    # Validate START_ID if provided
+    if ! [[ "$START_ID" =~ ^[1-9][0-9]*$ ]]; then
+        printf "Error: Starting drone ID must be a positive integer.\n" >&2
+        usage
+    fi
+
+    # Validate START_IP if provided
+    if ! [[ "$START_IP" =~ ^[0-9]+$ ]] || (( START_IP < 2 || START_IP > 254 )); then
+        printf "Error: Starting IP must be an integer between 2 and 254.\n" >&2
+        usage
+    fi
+
+    # Validate subnet format
+    if [[ -n "$CUSTOM_SUBNET" ]]; then
+        if ! echo "$CUSTOM_SUBNET" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$'; then
+            printf "Error: Invalid subnet format. Use CIDR notation, e.g., 172.18.0.0/24\n" >&2
+            exit 1
+        fi
+        CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
+        if ! [[ "$CIDR" -eq 24 ]]; then
+            printf "Error: Only /24 subnets are currently supported.\n" >&2
+            exit 1
+        fi
+
+        # Calculate the maximum last octet
+        last_octet_max=$((START_IP + num_instances - 1))
+        if (( last_octet_max > 254 )); then
+            printf "Error: The calculated IP addresses exceed the subnet capacity (max host IP octet is 254).\n" >&2
+            exit 1
+        fi
     fi
 }
 
@@ -75,19 +133,38 @@ report_system_resources() {
     disk_available=$(df -h / | awk 'NR==2 {print $4}')
     echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
 
-    # Network Usage (optional, can be added if needed)
-    # net_usage=$(ifstat -i eth0 1 1 | tail -1)
-    # echo "Network Usage  : ${net_usage}"
-
     echo "---------------------------------------------------------------"
     echo
+}
+
+# Function: create or use a Docker network with a custom subnet
+setup_docker_network() {
+    # Check if the network already exists
+    if ! docker network ls --format '{{.Name}}' | grep -q "^${DOCKER_NETWORK_NAME}$"; then
+        echo "Creating Docker network '${DOCKER_NETWORK_NAME}' with subnet '${CUSTOM_SUBNET}'..."
+        docker network create --subnet="$CUSTOM_SUBNET" "$DOCKER_NETWORK_NAME"
+    else
+        echo "Docker network '${DOCKER_NETWORK_NAME}' already exists. Using existing network."
+    fi
+
+    # Extract network prefix and CIDR
+    NETWORK_PREFIX=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f1 | cut -d'.' -f1-3)
+    CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
+    HOST_BITS=$((32 - CIDR))
+
+    # Ensure only /24 subnets are used
+    if [[ "$CIDR" -ne 24 ]]; then
+        echo "Error: Only /24 subnets are currently supported." >&2
+        exit 1
+    fi
 }
 
 # Function: create and configure a single Docker container instance
 create_instance() {
     local instance_num=$1
-    local container_name="drone-$instance_num"
-    local hwid_file="${instance_num}.hwID"
+    local drone_id=$((START_ID + instance_num -1))
+    local container_name="drone-$drone_id"
+    local hwid_file="${drone_id}.hwID"
 
     printf "\nCreating container '%s'...\n" "$container_name"
 
@@ -103,14 +180,25 @@ create_instance() {
         return 1
     fi
 
-    # Run the container and keep it running
-    if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
+    # Calculate IP address
+    last_octet=$((START_IP + instance_num -1))
+    IP_ADDRESS="${NETWORK_PREFIX}.${last_octet}"
+
+    # Check for reserved IP addresses
+    if [[ "$last_octet" -eq 0 || "$last_octet" -eq 255 ]]; then
+        printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
+        rm -f "$hwid_file"
+        return 1
+    fi
+
+    # Run the container with specified network and IP
+    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
         rm -f "$hwid_file"  # Clean up local .hwID file
         return 1
     fi
 
-    printf "Container '%s' started successfully.\n" "$container_name"
+    printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
 
     # Ensure the directory exists inside the container
     if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
@@ -170,7 +258,7 @@ create_instance() {
 # Function: report container-specific resource usage
 report_container_resources() {
     local container_name=$1
-    local cpu_usage memory_usage storage_usage
+    local cpu_usage memory_usage storage_usage ip_address
 
     # Get CPU usage
     cpu_usage=$(docker stats "$container_name" --no-stream --format "{{.CPUPerc}}")
@@ -178,21 +266,10 @@ report_container_resources() {
     memory_usage=$(docker stats "$container_name" --no-stream --format "{{.MemUsage}}")
     # Get Storage usage (assuming root filesystem)
     storage_usage=$(docker exec "$container_name" df -h / | tail -1 | awk '{print $3 "/" $2}')
+    # Get IP address
+    ip_address=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container_name")
 
-    printf "Resources for '%s': CPU: %s | Memory: %s | Storage: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage"
-}
-
-# Function: report all system and container resources
-report_all_resources() {
-    echo
-    echo "================ System Resource Report ================ "
-    report_system_resources
-    echo "================ Container Resource Report =============="
-    for container in $(docker ps --filter "name=drone-" --format "{{.Names}}"); do
-        report_container_resources "$container"
-    done
-    echo "========================================================="
-    echo
+    printf "Resources for '%s': CPU: %s | Memory: %s | Storage: %s | IP: %s\n" "$container_name" "$cpu_usage" "$memory_usage" "$storage_usage" "$ip_address"
 }
 
 # Main function: loop to create multiple instances
@@ -207,22 +284,41 @@ main() {
                 VERBOSE=true
                 shift
                 ;;
+            --subnet)
+                CUSTOM_SUBNET="$2"
+                shift 2
+                ;;
+            --start-id)
+                START_ID="$2"
+                shift 2
+                ;;
+            --start-ip)
+                START_IP="$2"
+                shift 2
+                ;;
             *)
-                shift
+                echo "Unknown option: $1"
+                usage
                 ;;
         esac
     done
+
+    # Validate inputs
+    validate_input "$num_instances"
+
+    # Setup Docker network
+    setup_docker_network
 
     # Create instances loop
     for ((i=1; i<=num_instances; i++)); do
         if $VERBOSE && [[ $i -gt 1 ]]; then
             printf "\nVerbose mode only supports running one container for debugging purposes.\n"
-            printf "Skipping creation of container 'drone-%d'.\n" "$i"
+            printf "Skipping creation of container 'drone-%d'.\n" "$((START_ID + i -1))"
             break
         fi
 
         if ! create_instance "$i"; then
-            printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$i" >&2
+            printf "Error: Instance creation failed for drone-%d. Aborting...\n" "$((START_ID + i -1))" >&2
             exit 1
         fi
 
@@ -232,21 +328,25 @@ main() {
         fi
     done
 
-
     # Introductory banner
-cat << "EOF"
-___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
-|  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
-| .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
-| |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
-| |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
-\_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
-                                                                                                      \_\                   /_/                                                                                                                                                                                                                                                
+    cat << "EOF"
+    ___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
+    |  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
+    | .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
+    | |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
+    | |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
+    \_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
+                                                                                                          \_\                   /_/                                                                                                                                                                                                                                                
 EOF
 
     echo
     printf "All %d instance(s) created and configured successfully.\n" "$num_instances"
     echo "========================================================="
+    echo
+    printf "Instances created with starting drone ID: %d\n" "$START_ID"
+    printf "Starting IP address's last octet: %d\n" "$START_IP"
+    printf "Docker network name: %s\n" "$DOCKER_NETWORK_NAME"
+    printf "Subnet used: %s\n" "$CUSTOM_SUBNET"
     echo
 
     # Final system resource summary
@@ -280,8 +380,7 @@ EOF
     echo
 }
 
-# Validate input and ensure the startup script exists
-validate_input "$1"
+# Ensure the startup script exists
 if [[ ! -f "$STARTUP_SCRIPT_HOST" ]]; then
     printf "Error: Startup script '%s' not found.\n" "$STARTUP_SCRIPT_HOST" >&2
     exit 1
@@ -289,4 +388,3 @@ fi
 
 # Execute the main function
 main "$@"
-
