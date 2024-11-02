@@ -17,7 +17,7 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.2 (November 2024)"
+echo "Version: 1.3 (November 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
@@ -29,6 +29,12 @@ echo "  <number_of_instances>   Number of drone instances to create."
 echo "  --verbose               Run in verbose mode for debugging (only creates one instance)."
 echo "  --subnet SUBNET         Specify a custom Docker network subnet (default: 172.18.0.0/24)."
 echo "  --start-id START_ID     Specify the starting drone ID (default: 1)."
+echo
+echo "Notes:"
+echo "  - Drones are assigned IP addresses starting from the subnet's .2 address."
+echo "    For example, 'drone-1' will have IP '172.18.0.2' in the default subnet."
+echo "  - The mapping is: IP last octet = drone ID + 1"
+echo "  - Reserved IP addresses (.0, .1, .255) are skipped to avoid conflicts."
 echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
@@ -87,9 +93,11 @@ validate_input() {
             printf "Error: Only /24 subnets are currently supported.\n" >&2
             exit 1
         fi
-        MAX_HOSTS=254
-        if (( START_ID + num_instances -1 > MAX_HOSTS )); then
-            printf "Error: Starting ID plus number of instances exceeds subnet capacity (max %d hosts).\n" "$MAX_HOSTS" >&2
+
+        # Calculate the maximum last octet
+        last_octet_max=$((START_ID + num_instances))
+        if (( last_octet_max > 254 )); then
+            printf "Error: The calculated IP addresses exceed the subnet capacity (max host IP octet is 254).\n" >&2
             exit 1
         fi
     fi
@@ -165,8 +173,10 @@ create_instance() {
     fi
 
     # Calculate IP address
-    IP_ADDRESS="${NETWORK_PREFIX}.${drone_id}"
-    last_octet="$drone_id"
+    last_octet=$((drone_id + 1))
+    IP_ADDRESS="${NETWORK_PREFIX}.${last_octet}"
+
+    # Check for reserved IP addresses
     if [[ "$last_octet" -eq 0 || "$last_octet" -eq 1 || "$last_octet" -eq 255 ]]; then
         printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
         rm -f "$hwid_file"
