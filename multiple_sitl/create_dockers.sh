@@ -17,7 +17,7 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.1 (November 2024)"
+echo "Version: 1.2 (November 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
@@ -27,8 +27,8 @@ echo
 echo "Parameters:"
 echo "  <number_of_instances>   Number of drone instances to create."
 echo "  --verbose               Run in verbose mode for debugging (only creates one instance)."
-echo "  --subnet SUBNET         Specify a custom Docker network subnet (e.g., 172.18.0.0/24)."
-echo "  --start-id START_ID     Specify the starting drone ID (default is 1)."
+echo "  --subnet SUBNET         Specify a custom Docker network subnet (default: 172.18.0.0/24)."
+echo "  --start-id START_ID     Specify the starting drone ID (default: 1)."
 echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
@@ -43,8 +43,8 @@ STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 TEMPLATE_IMAGE="drone-template:latest"
 VERBOSE=false
 
-# New variables for custom network and starting drone ID
-CUSTOM_SUBNET=""
+# Variables for custom network and starting drone ID
+CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
 START_ID=1
 DOCKER_NETWORK_NAME="drone-network"
 NETWORK_PREFIX=""
@@ -76,17 +76,20 @@ validate_input() {
         usage
     fi
 
-    # Check that START_ID + num_instances -1 <= 254 if subnet is /24
+    # Validate subnet format
     if [[ -n "$CUSTOM_SUBNET" ]]; then
+        if ! echo "$CUSTOM_SUBNET" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$'; then
+            printf "Error: Invalid subnet format. Use CIDR notation, e.g., 172.18.0.0/24\n" >&2
+            exit 1
+        fi
         CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
-        if [[ "$CIDR" -eq 24 ]]; then
-            MAX_HOSTS=254
-            if (( START_ID + num_instances -1 > MAX_HOSTS )); then
-                printf "Error: Starting ID plus number of instances exceeds subnet capacity (max %d hosts).\n" "$MAX_HOSTS" >&2
-                exit 1
-            fi
-        else
+        if ! [[ "$CIDR" -eq 24 ]]; then
             printf "Error: Only /24 subnets are currently supported.\n" >&2
+            exit 1
+        fi
+        MAX_HOSTS=254
+        if (( START_ID + num_instances -1 > MAX_HOSTS )); then
+            printf "Error: Starting ID plus number of instances exceeds subnet capacity (max %d hosts).\n" "$MAX_HOSTS" >&2
             exit 1
         fi
     fi
@@ -120,28 +123,23 @@ report_system_resources() {
 
 # Function: create or use a Docker network with a custom subnet
 setup_docker_network() {
-    if [[ -n "$CUSTOM_SUBNET" ]]; then
-        # Check if the network already exists
-        if ! docker network ls --format '{{.Name}}' | grep -q "^${DOCKER_NETWORK_NAME}$"; then
-            echo "Creating Docker network '${DOCKER_NETWORK_NAME}' with subnet '${CUSTOM_SUBNET}'..."
-            docker network create --subnet="$CUSTOM_SUBNET" "$DOCKER_NETWORK_NAME"
-        else
-            echo "Docker network '${DOCKER_NETWORK_NAME}' already exists."
-        fi
-
-        # Extract network prefix and CIDR
-        NETWORK_PREFIX=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f1 | cut -d'.' -f1-3)
-        CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
-        HOST_BITS=$((32 - CIDR))
-
-        # Currently support only /24 subnets
-        if [[ "$CIDR" -ne 24 ]]; then
-            echo "Error: Only /24 subnets are currently supported." >&2
-            exit 1
-        fi
+    # Check if the network already exists
+    if ! docker network ls --format '{{.Name}}' | grep -q "^${DOCKER_NETWORK_NAME}$"; then
+        echo "Creating Docker network '${DOCKER_NETWORK_NAME}' with subnet '${CUSTOM_SUBNET}'..."
+        docker network create --subnet="$CUSTOM_SUBNET" "$DOCKER_NETWORK_NAME"
     else
-        # Use the default bridge network
-        DOCKER_NETWORK_NAME="bridge"
+        echo "Docker network '${DOCKER_NETWORK_NAME}' already exists."
+    fi
+
+    # Extract network prefix and CIDR
+    NETWORK_PREFIX=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f1 | cut -d'.' -f1-3)
+    CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
+    HOST_BITS=$((32 - CIDR))
+
+    # Ensure only /24 subnets are used
+    if [[ "$CIDR" -ne 24 ]]; then
+        echo "Error: Only /24 subnets are currently supported." >&2
+        exit 1
     fi
 }
 
@@ -166,29 +164,20 @@ create_instance() {
         return 1
     fi
 
-    # If custom network is used, calculate IP address
-    if [[ "$DOCKER_NETWORK_NAME" != "bridge" ]]; then
-        # Calculate IP address
-        IP_ADDRESS="${NETWORK_PREFIX}.${drone_id}"
-        last_octet="$drone_id"
-        if [[ "$last_octet" -eq 0 || "$last_octet" -eq 1 || "$last_octet" -eq 255 ]]; then
-            printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
-            rm -f "$hwid_file"
-            return 1
-        fi
-        # Run the container with specified network and IP
-        if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
-            printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-            rm -f "$hwid_file"  # Clean up local .hwID file
-            return 1
-        fi
-    else
-        # Run the container without specifying network
-        if ! docker run --name "$container_name" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
-            printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-            rm -f "$hwid_file"  # Clean up local .hwID file
-            return 1
-        fi
+    # Calculate IP address
+    IP_ADDRESS="${NETWORK_PREFIX}.${drone_id}"
+    last_octet="$drone_id"
+    if [[ "$last_octet" -eq 0 || "$last_octet" -eq 1 || "$last_octet" -eq 255 ]]; then
+        printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
+        rm -f "$hwid_file"
+        return 1
+    fi
+
+    # Run the container with specified network and IP
+    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
+        printf "Error: Failed to start container '%s'\n" "$container_name" >&2
+        rm -f "$hwid_file"  # Clean up local .hwID file
+        return 1
     fi
 
     printf "Container '%s' started successfully.\n" "$container_name"
@@ -270,10 +259,6 @@ main() {
     local num_instances=$1
     shift
 
-    # Initialize variables
-    CUSTOM_SUBNET=""
-    START_ID=1
-
     # Parse options
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -290,7 +275,8 @@ main() {
                 shift 2
                 ;;
             *)
-                shift
+                echo "Unknown option: $1"
+                usage
                 ;;
         esac
     done
@@ -298,7 +284,7 @@ main() {
     # Validate inputs
     validate_input "$num_instances"
 
-    # Setup Docker network if necessary
+    # Setup Docker network
     setup_docker_network
 
     # Create instances loop
@@ -336,10 +322,8 @@ EOF
     echo "========================================================="
     echo
     printf "Instances created with starting drone ID: %d\n" "$START_ID"
-    if [[ -n "$CUSTOM_SUBNET" ]]; then
-        printf "Custom subnet used: %s\n" "$CUSTOM_SUBNET"
-        printf "Docker network name: %s\n" "$DOCKER_NETWORK_NAME"
-    fi
+    printf "Docker network name: %s\n" "$DOCKER_NETWORK_NAME"
+    printf "Subnet used: %s\n" "$CUSTOM_SUBNET"
     echo
 
     # Final system resource summary
