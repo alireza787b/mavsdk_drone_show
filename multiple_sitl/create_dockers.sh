@@ -17,24 +17,25 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.3 (November 2024)"
+echo "Version: 1.4 (November 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
 echo
-echo "Usage: bash create_dockers.sh <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID]"
+echo "Usage: bash create_dockers.sh <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]"
 echo
 echo "Parameters:"
 echo "  <number_of_instances>   Number of drone instances to create."
 echo "  --verbose               Run in verbose mode for debugging (only creates one instance)."
 echo "  --subnet SUBNET         Specify a custom Docker network subnet (default: 172.18.0.0/24)."
 echo "  --start-id START_ID     Specify the starting drone ID (default: 1)."
+echo "  --start-ip START_IP     Specify the starting IP address's last octet within the subnet (default: 2)."
 echo
 echo "Notes:"
-echo "  - Drones are assigned IP addresses starting from the subnet's .2 address."
-echo "    For example, 'drone-1' will have IP '172.18.0.2' in the default subnet."
-echo "  - The mapping is: IP last octet = drone ID + 1"
-echo "  - Reserved IP addresses (.0, .1, .255) are skipped to avoid conflicts."
+echo "  - Drones are assigned IP addresses starting from the specified START_IP."
+echo "    For example, with START_IP=2, the first drone will have IP '172.18.0.2' in the default subnet."
+echo "  - Drone IDs and IP addresses are assigned independently."
+echo "  - Reserved IP addresses (.0, .255) are skipped to avoid conflicts."
 echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
@@ -49,9 +50,10 @@ STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 TEMPLATE_IMAGE="drone-template:latest"
 VERBOSE=false
 
-# Variables for custom network and starting drone ID
+# Variables for custom network, starting drone ID, and starting IP
 CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
 START_ID=1
+START_IP=2
 DOCKER_NETWORK_NAME="drone-network"
 NETWORK_PREFIX=""
 CIDR=0
@@ -59,7 +61,7 @@ HOST_BITS=0
 
 # Function: display usage information
 usage() {
-    printf "Usage: %s <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID]\n" "$0"
+    printf "Usage: %s <number_of_instances> [--verbose] [--subnet SUBNET] [--start-id START_ID] [--start-ip START_IP]\n" "$0"
     exit 1
 }
 
@@ -82,6 +84,12 @@ validate_input() {
         usage
     fi
 
+    # Validate START_IP if provided
+    if ! [[ "$START_IP" =~ ^[0-9]+$ ]] || (( START_IP < 2 || START_IP > 254 )); then
+        printf "Error: Starting IP must be an integer between 2 and 254.\n" >&2
+        usage
+    fi
+
     # Validate subnet format
     if [[ -n "$CUSTOM_SUBNET" ]]; then
         if ! echo "$CUSTOM_SUBNET" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$'; then
@@ -95,7 +103,7 @@ validate_input() {
         fi
 
         # Calculate the maximum last octet
-        last_octet_max=$((START_ID + num_instances))
+        last_octet_max=$((START_IP + num_instances - 1))
         if (( last_octet_max > 254 )); then
             printf "Error: The calculated IP addresses exceed the subnet capacity (max host IP octet is 254).\n" >&2
             exit 1
@@ -136,7 +144,7 @@ setup_docker_network() {
         echo "Creating Docker network '${DOCKER_NETWORK_NAME}' with subnet '${CUSTOM_SUBNET}'..."
         docker network create --subnet="$CUSTOM_SUBNET" "$DOCKER_NETWORK_NAME"
     else
-        echo "Docker network '${DOCKER_NETWORK_NAME}' already exists."
+        echo "Docker network '${DOCKER_NETWORK_NAME}' already exists. Using existing network."
     fi
 
     # Extract network prefix and CIDR
@@ -173,11 +181,11 @@ create_instance() {
     fi
 
     # Calculate IP address
-    last_octet=$((drone_id + 1))
+    last_octet=$((START_IP + instance_num -1))
     IP_ADDRESS="${NETWORK_PREFIX}.${last_octet}"
 
     # Check for reserved IP addresses
-    if [[ "$last_octet" -eq 0 || "$last_octet" -eq 1 || "$last_octet" -eq 255 ]]; then
+    if [[ "$last_octet" -eq 0 || "$last_octet" -eq 255 ]]; then
         printf "Error: Calculated IP address ends with reserved octet '%d'\n" "$last_octet" >&2
         rm -f "$hwid_file"
         return 1
@@ -190,7 +198,7 @@ create_instance() {
         return 1
     fi
 
-    printf "Container '%s' started successfully.\n" "$container_name"
+    printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
 
     # Ensure the directory exists inside the container
     if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
@@ -284,6 +292,10 @@ main() {
                 START_ID="$2"
                 shift 2
                 ;;
+            --start-ip)
+                START_IP="$2"
+                shift 2
+                ;;
             *)
                 echo "Unknown option: $1"
                 usage
@@ -332,6 +344,7 @@ EOF
     echo "========================================================="
     echo
     printf "Instances created with starting drone ID: %d\n" "$START_ID"
+    printf "Starting IP address's last octet: %d\n" "$START_IP"
     printf "Docker network name: %s\n" "$DOCKER_NETWORK_NAME"
     printf "Subnet used: %s\n" "$CUSTOM_SUBNET"
     echo
