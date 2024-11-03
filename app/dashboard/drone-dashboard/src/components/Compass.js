@@ -37,12 +37,12 @@ const Compass = () => {
     <Html
       style={{ pointerEvents: 'none' }} // Ensure the compass doesn't intercept any mouse events
     >
-      <div className="enhanced-compass-container">
+      <div className="compass-container">
         <img
           ref={compassRef}
           src={EnhancedCompass}
           alt="Compass"
-          className="enhanced-compass-image"
+          className="compass-image"
         />
       </div>
     </Html>
