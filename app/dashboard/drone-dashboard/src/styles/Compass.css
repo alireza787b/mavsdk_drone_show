@@ -1,14 +1,19 @@
 .compass-container {
-    position: absolute;
-    top: 5pt;
-    left: 5pt;
-    width: 150px;
-    height: 150px;
-  }
-  
-  .compass-image {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    transform-origin: center center;
-  }
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 60px;
+  height: 60px;
+  z-index: 1000;
+}
+
+.compass {
+  width: 100%;
+  height: 100%;
+}
+
+.compass-image {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.1s linear;
+}

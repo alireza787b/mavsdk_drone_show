@@ -1,11 +1,9 @@
-// src/components/Compass.js
-
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import * as THREE from 'three';
+import compassSVG from '../assets/compass-rose.png';
 import '../styles/Compass.css';
-import { Vector3 } from 'three';
-import EnhancedCompass from '../assets/CompassArrow.svg'; // Ensure the path is correct
 
 const Compass = () => {
   const compassRef = useRef();
@@ -13,37 +11,31 @@ const Compass = () => {
 
   useFrame(() => {
     if (compassRef.current) {
-      // Define the world's north direction (positive X-axis)
-      const worldNorth = new Vector3(1, 0, 0);
-      
       // Get the camera's direction vector
-      const cameraDirection = new Vector3();
-      camera.getWorldDirection(cameraDirection);
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
 
-      // Project the camera direction onto the XZ plane
-      cameraDirection.y = 0;
-      cameraDirection.normalize();
+      // Calculate the angle between the camera's direction and the north direction (0, 0, 1)
+      const north = new THREE.Vector3(0, 0, 1);
+      const angle = north.angleTo(new THREE.Vector3(direction.x, 0, direction.z));
 
-      // Calculate the angle between the world's north and the camera's direction
-      const angle = Math.atan2(cameraDirection.z, cameraDirection.x);
+      // Determine the sign of the angle using the cross product
+      const cross = north.clone().cross(new THREE.Vector3(direction.x, 0, direction.z));
+      const sign = cross.y < 0 ? -1 : 1;
+      const degrees = sign * THREE.MathUtils.radToDeg(angle);
 
-      // Convert the angle from radians to degrees and rotate the compass accordingly
-      const angleDeg = (angle * 180) / Math.PI;
-      compassRef.current.style.transform = `rotate(${ -angleDeg }deg)`;
+      // Apply rotation to the compass
+      compassRef.current.style.transform = `rotate(${degrees}deg)`;
     }
   });
 
   return (
     <Html
-      style={{ position: 'relative'  }} // Ensure the compass doesn't intercept any mouse events
+      style={{ pointerEvents: 'none' }}
+      className="compass-container"
     >
-      <div className="compass-container">
-        <img
-          ref={compassRef}
-          src={EnhancedCompass}
-          alt="Compass"
-          className="compass-image"
-        />
+      <div className="compass">
+        <img ref={compassRef} src={compassSVG} alt="Compass" className="compass-image" />
       </div>
     </Html>
   );
