@@ -301,7 +301,7 @@ calculate_new_coordinates() {
 
     # Calculate new latitude based on northward offset (OFFSET_X)
     # Formula: Δφ = (Offset_X / R) * (180 / π)
-    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * ($180 / $PI)" | bc -l)
+    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * (180 / $PI)" | bc -l)
 
     # Calculate meters per degree of longitude at the current latitude
     # Formula: M_per_degree = (π / 180) * R * cos(lat_rad)
