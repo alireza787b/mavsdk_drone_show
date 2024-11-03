@@ -40,7 +40,7 @@ VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
 mavlink2rest_SCRIPT="$BASE_DIR/tools/run_mavlink2rest.sh"
-
+mavlink2rest_command = "mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
 
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
@@ -233,7 +233,8 @@ update_repository() {
 # Function to run mavlink2rest
 run_mavlink2rest() {
 
-    bash $mavlink2rest_SCRIPT
+    # bash $mavlink2rest_SCRIPT
+    mavlink2rest_command
 
     log_message "mavlink2rest script run successfully."
 }
