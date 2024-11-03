@@ -294,14 +294,14 @@ calculate_new_coordinates() {
     log_message "Calculating new geographic coordinates based on offsets..."
 
     # Convert latitude from degrees to radians
-    LAT_RAD=$(echo "scale=10; $DEFAULT_LAT * (4*a(1)/180)" | bc -l)
+    LAT_RAD=$(echo "$DEFAULT_LAT * (3.141592653589793238 / 180)" | bc -l)
 
-    # Calculate meters per degree longitude at the given latitude
-    M_PER_DEGREE=$(echo "scale=10; 111320 * c($LAT_RAD)" | bc -l)
+    # Calculate km per degree for current latitude
+    M_PER_DEGREE=$(echo "111320 * c($LAT_RAD)" | bc -l)
 
-    # Swap OFFSET_X and OFFSET_Y in calculations
-    NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_Y / 111320" | bc -l)
-    NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_X / $M_PER_DEGREE" | bc -l)
+    # Calculate new LAT and LON based on the offsets
+    NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
+    NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
