@@ -1,6 +1,5 @@
 /* src/styles/Globe.css */
 
-
 .scene-container {
     width: 100%;
     height: 80vh;
@@ -17,7 +16,7 @@
     right: 15px;
     display: flex;
     gap: 10px;
-    z-index: 1000;
+    z-index: 1000; /* Ensure buttons stay on top */
 }
 
 .button-container .fullscreen-button,

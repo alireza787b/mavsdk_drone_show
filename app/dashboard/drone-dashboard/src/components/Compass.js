@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import '../styles/Compass.css';
 import { Vector3 } from 'three';
-import CompassArrow from '../assets/CompassArrow.svg'; // Ensure the path is correct
+import EnhancedCompass from '../assets/EnhancedCompass.svg'; // Ensure the path is correct
 
 const Compass = () => {
   const compassRef = useRef();
@@ -29,7 +29,7 @@ const Compass = () => {
 
       // Convert the angle from radians to degrees and rotate the compass accordingly
       const angleDeg = (angle * 180) / Math.PI;
-      compassRef.current.style.transform = `rotate(${-angleDeg}deg)`;
+      compassRef.current.style.transform = `rotate(${ -angleDeg }deg)`;
     }
   });
 
@@ -37,12 +37,12 @@ const Compass = () => {
     <Html
       style={{ pointerEvents: 'none' }} // Ensure the compass doesn't intercept any mouse events
     >
-      <div className="compass-container">
+      <div className="enhanced-compass-container">
         <img
           ref={compassRef}
-          src={CompassArrow}
+          src={EnhancedCompass}
           alt="Compass"
-          className="compass-image"
+          className="enhanced-compass-image"
         />
       </div>
     </Html>
