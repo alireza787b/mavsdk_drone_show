@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# =============================================================================
+# Script Name: create_dockers.sh
+# Description: Creates and configures multiple Docker container instances for the drone show simulation.
+#              Each container represents a drone instance running the SITL (Software In The Loop) environment.
+#              Ensures that only one .hwID file exists per container to prevent offset conflicts.
+# Author: Alireza Ghaderi
+# Date: November 2024
+# =============================================================================
+
 # Exit on any command failure
 set -e
 set -o pipefail
@@ -67,7 +76,7 @@ usage() {
     exit 1
 }
 
-# Function: validate inputs
+# Validate the number of instances and inputs
 validate_input() {
     local num_instances="$1"
     shift
@@ -152,7 +161,7 @@ setup_docker_network() {
     # Extract network prefix and CIDR
     NETWORK_PREFIX=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f1 | cut -d'.' -f1-3)
     CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
-    HOST_BITS=0
+    HOST_BITS=$((32 - CIDR))
 
     # Ensure only /24 subnets are used
     if [[ "$CIDR" -ne 24 ]]; then
@@ -217,13 +226,19 @@ create_instance() {
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
 
-    # **New Addition: Remove existing .hwID files inside the container**
-    printf "Removing any existing .hwID files in container '%s'...\n" "$container_name"
-    if docker exec "$container_name" rm -f /root/mavsdk_drone_show/*.hwID; then
-        printf "Existing .hwID files removed successfully from '%s'.\n" "$container_name"
+    # === Begin: Added Code to Remove Existing .hwID Files ===
+    # Remove any existing .hwID files in the container's repository folder to prevent conflicts
+    echo "Removing existing .hwID files from container '$container_name'..."
+    if docker exec "$container_name" bash -c "rm -f /root/mavsdk_drone_show/*.hwID"; then
+        echo "Successfully removed existing .hwID files from container '$container_name'."
     else
-        printf "Warning: Failed to remove existing .hwID files from '%s'. They may not exist.\n" "$container_name"
+        printf "Error: Failed to remove existing .hwID files from container '%s'\n" "$container_name" >&2
+        docker stop "$container_name" >/dev/null
+        docker rm "$container_name" >/dev/null
+        rm -f "$hwid_file"
+        return 1
     fi
+    # === End: Added Code to Remove Existing .hwID Files ===
 
     # Transfer the new .hwID file to the container
     if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
@@ -288,7 +303,6 @@ main() {
 
     # Validate inputs
     validate_input "$num_instances"
-    echo
 
     # Setup Docker network
     setup_docker_network
@@ -320,7 +334,7 @@ main() {
     | |  | ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
     | |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
     \_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
-                                                                                                          \_\                   /_/                                                                                                                                                                                                                                                
+                                                                                                      \_\                   /_/                                                                                                                                                                                                                                                
 EOF
 
     echo
