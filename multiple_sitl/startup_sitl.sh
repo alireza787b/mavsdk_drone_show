@@ -295,8 +295,8 @@ calculate_new_coordinates() {
 
     # Constants
     EARTH_RADIUS=6371000  # in meters
-    $OFFSET_X = $OFFSET_X * 10
-    $OFFSET_Y = $OFFSET_X * 10
+    $OFFSET_X = $(echo "$OFFSET_X * 10") | bc -1)
+    $OFFSET_Y = $(echo "$OFFSET_Y * 10") | bc -1)
 
     # Convert latitude from degrees to radians
     LAT_RAD=$(echo "$DEFAULT_LAT * (3.141592653589793238 / 180)" | bc -l)
