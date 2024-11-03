@@ -149,6 +149,7 @@ export default function Globe({ drones }) {
   useEffect(() => {
     if (drones?.length && !referencePoint) {
       setIsLoading(true);
+      
       const setReferencePointAsync = async () => {
         const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
         const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
@@ -185,8 +186,12 @@ export default function Globe({ drones }) {
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
+      console.log('Initial Drone Positions:', drones.map(drone => ({
+        hw_ID: drone.hw_ID,
+        position: drone.position,
+      })));
+      
       const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
-
       // Log converted positions
       console.log('Converted Drone Positions:', convertedPositions.map((pos, index) => ({
         hw_ID: drones[index].hw_ID,

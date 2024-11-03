@@ -58,10 +58,25 @@ export const getElevation = async (lat, lon) => {
 
 // Convert Latitude, Longitude, Altitude to local coordinates
 export const llaToLocal = (lat, lon, alt, reference) => {
-    const latRad = (lat + reference[0]) / 2 * (Math.PI / 180); // Average latitude in radians
+    // Corrected latRad calculation with proper parentheses
+    const latRad = ((lat + reference[0]) / 2) * (Math.PI / 180);
+  
+    // Adjust LON_TO_METERS dynamically based on latitude
+    const lonToMetersAtLat = LON_TO_METERS * Math.cos(latRad);
+  
     const north = (lat - reference[0]) * LAT_TO_METERS;
-    const east = (lon - reference[1]) * LON_TO_METERS * Math.cos(latRad);
+    const east = (lon - reference[1]) * lonToMetersAtLat;
     const up = alt - reference[2];
+  
+    // Optional scaling
+    // const SCALE_FACTOR = 1000;
+    // return [north * SCALE_FACTOR, up * SCALE_FACTOR, east * SCALE_FACTOR];
+  
+    // Log the converted position for debugging
+    console.log(`LLA to Local - HW_ID: [Lat: ${lat}, Lon: ${lon}, Alt: ${alt}] => [North: ${north}, Up: ${up}, East: ${east}]`);
+  
     return [north, up, east];
-};
+  };
+  
+  
 

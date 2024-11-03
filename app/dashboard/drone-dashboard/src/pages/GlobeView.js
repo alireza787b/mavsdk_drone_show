@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
 import axios from 'axios';
+
 import { getTelemetryURL } from '../utilities/utilities';
 
 const GlobeView = () => {

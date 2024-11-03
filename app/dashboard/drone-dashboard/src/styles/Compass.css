@@ -1,9 +1,9 @@
 .compass-container {
     position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 100px;
-    height: 100px;
+    top: 5pt;
+    left: 5pt;
+    width: 150px;
+    height: 150px;
   }
   
   .compass-image {
@@ -12,4 +12,3 @@
     object-fit: contain;
     transform-origin: center center;
   }
-  
