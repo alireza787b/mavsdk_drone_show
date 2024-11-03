@@ -31,6 +31,12 @@ const GlobeView = () => {
           altitude: drone.Position_Alt || 0,
         }));
 
+      // Log received positions
+      console.log('Received Drone Positions:', dronesData.map(drone => ({
+        hw_ID: drone.hw_ID,
+        position: drone.position,
+      })));
+
       setDrones(dronesData);
 
       if (isFirstLoad) {

@@ -1,114 +1,93 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
-import { Color, Vector3 } from 'three';
-import { getElevation, llaToLocal, calculateDistance } from '../utilities/utilities';
+import { Color, AxesHelper } from 'three';
+import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 
-// Utility for promised-based timeout
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 
-// Enhanced position debugging component
-const DebugLines = ({ position, color = "red" }) => (
-  <group>
-    <line>
-      <bufferGeometry attach="geometry" setFromPoints={[
-        new Vector3(position[0], 0, position[2]),
-        new Vector3(...position)
-      ]} />
-      <lineBasicMaterial attach="material" color={color} />
-    </line>
-    <mesh position={[position[0], 0, position[2]]}>
-      <sphereGeometry args={[0.1, 8, 8]} />
-      <meshBasicMaterial color={color} />
-    </mesh>
-  </group>
+const LoadingSpinner = () => (
+  <div className="loading-container">
+    <div className="spinner"></div>
+    <div className="loading-message">Waiting for drones to connect...</div>
+  </div>
 );
 
-// Enhanced drone tooltip component
-const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, position, originalPosition }) => (
-  <div className="drone-tooltip">
+const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosition }) => (
+  <div
+    className="drone-tooltip"
+    style={{
+      opacity: opacity,
+      transition: 'opacity 0.3s',
+    }}
+  >
     <ul className="tooltip-list">
       <li><strong>HW_ID:</strong> {hw_ID}</li>
       <li><strong>State:</strong> {state}</li>
       <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
       <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
-      <li>
-        <strong>Original (LLA):</strong><br/>
-        Lat: {originalPosition[0].toFixed(6)}<br/>
-        Lon: {originalPosition[1].toFixed(6)}<br/>
-        Alt: {originalPosition[2].toFixed(1)}
-      </li>
-      <li>
-        <strong>Local (ENU):</strong><br/>
-        E: {position[0].toFixed(2)}<br/>
-        U: {position[1].toFixed(2)}<br/>
-        N: {position[2].toFixed(2)}
-      </li>
+      <li><strong>Local Position:</strong> [{localPosition[0].toFixed(2)}, {localPosition[1].toFixed(2)}, {localPosition[2].toFixed(2)}]</li>
     </ul>
   </div>
 );
 
-// Enhanced drone component with debug features
-const Drone = ({ position, hw_ID, state, follow_mode, altitude, originalPosition, showDebug = true }) => {
+const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const positionRef = useRef(new Vector3(...position));
-  const prevPositionRef = useRef(position);
+  const [opacity, setOpacity] = useState(0);
 
   useEffect(() => {
-    if (!Vector3.arraysEqual(prevPositionRef.current, position)) {
-      console.group(`Drone ${hw_ID} Position Update`);
-      console.log('Previous position:', prevPositionRef.current);
-      console.log('New position:', position);
-      console.log('Movement delta:', {
-        dx: position[0] - prevPositionRef.current[0],
-        dy: position[1] - prevPositionRef.current[1],
-        dz: position[2] - prevPositionRef.current[2]
-      });
-      console.groupEnd();
-      
-      prevPositionRef.current = position;
+    console.log(`Rendering Drone ${hw_ID} at Position:`, position);
+    if (isHovered) {
+      setOpacity(1);
+    } else {
+      const timeout = setTimeout(() => setOpacity(0), 150);
+      return () => clearTimeout(timeout);
     }
-  }, [position, hw_ID]);
+  }, [isHovered, position, hw_ID]);
 
   return (
-    <group>
-      <mesh
-        position={position}
-        onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
-        onPointerOut={() => setIsHovered(false)}
-      >
-        <sphereGeometry args={[0.5, 16, 16]} />
-        <meshStandardMaterial
-          color={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
-          emissive={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
-          emissiveIntensity={0.6}
-          metalness={0.5}
-          roughness={0.3}
+    <mesh
+      position={position}
+      onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
+      onPointerOut={(e) => setIsHovered(false)}
+    >
+      <sphereGeometry args={[0.5, 16, 16]} />
+      <meshStandardMaterial
+        color={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
+        emissive={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
+        emissiveIntensity={0.6}
+        metalness={0.5}
+        roughness={0.3}
+      />
+      <Html>
+        <DroneTooltip
+          hw_ID={hw_ID}
+          state={state}
+          follow_mode={follow_mode}
+          altitude={altitude}
+          opacity={opacity}
+          localPosition={position}
         />
-        {isHovered && (
-          <Html>
-            <DroneTooltip
-              hw_ID={hw_ID}
-              state={state}
-              follow_mode={follow_mode}
-              altitude={altitude}
-              position={position}
-              originalPosition={originalPosition}
-            />
-          </Html>
-        )}
-      </mesh>
-      {showDebug && <DebugLines position={position} />}
-    </group>
+      </Html>
+    </mesh>
   );
 };
 
-// Custom OrbitControls with enhanced camera handling
+Drone.propTypes = {
+  position: PropTypes.arrayOf(PropTypes.number).isRequired,
+  hw_ID: PropTypes.string.isRequired,
+  state: PropTypes.string.isRequired,
+  follow_mode: PropTypes.number.isRequired,
+  altitude: PropTypes.number.isRequired,
+};
+
+const MemoizedDrone = React.memo(Drone);
+
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
 
@@ -118,26 +97,19 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
       controlsRef.current.dampingFactor = 0.1;
       controlsRef.current.minDistance = 5;
       controlsRef.current.maxDistance = 500;
-      
-      if (!Vector3.arraysEqual(controlsRef.current.target.toArray(), targetPosition)) {
-        controlsRef.current.target.set(...targetPosition);
-        controlsRef.current.update();
-      }
+      controlsRef.current.target.set(...targetPosition);
+      controlsRef.current.update();
     }
   }, [targetPosition]);
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };
 
-// Loading spinner component
-const LoadingSpinner = () => (
-  <div className="loading-container">
-    <div className="spinner"></div>
-    <div className="loading-message">Initializing scene...</div>
-  </div>
-);
+CustomOrbitControls.propTypes = {
+  targetPosition: PropTypes.arrayOf(PropTypes.number).isRequired,
+  controlsRef: PropTypes.object.isRequired,
+};
 
-// Main Globe component
 export default function Globe({ drones }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,155 +117,115 @@ export default function Globe({ drones }) {
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
-  const [showDebugVisuals, setShowDebugVisuals] = useState(true);
-  const realElevation = useElevation(
-    referencePoint ? referencePoint[0] : null,
-    referencePoint ? referencePoint[1] : null
-  );
+  const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const controlsRef = useRef();
-  const previousDronesRef = useRef([]);
 
-  // Initialize reference point and ground level
+  const handleGetTerrainClick = () => {
+    if (realElevation !== null) {
+      setGroundLevel(realElevation);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    const element = document.getElementById("scene-container");
+
+    if (!document.fullscreenElement) {
+      if (element.requestFullscreen) {
+        element.requestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
+
   useEffect(() => {
     if (drones?.length && !referencePoint) {
-      const initializeScene = async () => {
-        try {
-          // Calculate average position for reference point
-          const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-          const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-          const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+      setIsLoading(true);
+      const setReferencePointAsync = async () => {
+        const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
+        const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
+        const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
 
-          console.log('Initializing reference point:', { avgLat, avgLon, avgAlt });
+        const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
+        const localReference = [avgLat, avgLon, elevation ?? avgAlt];
+        setReferencePoint(localReference);
 
-          // Get ground elevation
-          const elevation = await Promise.race([
-            getElevation(avgLat, avgLon),
-            timeoutPromise(5000)
-          ]);
-
-          const localReference = [avgLat, avgLon, elevation ?? avgAlt];
-          console.log('Setting reference point:', localReference);
-          
-          setReferencePoint(localReference);
+        if (groundLevel === 0) {
           setGroundLevel(elevation ?? avgAlt);
-          setIsLoading(false);
-        } catch (error) {
-          console.error('Error initializing scene:', error);
-          setIsLoading(false);
         }
+        setIsLoading(false);
       };
-
-      initializeScene();
+      setReferencePointAsync();
     }
-  }, [drones]);
+  }, [drones, referencePoint]);
 
-  // Update drone visibility state
   useEffect(() => {
     if (drones?.length) {
-      setDroneVisibility(prevState => {
-        const newState = { ...prevState };
-        drones.forEach(drone => {
-          if (newState[drone.hw_ID] === undefined) {
-            newState[drone.hw_ID] = true;
-          }
-        });
-        return newState;
+      const newDroneVisibility = {};
+      drones.forEach(drone => {
+        newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID] ?? true;
       });
+      setDroneVisibility(newDroneVisibility);
     }
   }, [drones]);
 
-  // Update reference point when ground level changes
   useEffect(() => {
     if (referencePoint && groundLevel !== null && groundLevel !== referencePoint[2]) {
       setReferencePoint([referencePoint[0], referencePoint[1], groundLevel]);
     }
   }, [groundLevel]);
 
-  // Track and log drone position changes
   useEffect(() => {
     if (drones?.length && referencePoint) {
-      const convertedPositions = drones.map(drone => {
-        const pos = llaToLocal(
-          drone.position[0],
-          drone.position[1],
-          drone.position[2],
-          referencePoint
-        );
-        return { id: drone.hw_ID, position: pos, original: drone.position };
-      });
+      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
 
-      // Log position changes
-      convertedPositions.forEach(({ id, position, original }) => {
-        const previousDrone = previousDronesRef.current.find(d => d.id === id);
-        if (previousDrone) {
-          const movement = {
-            east: position[0] - previousDrone.position[0],
-            up: position[1] - previousDrone.position[1],
-            north: position[2] - previousDrone.position[2]
-          };
+      // Log converted positions
+      console.log('Converted Drone Positions:', convertedPositions.map((pos, index) => ({
+        hw_ID: drones[index].hw_ID,
+        position: pos,
+      })));
 
-          if (Object.values(movement).some(v => Math.abs(v) > 0.01)) {
-            console.log(`Drone ${id} movement:`, movement);
-          }
-        }
-      });
+      const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
+      const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
+      const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
 
-      previousDronesRef.current = convertedPositions;
-
-      // Update target position for camera
-      const avgPos = convertedPositions.reduce(
-        (acc, { position }) => position.map((v, i) => acc[i] + v),
-        [0, 0, 0]
-      ).map(v => v / convertedPositions.length);
-
-      setTargetPosition(avgPos);
+      setTargetPosition([avgX, avgY, avgZ]);
     }
   }, [drones, referencePoint]);
 
-  // UI control handlers
-  const toggleFullscreen = () => {
-    const element = document.getElementById("scene-container");
-    if (!document.fullscreenElement) {
-      element.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
-  };
-
   const focusOnDrones = () => {
-    if (!drones?.length || !referencePoint) return;
+    if (drones?.length && referencePoint) {
+      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
+      const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
+      const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
 
-    const convertedPositions = drones.map(drone =>
-      llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint)
-    );
+      const center = [avgX, avgY, avgZ];
 
-    const center = convertedPositions.reduce(
-      (acc, pos) => pos.map((v, i) => acc[i] + v),
-      [0, 0, 0]
-    ).map(v => v / convertedPositions.length);
+      let maxDistance = 0;
+      convertedPositions.forEach(pos => {
+        const dx = pos[0] - center[0];
+        const dy = pos[1] - center[1];
+        const dz = pos[2] - center[2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance > maxDistance) {
+          maxDistance = distance;
+        }
+      });
 
-    const maxDistance = Math.max(
-      ...convertedPositions.map(pos =>
-        Math.sqrt(
-          pos.reduce((sum, v, i) => sum + Math.pow(v - center[i], 2), 0)
-        )
-      )
-    );
+      setTargetPosition(center);
 
-    setTargetPosition(center);
-
-    if (controlsRef.current?.object) {
-      const camera = controlsRef.current.object;
-      const offset = maxDistance * 2 + 10;
-      camera.position.set(
-        center[0] + offset,
-        center[1] + offset,
-        center[2] + offset
-      );
-      camera.updateProjectionMatrix();
-      controlsRef.current.update();
+      if (controlsRef.current && controlsRef.current.object) {
+        const camera = controlsRef.current.object;
+        const offset = maxDistance * 2 + 10;
+        camera.position.set(center[0] + offset, center[1] + offset, center[2] + offset);
+        camera.updateProjectionMatrix();
+        controlsRef.current.update();
+      }
     }
   };
 
@@ -303,14 +235,15 @@ export default function Globe({ drones }) {
 
   const convertedDrones = drones.map(drone => ({
     ...drone,
-    originalPosition: drone.position,
-    position: llaToLocal(
-      drone.position[0],
-      drone.position[1],
-      drone.position[2],
-      referencePoint
-    ),
+    position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
   }));
+
+  const toggleDroneVisibility = (droneId) => {
+    setDroneVisibility(prevState => ({
+      ...prevState,
+      [droneId]: !prevState[droneId]
+    }));
+  };
 
   return (
     <div id="scene-container" className="scene-container">
@@ -318,27 +251,14 @@ export default function Globe({ drones }) {
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
-        
+        <axesHelper args={[50]} />
         {showGround && <Environment groundLevel={groundLevel} />}
-        
         {convertedDrones.map(drone => (
-          droneVisibility[drone.hw_ID] && (
-            <Drone
-              key={drone.hw_ID}
-              {...drone}
-              showDebug={showDebugVisuals}
-            />
-          )
+          droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
         ))}
-        
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
-        
-        <CustomOrbitControls
-          targetPosition={targetPosition}
-          controlsRef={controlsRef}
-        />
+        <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
       </Canvas>
-
       <div className="button-container">
         <div
           className="fullscreen-button"
@@ -355,13 +275,6 @@ export default function Globe({ drones }) {
           🎯
         </div>
         <div
-          className="debug-button"
-          onClick={() => setShowDebugVisuals(!showDebugVisuals)}
-          title="Toggle Debug Visuals"
-        >
-          🔍
-        </div>
-        <div
           className="toolbox-button"
           onClick={() => setIsToolboxOpen(!isToolboxOpen)}
           title="Toggle Control Panel"
@@ -369,24 +282,28 @@ export default function Globe({ drones }) {
           🛠️
         </div>
       </div>
-
       <GlobeControlBox
         setShowGround={setShowGround}
         showGround={showGround}
         setGroundLevel={setGroundLevel}
         groundLevel={groundLevel}
-        toggleDroneVisibility={id => setDroneVisibility(prev => ({
-          ...prev,
-          [id]: !prev[id]
-        }))}
+        toggleDroneVisibility={toggleDroneVisibility}
         droneVisibility={droneVisibility}
         isToolboxOpen={isToolboxOpen}
         showGrid={showGrid}
         setShowGrid={setShowGrid}
-        handleGetTerrainClick={() => realElevation !== null && setGroundLevel(realElevation)}
-        showDebugVisuals={showDebugVisuals}
-        setShowDebugVisuals={setShowDebugVisuals}
+        handleGetTerrainClick={handleGetTerrainClick}
       />
     </div>
   );
 }
+
+Globe.propTypes = {
+  drones: PropTypes.arrayOf(PropTypes.shape({
+    hw_ID: PropTypes.string.isRequired,
+    position: PropTypes.arrayOf(PropTypes.number).isRequired,
+    state: PropTypes.string,
+    follow_mode: PropTypes.number,
+    altitude: PropTypes.number,
+  })).isRequired,
+};
