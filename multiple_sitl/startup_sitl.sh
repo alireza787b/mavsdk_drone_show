@@ -295,22 +295,26 @@ calculate_new_coordinates() {
 
     # Constants
     EARTH_RADIUS=6371000  # in meters
-
+    PI=3.141592653589793238
 
     # Convert latitude from degrees to radians
-    LAT_RAD=$(echo "$DEFAULT_LAT * (3.141592653589793238 / 180)" | bc -l)
+    LAT_RAD=$(echo "$DEFAULT_LAT * ($PI / 180)" | bc -l)
 
     # Calculate new latitude based on northward offset (OFFSET_X)
-    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * (180 / 3.141592653589793238)" | bc -l)
+    # Formula: Δφ = (Offset_X / R) * (180 / π)
+    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * ($180 / $PI)" | bc -l)
 
     # Calculate meters per degree of longitude at the current latitude
-    M_PER_DEGREE=$(echo "$EARTH_RADIUS * c($LAT_RAD) * (180 / 3.141592653589793238)" | bc -l)
+    # Formula: M_per_degree = (π / 180) * R * cos(lat_rad)
+    M_PER_DEGREE=$(echo "scale=10; ($PI / 180) * $EARTH_RADIUS * c($LAT_RAD)" | bc -l)
 
     # Calculate new longitude based on eastward offset (OFFSET_Y)
-    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $EARTH_RADIUS) * (180 / 3.141592653589793238)" | bc -l)
+    # Formula: Δλ = Offset_Y / M_per_degree
+    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $M_PER_DEGREE)" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
+
 
 
 # Function to export environment variables for PX4 SITL
