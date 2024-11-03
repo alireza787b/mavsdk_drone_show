@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import compassSVG from '../assets/north-arrow.svg';
+import compassSVG from '../assets/compass-rose.png';
 import '../styles/Compass.css';
 
 const Compass = () => {
