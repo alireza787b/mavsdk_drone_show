@@ -67,7 +67,7 @@ usage() {
     exit 1
 }
 
-# Validate the number of instances and inputs
+# Function: validate inputs
 validate_input() {
     local num_instances="$1"
     shift
@@ -152,7 +152,7 @@ setup_docker_network() {
     # Extract network prefix and CIDR
     NETWORK_PREFIX=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f1 | cut -d'.' -f1-3)
     CIDR=$(echo "$CUSTOM_SUBNET" | cut -d'/' -f2)
-    HOST_BITS=$((32 - CIDR))
+    HOST_BITS=0
 
     # Ensure only /24 subnets are used
     if [[ "$CIDR" -ne 24 ]]; then
@@ -217,7 +217,15 @@ create_instance() {
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
 
-    # Transfer the .hwID file to the container
+    # **New Addition: Remove existing .hwID files inside the container**
+    printf "Removing any existing .hwID files in container '%s'...\n" "$container_name"
+    if docker exec "$container_name" rm -f /root/mavsdk_drone_show/*.hwID; then
+        printf "Existing .hwID files removed successfully from '%s'.\n" "$container_name"
+    else
+        printf "Warning: Failed to remove existing .hwID files from '%s'. They may not exist.\n" "$container_name"
+    fi
+
+    # Transfer the new .hwID file to the container
     if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
         printf "Error: Failed to copy hwID file to container '%s'\n" "$container_name" >&2
         docker stop "$container_name" >/dev/null
@@ -280,6 +288,7 @@ main() {
 
     # Validate inputs
     validate_input "$num_instances"
+    echo
 
     # Setup Docker network
     setup_docker_network
@@ -307,8 +316,8 @@ main() {
     cat << "EOF"
     ___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
     |  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
-    | .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
-    | |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
+    | |\/| |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
+    | |  | ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
     | |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
     \_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
                                                                                                           \_\                   /_/                                                                                                                                                                                                                                                
