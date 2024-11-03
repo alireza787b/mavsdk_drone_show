@@ -17,7 +17,7 @@ cat << "EOF"
 EOF
 
 echo "Project: mavsdk_drone_show (alireza787b/mavsdk_drone_show)"
-echo "Version: 1.4 (November 2024)"
+echo "Version: 1.5 (November 2024)"
 echo
 echo "This script creates and configures multiple Docker container instances for the drone show simulation."
 echo "Each container represents a drone instance running the SITL (Software In The Loop) environment."
@@ -36,6 +36,8 @@ echo "  - Drones are assigned IP addresses starting from the specified START_IP.
 echo "    For example, with START_IP=2, the first drone will have IP '172.18.0.2' in the default subnet."
 echo "  - Drone IDs and IP addresses are assigned independently."
 echo "  - Reserved IP addresses (.0, .255) are skipped to avoid conflicts."
+echo "  - The 'startup_sitl.sh' script runs automatically whenever a container starts or restarts."
+echo "  - Changes to 'startup_sitl.sh' on the host are reflected in the containers immediately."
 echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
@@ -46,7 +48,7 @@ echo
 
 # Global variables
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
+STARTUP_SCRIPT_CONTAINER="/startup_sitl.sh"  # Mount point inside the container
 TEMPLATE_IMAGE="drone-template:latest"
 VERBOSE=false
 
@@ -191,23 +193,29 @@ create_instance() {
         return 1
     fi
 
-    # Run the container with specified network and IP
-    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
-        printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-        rm -f "$hwid_file"  # Clean up local .hwID file
-        return 1
+    # Run the container with specified network, IP, and mounted startup script
+    if $VERBOSE; then
+        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
+        printf "To exit the attached mode, press CTRL+C.\n"
+        if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
+            -v "$STARTUP_SCRIPT_HOST":"$STARTUP_SCRIPT_CONTAINER":ro \
+            -it "$TEMPLATE_IMAGE" bash "$STARTUP_SCRIPT_CONTAINER"; then
+            printf "Error: Failed to start container '%s' in verbose mode\n" "$container_name" >&2
+            rm -f "$hwid_file"
+            return 1
+        fi
+        return 0
+    else
+        if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
+            -v "$STARTUP_SCRIPT_HOST":"$STARTUP_SCRIPT_CONTAINER":ro \
+            -d "$TEMPLATE_IMAGE" bash -c "bash $STARTUP_SCRIPT_CONTAINER; tail -f /dev/null"; then
+            printf "Error: Failed to start container '%s'\n" "$container_name" >&2
+            rm -f "$hwid_file"
+            return 1
+        fi
     fi
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
-
-    # Ensure the directory exists inside the container
-    if ! docker exec "$container_name" mkdir -p "/root/mavsdk_drone_show/multiple_sitl/"; then
-        printf "Error: Failed to create directory in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -f "$hwid_file"
-        return 1
-    fi
 
     # Transfer the .hwID file to the container
     if ! docker cp "$hwid_file" "${container_name}:/root/mavsdk_drone_show/"; then
@@ -218,39 +226,6 @@ create_instance() {
         return 1
     fi
     rm -f "$hwid_file"  # Clean up local .hwID file
-
-    # Transfer the startup script to the container
-    if ! docker cp "$STARTUP_SCRIPT_HOST" "${container_name}:${STARTUP_SCRIPT_CONTAINER}"; then
-        printf "Error: Failed to copy startup script to container '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # Make the startup script executable inside the container
-    if ! docker exec "$container_name" chmod +x "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to make startup script executable in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
-
-    # If verbose mode is enabled, run attached mode for debugging purposes
-    if $VERBOSE; then
-        printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
-        printf "To exit the attached mode, press CTRL+C.\n"
-        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
-        return 0
-    fi
-
-    # Run the startup SITL script inside the container in detached mode
-    printf "Executing startup script in container '%s' (detached)...\n" "$container_name"
-    if ! docker exec -d "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"; then
-        printf "Error: Failed to execute startup script in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null  # Stop container if startup fails
-        docker rm "$container_name" >/dev/null
-        return 1
-    fi
 
     printf "Instance '%s' configured and started successfully.\n" "$container_name"
 }
