@@ -1,8 +1,7 @@
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import compassSVG from '../assets/compass-rose.png';
+import compassSVG from '../assets/north-arrow.svg';
 import '../styles/Compass.css';
 
 const Compass = () => {
@@ -17,10 +16,11 @@ const Compass = () => {
 
       // Calculate the angle between the camera's direction and the north direction (0, 0, 1)
       const north = new THREE.Vector3(0, 0, 1);
-      const angle = north.angleTo(new THREE.Vector3(direction.x, 0, direction.z));
+      const directionXZ = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+      const angle = north.angleTo(directionXZ);
 
       // Determine the sign of the angle using the cross product
-      const cross = north.clone().cross(new THREE.Vector3(direction.x, 0, direction.z));
+      const cross = north.clone().cross(directionXZ);
       const sign = cross.y < 0 ? -1 : 1;
       const degrees = sign * THREE.MathUtils.radToDeg(angle);
 
@@ -30,14 +30,9 @@ const Compass = () => {
   });
 
   return (
-    <Html
-      style={{ pointerEvents: 'none' }}
-      className="compass-container"
-    >
-      <div className="compass">
-        <img ref={compassRef} src={compassSVG} alt="Compass" className="compass-image" />
-      </div>
-    </Html>
+    <div className="compass-overlay">
+      <img ref={compassRef} src={compassSVG} alt="Compass" className="compass-image" />
+    </div>
   );
 };
 

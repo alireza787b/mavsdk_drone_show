@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
-
 import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color, AxesHelper } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
@@ -9,8 +8,7 @@ import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
-import Compass from './Compass'; // Import the Compass component
-
+import Compass from './Compass'; // Import the updated Compass component
 import '../styles/Globe.css';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
@@ -21,7 +19,6 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-
 const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosition }) => (
   <div
     className="drone-tooltip"
@@ -91,6 +88,24 @@ Drone.propTypes = {
 };
 
 const MemoizedDrone = React.memo(Drone);
+
+const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
+  const { camera, gl } = useThree();
+
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enableDamping = true;
+      controlsRef.current.dampingFactor = 0.1;
+      controlsRef.current.minDistance = 5;
+      controlsRef.current.maxDistance = 500;
+      controlsRef.current.target.set(...targetPosition);
+      controlsRef.current.update();
+    }
+  }, [targetPosition]);
+
+  return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
+};
+
 
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
@@ -267,9 +282,10 @@ export default function Globe({ drones }) {
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
-        <Compass />
-
       </Canvas>
+
+      {/* Render Compass outside the Canvas */}
+      <Compass />
 
       <div className="button-container">
         <div
