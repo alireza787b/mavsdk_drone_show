@@ -9,6 +9,8 @@ import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
+import Compass from './Compass'; // Import the Compass component
+
 import '../styles/Globe.css';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
@@ -261,6 +263,8 @@ export default function Globe({ drones }) {
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
       </Canvas>
+      <Compass />
+
       <div className="button-container">
         <div
           className="fullscreen-button"
