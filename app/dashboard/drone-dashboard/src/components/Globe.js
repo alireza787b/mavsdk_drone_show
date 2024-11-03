@@ -1,8 +1,8 @@
-// src/components/Globe.js
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
+import PropTypes from 'prop-types';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
-import { Color } from 'three';
+import { Color, AxesHelper } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
@@ -18,8 +18,7 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-
-const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
+const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity, localPosition }) => (
   <div
     className="drone-tooltip"
     style={{
@@ -32,6 +31,7 @@ const DroneTooltip = ({ hw_ID, state, follow_mode, altitude, opacity }) => (
       <li><strong>State:</strong> {state}</li>
       <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
       <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
+      <li><strong>Local Position:</strong> [{localPosition[0].toFixed(2)}, {localPosition[1].toFixed(2)}, {localPosition[2].toFixed(2)}]</li>
     </ul>
   </div>
 );
@@ -41,13 +41,14 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
   const [opacity, setOpacity] = useState(0);
 
   useEffect(() => {
+    console.log(`Rendering Drone ${hw_ID} at Position:`, position);
     if (isHovered) {
       setOpacity(1);
     } else {
       const timeout = setTimeout(() => setOpacity(0), 150);
       return () => clearTimeout(timeout);
     }
-  }, [isHovered]);
+  }, [isHovered, position, hw_ID]);
 
   return (
     <mesh
@@ -64,13 +65,30 @@ const Drone = ({ position, hw_ID, state, follow_mode, altitude }) => {
         roughness={0.3}
       />
       <Html>
-        <DroneTooltip hw_ID={hw_ID} state={state} follow_mode={follow_mode} altitude={altitude} opacity={opacity} />
+        <DroneTooltip
+          hw_ID={hw_ID}
+          state={state}
+          follow_mode={follow_mode}
+          altitude={altitude}
+          opacity={opacity}
+          localPosition={position}
+        />
       </Html>
     </mesh>
   );
 };
 
+Drone.propTypes = {
+  position: PropTypes.arrayOf(PropTypes.number).isRequired,
+  hw_ID: PropTypes.string.isRequired,
+  state: PropTypes.string.isRequired,
+  follow_mode: PropTypes.number.isRequired,
+  altitude: PropTypes.number.isRequired,
+};
+
 const MemoizedDrone = React.memo(Drone);
+
+
 
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
@@ -87,6 +105,12 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   }, [targetPosition]);
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
+};
+
+
+CustomOrbitControls.propTypes = {
+  targetPosition: PropTypes.arrayOf(PropTypes.number).isRequired,
+  controlsRef: PropTypes.object.isRequired,
 };
 
 export default function Globe({ drones }) {
@@ -124,6 +148,7 @@ export default function Globe({ drones }) {
   useEffect(() => {
     if (drones?.length && !referencePoint) {
       setIsLoading(true);
+      
       const setReferencePointAsync = async () => {
         const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
         const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
@@ -160,7 +185,18 @@ export default function Globe({ drones }) {
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
+      console.log('Initial Drone Positions:', drones.map(drone => ({
+        hw_ID: drone.hw_ID,
+        position: drone.position,
+      })));
+      
       const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      // Log converted positions
+      console.log('Converted Drone Positions:', convertedPositions.map((pos, index) => ({
+        hw_ID: drones[index].hw_ID,
+        position: pos,
+      })));
+
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
       const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
@@ -223,13 +259,18 @@ export default function Globe({ drones }) {
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
+        <axesHelper args={[50]} />
         {showGround && <Environment groundLevel={groundLevel} />}
         {convertedDrones.map(drone => (
           droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
+
       </Canvas>
+
+      {/* Render Compass outside the Canvas */}
+      
       <div className="button-container">
         <div
           className="fullscreen-button"
@@ -268,3 +309,13 @@ export default function Globe({ drones }) {
     </div>
   );
 }
+
+Globe.propTypes = {
+  drones: PropTypes.arrayOf(PropTypes.shape({
+    hw_ID: PropTypes.string.isRequired,
+    position: PropTypes.arrayOf(PropTypes.number).isRequired,
+    state: PropTypes.string,
+    follow_mode: PropTypes.number,
+    altitude: PropTypes.number,
+  })).isRequired,
+};

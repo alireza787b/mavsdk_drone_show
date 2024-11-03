@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
+
 import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
 import axios from 'axios';
+
 import { getTelemetryURL } from '../utilities/utilities';
 
 const GlobeView = () => {
@@ -30,6 +33,12 @@ const GlobeView = () => {
           follow_mode: drone.Follow_Mode || 0,
           altitude: drone.Position_Alt || 0,
         }));
+
+      // Log received positions
+      console.log('Received Drone Positions:', dronesData.map(drone => ({
+        hw_ID: drone.hw_ID,
+        position: drone.position,
+      })));
 
       setDrones(dronesData);
 
