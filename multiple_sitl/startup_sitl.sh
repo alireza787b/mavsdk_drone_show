@@ -307,7 +307,7 @@ calculate_new_coordinates() {
     M_PER_DEGREE=$(echo "$EARTH_RADIUS * c($LAT_RAD) * (180 / 3.141592653589793238)" | bc -l)
 
     # Calculate new longitude based on eastward offset (OFFSET_Y)
-    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $M_PER_DEGREE)" | bc -l)
+    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $EARTH_RADIUS) * (180 / 3.141592653589793238)" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
