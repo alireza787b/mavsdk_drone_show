@@ -267,10 +267,11 @@ export default function Globe({ drones }) {
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
+        <Compass controlsRef={controlsRef} />
+
       </Canvas>
 
       {/* Render Compass outside the Canvas */}
-      <Compass controlsRef={controlsRef} />
       
       <div className="button-container">
         <div
