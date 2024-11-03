@@ -5,7 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import '../styles/Compass.css';
 import { Vector3 } from 'three';
-import EnhancedCompass from '../assets/EnhancedCompass.svg'; // Ensure the path is correct
+import EnhancedCompass from '../assets/CompassArrow.svg'; // Ensure the path is correct
 
 const Compass = () => {
   const compassRef = useRef();
