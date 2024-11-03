@@ -1,26 +1,37 @@
 /* src/styles/Compass.css */
 
-.enhanced-compass-container {
+.compass-container {
   position: absolute;
   top: 20px;
   left: 20px;
   width: 80px;
   height: 80px;
-  background: rgba(255, 255, 255, 0.1); /* Light semi-transparent background */
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(5px); /* Adds a subtle blur effect */
-  z-index: 1000; /* Ensure it stays on top */
 }
 
-.enhanced-compass-image {
+.compass-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
   transform-origin: center center;
   transition: transform 0.2s ease-out; /* Smooth rotation */
+}
+
+/* src/styles/Compass.css */
+
+.compass-container::after {
+  content: "N";
+  position: absolute;
+  top: 5px;
+  left: 48%;
+  transform: translateX(-50%);
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
 }
