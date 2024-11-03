@@ -1,8 +1,11 @@
+// src/components/Compass.js
+
 import React, { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import compassRose from '../assets/compass-rose.png'; // Ensure you have this image
 import '../styles/Compass.css';
+import { Vector3 } from 'three';
+import CompassArrow from '../assets/CompassArrow.svg'; // Ensure the path is correct
 
 const Compass = () => {
   const compassRef = useRef();
@@ -10,21 +13,37 @@ const Compass = () => {
 
   useFrame(() => {
     if (compassRef.current) {
-      // Get the camera's rotation around the Y-axis (yaw)
-      const yaw = camera.rotation.y;
+      // Define the world's north direction (positive X-axis)
+      const worldNorth = new Vector3(1, 0, 0);
+      
+      // Get the camera's direction vector
+      const cameraDirection = new Vector3();
+      camera.getWorldDirection(cameraDirection);
 
-      // Rotate the compass in the opposite direction to simulate a real compass
-      compassRef.current.style.transform = `rotate(${-yaw}rad)`;
+      // Project the camera direction onto the XZ plane
+      cameraDirection.y = 0;
+      cameraDirection.normalize();
+
+      // Calculate the angle between the world's north and the camera's direction
+      const angle = Math.atan2(cameraDirection.z, cameraDirection.x);
+
+      // Convert the angle from radians to degrees and rotate the compass accordingly
+      const angleDeg = (angle * 180) / Math.PI;
+      compassRef.current.style.transform = `rotate(${-angleDeg}deg)`;
     }
   });
 
   return (
     <Html
-      fullscreen // This ensures the HTML element covers the entire screen
-      style={{ pointerEvents: 'none' }} // So it doesn't interfere with mouse events
+      style={{ pointerEvents: 'none' }} // Ensure the compass doesn't intercept any mouse events
     >
       <div className="compass-container">
-        <img ref={compassRef} src={compassRose} alt="Compass" className="compass-image" />
+        <img
+          ref={compassRef}
+          src={CompassArrow}
+          alt="Compass"
+          className="compass-image"
+        />
       </div>
     </Html>
   );
