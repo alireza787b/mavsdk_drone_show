@@ -173,7 +173,6 @@ check_dependencies() {
     fi
 }
 
-
 # Function to wait for the .hwID file
 wait_for_hwid() {
     log_message "Waiting for .hwID file in $BASE_DIR..."
@@ -315,8 +314,6 @@ calculate_new_coordinates() {
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
 
-
-
 # Function to export environment variables for PX4 SITL
 export_env_vars() {
     log_message "Exporting environment variables for PX4 SITL..."
@@ -401,7 +398,6 @@ log_message ""
 
 # Check for necessary dependencies
 check_dependencies
-
 
 # Wait for the .hwID file
 wait_for_hwid
