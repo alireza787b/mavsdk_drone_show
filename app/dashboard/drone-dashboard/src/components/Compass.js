@@ -1,25 +1,38 @@
 import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import compassSVG from '../assets/north-arrow.svg';
 import '../styles/Compass.css';
 
-const Compass = ({ controlsRef }) => {
+const Compass = () => {
   const compassRef = useRef();
+  const { camera } = useThree();
 
   useFrame(() => {
-    if (compassRef.current && controlsRef.current) {
-      const azimuthalAngle = controlsRef.current.getAzimuthalAngle();
-      // Rotate the compass to always point north
-      compassRef.current.style.transform = `rotate(${azimuthalAngle}rad)`;
+    if (compassRef.current) {
+      // Get the camera's direction vector
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+
+      // Calculate the angle between the camera's direction and the north direction (0, 0, 1)
+      const north = new THREE.Vector3(0, 0, 1);
+      const directionXZ = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+      const angle = north.angleTo(directionXZ);
+
+      // Determine the sign of the angle using the cross product
+      const cross = north.clone().cross(directionXZ);
+      const sign = cross.y < 0 ? -1 : 1;
+      const degrees = sign * THREE.MathUtils.radToDeg(angle);
+
+      // Apply rotation to the compass
+      compassRef.current.style.transform = `rotate(${degrees}deg)`;
     }
   });
 
   return (
-    <Html fullscreen style={{ pointerEvents: 'none' }}>
-      <div className="compass-container">
-        <div ref={compassRef} className="compass-arrow">▲</div>
-      </div>
-    </Html>
+    <div className="compass-overlay">
+      <img ref={compassRef} src={compassSVG} alt="Compass" className="compass-image" />
+    </div>
   );
 };
 
