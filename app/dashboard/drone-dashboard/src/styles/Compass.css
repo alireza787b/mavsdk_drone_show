@@ -4,7 +4,6 @@
     right: 20px;
     width: 100px;
     height: 100px;
-    pointer-events: none; /* So it doesn't interfere with mouse events */
   }
   
   .compass-image {
