@@ -1,15 +1,13 @@
-.compass-overlay {
-  position: fixed; /* Fixed positioning relative to the viewport */
-  top: 20px;       /* Adjust as needed for spacing */
-  left: 20px;      /* Adjust as needed for spacing */
-  width: 60px;     /* Adjust size as desired */
-  height: 60px;    /* Adjust size as desired */
-  z-index: 1000;   /* Ensure it's above other elements */
-  pointer-events: none; /* Allows clicks to pass through */
+.compass-container {
+  position: absolute;
+  top: 5pt;
+  left: 5pt;
+  width: 50px;
+  height: 50px;
 }
 
-.compass-image {
-  width: 100%;
-  height: 100%;
-  transition: transform 0.1s linear; /* Smooth rotation */
+.compass-arrow {
+  font-size: 48px;
+  text-align: center;
+  transform-origin: center center;
 }

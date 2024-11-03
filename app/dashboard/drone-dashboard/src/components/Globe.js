@@ -107,6 +107,7 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
 };
 
 
+
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
 
@@ -285,7 +286,7 @@ export default function Globe({ drones }) {
       </Canvas>
 
       {/* Render Compass outside the Canvas */}
-      <Compass />
+      <Compass controlsRef={controlsRef} />
 
       <div className="button-container">
         <div
