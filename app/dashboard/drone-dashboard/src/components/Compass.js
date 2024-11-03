@@ -34,7 +34,9 @@ const Compass = () => {
   });
 
   return (
-    
+    <Html
+      style={{ position: 'relative'  }} // Ensure the compass doesn't intercept any mouse events
+    >
       <div className="compass-container">
         <img
           ref={compassRef}
@@ -43,6 +45,7 @@ const Compass = () => {
           className="compass-image"
         />
       </div>
+    </Html>
   );
 };
 
