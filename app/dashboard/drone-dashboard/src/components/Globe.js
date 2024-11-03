@@ -89,23 +89,6 @@ Drone.propTypes = {
 
 const MemoizedDrone = React.memo(Drone);
 
-const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
-  const { camera, gl } = useThree();
-
-  useEffect(() => {
-    if (controlsRef.current) {
-      controlsRef.current.enableDamping = true;
-      controlsRef.current.dampingFactor = 0.1;
-      controlsRef.current.minDistance = 5;
-      controlsRef.current.maxDistance = 500;
-      controlsRef.current.target.set(...targetPosition);
-      controlsRef.current.update();
-    }
-  }, [targetPosition]);
-
-  return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
-};
-
 
 
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
@@ -124,6 +107,7 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };
+
 
 CustomOrbitControls.propTypes = {
   targetPosition: PropTypes.arrayOf(PropTypes.number).isRequired,
@@ -287,7 +271,7 @@ export default function Globe({ drones }) {
 
       {/* Render Compass outside the Canvas */}
       <Compass controlsRef={controlsRef} />
-
+      
       <div className="button-container">
         <div
           className="fullscreen-button"
