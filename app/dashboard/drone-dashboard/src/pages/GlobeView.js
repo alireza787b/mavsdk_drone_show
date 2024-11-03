@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import PropTypes from 'prop-types';
+
 import Globe from '../components/Globe';
 import '../styles/GlobeView.css';
 import axios from 'axios';
