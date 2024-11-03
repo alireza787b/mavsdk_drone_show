@@ -39,6 +39,8 @@ BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
+mavlink2rest_SCRIPT="$BASE_DIR/tools/run_mavlink2rest.sh"
+
 
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
@@ -227,6 +229,16 @@ update_repository() {
     log_message "Repository updated successfully."
 }
 
+
+# Function to run mavlink2rest
+run_mavlink2rest() {
+
+    bash $mavlink2rest_SCRIPT
+
+    log_message "mavlink2rest script run successfully."
+}
+
+
 # Function to set up Python environment
 setup_python_env() {
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
@@ -404,6 +416,9 @@ wait_for_hwid
 
 # Update the repository
 update_repository
+
+# Run MAVLink2rest
+run_mavlink2rest
 
 # Set up Python environment
 setup_python_env
