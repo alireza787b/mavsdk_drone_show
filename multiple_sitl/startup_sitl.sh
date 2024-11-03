@@ -5,7 +5,7 @@
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
 #              Configures environment, updates repository, sets system IDs, synchronizes
 #              system time with NTP using an external script, and starts the SITL simulation
-#              along with coordinator.py.
+#              along with coordinator.py and mavlink2rest.
 # Author: Alireza Ghaderi
 # Date: September 2024
 # =============================================================================
@@ -39,9 +39,8 @@ BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
-mavlink2rest_SCRIPT="$BASE_DIR/tools/run_mavlink2rest.sh"
 mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
-
+MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
@@ -90,18 +89,27 @@ log_message() {
 cleanup() {
     echo ""
     log_message "Received interrupt signal. Terminating background processes..."
+
     if [[ -n "${simulation_pid:-}" ]]; then
         kill "$simulation_pid" 2>/dev/null || true
         log_message "Terminated SITL simulation with PID: $simulation_pid"
     fi
+
     if [[ -n "${coordinator_pid:-}" ]]; then
         kill "$coordinator_pid" 2>/dev/null || true
         log_message "Terminated coordinator.py with PID: $coordinator_pid"
     fi
+
+    if [[ -n "${mavlink2rest_pid:-}" ]]; then
+        kill "$mavlink2rest_pid" 2>/dev/null || true
+        log_message "Terminated mavlink2rest with PID: $mavlink2rest_pid"
+    fi
+
     if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
         deactivate 2>/dev/null || true
         log_message "Deactivated Python virtual environment."
     fi
+
     exit 0
 }
 
@@ -230,16 +238,18 @@ update_repository() {
     log_message "Repository updated successfully."
 }
 
-
-# Function to run mavlink2rest
+# Function to run mavlink2rest in the background
 run_mavlink2rest() {
+    log_message "Starting mavlink2rest in the background..."
+    
+    # Ensure the logs directory exists
+    mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
 
-    # bash $mavlink2rest_SCRIPT
-    $mavlink2rest_CMD
-
-    log_message "mavlink2rest script run successfully."
+    # Run mavlink2rest in the background, redirecting output to log file
+    $mavlink2rest_CMD &> "$MAVLINK2REST_LOG" &
+    mavlink2rest_pid=$!
+    log_message "mavlink2rest started with PID: $mavlink2rest_pid. Logs: $MAVLINK2REST_LOG"
 }
-
 
 # Function to set up Python environment
 setup_python_env() {
@@ -371,9 +381,9 @@ start_simulation() {
     export px4_instance="${HWID}-1"
 
     # Execute the simulation command in the background
-    eval "$SIMULATION_COMMAND" &
+    eval "$SIMULATION_COMMAND" &> "$BASE_DIR/logs/sitl_simulation.log" &
     simulation_pid=$!
-    log_message "SITL simulation started with PID: $simulation_pid"
+    log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
 }
 
 # Function to manually run coordinator.py
@@ -383,9 +393,9 @@ run_coordinator_manually() {
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
         source "$VENV_DIR/bin/activate"
     fi
-    python3 "$BASE_DIR/coordinator.py" &
+    python3 "$BASE_DIR/coordinator.py" &> "$BASE_DIR/logs/coordinator.log" &
     coordinator_pid=$!
-    log_message "coordinator.py started with PID: $coordinator_pid"
+    log_message "coordinator.py started with PID: $coordinator_pid. Logs: $BASE_DIR/logs/coordinator.log"
 }
 
 # =============================================================================
@@ -419,7 +429,7 @@ wait_for_hwid
 # Update the repository
 update_repository
 
-# Run MAVLink2rest
+# Run MAVLink2rest in the background
 run_mavlink2rest
 
 # Set up Python environment
@@ -450,6 +460,7 @@ log_message ""
 log_message "=============================================="
 log_message "All processes have been initialized."
 log_message "coordinator.py is running."
+log_message "mavlink2rest is running."
 log_message "Press Ctrl+C to terminate the simulation."
 log_message "=============================================="
 log_message ""
@@ -460,6 +471,10 @@ wait "$simulation_pid"
 # Wait for coordinator.py process to complete
 log_message "Waiting for coordinator.py process to complete..."
 wait "$coordinator_pid"
+
+# Wait for mavlink2rest process to complete
+log_message "Waiting for mavlink2rest process to complete..."
+wait "$mavlink2rest_pid"
 
 # Exit successfully
 exit 0
