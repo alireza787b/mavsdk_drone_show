@@ -299,9 +299,9 @@ calculate_new_coordinates() {
     # Calculate meters per degree longitude at the given latitude
     M_PER_DEGREE=$(echo "scale=10; 111320 * c($LAT_RAD)" | bc -l)
 
-    # Calculate new latitude and longitude
-    NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
-    NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
+    # Swap OFFSET_X and OFFSET_Y in calculations
+    NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_Y / 111320" | bc -l)
+    NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_X / $M_PER_DEGREE" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
