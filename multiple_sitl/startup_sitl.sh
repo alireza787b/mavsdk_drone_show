@@ -300,7 +300,7 @@ calculate_new_coordinates() {
     M_PER_DEGREE=$(echo "111320 * c($LAT_RAD)" | bc -l)
 
     # Calculate new LAT and LON based on the offsets
-    NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
+    NEW_LAT=$(echo "$DEFAULT_LAT + $OFFSET_X / 111.320" | bc -l)
     NEW_LON=$(echo "$DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
