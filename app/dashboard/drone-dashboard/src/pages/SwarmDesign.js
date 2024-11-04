@@ -99,6 +99,7 @@ const SwarmDesign = () => {
             const removedDrones = swarmData.filter(swarmDrone => !configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)).map(drone => drone.hw_id);
             setChanges({ added: addedDrones, removed: removedDrones });
 
+            // When adding new drones, set default body_coord to '0'
             configData.forEach(configDrone => {
                 if (!swarmData.some(drone => drone.hw_id === configDrone.hw_id)) {
                     updatedSwarmData.push({
@@ -106,7 +107,8 @@ const SwarmDesign = () => {
                         follow: '0',
                         offset_n: '0',
                         offset_e: '0',
-                        offset_alt: '0'
+                        offset_alt: '0',
+                        body_coord: '0' // default to NEA
                     });
                 }
             });
@@ -182,25 +184,29 @@ const SwarmDesign = () => {
       });
   };
 
+  const expectedHeader = ["hw_id", "follow", "offset_n", "offset_e", "offset_alt", "body_coord"];
+
+  // Update CSV Import function
   const handleCSVImport = (event) => {
     const file = event.target.files[0];
     if (file) {
       Papa.parse(file, {
         complete: (result) => {
           const header = result.data[0].map(column => column.trim());
-          if (header.toString() !== ["hw_id", "follow", "offset_n", "offset_e", "offset_alt"].toString()) {
+          if (header.toString() !== expectedHeader.toString()) {
             alert("CSV structure is incorrect. Please check the column headers and order.");
             return;
           }
-
+  
           const parsedData = result.data.slice(1).map(row => ({
             hw_id: row[0],
             follow: row[1],
             offset_n: row[2],
             offset_e: row[3],
-            offset_alt: row[4]
+            offset_alt: row[4],
+            body_coord: row[5]
           })).filter(drone => drone.hw_id && drone.hw_id.trim() !== "");
-
+  
           setSwarmData(parsedData);
         },
         header: false
@@ -208,13 +214,16 @@ const SwarmDesign = () => {
     }
   };
 
+
+
   const handleCSVExport = () => {
     const orderedSwarmData = swarmData.map(drone => ({
       hw_id: drone.hw_id,
       follow: drone.follow,
       offset_n: drone.offset_n,
       offset_e: drone.offset_e,
-      offset_alt: drone.offset_alt
+      offset_alt: drone.offset_alt,
+      body_coord: drone.body_coord  // Include body_coord
     }));
     const csvContent = Papa.unparse(orderedSwarmData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
