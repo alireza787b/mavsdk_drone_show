@@ -1,11 +1,8 @@
-//app/dashboard/drone-dashboard/src/components/DroneGraph.js
+// DroneGraph.js
+
 import React, { useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import '../styles/DroneGraph.css';
-import { getBackendURL } from '../utilities/utilities'; // Adjust the path according to the location of utilities.js
-
-
-
 
 function DroneGraph({ swarmData, onSelectDrone }) {
     const cyRef = useRef(null);
@@ -25,13 +22,17 @@ function DroneGraph({ swarmData, onSelectDrone }) {
         const edges = swarmData
             .filter(drone => drone.follow !== '0')
             .map(drone => ({
-                data: { source: drone.hw_id, target: drone.follow }
+                data: {
+                    source: drone.hw_id,
+                    target: drone.follow,
+                    body_coord: drone.body_coord,
+                    id: `${drone.hw_id}-${drone.follow}`
+                }
             }));
         return [...nodes, ...edges];
     };
 
     const elements = transformToGraphData(swarmData);
-    const prevElementsRef = useRef(swarmData);
 
     useEffect(() => {
         if (cyRef.current) {
@@ -51,11 +52,9 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             });
 
             // Node click listener
-            cyRef.current.on('tap', 'node', function(evt) {
+            cyRef.current.on('tap', 'node', function (evt) {
                 const clickedNodeId = evt.target.id();
                 onSelectDrone(clickedNodeId);
-                //console.log("Clicked Node ID:", clickedNodeId);
-
             });
 
             // Cleanup on unmount
@@ -80,7 +79,8 @@ function DroneGraph({ swarmData, onSelectDrone }) {
         height: '100vh',
     };
 
-    const styles = [{
+    const styles = [
+        {
             selector: 'node',
             style: {
                 'label': 'data(hw_id)',
@@ -92,45 +92,55 @@ function DroneGraph({ swarmData, onSelectDrone }) {
         {
             selector: 'node[role="Top Leader"]',
             style: {
-                'background-color': '#28a745' // Green for Top Leader
+                'background-color': '#28a745'
             }
         },
         {
             selector: 'node[role="Intermediate Leader"]',
             style: {
-                'background-color': '#ffcc00' // Yellow for Intermediate Leader
+                'background-color': '#ffcc00'
             }
         },
         {
             selector: 'node[role="Follower"]',
             style: {
-                'background-color': '#007bff' // Blue for Follower
+                'background-color': '#007bff'
             }
         },
         {
-            selector: 'edge',
+            selector: 'edge[body_coord="1"]',
             style: {
-                'curve-style': 'bezier',
+                'line-style': 'dashed',
+                'line-color': '#ff5722',
+                'target-arrow-color': '#ff5722',
+                'target-arrow-shape': 'triangle'
+            }
+        },
+        {
+            selector: 'edge[body_coord="0"]',
+            style: {
+                'line-style': 'solid',
+                'line-color': '#999',
+                'target-arrow-color': '#999',
                 'target-arrow-shape': 'triangle'
             }
         },
         {
             selector: 'node:selected',
             style: {
-                'border-width': '4px', // Add a border to the selected node
-                'border-color': '#ff5733' // Color of the border (you can adjust this as desired)
+                'border-width': '4px',
+                'border-color': '#ff5733'
             }
         }
-
     ];
 
-    return ( <
-        CytoscapeComponent cy = {
-            (cy) => { cyRef.current = cy; } }
-        elements = { elements }
-        style = { style }
-        stylesheet = { styles }
-        layout = { coseLayout }
+    return (
+        <CytoscapeComponent
+            cy={(cy) => { cyRef.current = cy; }}
+            elements={elements}
+            style={style}
+            stylesheet={styles}
+            layout={coseLayout}
         />
     );
 }

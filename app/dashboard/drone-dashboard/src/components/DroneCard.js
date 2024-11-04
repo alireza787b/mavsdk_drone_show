@@ -8,13 +8,12 @@ const categorizeDroneRole = (drone, followerCounts, topLeaderIdsSet) => {
     if (!topLeaderIdsSet.has(drone.hw_id) && followerCounts[drone.hw_id]) return 'Intermediate Leader';
     return 'Follower';
 };
+
 const dronesFollowing = (droneId, allDrones) => {
     return allDrones.filter(d => d.follow === droneId).map(d => d.hw_id);
 };
 
 const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
-    console.log("Rendering DroneCard for Drone ID:", drone.hw_id, "isSelected:", isSelected);
-
     const [isExpanded, setIsExpanded] = useState(false);
     const [selectedFollow, setSelectedFollow] = useState(drone.follow);
     const [offsets, setOffsets] = useState({
@@ -42,6 +41,10 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
         }
     }, [selectedFollow]);
 
+    // Dynamic labels based on coordinate system
+    const offsetNLabel = isBodyCoord ? 'Offset Forward (m)' : 'Offset North (m)';
+    const offsetELabel = isBodyCoord ? 'Offset Right (m)' : 'Offset East (m)';
+
     const handleSave = () => {
         onSaveChanges(drone.hw_id, {
             ...drone,
@@ -49,7 +52,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
             offset_n: offsets.n,
             offset_e: offsets.e,
             offset_alt: offsets.alt,
-            body_coord: isBodyCoord ? '1' : '0'  // Include body_coord
+            body_coord: isBodyCoord ? '1' : '0'
         });
         setIsExpanded(false);
     };
@@ -76,7 +79,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
             )}
 
             <p className="collapsible-details">
-                Position Offset (m): North: {drone.offset_n}, East: {drone.offset_e}, Altitude: {drone.offset_alt}
+                Position Offset (m): {offsetNLabel.split(' ')[1]}: {drone.offset_n}, {offsetELabel.split(' ')[1]}: {drone.offset_e}, Altitude: {drone.offset_alt}
             </p>
 
             {isExpanded && (
@@ -96,7 +99,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                     </div>
 
                     <div className="form-group">
-                        <label>Offset N (m): </label>
+                        <label>{offsetNLabel}: </label>
                         <input
                             type="number"
                             value={offsets.n}
@@ -106,7 +109,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
                     </div>
 
                     <div className="form-group">
-                        <label>Offset E (m): </label>
+                        <label>{offsetELabel}: </label>
                         <input
                             type="number"
                             value={offsets.e}
