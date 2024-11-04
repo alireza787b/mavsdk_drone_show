@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/SwarmPlots.js
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 
@@ -204,41 +205,46 @@ function SwarmPlots({ swarmData }) {
     const [selectedCluster, setSelectedCluster] = useState(undefined);
     const [processedData, setProcessedData] = useState([]);
 
-    const leaders = swarmData.filter(drone => 
+    const leaders = swarmData.filter(drone =>
         drone.follow === '0' || swarmData.some(d => d.follow === drone.hw_id)
     );
-
-    const getRelativePosition = (drone, leaderId) => {
-        if (drone.hw_id === leaderId) {
-            return {
-                x: 0,
-                y: 0,
-                z: 0
-            };
-        }
-        const leader = swarmData.find(d => d.hw_id === drone.follow);
-        const leaderPosition = getRelativePosition(leader, leaderId);
-        return {
-            x: parseFloat(drone.offset_e) + leaderPosition.x,
-            y: parseFloat(drone.offset_n) + leaderPosition.y,
-            z: parseFloat(drone.offset_alt) + leaderPosition.z
-        };
-    };
 
     const getCumulativeOffset = (drone) => {
         if (drone.follow === '0') {
             return {
                 x: 0,
                 y: 0,
-                z: 0
+                z: 0,
+                heading: 0  // Assume heading is zero for top leaders
             };
         } else {
             const leader = swarmData.find(d => d.hw_id === drone.follow);
             const leaderOffset = getCumulativeOffset(leader);
+
+            // Parse offsets
+            let offset_n = parseFloat(drone.offset_n);
+            let offset_e = parseFloat(drone.offset_e);
+            let offset_alt = parseFloat(drone.offset_alt);
+
+            if (drone.body_coord === '1') {
+                // Convert body coordinates to NEA (assuming leader heading is zero)
+                const theta = leaderOffset.heading * Math.PI / 180; // Convert heading to radians
+                const cosTheta = Math.cos(theta);
+                const sinTheta = Math.sin(theta);
+
+                // Rotate the offsets
+                const rotated_n = offset_n * cosTheta - offset_e * sinTheta;
+                const rotated_e = offset_n * sinTheta + offset_e * cosTheta;
+
+                offset_n = rotated_n;
+                offset_e = rotated_e;
+            }
+
             return {
-                x: parseFloat(drone.offset_e) + leaderOffset.x,
-                y: parseFloat(drone.offset_n) + leaderOffset.y,
-                z: parseFloat(drone.offset_alt) + leaderOffset.z
+                x: leaderOffset.x + offset_e,
+                y: leaderOffset.y + offset_n,
+                z: leaderOffset.z + offset_alt,
+                heading: leaderOffset.heading  // Propagate heading
             };
         }
     };
@@ -250,8 +256,8 @@ function SwarmPlots({ swarmData }) {
         let processed = [{ ...selectedLeader, x: 0, y: 0, z: 0 }];
 
         swarmData.forEach(drone => {
-            if (drone.hw_id !== selectedLeaderId && drone.follow === selectedLeaderId) {
-                const position = getRelativePosition(drone, selectedLeaderId);
+            if (drone.hw_id !== selectedLeaderId) {
+                const position = getCumulativeOffset(drone);
                 processed.push({
                     ...drone,
                     x: position.x,
@@ -261,35 +267,19 @@ function SwarmPlots({ swarmData }) {
             }
         });
 
-        // If the top leader is selected, also include drones that are following intermediate leaders
-        if (selectedLeader.follow === '0') {
-            swarmData.forEach(drone => {
-                if (drone.follow !== '0' && drone.follow !== selectedLeaderId) {
-                    const position = getCumulativeOffset(drone);
-                    processed.push({
-                        ...drone,
-                        x: position.x,
-                        y: position.y,
-                        z: position.z
-                    });
-                }
-            });
-        }
-
         setProcessedData(processed);
     };
 
     useEffect(() => {
         console.log("Swarm data updated:", swarmData);
     }, [swarmData]);
-    
 
     useEffect(() => {
         if (swarmData.length) {
-            const leadersList = swarmData.filter(drone => 
+            const leadersList = swarmData.filter(drone =>
                 drone.follow === '0' || swarmData.some(d => d.follow === drone.hw_id)
             );
-        
+
             if (leadersList.length) {
                 setSelectedCluster(leadersList[0]?.hw_id);
             }
@@ -301,17 +291,13 @@ function SwarmPlots({ swarmData }) {
             processSwarmData(selectedCluster);
         }
     }, [selectedCluster]);
-    
-    
-    
-    
-    
+
     return (
         <div className="swarm-plots-container">
             <div className="cluster-selection">
                 <label>Select Cluster: </label>
-                <select 
-                    value={selectedCluster || ''} 
+                <select
+                    value={selectedCluster || ''}
                     onChange={e => setSelectedCluster(e.target.value)}
                 >
                     {leaders.map(leader => (
@@ -332,8 +318,3 @@ function SwarmPlots({ swarmData }) {
 }
 
 export default SwarmPlots;
-
-
-
-
-
