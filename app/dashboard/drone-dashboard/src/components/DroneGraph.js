@@ -1,14 +1,12 @@
+// DroneGraph.js
+
 import React, { useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import '../styles/DroneGraph.css';
-import { getBackendURL } from '../utilities/utilities';  // Adjust the path according to the location of utilities.js
-
-
-
 
 function DroneGraph({ swarmData, onSelectDrone }) {
     const cyRef = useRef(null);
-    
+
     const transformToGraphData = (swarmData) => {
         const nodes = swarmData.map(drone => {
             let role = 'Follower';
@@ -24,13 +22,17 @@ function DroneGraph({ swarmData, onSelectDrone }) {
         const edges = swarmData
             .filter(drone => drone.follow !== '0')
             .map(drone => ({
-                data: { source: drone.hw_id, target: drone.follow }
+                data: {
+                    source: drone.hw_id,
+                    target: drone.follow,
+                    body_coord: drone.body_coord,
+                    id: `${drone.hw_id}-${drone.follow}`
+                }
             }));
         return [...nodes, ...edges];
     };
 
     const elements = transformToGraphData(swarmData);
-    const prevElementsRef = useRef(swarmData);
 
     useEffect(() => {
         if (cyRef.current) {
@@ -39,24 +41,22 @@ function DroneGraph({ swarmData, onSelectDrone }) {
                 cyRef.current.remove(cyRef.current.elements());
                 cyRef.current.add(elements);
             });
-    
+
             // Run the layout and fit the graph
             cyRef.current.layout(coseLayout).run();
             cyRef.current.fit();
-    
+
             // Add a resize listener
             cyRef.current.on('resize', () => {
                 cyRef.current.layout(coseLayout).run();
             });
-    
+
             // Node click listener
             cyRef.current.on('tap', 'node', function (evt) {
                 const clickedNodeId = evt.target.id();
                 onSelectDrone(clickedNodeId);
-                //console.log("Clicked Node ID:", clickedNodeId);
-
             });
-    
+
             // Cleanup on unmount
             return () => {
                 if (cyRef.current) {
@@ -84,7 +84,7 @@ function DroneGraph({ swarmData, onSelectDrone }) {
             selector: 'node',
             style: {
                 'label': 'data(hw_id)',
-                'text-valign': 'center', 
+                'text-valign': 'center',
                 'text-halign': 'center',
                 color: 'white'
             }
@@ -92,45 +92,55 @@ function DroneGraph({ swarmData, onSelectDrone }) {
         {
             selector: 'node[role="Top Leader"]',
             style: {
-                'background-color': '#28a745'  // Green for Top Leader
+                'background-color': '#28a745'
             }
         },
         {
             selector: 'node[role="Intermediate Leader"]',
             style: {
-                'background-color': '#ffcc00'  // Yellow for Intermediate Leader
+                'background-color': '#ffcc00'
             }
         },
         {
             selector: 'node[role="Follower"]',
             style: {
-                'background-color': '#007bff'  // Blue for Follower
+                'background-color': '#007bff'
             }
         },
         {
-            selector: 'edge',
+            selector: 'edge[body_coord="1"]',
             style: {
-                'curve-style': 'bezier',
+                'line-style': 'dashed',
+                'line-color': '#ff5722',
+                'target-arrow-color': '#ff5722',
                 'target-arrow-shape': 'triangle'
             }
         },
         {
-    selector: 'node:selected',
-    style: {
-        'border-width': '4px',    // Add a border to the selected node
-        'border-color': '#ff5733' // Color of the border (you can adjust this as desired)
-    }
-}
-
+            selector: 'edge[body_coord="0"]',
+            style: {
+                'line-style': 'solid',
+                'line-color': '#999',
+                'target-arrow-color': '#999',
+                'target-arrow-shape': 'triangle'
+            }
+        },
+        {
+            selector: 'node:selected',
+            style: {
+                'border-width': '4px',
+                'border-color': '#ff5733'
+            }
+        }
     ];
-    
+
     return (
-        <CytoscapeComponent 
+        <CytoscapeComponent
             cy={(cy) => { cyRef.current = cy; }}
-            elements={elements} 
+            elements={elements}
             style={style}
             stylesheet={styles}
-            layout={coseLayout} 
+            layout={coseLayout}
         />
     );
 }
