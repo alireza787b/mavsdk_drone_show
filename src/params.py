@@ -36,6 +36,7 @@ class Params():
     polling_interval = 1  # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state'  # URI for getting drone state
     send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
+    get_drone_home_URI = 'get-home-pos'
     flask_telem_socket_port = 5000  # Flask telemetry socket port
     
     get_position_deviation_URI = 'get-position-deviation'

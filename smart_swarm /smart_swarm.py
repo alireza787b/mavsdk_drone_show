@@ -14,7 +14,7 @@ import argparse
 from datetime import datetime
 from collections import namedtuple
 from mavsdk import System
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, OffboardError
+from mavsdk.offboard import PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw, OffboardError
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
@@ -413,7 +413,7 @@ async def update_leader_state():
     while True:
         try:
             # Fetch leader's state
-            state_url = f"http://{LEADER_IP}:{Params.drone_flask_port}/{Params.drone_flask_state_endpoint}"
+            state_url = f"http://{LEADER_IP}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             response = requests.get(state_url, timeout=1)
             if response.status_code == 200:
                 data = response.json()
@@ -624,10 +624,10 @@ async def initialize_drone():
 
         # Arm the drone and start offboard mode
         logger.info("Arming drone.")
-        await drone.action.arm()
+        await drone.action.arm() #if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
         # Send an initial setpoint before starting offboard mode
-        await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
+        await drone.offboard.set_velocity_ned(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         await drone.offboard.start()
         led_controller.set_color(0, 255, 0)  # Green to indicate ready
 
@@ -696,7 +696,7 @@ async def run_smart_swarm():
         LEADER_KALMAN_FILTER = LeaderKalmanFilter()
 
     # Start MAVSDK server
-    udp_port = drone_config['mavlink_port']
+    udp_port = MAVSDK_PORT #On companion computer real mode UDP port is always the same
     mavsdk_server = start_mavsdk_server(udp_port)
     if mavsdk_server is None:
         logger.error("Failed to start MAVSDK server.")
@@ -715,7 +715,7 @@ async def run_smart_swarm():
     # Fetch own home position
     own_ip = '127.0.0.1'
     own_home_pos = fetch_home_position(
-        own_ip, Params.drone_flask_port, Params.drone_flask_home_endpoint
+        own_ip, Params.drones_flask_port, Params.get_drone_home_URI
     )
     if own_home_pos is None:
         logger.error("Failed to fetch own home position.")
@@ -733,7 +733,7 @@ async def run_smart_swarm():
     # If follower, fetch leader's home position
     if not IS_LEADER:
         leader_home_pos = fetch_home_position(
-            LEADER_IP, Params.drone_flask_port, Params.drone_flask_home_endpoint
+            LEADER_IP, Params.drones_flask_port, Params.get_drone_home_URI
         )
         if leader_home_pos is None:
             logger.error("Failed to fetch leader's home position.")
@@ -772,8 +772,9 @@ async def run_smart_swarm():
 
         # Disarm drone and stop offboard mode
         try:
-            await drone.offboard.stop()
-            await drone.action.disarm()
+            # await drone.offboard.stop()
+            # await drone.action.disarm()
+            pass
         except Exception:
             logger.exception("Error during drone shutdown.")
 
