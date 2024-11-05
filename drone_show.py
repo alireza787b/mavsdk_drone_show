@@ -52,7 +52,7 @@ position_id = None  # Position ID of the drone
 global_synchronized_start_time = None  # Synchronized start time
 initial_position_drift = None  # Initial position drift in NED coordinates
 
-CONFIG_CSV_NAME = os.path.join('..', Params.config_csv_name)
+CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
 
 # ----------------------------- #
 #         Helper Functions      #
@@ -874,7 +874,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
                 sys.exit(1)
 
             position_id = drone_config.pos_id
-            trajectory_filename = os.path.join('..', 'shapes', 'swarm', 'processed', f"Drone {position_id}.csv")
+            trajectory_filename = os.path.join('shapes', 'swarm', 'processed', f"Drone {position_id}.csv")
             waypoints = read_trajectory_file(
                 trajectory_filename, drone_config.initial_x, drone_config.initial_y
             )
