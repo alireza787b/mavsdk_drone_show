@@ -393,17 +393,16 @@ class DroneSetup:
         """
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
+            real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
-
+            smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
             logging.info("Starting Smart Swarm Mission")
             follow_mode = int(self.drone_config.swarm.get('follow', 0))
             if follow_mode != 0:
-                if self.offboard_controller:
-                    await self.offboard_controller.start_swarm()
-                    await self.offboard_controller.start_offboard_follow()
-                else:
-                    logging.error("Offboard controller is not initialized.")
-                    return False, "Offboard controller not available."
+                return await self.execute_mission_script(
+                smart_swarm_executer,
+                f"--start_time={real_trigger_time}"
+            )
             return True, "Smart Swarm Mission initiated"
 
         logging.info("Conditions not met for triggering Smart Swarm")
