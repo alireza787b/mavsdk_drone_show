@@ -36,6 +36,7 @@ class Params():
     polling_interval = 1  # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state'  # URI for getting drone state
     send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
+    get_drone_home_URI = 'get-home-pos'
     flask_telem_socket_port = 5000  # Flask telemetry socket port
     
     get_position_deviation_URI = 'get-position-deviation'
@@ -111,3 +112,16 @@ class Params():
     
     custom_csv_file_name = "active.csv" # Name of custom csv execution
     main_offboard_executer = "offboard_multiple_from_csv.py" #name of script that executes offboard missions from csv
+    
+    smart_swarm_executer = "smart_swarm/smart_swarm.py"
+    
+    # Smart Swarm parameters
+    swarm_control_frequency = 10  # Hz
+    leader_update_frequency = 2   # Hz
+    data_freshness_threshold = 1.0  # seconds
+    enable_velocity_feedforward = False  # Optional parameter to enable velocity commands
+    max_connection_retries = 3  # Number of retries for connections
+    swarm_velocity_feedforward = True
+    
+    
+    MAX_LOG_FILES = 100
