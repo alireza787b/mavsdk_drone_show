@@ -430,7 +430,7 @@ wait_for_hwid
 update_repository
 
 # Run MAVLink2rest in the background
-run_mavlink2rest
+#run_mavlink2rest
 
 # Set up Python environment
 setup_python_env
