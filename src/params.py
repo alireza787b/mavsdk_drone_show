@@ -111,9 +111,9 @@ class Params():
     
     
     custom_csv_file_name = "active.csv" # Name of custom csv execution
-    main_offboard_executer = "drone_show/drone_show.py" #name of script that executes offboard missions from csv
+    main_offboard_executer = "drone_show.py" #name of script that executes offboard missions from csv
     
-    smart_swarm_executer = "smart_swarm/smart_swarm.py"
+    smart_swarm_executer = "smart_swarm.py"
     
     # Smart Swarm parameters
     swarm_control_frequency = 10  # Hz

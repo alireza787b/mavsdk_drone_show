@@ -20,21 +20,19 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
 import requests
 
-# Adjust sys.path to import modules from the root directory
-sys.path.append(os.path.abspath('..'))
 
 from src.led_controller import LEDController
 from src.params import Params
 
-from kalman_filter import LeaderKalmanFilter
-from utils import (
+from smart_swarm_src.kalman_filter import LeaderKalmanFilter
+from smart_swarm_src.utils import (
     transform_body_to_nea,
     is_data_fresh,
     get_current_timestamp,
     fetch_home_position,
     lla_to_ned
 )
-from constants import (
+from smart_swarm_src.constants import (
     GRPC_PORT,
     MAVSDK_PORT,
     MAX_RETRIES,

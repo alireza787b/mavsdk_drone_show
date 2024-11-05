@@ -1,4 +1,4 @@
-# smart_swarm/kalman_filter.py
+# smart_swarm_src/kalman_filter.py
 
 import numpy as np
 from filterpy.kalman import KalmanFilter
