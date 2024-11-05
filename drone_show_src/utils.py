@@ -85,7 +85,7 @@ def read_hw_id() -> int:
         int: Hardware ID if found, else None.
     """
     logger = logging.getLogger(__name__)
-    hwid_files = glob.glob(os.path.join('..', '*.hwID'))
+    hwid_files = glob.glob(os.path.join('*.hwID'))
     if hwid_files:
         filename = os.path.basename(hwid_files[0])
         hw_id = os.path.splitext(filename)[0]  # Get filename without extension
