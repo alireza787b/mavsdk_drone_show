@@ -656,8 +656,8 @@ async def run_smart_swarm():
         sys.exit(1)
 
     # Read configurations
-    config_filename = os.path.join('..', 'config_sitl.csv' if Params.sim_mode else 'config.csv')
-    swarm_filename = os.path.join('..', 'swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
+    config_filename = os.path.join('config_sitl.csv' if Params.sim_mode else 'config.csv')
+    swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
     read_config_csv(config_filename)
     read_swarm_csv(swarm_filename)
 
