@@ -1,4 +1,4 @@
-# drone_show/utils.py
+# drone_show_src/utils.py
 
 import os
 import sys
@@ -7,6 +7,8 @@ import logging
 import logging.handlers
 import navpy
 from datetime import datetime
+from src.params import Params
+
 
 from mavsdk.offboard import PositionNedYaw
 
@@ -51,7 +53,7 @@ def configure_logging():
     root_logger.addHandler(file_handler)
 
     # Limit the number of log files
-    limit_log_files(logs_directory, MAX_LOG_FILES)
+    limit_log_files(logs_directory, Params.MAX_LOG_FILES)
 
 def limit_log_files(logs_directory, max_files):
     """

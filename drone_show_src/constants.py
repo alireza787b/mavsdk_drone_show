@@ -1,4 +1,4 @@
-# drone_show/constants.py
+# drone_show_src/constants.py
 from src.params import Params
 
 
