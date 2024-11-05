@@ -1,4 +1,7 @@
 # drone_show/constants.py
+from src.params import Params
+
+
 
 # Fixed gRPC port for MAVSDK server
 GRPC_PORT = 50040
@@ -54,3 +57,5 @@ FEEDFORWARD_VELOCITY_ENABLED = False
 # Set to False to disable feedforward acceleration setpoints (if acceleration is true, velocity should be true as well, otherwise only position would be executed)
 # Since MAVSDK doesn't support position + acceleration yet
 FEEDFORWARD_ACCELERATION_ENABLED = False
+
+MAX_LOG_FILES = Params.MAX_LOG_FILES
