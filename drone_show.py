@@ -194,7 +194,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     # Determine if trajectory ends high or at ground level
     final_altitude = waypoints[-1][3]  # pz of the last waypoint
-    if final_altitude > GROUND_ALTITUDE_THRESHOLD:
+    if final_altitude > Params.GROUND_ALTITUDE_THRESHOLD:
         trajectory_ends_high = True
         logger.info("Trajectory ends high in the sky. Will perform PX4 native landing.")
     else:
@@ -242,21 +242,21 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 led_controller.set_color(ledr, ledg, ledb)
 
                 # Adjust waypoints for initial position drift if enabled
-                if ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
+                if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
 
                 # Send setpoints based on configuration
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
 
-                if FEEDFORWARD_VELOCITY_ENABLED and FEEDFORWARD_ACCELERATION_ENABLED:
+                if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
                     acceleration_setpoint = AccelerationNed(ax, ay, az)
                     await drone.offboard.set_position_velocity_acceleration_ned(
                         position_setpoint, velocity_setpoint, acceleration_setpoint
                     )
                     logger.debug("Position, velocity, and acceleration mode: Sending full setpoints")
-                elif FEEDFORWARD_VELOCITY_ENABLED:
+                elif Params.FEEDFORWARD_VELOCITY_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
                     await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
                     logger.debug("Position and velocity mode: Sending position and velocity setpoints")
@@ -274,8 +274,8 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 )
 
                 # Check if we should initiate controlled landing
-                if not trajectory_ends_high and mission_progress >= MISSION_PROGRESS_THRESHOLD:
-                    if (time_to_end <= CONTROLLED_LANDING_TIME) or (-1 * pz < CONTROLLED_LANDING_ALTITUDE):
+                if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
+                    if (time_to_end <= Params.CONTROLLED_LANDING_TIME) or (-1 * pz < Params.CONTROLLED_LANDING_ALTITUDE):
                         logger.info("Initiating controlled landing phase.")
                         await controlled_landing(drone)
                         landing_detected = True
@@ -333,7 +333,7 @@ async def controlled_landing(drone: System):
     try:
         await drone.offboard.set_position_velocity_ned(
             PositionNedYaw(0.0, 0.0, 0.0, 0.0),
-            VelocityNedYaw(0.0, 0.0, CONTROLLED_DESCENT_SPEED, 0.0)
+            VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
         )
     except OffboardError as e:
         logger.error(f"Offboard error during controlled landing setup: {e}")
@@ -343,9 +343,9 @@ async def controlled_landing(drone: System):
     while not landing_detected:
         try:
             # Send descent command
-            velocity_setpoint = VelocityNedYaw(0.0, 0.0, CONTROLLED_DESCENT_SPEED, 0.0)
+            velocity_setpoint = VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
             await drone.offboard.set_velocity_ned(velocity_setpoint)
-            logger.debug(f"Controlled landing: Descending at {CONTROLLED_DESCENT_SPEED:.2f} m/s")
+            logger.debug(f"Controlled landing: Descending at {Params.CONTROLLED_DESCENT_SPEED:.2f} m/s")
 
             # Check for landing detection
             async for landed_state in drone.telemetry.landed_state():
@@ -356,7 +356,7 @@ async def controlled_landing(drone: System):
                 break  # Only check the latest state
 
             # Check for timeout
-            if (time.time() - landing_start_time) > LANDING_TIMEOUT:
+            if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
                 logger.warning("Controlled landing timeout. Initiating PX4 native landing.")
                 await stop_offboard_mode(drone)
                 await perform_landing(drone)
@@ -399,12 +399,12 @@ async def wait_for_landing(drone: System):
                 logger.info("Drone has landed.")
                 return
             break
-        if time.time() - start_time > LANDING_TIMEOUT:
+        if time.time() - start_time > Params.LANDING_TIMEOUT:
             logger.error("Landing timeout.")
             break
         await asyncio.sleep(1)
 
-@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(5))
+@retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(5))
 async def initial_setup_and_connection():
     """
     Perform the initial setup and connection for the drone.
@@ -420,17 +420,17 @@ async def initial_setup_and_connection():
         led_controller.set_color(0, 0, 255)
 
         # Determine the MAVSDK server address and port
-        grpc_port = GRPC_PORT  # Fixed gRPC port
+        grpc_port = Params.default_GRPC_port  # Fixed gRPC port
 
         # MAVSDK server is assumed to be running on localhost
         mavsdk_server_address = "127.0.0.1"
 
         # Create the drone system
         drone = System(mavsdk_server_address=mavsdk_server_address, port=grpc_port)
-        await drone.connect(system_address=f"udp://:{MAVSDK_PORT}")
+        await drone.connect(system_address=f"udp://:{Params.mavsdk_port}")
 
         logger.info(
-            f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {MAVSDK_PORT}."
+            f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {Params.mavsdk_port}."
         )
 
         # Wait for connection with a timeout
@@ -489,7 +489,7 @@ async def pre_flight_checks(drone: System):
                 if not health.is_home_position_ok:
                     logger.warning("Waiting for home position to be set.")
 
-            if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
+            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                 logger.error("Pre-flight checks timed out.")
                 led_controller.set_color(255, 0, 0)  # Red
                 raise TimeoutError("Pre-flight checks timed out.")
@@ -509,7 +509,7 @@ async def pre_flight_checks(drone: System):
         led_controller.set_color(255, 0, 0)  # Red
         raise
 
-@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(2))
+@retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def arming_and_starting_offboard_mode(drone: System, home_position):
     """
     Arm the drone and start offboard mode.
@@ -531,7 +531,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
             async for position in drone.telemetry.position():
                 current_global_position = position
                 break
-            if time.time() - start_time > PRE_FLIGHT_TIMEOUT:
+            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                 logger.error("Timeout waiting for current global position.")
                 raise TimeoutError("Timeout waiting for current global position.")
             await asyncio.sleep(0.1)
@@ -583,7 +583,7 @@ async def perform_landing(drone: System):
                     logger.info("Drone has landed.")
                     return
                 break
-            if time.time() - start_time > LANDING_TIMEOUT:
+            if time.time() - start_time > Params.LANDING_TIMEOUT:
                 logger.error("Landing timeout.")
                 break
             await asyncio.sleep(1)
@@ -656,9 +656,9 @@ def start_mavsdk_server(udp_port: int):
     logger = logging.getLogger(__name__)
     try:
         # Check if MAVSDK server is already running
-        is_running, pid = check_mavsdk_server_running(GRPC_PORT)
+        is_running, pid = check_mavsdk_server_running(Params.default_GRPC_port)
         if is_running:
-            logger.info(f"MAVSDK server already running on port {GRPC_PORT}. Terminating...")
+            logger.info(f"MAVSDK server already running on port {Params.default_GRPC_port}. Terminating...")
             try:
                 psutil.Process(pid).terminate()
                 psutil.Process(pid).wait(timeout=5)
@@ -686,20 +686,20 @@ def start_mavsdk_server(udp_port: int):
 
         # Start the MAVSDK server
         mavsdk_server = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(Params.default_GRPC_port), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         logger.info(
-            f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}."
+            f"MAVSDK server started with gRPC port {Params.default_GRPC_port} and UDP port {udp_port}."
         )
 
         # Optionally, you can start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
-        if not wait_for_port(GRPC_PORT, timeout=10):
-            logger.error(f"MAVSDK server did not start listening on port {GRPC_PORT} within timeout.")
+        if not wait_for_port(Params.default_GRPC_port, timeout=Params.PRE_FLIGHT_TIMEOUT):
+            logger.error(f"MAVSDK server did not start listening on port {Params.default_GRPC_port} within timeout.")
             mavsdk_server.terminate()
             return None
 
@@ -733,7 +733,7 @@ def check_mavsdk_server_running(port):
             pass
     return False, None
 
-def wait_for_port(port, host='localhost', timeout=10.0):
+def wait_for_port(port, host='localhost', timeout=Params.PRE_FLIGHT_TIMEOUT):
     """
     Wait until a port starts accepting TCP connections.
 
@@ -824,7 +824,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         global HW_ID
 
         # Step 1: Start MAVSDK Server
-        udp_port = MAVSDK_PORT
+        udp_port = Params.mavsdk_port
         mavsdk_server = start_mavsdk_server(udp_port)
         if mavsdk_server is None:
             logger.error("Failed to start MAVSDK server. Exiting program.")
@@ -857,7 +857,7 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         # Step 5: Read and Adjust Trajectory Waypoints
         if custom_csv:
             # Custom CSV mode
-            trajectory_filename = os.path.join('..', 'shapes', custom_csv)
+            trajectory_filename = os.path.join('shapes', custom_csv)
             waypoints = read_trajectory_file(trajectory_filename)
         else:
             # Drone show mode
