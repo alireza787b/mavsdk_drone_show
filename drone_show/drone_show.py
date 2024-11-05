@@ -31,8 +31,8 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 # Adjust sys.path to import modules from the root directory
 sys.path.append(os.path.abspath('..'))
 
-from src.led_controller import LEDController
-from src.params import Params
+from ..src.led_controller import LEDController
+from ..src.params import Params
 
 from constants import *
 from utils import configure_logging, limit_log_files, read_hw_id, clamp_led_value, global_to_local
