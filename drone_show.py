@@ -32,7 +32,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
 from src.params import Params
 
-from drone_show_src.constants import *
 from drone_show_src.utils import configure_logging, limit_log_files, read_hw_id, clamp_led_value, global_to_local
 
 # ----------------------------- #
