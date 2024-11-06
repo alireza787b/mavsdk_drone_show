@@ -18,18 +18,16 @@ class DroneSetup:
     the status of running processes.
     """
 
-    def __init__(self, params, drone_config, offboard_controller):
+    def __init__(self, params, drone_config):
         """
         Initializes the DroneSetup with configuration parameters and controllers.
 
         Args:
             params: Configuration parameters. Must include 'trigger_sooner_seconds'.
             drone_config: Drone configuration object containing mission details.
-            offboard_controller: Controller for offboard operations.
         """
         self.params = params
         self.drone_config = drone_config
-        self.offboard_controller = offboard_controller
         self.last_logged_mission = None
         self.last_logged_state = None
         self.running_processes = {}  # Dictionary to store running mission scripts
@@ -434,7 +432,6 @@ class DroneSetup:
     async def _execute_land(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Land mission by running the land action script.
-        Ensures offboard mode is stopped before landing.
 
         Args:
             current_time (int, optional): The current Unix timestamp.
@@ -444,16 +441,6 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Land Mission")
-        try:
-            follow_mode = int(self.drone_config.swarm.get('follow', 0))
-            if follow_mode != 0 and self.offboard_controller:
-                if self.offboard_controller.is_offboard:
-                    logging.info("Drone is in Offboard mode. Attempting to stop Offboard.")
-                    await self.offboard_controller.stop_offboard()
-                    await asyncio.sleep(1)
-        except AttributeError as e:
-            logging.error(f"Error accessing offboard controller attributes: {e}")
-            return False, f"Offboard controller error: {e}"
 
         return await self.execute_mission_script(
             "actions.py",
