@@ -20,29 +20,17 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
 import requests
 
-# Adjust sys.path to import modules from the root directory
-sys.path.append(os.path.abspath('..'))
 
 from src.led_controller import LEDController
 from src.params import Params
 
-from kalman_filter import LeaderKalmanFilter
-from utils import (
+from smart_swarm_src.kalman_filter import LeaderKalmanFilter
+from smart_swarm_src.utils import (
     transform_body_to_nea,
     is_data_fresh,
     get_current_timestamp,
     fetch_home_position,
     lla_to_ned
-)
-from constants import (
-    GRPC_PORT,
-    MAVSDK_PORT,
-    MAX_RETRIES,
-    CONTROL_LOOP_FREQUENCY,
-    LEADER_UPDATE_FREQUENCY,
-    DATA_FRESHNESS_THRESHOLD,
-    FEEDFORWARD_VELOCITY_ENABLED,
-    MAX_LOG_FILES  # Maximum number of log files
 )
 
 # ----------------------------- #
@@ -247,9 +235,9 @@ def start_mavsdk_server(udp_port: int):
     logger = logging.getLogger(__name__)
     try:
         # Check if MAVSDK server is already running
-        is_running, pid = check_mavsdk_server_running(GRPC_PORT)
+        is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
-            logger.info(f"MAVSDK server already running on port {GRPC_PORT}. Terminating...")
+            logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating...")
             try:
                 psutil.Process(pid).terminate()
                 psutil.Process(pid).wait(timeout=5)
@@ -277,20 +265,20 @@ def start_mavsdk_server(udp_port: int):
 
         # Start the MAVSDK server
         mavsdk_server = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(GRPC_PORT), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         logger.info(
-            f"MAVSDK server started with gRPC port {GRPC_PORT} and UDP port {udp_port}."
+            f"MAVSDK server started with gRPC port {Params.DEFAULT_GRPC_PORT} and UDP port {udp_port}."
         )
 
         # Optionally, you can start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
-        if not wait_for_port(GRPC_PORT, timeout=10):
-            logger.error(f"MAVSDK server did not start listening on port {GRPC_PORT} within timeout.")
+        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=Params.PRE_FLIGHT_TIMEOUT):
+            logger.error(f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout.")
             mavsdk_server.terminate()
             return None
 
@@ -324,7 +312,7 @@ def check_mavsdk_server_running(port):
             pass
     return False, None
 
-def wait_for_port(port, host='localhost', timeout=10.0):
+def wait_for_port(port, host='localhost', timeout=Params.PRE_FLIGHT_TIMEOUT):
     """
     Wait until a port starts accepting TCP connections.
 
@@ -407,7 +395,7 @@ async def update_leader_state():
     """
     logger = logging.getLogger(__name__)
     global LEADER_STATE, LEADER_KALMAN_FILTER
-    update_interval = 1 / LEADER_UPDATE_FREQUENCY
+    update_interval = 1 / Params.LEADER_UPDATE_FREQUENCY
     last_update_time = None
 
     while True:
@@ -471,7 +459,7 @@ async def control_loop(drone: System):
     """
     logger = logging.getLogger(__name__)
     global LEADER_KALMAN_FILTER
-    loop_interval = 1 / CONTROL_LOOP_FREQUENCY
+    loop_interval = 1 / Params.CONTROL_LOOP_FREQUENCY
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
 
@@ -479,7 +467,7 @@ async def control_loop(drone: System):
         while True:
             current_time = get_current_timestamp()
             # Check data freshness
-            if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], DATA_FRESHNESS_THRESHOLD):
+            if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
                 # Predict leader state
                 predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
                 # Extract predicted positions and velocities
@@ -504,7 +492,7 @@ async def control_loop(drone: System):
                 position_setpoint = PositionNedYaw(
                     desired_n, desired_e, desired_d, leader_yaw
                 )
-                if FEEDFORWARD_VELOCITY_ENABLED:
+                if Params.SWARM_FEEDFORWARD_VELOCITY_ENABLED:
                     desired_vel_n = leader_vel_n
                     desired_vel_e = leader_vel_e
                     desired_vel_d = leader_vel_d
@@ -562,7 +550,7 @@ async def execute_failsafe(drone: System):
 #       Drone Initialization    #
 # ----------------------------- #
 
-@retry(stop=stop_after_attempt(MAX_RETRIES), wait=wait_fixed(2))
+@retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def initialize_drone():
     """
     Initializes the drone connection, performs pre-flight checks, and starts offboard mode.
@@ -576,18 +564,16 @@ async def initialize_drone():
         led_controller = LEDController.get_instance()
         led_controller.set_color(0, 0, 255)  # Blue to indicate initialization
 
-        # Determine the MAVSDK server address and port
-        grpc_port = GRPC_PORT  # Fixed gRPC port
 
         # MAVSDK server is assumed to be running on localhost
         mavsdk_server_address = "127.0.0.1"
 
         # Create the drone system
-        drone = System(mavsdk_server_address=mavsdk_server_address, port=grpc_port)
-        await drone.connect(system_address=f"udp://:{MAVSDK_PORT}")
+        drone = System(mavsdk_server_address=mavsdk_server_address, port=Params.DEFAULT_GRPC_PORT)
+        await drone.connect(system_address=f"udp://:{Params.mavsdk_port}")
 
         logger.info(
-            f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {MAVSDK_PORT}."
+            f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{Params.DEFAULT_GRPC_PORT} on UDP port {Params.mavsdk_port}."
         )
 
         # Wait for connection with a timeout
@@ -595,10 +581,10 @@ async def initialize_drone():
         async for state in drone.core.connection_state():
             if state.is_connected:
                 logger.info(
-                    f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}."
+                    f"Drone connected via MAVSDK server at {mavsdk_server_address}:{Params.DEFAULT_GRPC_PORT}."
                 )
                 break
-            if time.time() - start_time > 10:
+            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                 logger.error("Timeout while waiting for drone connection.")
                 led_controller.set_color(255, 0, 0)  # Red
                 raise TimeoutError("Drone connection timeout.")
@@ -616,7 +602,7 @@ async def initialize_drone():
                     logger.warning("Waiting for global position to be okay.")
                 if not health.is_home_position_ok:
                     logger.warning("Waiting for home position to be set.")
-            if time.time() - start_time > 10:
+            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                 logger.error("Pre-flight checks timed out.")
                 led_controller.set_color(255, 0, 0)  # Red
                 raise TimeoutError("Pre-flight checks timed out.")
@@ -658,8 +644,8 @@ async def run_smart_swarm():
         sys.exit(1)
 
     # Read configurations
-    config_filename = os.path.join('..', 'config_sitl.csv' if Params.sim_mode else 'config.csv')
-    swarm_filename = os.path.join('..', 'swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
+    config_filename = os.path.join('config_sitl.csv' if Params.sim_mode else 'config.csv')
+    swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
     read_config_csv(config_filename)
     read_swarm_csv(swarm_filename)
 
@@ -696,8 +682,7 @@ async def run_smart_swarm():
         LEADER_KALMAN_FILTER = LeaderKalmanFilter()
 
     # Start MAVSDK server
-    udp_port = MAVSDK_PORT #On companion computer real mode UDP port is always the same
-    mavsdk_server = start_mavsdk_server(udp_port)
+    mavsdk_server = start_mavsdk_server(Params.mavsdk_port)
     if mavsdk_server is None:
         logger.error("Failed to start MAVSDK server.")
         sys.exit(1)

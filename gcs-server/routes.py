@@ -57,9 +57,20 @@ def setup_routes(app):
             if not drones:
                 return error_response("No drones found in the configuration", 500)
 
-            send_commands_to_all(drones, command_data)
-            logger.info("Command sent successfully to all drones")
-            return jsonify({'status': 'success', 'message': 'Command sent to all drones'})
+            start_time = time.time()
+            results = send_commands_to_all(drones, command_data)
+            elapsed_time = time.time() - start_time
+
+            success_count = sum(results.values())
+            response_data = {
+                'status': 'success',
+                'message': f"Command sent to {success_count}/{len(drones)} drones",
+                'details': results,
+                'elapsed_time': f"{elapsed_time:.2f} seconds"
+            }
+
+            logger.info(f"Command dispatch completed in {elapsed_time:.2f} seconds")
+            return jsonify(response_data)
         except Exception as e:
             logger.error(f"Error sending command: {e}", exc_info=True)
             return error_response(f"Error sending command: {e}")
