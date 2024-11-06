@@ -419,7 +419,7 @@ async def initial_setup_and_connection():
         led_controller.set_color(0, 0, 255)
 
         # Determine the MAVSDK server address and port
-        grpc_port = Params.default_GRPC_port  # Fixed gRPC port
+        grpc_port = Params.DEFAULT_GRPC_PORT  # Fixed gRPC port
 
         # MAVSDK server is assumed to be running on localhost
         mavsdk_server_address = "127.0.0.1"
@@ -655,9 +655,9 @@ def start_mavsdk_server(udp_port: int):
     logger = logging.getLogger(__name__)
     try:
         # Check if MAVSDK server is already running
-        is_running, pid = check_mavsdk_server_running(Params.default_GRPC_port)
+        is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
-            logger.info(f"MAVSDK server already running on port {Params.default_GRPC_port}. Terminating...")
+            logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating...")
             try:
                 psutil.Process(pid).terminate()
                 psutil.Process(pid).wait(timeout=5)
@@ -685,20 +685,20 @@ def start_mavsdk_server(udp_port: int):
 
         # Start the MAVSDK server
         mavsdk_server = subprocess.Popen(
-            [mavsdk_server_path, "-p", str(Params.default_GRPC_port), f"udp://:{udp_port}"],
+            [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
         logger.info(
-            f"MAVSDK server started with gRPC port {Params.default_GRPC_port} and UDP port {udp_port}."
+            f"MAVSDK server started with gRPC port {Params.DEFAULT_GRPC_PORT} and UDP port {udp_port}."
         )
 
         # Optionally, you can start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
-        if not wait_for_port(Params.default_GRPC_port, timeout=Params.PRE_FLIGHT_TIMEOUT):
-            logger.error(f"MAVSDK server did not start listening on port {Params.default_GRPC_port} within timeout.")
+        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=Params.PRE_FLIGHT_TIMEOUT):
+            logger.error(f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout.")
             mavsdk_server.terminate()
             return None
 
