@@ -232,11 +232,11 @@ class DroneConfig:
     #         logging.error("Home position is not set")
     #         return None
 
-    # def radian_to_degrees_heading(self, yaw_radians):
-    #     """
-    #     Convert the yaw angle from radians to degrees and normalize it to a heading (0-360 degrees).
-    #     """
-    #     yaw_degrees = math.degrees(yaw_radians)
-    #     return yaw_degrees if yaw_degrees >= 0 else yaw_degrees + 360
+    def radian_to_degrees_heading(self, yaw_radians):
+        """
+        Convert the yaw angle from radians to degrees and normalize it to a heading (0-360 degrees).
+        """
+        yaw_degrees = math.degrees(yaw_radians)
+        return yaw_degrees if yaw_degrees >= 0 else yaw_degrees + 360
 
 
