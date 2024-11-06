@@ -75,7 +75,7 @@ class Params():
     hard_reboot_command_enabled = True  # Default to not rebooting the system , make sure have root priv
     force_reboot = True
 
-
+    schedule_mission_frequency = 2  # Frequency for scheduling missions
 
     # Sleep Interval for Main Loop
     sleep_interval = 0.1  # Sleep interval for the main loop in seconds
