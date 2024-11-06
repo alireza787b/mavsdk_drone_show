@@ -75,19 +75,7 @@ class Params():
     hard_reboot_command_enabled = True  # Default to not rebooting the system , make sure have root priv
     force_reboot = True
 
-    # Packet Formats and Sizes
-    telem_struct_fmt = '>BHHBBIddddddddBIB'  # Telemetry packet format
-    command_struct_fmt = '>B B B B B I B'  # Command packet format
-    telem_packet_size = struct.calcsize(telem_struct_fmt)  # Size of telemetry packet
-    command_packet_size = struct.calcsize(command_struct_fmt)  # Size of command packet
 
-    # GRPC Configuration
-    default_GRPC_port = 50051  # Default GRPC port
-
-    # Offboard Control Configuration
-    offboard_follow_update_interval = 0.1  # Offboard follow update interval
-    schedule_mission_frequency = 2  # Frequency for scheduling missions
-    follow_setpoint_frequency = 4  # Frequency for follow setpoints
 
     # Sleep Interval for Main Loop
     sleep_interval = 0.1  # Sleep interval for the main loop in seconds
