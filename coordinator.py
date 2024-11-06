@@ -3,7 +3,7 @@
 Coordinator Application for Drone Management
 
 This script initializes and manages various components related to drone operations,
-including MAVLink communication, mission scheduling, and offboard control. It also
+including MAVLink communication, mission scheduling. It also
 provides LED feedback based on the drone's state to aid field operations.
 
 Author: Alireza Ghaderi
@@ -24,7 +24,6 @@ import asyncio  # Needed for async functions
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
 from src.drone_communicator import DroneCommunicator
-from src.offboard_controller import OffboardController
 from src.drone_setup import DroneSetup
 from src.params import Params
 from src.mavlink_manager import MavlinkManager
@@ -71,13 +70,11 @@ logger.addHandler(file_handler)
 # Global variables
 mavlink_manager = None
 global_telemetry = {}  # Store telemetry data
-offboard_controllers = {}  # Store OffboardController instances
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
 drones = {}  # Dictionary to store drone information
 params = Params()  # Global parameters instance
 drone_config = DroneConfig(drones)  # Initialize DroneConfig
-offboard_controller = OffboardController(drone_config)  # OffboardController instance
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
@@ -111,7 +108,7 @@ def main_loop():
     """
     Main loop of the coordinator application.
     """
-    global mavlink_manager, offboard_controller, drone_comms, drone_setup  # Declare as global variables
+    global mavlink_manager, drone_comms, drone_setup  # Declare as global variables
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
@@ -129,9 +126,6 @@ def main_loop():
         LEDController.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
 
-        # Timing variables for loop intervals
-        last_follow_setpoint_time = 0
-        follow_setpoint_interval = 1.0 / params.follow_setpoint_frequency
 
         # Start mission scheduling thread
         scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
@@ -170,12 +164,6 @@ def main_loop():
                     LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
-            # Handle mission mode 2 if needed
-            if int(drone_config.mission) == 2:
-                if current_time - last_follow_setpoint_time >= follow_setpoint_interval:
-                    offboard_controller.calculate_follow_setpoint()
-                    last_follow_setpoint_time = current_time
-                    logger.debug("Calculated follow setpoint.")
 
             time.sleep(params.sleep_interval)  # Sleep for defined interval
 
@@ -233,7 +221,7 @@ def main():
         logger.info("Flask HTTP server started.")
 
     # Step 5: Initialize DroneSetup
-    drone_setup = DroneSetup(params, drone_config, offboard_controller)
+    drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
 
     # Step 6: Start the main loop
