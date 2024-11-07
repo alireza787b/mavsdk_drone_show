@@ -2,6 +2,7 @@
 import os
 import sys
 import asyncio
+import threading
 import aiohttp
 import logging
 import time
@@ -12,41 +13,39 @@ from params import Params
 from enums import Mission, State
 from config import load_config
 
-# Telemetry data storage
 telemetry_data_all_drones = {}
 last_telemetry_time = {}
+data_lock = threading.Lock()
+
 
 # Set up logging
 logger = logging.getLogger('telemetry')
 logger.setLevel(logging.INFO)
+logger.propagate = False  # Prevent propagation to root logger
 handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s | Drone %(drone_id)s | %(levelname)s | %(message)s')
+handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-class TelemetryPoller:
-    def __init__(self, drones):
-        self.drones = drones
-        self.telemetry_data = {}
-        self.last_telemetry_time = {}
-        self.polling_interval = Params.polling_interval
-        self.timeout = Params.HTTP_REQUEST_TIMEOUT
-        self.semaphore = asyncio.Semaphore(Params.MAX_CONCURRENT_REQUESTS)  # Limit concurrent requests
+def initialize_telemetry_tracking(drones):
+    for drone in drones:
+        telemetry_data_all_drones[drone['hw_id']] = {}
+        last_telemetry_time[drone['hw_id']] = 0
+    logger.info(f"Initialized tracking for {len(drones)} drones", extra={'drone_id': 'System'})
 
-        # Initialize telemetry data
-        for drone in drones:
-            self.telemetry_data[drone['hw_id']] = {}
-            self.last_telemetry_time[drone['hw_id']] = 0
-
-    async def fetch_telemetry(self, session, drone):
-        hw_id = drone['hw_id']
-        ip = drone['ip']
-        uri = f"http://{ip}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
-
+async def fetch_telemetry(session, drone, retries=3, backoff_factor=1):
+    attempt = 0
+    wait_time = 0
+    while attempt < retries:
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
         try:
-            async with self.semaphore:
-                async with session.get(uri, timeout=self.timeout) as response:
-                    if response.status == 200:
-                        telemetry_data = await response.json()
-                        self.telemetry_data[hw_id] = {
+            full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
+            async with session.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT) as response:
+                if response.status == 200:
+                    telemetry_data = await response.json()
+                    with data_lock:
+                        telemetry_data_all_drones[drone['hw_id']] = {
                             'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
                             'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
                             'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
@@ -66,58 +65,64 @@ class TelemetryPoller:
                             'Hdop': telemetry_data.get('hdop', 99.99),
                             'Vdop': telemetry_data.get('vdop', 99.99),
                         }
-                        self.last_telemetry_time[hw_id] = time.time()
-                        logger.info(f"Successfully fetched telemetry for drone {hw_id}")
-                    else:
-                        logger.error(
-                            f"Failed to fetch telemetry from drone {hw_id} (HTTP {response.status})",
-                            extra={'drone_id': hw_id, 'error_type': 'HTTP'}
-                        )
+                    last_telemetry_time[drone['hw_id']] = time.time()
+                    logger.info(f"Telemetry updated", extra={'drone_id': drone['hw_id']})
+                    return
+                else:
+                    logger.error(
+                        f"HTTP Error {response.status}: {response.reason}",
+                        extra={'drone_id': drone['hw_id']}
+                    )
+                    return
         except asyncio.TimeoutError:
             logger.error(
-                f"Timeout while fetching telemetry from drone {hw_id}",
-                extra={'drone_id': hw_id, 'error_type': 'Timeout'}
+                "Timeout while fetching telemetry",
+                extra={'drone_id': drone['hw_id']}
             )
-        except aiohttp.ClientError as e:
+        except aiohttp.ClientConnectionError as e:
             logger.error(
-                f"Client error while fetching telemetry from drone {hw_id}: {e}",
-                extra={'drone_id': hw_id, 'error_type': 'ClientError'}
+                f"Connection error: {e}",
+                extra={'drone_id': drone['hw_id']}
             )
         except Exception as e:
             logger.error(
-                f"Unexpected error while fetching telemetry from drone {hw_id}: {e}",
-                extra={'drone_id': hw_id, 'error_type': 'UnexpectedError'}
+                f"Unexpected error: {e}",
+                extra={'drone_id': drone['hw_id']}
             )
+        attempt += 1
+        wait_time = backoff_factor * (2 ** (attempt - 1))
+        logger.warning(
+            f"Retrying ({attempt}/{retries}) after {wait_time} seconds",
+            extra={'drone_id': drone['hw_id']}
+        )
+    # Purge stale data after retries
+    telemetry_data_all_drones[drone['hw_id']] = {}
+    logger.warning(
+        f"Failed to fetch telemetry after {retries} attempts",
+        extra={'drone_id': drone['hw_id']}
+    )
 
-    async def poll_telemetry(self):
-        async with aiohttp.ClientSession() as session:
-            while True:
-                tasks = [self.fetch_telemetry(session, drone) for drone in self.drones]
-                await asyncio.gather(*tasks)
-                self.purge_stale_data()
-                await asyncio.sleep(self.polling_interval)
-
-    def purge_stale_data(self):
-        current_time = time.time()
-        for hw_id in list(self.telemetry_data.keys()):
-            if current_time - self.last_telemetry_time[hw_id] > self.timeout:
-                logger.warning(f"No telemetry received from drone {hw_id} for over {self.timeout} seconds. Purging data.")
-                self.telemetry_data[hw_id] = {}
-
-    def get_telemetry_data(self):
-        return self.telemetry_data
+async def poll_telemetry(drones):
+    connector = aiohttp.TCPConnector(limit=100)  # Adjust limit based on system capabilities
+    timeout = aiohttp.ClientTimeout(total=Params.HTTP_REQUEST_TIMEOUT)
+    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+        while True:
+            tasks = []
+            for drone in drones:
+                tasks.append(fetch_telemetry(session, drone))
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(Params.polling_interval)
 
 def start_telemetry_polling(drones):
-    poller = TelemetryPoller(drones)
-    loop = asyncio.get_event_loop()
-    asyncio.ensure_future(poller.poll_telemetry())
-    return poller
-
-# Update the global telemetry data variable
-poller = None
-
-if __name__ == "__main__":
-    drones = load_config()
-    poller = start_telemetry_polling(drones)
-    loop = asyncio.get_event_loop()
+    initialize_telemetry_tracking(drones)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(poll_telemetry(drones))
     loop.run_forever()
+
+# Start the polling in a separate thread
+def start_telemetry_thread(drones):
+    thread = threading.Thread(target=start_telemetry_polling, args=(drones,))
+    thread.daemon = True
+    thread.start()
+    logger.info("Telemetry polling started", extra={'drone_id': 'System'})

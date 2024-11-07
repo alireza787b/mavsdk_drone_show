@@ -1,11 +1,11 @@
-#gcs-server/app.py
+# gcs-server/app.py
 import os
 import sys
 import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from routes import setup_routes
-from telemetry import start_telemetry_polling
+from telemetry import start_telemetry_thread  # Updated import
 from config import load_config
 
 # Configure logging at the entry point of the application
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     drones = load_config()
     if drones:
         logging.info(f"Starting telemetry polling for {len(drones)} drones.")
-        start_telemetry_polling(drones)
+        start_telemetry_thread(drones)  # Updated function call
     else:
         logging.error("No drones found in configuration. Telemetry polling will not be started.")
 

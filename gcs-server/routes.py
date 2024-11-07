@@ -8,7 +8,7 @@ import zipfile
 import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from telemetry import telemetry_data_all_drones, start_telemetry_polling 
+from telemetry import telemetry_data_all_drones , data_lock
 from command import send_commands_to_all, send_command_to_drone
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
@@ -18,7 +18,6 @@ from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
-from telemetry import poller  # Import the poller instance
 
 
 
@@ -42,10 +41,11 @@ def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
         logger.info("Telemetry data requested")
-        telemetry_data = poller.get_telemetry_data()
-        if not telemetry_data:
+        with data_lock:
+            data_copy = telemetry_data_all_drones.copy()
+        if not data_copy:
             logger.warning("Telemetry data is currently empty")
-        return jsonify(telemetry_data)
+        return jsonify(data_copy)
 
     @app.route('/submit_command', methods=['POST'])
     def submit_command():
