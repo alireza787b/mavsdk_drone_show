@@ -40,11 +40,9 @@ Version 2.0 marks a significant milestone in our project, incorporating extensiv
 
 > **Note:** The swarm leader/follower functionality is currently under development and will be reintroduced in a future release.
 
-<a  href="https://youtu.be/E0xijEuTKtU"  target="_blank"><img  src="https://github.com/alireza787b/mavsdk_drone_show/assets/30341941/823ddf04-78dd-47a9-9036-809cd8da1c5b"  style="width=300px"  /></a>
+Check out our detailed **100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2** video for a visual guide on setting up and running the simulation.
 
-### Placeholder for Upcoming Demo Video
-
-Stay tuned for our upcoming YouTube demo video showcasing the new features in Version 2.0.
+[![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
 ## Features and Capabilities
 
