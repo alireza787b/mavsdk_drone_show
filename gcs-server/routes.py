@@ -8,7 +8,7 @@ import zipfile
 import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from telemetry import telemetry_data_all_drones, start_telemetry_polling , data_lock
+from telemetry import telemetry_data_all_drones, start_telemetry_polling 
 from command import send_commands_to_all, send_command_to_drone
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
