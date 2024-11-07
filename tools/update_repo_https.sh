@@ -10,7 +10,7 @@
 # Configuration:
 # - REPO_DIR: Directory of the local Git repository.
 # - GIT_URL: URL to the Git repository (HTTPS only, assuming a public repository).
-# - BRANCH_NAME: The branch to synchronize with. 
+# - BRANCH_NAME: The branch to synchronize with.
 #   By default, it is set to `real-test-1`. However, the user can specify a branch via the script's arguments.
 #   - If no branch argument is passed, the default branch will be used (`real-test-1`).
 #   - Use `--sitl` to switch to `docker-sitl-2` branch.
@@ -19,6 +19,11 @@
 # Logging:
 # The script logs all operations and their outcomes to a log file to aid in debugging
 # and operational monitoring.
+#
+# Reliability Improvements:
+# - Added retry mechanisms with exponential backoff for network operations (`git fetch`, `git pull`, and network connectivity check).
+# - The script will attempt to retry failed network operations up to a specified number of times before exiting.
+# - Enhanced error handling and logging for better troubleshooting.
 
 # Example usage:
 # ./update_repo_https.sh                   # Uses default branch (real-test-1)
@@ -59,8 +64,49 @@ determine_branch() {
 # Function to log and exit with error
 log_error_and_exit() {
     local message="$1"
-    printf "$(date): %s\n" "$message" | tee -a "$LOG_FILE" >&2
+    printf "$(date): ERROR: %s\n" "$message" | tee -a "$LOG_FILE" >&2
     exit 1
+}
+
+# Function to retry a command up to N times with exponential backoff
+retry() {
+    local retries=$1      # Number of retries
+    local delay=$2        # Initial delay between retries in seconds
+    shift 2               # Shift the arguments to get the command
+    local count=0
+
+    until "$@"; do
+        exit_code=$?
+        count=$((count + 1))
+        if [ $count -lt $retries ]; then
+            wait=$((delay * 2 ** (count -1)))
+            echo "$(date): Command failed with exit code $exit_code. Attempt $count/$retries. Retrying in $wait seconds..." | tee -a "$LOG_FILE"
+            sleep $wait
+        else
+            echo "$(date): Command failed after $count attempts." | tee -a "$LOG_FILE"
+            return $exit_code
+        fi
+    done
+    return 0
+}
+
+# Function to check network connectivity with retries
+check_network_connectivity() {
+    local retries=5       # Number of retries
+    local delay=5         # Initial delay between retries in seconds
+    local count=0
+
+    until ping -c 1 github.com >/dev/null 2>&1; do
+        count=$((count + 1))
+        if [ $count -lt $retries ]; then
+            wait=$((delay * 2 ** (count -1)))
+            echo "$(date): Network check failed. Attempt $count/$retries. Retrying in $wait seconds..." | tee -a "$LOG_FILE"
+            sleep $wait
+        else
+            log_error_and_exit "No network connectivity after multiple attempts. Cannot update repository."
+        fi
+    done
+    echo "$(date): Network connectivity confirmed." | tee -a "$LOG_FILE"
 }
 
 # Parse branch input
@@ -74,17 +120,20 @@ fi
 # Navigate to the project directory
 cd "$REPO_DIR" || log_error_and_exit "Failed to navigate to $REPO_DIR"
 
-# Do a stash
-git stash
-
-# Check network connectivity
-if ! ping -c 1 github.com >/dev/null 2>&1; then
-    log_error_and_exit "No network connectivity. Cannot update repository."
+# Stash any local changes
+if git status --porcelain | grep .; then
+    echo "$(date): Stashing local changes..." | tee -a "$LOG_FILE"
+    git stash --include-untracked
+else
+    echo "$(date): No local changes to stash." | tee -a "$LOG_FILE"
 fi
 
-# Fetch the latest updates from all branches
-if ! git fetch --all; then
-    log_error_and_exit "Failed to fetch updates from $GIT_URL"
+# Check network connectivity
+check_network_connectivity
+
+# Fetch the latest updates from all branches with retries
+if ! retry 5 5 git fetch --all; then
+    log_error_and_exit "Failed to fetch updates from $GIT_URL after multiple attempts."
 fi
 
 # Checkout the specified branch
@@ -92,9 +141,15 @@ if ! git checkout "$BRANCH_NAME"; then
     log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
 fi
 
-# Pull the latest updates
-if ! git pull --rebase; then
-    log_error_and_exit "Failed to pull the latest updates from $BRANCH_NAME"
+# Pull the latest updates with retries
+if ! retry 5 5 git pull --rebase; then
+    log_error_and_exit "Failed to pull the latest updates from $BRANCH_NAME after multiple attempts."
 else
-    printf "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME\n" | tee -a "$LOG_FILE"
+    echo "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME" | tee -a "$LOG_FILE"
 fi
+
+# Optional: Apply stashed changes if any... not needed now.
+# if git stash list | grep -q 'stash@{0}'; then
+#     echo "$(date): Applying stashed changes..." | tee -a "$LOG_FILE"
+#     git stash pop
+# fi
