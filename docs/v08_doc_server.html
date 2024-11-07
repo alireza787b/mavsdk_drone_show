@@ -138,7 +138,6 @@
 <p>Create a Virtual Machine (VM) based on your requirements. For example, using Linode, choose sufficient resources based on the number of drones you want to simulate. Recommended OS: Ubuntu 22.04.</p>
 
 
-
 <h3>Pointing a Domain or Subdomain (Optional)</h3>
 
 <p>Although it's optional, it's highly recommended to point a domain or subdomain to your drone server for ease of access and identification. You can use your existing domain or purchase a new one.</p>
@@ -170,8 +169,16 @@
   <li>Click 'Save.'</li>
 </ol>
 
+<p><strong>Note on Security and Accessibility:</strong> It is advisable to use a reverse proxy, such as Nginx or Caddy web servers, to manage and secure access to your server's various services like the dashboard and Portainer. A reverse proxy can help you configure SSL certificates for these subdomains, ensuring encrypted and secure communication. This setup not only enhances security but also improves access management, allowing you to point several subdomains to different services seamlessly.</p>
 
-<p>Tip: If you prefer, you can also continue to use the IP address of the server or Reverse DNS URLs.</p>
+<p>For detailed guides on setting up a reverse proxy with SSL certificates, please refer to:</p>
+<ul>
+  <li><a href="https://nginx.org/en/docs/" target="_blank">Nginx Documentation</a></li>
+  <li><a href="https://caddyserver.com/docs/" target="_blank">Caddy Documentation</a></li>
+</ul>
+
+<p>Tip: If you prefer, you can also continue to use the IP address of the server or your main domain and port number or Reverse DNS URLs.</p>
+
 
 <h2>Server Configuration: Basic Setup</h2>
 <h3>Access to your server using SSH</h3>
@@ -220,7 +227,7 @@ sudo apt install docker.io
 
 <pre>
 <code>
-docker load &lt; drone-template-1_19thsept2023.tar
+sudo docker load &lt; drone-template-1_19thsept2023.tar
 </code></pre>
 
 <h5>Image Features and Components</h5>
@@ -238,50 +245,56 @@ docker load &lt; drone-template-1_19thsept2023.tar
 
 <p>Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.</p>
 
-<h4>Customizing the Image (Optional)</h4>
+<h4>Customizing the Docker Image (Optional)</h4>
 
-<p>If you wish to customize this image, you'll need to load it into a Docker container and access its terminal bash for modifications. Follow these steps:</p>
+<p>If you are experienced with Docker and Git and wish to customize the Docker image for specific project needs or to test new features, here's a brief guide:</p>
 
-<ol>
-  <li>Load the image into a Docker container (for example, name it "updated_drone_template").</li>
-  <li>Access the container's terminal bash.</li>
-  <li>Fork the mavsdk_drone_show repository and clone your fork into the container home directory (instead of current official repository).</li>
-  <li>Copy the 'mavsdk_server' binary into the same directory.</li>
-  <li>Once all modifications are complete, commit the changes to the Docker image using:</li>
-</ol>
+<ul>
+  <li><strong>Container Setup:</strong> Create and start a Docker container from the existing drone template image to serve as your modification workspace.</li>
+  <li><strong>Repository Management:</strong> Fork the <code>mavsdk_drone_show</code> repository and clone your fork into the Docker container. This setup allows you to make changes without impacting the original codebase.</li>
+  <li><strong>Branch Management:</strong> Create new branches or switch between existing ones within your repository to manage different development streams or feature tests.</li>
+  <li><strong>Software Integration:</strong> Add any required components such as the MAVSDK_Server or other dependencies that are crucial for your project's functionality.</li>
+  <li><strong>Image Customization:</strong> Once your modifications are complete, commit the changes to a new Docker image to preserve your environment for future deployments.</li>
+</ul>
 
-<pre><code>
-sudo docker commit updated_drone_template drone-template-1:latest
-</code></pre>
+<p>This approach ensures you have a Docker image customized to your requirements, ready for deploying drone simulations or other related applications. Utilize your expertise in Docker and Git to manage and implement these changes efficiently.</p>
 
-<p>This will save your customizations into the Docker image. You can now proceed to use this customized image for your drone instances.</p>
-
+	    
 <h3>Portainer Installation (Optional but Highly Recommended)</h3>
 
-<pre>
-<code>
-docker volume create portainer_data
-docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+<p>Portainer is an open-source management tool that provides a graphical user interface (GUI) to facilitate the management and monitoring of Docker environments. It simplifies the deployment, troubleshooting, and overall control of Docker containers, including those used for drone simulations.</p>
+
+<pre><code>
+# Create a volume for Portainer data to ensure data persistence.
+sudo docker volume create portainer_data
+
+# Run the Portainer container bound to Docker to manage the local Docker environment.
+sudo docker run -d -p 8000:8000 -p 9443:9443 --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
 </code></pre>
 
-<p>Check for correct installation:</p>
+<p>After installation, ensure Portainer is running correctly:</p>
 
-<pre>
-<code>
+<pre><code>
 sudo docker ps
 </code></pre>
 
-<p>You can access Portainer via the browser using your domain, IP address, or the reverse DNS provided by your hosting service like Linode. eg. <code>https://drone.YOUR_DOMAIN.com:9443</code></p>
+<p>Once confirmed, you can access Portainer through a web browser, which provides an intuitive dashboard to manage your drone containers. This allows for easy monitoring of container status, direct interaction with logs, and quick modifications of container configurations.</p>
+
+<p>Access Portainer by navigating to:</p>
+
+<pre><code>
+https://drone.YOUR_DOMAIN.com:9443
+</code></pre>
+
+<p>This URL will take you to the Portainer login page, where you can manage all Docker resources. The visual interface makes it easy to start, stop, and manage your individual drone instances, providing a clear view of your deployments and simplifying complex Docker commands into user-friendly interactions.</p>
+
+	    
 
 <h2>Drone Configuration and Setup</h2>
 
-<h3>Forking the GitHub Repo (Optional)</h3>
-
-<p>Forking the <code>mavsdk_drone_show</code> GitHub repo is optional and only recommended if you are planning to customize the code. This repo was created based on version 0.8 as of September 2023. For a step-by-step guide, you can follow this <a href="https://youtube.com/playlist?list=YourPlaylistID">YouTube tutorial playlist</a> starting from version 0.1.</p>
-
-
 
 <h3>Clone Repository and Install Dependencies</h3>
+<p>If you have forked the <code>mavsdk_drone_show</code> repository to make custom modifications or to test new features, replace the <code>alireza787b</code> in the clone command below with your own GitHub username of your forked repository.</p>
 
 <pre>
 <code>
@@ -321,162 +334,149 @@ bash linux_dashboard_start.sh
   You can configure your mission, swarm design, or drone show using SkyBrush or similar tools. Remember, if you make any changes to these configurations, you should push those changes to your forked GitHub repo. Your drone instances will automatically pull these changes upon startup.
 </p>
 
-<h3>Run Drone Instances</h3>
+
+<h3>VPN Setup for Local MAVLink Communication (Optional but Recommended)</h3>
+
 <p>
-  Open a new terminal tab and SSH into your server:
+  Using a VPN is crucial for securely connecting your devices, including your server and local PC or smartphone. This setup allows you to manage and monitor your drones in real-time through a Ground Control Station (GCS) like QGroundControl. We recommend Netbird for its ease of use, but Tailscale and ZeroTier are also viable options.
 </p>
 
-<pre><code>
-ssh root@Your_Server_IP
-</code></pre>
-
+<h4>Why Use a VPN?</h4>
 <p>
-  Once connected, navigate to the repo directory:
+  VPNs like Netbird, Tailscale, and ZeroTier provide a secure and reliable way to route MAVLink packets between your server and local Ground Control Station. This is preferable to using port forwarding or VNC due to the enhanced security and simpler configuration that VPNs offer.
 </p>
 
-<pre><code>
-cd ~/mavsdk_drone_show
-</code></pre>
-
+<h4>VPN Options and Setup</h4>
 <p>
-  Create the drone instances using the following script:
+  Depending on your preference and specific needs, you can choose from several VPN solutions. Here’s how to set up each:
 </p>
 
-<pre><code>
-sudo bash multiple_sitl/create_dockers.sh 2
-</code></pre>
-
+<h5>Netbird Setup</h5>
 <p>
-  Explanation: The script <code>create_dockers.sh</code> creates instances for your simulated drones. The number "2" specifies how many drones you want to create. Make sure your server has enough resources allocated for the drone instances you plan to run. The instances should automatically appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
+  Netbird offers a straightforward setup process:
 </p>
+<ol>
+  <li>Install Netbird on both your server and local machine by following the instructions on their <a href="https://docs.netbird.io/how-to/installation">official documentation page</a>.</li>
+  <li>Run 'netbird up' to connect each device to the network.</li>
+  <li>Verify connectivity by pinging the respective Netbird IP addresses from each device.</li>
+</ol>
 
-<h3>Tailscale VPN Setup (Optional but Recommended for Local Mavlink)</h3>
-
+<h5>Tailscale Setup</h5>
 <p>
-  Tailscale is a zero-config VPN solution that allows you to easily and securely connect your devices, including your server and local PC. This is especially useful if you want to set up a Ground Control Station (e.g., QGroundControl) on your local PC or smartphone and monitor your drone's data in real-time. Tailscale is recommended for this setup to ensure efficient and secure data transmission.
+  If you prefer Tailscale, follow these steps:
 </p>
+<ol>
+  <li>Install Tailscale on both your server and local machine using the instructions provided on the <a href="https://tailscale.com/download">Tailscale download page</a>.</li>
+  <li>Authenticate and connect each device to your Tailscale network.</li>
+  <li>Check the connection by pinging the Tailscale IP addresses.</li>
+</ol>
 
-<h4>Why Use Tailscale?</h4>
+<h5>ZeroTier Setup</h5>
 <p>
-  While you have the option to use port forwarding, ZeroTier, or even VNC for a server remote desktop (not recommended), Tailscale stands out for its ease of use, reliability, and security. It's particularly beneficial for routing mavlink packets from the server to your local Ground Control Station.
+  ZeroTier can also be used by following these steps:
 </p>
+<ol>
+  <li>Download and install ZeroTier on all devices from <a href="https://www.zerotier.com/download/">their website</a>.</li>
+  <li>Create a network on the ZeroTier website and join each device to this network.</li>
+  <li>Verify the connections by pinging between the connected devices.</li>
+</ol>
 
-<h4>Local vs Server Setup</h4>
+<h4>Choosing the Right VPN</h4>
 <p>
-  Tailscale is primarily needed if you are running your GCS and webserver on a remote server. If you are running everything locally, you won't need to set up Tailscale.
-</p>
-<h4>How to Install Tailscale</h4>
-
-
-<h5>Server-Side Installation</h5>
-<p>
-  Open a new terminal tab and SSH into your server:
-</p>
-
-<pre><code>
-ssh root@Your_Server_IP
-</code></pre>
-
-<p>
-  Once connected, run following commands:
-</p>
-<pre>
-<code>
-curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.gpg | sudo apt-key add -
-curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.list | sudo tee /etc/apt/sources.list.d/tailscale.list
-sudo apt update
-sudo apt install tailscale
-</code></pre>
-
-<h5>Authenticate and Join Tailscale Network</h5>
-
-<p>Run:</p>
-<pre><code>sudo tailscale up</code> </pre>
-<p></p>on your server terminal. You will be provided with a join request link. Copy this link and open it on your local PC or smartphone, logging in with the same account you used to set up Tailscale on your PC. This ensures both the server and your local PC are on the same network with assigned Tailscale IPs.</p>
-
-<h5>Client-Side Installation</h5>
-
-<p>
-  To receive MAVLink packets on your local machine and use a GCS like QGroundControl, you will need to install Tailscale on your local device. Tailscale is available for a wide range of platforms including Windows, macOS, Linux, Android, and iOS.
-</p>
-
-<p>
-  Follow the installation guidelines for your specific platform from the <a href="https://tailscale.com/download">Tailscale official download page</a>.
-</p>
-
-<h5>Login and Join Network</h5>
-
-<p>
-  After installation, open Tailscale and login using the same account credentials you used for the server-side installation. This action will automatically join your device to your Tailscale network and assign a unique Tailscale IP address to your device.
-</p>
-
-<h5>Manage Your Network</h5>
-
-<p>
-  You can manage your devices, check their statuses, and even revoke access via the <a href="https://login.tailscale.com/admin/machines">Tailscale admin panel</a>.
+  All these VPN solutions are effective, but your choice may depend on factors like ease of use, existing familiarity, or specific features offered by each service. Netbird tends to be easier for quick setups, while Tailscale and ZeroTier offer robust configurations that might be preferable in complex network scenarios.
 </p>
 
 <h4>Test Connections</h4>
-
 <pre>
 <code>
 # On the local system
-ping SERVER_GCS_TAILSCALE_IP
+ping SERVER_GCS_VPN_IP
 
 # On the server
-ping LOCAL_GCS_TAILSCALE_IP
+ping LOCAL_GCS_VPN_IP
 </code></pre>
 <p>
-  Running these ping tests ensures that both the server and local machines are connected within the Tailscale network. If the pings are successful, you can proceed to set up the MAVLink routing.
+  Successful pings confirm a stable VPN connection. If pings fail, review your VPN settings or consult the respective support documentation for troubleshooting.
 </p>
+
 
 <h4>Using MAVLink Router</h4>
 
 <p>
-  MAVLink Router serves as a middleware to forward MAVLink packets between different endpoints. In this setup, it's essential for routing MAVLink data from your server GCS to your local GCS.
+  MAVLink Router acts as middleware to forward MAVLink packets between different endpoints. In this setup, it is crucial for routing MAVLink data from your server GCS to your local GCS.
 </p>
 <h5>Why Use MAVLink Router?</h5>
 <p>
-  When your drones are being managed by a GCS on the server, the MAVLink data packets they generate are initially sent to that server-side GCS. However, you may also want this data to be accessible on a local GCS for easier monitoring and control. MAVLink Router allows you to achieve this by routing these data packets to another GCS located on your local machine.
+  When drones are managed by a GCS on the server, the MAVLink data packets they generate are initially directed to that server-side GCS. To facilitate easier monitoring and control, you may want this data accessible on a local GCS. MAVLink Router enables this by routing the data packets to another GCS located on your local machine.
 </p>
 <h5>Installing MAVLink Router</h5>
 <p>
-  Before we proceed with the MAVLink routing, we first need to ensure MAVLink Router is installed on the server. Follow these steps to install MAVLink Router:
+  Before proceeding with the MAVLink routing, ensure that MAVLink Router is installed on the server. Follow these steps to install MAVLink Router:
 </p>
 <pre><code>
 cd ~/mavsdk_drone_show
 sudo bash tools/mavlink-router-install.sh
 </code></pre>
 <p>
-  This script will handle the installation process for MAVLink Router. Once completed, you can proceed with configuring the router.
+  This script manages the installation process for MAVLink Router. Once the installation is complete, you can proceed with configuring the router.
 </p>
-
-
 
 <h5>Understanding the Command</h5>
 <pre><code>
-  mavlink-routerd -e LOCAL_GCS_TAILSCALE_IP:24550 0.0.0.0:34550
+  mavlink-routerd -e LOCAL_GCS_VPN_IP:24550 0.0.0.0:34550
 </code></pre>
 <p>
   Here's what each parameter means:
   <ul>
-    <li><code>-e LOCAL_GCS_TAILSCALE_IP:24550</code>: This specifies the endpoint where MAVLink messages will be forwarded. Replace "LOCAL_GCS_TAILSCALE_IP" with the Tailscale IP of your local machine. The port "24550" is where your local GCS is listening for incoming MAVLink messages.</li>
-    <li><code>0.0.0.0:34550</code>: This is the port on the server where the MAVLink messages are received from the drones. In this example, it's port "34550".</li>
+    <li><code>-e LOCAL_GCS_VPN_IP:24550</code>: This specifies the endpoint where MAVLink messages will be forwarded. Replace "LOCAL_GCS_VPN_IP" with the VPN IP of your local machine. The port "24550" is where your local GCS listens for incoming MAVLink messages.</li>
+    <li><code>0.0.0.0:34550</code>: This port on the server receives MAVLink messages from the drones. In this example, it's port "34550".</li>
   </ul>
 </p>
 
 <h5>Ports Configuration</h5>
 <p>
-  In the given command, MAVLink messages are being sent initially on port "34550" to the first GCS (server-side), and then routed to port "24550" for the second GCS (local). These port numbers can be modified in the "params.py" file as per your requirements.
+  In the given command, MAVLink messages are initially sent to port "34550" on the first GCS (server-side) and then routed to port "24550" on the second GCS (local). These port numbers can be adjusted in the "params.py" file according to your requirements.
 </p>
 
 
 
 <h4>QGroundControl Settings</h4>
 
-<p>On your local GCS, open QGroundControl and navigate to &#39;Application Settings&#39; &gt; &#39;Comm Links&#39;. Create a new comm link, name it (e.g., &#39;server1&#39;), check the &#39;High Latency&#39; mode, set the connection type to &#39;UDP&#39;, set the port to &#39;24550&#39;, and add the server (<code>SERVER_GCS_TAILSCALE_IP</code>). Save and select this comm link to connect. All your drones should now be auto-detected.</p>
+<p>On your local GCS, open QGroundControl and navigate to &#39;Application Settings&#39; &gt; &#39;Comm Links&#39;. Create a new comm link, name it (e.g., &#39;server1&#39;), check the &#39;High Latency&#39; mode, set the connection type to &#39;UDP&#39;, set the port to &#39;24550&#39;, and optionally add the server (<code>SERVER_GCS_VPN_IP</code>). Save and select this comm link to connect. All your drones should now be auto-detected.</p>
 
-<h2>Clean-Up</h2>
+<h2>Run Drone Instances</h2>
+<p>
+  Open a new terminal tab and SSH into your server:
+</p>
+
+<pre><code>
+ssh root@Your_Server_IP
+</code></pre>
+
+<p>
+  Once connected, navigate to the repository directory:
+</p>
+
+<pre><code>
+cd ~/mavsdk_drone_show
+</code></pre>
+
+<p>
+  Create the drone instances using the following script. This script now supports specifying a branch name for the simulations, allowing you to test different branches without affecting the main code base or real-world tests:
+</p>
+
+<pre><code>
+sudo bash multiple_sitl/create_dockers.sh 2 sitl-test
+</code></pre>
+
+<p>
+  The first argument specifies how many drone instances you want to create. In this example, "2" drones will be created. The second argument "sitl-test" specifies the branch name to be used for each Docker container. If no branch name is provided, the script defaults to the 'main' branch. This feature is particularly useful for testing new features or configurations in isolation from the main operational environment.
+</p>
+
+<p>
+  Ensure your server has enough resources allocated for the drone instances you plan to run. The instances should automatically appear in your Portainer container list, where you can manage, monitor, and remove them as needed.
+</p>
+	    <h2>Clean-Up</h2>
 
 <p>Once you are done, head over to the Portainer container menu and remove the drone instances you created. This will help save disk resources.</p>
 
@@ -485,9 +485,9 @@ sudo bash tools/mavlink-router-install.sh
 <p>If you encounter any issues during this setup, here are some common troubleshooting steps:</p>
 
 <ul>
-	<li>Ensure both the server and the local PC are connected to the same Tailscale network.</li>
-	<li>Check the Tailscale admin interface to confirm that your devices are online.</li>
-	<li>If pings are unsuccessful, verify firewall rules and consult Tailscale documentation for network issues.</li>
+	<li>Ensure both the server and the local PC are connected to the same VPN network.</li>
+	<li>Check the VPN admin interface to confirm that your devices are online.</li>
+	<li>If pings are unsuccessful, verify firewall rules and consult VPN overlay provider documentation for network issues.</li>
 </ul>
 
 <h2>Conclusion</h2>
@@ -538,7 +538,9 @@ sudo bash tools/mavlink-router-install.sh
 	<li><a href="https://www.youtube.com/watch?v=iX0HbrfRyvc" target="_blank">Portainer Guide by Network Chuck</a></li>
 	<li><a href="https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk" target="_blank">My YouTube Playlist on Project History</a></li>
 	<li><a href="https://github.com/alireza787b/mavsdk_drone_show" target="_blank">My GitHub Repository</a></li>
+	<li><a href="https://docs.netbird.io/">Netbird Knowledge Base</a></li>
 	<li><a href="https://tailscale.com/kb/">Tailscale Knowledge Base</a></li>
+	<li><a href="https://docs.zerotier.com/">Zerotier Knowledge Base</a></li>
 	<li><a href="https://mavlink.io/en/">Mavlink Official Documentation</a></li>
 	<li><a href="https://docs.qgroundcontrol.com/master/en/">QGroundControl Documentation</a></li>
 </ul>
