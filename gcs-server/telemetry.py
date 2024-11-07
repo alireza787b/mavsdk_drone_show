@@ -1,11 +1,10 @@
-#gcs-server/telemetry.py
+# gcs-server/telemetry.py
 import os
 import sys
-import traceback
-import requests
-import threading
-import time
+import asyncio
+import aiohttp
 import logging
+import time
 from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
@@ -13,123 +12,112 @@ from params import Params
 from enums import Mission, State
 from config import load_config
 
+# Telemetry data storage
 telemetry_data_all_drones = {}
 last_telemetry_time = {}
-data_lock = threading.Lock()  # Ensure thread-safe access to shared data
-
-# Custom logging formatter
-class CustomFormatter(logging.Formatter):
-    def format(self, record):
-        timestamp = self.formatTime(record, '%Y-%m-%d %H:%M:%S')
-        if record.levelno == logging.INFO:
-            return f"{timestamp} | Drone {record.drone_id} | SUCCESS | {record.getMessage()}"
-        elif record.levelno == logging.ERROR:
-            return f"{timestamp} | Drone {record.drone_id} | ERROR | {record.error_type}: {record.getMessage()}"
-        return super().format(record)
 
 # Set up logging
 logger = logging.getLogger('telemetry')
 logger.setLevel(logging.INFO)
-logger.propagate = False  # Prevent propagation to root logger
 handler = logging.StreamHandler()
-handler.setFormatter(CustomFormatter())
 logger.addHandler(handler)
 
-def initialize_telemetry_tracking(drones):
-    for drone in drones:
-        with data_lock:
-            telemetry_data_all_drones[drone['hw_id']] = {}
-        last_telemetry_time[drone['hw_id']] = 0
-    logger.info(f"Initialized tracking for {len(drones)} drones", extra={'drone_id': 'System'})
+class TelemetryPoller:
+    def __init__(self, drones):
+        self.drones = drones
+        self.telemetry_data = {}
+        self.last_telemetry_time = {}
+        self.polling_interval = Params.polling_interval
+        self.timeout = Params.HTTP_REQUEST_TIMEOUT
+        self.semaphore = asyncio.Semaphore(Params.MAX_CONCURRENT_REQUESTS)  # Limit concurrent requests
 
-def poll_telemetry(drone):
-    while True:
+        # Initialize telemetry data
+        for drone in drones:
+            self.telemetry_data[drone['hw_id']] = {}
+            self.last_telemetry_time[drone['hw_id']] = 0
+
+    async def fetch_telemetry(self, session, drone):
+        hw_id = drone['hw_id']
+        ip = drone['ip']
+        uri = f"http://{ip}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
+
         try:
-            # Construct the full URI
-            full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
-            
-            # Make the HTTP request
-            response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)
-
-            # Check for a successful response
-            if response.status_code == 200:
-                telemetry_data = response.json()
-
-                # Update telemetry data with thread-safe access
-                with data_lock:
-                    telemetry_data_all_drones[drone['hw_id']] = {
-                        'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
-                        'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
-                        'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
-                        'Position_Lat': telemetry_data.get('position_lat', 0.0),
-                        'Position_Long': telemetry_data.get('position_long', 0.0),
-                        'Position_Alt': telemetry_data.get('position_alt', 0.0),
-                        'Velocity_North': telemetry_data.get('velocity_north', 0.0),
-                        'Velocity_East': telemetry_data.get('velocity_east', 0.0),
-                        'Velocity_Down': telemetry_data.get('velocity_down', 0.0),
-                        'Yaw': telemetry_data.get('yaw', 0.0),
-                        'Battery_Voltage': telemetry_data.get('battery_voltage', 0.0),
-                        'Follow_Mode': telemetry_data.get('follow_mode', 'Unknown'),
-                        'Update_Time': telemetry_data.get('update_time', 'Unknown'),
-                        'Timestamp': telemetry_data.get('timestamp', time.time()),
-                        'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
-                        'System_Status': telemetry_data.get('system_status', 'Unknown'),  # MAVLink system status
-                        'Hdop': telemetry_data.get('hdop', 99.99),
-                        'Vdop': telemetry_data.get('vdop', 99.99),  # Vertical dilution of precision
-                    }
-                    last_telemetry_time[drone['hw_id']] = time.time()
-
-            else:
-                # Log detailed HTTP error information
-                logger.error(
-                    f"Request failed with status {response.status_code}: {response.text}",
-                    extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP', 'status_code': response.status_code}
-                )
-
-        except requests.Timeout:
+            async with self.semaphore:
+                async with session.get(uri, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        telemetry_data = await response.json()
+                        self.telemetry_data[hw_id] = {
+                            'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
+                            'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
+                            'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
+                            'Position_Lat': telemetry_data.get('position_lat', 0.0),
+                            'Position_Long': telemetry_data.get('position_long', 0.0),
+                            'Position_Alt': telemetry_data.get('position_alt', 0.0),
+                            'Velocity_North': telemetry_data.get('velocity_north', 0.0),
+                            'Velocity_East': telemetry_data.get('velocity_east', 0.0),
+                            'Velocity_Down': telemetry_data.get('velocity_down', 0.0),
+                            'Yaw': telemetry_data.get('yaw', 0.0),
+                            'Battery_Voltage': telemetry_data.get('battery_voltage', 0.0),
+                            'Follow_Mode': telemetry_data.get('follow_mode', 'Unknown'),
+                            'Update_Time': telemetry_data.get('update_time', 'Unknown'),
+                            'Timestamp': telemetry_data.get('timestamp', time.time()),
+                            'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
+                            'System_Status': telemetry_data.get('system_status', 'Unknown'),
+                            'Hdop': telemetry_data.get('hdop', 99.99),
+                            'Vdop': telemetry_data.get('vdop', 99.99),
+                        }
+                        self.last_telemetry_time[hw_id] = time.time()
+                        logger.info(f"Successfully fetched telemetry for drone {hw_id}")
+                    else:
+                        logger.error(
+                            f"Failed to fetch telemetry from drone {hw_id} (HTTP {response.status})",
+                            extra={'drone_id': hw_id, 'error_type': 'HTTP'}
+                        )
+        except asyncio.TimeoutError:
             logger.error(
-                "Connection timeout while polling telemetry",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'Timeout'}
+                f"Timeout while fetching telemetry from drone {hw_id}",
+                extra={'drone_id': hw_id, 'error_type': 'Timeout'}
             )
-        except requests.ConnectionError as e:
+        except aiohttp.ClientError as e:
             logger.error(
-                f"No route to host: {drone['ip']}. Error: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'ConnectionError'}
-            )
-        except requests.RequestException as e:
-            logger.error(
-                f"RequestException occurred: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'RequestException', 'traceback': traceback.format_exc()}
+                f"Client error while fetching telemetry from drone {hw_id}: {e}",
+                extra={'drone_id': hw_id, 'error_type': 'ClientError'}
             )
         except Exception as e:
             logger.error(
-                f"Unexpected error: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'UnexpectedError', 'traceback': traceback.format_exc()}
+                f"Unexpected error while fetching telemetry from drone {hw_id}: {e}",
+                extra={'drone_id': hw_id, 'error_type': 'UnexpectedError'}
             )
 
-        # Purge stale telemetry data if no response for a certain period
+    async def poll_telemetry(self):
+        async with aiohttp.ClientSession() as session:
+            while True:
+                tasks = [self.fetch_telemetry(session, drone) for drone in self.drones]
+                await asyncio.gather(*tasks)
+                self.purge_stale_data()
+                await asyncio.sleep(self.polling_interval)
+
+    def purge_stale_data(self):
         current_time = time.time()
-        with data_lock:
-            if current_time - last_telemetry_time[drone['hw_id']] > Params.HTTP_REQUEST_TIMEOUT:
-                logger.warning(f"No telemetry received for drone {drone['hw_id']} for over {Params.HTTP_REQUEST_TIMEOUT} seconds. Purging stale data.")
-                telemetry_data_all_drones[drone['hw_id']] = {}
+        for hw_id in list(self.telemetry_data.keys()):
+            if current_time - self.last_telemetry_time[hw_id] > self.timeout:
+                logger.warning(f"No telemetry received from drone {hw_id} for over {self.timeout} seconds. Purging data.")
+                self.telemetry_data[hw_id] = {}
 
-        time.sleep(Params.polling_interval)
-
-
+    def get_telemetry_data(self):
+        return self.telemetry_data
 
 def start_telemetry_polling(drones):
-    initialize_telemetry_tracking(drones)
-    
-    for drone in drones:
-        thread = threading.Thread(target=poll_telemetry, args=(drone,))
-        thread.daemon = True
-        thread.start()
-        logger.info(f"Started polling for drone {drone['hw_id']}", extra={'drone_id': drone['hw_id']})
+    poller = TelemetryPoller(drones)
+    loop = asyncio.get_event_loop()
+    asyncio.ensure_future(poller.poll_telemetry())
+    return poller
+
+# Update the global telemetry data variable
+poller = None
 
 if __name__ == "__main__":
     drones = load_config()
-    start_telemetry_polling(drones)
-
-    while True:
-        time.sleep(1)
+    poller = start_telemetry_polling(drones)
+    loop = asyncio.get_event_loop()
+    loop.run_forever()

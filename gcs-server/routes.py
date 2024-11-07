@@ -18,6 +18,7 @@ from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
+from telemetry import poller  # Import the poller instance
 
 
 
@@ -41,9 +42,10 @@ def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
         logger.info("Telemetry data requested")
-        if not telemetry_data_all_drones:
+        telemetry_data = poller.get_telemetry_data()
+        if not telemetry_data:
             logger.warning("Telemetry data is currently empty")
-        return jsonify(telemetry_data_all_drones)
+        return jsonify(telemetry_data)
 
     @app.route('/submit_command', methods=['POST'])
     def submit_command():
