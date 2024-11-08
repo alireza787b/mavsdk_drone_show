@@ -101,9 +101,6 @@ def configure_logging():
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # Limit the number of log files TODO!
-    #limit_log_files(logs_directory, MAX_LOG_FILES)
-
 def read_hw_id() -> int:
     """
     Read the hardware ID from a file with the extension '.hwID'.
@@ -294,7 +291,7 @@ def check_mavsdk_server_running(port):
     logger = logging.getLogger(__name__)
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.net_connections(kind='inet'):
+            for conn in proc.connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -395,40 +392,53 @@ async def update_leader_state():
             if response.status_code == 200:
                 data = response.json()
                 leader_update_time = data.get('update_time', None)
-                if leader_update_time and leader_update_time != last_update_time:
-                    last_update_time = leader_update_time
-                    # Convert lat, lon, alt to NED
-                    leader_n, leader_e, leader_d = lla_to_ned(
-                        data['position_lat'], data['position_long'], data['position_alt'],
-                        REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
-                    )
-                    # Update LEADER_STATE
-                    LEADER_STATE['pos_n'] = leader_n
-                    LEADER_STATE['pos_e'] = leader_e
-                    LEADER_STATE['pos_d'] = leader_d
-                    LEADER_STATE['vel_n'] = data['velocity_north']
-                    LEADER_STATE['vel_e'] = data['velocity_east']
-                    LEADER_STATE['vel_d'] = data['velocity_down']
-                    LEADER_STATE['yaw'] = data['yaw']
-                    LEADER_STATE['update_time'] = leader_update_time
+                if leader_update_time is not None:
+                    leader_update_time = float(leader_update_time)
+                    if leader_update_time != last_update_time:
+                        last_update_time = leader_update_time
+                        # Convert lat, lon, alt to NED
+                        leader_n, leader_e, leader_d = lla_to_ned(
+                            data['position_lat'], data['position_long'], data['position_alt'],
+                            REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
+                        )
+                        # Update LEADER_STATE
+                        LEADER_STATE['pos_n'] = leader_n
+                        LEADER_STATE['pos_e'] = leader_e
+                        LEADER_STATE['pos_d'] = leader_d
+                        LEADER_STATE['vel_n'] = data['velocity_north']
+                        LEADER_STATE['vel_e'] = data['velocity_east']
+                        LEADER_STATE['vel_d'] = data['velocity_down']
+                        LEADER_STATE['yaw'] = data['yaw']
+                        LEADER_STATE['update_time'] = leader_update_time
+                        # Store leader's LLA
+                        LEADER_STATE['position_lat'] = data['position_lat']
+                        LEADER_STATE['position_long'] = data['position_long']
+                        LEADER_STATE['position_alt'] = data['position_alt']
 
-                    # Prepare measurement for Kalman filter
-                    measurement = {
-                        'pos_n': leader_n,
-                        'pos_e': leader_e,
-                        'pos_d': leader_d,
-                        'vel_n': data['velocity_north'],
-                        'vel_e': data['velocity_east'],
-                        'vel_d': data['velocity_down'],
-                    }
-                    measurement_time = leader_update_time  # Already in seconds
-                    # Update Kalman filter
-                    LEADER_KALMAN_FILTER.update(measurement, measurement_time)
-                    logger.debug(f"Leader measurement at time {measurement_time:.3f}s: {measurement}")
-                    logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
-                    logger.debug("Leader state updated and Kalman filter updated.")
+                        logger.debug(f"Leader NED Position: N={leader_n:.2f}, E={leader_e:.2f}, D={leader_d:.2f}")
+                        logger.debug(f"Leader LLA Position: Lat={LEADER_STATE['position_lat']}, Lon={LEADER_STATE['position_long']}, Alt={LEADER_STATE['position_alt']}")
+
+                        if Params.ENABLE_KALMAN_FILTER:
+                            # Prepare measurement for Kalman filter
+                            measurement = {
+                                'pos_n': leader_n,
+                                'pos_e': leader_e,
+                                'pos_d': leader_d,
+                                'vel_n': data['velocity_north'],
+                                'vel_e': data['velocity_east'],
+                                'vel_d': data['velocity_down'],
+                            }
+                            measurement_time = leader_update_time  # Already in seconds
+                            # Update Kalman filter
+                            LEADER_KALMAN_FILTER.update(measurement, measurement_time)
+                            logger.debug(f"Leader measurement at time {measurement_time:.3f}s: {measurement}")
+                            logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
+                        else:
+                            logger.debug(f"Leader state updated at time {leader_update_time:.3f}s.")
+                    else:
+                        logger.debug("No new leader state data available.")
                 else:
-                    logger.debug("No new leader state data available.")
+                    logger.error("Leader data does not contain 'update_time'.")
             else:
                 logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
         except requests.RequestException as e:
@@ -443,7 +453,7 @@ async def update_leader_state():
 
 async def control_loop(drone: System):
     """
-    Control loop that sends offboard setpoints to the drone based on the estimated leader state.
+    Control loop that sends offboard setpoints to the drone based on the leader state.
 
     Args:
         drone (System): MAVSDK drone system instance.
@@ -461,57 +471,93 @@ async def control_loop(drone: System):
         while True:
             current_time = time.time()
             # Check data freshness
-            if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
-                stale_start_time = None
-                # Predict leader state
-                predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
-                # Extract predicted positions and velocities
-                leader_n = predicted_state[0]
-                leader_e = predicted_state[1]
-                leader_d = predicted_state[2]
-                leader_vel_n = predicted_state[3]
-                leader_vel_e = predicted_state[4]
-                leader_vel_d = predicted_state[5]
-                leader_yaw = LEADER_STATE.get('yaw', 0.0)
-                logger.debug(f"Predicted leader state at time {current_time:.3f}s: pos_n={leader_n:.2f}m, pos_e={leader_e:.2f}m, pos_d={leader_d:.2f}m, vel_n={leader_vel_n:.2f}m/s, vel_e={leader_vel_e:.2f}m/s, vel_d={leader_vel_d:.2f}m/s, yaw={leader_yaw:.2f}°")
-                # Calculate offsets
-                if BODY_COORD:
-                    # Note: Although offsets are labeled as N and E, in body coordinate mode, they are Forward and Right
-                    offset_n, offset_e = transform_body_to_nea(OFFSETS['n'], OFFSETS['e'], leader_yaw)
-                    logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']:.2f}m, Right={OFFSETS['e']:.2f}m, Transformed to NED: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
-                else:
-                    offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
-                    logger.debug(f"Offsets in NED coordinates: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
-                
-                logger.debug(f"Altitude offset: offset_alt={OFFSETS['alt']:.2f}m")
-                
-                # Desired positions
-                desired_n = leader_n + offset_n
-                desired_e = leader_e + offset_e
-                desired_d = leader_d - OFFSETS['alt']  # Altitude offset, subtract in NED
-                logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
-                # Create setpoints
-                position_setpoint = PositionNedYaw(
-                    desired_n, desired_e, desired_d, leader_yaw
-                )
-                if Params.SWARM_FEEDFORWARD_VELOCITY_ENABLED:
-                    desired_vel_n = leader_vel_n
-                    desired_vel_e = leader_vel_e
-                    desired_vel_d = leader_vel_d
-                    velocity_setpoint = VelocityNedYaw(
-                        desired_vel_n, desired_vel_e, desired_vel_d, leader_yaw
+            if 'update_time' in LEADER_STATE:
+                time_since_update = current_time - LEADER_STATE['update_time']
+                if is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
+                    stale_start_time = None
+
+                    # Fetch own LLA position
+                    position = await drone.telemetry.position()
+                    own_lat = position.latitude_deg
+                    own_lon = position.longitude_deg
+                    own_alt = position.absolute_altitude_m
+
+                    logger.debug(f"Own LLA Position: Lat={own_lat}, Lon={own_lon}, Alt={own_alt}")
+
+                    # Compute NED vector from own position to leader's position
+                    leader_ned_n, leader_ned_e, leader_ned_d = navpy.lla2ned(
+                        LEADER_STATE['position_lat'], LEADER_STATE['position_long'], LEADER_STATE['position_alt'],
+                        own_lat, own_lon, own_alt
                     )
-                    await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
-                    logger.debug(f"Position and velocity setpoints sent. Position: {position_setpoint}, Velocity: {velocity_setpoint}")
+
+                    logger.debug(f"Leader NED from Own Position: N={leader_ned_n:.2f}, E={leader_ned_e:.2f}, D={leader_ned_d:.2f}")
+
+                    if Params.ENABLE_KALMAN_FILTER:
+                        # Predict leader state using Kalman filter
+                        predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
+                        leader_n = predicted_state[0]
+                        leader_e = predicted_state[1]
+                        leader_d = predicted_state[2]
+                        leader_vel_n = predicted_state[3]
+                        leader_vel_e = predicted_state[4]
+                        leader_vel_d = predicted_state[5]
+                        leader_yaw = LEADER_STATE.get('yaw', 0.0)
+                        logger.debug(f"Predicted leader state at time {current_time:.3f}s: pos_n={leader_n:.2f}m, pos_e={leader_e:.2f}m, pos_d={leader_d:.2f}m, vel_n={leader_vel_n:.2f}m/s, vel_e={leader_vel_e:.2f}m/s, vel_d={leader_vel_d:.2f}m/s, yaw={leader_yaw:.2f}°")
+                    else:
+                        # Use the latest leader state
+                        leader_n = leader_ned_n
+                        leader_e = leader_ned_e
+                        leader_d = leader_ned_d
+                        leader_vel_n = LEADER_STATE['vel_n']
+                        leader_vel_e = LEADER_STATE['vel_e']
+                        leader_vel_d = LEADER_STATE['vel_d']
+                        leader_yaw = LEADER_STATE.get('yaw', 0.0)
+                        logger.debug(f"Using latest leader state at time {current_time:.3f}s.")
+
+                    # Calculate offsets
+                    if BODY_COORD:
+                        offset_n, offset_e = transform_body_to_nea(OFFSETS['n'], OFFSETS['e'], leader_yaw)
+                        logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']:.2f}m, Right={OFFSETS['e']:.2f}m, Transformed to NED: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
+                    else:
+                        offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
+                        logger.debug(f"Offsets in NED coordinates: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
+
+                    logger.debug(f"Altitude offset: offset_alt={OFFSETS['alt']:.2f}m")
+
+                    # Desired positions
+                    desired_n = leader_n + offset_n
+                    desired_e = leader_e + offset_e
+                    desired_d = leader_d - OFFSETS['alt']  # Altitude offset, subtract in NED
+
+                    logger.debug(f"Desired NED Position: N={desired_n:.2f}, E={desired_e:.2f}, D={desired_d:.2f}, yaw={leader_yaw:.2f}°")
+
+                    # Create setpoints
+                    position_setpoint = PositionNedYaw(
+                        desired_n, desired_e, desired_d, leader_yaw
+                    )
+                    if Params.SWARM_FEEDFORWARD_VELOCITY_ENABLED:
+                        desired_vel_n = leader_vel_n
+                        desired_vel_e = leader_vel_e
+                        desired_vel_d = leader_vel_d
+                        velocity_setpoint = VelocityNedYaw(
+                            desired_vel_n, desired_vel_e, desired_vel_d, leader_yaw
+                        )
+                        await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
+                        logger.debug(f"Position and velocity setpoints sent. Position: {position_setpoint}, Velocity: {velocity_setpoint}")
+                    else:
+                        await drone.offboard.set_position_ned(position_setpoint)
+                        logger.debug(f"Position setpoint sent: {position_setpoint}")
                 else:
-                    await drone.offboard.set_position_ned(position_setpoint)
-                    logger.debug(f"Position setpoint sent: {position_setpoint}")
+                    # Data is stale
+                    logger.warning(f"Leader data is stale by {time_since_update:.2f}s.")
+                    if stale_start_time is None:
+                        stale_start_time = current_time
+                    elif (current_time - stale_start_time) >= stale_duration_threshold:
+                        logger.warning(f"Leader data has been stale for over {stale_duration_threshold} seconds, executing failsafe.")
+                        await execute_failsafe(drone)
             else:
-                if stale_start_time is None:
-                    stale_start_time = current_time
-                elif (current_time - stale_start_time) >= stale_duration_threshold:
-                    logger.warning(f"Leader data has been stale for over {stale_duration_threshold} seconds, executing failsafe.")
-                    await execute_failsafe(drone)
+                # No leader data yet
+                logger.debug("Leader data not yet received.")
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:
         logger.info("Control loop cancelled.")
@@ -614,7 +660,7 @@ async def initialize_drone():
             await asyncio.sleep(1)
 
         # Arm the drone and start offboard mode
-        # TODO: Maybe do some checks later on here 
+        # TODO: Maybe do some checks later on here
         # logger.info("Arming drone.")
         # await drone.action.arm() # if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
@@ -682,7 +728,10 @@ async def run_smart_swarm():
             sys.exit(1)
         LEADER_IP = leader_config['ip']
         # Initialize Kalman filter
-        LEADER_KALMAN_FILTER = LeaderKalmanFilter()
+        if Params.ENABLE_KALMAN_FILTER:
+            LEADER_KALMAN_FILTER = LeaderKalmanFilter()
+        else:
+            LEADER_KALMAN_FILTER = None
 
     # Start MAVSDK server
     mavsdk_server = start_mavsdk_server(Params.mavsdk_port)
