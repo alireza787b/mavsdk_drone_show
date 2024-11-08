@@ -613,7 +613,7 @@ async def initialize_drone():
         await drone.action.arm() #if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
         # Send an initial setpoint before starting offboard mode
-        await drone.offboard.set_velocity_ned(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+        await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         await drone.offboard.start()
         led_controller.set_color(0, 255, 0)  # Green to indicate ready
 
