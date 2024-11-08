@@ -60,11 +60,6 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
           </span>
         </p>
       </div>
-      <div className="drone-actions">
-        <button className="external-view-btn" onClick={(e) => { e.stopPropagation(); setSelectedDrone(drone); }}>
-          🔗 External View
-        </button>
-      </div>
       {isExpanded && (
         <div className="details-content">
           <DroneDetail drone={drone} isAccordionView={true} />
