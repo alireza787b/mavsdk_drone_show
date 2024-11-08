@@ -488,7 +488,7 @@ async def control_loop(drone: System):
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
-                desired_d = leader_d - OFFSETS['alt']  # Altitude offset, subtract in NED
+                desired_d = -1*(leader_d - OFFSETS['alt'])  # Altitude offset, subtract in NED
                 logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
                 # Create setpoints
                 position_setpoint = PositionNedYaw(
@@ -683,6 +683,10 @@ async def run_smart_swarm():
         LEADER_IP = leader_config['ip']
         # Initialize Kalman filter
         LEADER_KALMAN_FILTER = LeaderKalmanFilter()
+        
+    else:
+        logger.info("It is a leader drone so no need to command. exiting...")
+        sys.exit(1)
 
     # Start MAVSDK server
     mavsdk_server = start_mavsdk_server(Params.mavsdk_port)
