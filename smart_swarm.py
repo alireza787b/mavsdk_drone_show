@@ -609,8 +609,9 @@ async def initialize_drone():
             await asyncio.sleep(1)
 
         # Arm the drone and start offboard mode
-        logger.info("Arming drone.")
-        await drone.action.arm() #if not already arm (meaning we start on the ground)
+        #TODO: Maybe do some checks later on here 
+        #logger.info("Arming drone.")
+        #await drone.action.arm() #if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
         # Send an initial setpoint before starting offboard mode
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
