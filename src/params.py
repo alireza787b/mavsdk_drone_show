@@ -109,7 +109,7 @@ class Params():
     DATA_FRESHNESS_THRESHOLD = 3.0  # seconds
     SWARM_FEEDFORWARD_VELOCITY_ENABLED = True
     
-    ENABLE_KALMAN_FILTER = True  # Set to False to disable Kalman filter
+    ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
     
     MAX_LOG_FILES = 100
     
