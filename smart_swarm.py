@@ -1,5 +1,4 @@
 # smart_swarm/smart_swarm.py
-
 import os
 import sys
 import time
@@ -20,7 +19,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
 import requests
 
-
 from src.led_controller import LEDController
 from src.params import Params
 
@@ -32,14 +30,6 @@ from smart_swarm_src.utils import (
     fetch_home_position,
     lla_to_ned
 )
-
-# ----------------------------- #
-#           Constants           #
-# ----------------------------- #
-
-# MAVSDK Server Ports (from constants.py)
-# GRPC_PORT = 50041
-# MAVSDK_PORT = 14541
 
 # ----------------------------- #
 #        Data Structures        #
@@ -410,7 +400,7 @@ async def update_leader_state():
                     last_update_time = leader_update_time
                     # Convert lat, lon, alt to NED
                     leader_n, leader_e, leader_d = lla_to_ned(
-                        data['position_lat'], data['position_alt'], data['position_alt'],
+                        data['position_lat'], data['position_lon'], data['position_alt'],
                         REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
                     )
                     # Update LEADER_STATE
@@ -435,6 +425,8 @@ async def update_leader_state():
                     measurement_time = leader_update_time / 1000.0  # Convert ms to seconds
                     # Update Kalman filter
                     LEADER_KALMAN_FILTER.update(measurement, measurement_time)
+                    logger.debug(f"Leader measurement: {measurement} at time {measurement_time}")
+                    logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
                     logger.debug("Leader state updated and Kalman filter updated.")
                 else:
                     logger.debug("No new leader state data available.")
@@ -465,7 +457,7 @@ async def control_loop(drone: System):
 
     try:
         while True:
-            current_time = get_current_timestamp()
+            current_time = get_current_timestamp() / 1000.0  # Convert ms to seconds
             # Check data freshness
             if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
                 # Predict leader state
@@ -478,16 +470,20 @@ async def control_loop(drone: System):
                 leader_vel_e = predicted_state[4]
                 leader_vel_d = predicted_state[5]
                 leader_yaw = LEADER_STATE.get('yaw', 0.0)
+                logger.debug(f"Predicted leader state at time {current_time}: pos_n={leader_n}, pos_e={leader_e}, pos_d={leader_d}, vel_n={leader_vel_n}, vel_e={leader_vel_e}, vel_d={leader_vel_d}, yaw={leader_yaw}")
                 # Calculate offsets
                 if BODY_COORD:
                     # Note: Although offsets are labeled as N and E, in body coordinate mode, they are Forward and Right
                     offset_n, offset_e = transform_body_to_nea(OFFSETS['n'], OFFSETS['e'], leader_yaw)
+                    logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']}, Right={OFFSETS['e']}, Transformed to NED: offset_n={offset_n}, offset_e={offset_e}")
                 else:
                     offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
+                    logger.debug(f"Offsets in NED coordinates: offset_n={offset_n}, offset_e={offset_e}")
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
                 desired_d = leader_d + OFFSETS['alt']  # Altitude offset
+                logger.debug(f"Desired positions: desired_n={desired_n}, desired_e={desired_e}, desired_d={desired_d}, yaw={leader_yaw}")
                 # Create setpoints
                 position_setpoint = PositionNedYaw(
                     desired_n, desired_e, desired_d, leader_yaw
@@ -500,10 +496,10 @@ async def control_loop(drone: System):
                         desired_vel_n, desired_vel_e, desired_vel_d, leader_yaw
                     )
                     await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
-                    logger.debug("Position and velocity setpoints sent.")
+                    logger.debug(f"Position and velocity setpoints sent. Position: {position_setpoint}, Velocity: {velocity_setpoint}")
                 else:
                     await drone.offboard.set_position_ned(position_setpoint)
-                    logger.debug("Position setpoint sent.")
+                    logger.debug(f"Position setpoint sent: {position_setpoint}")
             else:
                 logger.warning("Leader data is stale or unavailable, executing failsafe.")
                 await execute_failsafe(drone)
