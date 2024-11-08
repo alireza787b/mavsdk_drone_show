@@ -400,7 +400,7 @@ async def update_leader_state():
                     last_update_time = leader_update_time
                     # Convert lat, lon, alt to NED
                     leader_n, leader_e, leader_d = lla_to_ned(
-                        data['position_lat'], data['position_lon'], data['position_alt'],
+                        data['position_lat'], data['position_long'], data['position_alt'],
                         REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
                     )
                     # Update LEADER_STATE
