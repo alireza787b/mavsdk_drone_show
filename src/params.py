@@ -9,7 +9,7 @@ class Params():
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'  # URL for the swarm file
 
     # Simulation and Mode Switches
-    sim_mode = False  # Set to True for simulation mode, False for real-life mode
+    sim_mode = True  # Set to True for simulation mode, False for real-life mode
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     
@@ -106,9 +106,10 @@ class Params():
     # Smart Swarm parameters
     CONTROL_LOOP_FREQUENCY = 10  # Hz
     LEADER_UPDATE_FREQUENCY = 3   # Hz
-    DATA_FRESHNESS_THRESHOLD = 1.0  # seconds
-    SWARM_FEEDFORWARD_VELOCITY_ENABLED = True
+    DATA_FRESHNESS_THRESHOLD = 3.0  # seconds
+    SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
     
+    ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
     
     MAX_LOG_FILES = 100
     
