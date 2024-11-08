@@ -479,6 +479,9 @@ async def control_loop(drone: System):
                 else:
                     offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
                     logger.debug(f"Offsets in NED coordinates: offset_n={offset_n}, offset_e={offset_e}")
+                
+                logger.debug(f"Offsets in Altitude: -1*offset_d={-1*OFFSETS['d']}")
+                
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
