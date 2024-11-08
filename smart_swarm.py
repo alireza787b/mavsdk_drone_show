@@ -123,8 +123,8 @@ def read_hw_id() -> int:
         int: Hardware ID if found, else None.
     """
     logger = logging.getLogger(__name__)
-    # Adjust the path to look for the hwID file in the parent directory
-    hwid_files = [f for f in os.listdir('..') if f.endswith('.hwID')]
+    # Adjust the path to look for the hwID file in the same directory as the script
+    hwid_files = [f for f in os.listdir('.') if f.endswith('.hwID')]
     if hwid_files:
         filename = hwid_files[0]
         hw_id = os.path.splitext(filename)[0]  # Get filename without extension
