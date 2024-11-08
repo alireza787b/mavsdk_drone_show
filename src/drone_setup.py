@@ -398,8 +398,8 @@ class DroneSetup:
             follow_mode = int(self.drone_config.swarm.get('follow', 0))
             if follow_mode != 0:
                 return await self.execute_mission_script(
-                smart_swarm_executer,
-                f"--start_time={real_trigger_time}"
+                smart_swarm_executer
+                #f"--start_time={real_trigger_time}"
             )
             return True, "Smart Swarm Mission initiated"
 
