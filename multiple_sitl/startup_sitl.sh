@@ -56,6 +56,9 @@ SIMULATION_MODE="h"
 GIT_REMOTE="$DEFAULT_GIT_REMOTE"
 GIT_BRANCH="$DEFAULT_GIT_BRANCH"
 
+# Verbose Mode Flag
+VERBOSE_MODE=false
+
 # =============================================================================
 # Function Definitions
 # =============================================================================
@@ -69,12 +72,14 @@ Options:
   -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
   -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
   -s <simulation_mode>  Specify simulation mode: 'g' for graphical, 'h' for headless, 'j' for jmavsim (default: $SIMULATION_MODE)
+  -v, --verbose         Run coordinator.py in verbose mode (foreground with output to screen)
   -h, --help            Display this help message
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME -r upstream -b develop
   $SCRIPT_NAME -s g
+  $SCRIPT_NAME --verbose
 EOF
     exit 1
 }
@@ -95,9 +100,13 @@ cleanup() {
         log_message "Terminated SITL simulation with PID: $simulation_pid"
     fi
 
-    if [[ -n "${coordinator_pid:-}" ]]; then
-        kill "$coordinator_pid" 2>/dev/null || true
-        log_message "Terminated coordinator.py with PID: $coordinator_pid"
+    if [ "$VERBOSE_MODE" = false ]; then
+        if [[ -n "${coordinator_pid:-}" ]]; then
+            kill "$coordinator_pid" 2>/dev/null || true
+            log_message "Terminated coordinator.py with PID: $coordinator_pid"
+        fi
+    else
+        log_message "Coordinator.py running in foreground, should receive SIGINT."
     fi
 
     if [[ -n "${mavlink2rest_pid:-}" ]]; then
@@ -153,6 +162,10 @@ parse_args() {
                     log_message "ERROR: -s requires a non-empty option argument."
                     usage
                 fi
+                ;;
+            -v|--verbose)
+                VERBOSE_MODE=true
+                shift
                 ;;
             -h|--help)
                 usage
@@ -386,16 +399,23 @@ start_simulation() {
     log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
 }
 
-# Function to manually run coordinator.py
-run_coordinator_manually() {
+# Function to run coordinator.py
+run_coordinator() {
     log_message "Starting coordinator.py..."
     cd "$BASE_DIR"
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
         source "$VENV_DIR/bin/activate"
     fi
-    python3 "$BASE_DIR/coordinator.py" &> "$BASE_DIR/logs/coordinator.log" &
-    coordinator_pid=$!
-    log_message "coordinator.py started with PID: $coordinator_pid. Logs: $BASE_DIR/logs/coordinator.log"
+
+    if [ "$VERBOSE_MODE" = true ]; then
+        log_message "Running coordinator.py in verbose mode (foreground)."
+        python3 "$BASE_DIR/coordinator.py"
+        # Script will wait here until coordinator.py exits
+    else
+        python3 "$BASE_DIR/coordinator.py" &> "$BASE_DIR/logs/coordinator.log" &
+        coordinator_pid=$!
+        log_message "coordinator.py started with PID: $coordinator_pid. Logs: $BASE_DIR/logs/coordinator.log"
+    fi
 }
 
 # =============================================================================
@@ -418,6 +438,7 @@ log_message "  Git Branch: $GIT_BRANCH"
 log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
 log_message "  Base Directory: $BASE_DIR"
 log_message "  Simulation Mode: $SIMULATION_MODE"
+log_message "  Verbose Mode: $VERBOSE_MODE"
 log_message ""
 
 # Check for necessary dependencies
@@ -454,13 +475,12 @@ determine_simulation_command
 start_simulation
 
 # Start coordinator.py
-run_coordinator_manually
+run_coordinator
 
 log_message ""
 log_message "=============================================="
 log_message "All processes have been initialized."
 log_message "coordinator.py is running."
-log_message "mavlink2rest is running."
 log_message "Press Ctrl+C to terminate the simulation."
 log_message "=============================================="
 log_message ""
@@ -468,9 +488,11 @@ log_message ""
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
-# Wait for coordinator.py process to complete
-log_message "Waiting for coordinator.py process to complete..."
-wait "$coordinator_pid"
+if [ "$VERBOSE_MODE" = false ]; then
+    # Wait for coordinator.py process to complete
+    log_message "Waiting for coordinator.py process to complete..."
+    wait "$coordinator_pid"
+fi
 
 # Wait for mavlink2rest process to complete
 log_message "Waiting for mavlink2rest process to complete..."
