@@ -106,7 +106,7 @@ class Params():
     # Smart Swarm parameters
     CONTROL_LOOP_FREQUENCY = 10  # Hz
     LEADER_UPDATE_FREQUENCY = 3   # Hz
-    DATA_FRESHNESS_THRESHOLD = 1.0  # seconds
+    DATA_FRESHNESS_THRESHOLD = 3.0  # seconds
     SWARM_FEEDFORWARD_VELOCITY_ENABLED = True
     
     

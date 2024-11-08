@@ -26,7 +26,6 @@ from smart_swarm_src.kalman_filter import LeaderKalmanFilter
 from smart_swarm_src.utils import (
     transform_body_to_nea,
     is_data_fresh,
-    get_current_timestamp,
     fetch_home_position,
     lla_to_ned
 )
@@ -295,7 +294,7 @@ def check_mavsdk_server_running(port):
     logger = logging.getLogger(__name__)
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -422,10 +421,10 @@ async def update_leader_state():
                         'vel_e': data['velocity_east'],
                         'vel_d': data['velocity_down'],
                     }
-                    measurement_time = leader_update_time / 1000.0  # Convert ms to seconds
+                    measurement_time = leader_update_time  # Already in seconds
                     # Update Kalman filter
                     LEADER_KALMAN_FILTER.update(measurement, measurement_time)
-                    logger.debug(f"Leader measurement: {measurement} at time {measurement_time}")
+                    logger.debug(f"Leader measurement at time {measurement_time:.3f}s: {measurement}")
                     logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
                     logger.debug("Leader state updated and Kalman filter updated.")
                 else:
@@ -455,11 +454,15 @@ async def control_loop(drone: System):
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
 
+    stale_start_time = None
+    stale_duration_threshold = 1.0  # seconds
+
     try:
         while True:
-            current_time = get_current_timestamp() / 1000.0  # Convert ms to seconds
+            current_time = time.time()
             # Check data freshness
             if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
+                stale_start_time = None
                 # Predict leader state
                 predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
                 # Extract predicted positions and velocities
@@ -470,23 +473,23 @@ async def control_loop(drone: System):
                 leader_vel_e = predicted_state[4]
                 leader_vel_d = predicted_state[5]
                 leader_yaw = LEADER_STATE.get('yaw', 0.0)
-                logger.debug(f"Predicted leader state at time {current_time}: pos_n={leader_n}, pos_e={leader_e}, pos_d={leader_d}, vel_n={leader_vel_n}, vel_e={leader_vel_e}, vel_d={leader_vel_d}, yaw={leader_yaw}")
+                logger.debug(f"Predicted leader state at time {current_time:.3f}s: pos_n={leader_n:.2f}m, pos_e={leader_e:.2f}m, pos_d={leader_d:.2f}m, vel_n={leader_vel_n:.2f}m/s, vel_e={leader_vel_e:.2f}m/s, vel_d={leader_vel_d:.2f}m/s, yaw={leader_yaw:.2f}°")
                 # Calculate offsets
                 if BODY_COORD:
                     # Note: Although offsets are labeled as N and E, in body coordinate mode, they are Forward and Right
                     offset_n, offset_e = transform_body_to_nea(OFFSETS['n'], OFFSETS['e'], leader_yaw)
-                    logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']}, Right={OFFSETS['e']}, Transformed to NED: offset_n={offset_n}, offset_e={offset_e}")
+                    logger.debug(f"Offsets in body coordinates: Forward={OFFSETS['n']:.2f}m, Right={OFFSETS['e']:.2f}m, Transformed to NED: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
                 else:
                     offset_n, offset_e = OFFSETS['n'], OFFSETS['e']
-                    logger.debug(f"Offsets in NED coordinates: offset_n={offset_n}, offset_e={offset_e}")
+                    logger.debug(f"Offsets in NED coordinates: offset_n={offset_n:.2f}m, offset_e={offset_e:.2f}m")
                 
-                logger.debug(f"Offsets in Altitude: offset_d={OFFSETS['alt']}")
+                logger.debug(f"Altitude offset: offset_alt={OFFSETS['alt']:.2f}m")
                 
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
-                desired_d = leader_d + OFFSETS['alt']  # Altitude offset
-                logger.debug(f"Desired positions: desired_n={desired_n}, desired_e={desired_e}, desired_d={desired_d}, yaw={leader_yaw}")
+                desired_d = leader_d - OFFSETS['alt']  # Altitude offset, subtract in NED
+                logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
                 # Create setpoints
                 position_setpoint = PositionNedYaw(
                     desired_n, desired_e, desired_d, leader_yaw
@@ -504,8 +507,11 @@ async def control_loop(drone: System):
                     await drone.offboard.set_position_ned(position_setpoint)
                     logger.debug(f"Position setpoint sent: {position_setpoint}")
             else:
-                logger.warning("Leader data is stale or unavailable, executing failsafe.")
-                await execute_failsafe(drone)
+                if stale_start_time is None:
+                    stale_start_time = current_time
+                elif (current_time - stale_start_time) >= stale_duration_threshold:
+                    logger.warning(f"Leader data has been stale for over {stale_duration_threshold} seconds, executing failsafe.")
+                    await execute_failsafe(drone)
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:
         logger.info("Control loop cancelled.")
@@ -608,9 +614,9 @@ async def initialize_drone():
             await asyncio.sleep(1)
 
         # Arm the drone and start offboard mode
-        #TODO: Maybe do some checks later on here 
-        #logger.info("Arming drone.")
-        #await drone.action.arm() #if not already arm (meaning we start on the ground)
+        # TODO: Maybe do some checks later on here 
+        # logger.info("Arming drone.")
+        # await drone.action.arm() # if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
         # Send an initial setpoint before starting offboard mode
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
@@ -633,9 +639,6 @@ async def run_smart_swarm():
     logger = logging.getLogger(__name__)
     global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
     global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS
-
-    # Configure logging
-    configure_logging()
 
     # Read HW_ID
     HW_ID = read_hw_id()
