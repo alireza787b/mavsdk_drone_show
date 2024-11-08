@@ -160,7 +160,7 @@ class Params():
     INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable
 
     # Set to False to disable feedforward velocity setpoints
-    FEEDFORWARD_VELOCITY_ENABLED = False
+    FEEDFORWARD_VELOCITY_ENABLED = True
 
     # Set to False to disable feedforward acceleration setpoints (if acceleration is true, velocity should be true as well, otherwise only position would be executed)
     # Since MAVSDK doesn't support position + acceleration yet
