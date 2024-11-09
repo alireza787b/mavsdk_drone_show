@@ -10,11 +10,12 @@
 # Configuration:
 # - REPO_DIR: Directory of the local Git repository.
 # - GIT_URL: URL to the Git repository (HTTPS only, assuming a public repository).
-# - BRANCH_NAME: The branch to synchronize with.
-#   By default, it is set to `real-test-1`. However, the user can specify a branch via the script's arguments.
-#   - If no branch argument is passed, the default branch will be used (`real-test-1`).
-#   - Use `--sitl` to switch to `docker-sitl-2` branch.
-#   - Use `-b <branch_name>` to specify a custom branch.
+# - DEFAULT_BRANCH: The default branch to use with `--real`.
+#   By default, it is set to `real-test-1`. The user can specify branches via the script's arguments.
+#   - If `--real` is passed, the script will switch to the `real-test-1` branch.
+#   - If `--sitl` is passed, the script will switch to the `docker-sitl-2` branch.
+#   - If `-b <branch_name>` is passed, the script will switch to the specified branch.
+#   - If no branch argument is passed, the script will stay on the current branch.
 #
 # Logging:
 # The script logs all operations and their outcomes to a log file to aid in debugging
@@ -24,10 +25,11 @@
 # - Added retry mechanisms with exponential backoff for network operations (`git fetch`, `git pull`, and network connectivity check).
 # - The script will attempt to retry failed network operations up to a specified number of times before exiting.
 # - Enhanced error handling and logging for better troubleshooting.
-
+#
 # Example usage:
-# ./update_repo_https.sh                   # Uses default branch (real-test-1)
-# ./update_repo_https.sh --sitl            # Uses docker-sitl-2 branch
+# ./update_repo_https.sh                 # Stays on current branch
+# ./update_repo_https.sh --real          # Uses real-test-1 branch
+# ./update_repo_https.sh --sitl          # Uses docker-sitl-2 branch
 # ./update_repo_https.sh -b <branch_name>  # Uses the specified branch
 #
 
@@ -35,16 +37,20 @@ set -euo pipefail
 
 # Configuration variables
 REPO_DIR="${HOME}/mavsdk_drone_show"  # Modify this path as needed
-DEFAULT_BRANCH="real-test-1"          # Default branch to synchronize with
+DEFAULT_BRANCH="real-test-1"          # Default branch to use with --real
 SITL_BRANCH="docker-sitl-2"           # SITL branch
 GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"  # HTTPS URL for the repo
 LOG_FILE="${REPO_DIR}/update_repo.log"
 
 # Function to determine branch based on user input
 determine_branch() {
-    local branch="$DEFAULT_BRANCH"  # Default value
+    local branch=""  # Start with empty branch
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --real)
+                branch="$DEFAULT_BRANCH"
+                shift
+                ;;
             --sitl)
                 branch="$SITL_BRANCH"
                 shift
@@ -136,9 +142,17 @@ if ! retry 5 5 git fetch --all; then
     log_error_and_exit "Failed to fetch updates from $GIT_URL after multiple attempts."
 fi
 
-# Checkout the specified branch
-if ! git checkout "$BRANCH_NAME"; then
-    log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
+# If a branch name was specified, checkout that branch
+if [ -n "$BRANCH_NAME" ]; then
+    if ! git checkout "$BRANCH_NAME"; then
+        log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
+    else
+        echo "$(date): Switched to branch $BRANCH_NAME" | tee -a "$LOG_FILE"
+    fi
+else
+    # No branch specified, stay on current branch
+    BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+    echo "$(date): No branch specified, staying on current branch $BRANCH_NAME" | tee -a "$LOG_FILE"
 fi
 
 # Pull the latest updates with retries
