@@ -1,5 +1,18 @@
 # actions.py
-# Usage: python actions.py --action takeoff --altitude 20 --param MAV_SYS_ID 2 --param PARAM2 3
+# Usage: python actions.py --action update_code [--branch feature-branch]
+
+"""
+actions.py - Drone Action Executor
+
+This script allows for executing various actions on a drone, such as takeoff, land, hold, test, reboot, and update code.
+It utilizes MAVSDK for drone communication and provides visual feedback via LEDs.
+
+Usage Examples:
+    python actions.py --action takeoff --altitude 20
+    python actions.py --action update_code --branch feature-branch
+    python actions.py --action update_code  # Update code without specifying a branch
+
+"""
 
 import argparse
 import asyncio
@@ -22,8 +35,8 @@ from src.params import Params
 # Configuration Constants
 # =======================
 
-GRPC_PORT = 50040
-UDP_PORT = 14540
+GRPC_PORT = Params.DEFAULT_GRPC_PORT
+UDP_PORT = Params.mavsdk_port
 HW_ID = None  # Will be set by read_hw_id()
 
 # =======================
@@ -164,7 +177,7 @@ def start_mavsdk_server(grpc_port, udp_port):
     except FileNotFoundError:
         logger.error("mavsdk_server executable not found. Ensure it's in the current directory.")
         sys.exit(1)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to start MAVSDK server")
         sys.exit(1)
 
@@ -290,7 +303,7 @@ async def set_parameters(drone, parameters):
         except Exception:
             logger.exception(f"Failed to set parameter '{param_name}'")
 
-async def perform_action(action, altitude=None, parameters=None):
+async def perform_action(action, altitude=None, parameters=None, branch=None):
     """
     Orchestrates the entire action execution process, including starting and stopping the MAVSDK server.
 
@@ -298,8 +311,13 @@ async def perform_action(action, altitude=None, parameters=None):
         action (str): The action to perform.
         altitude (float, optional): The altitude for takeoff.
         parameters (dict, optional): Parameters to set on the drone.
+        branch (str, optional): The branch name for code update.
     """
     logger.info("Starting to perform action...")
+
+    if action == "update_code":
+        await update_code(branch)
+        return  # No need to proceed further
 
     # Retrieve Hardware ID
     global HW_ID
@@ -314,7 +332,7 @@ async def perform_action(action, altitude=None, parameters=None):
         logger.error("Drone configuration not found. Exiting...")
         return
 
-    # Define MAVSDK Ports since it's on each system its constant
+    # Define MAVSDK Ports since it's on each system it's constant
     grpc_port = GRPC_PORT
     udp_port = UDP_PORT
 
@@ -641,6 +659,70 @@ async def reboot_system():
     except Exception:
         logger.exception("System reboot failed")
 
+async def update_code(branch=None):
+    """
+    Executes the update_https script to pull code from the requested repo.
+
+    Args:
+        branch (str, optional): The branch name to pull from. If None, default behavior is used.
+    """
+    led_controller = LEDController.get_instance()
+
+    # Indicate update initiation with yellow color
+    led_controller.set_color(255, 255, 0)  # Yellow
+    await asyncio.sleep(0.5)
+
+    try:
+        # Build the command
+        script_path = os.path.join('tools', 'update_https')
+        command = [script_path]
+
+        # Append branch name if provided
+        if branch:
+            command.append(branch)
+
+        # Append '--sitl' if in simulation mode
+        if Params.sim_mode:
+            command.append('--sitl')
+
+        logger.info(f"Executing update script: {' '.join(command)}")
+
+        # Execute the bash script
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.error(f"Update script failed: {stderr.decode().strip()}")
+            # Indicate failure with red blinks
+            for _ in range(3):
+                led_controller.set_color(255, 0, 0)  # Red
+                await asyncio.sleep(0.2)
+                led_controller.turn_off()
+                await asyncio.sleep(0.2)
+        else:
+            logger.info(f"Update script executed successfully: {stdout.decode().strip()}")
+            # Indicate success with green blinks
+            for _ in range(3):
+                led_controller.set_color(0, 255, 0)  # Green
+                await asyncio.sleep(0.2)
+                led_controller.turn_off()
+                await asyncio.sleep(0.2)
+    except Exception:
+        logger.exception("Update code action failed")
+        # Indicate failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
+
 # =======================
 # Entry Point
 # =======================
@@ -648,11 +730,12 @@ async def reboot_system():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action', type=str, required=True,
-                        help='Action to perform: takeoff, land, hold, test, reboot_fc, reboot_sys')
+                        help='Action to perform: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code')
     parser.add_argument('--altitude', type=float, default=10,
                         help='Altitude for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
                         help='Set parameters in the form param_name param_value')
+    parser.add_argument('--branch', type=str, help='Branch name for code update')
 
     args = parser.parse_args()
 
@@ -660,7 +743,7 @@ if __name__ == "__main__":
     parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
 
     try:
-        asyncio.run(perform_action(args.action, args.altitude, parameters))
+        asyncio.run(perform_action(args.action, args.altitude, parameters, args.branch))
     except Exception:
         logger.exception("An unexpected error occurred")
     finally:

@@ -8,12 +8,14 @@ import {
   FaLightbulb, 
   FaBatteryFull, 
   FaSyncAlt,
-  FaPowerOff
+  FaPowerOff,
+  FaCodeBranch, // Importing icon for Update Code
 } from 'react-icons/fa';
 import '../styles/DroneActions.css';
 
 const DroneActions = ({ actionTypes, onSendCommand }) => {
   const [altitude, setAltitude] = useState(10);
+  const [branchName, setBranchName] = useState(''); // New state for branch name
   const [modalOpen, setModalOpen] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
 
@@ -35,6 +37,8 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       // Additional fields for specific actions
       if (actionType === 'TAKE_OFF') {
         commandData.takeoff_altitude = altitude;
+      } else if (actionType === 'UPDATE_CODE') {
+        commandData.update_branch = branchName;
       }
 
       onSendCommand(commandData);
@@ -111,7 +115,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       </button>
 
       <button 
-        className="action-button reboot-button"
+        className="action-button reboot-fc-button"
         onClick={() => handleActionClick('REBOOT_FC', 'Reboot Flight Controls: This will reboot all Pixhawk Flight controller boards. Are you sure you want to proceed?')}
       >
         <FaPowerOff className="action-icon" />
@@ -119,12 +123,32 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       </button>
 
       <button 
-        className="action-button reboot-button"
+        className="action-button reboot-sys-button"
         onClick={() => handleActionClick('REBOOT_SYS', 'Reboot Companion Computer: This will reboot all Companion Computer boards. Are you sure you want to proceed?')}
       >
         <FaSyncAlt className="action-icon" />
         Reboot Companion Computer
       </button>
+
+      {/* Update Code Section */}
+      <div className="update-code-section">
+        <label htmlFor="branch-name">Branch Name:</label>
+        <input 
+          type="text" 
+          id="branch-name" 
+          value={branchName} 
+          onChange={(e) => setBranchName(e.target.value)} 
+          className="branch-input"
+        />
+        <button 
+          className="action-button update-code-button"
+          onClick={() => handleActionClick('UPDATE_CODE', `Update Code: This will update the code to the branch '${branchName}'. Are you sure you want to proceed?`)}
+          disabled={!branchName.trim()} // Disable if branch name is empty
+        >
+          <FaCodeBranch className="action-icon" />
+          Update Code
+        </button>
+      </div>
 
       {/* Confirmation Modal */}
       {modalOpen && (
