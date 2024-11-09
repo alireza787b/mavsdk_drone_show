@@ -1,18 +1,43 @@
-/* src/styles/DroneActions.css */
-
 .drone-actions-container {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 30px;
+    padding: 20px;
+}
+
+/* Action Group Styles */
+.action-group {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.action-group h2 {
+    margin-bottom: 15px;
+    font-size: 20px;
+    color: #333;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 10px;
+}
+
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .takeoff-section {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 10px;
 }
 
+.takeoff-section label {
+    font-weight: bold;
+}
+
 .altitude-input {
+    width: 80px;
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -41,9 +66,11 @@
     transform: translateY(0);
 }
 
+.action-icon {
+    font-size: 20px;
+}
 
 /* Specific Button Styles */
-
 .takeoff-button {
     background-color: #4CAF50;
 }
@@ -62,6 +89,7 @@
 
 .hold-button {
     background-color: #FFC107;
+    color: #000;
 }
 
 .hold-button:hover {
@@ -92,18 +120,29 @@
     background-color: #D32F2F;
 }
 
-.reboot-button {
+.reboot-fc-button {
     background-color: #FF9800;
 }
 
-.reboot-button:hover {
+.reboot-fc-button:hover {
     background-color: #FB8C00;
 }
 
-.action-icon {
-    font-size: 20px;
+.reboot-sys-button {
+    background-color: #FF5722;
 }
 
+.reboot-sys-button:hover {
+    background-color: #E64A19;
+}
+
+.update-code-button {
+    background-color: #3F51B5;
+}
+
+.update-code-button:hover {
+    background-color: #3949AB;
+}
 
 /* Modal Styles */
 
@@ -163,14 +202,17 @@
     background-color: #D32F2F;
 }
 
-
 /* Responsive Design */
 
 @media (max-width: 768px) {
-    .action-button {
-        padding: 10px 16px;
-        font-size: 14px;
+    .action-buttons {
+        flex-direction: column;
     }
+
+    .action-button {
+        width: 100%;
+    }
+
     .action-icon {
         font-size: 18px;
     }
