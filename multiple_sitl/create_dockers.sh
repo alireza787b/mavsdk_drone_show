@@ -239,7 +239,7 @@ create_instance() {
     if $VERBOSE; then
         printf "\nVerbose mode is enabled. Running container '%s' in attached mode for debugging.\n" "$container_name"
         printf "To exit the attached mode, press CTRL+C.\n"
-        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER"
+        docker exec -it "$container_name" bash "$STARTUP_SCRIPT_CONTAINER" --verbose
         return 0
     fi
 
