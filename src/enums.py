@@ -14,6 +14,7 @@ class Mission(Enum):
     REBOOT_FC = 6
     REBOOT_SYS = 7
     TEST_LED = 8
+    UPDATE_CODE = 103
     
     
 class State(Enum):

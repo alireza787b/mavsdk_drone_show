@@ -428,7 +428,7 @@ async def update_leader_state():
                     logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
                     logger.debug("Leader state updated and Kalman filter updated.")
                 else:
-                    logger.debug("No new leader state data available.")
+                    logger.error("Leader data does not contain 'update_time'.")
             else:
                 logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
         except requests.RequestException as e:
@@ -443,7 +443,7 @@ async def update_leader_state():
 
 async def control_loop(drone: System):
     """
-    Control loop that sends offboard setpoints to the drone based on the estimated leader state.
+    Control loop that sends offboard setpoints to the drone based on the leader state.
 
     Args:
         drone (System): MAVSDK drone system instance.
