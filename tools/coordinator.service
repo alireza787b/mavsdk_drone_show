@@ -42,7 +42,7 @@ Wants=network-online.target
 
 [Service]
 # Pre-start steps
-ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_https.sh --real
+ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh --real
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 
