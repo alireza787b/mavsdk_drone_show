@@ -9,7 +9,7 @@ class Params():
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'  # URL for the swarm file
 
     # Simulation and Mode Switches
-    sim_mode = False  # Set to True for simulation mode, False for real-life mode
+    sim_mode = True  # Set to True for simulation mode, False for real-life mode
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     
@@ -160,8 +160,16 @@ class Params():
     INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable
 
     # Set to False to disable feedforward velocity setpoints
-    FEEDFORWARD_VELOCITY_ENABLED = False
+    FEEDFORWARD_VELOCITY_ENABLED = True
 
     # Set to False to disable feedforward acceleration setpoints (if acceleration is true, velocity should be true as well, otherwise only position would be executed)
     # Since MAVSDK doesn't support position + acceleration yet
     FEEDFORWARD_ACCELERATION_ENABLED = False
+    
+     # PD Controller gains
+    PD_KP = 0.5  # Adjust as needed for proportional gain
+    PD_KD = 0.1  # Adjust as needed for derivative gain
+    MAX_VELOCITY = 3.0  # Maximum velocity in m/s
+
+    # Low-Pass Filter parameter
+    LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1
