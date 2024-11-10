@@ -1,4 +1,3 @@
-// app/dashboard/drone-dashboard/src/components/DronePositionMap.js
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
@@ -22,15 +21,50 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   const [dronePositions, setDronePositions] = useState([]);
 
   useEffect(() => {
+    // Helper function to check if a value is a valid number
+    const isValidNumber = (value) => !isNaN(value) && isFinite(value);
+
     if (originLat && originLon && drones.length > 0) {
-      const origin = new LatLon(parseFloat(originLat), parseFloat(originLon));
+      const parsedOriginLat = parseFloat(originLat);
+      const parsedOriginLon = parseFloat(originLon);
+
+      if (!isValidNumber(parsedOriginLat) || !isValidNumber(parsedOriginLon)) {
+        console.error('Invalid origin coordinates:', { originLat, originLon });
+        return;
+      }
+
+      const origin = new LatLon(parsedOriginLat, parsedOriginLon);
 
       const positions = drones.map((drone) => {
         const x = parseFloat(drone.x);
         const y = parseFloat(drone.y);
-        const distance = Math.sqrt(x * x + y * y);
+
+        if (!isValidNumber(x) || !isValidNumber(y)) {
+          console.error(`Invalid drone coordinates for drone ${drone.hw_id}:`, { x, y });
+          return null; // Skip this drone
+        }
+
+        const distance = Math.sqrt(x * x + y * y); // Ensure distance is in meters
         const bearing = (Math.atan2(y, x) * 180) / Math.PI;
-        const destination = origin.destinationPoint(distance, bearing);
+
+        // Validate distance and bearing
+        if (!isValidNumber(distance) || !isValidNumber(bearing)) {
+          console.error(`Invalid distance or bearing for drone ${drone.hw_id}:`, { distance, bearing });
+          return null; // Skip this drone
+        }
+
+        let destination;
+        try {
+          destination = origin.destinationPoint(distance, bearing);
+        } catch (error) {
+          console.error(`Error calculating destination for drone ${drone.hw_id}:`, error);
+          return null; // Skip this drone
+        }
+
+        if (!destination || !isValidNumber(destination.lat) || !isValidNumber(destination.lon)) {
+          console.error(`Invalid destination coordinates for drone ${drone.hw_id}:`, destination);
+          return null; // Skip this drone
+        }
 
         return {
           hw_id: drone.hw_id,
@@ -38,7 +72,7 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
           lat: destination.lat,
           lon: destination.lon,
         };
-      });
+      }).filter(position => position !== null); // Remove any null entries
 
       setDronePositions(positions);
     }

@@ -9,7 +9,6 @@ import os
 from enum import Enum
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
-
 class DroneSetup:
     """
     The DroneSetup class manages the execution of various drone missions by handling mission scripts.
@@ -18,18 +17,16 @@ class DroneSetup:
     the status of running processes.
     """
 
-    def __init__(self, params, drone_config, offboard_controller):
+    def __init__(self, params, drone_config):
         """
         Initializes the DroneSetup with configuration parameters and controllers.
 
         Args:
             params: Configuration parameters. Must include 'trigger_sooner_seconds'.
             drone_config: Drone configuration object containing mission details.
-            offboard_controller: Controller for offboard operations.
         """
         self.params = params
         self.drone_config = drone_config
-        self.offboard_controller = offboard_controller
         self.last_logged_mission = None
         self.last_logged_state = None
         self.running_processes = {}  # Dictionary to store running mission scripts
@@ -52,7 +49,7 @@ class DroneSetup:
             Mission.REBOOT_FC.value: self._execute_reboot_fc,
             Mission.REBOOT_SYS.value: self._execute_reboot_sys,
             Mission.TEST_LED.value: self._execute_test_led,
-            # Add other missions as needed
+            Mission.UPDATE_CODE.value: self._execute_update_code,
         }
 
     def _validate_params(self):
@@ -95,6 +92,10 @@ class DroneSetup:
             # Add other required attributes here if necessary
         }
 
+        # Additional validation for UPDATE_CODE mission
+        if self.drone_config.mission == Mission.UPDATE_CODE.value:
+            required_attrs['update_branch'] = (str,)
+
         for attr, expected_types in required_attrs.items():
             if not hasattr(self.drone_config, attr):
                 logging.error(f"Missing required attribute '{attr}' in drone_config.")
@@ -102,7 +103,7 @@ class DroneSetup:
 
             attr_value = getattr(self.drone_config, attr)
 
-            if isinstance(attr_value, str):
+            if isinstance(attr_value, str) and expected_types != (str,):
                 try:
                     # Attempt to convert to float or int
                     converted_value = float(attr_value) if '.' in attr_value else int(attr_value)
@@ -111,9 +112,9 @@ class DroneSetup:
                 except ValueError:
                     logging.error(f"Attribute '{attr}' must be a number, got string '{attr_value}'.")
                     raise TypeError(f"'{attr}' must be a number, got string '{attr_value}'.")
-            elif not isinstance(attr_value, expected_types[:-1]):  # Exclude str from expected types for validation
-                logging.error(f"Attribute '{attr}' must be of type int or float, got {type(attr_value).__name__}.")
-                raise TypeError(f"'{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+            elif not isinstance(attr_value, expected_types):
+                logging.error(f"Attribute '{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
+                raise TypeError(f"'{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
 
     def _get_python_exec_path(self) -> str:
         """
@@ -178,13 +179,13 @@ class DroneSetup:
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
-            command = f"{python_exec_path} {script_path} {action}"
-            logging.debug(f"Executing command: {command}")
+            command = [python_exec_path, script_path] + action.split()
+            logging.debug(f"Executing command: {' '.join(command)}")
 
             try:
                 # Start the mission script as a subprocess
-                process = await asyncio.create_subprocess_shell(
-                    command,
+                process = await asyncio.create_subprocess_exec(
+                    *command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
@@ -393,17 +394,17 @@ class DroneSetup:
         """
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
+            real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
-
+            smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
             logging.info("Starting Smart Swarm Mission")
             follow_mode = int(self.drone_config.swarm.get('follow', 0))
             if follow_mode != 0:
-                if self.offboard_controller:
-                    await self.offboard_controller.start_swarm()
-                    await self.offboard_controller.start_offboard_follow()
-                else:
-                    logging.error("Offboard controller is not initialized.")
-                    return False, "Offboard controller not available."
+                return await self.execute_mission_script(
+                smart_swarm_executer,
+                f""
+                #f"--start_time={real_trigger_time}"
+            )
             return True, "Smart Swarm Mission initiated"
 
         logging.info("Conditions not met for triggering Smart Swarm")
@@ -435,7 +436,6 @@ class DroneSetup:
     async def _execute_land(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Land mission by running the land action script.
-        Ensures offboard mode is stopped before landing.
 
         Args:
             current_time (int, optional): The current Unix timestamp.
@@ -445,16 +445,6 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Land Mission")
-        try:
-            follow_mode = int(self.drone_config.swarm.get('follow', 0))
-            if follow_mode != 0 and self.offboard_controller:
-                if self.offboard_controller.is_offboard:
-                    logging.info("Drone is in Offboard mode. Attempting to stop Offboard.")
-                    await self.offboard_controller.stop_offboard()
-                    await asyncio.sleep(1)
-        except AttributeError as e:
-            logging.error(f"Error accessing offboard controller attributes: {e}")
-            return False, f"Offboard controller error: {e}"
 
         return await self.execute_mission_script(
             "actions.py",
@@ -544,6 +534,32 @@ class DroneSetup:
         return await self.execute_mission_script(
             "test_led_controller.py",
             "--action=start"
+        )
+
+    async def _execute_update_code(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Executes the Update Code mission by running the update_code action script.
+
+        Args:
+            current_time (int, optional): The current Unix timestamp.
+            earlier_trigger_time (int, optional): The adjusted trigger time.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        branch_name = getattr(self.drone_config, 'update_branch', None)
+        if not branch_name:
+            logging.error("Branch name is not specified in drone_config.update_branch")
+            return False, "Branch name is not specified"
+
+        logging.info(f"Starting Update Code Mission with branch '{branch_name}'")
+
+        # Construct the action command
+        action_command = f"--action=update_code --branch={branch_name}"
+
+        return await self.execute_mission_script(
+            "actions.py",
+            action_command
         )
 
     def _log_mission_result(self, success: bool, message: str):

@@ -1,5 +1,3 @@
-/* src/styles/Globe.css */
-
 .scene-container {
     width: 100%;
     height: 80vh;
@@ -8,7 +6,8 @@
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
+  }
+  
 
 .button-container {
     position: absolute;
@@ -16,7 +15,7 @@
     right: 15px;
     display: flex;
     gap: 10px;
-    z-index: 1000;
+    z-index: 1000; /* Ensure buttons stay on top */
 }
 
 .button-container .fullscreen-button,
@@ -93,3 +92,23 @@
         transform: rotate(360deg);
     }
 }
+
+
+  
+  /* Ensure that the Compass overlay is above other elements */
+  .compass-overlay {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    width: 60px;
+    height: 60px;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  
+  .compass-image {
+    width: 100%;
+    height: 100%;
+    transition: transform 0.1s linear;
+  }
+  

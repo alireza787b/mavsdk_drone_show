@@ -56,6 +56,34 @@ class FlaskHandler:
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
 
+        @self.app.route('/get-home-pos', methods=['GET'])
+        def get_home_pos():
+            """
+            Endpoint to retrieve the home position of the drone.
+            Returns:
+                JSON response containing the home position coordinates and a timestamp.
+            """
+            try:
+                home_pos = self.drone_config.home_position
+                if home_pos:
+                    # Add a timestamp to the home position
+                    home_pos_with_timestamp = {
+                        'latitude': home_pos.get('lat'),
+                        'longitude': home_pos.get('long'),
+                        'altitude': home_pos.get('alt'),
+                        'timestamp': int(time.time() * 1000)  # Current time in milliseconds
+                    }
+                    logging.debug(f"Retrieved home position: {home_pos_with_timestamp}")
+                    return jsonify(home_pos_with_timestamp), 200
+                else:
+                    logging.warning("Home position requested but not set.")
+                    return jsonify({"error": "Home position not set"}), 404
+            except Exception as e:
+                logging.error(f"Error retrieving home position: {e}")
+                return jsonify({"error": "Failed to retrieve home position"}), 500
+
+      
+
         @self.app.route('/get-git-status', methods=['GET'])
         def get_git_status():
             """

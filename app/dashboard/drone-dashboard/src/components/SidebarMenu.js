@@ -53,7 +53,7 @@ const SidebarMenu = () => {
           {!collapsed && (
             <>
               <div className="sidebar-header">
-                <h3>Swarm Dashboard v0.9</h3>
+                <h3>Swarm Dashboard 2</h3>
               </div>
 
               <div className="sidebar-time">

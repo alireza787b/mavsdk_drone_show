@@ -27,7 +27,6 @@ pandas==2.2.2
 pillow==10.4.0
 protobuf==3.20.1
 psutil==6.0.0
-pyfilter==1.0.0
 pymavlink==2.4.41
 pyparsing==3.1.2
 pyproj==3.6.1
@@ -49,3 +48,6 @@ sdnotify
 
 
 rpi-ws281x==5.0.0
+
+aiohttp
+filterpy

@@ -5,7 +5,7 @@
 # Description: Initializes and manages the SITL simulation for MAVSDK_Drone_Show.
 #              Configures environment, updates repository, sets system IDs, synchronizes
 #              system time with NTP using an external script, and starts the SITL simulation
-#              along with coordinator.py.
+#              along with coordinator.py and mavlink2rest.
 # Author: Alireza Ghaderi
 # Date: September 2024
 # =============================================================================
@@ -39,6 +39,8 @@ BASE_DIR="$HOME/mavsdk_drone_show"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"
+mavlink2rest_CMD="mavlink2rest -c udpin:127.0.0.1:14569 -s 0.0.0.0:8088"
+MAVLINK2REST_LOG="$BASE_DIR/logs/mavlink2rest.log"
 
 # Path to the external time synchronization script
 # SYNC_SCRIPT="$BASE_DIR/tools/sync_time_linux.sh"
@@ -54,6 +56,9 @@ SIMULATION_MODE="h"
 GIT_REMOTE="$DEFAULT_GIT_REMOTE"
 GIT_BRANCH="$DEFAULT_GIT_BRANCH"
 
+# Verbose Mode Flag
+VERBOSE_MODE=false
+
 # =============================================================================
 # Function Definitions
 # =============================================================================
@@ -67,12 +72,14 @@ Options:
   -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
   -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
   -s <simulation_mode>  Specify simulation mode: 'g' for graphical, 'h' for headless, 'j' for jmavsim (default: $SIMULATION_MODE)
+  -v, --verbose         Run coordinator.py in verbose mode (foreground with output to screen)
   -h, --help            Display this help message
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME -r upstream -b develop
   $SCRIPT_NAME -s g
+  $SCRIPT_NAME --verbose
 EOF
     exit 1
 }
@@ -87,18 +94,31 @@ log_message() {
 cleanup() {
     echo ""
     log_message "Received interrupt signal. Terminating background processes..."
+
     if [[ -n "${simulation_pid:-}" ]]; then
         kill "$simulation_pid" 2>/dev/null || true
         log_message "Terminated SITL simulation with PID: $simulation_pid"
     fi
-    if [[ -n "${coordinator_pid:-}" ]]; then
-        kill "$coordinator_pid" 2>/dev/null || true
-        log_message "Terminated coordinator.py with PID: $coordinator_pid"
+
+    if [ "$VERBOSE_MODE" = false ]; then
+        if [[ -n "${coordinator_pid:-}" ]]; then
+            kill "$coordinator_pid" 2>/dev/null || true
+            log_message "Terminated coordinator.py with PID: $coordinator_pid"
+        fi
+    else
+        log_message "Coordinator.py running in foreground, should receive SIGINT."
     fi
+
+    if [[ -n "${mavlink2rest_pid:-}" ]]; then
+        kill "$mavlink2rest_pid" 2>/dev/null || true
+        log_message "Terminated mavlink2rest with PID: $mavlink2rest_pid"
+    fi
+
     if [ "${USE_GLOBAL_PYTHON:-false}" = false ]; then
         deactivate 2>/dev/null || true
         log_message "Deactivated Python virtual environment."
     fi
+
     exit 0
 }
 
@@ -143,6 +163,10 @@ parse_args() {
                     usage
                 fi
                 ;;
+            -v|--verbose)
+                VERBOSE_MODE=true
+                shift
+                ;;
             -h|--help)
                 usage
                 ;;
@@ -172,7 +196,6 @@ check_dependencies() {
         log_message "'git' is already installed."
     fi
 }
-
 
 # Function to wait for the .hwID file
 wait_for_hwid() {
@@ -226,6 +249,19 @@ update_repository() {
     fi
 
     log_message "Repository updated successfully."
+}
+
+# Function to run mavlink2rest in the background
+run_mavlink2rest() {
+    log_message "Starting mavlink2rest in the background..."
+    
+    # Ensure the logs directory exists
+    mkdir -p "$(dirname "$MAVLINK2REST_LOG")"
+
+    # Run mavlink2rest in the background, redirecting output to log file
+    $mavlink2rest_CMD &> "$MAVLINK2REST_LOG" &
+    mavlink2rest_pid=$!
+    log_message "mavlink2rest started with PID: $mavlink2rest_pid. Logs: $MAVLINK2REST_LOG"
 }
 
 # Function to set up Python environment
@@ -293,15 +329,24 @@ read_offsets() {
 calculate_new_coordinates() {
     log_message "Calculating new geographic coordinates based on offsets..."
 
+    # Constants
+    EARTH_RADIUS=6371000  # in meters
+    PI=3.141592653589793238
+
     # Convert latitude from degrees to radians
-    LAT_RAD=$(echo "scale=10; $DEFAULT_LAT * (4*a(1)/180)" | bc -l)
+    LAT_RAD=$(echo "$DEFAULT_LAT * ($PI / 180)" | bc -l)
 
-    # Calculate meters per degree longitude at the given latitude
-    M_PER_DEGREE=$(echo "scale=10; 111320 * c($LAT_RAD)" | bc -l)
+    # Calculate new latitude based on northward offset (OFFSET_X)
+    # Formula: Δφ = (Offset_X / R) * (180 / π)
+    NEW_LAT=$(echo "$DEFAULT_LAT + ($OFFSET_X / $EARTH_RADIUS) * (180 / $PI)" | bc -l)
 
-    # Calculate new latitude and longitude
-    NEW_LAT=$(echo "scale=10; $DEFAULT_LAT + $OFFSET_X / 111320" | bc -l)
-    NEW_LON=$(echo "scale=10; $DEFAULT_LON + $OFFSET_Y / $M_PER_DEGREE" | bc -l)
+    # Calculate meters per degree of longitude at the current latitude
+    # Formula: M_per_degree = (π / 180) * R * cos(lat_rad)
+    M_PER_DEGREE=$(echo "scale=10; ($PI / 180) * $EARTH_RADIUS * c($LAT_RAD)" | bc -l)
+
+    # Calculate new longitude based on eastward offset (OFFSET_Y)
+    # Formula: Δλ = Offset_Y / M_per_degree
+    NEW_LON=$(echo "$DEFAULT_LON + ($OFFSET_Y / $M_PER_DEGREE)" | bc -l)
 
     log_message "New Coordinates - Latitude: $NEW_LAT, Longitude: $NEW_LON"
 }
@@ -349,21 +394,28 @@ start_simulation() {
     export px4_instance="${HWID}-1"
 
     # Execute the simulation command in the background
-    eval "$SIMULATION_COMMAND" &
+    eval "$SIMULATION_COMMAND" &> "$BASE_DIR/logs/sitl_simulation.log" &
     simulation_pid=$!
-    log_message "SITL simulation started with PID: $simulation_pid"
+    log_message "SITL simulation started with PID: $simulation_pid. Logs: $BASE_DIR/logs/sitl_simulation.log"
 }
 
-# Function to manually run coordinator.py
-run_coordinator_manually() {
+# Function to run coordinator.py
+run_coordinator() {
     log_message "Starting coordinator.py..."
     cd "$BASE_DIR"
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
         source "$VENV_DIR/bin/activate"
     fi
-    python3 "$BASE_DIR/coordinator.py" &
-    coordinator_pid=$!
-    log_message "coordinator.py started with PID: $coordinator_pid"
+
+    if [ "$VERBOSE_MODE" = true ]; then
+        log_message "Running coordinator.py in verbose mode (foreground)."
+        python3 "$BASE_DIR/coordinator.py"
+        # Script will wait here until coordinator.py exits
+    else
+        python3 "$BASE_DIR/coordinator.py" &> "$BASE_DIR/logs/coordinator.log" &
+        coordinator_pid=$!
+        log_message "coordinator.py started with PID: $coordinator_pid. Logs: $BASE_DIR/logs/coordinator.log"
+    fi
 }
 
 # =============================================================================
@@ -386,17 +438,20 @@ log_message "  Git Branch: $GIT_BRANCH"
 log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
 log_message "  Base Directory: $BASE_DIR"
 log_message "  Simulation Mode: $SIMULATION_MODE"
+log_message "  Verbose Mode: $VERBOSE_MODE"
 log_message ""
 
 # Check for necessary dependencies
 check_dependencies
-
 
 # Wait for the .hwID file
 wait_for_hwid
 
 # Update the repository
 update_repository
+
+# Run MAVLink2rest in the background
+#run_mavlink2rest
 
 # Set up Python environment
 setup_python_env
@@ -420,7 +475,7 @@ determine_simulation_command
 start_simulation
 
 # Start coordinator.py
-run_coordinator_manually
+run_coordinator
 
 log_message ""
 log_message "=============================================="
@@ -433,9 +488,15 @@ log_message ""
 # Wait for the simulation process to complete
 wait "$simulation_pid"
 
-# Wait for coordinator.py process to complete
-log_message "Waiting for coordinator.py process to complete..."
-wait "$coordinator_pid"
+if [ "$VERBOSE_MODE" = false ]; then
+    # Wait for coordinator.py process to complete
+    log_message "Waiting for coordinator.py process to complete..."
+    wait "$coordinator_pid"
+fi
+
+# Wait for mavlink2rest process to complete
+log_message "Waiting for mavlink2rest process to complete..."
+wait "$mavlink2rest_pid"
 
 # Exit successfully
 exit 0
