@@ -531,7 +531,7 @@ async def control_loop(drone: System):
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
-                desired_d = leader_d - OFFSETS['alt']  # Altitude offset
+                desired_d = -1*(leader_d - OFFSETS['alt'])  #  Seems this -1 is needed. double check later why. maybe we are doing offset reverse
                 logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
 
                 # Get own position
