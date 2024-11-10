@@ -160,8 +160,16 @@ class Params():
     INITIAL_CLIMB_TIME_THRESHOLD = 3.0  # Configurable
 
     # Set to False to disable feedforward velocity setpoints
-    FEEDFORWARD_VELOCITY_ENABLED = False
+    FEEDFORWARD_VELOCITY_ENABLED = True
 
     # Set to False to disable feedforward acceleration setpoints (if acceleration is true, velocity should be true as well, otherwise only position would be executed)
     # Since MAVSDK doesn't support position + acceleration yet
     FEEDFORWARD_ACCELERATION_ENABLED = False
+    
+     # PD Controller gains
+    PD_KP = 0.5  # Adjust as needed for proportional gain
+    PD_KD = 0.1  # Adjust as needed for derivative gain
+    MAX_VELOCITY = 3.0  # Maximum velocity in m/s
+
+    # Low-Pass Filter parameter
+    LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1
