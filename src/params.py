@@ -107,7 +107,6 @@ class Params():
     CONTROL_LOOP_FREQUENCY = 10  # Hz
     LEADER_UPDATE_FREQUENCY = 3   # Hz
     DATA_FRESHNESS_THRESHOLD = 3.0  # seconds
-    SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
     
     ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
     
