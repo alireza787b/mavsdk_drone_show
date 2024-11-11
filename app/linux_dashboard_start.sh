@@ -57,8 +57,7 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
-DEFAULT_REAL_BRANCH="main-candidate"   # Real branch to use (single branch as per new implementation)
-# Removed DEFAULT_SITL_BRANCH since we are using a single branch
+BRANCH_NAME="main-candidate"  # Set default branch to main-candidate
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -74,7 +73,6 @@ REAL_MODE_FILE="$PARENT_DIR/real.mode"
 USE_SITL=false
 USE_REAL=false
 OVERWRITE_IP=""
-BRANCH_NAME="main-candidate"  # Set default branch to main-candidate
 
 # Function to display usage instructions
 display_usage() {
@@ -108,7 +106,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             USE_SITL=true
-            # BRANCH_NAME remains main-candidate
             shift
             ;;
         --real)
@@ -117,7 +114,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             USE_REAL=true
-            # BRANCH_NAME remains main-candidate
             shift
             ;;
         --overwrite-ip)
@@ -195,19 +191,21 @@ check_tmux_installed() {
 check_and_kill_port() {
     local port="$1"
     check_command_installed "lsof" "lsof"
-    pid=$(lsof -t -i :"$port")
-    if [ -n "$pid" ]; then
-        echo "⚠️  Port $port is in use by process $pid."
-        process_name=$(ps -p "$pid" -o comm=)
-        echo "Process using port $port: $process_name (PID: $pid)"
-        echo "Killing process $pid..."
-        kill -9 "$pid"
-        if [ $? -eq 0 ]; then
-            echo "✅ Process $pid killed."
-        else
-            echo "❌ Failed to kill process $pid."
-            exit 1
-        fi
+    pids=$(lsof -t -i :"$port")
+    if [ -n "$pids" ]; then
+        echo "⚠️  Port $port is in use by process(es): $pids"
+        for pid in $pids; do
+            process_name=$(ps -p "$pid" -o comm=)
+            echo "Process using port $port: $process_name (PID: $pid)"
+            echo "Killing process $pid..."
+            kill -9 "$pid"
+            if [ $? -eq 0 ]; then
+                echo "✅ Process $pid killed."
+            else
+                echo "❌ Failed to kill process $pid."
+                exit 1
+            fi
+        done
     else
         echo "✅ Port $port is free."
     fi
@@ -234,7 +232,8 @@ show_tmux_instructions() {
 }
 
 # Paths to component scripts
-GCS_SERVER_SCRIPT="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
+# Change directory to PARENT_DIR before running the GCS server app
+GCS_SERVER_SCRIPT="cd $PARENT_DIR && $VENV_PATH/bin/python gcs-server/app.py"
 GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 
 # Function to update the repository
@@ -403,9 +402,11 @@ handle_real_mode_file() {
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
+    # Kill existing tmux session if it exists
     if tmux has-session -t "$session" 2>/dev/null; then
         echo "⚠️  Killing existing tmux session '$session'..."
         tmux kill-session -t "$session"
+        sleep 1
     fi
 
     echo "🟢 Creating tmux session '$session'..."
@@ -527,6 +528,19 @@ fi
 echo "==============================================="
 echo ""
 
+# Kill existing tmux session if it exists
+echo "-----------------------------------------------"
+echo "Ensuring no existing tmux session named '$SESSION_NAME' is running..."
+echo "-----------------------------------------------"
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "⚠️  Killing existing tmux session '$SESSION_NAME'..."
+    tmux kill-session -t "$SESSION_NAME"
+    sleep 1
+else
+    echo "✅ No existing tmux session named '$SESSION_NAME'."
+fi
+
+# Check and free up ports
 echo "-----------------------------------------------"
 echo "Checking and freeing up default ports..."
 echo "-----------------------------------------------"
