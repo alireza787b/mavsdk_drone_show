@@ -112,6 +112,7 @@ logs/
 # Specific binary and hardware ID files that should not be committed
 /mavsdk_server
 /*.hwID
+/real.mode
 
 # Node modules
 node_modules/
