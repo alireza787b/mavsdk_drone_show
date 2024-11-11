@@ -114,6 +114,8 @@ logs/
 /*.hwID
 /real.mode
 
+*Zone.Identifier
+
 # Node modules
 node_modules/
 
