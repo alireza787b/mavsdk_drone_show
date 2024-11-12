@@ -674,7 +674,8 @@ async def update_code(branch=None):
 
     try:
         # Build the command
-        script_path = os.path.join('tools', 'update_https')
+        #tools/update_repo_ssh.sh
+        script_path = os.path.join('tools', 'update_repo_ssh.sh')
         command = [script_path]
 
         # Append branch name if provided
