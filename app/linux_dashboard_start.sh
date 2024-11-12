@@ -12,21 +12,21 @@
 # pulls the latest updates from the repository.
 #
 # Usage:
-#   ./run_droneservices.sh [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]
+#   ./linux_dashboard_start.sh [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]
 #   Flags:
 #     -g : Do NOT run GCS Server (default: enabled)
 #     -u : Do NOT run GUI React App (default: enabled)
 #     -n : Do NOT use tmux (default: uses tmux)
 #     -s : Run components in Separate windows (default: Combined view)
-#     --sitl : Checkout to SITL branch (docker-sitl-2)
-#     --real : Checkout to Real branch (real-test-1)
+#     --sitl : Switch to simulation mode by deleting 'real.mode' file
+#     --real : Switch to real mode by creating 'real.mode' file
 #     --overwrite-ip <IP> : Overwrite the server IP in .env
-#     -b <branch> : Specify a custom branch to sync with
+#     -b <branch> : Specify a custom branch to sync with (default: main-candidate)
 #     -h : Display help
 #
 # Example:
-#   ./run_droneservices.sh -g -s --sitl --overwrite-ip 100.84.222.4
-#   (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)
+#   ./linux_dashboard_start.sh -g -s --sitl --overwrite-ip 100.84.222.4
+#   (Runs GUI React App in a separate window, skips the GCS Server, switches to simulation mode, and overwrites the server IP)
 #
 #########################################
 
@@ -38,7 +38,7 @@ cat << "EOF"
  |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
  | |\/| |/ _ \ V /\__ \ |) | ' <  | |) |   / (_) | .` | _|  \__ \ __ | (_) \ \/\/ /  | || |\/| | |) \__ \| |
  |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
-                                                                                      \_\               /_/ 
+                                                                                          \_\               /_/ 
 
 
 EOF
@@ -57,14 +57,17 @@ GCS_PORT=5000
 GUI_PORT=3000
 VENV_PATH="$HOME/mavsdk_drone_show/venv"
 UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
-DEFAULT_REAL_BRANCH="real-test-1"   # Real branch to use with --real flag
-DEFAULT_SITL_BRANCH="docker-sitl-2" # SITL branch to use with --sitl flag
+BRANCH_NAME="main-candidate"  # Set default branch to main-candidate
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"  # One directory above the script's directory
 
 # Path to the .env file
 ENV_FILE_PATH="$SCRIPT_DIR/dashboard/drone-dashboard/.env"
+
+# Path to the real.mode file (one directory above the script)
+REAL_MODE_FILE="$PARENT_DIR/real.mode"
 
 # Initialize variables for new arguments
 USE_SITL=false
@@ -79,18 +82,18 @@ display_usage() {
     echo "  -u : Do NOT run GUI React App (default: enabled)"
     echo "  -n : Do NOT use tmux (default: uses tmux)"
     echo "  -s : Run components in Separate windows (default: Combined view)"
-    echo "  --sitl : Checkout to SITL branch (docker-sitl-2)"
-    echo "  --real : Checkout to Real branch (real-test-1)"
+    echo "  --sitl : Switch to simulation mode by deleting 'real.mode' file"
+    echo "  --real : Switch to real mode by creating 'real.mode' file"
     echo "  --overwrite-ip <IP> : Overwrite the server IP in .env"
-    echo "  -b <branch> : Specify a custom branch to sync with"
+    echo "  -b <branch> : Specify a custom branch to sync with (default: main-candidate)"
     echo "  -h : Display this help message"
     echo ""
     echo "Examples:"
     echo "  $0 -g -s --sitl --overwrite-ip 100.84.222.4"
-    echo "    (Runs GUI React App in a separate window, skips the GCS Server, uses the docker-sitl-2 branch, and overwrites the server IP)"
+    echo "    (Runs GUI React App in a separate window, skips the GCS Server, switches to simulation mode, and overwrites the server IP)"
     echo ""
     echo "  $0 --real"
-    echo "    (Uses the real branch and prompts for server IP if .env is missing)"
+    echo "    (Switches to real mode by creating 'real.mode' file and uses the main-candidate branch)"
 }
 
 # Manually handle long options (--sitl, --real, --overwrite-ip) and combine with getopts for short options
@@ -103,7 +106,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             USE_SITL=true
-            BRANCH_NAME="$DEFAULT_SITL_BRANCH"
             shift
             ;;
         --real)
@@ -112,7 +114,6 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             USE_REAL=true
-            BRANCH_NAME="$DEFAULT_REAL_BRANCH"
             shift
             ;;
         --overwrite-ip)
@@ -170,6 +171,12 @@ check_command_installed() {
         echo "⚠️  $cmd could not be found. Installing $pkg..."
         sudo apt-get update
         sudo apt-get install -y "$pkg"
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install $pkg. Please install it manually."
+            exit 1
+        else
+            echo "✅ $pkg installed successfully."
+        fi
     else
         echo "✅ $cmd is already installed."
     fi
@@ -184,14 +191,21 @@ check_tmux_installed() {
 check_and_kill_port() {
     local port="$1"
     check_command_installed "lsof" "lsof"
-    pid=$(lsof -t -i :"$port")
-    if [ -n "$pid" ]; then
-        echo "⚠️  Port $port is in use by process $pid."
-        process_name=$(ps -p "$pid" -o comm=)
-        echo "Process using port $port: $process_name (PID: $pid)"
-        echo "Killing process $pid..."
-        kill -9 "$pid"
-        echo "✅ Process $pid killed."
+    pids=$(lsof -t -i :"$port")
+    if [ -n "$pids" ]; then
+        echo "⚠️  Port $port is in use by process(es): $pids"
+        for pid in $pids; do
+            process_name=$(ps -p "$pid" -o comm=)
+            echo "Process using port $port: $process_name (PID: $pid)"
+            echo "Killing process $pid..."
+            kill -9 "$pid"
+            if [ $? -eq 0 ]; then
+                echo "✅ Process $pid killed."
+            else
+                echo "❌ Failed to kill process $pid."
+                exit 1
+            fi
+        done
     else
         echo "✅ Port $port is free."
     fi
@@ -218,7 +232,8 @@ show_tmux_instructions() {
 }
 
 # Paths to component scripts
-GCS_SERVER_SCRIPT="cd $SCRIPT_DIR/../gcs-server && $VENV_PATH/bin/python app.py"
+# Change directory to PARENT_DIR before running the GCS server app
+GCS_SERVER_SCRIPT="cd $PARENT_DIR && $VENV_PATH/bin/python gcs-server/app.py"
 GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
 
 # Function to update the repository
@@ -347,13 +362,51 @@ EOL
     fi
 }
 
+# Function to create or delete the real.mode file based on mode flags
+handle_real_mode_file() {
+    if [ "$USE_REAL" = true ]; then
+        echo "-----------------------------------------------"
+        echo "  Switching to Real Mode: Creating 'real.mode' file..."
+        echo "-----------------------------------------------"
+        # Create the real.mode file
+        touch "$REAL_MODE_FILE"
+        if [ $? -eq 0 ]; then
+            echo "✅ 'real.mode' file created at $REAL_MODE_FILE."
+        else
+            echo "❌ Failed to create 'real.mode' file. Please check permissions."
+            exit 1
+        fi
+    elif [ "$USE_SITL" = true ]; then
+        echo "-----------------------------------------------"
+        echo "  Switching to Simulation Mode: Deleting 'real.mode' file if exists..."
+        echo "-----------------------------------------------"
+        if [ -f "$REAL_MODE_FILE" ]; then
+            rm "$REAL_MODE_FILE"
+            if [ $? -eq 0 ]; then
+                echo "✅ 'real.mode' file deleted from $REAL_MODE_FILE."
+            else
+                echo "❌ Failed to delete 'real.mode' file. Please check permissions."
+                exit 1
+            fi
+        else
+            echo "ℹ️  'real.mode' file does not exist. Already in Simulation Mode."
+        fi
+    else
+        echo "-----------------------------------------------"
+        echo "  No mode switch argument provided. Keeping current mode."
+        echo "-----------------------------------------------"
+    fi
+}
+
 # Function to start services in tmux
 start_services_in_tmux() {
     local session="$SESSION_NAME"
 
+    # Kill existing tmux session if it exists
     if tmux has-session -t "$session" 2>/dev/null; then
         echo "⚠️  Killing existing tmux session '$session'..."
         tmux kill-session -t "$session"
+        sleep 1
     fi
 
     echo "🟢 Creating tmux session '$session'..."
@@ -392,7 +445,7 @@ start_services_in_tmux() {
     else
         local window_index=0
         for component_name in "${!components[@]}"; do
-            if [ $window_index -eq 0 ]; then
+            if [ "$window_index" -eq 0 ]; then
                 tmux rename-window -t "$session:0" "$component_name"
                 tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
             else
@@ -431,6 +484,9 @@ echo ""
 check_tmux_installed
 check_command_installed "lsof" "lsof"
 
+# Handle mode switching (--real or --sitl)
+handle_real_mode_file
+
 # Update repository based on branch selection
 update_repository
 
@@ -446,16 +502,20 @@ echo "==============================================="
 echo "  Configuration Summary:"
 echo "==============================================="
 if [ "$USE_SITL" = true ]; then
-    echo "✔️  Branch: SITL ($DEFAULT_SITL_BRANCH)"
+    echo "✔️  Mode: Simulation (SITL)"
 elif [ "$USE_REAL" = true ]; then
-    echo "✔️  Branch: Real ($DEFAULT_REAL_BRANCH)"
-elif [ -n "$BRANCH_NAME" ]; then
-    echo "✔️  Branch: Custom ($BRANCH_NAME)"
+    echo "✔️  Mode: Real"
 else
-    CURRENT_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)
-    echo "✔️  Branch: Current ($CURRENT_BRANCH)"
+    CURRENT_MODE="Unknown (based on 'real.mode' file)"
+    if [ -f "$REAL_MODE_FILE" ]; then
+        CURRENT_MODE="Real Mode"
+    else
+        CURRENT_MODE="Simulation Mode"
+    fi
+    echo "✔️  Mode: $CURRENT_MODE"
 fi
 
+echo "✔️  Branch: $BRANCH_NAME"
 echo "✔️  GCS Server: $([ "$RUN_GCS_SERVER" = true ] && echo "Enabled" || echo "Disabled")"
 echo "✔️  GUI React App: $([ "$RUN_GUI_APP" = true ] && echo "Enabled" || echo "Disabled")"
 echo "✔️  Use tmux: $([ "$USE_TMUX" = true ] && echo "Yes" || echo "No")"
@@ -468,6 +528,19 @@ fi
 echo "==============================================="
 echo ""
 
+# Kill existing tmux session if it exists
+echo "-----------------------------------------------"
+echo "Ensuring no existing tmux session named '$SESSION_NAME' is running..."
+echo "-----------------------------------------------"
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "⚠️  Killing existing tmux session '$SESSION_NAME'..."
+    tmux kill-session -t "$SESSION_NAME"
+    sleep 1
+else
+    echo "✅ No existing tmux session named '$SESSION_NAME'."
+fi
+
+# Check and free up ports
 echo "-----------------------------------------------"
 echo "Checking and freeing up default ports..."
 echo "-----------------------------------------------"

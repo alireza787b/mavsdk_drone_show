@@ -856,7 +856,12 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         # Step 5: Read and Adjust Trajectory Waypoints
         if custom_csv:
             # Custom CSV mode
-            trajectory_filename = os.path.join('shapes', custom_csv)
+            
+            if Params.sim_mode:
+                trajectory_filename = os.path.join('shapes_sitl', custom_csv)
+            else:
+                trajectory_filename = os.path.join('shapes', custom_csv)
+            
             waypoints = read_trajectory_file(trajectory_filename)
         else:
             # Drone show mode
@@ -873,7 +878,11 @@ async def run_drone(synchronized_start_time, custom_csv=None):
                 sys.exit(1)
 
             position_id = drone_config.pos_id
-            trajectory_filename = os.path.join('shapes', 'swarm', 'processed', f"Drone {position_id}.csv")
+            if Params.sim_mode:
+                trajectory_filename = os.path.join('shapes_sitl', 'swarm', 'processed', f"Drone {position_id}.csv")
+            else:
+                trajectory_filename = os.path.join('shapes', 'swarm', 'processed', f"Drone {position_id}.csv")
+                
             waypoints = read_trajectory_file(
                 trajectory_filename, drone_config.initial_x, drone_config.initial_y
             )

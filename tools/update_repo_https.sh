@@ -11,68 +11,76 @@
 # - REPO_DIR: Directory of the local Git repository.
 # - GIT_URL: URL to the Git repository (HTTPS only, assuming a public repository).
 # - BRANCH_NAME: The branch to synchronize with.
-#   By default, it is set to `real-test-1`. However, the user can specify a branch via the script's arguments.
-#   - If no branch argument is passed, the default branch will be used (`real-test-1`).
-#   - Use `--sitl` to switch to `docker-sitl-2` branch.
-#   - Use `-b <branch_name>` to specify a custom branch.
+#   - If -b <branch_name> is passed, the script will switch to the specified branch.
+#   - If no branch argument is passed, the script will stay on the current branch.
 #
 # Logging:
 # The script logs all operations and their outcomes to a log file to aid in debugging
 # and operational monitoring.
 #
 # Reliability Improvements:
-# - Added retry mechanisms with exponential backoff for network operations (`git fetch`, `git pull`, and network connectivity check).
+# - Added retry mechanisms with exponential backoff for network operations (git fetch, git pull, and network connectivity check).
 # - The script will attempt to retry failed network operations up to a specified number of times before exiting.
 # - Enhanced error handling and logging for better troubleshooting.
-
-# Example usage:
-# ./update_repo_https.sh                   # Uses default branch (real-test-1)
-# ./update_repo_https.sh --sitl            # Uses docker-sitl-2 branch
-# ./update_repo_https.sh -b <branch_name>  # Uses the specified branch
 #
+# Example usage:
+# ./update_repo_https.sh                    # Stays on current branch
+# ./update_repo_https.sh -b <branch_name>   # Uses the specified branch
 
 set -euo pipefail
 
 # Configuration variables
-REPO_DIR="${HOME}/mavsdk_drone_show"  # Modify this path as needed
-DEFAULT_BRANCH="real-test-1"          # Default branch to synchronize with
-SITL_BRANCH="docker-sitl-2"           # SITL branch
+REPO_DIR="${HOME}/mavsdk_drone_show"        # Modify this path as needed
 GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"  # HTTPS URL for the repo
 LOG_FILE="${REPO_DIR}/update_repo.log"
 
+# Maximum number of retries for network operations
+MAX_RETRIES=5
+INITIAL_DELAY=5  # seconds
+
 # Function to determine branch based on user input
 determine_branch() {
-    local branch="$DEFAULT_BRANCH"  # Default value
+    local branch=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --sitl)
-                branch="$SITL_BRANCH"
-                shift
-                ;;
             -b|--branch)
-                branch="$2"
-                shift 2
+                if [[ -n "${2-}" ]]; then
+                    branch="$2"
+                    shift 2
+                else
+                    echo "Error: --branch requires a non-empty option argument." >&2
+                    echo "Usage: $0 [-b <branch_name>]" >&2
+                    exit 1
+                fi
                 ;;
             *)
-                shift  # Skip other arguments
+                echo "Unknown option: $1" >&2
+                echo "Usage: $0 [-b <branch_name>]" >&2
+                exit 1
                 ;;
         esac
     done
     printf "%s" "$branch"
 }
 
+# Function to log messages with timestamp
+log() {
+    local message="$1"
+    printf "$(date '+%Y-%m-%d %H:%M:%S'): %s\n" "$message" | tee -a "$LOG_FILE"
+}
+
 # Function to log and exit with error
 log_error_and_exit() {
     local message="$1"
-    printf "$(date): ERROR: %s\n" "$message" | tee -a "$LOG_FILE" >&2
+    log "ERROR: $message"
     exit 1
 }
 
 # Function to retry a command up to N times with exponential backoff
 retry() {
-    local retries=$1      # Number of retries
-    local delay=$2        # Initial delay between retries in seconds
-    shift 2               # Shift the arguments to get the command
+    local retries=$1
+    local delay=$2
+    shift 2
     local count=0
 
     until "$@"; do
@@ -80,10 +88,10 @@ retry() {
         count=$((count + 1))
         if [ $count -lt $retries ]; then
             wait=$((delay * 2 ** (count -1)))
-            echo "$(date): Command failed with exit code $exit_code. Attempt $count/$retries. Retrying in $wait seconds..." | tee -a "$LOG_FILE"
+            log "Command failed with exit code $exit_code. Attempt $count/$retries. Retrying in $wait seconds..."
             sleep $wait
         else
-            echo "$(date): Command failed after $count attempts." | tee -a "$LOG_FILE"
+            log "Command failed after $count attempts."
             return $exit_code
         fi
     done
@@ -92,21 +100,21 @@ retry() {
 
 # Function to check network connectivity with retries
 check_network_connectivity() {
-    local retries=5       # Number of retries
-    local delay=5         # Initial delay between retries in seconds
+    local retries=$MAX_RETRIES
+    local delay=$INITIAL_DELAY
     local count=0
 
     until ping -c 1 github.com >/dev/null 2>&1; do
         count=$((count + 1))
         if [ $count -lt $retries ]; then
             wait=$((delay * 2 ** (count -1)))
-            echo "$(date): Network check failed. Attempt $count/$retries. Retrying in $wait seconds..." | tee -a "$LOG_FILE"
+            log "Network check failed. Attempt $count/$retries. Retrying in $wait seconds..."
             sleep $wait
         else
             log_error_and_exit "No network connectivity after multiple attempts. Cannot update repository."
         fi
     done
-    echo "$(date): Network connectivity confirmed." | tee -a "$LOG_FILE"
+    log "Network connectivity confirmed."
 }
 
 # Parse branch input
@@ -122,34 +130,60 @@ cd "$REPO_DIR" || log_error_and_exit "Failed to navigate to $REPO_DIR"
 
 # Stash any local changes
 if git status --porcelain | grep .; then
-    echo "$(date): Stashing local changes..." | tee -a "$LOG_FILE"
-    git stash --include-untracked
+    log "Stashing local changes..."
+    git stash --include-untracked || log_error_and_exit "Failed to stash local changes."
 else
-    echo "$(date): No local changes to stash." | tee -a "$LOG_FILE"
+    log "No local changes to stash."
 fi
+
+# Set the Git remote URL to HTTPS
+git remote set-url origin "$GIT_URL" || log_error_and_exit "Failed to set remote URL to $GIT_URL"
 
 # Check network connectivity
 check_network_connectivity
 
 # Fetch the latest updates from all branches with retries
-if ! retry 5 5 git fetch --all; then
+if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
     log_error_and_exit "Failed to fetch updates from $GIT_URL after multiple attempts."
 fi
 
-# Checkout the specified branch
-if ! git checkout "$BRANCH_NAME"; then
-    log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
+# Determine the branch to operate on
+if [ -n "$BRANCH_NAME" ]; then
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+        log "Switching to branch $BRANCH_NAME..."
+        if ! git checkout "$BRANCH_NAME"; then
+            log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
+        else
+            log "Switched to branch $BRANCH_NAME"
+        fi
+    else
+        log "Already on branch $BRANCH_NAME"
+    fi
+else
+    # No branch specified, use current branch
+    BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+    log "No branch specified. Using current branch: $BRANCH_NAME"
+fi
+
+# Reset local changes to match the remote branch
+log "Resetting local branch $BRANCH_NAME to match origin/$BRANCH_NAME..."
+if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git reset --hard "origin/$BRANCH_NAME"; then
+    log_error_and_exit "Failed to reset the branch $BRANCH_NAME"
 fi
 
 # Pull the latest updates with retries
-if ! retry 5 5 git pull --rebase; then
+log "Pulling the latest updates for branch $BRANCH_NAME..."
+if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git pull; then
     log_error_and_exit "Failed to pull the latest updates from $BRANCH_NAME after multiple attempts."
 else
-    echo "$(date): Successfully updated code from $GIT_URL on branch $BRANCH_NAME" | tee -a "$LOG_FILE"
+    log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME"
 fi
 
-# Optional: Apply stashed changes if any... not needed now.
+# Optional: Apply stashed changes if any (currently not needed)
 # if git stash list | grep -q 'stash@{0}'; then
-#     echo "$(date): Applying stashed changes..." | tee -a "$LOG_FILE"
-#     git stash pop
+#     log "Applying stashed changes..."
+#     git stash pop || log_error_and_exit "Failed to apply stashed changes."
 # fi
+
+exit 0

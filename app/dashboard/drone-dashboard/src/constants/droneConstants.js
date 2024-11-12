@@ -34,6 +34,7 @@ export const DRONE_ACTION_TYPES = {
   LAND: 101,
   HOLD: 102,
   TEST: 100,
+  UPDATE_CODE: 103,
   REBOOT_FC: 6,
   REBOOT_SYS: 7,
   TEST_LED: 8,

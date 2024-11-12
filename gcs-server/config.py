@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 # Define the expected column order
 CONFIG_COLUMNS = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip']
+SWARM_COLUMNS = ['hw_id' , 'follow' , 'offset_n' , 'offset_e' , 'offset_alt' , 'body_coord']
+
 
 def load_csv(file_path):
     """General function to load data from a CSV file."""
@@ -73,7 +75,7 @@ def load_swarm(file_path=SWARM_FILE_PATH):
     return load_csv(file_path)
 
 def save_swarm(swarm, file_path=SWARM_FILE_PATH):
-    save_csv(swarm, file_path)
+    save_csv(swarm, file_path,fieldnames=SWARM_COLUMNS)
 
 
 def get_git_status():

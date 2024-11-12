@@ -9,7 +9,6 @@ import os
 from enum import Enum
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
-
 class DroneSetup:
     """
     The DroneSetup class manages the execution of various drone missions by handling mission scripts.
@@ -50,7 +49,7 @@ class DroneSetup:
             Mission.REBOOT_FC.value: self._execute_reboot_fc,
             Mission.REBOOT_SYS.value: self._execute_reboot_sys,
             Mission.TEST_LED.value: self._execute_test_led,
-            # Add other missions as needed
+            Mission.UPDATE_CODE.value: self._execute_update_code,
         }
 
     def _validate_params(self):
@@ -93,6 +92,10 @@ class DroneSetup:
             # Add other required attributes here if necessary
         }
 
+        # Additional validation for UPDATE_CODE mission
+        if self.drone_config.mission == Mission.UPDATE_CODE.value:
+            required_attrs['update_branch'] = (str,)
+
         for attr, expected_types in required_attrs.items():
             if not hasattr(self.drone_config, attr):
                 logging.error(f"Missing required attribute '{attr}' in drone_config.")
@@ -100,7 +103,7 @@ class DroneSetup:
 
             attr_value = getattr(self.drone_config, attr)
 
-            if isinstance(attr_value, str):
+            if isinstance(attr_value, str) and expected_types != (str,):
                 try:
                     # Attempt to convert to float or int
                     converted_value = float(attr_value) if '.' in attr_value else int(attr_value)
@@ -109,9 +112,9 @@ class DroneSetup:
                 except ValueError:
                     logging.error(f"Attribute '{attr}' must be a number, got string '{attr_value}'.")
                     raise TypeError(f"'{attr}' must be a number, got string '{attr_value}'.")
-            elif not isinstance(attr_value, expected_types[:-1]):  # Exclude str from expected types for validation
-                logging.error(f"Attribute '{attr}' must be of type int or float, got {type(attr_value).__name__}.")
-                raise TypeError(f"'{attr}' must be of type int or float, got {type(attr_value).__name__}.")
+            elif not isinstance(attr_value, expected_types):
+                logging.error(f"Attribute '{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
+                raise TypeError(f"'{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
 
     def _get_python_exec_path(self) -> str:
         """
@@ -176,13 +179,13 @@ class DroneSetup:
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
-            command = f"{python_exec_path} {script_path} {action}"
-            logging.debug(f"Executing command: {command}")
+            command = [python_exec_path, script_path] + action.split()
+            logging.debug(f"Executing command: {' '.join(command)}")
 
             try:
                 # Start the mission script as a subprocess
-                process = await asyncio.create_subprocess_shell(
-                    command,
+                process = await asyncio.create_subprocess_exec(
+                    *command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
@@ -531,6 +534,32 @@ class DroneSetup:
         return await self.execute_mission_script(
             "test_led_controller.py",
             "--action=start"
+        )
+
+    async def _execute_update_code(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Executes the Update Code mission by running the update_code action script.
+
+        Args:
+            current_time (int, optional): The current Unix timestamp.
+            earlier_trigger_time (int, optional): The adjusted trigger time.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        branch_name = getattr(self.drone_config, 'update_branch', None)
+        if not branch_name:
+            logging.error("Branch name is not specified in drone_config.update_branch")
+            return False, "Branch name is not specified"
+
+        logging.info(f"Starting Update Code Mission with branch '{branch_name}'")
+
+        # Construct the action command
+        action_command = f"--action=update_code --branch={branch_name}"
+
+        return await self.execute_mission_script(
+            "actions.py",
+            action_command
         )
 
     def _log_mission_result(self, success: bool, message: str):

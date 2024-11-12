@@ -1,4 +1,5 @@
 # smart_swarm/smart_swarm.py
+
 import os
 import sys
 import time
@@ -18,11 +19,14 @@ from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 import navpy
 import requests
+import numpy as np  # Added for numerical computations
 
 from src.led_controller import LEDController
 from src.params import Params
 
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
+from smart_swarm_src.pd_controller import PDController  # New import
+from smart_swarm_src.low_pass_filter import LowPassFilter  # New import
 from smart_swarm_src.utils import (
     transform_body_to_nea,
     is_data_fresh,
@@ -51,6 +55,7 @@ DRONE_CONFIG = {}  # Drone configurations from config.csv
 SWARM_CONFIG = {}  # Swarm configurations from swarm.csv
 DRONE_STATE = {}  # Own drone's state
 LEADER_STATE = {}  # Leader drone's state
+OWN_STATE = {}  # Own drone's NED state
 IS_LEADER = False  # Flag indicating if this drone is a leader
 OFFSETS = {'n': 0.0, 'e': 0.0, 'alt': 0.0}  # Offsets from the leader
 BODY_COORD = False  # Flag indicating if offsets are in body coordinates
@@ -428,7 +433,7 @@ async def update_leader_state():
                     logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
                     logger.debug("Leader state updated and Kalman filter updated.")
                 else:
-                    logger.debug("No new leader state data available.")
+                    logger.error("Leader data does not contain 'update_time'.")
             else:
                 logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
         except requests.RequestException as e:
@@ -438,12 +443,36 @@ async def update_leader_state():
         await asyncio.sleep(update_interval)
 
 # ----------------------------- #
+#    Own State Update Task      #
+# ----------------------------- #
+
+async def update_own_state(drone: System):
+    """
+    Periodically updates the own drone's state.
+    """
+    logger = logging.getLogger(__name__)
+    global OWN_STATE
+    try:
+        async for position_velocity in drone.telemetry.position_velocity_ned():
+            position = position_velocity.position
+            velocity = position_velocity.velocity
+            OWN_STATE['pos_n'] = position.north_m
+            OWN_STATE['pos_e'] = position.east_m
+            OWN_STATE['pos_d'] = position.down_m
+            OWN_STATE['vel_n'] = velocity.north_m_s
+            OWN_STATE['vel_e'] = velocity.east_m_s
+            OWN_STATE['vel_d'] = velocity.down_m_s
+            OWN_STATE['timestamp'] = time.time()
+    except Exception:
+        logger.exception("Error in updating own state")
+
+# ----------------------------- #
 #          Control Loop         #
 # ----------------------------- #
 
 async def control_loop(drone: System):
     """
-    Control loop that sends offboard setpoints to the drone based on the estimated leader state.
+    Control loop that sends offboard setpoints to the drone based on the leader state.
 
     Args:
         drone (System): MAVSDK drone system instance.
@@ -457,9 +486,23 @@ async def control_loop(drone: System):
     stale_start_time = None
     stale_duration_threshold = 1.0  # seconds
 
+    # Initialize PD controller and low-pass filter
+    kp = Params.PD_KP  # Proportional gain
+    kd = Params.PD_KD  # Derivative gain
+    max_velocity = Params.MAX_VELOCITY  # Maximum allowed velocity (m/s)
+    alpha = Params.LOW_PASS_FILTER_ALPHA  # Smoothing factor for low-pass filter
+
+    pd_controller = PDController(kp, kd, max_velocity)
+    velocity_filter = LowPassFilter(alpha)
+
+    previous_time = None
+
     try:
         while True:
             current_time = time.time()
+            dt = current_time - previous_time if previous_time else loop_interval
+            previous_time = current_time
+
             # Check data freshness
             if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
                 stale_start_time = None
@@ -488,24 +531,36 @@ async def control_loop(drone: System):
                 # Desired positions
                 desired_n = leader_n + offset_n
                 desired_e = leader_e + offset_e
-                desired_d = -1*(leader_d - OFFSETS['alt'])  # Altitude offset, subtract in NED
+                desired_d = -1*(leader_d - OFFSETS['alt'])  #  Seems this -1 is needed. double check later why. maybe we are doing offset reverse
                 logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
-                # Create setpoints
-                position_setpoint = PositionNedYaw(
-                    desired_n, desired_e, desired_d, leader_yaw
-                )
-                if Params.SWARM_FEEDFORWARD_VELOCITY_ENABLED:
-                    desired_vel_n = leader_vel_n
-                    desired_vel_e = leader_vel_e
-                    desired_vel_d = leader_vel_d
-                    velocity_setpoint = VelocityNedYaw(
-                        desired_vel_n, desired_vel_e, desired_vel_d, leader_yaw
-                    )
-                    await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
-                    logger.debug(f"Position and velocity setpoints sent. Position: {position_setpoint}, Velocity: {velocity_setpoint}")
-                else:
-                    await drone.offboard.set_position_ned(position_setpoint)
-                    logger.debug(f"Position setpoint sent: {position_setpoint}")
+
+                # Get own position
+                current_n = OWN_STATE.get('pos_n', 0.0)
+                current_e = OWN_STATE.get('pos_e', 0.0)
+                current_d = OWN_STATE.get('pos_d', 0.0)
+
+                # Compute position error
+                position_error = np.array([
+                    desired_n - current_n,
+                    desired_e - current_e,
+                    desired_d - current_d
+                ])
+
+                # Compute velocity command using PD controller
+                velocity_command = pd_controller.compute(position_error, dt)
+
+                # Filter the velocity command
+                filtered_velocity = velocity_filter.filter(velocity_command)
+
+                # Send velocity command
+                await drone.offboard.set_velocity_ned(VelocityNedYaw(
+                    filtered_velocity[0],
+                    filtered_velocity[1],
+                    filtered_velocity[2],
+                    leader_yaw
+                ))
+                logger.debug(f"Velocity command sent: {filtered_velocity}, yaw: {leader_yaw}")
+
             else:
                 if stale_start_time is None:
                     stale_start_time = current_time
@@ -614,7 +669,7 @@ async def initialize_drone():
             await asyncio.sleep(1)
 
         # Arm the drone and start offboard mode
-        # TODO: Maybe do some checks later on here 
+        # TODO: Maybe do some checks later on here
         # logger.info("Arming drone.")
         # await drone.action.arm() # if not already arm (meaning we start on the ground)
         logger.info("Starting offboard mode.")
@@ -736,6 +791,8 @@ async def run_smart_swarm():
     # Start leader state update task
     if not IS_LEADER:
         leader_update_task = asyncio.create_task(update_leader_state())
+        # Start own state update task
+        own_state_task = asyncio.create_task(update_own_state(drone))
         # Start control loop
         control_task = asyncio.create_task(control_loop(drone))
     else:
@@ -754,6 +811,11 @@ async def run_smart_swarm():
             leader_update_task.cancel()
             try:
                 await leader_update_task
+            except asyncio.CancelledError:
+                pass
+            own_state_task.cancel()
+            try:
+                await own_state_task
             except asyncio.CancelledError:
                 pass
             control_task.cancel()
