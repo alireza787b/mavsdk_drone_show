@@ -139,7 +139,6 @@ class DroneCommunicator:
             logging.warning(f"Invalid mission command: {e}")
 
         self._log_updated_configuration()
-        self.drones[hw_id] = self.drone_config
 
     def _update_drone_config(self, hw_id: str, pos_id: str, state: int, trigger_time: int) -> None:
         """Update drone configuration with new values."""
