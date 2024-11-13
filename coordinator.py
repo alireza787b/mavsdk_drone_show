@@ -101,7 +101,9 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function to schedule missions at a specified frequency.
     """
     while True:
+        logger.info("checking schedule...")
         await drone_setup_instance.schedule_mission()
+        logger.info("checked schedule...")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
 def main_loop():
