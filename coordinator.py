@@ -3,7 +3,7 @@
 Coordinator Application for Drone Management
 
 This script initializes and manages various components related to drone operations,
-including MAVLink communication, mission scheduling. It also
+including MAVLink communication and mission scheduling. It also
 provides LED feedback based on the drone's state to aid field operations.
 
 Author: Alireza Ghaderi
@@ -72,14 +72,13 @@ mavlink_manager = None
 global_telemetry = {}  # Store telemetry data
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
-drones = {}  # Dictionary to store drone information
 params = Params()  # Global parameters instance
-drone_config = DroneConfig(drones)  # Initialize DroneConfig
+drone_config = DroneConfig()  # Initialize DroneConfig
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
 # Initialize LEDController only if not in simulation mode
-if not Params.sim_mode:
+if not params.sim_mode:
     try:
         led_controller = LEDController.get_instance()
     except Exception as e:
@@ -92,7 +91,7 @@ notifier = sdnotify.SystemdNotifier()
 
 def schedule_missions_thread(drone_setup_instance):
     """
-    Thread target function to schedule missions asynchronously.
+    Thread target function to run the asyncio event loop for scheduling missions.
     """
     asyncio.run(schedule_missions_async(drone_setup_instance))
 
@@ -101,9 +100,7 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function to schedule missions at a specified frequency.
     """
     while True:
-        logger.info("checking schedule...")
         await drone_setup_instance.schedule_mission()
-        logger.info("checked schedule...")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
 def main_loop():
@@ -115,19 +112,16 @@ def main_loop():
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
-        logger.info("After intial LED set color...")
+        logger.info("After initial LED set color...")
 
         # Synchronize time if enabled
         if params.online_sync_time:
             drone_setup.synchronize_time()
             logger.info("Time synchronized.")
 
-        
-
         # Initialization successful
         LEDController.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
-
 
         # Start mission scheduling thread
         scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
@@ -166,7 +160,6 @@ def main_loop():
                     LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
-
             time.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
@@ -202,7 +195,7 @@ def main():
     logger.info("LocalMavlinkController initialized.")
 
     # Step 1: Initialize DroneCommunicator and FlaskHandler without dependencies
-    drone_comms = DroneCommunicator(drone_config, params, drones)
+    drone_comms = DroneCommunicator(drone_config)
     flask_handler = FlaskHandler(params, drone_config)
 
     # Step 2: Inject the dependencies afterward (setters)
