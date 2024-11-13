@@ -12,14 +12,13 @@ from functions.data_utils import safe_float, safe_get, safe_int
 from src.enums import Mission
 from src.drone_config import DroneConfig
 from src.params import Params
-from src.telemetry_subscription_manager import TelemetrySubscriptionManager
 
 class DroneCommunicator:
     """
     Handles communication with drones, including telemetry and command processing.
     """
 
-    def __init__(self, drone_config: DroneConfig, params: Params, drones: Dict[str, DroneConfig]):
+    def __init__(self, drone_config: DroneConfig):
         """
         Initialize the DroneCommunicator with configuration and drone data.
 
@@ -29,21 +28,13 @@ class DroneCommunicator:
             drones (Dict[str, DroneConfig]): Dictionary of all drones.
         """
         self.drone_config = drone_config
-        self.params = params
-        self.drones = drones
-        self.enable_udp_telemetry = params.enable_udp_telemetry
+        self.params = Params
+        self.enable_udp_telemetry = Params.enable_udp_telemetry
         self.sock = self._initialize_socket() if self.enable_udp_telemetry else None
         self.stop_flag = threading.Event()
         self.nodes: List[Dict[str, Any]] = None
         self.executor = ThreadPoolExecutor(max_workers=10)
         self.drone_state: Dict[str, Any] = None
-
-        # Initialize TelemetrySubscriptionManager
-        self.subscription_manager = TelemetrySubscriptionManager(drones)
-
-        # Subscribe to all drones if the parameter is enabled
-        if params.enable_default_subscriptions:
-            self.subscription_manager.subscribe_to_all()
 
         # Initialize flask_handler as None; it will be injected later
         self.flask_handler = None

@@ -15,7 +15,7 @@ class DroneConfig:
     This class holds all configuration and state data for a drone.
     It manages configuration files, swarm behavior, and telemetry data processing.
     """
-    def __init__(self, drones, hw_id=None):
+    def __init__(self, hw_id=None):
         self.hw_id = self.get_hw_id(hw_id)  # Unique hardware ID for the drone
         self.trigger_time = 0
         self.config = self.read_config()  # Read configuration settings
@@ -39,7 +39,6 @@ class DroneConfig:
 
         # Target drone for swarm operations (if applicable)
         self.target_drone = None
-        self.drones = drones  # List of drones in the swarm
 
 
         # Altitude for takeoff
@@ -132,106 +131,6 @@ class DroneConfig:
             logging.error(f"Failed to load online configuration: {e}")
             return None
     
-    def find_target_drone(self):
-        """
-        Determine which drone this drone should follow in a swarm configuration.
-        """
-        follow_hw_id = int(self.swarm['follow'])
-        if follow_hw_id == 0:
-            logging.info(f"Drone {self.hw_id} is a master drone and not following anyone.")
-        elif follow_hw_id == self.hw_id:
-            logging.error(f"Drone {self.hw_id} is set to follow itself. This is not allowed.")
-        else:
-            self.target_drone = self.drones.get(follow_hw_id)
-            if self.target_drone:
-                logging.info(f"Drone {self.hw_id} is following drone {self.target_drone.hw_id}")
-            else:
-                logging.error(f"No target drone found for drone with hw_id: {self.hw_id}")
-
-    # def calculate_position_setpoint_LLA(self):
-    #     """
-    #     Calculate position setpoint in Latitude, Longitude, and Altitude (LLA).
-    #     """
-    #     if self.target_drone:
-    #         offset_n = self.swarm.get('offset_n', 0)
-    #         offset_e = self.swarm.get('offset_e', 0)
-    #         offset_alt = self.swarm.get('offset_alt', 0)
-
-    #         geod = Geodesic.WGS84  # Define the WGS84 ellipsoid
-    #         g = geod.Direct(float(self.target_drone.position['lat']), float(self.target_drone.position['long']), 90, float(offset_e))
-    #         g = geod.Direct(g['lat2'], g['lon2'], 0, float(offset_n))
-
-    #         self.position_setpoint_LLA = {
-    #             'lat': g['lat2'],
-    #             'long': g['lon2'],
-    #             'alt': float(self.target_drone.position['alt']) + float(offset_alt),  
-    #         }
-
-    #         logging.debug(f"Position setpoint for drone {self.hw_id}: {self.position_setpoint_LLA}")
-    #     else:
-    #         logging.error(f"No target drone found for drone with hw_id: {self.hw_id}")
-    
-    # def calculate_setpoints(self):
-    #     """
-    #     Calculate position, velocity, and yaw setpoints based on the current mission.
-    #     """
-    #     if self.mission == 2:
-    #         self.find_target_drone()
-
-    #         if self.target_drone:
-    #             self.calculate_position_setpoint_NED()
-    #             self.calculate_velocity_setpoint_NED()
-    #             self.calculate_yaw_setpoint()
-    #             logging.debug(f"Setpoint updated | Position: {self.position_setpoint_NED} | Velocity: {self.velocity_setpoint_NED}")
-
-    #             self.kalman_filter.initialize_if_needed(self.position_setpoint_NED, self.velocity_setpoint_NED)
-    #             self.kalman_filter.predict()
-    #             self.kalman_filter.update(self.build_kalman_measurement())
-
-
-    # def calculate_position_setpoint_NED(self):
-    #     """
-    #     Calculate position setpoint in North, East, Down (NED) coordinates.
-    #     """
-    #     if self.target_drone:
-    #         target_position_NED = self.convert_LLA_to_NED(self.target_drone.position)
-    #         self.position_setpoint_NED = {
-    #             'north': target_position_NED['north'] + float(self.swarm.get('offset_n', 0)),
-    #             'east': target_position_NED['east'] + float(self.swarm.get('offset_e', 0)),
-    #             'down': target_position_NED['down'] - float(self.swarm.get('offset_alt', 0)),
-    #         }
-    #     else:
-    #         logging.error(f"No target drone found for drone with hw_id: {self.hw_id}")
-
-    # def calculate_velocity_setpoint_NED(self):
-    #     """
-    #     Set the velocity setpoints to match the target drone's velocity.
-    #     """
-    #     if self.target_drone:
-    #         self.velocity_setpoint_NED = self.target_drone.velocity
-    #     else:
-    #         logging.error(f"No target drone found for drone with hw_id: {self.hw_id}")
-
-    # def calculate_yaw_setpoint(self):
-    #     """
-    #     Set the yaw setpoint to match the target drone's yaw.
-    #     """
-    #     if self.target_drone:
-    #         self.yaw_setpoint = self.target_drone.yaw
-    #     else:
-    #         logging.error(f"No target drone found for drone with hw_id: {self.hw_id}")
-
-    # def convert_LLA_to_NED(self, LLA):
-    #     """
-    #     Convert Latitude, Longitude, Altitude (LLA) to North, East, Down (NED) coordinates.
-    #     """
-    #     if self.home_position:
-    #         ned = navpy.lla2ned(LLA['lat'], LLA['long'], LLA['alt'], self.home_position['lat'], self.home_position['long'], self.home_position['alt'])
-    #         return {'north': ned[0], 'east': ned[1], 'down': ned[2]}
-    #     else:
-    #         logging.error("Home position is not set")
-    #         return None
-
     def radian_to_degrees_heading(self, yaw_radians):
         """
         Convert the yaw angle from radians to degrees and normalize it to a heading (0-360 degrees).
