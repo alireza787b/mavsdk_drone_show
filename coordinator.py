@@ -72,13 +72,14 @@ mavlink_manager = None
 global_telemetry = {}  # Store telemetry data
 run_telemetry_thread = threading.Event()
 run_telemetry_thread.set()
+drones = {}  # Dictionary to store drone information
 params = Params()  # Global parameters instance
-drone_config = DroneConfig()  # Initialize DroneConfig
+drone_config = DroneConfig(drones)  # Initialize DroneConfig
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
 # Initialize LEDController only if not in simulation mode
-if not params.sim_mode:
+if not Params.sim_mode:
     try:
         led_controller = LEDController.get_instance()
     except Exception as e:
@@ -91,7 +92,7 @@ notifier = sdnotify.SystemdNotifier()
 
 def schedule_missions_thread(drone_setup_instance):
     """
-    Thread target function to run the asyncio event loop for scheduling missions.
+    Thread target function to schedule missions asynchronously.
     """
     asyncio.run(schedule_missions_async(drone_setup_instance))
 
@@ -100,7 +101,9 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function to schedule missions at a specified frequency.
     """
     while True:
+        logger.info("Checking mission schedule...")
         await drone_setup_instance.schedule_mission()
+        logger.info("Mission schedule checked.")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
 def main_loop():
@@ -112,7 +115,7 @@ def main_loop():
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
-        logger.info("After initial LED set color...")
+        logger.info("Initial LED color set to Blue.")
 
         # Synchronize time if enabled
         if params.online_sync_time:
@@ -181,7 +184,7 @@ def main():
     """
     Main function to start the coordinator application.
     """
-    global drone_comms, drone_setup , mavlink_manager # Declare as global variables
+    global drone_comms, drone_setup, mavlink_manager  # Declare as global variables
     logger.info("Starting the coordinator application...")
 
     # Initialize MAVLink communication
@@ -195,7 +198,7 @@ def main():
     logger.info("LocalMavlinkController initialized.")
 
     # Step 1: Initialize DroneCommunicator and FlaskHandler without dependencies
-    drone_comms = DroneCommunicator(drone_config)
+    drone_comms = DroneCommunicator(drone_config, params, drones)
     flask_handler = FlaskHandler(params, drone_config)
 
     # Step 2: Inject the dependencies afterward (setters)
