@@ -102,7 +102,7 @@ async def schedule_missions_async(drone_setup_instance):
     """
     while True:
         logger.info("checking schedule...")
-        await drone_setup_instance.schedule_mission()
+        drone_setup_instance.schedule_mission()
         logger.info("checked schedule...")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 

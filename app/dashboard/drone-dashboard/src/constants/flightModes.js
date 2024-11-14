@@ -9,5 +9,7 @@ export const FLIGHT_MODES = {
     131072: 'Altitude',
     65536: 'Manual',
     327680: 'Acro',
-  };
-  
+    29: 'Hold',
+    157: 'Take-off',
+    192: 'Land',
+};

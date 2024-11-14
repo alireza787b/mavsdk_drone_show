@@ -1,11 +1,11 @@
 # src/drone_setup.py
 
-import asyncio
 import datetime
 import logging
 import subprocess
 import time
 import os
+import threading
 from enum import Enum
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
 
@@ -30,7 +30,7 @@ class DroneSetup:
         self.last_logged_mission = None
         self.last_logged_state = None
         self.running_processes = {}  # Dictionary to store running mission scripts
-        self.process_lock = asyncio.Lock()  # Async lock to prevent race conditions
+        self.process_lock = threading.Lock()  # Lock to prevent race conditions
 
         # Validate configuration objects
         self._validate_params()
@@ -137,31 +137,31 @@ class DroneSetup:
         """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
-    async def terminate_all_running_processes(self):
+    def terminate_all_running_processes(self):
         """
         Terminates all currently running mission scripts gracefully.
         If a process does not terminate within the timeout, it is forcefully killed.
         """
-        async with self.process_lock:
+        with self.process_lock:
             for script_name, process in list(self.running_processes.items()):
-                if process.returncode is None:  # Process is still running
+                if process.poll() is None:  # Process is still running
                     logging.info(f"Terminating existing mission script: {script_name} (PID: {process.pid})")
                     process.terminate()
                     try:
-                        await asyncio.wait_for(process.wait(), timeout=5)
+                        process.wait(timeout=5)
                         logging.info(f"Process '{script_name}' terminated gracefully.")
-                    except asyncio.TimeoutError:
+                    except subprocess.TimeoutExpired:
                         logging.warning(f"Process '{script_name}' did not terminate gracefully. Killing it.")
                         process.kill()
-                        await process.wait()
+                        process.wait()
                         logging.info(f"Process '{script_name}' killed forcefully.")
                 else:
                     logging.debug(f"Process '{script_name}' has already terminated.")
             self.running_processes.clear()
 
-    async def execute_mission_script(self, script_name: str, action: str) -> tuple:
+    def execute_mission_script(self, script_name: str, action: str) -> tuple:
         """
-        Executes the specified mission script asynchronously. Ensures that no other mission scripts
+        Executes the specified mission script synchronously. Ensures that no other mission scripts
         are running by terminating them before starting the new mission.
 
         Args:
@@ -171,11 +171,11 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        async with self.process_lock:
+        with self.process_lock:
             # Terminate any existing running processes
             if self.running_processes:
                 logging.info("New mission command received. Terminating existing mission scripts.")
-                await self.terminate_all_running_processes()
+                self.terminate_all_running_processes()
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
@@ -184,15 +184,15 @@ class DroneSetup:
 
             try:
                 # Start the mission script as a subprocess
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
                 )
                 self.running_processes[script_name] = process
 
                 # Wait for the process to complete and capture output
-                stdout, stderr = await process.communicate()
+                stdout, stderr = process.communicate()
 
                 if process.returncode == 0:
                     logging.info(
@@ -222,7 +222,7 @@ class DroneSetup:
         Checks the status of all running mission scripts. Logs and removes any scripts that have finished.
         """
         for script_name, process in list(self.running_processes.items()):
-            if process.returncode is not None:  # Process has finished
+            if process.poll() is not None:  # Process has finished
                 logging.warning(
                     f"Process for '{script_name}' has finished unexpectedly with return code {process.returncode}."
                 )
@@ -256,7 +256,7 @@ class DroneSetup:
             logging.error(f"Error executing time synchronization script: {e}")
             print(f"Error during time synchronization, but continuing: {str(e)}")
 
-    async def schedule_mission(self):
+    def schedule_mission(self):
         """
         Schedules and executes various drone missions based on the current mission code and state.
         Ensures proper handling and logging of mission execution results.
@@ -286,16 +286,16 @@ class DroneSetup:
             handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
 
             # Execute the mission handler
-            success, message = await handler(current_time, earlier_trigger_time)
+            success, message = handler(current_time, earlier_trigger_time)
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            await self._reset_mission_if_needed(success)
+            self._reset_mission_if_needed(success)
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
 
-    async def _handle_no_mission(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    def _handle_no_mission(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
         Handles the scenario where no mission is planned.
 
@@ -309,7 +309,7 @@ class DroneSetup:
         logging.debug("No Mission is Planned yet!")
         return False, "No mission to execute."
 
-    async def _handle_unknown_mission(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    def _handle_unknown_mission(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
         Handles unknown or undefined mission types.
 
@@ -323,7 +323,7 @@ class DroneSetup:
         logging.error(f"Unknown mission code: {self.drone_config.mission}")
         return False, "Unknown mission code."
 
-    async def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
         Executes the Standard Drone Show mission based on the trigger time and state.
 
@@ -342,7 +342,7 @@ class DroneSetup:
 
             logging.info(f"Starting Standard Drone Show from CSV using file {main_offboard_executer}")
 
-            return await self.execute_mission_script(
+            return self.execute_mission_script(
                 main_offboard_executer,
                 f"--start_time={real_trigger_time}"
             )
@@ -350,7 +350,7 @@ class DroneSetup:
         logging.info("Conditions not met for triggering Standard Drone Show")
         return False, "Conditions not met for Standard Drone Show"
 
-    async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
         Executes the Custom CSV Drone Show mission based on the trigger time and state.
 
@@ -369,11 +369,10 @@ class DroneSetup:
             main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
 
             if custom_csv_file_name:
-                csv_filename = f"{custom_csv_file_name}"
-                logging.info(f"Starting Custom Drone Show with file: {csv_filename} using file {main_offboard_executer}")
+                logging.info(f"Starting Custom Drone Show with file: {custom_csv_file_name} using file {main_offboard_executer}")
                 action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
                 
-            return await self.execute_mission_script(
+            return self.execute_mission_script(
                 main_offboard_executer,
                 action
             )
@@ -381,7 +380,7 @@ class DroneSetup:
         logging.info("Conditions not met for triggering Custom CSV Drone Show")
         return False, "Conditions not met for Custom CSV Drone Show"
 
-    async def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
+    def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
         Executes the Smart Swarm mission based on the trigger time and state.
 
@@ -394,23 +393,18 @@ class DroneSetup:
         """
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
-            real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
             smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
             logging.info("Starting Smart Swarm Mission")
-            follow_mode = int(self.drone_config.swarm.get('follow', 0))
-            if follow_mode != 0:
-                return await self.execute_mission_script(
+            return self.execute_mission_script(
                 smart_swarm_executer,
-                f""
-                #f"--start_time={real_trigger_time}"
+                ""
             )
-            return True, "Smart Swarm Mission initiated"
 
         logging.info("Conditions not met for triggering Smart Swarm")
         return False, "Conditions not met for Smart Swarm"
 
-    async def _execute_takeoff(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_takeoff(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Takeoff mission by running the takeoff action script.
 
@@ -428,12 +422,12 @@ class DroneSetup:
             return False, f"Invalid takeoff altitude: {e}"
 
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             f"--action=takeoff --altitude={altitude}"
         )
 
-    async def _execute_land(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_land(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Land mission by running the land action script.
 
@@ -446,12 +440,12 @@ class DroneSetup:
         """
         logging.info("Starting Land Mission")
 
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             "--action=land"
         )
 
-    async def _execute_hold(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_hold(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Hold Position mission by running the hold action script.
 
@@ -463,12 +457,12 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Hold Position Mission")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             "--action=hold"
         )
 
-    async def _execute_test(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_test(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Test mission by running the test action script.
 
@@ -480,12 +474,12 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Test Mission")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             "--action=test"
         )
 
-    async def _execute_reboot_fc(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_reboot_fc(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Flight Control Reboot mission by running the reboot_fc action script.
 
@@ -497,12 +491,12 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting Flight Control Reboot Mission")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             "--action=reboot_fc"
         )
 
-    async def _execute_reboot_sys(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_reboot_sys(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the System Reboot mission by running the reboot_sys action script.
 
@@ -514,12 +508,12 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting System Reboot Mission")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             "--action=reboot_sys"
         )
 
-    async def _execute_test_led(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_test_led(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the LED Test mission by running the test_led_controller script.
 
@@ -531,12 +525,12 @@ class DroneSetup:
             tuple: (status (bool), message (str))
         """
         logging.info("Starting LED Test Mission")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "test_led_controller.py",
             "--action=start"
         )
 
-    async def _execute_update_code(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    def _execute_update_code(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Update Code mission by running the update_code action script.
 
@@ -557,7 +551,7 @@ class DroneSetup:
         # Construct the action command
         action_command = f"--action=update_code --branch={branch_name}"
 
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             action_command
         )
@@ -577,7 +571,7 @@ class DroneSetup:
             self.last_logged_mission = self.drone_config.mission
             self.last_logged_state = self.drone_config.state
 
-    async def _reset_mission_if_needed(self, success: bool):
+    def _reset_mission_if_needed(self, success: bool):
         """
         Resets the mission code and state if the mission was successful and not a Smart Swarm mission.
 
