@@ -314,7 +314,7 @@ class DroneSetup:
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            await self._reset_mission_if_needed(success)
+            #await self._reset_mission_if_needed(success)
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}", exc_info=True)
@@ -358,8 +358,8 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == State.READY.value and current_time >= earlier_trigger_time:
-            self.drone_config.state = State.ACTIVE.value  # Move to the active mission state
+        if self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+            self.drone_config.state = State.TRIGGERED.value  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
             main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
@@ -385,8 +385,8 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == State.READY.value and current_time >= earlier_trigger_time:
-            self.drone_config.state = State.ACTIVE.value  # Move to the active mission state
+        if self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+            self.drone_config.state = State.TRIGGERED.value  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
             custom_csv_file_name = getattr(self.params, 'custom_csv_file_name', None)
@@ -419,8 +419,8 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == State.READY.value and current_time >= earlier_trigger_time:
-            self.drone_config.state = State.ACTIVE.value  # Move to the active mission state
+        if self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+            self.drone_config.state = State.TRIGGERED.value  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
             smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
