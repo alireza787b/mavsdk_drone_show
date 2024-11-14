@@ -101,7 +101,6 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function to schedule missions at a specified frequency.
     """
     while True:
-        logger.info("Checking mission schedule...")
         await drone_setup_instance.schedule_mission()
         logger.info("Mission schedule checked.")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
@@ -133,6 +132,7 @@ def main_loop():
 
         # Variable to track the last state value
         last_state_value = None
+        last_mission_value = None
 
         while True:
             current_time = time.time()
@@ -141,6 +141,12 @@ def main_loop():
 
             # Check drone state and update LEDs accordingly
             current_state = drone_config.state
+            current_mission = drone_config.mission
+            
+            if current_mission != last_mission_value:
+                last_mission_value = current_mission
+                logger.info(f"Drone mission changed to {current_mission}")
+                
 
             if current_state != last_state_value:
                 last_state_value = current_state
@@ -153,10 +159,10 @@ def main_loop():
                 elif current_state == 1:
                     # Trigger time received; ready to fly
                     LEDController.set_color(255, 165, 0)  # Orange
-                    logger.debug("Trigger time received. Drone is ready to fly (state == 1).")
+                    logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == 1).")
                 elif current_state == 2:
                     # Maneuver started; stop changing LEDs
-                    logger.info("Maneuver started (state == 2). LED control handed over to drone show script.")
+                    logger.info(f"Mission ({current_mission}) started (state == 2).")
                     # Do not change LEDs anymore; drone show script will take over
                 else:
                     # Unknown state; set LEDs to Red
