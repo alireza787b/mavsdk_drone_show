@@ -290,7 +290,7 @@ class DroneSetup:
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            # self._reset_mission_if_needed(success)
+            self._reset_mission_if_needed(success)
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
