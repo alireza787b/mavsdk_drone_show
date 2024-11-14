@@ -106,7 +106,7 @@ async def schedule_missions_async(drone_setup_instance):
         logger.info("checked schedule...")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
-async def main_loop():
+def main_loop():
     """
     Main loop of the coordinator application.
     """
@@ -164,7 +164,7 @@ async def main_loop():
                     LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
-            await asyncio.sleep(params.sleep_interval)  # Sleep for defined interval
+            # asyncio.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
         logger.error(f"An error occurred in main loop: {e}", exc_info=True)
