@@ -94,9 +94,9 @@ def schedule_missions_thread(drone_setup_instance):
     """
     Thread target function to schedule missions asynchronously.
     """
-    asyncio.run(schedule_missions_async(drone_setup_instance))
+    asyncio.run(schedule_missions(drone_setup_instance))
 
-async def schedule_missions_async(drone_setup_instance):
+def schedule_missions(drone_setup_instance):
     """
     Asynchronous function to schedule missions at a specified frequency.
     """
@@ -104,7 +104,7 @@ async def schedule_missions_async(drone_setup_instance):
         logger.info("checking schedule...")
         drone_setup_instance.schedule_mission()
         logger.info("checked schedule...")
-        await asyncio.sleep(1.0 / params.schedule_mission_frequency)
+        time.sleep(1.0 / params.schedule_mission_frequency)
 
 def main_loop():
     """
