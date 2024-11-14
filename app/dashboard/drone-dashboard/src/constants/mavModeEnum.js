@@ -1,6 +1,7 @@
 export const MAV_MODE_ENUM = {
     0: 'PREFLIGHT',
-    64: 'MANUAL_DISARMED',
+    0: 'PREFLIGHT',
+    29: 'ARMED',
     66: 'TEST_DISARMED',
     80: 'STABILIZE_DISARMED',
     88: 'GUIDED_DISARMED',

@@ -290,7 +290,7 @@ class DroneSetup:
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            # await self._reset_mission_if_needed(success)
+            await self._reset_mission_if_needed(success)
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}")
@@ -584,7 +584,8 @@ class DroneSetup:
         Args:
             success (bool): Indicates if the mission was successful.
         """
-        if success and self.drone_config.mission != Mission.SMART_SWARM.value:
+        if success:
             logging.info("Resetting mission code and state.")
             self.drone_config.mission = Mission.NONE.value
             self.drone_config.state = State.IDLE.value
+            self.drone_config.trigger_time = 0
