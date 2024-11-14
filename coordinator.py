@@ -13,8 +13,8 @@ Date: September 2024
 
 import os
 import sys
-import time
 import threading
+import time
 import datetime
 import logging
 import sdnotify  # For systemd watchdog notifications
@@ -70,8 +70,6 @@ logger.addHandler(file_handler)
 # Global variables
 mavlink_manager = None
 global_telemetry = {}  # Store telemetry data
-run_telemetry_thread = threading.Event()
-run_telemetry_thread.set()
 drones = {}  # Dictionary to store drone information
 params = Params()  # Global parameters instance
 drone_config = DroneConfig(drones)  # Initialize DroneConfig
@@ -90,12 +88,6 @@ else:
 # Systemd watchdog notifier
 notifier = sdnotify.SystemdNotifier()
 
-def schedule_missions_thread(drone_setup_instance):
-    """
-    Thread target function to schedule missions asynchronously.
-    """
-    asyncio.run(schedule_missions_async(drone_setup_instance))
-
 async def schedule_missions_async(drone_setup_instance):
     """
     Asynchronous function to schedule missions at a specified frequency.
@@ -105,7 +97,7 @@ async def schedule_missions_async(drone_setup_instance):
         logger.info("Mission schedule checked.")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
-def main_loop():
+async def main_loop():
     """
     Main loop of the coordinator application.
     """
@@ -125,12 +117,7 @@ def main_loop():
         LEDController.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
 
-        # Start mission scheduling thread
-        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
-        scheduling_thread.start()
-        logger.info("Mission scheduling thread started.")
-
-        # Variable to track the last state value
+        # Variable to track the last state and mission values
         last_state_value = None
         last_mission_value = None
 
@@ -142,11 +129,10 @@ def main_loop():
             # Check drone state and update LEDs accordingly
             current_state = drone_config.state
             current_mission = drone_config.mission
-            
+
             if current_mission != last_mission_value:
                 last_mission_value = current_mission
                 logger.info(f"Drone mission changed to {current_mission}")
-                
 
             if current_state != last_state_value:
                 last_state_value = current_state
@@ -169,7 +155,7 @@ def main_loop():
                     LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
-            time.sleep(params.sleep_interval)  # Sleep for defined interval
+            await asyncio.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
         logger.error(f"An error occurred in main loop: {e}", exc_info=True)
@@ -186,9 +172,9 @@ def main_loop():
         # Optionally, turn off LEDs or set to a default color
         # LEDController.turn_off()
 
-def main():
+async def main_async():
     """
-    Main function to start the coordinator application.
+    Main asynchronous function to start the coordinator application.
     """
     global drone_comms, drone_setup, mavlink_manager  # Declare as global variables
     logger.info("Starting the coordinator application...")
@@ -197,7 +183,7 @@ def main():
     mavlink_manager = MavlinkManager(params, drone_config)
     logger.info("Initializing MAVLink...")
     mavlink_manager.initialize()
-    time.sleep(2)  # Wait for initialization
+    await asyncio.sleep(2)  # Wait for initialization
 
     # Initialize LocalMavlinkController
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
@@ -228,8 +214,11 @@ def main():
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
 
-    # Step 6: Start the main loop
-    main_loop()
+    # Step 6: Start the main loop and mission scheduler concurrently
+    await asyncio.gather(
+        main_loop(),
+        schedule_missions_async(drone_setup)
+    )
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main_async())

@@ -236,22 +236,19 @@ class DroneSetup:
         except Exception as e:
             logging.error(f"Exception in _monitor_process for '{script_name}': {e}", exc_info=True)
 
-    def check_running_processes(self):
+    async def check_running_processes(self):
         """
         Checks the status of all running mission scripts. Logs and removes any scripts that have finished.
         """
-        async def _check():
-            async with self.process_lock:
-                for script_name, process in list(self.running_processes.items()):
-                    if process.returncode is not None:  # Process has finished
-                        logging.warning(
-                            f"Process for '{script_name}' has finished unexpectedly with return code {process.returncode}."
-                        )
-                        del self.running_processes[script_name]
-                    else:
-                        logging.debug(f"Process for '{script_name}' is still running.")
-
-        asyncio.create_task(_check())
+        async with self.process_lock:
+            for script_name, process in list(self.running_processes.items()):
+                if process.returncode is not None:  # Process has finished
+                    logging.warning(
+                        f"Process for '{script_name}' has finished unexpectedly with return code {process.returncode}."
+                    )
+                    del self.running_processes[script_name]
+                else:
+                    logging.debug(f"Process for '{script_name}' is still running.")
 
     def synchronize_time(self):
         """
@@ -304,7 +301,7 @@ class DroneSetup:
 
         try:
             # Check the status of running processes before scheduling a new mission
-            self.check_running_processes()
+            await self.check_running_processes()
 
             # Retrieve the handler based on the current mission
             handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
@@ -314,7 +311,8 @@ class DroneSetup:
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            #await self._reset_mission_if_needed(success)
+            # Optionally reset mission if needed
+            # await self._reset_mission_if_needed(success)
 
         except Exception as e:
             logging.error(f"Exception in schedule_mission: {e}", exc_info=True)
