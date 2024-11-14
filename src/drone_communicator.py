@@ -8,7 +8,7 @@ import select
 import time
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
-from drone_setup import DroneSetup
+from src.drone_setup import DroneSetup
 from functions.data_utils import safe_float, safe_get, safe_int
 from src.enums import Mission
 from src.drone_config import DroneConfig
