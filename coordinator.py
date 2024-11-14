@@ -201,11 +201,15 @@ def main():
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
     logger.info("LocalMavlinkController initialized.")
 
-    # Step 1: Initialize DroneCommunicator and FlaskHandler without dependencies
-    drone_comms = DroneCommunicator(drone_config, params, drones)
+    # Step 1: Initialize DroneSetup
+    drone_setup = DroneSetup(params, drone_config)
+    logger.info("DroneSetup initialized.")
+
+    # Step 2: Initialize DroneCommunicator and FlaskHandler without dependencies
+    drone_comms = DroneCommunicator(drone_config,drone_setup, params, drones)
     flask_handler = FlaskHandler(params, drone_config)
 
-    # Step 2: Inject the dependencies afterward (setters)
+    # Step 3: Inject the dependencies afterward (setters)
     drone_comms.set_flask_handler(flask_handler)
     logger.info("DroneCommunicator's FlaskHandler set.")
 
@@ -222,9 +226,7 @@ def main():
         flask_thread.start()
         logger.info("Flask HTTP server started.")
 
-    # Step 5: Initialize DroneSetup
-    drone_setup = DroneSetup(params, drone_config)
-    logger.info("DroneSetup initialized.")
+    
 
     # Step 6: Start the main loop
     main_loop()

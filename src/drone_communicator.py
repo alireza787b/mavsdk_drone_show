@@ -8,6 +8,7 @@ import select
 import time
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
+from drone_setup import DroneSetup
 from functions.data_utils import safe_float, safe_get, safe_int
 from src.enums import Mission
 from src.drone_config import DroneConfig
@@ -19,7 +20,7 @@ class DroneCommunicator:
     Handles communication with drones, including telemetry and command processing.
     """
 
-    def __init__(self, drone_config: DroneConfig, params: Params, drones: Dict[str, DroneConfig]):
+    def __init__(self, drone_config: DroneConfig,drone_setup: DroneSetup, params: Params, drones: Dict[str, DroneConfig]):
         """
         Initialize the DroneCommunicator with configuration and drone data.
 
@@ -31,6 +32,7 @@ class DroneCommunicator:
         self.drone_config = drone_config
         self.params = params
         self.drones = drones
+        self.drone_setup = drone_setup
         self.enable_udp_telemetry = params.enable_udp_telemetry
         self.sock = self._initialize_socket() if self.enable_udp_telemetry else None
         self.stop_flag = threading.Event()

@@ -52,6 +52,7 @@ class FlaskHandler:
             try:
                 command_data = request.get_json()
                 self.drone_communicator.process_command(command_data)
+                self.drone_communicator.drone_setup.schedule_mission()
                 return jsonify({"status": "success", "message": "Command received"}), 200
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
