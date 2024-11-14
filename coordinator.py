@@ -106,7 +106,7 @@ async def schedule_missions_async(drone_setup_instance):
         logger.info("checked schedule...")
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
-async def main_loop():
+def main_loop():
     """
     Main loop of the coordinator application.
     """
@@ -115,20 +115,27 @@ async def main_loop():
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
-        logger.info("Initial LED color set to Blue.")
+        logger.info("After intial LED set color...")
 
         # Synchronize time if enabled
         if params.online_sync_time:
             drone_setup.synchronize_time()
             logger.info("Time synchronized.")
 
+        
+
         # Initialization successful
         LEDController.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
 
-        # Variable to track the last state and mission values
+
+        # Start mission scheduling thread
+        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
+        scheduling_thread.start()
+        logger.info("Mission scheduling thread started.")
+
+        # Variable to track the last state value
         last_state_value = None
-        last_mission_value = None
 
         while True:
             current_time = time.time()
@@ -137,11 +144,6 @@ async def main_loop():
 
             # Check drone state and update LEDs accordingly
             current_state = drone_config.state
-            current_mission = drone_config.mission
-
-            if current_mission != last_mission_value:
-                last_mission_value = current_mission
-                logger.info(f"Drone mission changed to {current_mission}")
 
             if current_state != last_state_value:
                 last_state_value = current_state
@@ -154,17 +156,18 @@ async def main_loop():
                 elif current_state == 1:
                     # Trigger time received; ready to fly
                     LEDController.set_color(255, 165, 0)  # Orange
-                    logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == 1).")
+                    logger.debug("Trigger time received. Drone is ready to fly (state == 1).")
                 elif current_state == 2:
                     # Maneuver started; stop changing LEDs
-                    logger.info(f"Mission ({current_mission}) started (state == 2).")
+                    logger.info("Maneuver started (state == 2). LED control handed over to drone show script.")
                     # Do not change LEDs anymore; drone show script will take over
                 else:
                     # Unknown state; set LEDs to Red
                     LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
-            await asyncio.sleep(params.sleep_interval)  # Sleep for defined interval
+
+            time.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
         logger.error(f"An error occurred in main loop: {e}", exc_info=True)
@@ -180,7 +183,6 @@ async def main_loop():
             logger.info("Drone communication stopped.")
         # Optionally, turn off LEDs or set to a default color
         # LEDController.turn_off()
-
 
 def main():
     """
