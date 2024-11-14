@@ -305,11 +305,8 @@ class DroneSetup:
             handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
 
             # Execute the mission handler
-            success, message = handler(current_time, earlier_trigger_time)
+            handler(current_time, earlier_trigger_time)
 
-            # Log the result of the mission execution
-            self._log_mission_result(success, message)
-            # Optionally reset mission if needed
             # self._reset_mission_if_needed(success)
 
         except Exception as e:
@@ -466,18 +463,4 @@ class DroneSetup:
             action_command
         )
 
-    def _log_mission_result(self, success: bool, message: str):
-        """
-        Logs the result of the mission execution if there's a change in mission or state.
-
-        Args:
-            success (bool): Indicates if the mission was successful.
-            message (str): Additional information about the mission result.
-        """
-        if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
-            if message:
-                log_func = logging.info if success else logging.error
-                log_func(f"Mission result: {'Success' if success else 'Error'} - {message}")
-            self.last_logged_mission = self.drone_config.mission
-            self.last_logged_state = self.drone_config.state
 
