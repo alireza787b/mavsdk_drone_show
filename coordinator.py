@@ -21,6 +21,7 @@ import sdnotify  # For systemd watchdog notifications
 import asyncio  # Needed for async functions
 
 # Import necessary modules and classes
+from mission_context import setup_async_scheduler
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
 from src.drone_communicator import DroneCommunicator
@@ -105,12 +106,22 @@ async def schedule_missions_async(drone_setup_instance):
         await drone_setup_instance.schedule_mission()
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)
 
-def main_loop():
+async def main_loop():
     """
     Main loop of the coordinator application.
     """
     global mavlink_manager, drone_comms, drone_setup  # Declare as global variables
     try:
+        
+        
+        # Initialize the drone setup
+        drone_setup = DroneSetup(params, drone_config)
+        
+        # Set up the async scheduler
+        scheduler = setup_async_scheduler(drone_setup)
+        await scheduler.start()
+        
+        
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
         LEDController.set_color(0, 0, 255)  # Blue
@@ -128,10 +139,10 @@ def main_loop():
         logger.info("Initialization successful. MAVLink is ready.")
 
 
-        # Start mission scheduling thread
-        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
-        scheduling_thread.start()
-        logger.info("Mission scheduling thread started.")
+        # # Start mission scheduling thread
+        # scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
+        # scheduling_thread.start()
+        # logger.info("Mission scheduling thread started.")
 
         # Variable to track the last state value
         last_state_value = None
@@ -185,6 +196,7 @@ def main_loop():
         if drone_comms:
             drone_comms.stop_communication()
             logger.info("Drone communication stopped.")
+        await scheduler.stop()
         # Optionally, turn off LEDs or set to a default color
         # LEDController.turn_off()
 
@@ -226,9 +238,6 @@ def main():
         flask_thread.start()
         logger.info("Flask HTTP server started.")
 
-    # Step 5: Initialize DroneSetup
-    drone_setup = DroneSetup(params, drone_config)
-    logger.info("DroneSetup initialized.")
 
     # Step 6: Start the main loop
     main_loop()
