@@ -190,7 +190,9 @@ class DroneSetup:
                     stderr=asyncio.subprocess.PIPE
                 )
                 self.running_processes[script_name] = process
-
+                self.drone_config.mission = Mission.NONE.value
+                self.drone_config.state = State.IDLE.value
+                return True
                 # Wait for the process to complete and capture output
                 stdout, stderr = await process.communicate()
 
@@ -584,7 +586,8 @@ class DroneSetup:
         Args:
             success (bool): Indicates if the mission was successful.
         """
-        if success :
-            logging.info("Resetting mission code and state.")
-            self.drone_config.mission = Mission.NONE.value
-            self.drone_config.state = State.IDLE.value
+        # if success :
+        #     logging.info("Resetting mission code and state.")
+        #     self.drone_config.mission = Mission.NONE.value
+        #     self.drone_config.state = State.IDLE.value
+        pass
