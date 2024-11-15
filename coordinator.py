@@ -21,7 +21,7 @@ import sdnotify  # For systemd watchdog notifications
 import asyncio  # Needed for async functions
 
 # Import necessary modules and classes
-from mission_context import setup_async_scheduler
+from src.mission_context import setup_async_scheduler
 from src.drone_config import DroneConfig
 from src.local_mavlink_controller import LocalMavlinkController
 from src.drone_communicator import DroneCommunicator
