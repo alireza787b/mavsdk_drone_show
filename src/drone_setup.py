@@ -198,7 +198,7 @@ class DroneSetup:
                     )
                 # status = True
                 # message = "Mission script completed successfully."
-                return True
+                return True , "Done"
                 # # Wait for the process to complete and capture output
                 # stdout, stderr = await process.communicate()
 
@@ -286,7 +286,7 @@ class DroneSetup:
         )
 
         try:
-            self.check_running_processes()  # Check the status of running processes before scheduling a new mission
+            # self.check_running_processes()  # Check the status of running processes before scheduling a new mission
 
             # Retrieve the handler based on the current mission
             handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
@@ -295,7 +295,7 @@ class DroneSetup:
             success, message = await handler(current_time, earlier_trigger_time)
 
             # Log the result of the mission execution
-            self._log_mission_result(success, message)
+            #self._log_mission_result(success, message)
             #await self._reset_mission_if_needed(success)
 
         except Exception as e:
