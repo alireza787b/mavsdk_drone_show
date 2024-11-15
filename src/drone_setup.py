@@ -565,7 +565,7 @@ class DroneSetup:
         Args:
             success (bool): Indicates if the mission was successful.
         """
-        if success and self.drone_config.mission != Mission.SMART_SWARM.value:
+        if success and self.drone_config.mission != Mission.DRONE_SHOW_FROM_CSV.value:
             logging.info("Resetting mission code and state.")
             self.drone_config.mission = Mission.NONE.value
             self.drone_config.state = State.IDLE.value
