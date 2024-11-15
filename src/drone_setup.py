@@ -161,8 +161,7 @@ class DroneSetup:
 
     async def execute_mission_script(self, script_name: str, action: str) -> tuple:
         """
-        Executes the specified mission script asynchronously. Ensures that no other mission scripts
-        are running by terminating them before starting the new mission.
+        Executes the specified mission script asynchronously without waiting for its completion.
 
         Args:
             script_name (str): Name of the mission script to execute.
@@ -191,31 +190,13 @@ class DroneSetup:
                 )
                 self.running_processes[script_name] = process
 
-                # Wait for the process to complete and capture output
-                stdout, stderr = await process.communicate()
-
-                if process.returncode == 0:
-                    logging.info(
-                        f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
-                    )
-                    status = True
-                    message = "Mission script completed successfully."
-                else:
-                    logging.error(
-                        f"Mission script '{script_name}' encountered an error. Stderr: {stderr.decode().strip()}"
-                    )
-                    status = False
-                    message = f"Mission script error: {stderr.decode().strip()}"
-
-                # Remove the process from the tracking dictionary
-                del self.running_processes[script_name]
-                return status, message
+                logging.info(f"Mission script '{script_name}' started successfully.")
+                return True, "Mission script started successfully."
 
             except Exception as e:
                 logging.error(f"Exception in execute_mission_script: {e}")
-                if script_name in self.running_processes:
-                    del self.running_processes[script_name]
                 return False, f"Exception: {str(e)}"
+
 
     def check_running_processes(self):
         """
@@ -428,7 +409,7 @@ class DroneSetup:
             return False, f"Invalid takeoff altitude: {e}"
 
         logging.info(f"Starting Takeoff to {altitude}m")
-        return await self.execute_mission_script(
+        return self.execute_mission_script(
             "actions.py",
             f"--action=takeoff --altitude={altitude}"
         )
