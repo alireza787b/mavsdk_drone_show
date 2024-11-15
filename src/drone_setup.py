@@ -192,6 +192,11 @@ class DroneSetup:
                 self.running_processes[script_name] = process
                 self.drone_config.mission = Mission.NONE.value
                 self.drone_config.state = State.IDLE.value
+                logging.info(
+                        f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
+                    )
+                status = True
+                message = "Mission script completed successfully."
                 return True
                 # Wait for the process to complete and capture output
                 stdout, stderr = await process.communicate()

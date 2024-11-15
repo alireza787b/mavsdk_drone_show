@@ -135,6 +135,7 @@ def main_loop():
 
         # Variable to track the last state value
         last_state_value = None
+        last_mission_value = None
 
         while True:
             current_time = time.time()
@@ -230,7 +231,7 @@ def main():
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
     
-    drone_config.drone_setup = drone_setup
+    
 
     # Step 6: Start the main loop
     main_loop()
