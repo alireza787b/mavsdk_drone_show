@@ -174,9 +174,9 @@ class DroneSetup:
         """
         async with self.process_lock:
             # Terminate any existing running processes
-            if self.running_processes:
-                logger.info("New mission command received. Terminating existing mission scripts.")
-                await self.terminate_all_running_processes()
+            # if self.running_processes:
+            #     logger.info("New mission command received. Terminating existing mission scripts.")
+            #     await self.terminate_all_running_processes()
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
@@ -190,39 +190,37 @@ class DroneSetup:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                self.running_processes[script_name] = process
+                # self.running_processes[script_name] = process
                 self.drone_config.mission = Mission.NONE.value
                 self.drone_config.state = State.IDLE.value
                 logger.info(
                         f"Mission script '{script_name}' completed successfully."
                     )
-                status = True
-                message = "Mission script completed successfully."
+                # status = True
+                # message = "Mission script completed successfully."
                 return True
-                # Wait for the process to complete and capture output
-                stdout, stderr = await process.communicate()
+                # # Wait for the process to complete and capture output
+                # stdout, stderr = await process.communicate()
 
-                if process.returncode == 0:
-                    logger.info(
-                        f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
-                    )
-                    status = True
-                    message = "Mission script completed successfully."
-                else:
-                    logger.error(
-                        f"Mission script '{script_name}' encountered an error. Stderr: {stderr.decode().strip()}"
-                    )
-                    status = False
-                    message = f"Mission script error: {stderr.decode().strip()}"
+                # if process.returncode == 0:
+                #     logger.info(
+                #         f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
+                #     )
+                #     status = True
+                #     message = "Mission script completed successfully."
+                # else:
+                #     logger.error(
+                #         f"Mission script '{script_name}' encountered an error. Stderr: {stderr.decode().strip()}"
+                #     )
+                #     status = False
+                #     message = f"Mission script error: {stderr.decode().strip()}"
 
-                # Remove the process from the tracking dictionary
-                del self.running_processes[script_name]
-                return status, message
+                # # Remove the process from the tracking dictionary
+                # del self.running_processes[script_name]
+                # return status, message
 
             except Exception as e:
                 logger.error(f"Exception in execute_mission_script: {e}")
-                if script_name in self.running_processes:
-                    del self.running_processes[script_name]
                 return False, f"Exception: {str(e)}"
 
     def check_running_processes(self):
@@ -298,7 +296,7 @@ class DroneSetup:
 
             # Log the result of the mission execution
             self._log_mission_result(success, message)
-            await self._reset_mission_if_needed(success)
+            #await self._reset_mission_if_needed(success)
 
         except Exception as e:
             logger.error(f"Exception in schedule_mission: {e}")
