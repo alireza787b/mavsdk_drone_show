@@ -193,7 +193,7 @@ class DroneSetup:
                 self.drone_config.mission = Mission.NONE.value
                 self.drone_config.state = State.IDLE.value
                 logging.info(
-                        f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
+                        f"Mission script '{script_name}' completed successfully."
                     )
                 status = True
                 message = "Mission script completed successfully."
