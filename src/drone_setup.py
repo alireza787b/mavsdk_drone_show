@@ -409,7 +409,7 @@ class DroneSetup:
             return False, f"Invalid takeoff altitude: {e}"
 
         logging.info(f"Starting Takeoff to {altitude}m")
-        return self.execute_mission_script(
+        return await self.execute_mission_script(
             "actions.py",
             f"--action=takeoff --altitude={altitude}"
         )
