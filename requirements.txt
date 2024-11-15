@@ -51,5 +51,3 @@ rpi-ws281x==5.0.0
 
 aiohttp
 filterpy
-
-Flask-Async
