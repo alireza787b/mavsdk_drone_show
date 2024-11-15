@@ -9,5 +9,6 @@ export const FLIGHT_MODES = {
     65536: 'Manual',
     327680: 'Acro',
     157: 'Take-off',
-    192: 'Hold',
+    29: 'Hold',
+    145: 'Offboard',
 };
