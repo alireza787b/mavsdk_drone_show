@@ -200,6 +200,10 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
         trajectory_ends_high = False
         logger.info("Trajectory guides back to ground level. Will perform controlled landing.")
 
+
+    if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
+        logger.debug(f"Applying Drift Correction North: {initial_position_drift.north_m}, East: {initial_position_drift.east_m}")
+
     # Main trajectory execution loop
     while waypoint_index < total_waypoints:
         try:
@@ -242,7 +246,6 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
                 # Adjust waypoints for initial position drift if enabled
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
-                    logger.debug("Applying Drift Correction")
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
 
