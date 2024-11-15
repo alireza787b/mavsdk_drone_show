@@ -189,11 +189,12 @@ class DroneSetup:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
+                
                 self.running_processes[script_name] = process
                 self.drone_config.mission = Mission.NONE.value
-                self.drone_config.state = State.IDLE.value
+                self.drone_config.state = State.TRIGGERED.value
                 logging.info(
-                        f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
+                        f"Mission script '{script_name}' completed successfully."
                     )
                 status = True
                 message = "Mission script completed successfully."
@@ -313,6 +314,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
+        self.drone_config.mission = Mission.NONE.value
         logging.debug("No Mission is Planned yet!")
         return False, "No mission to execute."
 
@@ -341,7 +343,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
+        if self.drone_config.state != 0 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
@@ -368,7 +370,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
+        if self.drone_config.state != 0 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
@@ -399,7 +401,7 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
+        if self.drone_config.state != 0 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2  # Move to the active mission state
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0  # Reset the trigger time
