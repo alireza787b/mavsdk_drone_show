@@ -9,6 +9,7 @@ import numpy as np
 import requests
 from src.params import Params
 from src.filter import KalmanFilter
+from src.drone_setup import DroneSetup
 
 class DroneConfig:
     """
@@ -24,7 +25,7 @@ class DroneConfig:
         self.pos_id = self.get_hw_id(hw_id)  # Position ID, typically same as hardware ID
         self.mission = 0  # Current mission state
         self.trigger_time = 0  # Time of the last trigger event
-
+        self.drone_setup = None
         # Position and velocity information
         self.position = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity = {'north': 0, 'east': 0, 'down': 0}

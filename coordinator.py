@@ -229,6 +229,8 @@ def main():
     # Step 5: Initialize DroneSetup
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
+    
+    drone_config.drone_setup = drone_setup
 
     # Step 6: Start the main loop
     main_loop()

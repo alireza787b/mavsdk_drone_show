@@ -47,11 +47,12 @@ class FlaskHandler:
                 return jsonify({"error_in_get_drone_state": str(e)}), 500
 
         @self.app.route(f"/{Params.send_drone_command_URI}", methods=['POST'])
-        def send_drone_command():
+        async def send_drone_command():
             """Endpoint to send a command to the drone."""
             try:
                 command_data = request.get_json()
                 self.drone_communicator.process_command(command_data)
+                await self.drone_config.drone_setup.schedule_mission()
                 return jsonify({"status": "success", "message": "Command received"}), 200
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
