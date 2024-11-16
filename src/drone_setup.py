@@ -466,6 +466,42 @@ class DroneSetup:
             "--action=land"
         )
 
+    async def _execute_return_rtl(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Executes the Return and Land mission by running the RTL action script.
+
+        Args:
+            current_time (int, optional): The current Unix timestamp.
+            earlier_trigger_time (int, optional): The adjusted trigger time.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        logger.info("Starting Return RTL Mission")
+
+        return await self.execute_mission_script(
+            "actions.py",
+            "--action=return_rtl"
+        )
+        
+    async def _execute_kill_terminate(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Executes the Kill and Terminate (Dangerous) mission by running the kill action script.
+
+        Args:
+            current_time (int, optional): The current Unix timestamp.
+            earlier_trigger_time (int, optional): The adjusted trigger time.
+
+        Returns:
+            tuple: (status (bool), message (str))
+        """
+        logger.info("Starting Kill and Terminate Mission")
+
+        return await self.execute_mission_script(
+            "actions.py",
+            "--action=kill_terminate"
+        )
+        
     async def _execute_hold(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """
         Executes the Hold Position mission by running the hold action script.

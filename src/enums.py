@@ -15,6 +15,8 @@ class Mission(Enum):
     REBOOT_SYS = 7
     TEST_LED = 8
     UPDATE_CODE = 103
+    RETURN_RTL = 104
+    KILL_TERMINATE = 105
     
     
 class State(Enum):
