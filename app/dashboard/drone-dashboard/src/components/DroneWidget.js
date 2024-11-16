@@ -41,7 +41,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
         Drone {drone.hw_ID || 'Unknown'}
       </h3>
       <div className="drone-info">
-        <p><strong>Mission:</strong> {drone.Mission || 'N/A'}</p>
+        <p><strong>Mission:</strong> {drone.lastMission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
         <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
         <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}

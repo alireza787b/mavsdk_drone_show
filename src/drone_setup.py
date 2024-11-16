@@ -191,8 +191,10 @@ class DroneSetup:
                     stderr=asyncio.subprocess.PIPE
                 )
                 # self.running_processes[script_name] = process
+                self.drone_config.last_mission = self.drone_config.mission
                 self.drone_config.mission = Mission.NONE.value
-                self.drone_config.state = State.IDLE.value
+                self.drone_config.last_mission = self.drone_config.mission
+                self.drone_config.state = 0
                 logger.info(
                         f"Mission script '{script_name}' completed successfully."
                     )
@@ -293,6 +295,7 @@ class DroneSetup:
 
             # Execute the mission handler
             success, message = await handler(current_time, earlier_trigger_time)
+            logger.info(f"Mission Execution Result: {success} with message: {message}")
 
             # Log the result of the mission execution
             #self._log_mission_result(success, message)
@@ -352,9 +355,9 @@ class DroneSetup:
                 main_offboard_executer,
                 f"--start_time={real_trigger_time}"
             )
-
-        logger.info("Conditions not met for triggering Standard Drone Show")
-        return False, "Conditions not met for Standard Drone Show"
+        else:
+            logger.info("Conditions not met for triggering Standard Drone Show")
+            return False, "Conditions not met for Standard Drone Show"
 
     async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """
@@ -416,7 +419,7 @@ class DroneSetup:
         logger.info("Conditions not met for triggering Smart Swarm")
         return False, "Conditions not met for Smart Swarm"
 
-    async def _execute_takeoff(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+    async def _execute_takeoff(self, current_time: int = 0, earlier_trigger_time: int = 0) -> tuple:
         """
         Executes the Takeoff mission by running the takeoff action script.
 
@@ -427,17 +430,23 @@ class DroneSetup:
         Returns:
             tuple: (status (bool), message (str))
         """
-        try:
-            altitude = float(self.drone_config.takeoff_altitude)
-        except (AttributeError, ValueError, TypeError) as e:
-            logger.error(f"Invalid or missing takeoff altitude: {e}")
-            return False, f"Invalid takeoff altitude: {e}"
+        if current_time == 0 :
+            current_time = int(time(time))
+            
+        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
+            try:
+                altitude = float(self.drone_config.takeoff_altitude)
+            except (AttributeError, ValueError, TypeError) as e:
+                logger.error(f"Invalid or missing takeoff altitude: {e}")
+                return False, f"Invalid takeoff altitude: {e}"
 
-        logger.info(f"Starting Takeoff to {altitude}m")
-        return await self.execute_mission_script(
-            "actions.py",
-            f"--action=takeoff --altitude={altitude}"
-        )
+            logger.info(f"Starting Takeoff to {altitude}m")
+            self.drone_config.state = 2  # Move to the active mission state
+            self.drone_config.trigger_time = 0  # Reset the trigger time
+            return await self.execute_mission_script(
+                "actions.py",
+                f"--action=takeoff --altitude={altitude}"
+            )
 
     async def _execute_land(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
         """

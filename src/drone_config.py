@@ -24,6 +24,7 @@ class DroneConfig:
         self.state = 0  # Initial state of the drone
         self.pos_id = self.get_hw_id(hw_id)  # Position ID, typically same as hardware ID
         self.mission = 0  # Current mission state
+        self.last_mission = 0
         self.trigger_time = 0  # Time of the last trigger event
         self.drone_setup = None
         # Position and velocity information
