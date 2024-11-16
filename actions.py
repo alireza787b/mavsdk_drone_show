@@ -90,7 +90,7 @@ def check_mavsdk_server_running(port):
     """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
