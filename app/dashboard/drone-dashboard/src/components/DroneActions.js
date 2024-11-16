@@ -98,18 +98,18 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             Return to Launch
           </button>
           <button 
-            className="action-button kill-button"
-            onClick={() => handleActionClick('KILL_TERMINATE', 'EMERGENCY KILL: This will immediately terminate all drone operations. This is for EMERGENCY USE ONLY. Are you absolutely sure you want to proceed?')}
-          >
-            <FaSkull className="action-icon" />
-            Emergency Kill
-          </button>
-          <button 
             className="action-button disarm-button"
             onClick={() => handleActionClick('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
           >
             <FaBatteryFull className="action-icon" />
             Disarm Drones
+          </button>
+          <button 
+            className="action-button kill-button"
+            onClick={() => handleActionClick('KILL_TERMINATE', 'EMERGENCY KILL: This will immediately terminate all drone operations. This is for EMERGENCY USE ONLY. Are you absolutely sure you want to proceed?')}
+          >
+            <FaSkull className="action-icon" />
+            Emergency KILL!
           </button>
         </div>
       </div>
