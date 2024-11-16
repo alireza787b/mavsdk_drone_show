@@ -45,6 +45,8 @@ class DroneSetup:
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
+            Mission.RETURN_RTL.value: self._execute_return_rtl,
+            Mission.KILL_TERMINATE.value: self._execute_kill_terminate(),
             Mission.HOLD.value: self._execute_hold,
             Mission.TEST.value: self._execute_test,
             Mission.REBOOT_FC.value: self._execute_reboot_fc,
