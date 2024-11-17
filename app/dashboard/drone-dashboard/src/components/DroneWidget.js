@@ -13,7 +13,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
 
 
   // Map MAV_MODE to a readable name and determine if the drone is armable
-  const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || `Unknown (${drone.Flight_Mode})`;
+  const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || drone.Flight_Mode ;
   const isArmable = drone.Flight_Mode !== 0; // Any mode other than PREFLIGHT (0) is considered armable
 
   // Determine HDOP/VDOP class based on value
@@ -41,7 +41,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
         Drone {drone.hw_ID || 'Unknown'}
       </h3>
       <div className="drone-info">
-        <p><strong>Mission:</strong> {drone.Mission || 'N/A'}</p>
+        <p><strong>Mission:</strong> {drone.lastMission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
         <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
         <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}

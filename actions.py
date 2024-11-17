@@ -90,7 +90,7 @@ def check_mavsdk_server_running(port):
     """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind='inet'):
                 if conn.laddr.port == port:
                     return True, proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -386,8 +386,12 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
             await takeoff(drone, altitude)
         elif action == "land":
             await land(drone)
-        elif action == "hold":
+        elif action == "return_rtl":
+            await return_rtl(drone)
+        elif action == "return_rtl":
             await hold(drone)
+        elif action == "kill_terminate":
+            await kill_terminate(drone)
         elif action == "test":
             await test(drone)
         elif action == "reboot_fc":
@@ -497,6 +501,97 @@ async def land(drone):
     finally:
         # Turn off LEDs after feedback
         led_controller.turn_off()
+        
+async def return_rtl(drone):
+    """
+    Executes the return and land action.
+
+    Args:
+        drone (System): The MAVSDK drone system.
+    """
+    led_controller = LEDController.get_instance()
+
+    # Indicate landing initiation with yellow color
+    led_controller.set_color(255, 0, 255)  # Purple
+    await asyncio.sleep(0.5)
+
+    try:
+        await drone.action.hold()  # Switch to Hold mode
+        await asyncio.sleep(1)  # Wait for a short period
+
+        # Indicate landing in progress with blue slow pulse
+        for _ in range(3):
+            led_controller.set_color(0, 0, 255)  # Blue
+            await asyncio.sleep(0.5)
+            led_controller.turn_off()
+            await asyncio.sleep(0.5)
+
+        await drone.action.return_to_launch()  # Execute rtl command
+
+        # Indicate successful landing with green blinks
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)  # Green
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
+        logger.info("RTL and Landing successful.")
+    except Exception:
+        logger.exception("RTL and Landing failed")
+        # Indicate landing failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
+        
+        
+async def kill_terminate(drone):
+    """
+    Executes the kill and terminate action.
+
+    Args:
+        drone (System): The MAVSDK drone system.
+    """
+    led_controller = LEDController.get_instance()
+
+    # Indicate landing initiation with yellow color
+    led_controller.set_color(255, 0, 0)  # Red
+    await asyncio.sleep(0.2)
+    led_controller.set_color(0, 0, 0)  # Off
+    led_controller.set_color(255, 0, 0)  # Red
+    await asyncio.sleep(0.2)
+
+    try:
+        await drone.action.terminate()  # Switch to Terminate mode
+        await asyncio.sleep(1)  # Wait for a short period
+
+
+        # Indicate successful kill with blinks
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)  # Green
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
+        logger.info("Kill and Terminate successful.")
+    except Exception:
+        logger.exception("Kill and Terminate failed")
+        # Indicate landing failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 0)  # Red
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+    finally:
+        # Turn off LEDs after feedback
+        led_controller.turn_off()
+        await asyncio.sleep(0.2)
+        led_controller.set_color(255, 0, 0)  # Red
+
 
 async def hold(drone):
     """

@@ -61,6 +61,7 @@ def poll_telemetry(drone):
                         'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
                         'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
                         'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
+                        'lastMission': Mission(telemetry_data.get('last_mission', 'UNKNOWN')).name,
                         'Position_Lat': telemetry_data.get('position_lat', 0.0),
                         'Position_Long': telemetry_data.get('position_long', 0.0),
                         'Position_Alt': telemetry_data.get('position_alt', 0.0),

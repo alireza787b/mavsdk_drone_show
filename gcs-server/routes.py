@@ -9,7 +9,7 @@ import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
 from telemetry import telemetry_data_all_drones, start_telemetry_polling , data_lock
-from command import send_commands_to_all, send_command_to_drone
+from command import send_commands_to_all, send_commands_to_selected
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 import logging
@@ -51,20 +51,32 @@ def setup_routes(app):
         if not command_data:
             return error_response("No command data provided", 400)
 
-        logger.info(f"Received command: {command_data}")
+        # Extract target_drones from command_data if provided
+        target_drones = command_data.pop('target_drones', None)
+        
+        logger.info(f"Received command: {command_data} for drones: {target_drones}")
+        
         try:
             drones = load_config()
             if not drones:
                 return error_response("No drones found in the configuration", 500)
 
             start_time = time.time()
-            results = send_commands_to_all(drones, command_data)
+            
+            # Choose appropriate sending function based on target_drones
+            if target_drones:
+                results = send_commands_to_selected(drones, command_data, target_drones)
+            else:
+                results = send_commands_to_all(drones, command_data)
+                
             elapsed_time = time.time() - start_time
 
             success_count = sum(results.values())
+            total_count = len(target_drones) if target_drones else len(drones)
+            
             response_data = {
                 'status': 'success',
-                'message': f"Command sent to {success_count}/{len(drones)} drones",
+                'message': f"Command sent to {success_count}/{total_count} drones",
                 'details': results,
                 'elapsed_time': f"{elapsed_time:.2f} seconds"
             }
@@ -74,6 +86,7 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error sending command: {e}", exc_info=True)
             return error_response(f"Error sending command: {e}")
+    
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():

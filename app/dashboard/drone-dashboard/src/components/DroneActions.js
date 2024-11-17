@@ -1,4 +1,3 @@
-// src/components/DroneActions.js
 import React, { useState } from 'react';
 import { 
   FaPlaneDeparture, 
@@ -10,6 +9,8 @@ import {
   FaSyncAlt,
   FaPowerOff,
   FaCodeBranch,
+  FaHome,  // Added for RTL
+  FaSkull,  // Added for Kill/Terminate
 } from 'react-icons/fa';
 import '../styles/DroneActions.css';
 
@@ -90,11 +91,25 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             Hold Position
           </button>
           <button 
+            className="action-button rtl-button"
+            onClick={() => handleActionClick('RETURN_RTL', 'Return to Launch: This will command all drones to return to their launch positions. Are you sure you want to proceed?')}
+          >
+            <FaHome className="action-icon" />
+            Return to Launch
+          </button>
+          <button 
             className="action-button disarm-button"
             onClick={() => handleActionClick('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
           >
             <FaBatteryFull className="action-icon" />
             Disarm Drones
+          </button>
+          <button 
+            className="action-button kill-button"
+            onClick={() => handleActionClick('KILL_TERMINATE', 'EMERGENCY KILL: This will immediately terminate all drone operations. This is for EMERGENCY USE ONLY. Are you absolutely sure you want to proceed?')}
+          >
+            <FaSkull className="action-icon" />
+            Emergency KILL!
           </button>
         </div>
       </div>

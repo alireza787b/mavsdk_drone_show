@@ -2,5 +2,5 @@
 import { FLIGHT_MODES } from '../constants/flightModes';
 
 export const getFlightModeTitle = (code) => {
-  return FLIGHT_MODES[code] || 'Unknown';
+    return FLIGHT_MODES[code] || code;
 };

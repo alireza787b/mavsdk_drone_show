@@ -132,6 +132,7 @@ class DroneCommunicator:
         try:
             mission = int(command_data["missionType"])
             trigger_time = command_data["triggerTime"]
+            
         except KeyError as e:
             logging.error(f"Missing required field in command data: {e}")
             return
@@ -139,7 +140,7 @@ class DroneCommunicator:
         hw_id = command_data.get("hw_id", self.drone_config.hw_id)
         pos_id = command_data.get("pos_id", self.drone_config.pos_id)
         state = command_data.get("state", self.drone_config.state)
-
+        state = 1 #for now hardcoded to armed (received command)
         self._update_drone_config(hw_id, pos_id, state, trigger_time)
 
         try:
@@ -260,6 +261,7 @@ class DroneCommunicator:
             "pos_id": safe_int(safe_get(self.drone_config.config, 'pos_id')),  # Position ID
             "state": safe_int(self.drone_config.state),  # Current state of the drone
             "mission": safe_int(self.drone_config.mission),  # Current mission state
+            "last_mission": safe_int(self.drone_config.last_mission),  # Last mission state
             "trigger_time": safe_int(self.drone_config.trigger_time),  # Time of the last trigger event
             "position_lat": safe_float(safe_get(self.drone_config.position, 'lat')),  # Latitude of the current position
             "position_long": safe_float(safe_get(self.drone_config.position, 'long')),  # Longitude of the current position

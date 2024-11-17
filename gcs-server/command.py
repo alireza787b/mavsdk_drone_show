@@ -82,3 +82,48 @@ def send_commands_to_all(drones, command_data):
         extra={'command': command_data}
     )
     return results
+def send_commands_to_selected(drones, command_data, target_drone_ids):
+    """Send a command to specifically selected drones."""
+    # Create a mapping of drone IDs to drone configs
+    drone_map = {drone['hw_id']: drone for drone in drones}
+
+    # Filter drones based on target IDs
+    selected_drones = []
+    for drone_id in target_drone_ids:
+        if drone_id in drone_map:
+            selected_drones.append(drone_map[drone_id])
+        else:
+            logger.warning(f"Drone ID {drone_id} not found in configuration")
+
+    if not selected_drones:
+        logger.error("No valid drones found in the target list")
+        return {}
+
+    total_drones = len(selected_drones)
+    max_workers = min(10, total_drones)
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_drone = {
+            executor.submit(send_command_to_drone, drone, command_data): drone 
+            for drone in selected_drones
+        }
+        
+        for future in as_completed(future_to_drone):
+            drone = future_to_drone[future]
+            try:
+                success = future.result()
+                results[drone['hw_id']] = success
+            except Exception as e:
+                logger.error(
+                    f"Error sending command to drone {drone['hw_id']}: {e}",
+                    extra={'drone_id': drone['hw_id'], 'command': command_data}
+                )
+                results[drone['hw_id']] = False
+
+    success_count = sum(results.values())
+    logger.info(
+        f"Commands sent successfully to {success_count}/{total_drones} selected drones",
+        extra={'command': command_data, 'target_drones': target_drone_ids}
+    )
+    return results

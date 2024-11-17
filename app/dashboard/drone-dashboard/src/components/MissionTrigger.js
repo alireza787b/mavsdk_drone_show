@@ -34,13 +34,13 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
 
   const handleConfirm = () => {
     if (currentAction) {
-      const { actionType } = currentAction;
+      const { actionType, triggerTime } = currentAction; // Get triggerTime from currentAction
       const commandData = {
         missionType: actionType,
-        triggerTime: Math.floor(Date.now() / 1000),
+        triggerTime: triggerTime,
       };
       onSendCommand(commandData);
-      setNotification('Cancel Mission command sent successfully.');
+      setNotification('Command sent successfully.');
       setTimeout(() => setNotification(null), 3000);
     }
     setModalOpen(false);
@@ -72,7 +72,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     const missionName = Object.keys(missionTypes).find(key => missionTypes[key] === selectedMission);
     const confirmationMessage = `Are you sure you want to send the "${missionName}" command to all drones?\nTrigger time: ${new Date(triggerTime * 1000).toLocaleString()}`;
   
-    setCurrentAction({ actionType: selectedMission, confirmationMessage });
+    // Set currentAction with triggerTime
+    setCurrentAction({ actionType: selectedMission, confirmationMessage, triggerTime });
     setModalOpen(true);
   };
   
