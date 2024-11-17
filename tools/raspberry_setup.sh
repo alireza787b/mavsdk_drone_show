@@ -36,7 +36,7 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  -b, --branch NAME           Specify Git branch name (default: real-test-1)
+  -b, --branch NAME           Specify Git branch name (default: main-candidate)
   -d, --drone-id ID           Specify Drone ID (e.g., 1, 2) [Required]
   -k, --netbird-key KEY       Specify Netbird Setup Key [Required unless --skip-netbird is used]
   -u, --management-url URL    Specify Netbird Management URL (default: https://nb1.joomtalk.ir)
