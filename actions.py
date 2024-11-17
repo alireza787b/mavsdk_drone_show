@@ -392,6 +392,8 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
             await test(drone)
         elif action == "reboot_fc":
             await reboot(drone, fc_flag=True, sys_flag=False)
+        elif action == "kill_terminate":
+            await kill_terminate(drone)
         elif action == "reboot_sys":
             await reboot(drone, fc_flag=False, sys_flag=True)
         else:
@@ -575,6 +577,46 @@ async def test(drone):
     finally:
         # Ensure LEDs are turned off
         led_controller.turn_off()
+        
+async def kill_terminate(drone):
+    """
+    Executes the test action, which includes arming and disarming the drone with LED feedback.
+
+    Args:
+        drone (System): The MAVSDK drone system.
+    """
+    led_controller = LEDController.get_instance()
+
+    try:
+        # Step 1: Set LEDs to red before attempting to arm
+        led_controller.set_color(255, 0, 0)  # Red
+        await asyncio.sleep(1)  # Wait to show red color
+
+        led_controller.set_color(255, 255, 255)  # White
+        await asyncio.sleep(1)  # Wait to show white color
+
+        # Step : Disarm the drone
+        await drone.action.terminate()
+        logger.info("Terminate action successful.")
+
+        # Step 5: Turn off LEDs after disarming
+        led_controller.set_color(255, 0, 0)  # Red
+
+    except Exception:
+        logger.exception("Test failed")
+        # Indicate test failure with red blinks
+        for _ in range(3):
+            led_controller.set_color(255, 0, 255)  # Purple
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+    finally:
+        # Ensure LEDs are turned off
+        led_controller.turn_off()
+        
+        
+
+
 
 async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
     """
