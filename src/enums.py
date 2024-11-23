@@ -17,6 +17,7 @@ class Mission(Enum):
     UPDATE_CODE = 103
     RETURN_RTL = 104
     KILL_TERMINATE = 105
+    UNKNOWN = 999
     
     
 class State(Enum):

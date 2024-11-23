@@ -58,7 +58,7 @@ def poll_telemetry(drone):
                 # Update telemetry data with thread-safe access
                 with data_lock:
                     telemetry_data_all_drones[drone['hw_id']] = {
-                        'Pos_ID': telemetry_data.get('pos_id', 'Unknown'),
+                        'Pos_ID': telemetry_data.get('pos_id', 'UNKNOWN'),
                         'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
                         'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
                         'lastMission': Mission(telemetry_data.get('last_mission', 'UNKNOWN')).name,
@@ -70,11 +70,11 @@ def poll_telemetry(drone):
                         'Velocity_Down': telemetry_data.get('velocity_down', 0.0),
                         'Yaw': telemetry_data.get('yaw', 0.0),
                         'Battery_Voltage': telemetry_data.get('battery_voltage', 0.0),
-                        'Follow_Mode': telemetry_data.get('follow_mode', 'Unknown'),
-                        'Update_Time': telemetry_data.get('update_time', 'Unknown'),
+                        'Follow_Mode': telemetry_data.get('follow_mode', 'UNKNOWN'),
+                        'Update_Time': telemetry_data.get('update_time', 'UNKNOWN'),
                         'Timestamp': telemetry_data.get('timestamp', time.time()),
-                        'Flight_Mode': telemetry_data.get('flight_mode_raw', 'Unknown'),
-                        'System_Status': telemetry_data.get('system_status', 'Unknown'),  # MAVLink system status
+                        'Flight_Mode': telemetry_data.get('flight_mode_raw', 'UNKNOWN'),
+                        'System_Status': telemetry_data.get('system_status', 'UNKNOWN'),  # MAVLink system status
                         'Hdop': telemetry_data.get('hdop', 99.99),
                         'Vdop': telemetry_data.get('vdop', 99.99),  # Vertical dilution of precision
                     }
