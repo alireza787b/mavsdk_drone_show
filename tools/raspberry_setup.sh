@@ -182,6 +182,11 @@ validate_inputs() {
     if [[ -z "${REPO_URL:-}" ]]; then
         REPO_URL="$DEFAULT_REPO_URL"
     fi
+
+    # Validate SSH_KEY_PATH
+    if [[ -z "${SSH_KEY_PATH:-}" ]]; then
+        SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+    fi
 }
 
 # =============================================================================
@@ -210,6 +215,12 @@ setup_ssh_key_for_git() {
     # Configure SSH to use the key for GitHub
     SSH_CONFIG_FILE="$HOME/.ssh/config"
     GITHUB_HOST="github.com"
+
+    # Backup existing SSH config if it exists
+    if [[ -f "$SSH_CONFIG_FILE" ]]; then
+        cp "$SSH_CONFIG_FILE" "$SSH_CONFIG_FILE.bak"
+        echo "Existing SSH config backed up to $SSH_CONFIG_FILE.bak"
+    fi
 
     # Remove existing SSH config for GitHub to avoid conflicts
     sed -i '/Host github.com/,+5d' "$SSH_CONFIG_FILE" 2>/dev/null || true
@@ -248,17 +259,12 @@ EOF
     # Wait for user confirmation
     read -p "Press Enter after you have added the SSH key to your GitHub repository..."
 
-    # Test SSH connection to GitHub
+    # Test SSH connection to GitHub with verbose output
     echo "Testing SSH connection to GitHub..."
-    set +e  # Temporarily disable exit on error
-    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated"
-    SSH_TEST_RESULT=$?
-    set -e  # Re-enable exit on error
-
-    if [[ $SSH_TEST_RESULT -ne 0 ]]; then
+    ssh -T -i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" git@github.com || {
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
         exit 1
-    fi
+    }
     echo "SSH connection to GitHub successful."
 }
 
@@ -482,10 +488,7 @@ echo
 validate_inputs
 
 # Define the script path
-SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/raspberry_setup.sh"
-
-# Get absolute path to avoid issues with 'cd' commands later
-SCRIPT_PATH=$(realpath "$SCRIPT_PATH")
+SCRIPT_PATH="$(realpath "$0")"
 
 # Calculate initial hash of the script
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
@@ -495,6 +498,9 @@ cd "$(dirname "$SCRIPT_PATH")/../.."  # Adjusted to get to the root of the repos
 
 # Set up SSH key for GitHub access
 setup_ssh_key_for_git
+
+# Set GIT_SSH_COMMAND to ensure the correct SSH key is used
+export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes"
 
 # Setup Git Repository
 setup_git "$@"
