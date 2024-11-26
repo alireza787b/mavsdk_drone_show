@@ -259,13 +259,18 @@ EOF
     # Wait for user confirmation
     read -p "Press Enter after you have added the SSH key to your GitHub repository..."
 
-    # Test SSH connection to GitHub with verbose output
+    # Test SSH connection to GitHub
     echo "Testing SSH connection to GitHub..."
-    ssh -T -i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" git@github.com || {
+    SSH_OUTPUT=$(ssh -T -i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" git@github.com 2>&1)
+
+    if echo "$SSH_OUTPUT" | grep -q "successfully authenticated"; then
+        echo "SSH connection to GitHub successful."
+    else
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
+        echo "SSH Output:"
+        echo "$SSH_OUTPUT"
         exit 1
-    }
-    echo "SSH connection to GitHub successful."
+    fi
 }
 
 # =============================================================================
@@ -505,6 +510,10 @@ export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes"
 # Setup Git Repository
 setup_git "$@"
 
+echo
+echo "Git repository setup complete."
+
+echo
 echo "Starting setup for the Drone Swarm System..."
 echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
 
@@ -571,4 +580,5 @@ if [[ "$SKIP_MAVSDK" == false ]]; then
     check_download_mavsdk
 fi
 
+echo
 echo "Setup complete! The system is now configured for Drone ID $DRONE_ID."
