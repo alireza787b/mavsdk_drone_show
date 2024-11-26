@@ -6,7 +6,7 @@
 # A script to set up a drone within a Drone Swarm System. Supports both
 # interactive and non-interactive modes, allowing users to provide inputs via
 # command-line arguments or interactively through prompts. Specific setup steps
-# can be skipped using appropriate flags.
+# can be skipped using appropriate flags or during runtime prompts.
 #
 # =============================================================================
 
@@ -261,7 +261,7 @@ EOF
 
     # Test SSH connection to GitHub
     echo "Testing SSH connection to GitHub..."
-    SSH_OUTPUT=$(ssh -T -i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" git@github.com 2>&1)
+    SSH_OUTPUT=$(ssh -T -i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "IdentitiesOnly=yes" git@github.com 2>&1 || true)
 
     if echo "$SSH_OUTPUT" | grep -q "successfully authenticated"; then
         echo "SSH connection to GitHub successful."
@@ -512,6 +512,20 @@ setup_git "$@"
 
 echo
 echo "Git repository setup complete."
+
+# Ask the user if they want to proceed with Netbird setup
+if [[ "$SKIP_NETBIRD" == false ]]; then
+    echo
+    echo "Do you want to proceed with Netbird setup and registration?"
+    echo "Type 'y' to proceed or 'n' to skip Netbird setup."
+    read -p "Your choice (y/n): " netbird_choice
+    if [[ "$netbird_choice" == "n" || "$netbird_choice" == "N" ]]; then
+        SKIP_NETBIRD=true
+        echo "Skipping Netbird setup as per your choice."
+    else
+        echo "Proceeding with Netbird setup."
+    fi
+fi
 
 echo
 echo "Starting setup for the Drone Swarm System..."
