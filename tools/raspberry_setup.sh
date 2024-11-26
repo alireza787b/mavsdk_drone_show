@@ -344,7 +344,7 @@ configure_sudoers() {
 # =============================================================================
 # Function: Ensure Polkit Rule for Reboot Exists
 # =============================================================================
-configure_polkit_for_reboot() {
+configure_polkit_for_reboot() 
     local polkit_rule_path="/etc/polkit-1/rules.d/50-droneshow-reboot.rules"
     local expected_rule_content="polkit.addRule(function(action, subject) {
     if ((action.id == \"org.freedesktop.login1.reboot\" ||
@@ -366,7 +366,6 @@ configure_polkit_for_reboot() {
         else
             echo "Polkit rule file exists, but the 'droneshow' rule is missing. Updating the rule..."
             add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
-        }
     else
         echo "Polkit rule file does not exist. Creating it with the necessary reboot rule for 'droneshow'..."
         add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
