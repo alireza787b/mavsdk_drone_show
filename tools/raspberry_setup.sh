@@ -3,10 +3,10 @@
 # =============================================================================
 # raspberry_setup.sh
 #
-# A script to set up a drone within a Drone Swarm System. Supports both
-# interactive and non-interactive modes, allowing users to provide inputs via
-# command-line arguments or interactively through prompts. Specific setup steps
-# can be skipped using appropriate flags or during runtime prompts.
+# A script to set up a drone within a Drone Swarm System.
+# Supports both interactive and non-interactive modes, allowing users to provide
+# inputs via command-line arguments or interactively through prompts.
+# Specific setup steps can be skipped using appropriate flags or during runtime prompts.
 #
 # =============================================================================
 
@@ -21,6 +21,7 @@ DEFAULT_BRANCH="main-candidate"
 DEFAULT_MANAGEMENT_URL="https://nb1.joomtalk.ir"
 DEFAULT_REPO_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
 DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
+REPO_DIR="$HOME/mavsdk_drone_show"
 
 # =============================================================================
 # Flags to Skip Steps (default: false)
@@ -242,7 +243,7 @@ EOF
     PUBLIC_KEY=$(cat "${SSH_KEY_PATH}.pub")
     echo
     echo "======================================================================="
-    echo "Please add the following SSH public key as a deployment key to your GitHub repository:"
+    echo "Please add the following SSH public key as a deploy key to your GitHub repository:"
     echo
     echo "$PUBLIC_KEY"
     echo
@@ -268,7 +269,7 @@ EOF
     elif echo "$SSH_OUTPUT" | grep -q "Hi"; then
         echo "SSH connection to GitHub successful."
     else
-        echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
+        echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deploy key to your GitHub repository."
         echo "SSH Output:"
         echo "$SSH_OUTPUT"
         exit 1
@@ -281,16 +282,15 @@ EOF
 setup_git() {
     echo "Setting up Git repository..."
 
-    # Ensure we are in the repository directory
-    cd "$REPO_DIR"
-
-    # Check if the directory is a git repository
-    if [[ ! -d ".git" ]]; then
-        echo "Directory $REPO_DIR is not a git repository. Cloning repository..."
+    # Clone the repository if it doesn't exist
+    if [[ ! -d "$REPO_DIR/.git" ]]; then
+        echo "Repository directory $REPO_DIR does not exist or is not a git repository. Cloning repository..."
         rm -rf "$REPO_DIR"
         git clone "$REPO_URL" "$REPO_DIR"
-        cd "$REPO_DIR"
     fi
+
+    # Navigate to the repository directory
+    cd "$REPO_DIR"
 
     # Ensure the git remote uses SSH and points to the correct repository
     git remote set-url origin "$REPO_URL"
@@ -306,22 +306,12 @@ setup_git() {
     git pull origin "${BRANCH_NAME:-$DEFAULT_BRANCH}"
 
     # Calculate new hash and check if script has changed
+    SCRIPT_PATH="$REPO_DIR/tools/$(basename "$0")"
     new_hash=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
     if [[ "$INITIAL_HASH" != "$new_hash" ]]; then
         echo "Script has been updated. Restarting with the latest version..."
         exec bash "$SCRIPT_PATH" "$@"
     fi
-}
-
-# =============================================================================
-# Function: Setup Netbird
-# =============================================================================
-setup_netbird() {
-    echo "Disconnecting from Netbird..."
-    netbird down || true  # Ignore errors if Netbird is not running
-
-    echo "Clearing Netbird configurations..."
-    sudo rm -rf /etc/netbird/
 }
 
 # =============================================================================
@@ -338,16 +328,6 @@ configure_hostname() {
 
     echo "Restarting avahi-daemon to apply hostname changes..."
     sudo systemctl restart avahi-daemon
-}
-
-# =============================================================================
-# Function: Reconnect to Netbird
-# =============================================================================
-reconnect_netbird() {
-    echo "Reconnecting to Netbird with new settings..."
-    netbird up --management-url "$MANAGEMENT_URL" --setup-key "$NETBIRD_KEY"
-    echo "Netbird reconnected with new hostname 'drone$DRONE_ID'."
-    unset NETBIRD_KEY
 }
 
 # =============================================================================
@@ -461,6 +441,37 @@ check_download_mavsdk() {
 }
 
 # =============================================================================
+# Function: Setup Netbird (At the End)
+# =============================================================================
+setup_netbird() {
+    echo
+    echo "Netbird setup will proceed now."
+    echo "Warning: This step may disrupt your network connection, including SSH."
+    echo "It's recommended to run this script directly from the device or ensure you have alternative access methods."
+    read -p "Do you want to proceed with Netbird setup? (y/n): " proceed_netbird
+    if [[ "$proceed_netbird" != "y" && "$proceed_netbird" != "Y" ]]; then
+        echo "Skipping Netbird setup as per your choice."
+        SKIP_NETBIRD=true
+        return
+    fi
+
+    echo "Proceeding with Netbird setup..."
+
+    echo "Disconnecting from Netbird..."
+    netbird down || true  # Ignore errors if Netbird is not running
+
+    echo "Clearing Netbird configurations..."
+    sudo rm -rf /etc/netbird/
+
+    echo "Reconnecting to Netbird with new settings..."
+    netbird up --management-url "$MANAGEMENT_URL" --setup-key "$NETBIRD_KEY"
+    echo "Netbird reconnected with new hostname 'drone$DRONE_ID'."
+    unset NETBIRD_KEY
+
+    echo "Netbird setup complete."
+}
+
+# =============================================================================
 # Main Script Execution
 # =============================================================================
 
@@ -505,24 +516,9 @@ echo
 # Validate inputs
 validate_inputs
 
-# Define the repository directory
-REPO_DIR="$HOME/mavsdk_drone_show"
-
-# Clone the repository if it doesn't exist
-if [[ ! -d "$REPO_DIR/.git" ]]; then
-    echo "Repository directory $REPO_DIR does not exist or is not a git repository. Cloning repository..."
-    rm -rf "$REPO_DIR"
-    git clone "$REPO_URL" "$REPO_DIR"
-fi
-
-# Define the script path
-SCRIPT_PATH="$REPO_DIR/tools/$(basename "$0")"
-
 # Calculate initial hash of the script
+SCRIPT_PATH="$(realpath "$0")"
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
-
-# Navigate to the repository directory
-cd "$REPO_DIR"
 
 # Set up SSH key for GitHub access
 setup_ssh_key_for_git
@@ -536,28 +532,8 @@ setup_git "$@"
 echo
 echo "Git repository setup complete."
 
-# Ask the user if they want to proceed with Netbird setup
-if [[ "$SKIP_NETBIRD" == false ]]; then
-    echo
-    echo "Do you want to proceed with Netbird setup and registration?"
-    echo "Type 'y' to proceed or 'n' to skip Netbird setup."
-    read -p "Your choice (y/n): " netbird_choice
-    if [[ "$netbird_choice" == "n" || "$netbird_choice" == "N" ]]; then
-        SKIP_NETBIRD=true
-        echo "Skipping Netbird setup as per your choice."
-    else
-        echo "Proceeding with Netbird setup."
-    fi
-fi
-
 echo
 echo "Starting setup for the Drone Swarm System..."
-echo "NOTE: If this Drone ID has been used before, running this setup might create a duplicate entry in Netbird."
-
-# Proceed with Netbird setup unless skipped
-if [[ "$SKIP_NETBIRD" == false ]]; then
-    setup_netbird
-fi
 
 # Handle Hardware ID (HWID) File and real.mode
 
@@ -588,11 +564,6 @@ fi
 # Configure Hostname
 configure_hostname
 
-# Reconnect to Netbird unless skipped
-if [[ "$SKIP_NETBIRD" == false ]]; then
-    reconnect_netbird
-fi
-
 # Configure Sudoers unless skipped
 if [[ "$SKIP_SUDOERS" == false ]]; then
     configure_sudoers
@@ -615,6 +586,11 @@ setup_coordinator_service
 # Check and Download MAVSDK Server unless skipped
 if [[ "$SKIP_MAVSDK" == false ]]; then
     check_download_mavsdk
+fi
+
+# Proceed with Netbird setup unless skipped
+if [[ "$SKIP_NETBIRD" == false ]]; then
+    setup_netbird
 fi
 
 echo
