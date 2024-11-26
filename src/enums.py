@@ -1,7 +1,6 @@
 #src/enums.py
 from enum import Enum
 
-
 class Mission(Enum):
     NONE = 0
     DRONE_SHOW_FROM_CSV = 1
@@ -17,12 +16,10 @@ class Mission(Enum):
     UPDATE_CODE = 103
     RETURN_RTL = 104
     KILL_TERMINATE = 105
-    UNKNOWN = 999
-    
-    
+    UNKNOWN = 999  # Ensure UNKNOWN is included
+
 class State(Enum):
     IDLE = 0
     ARMED = 1
     TRIGGERED = 2
-    
-    
+    UNKNOWN = 999  # Added UNKNOWN to State enum

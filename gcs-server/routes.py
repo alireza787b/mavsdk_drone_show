@@ -19,9 +19,6 @@ from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
 
-
-
-
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -29,20 +26,28 @@ sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Define colors and symbols
+RESET = "\x1b[0m"
+GREEN = "\x1b[32m"
+RED = "\x1b[31m"
+YELLOW = "\x1b[33m"
+BLUE = "\x1b[34m"
+INFO_SYMBOL = BLUE + "ℹ️" + RESET
+ERROR_SYMBOL = RED + "❌" + RESET
 
 def error_response(message, status_code=500):
     """Generate a consistent error response with logging."""
-    logger.error(message)
+    logger.error(f"{ERROR_SYMBOL} {message}")
     return jsonify({'status': 'error', 'message': message}), status_code
 
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
-        logger.info("Telemetry data requested")
+        logger.info(f"{INFO_SYMBOL} Telemetry data requested")
         if not telemetry_data_all_drones:
-            logger.warning("Telemetry data is currently empty")
+            logger.warning(f"{YELLOW}Telemetry data is currently empty{RESET}")
         return jsonify(telemetry_data_all_drones)
 
     @app.route('/submit_command', methods=['POST'])

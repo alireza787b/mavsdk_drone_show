@@ -1,4 +1,3 @@
-#gcs-server/app.py
 import os
 import sys
 import logging
@@ -11,15 +10,39 @@ from config import load_config
 # Configure logging at the entry point of the application
 def configure_logging():
     log_level = logging.DEBUG if os.getenv('FLASK_DEBUG', 'false').lower() == 'true' else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler("app.log") if log_level == logging.INFO else logging.NullHandler()
-        ]
-    )
-    logging.info("Logging is configured.")
+    logger = logging.getLogger()
+    logger.setLevel(log_level)
+
+    # Define colors and symbols
+    RESET = "\x1b[0m"
+    GREEN = "\x1b[32m"
+    RED = "\x1b[31m"
+    YELLOW = "\x1b[33m"
+    BLUE = "\x1b[34m"
+    INFO_SYMBOL = BLUE + "ℹ️" + RESET
+
+    # Custom formatter with colors
+    class CustomFormatter(logging.Formatter):
+        def format(self, record):
+            levelno = record.levelno
+            if levelno >= logging.CRITICAL:
+                color = RED
+            elif levelno >= logging.ERROR:
+                color = RED
+            elif levelno >= logging.WARNING:
+                color = YELLOW
+            elif levelno >= logging.INFO:
+                color = GREEN
+            else:
+                color = RESET
+            formatter = logging.Formatter(f"{color}%(asctime)s | %(message)s{RESET}", "%Y-%m-%d %H:%M:%S")
+            return formatter.format(record)
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(CustomFormatter())
+    logger.handlers = [handler]  # Replace existing handlers
+
+    logging.info(f"{INFO_SYMBOL} Logging is configured.")
 
 def create_app():
     app = Flask(__name__)

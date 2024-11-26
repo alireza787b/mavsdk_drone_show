@@ -1,4 +1,3 @@
-#gcs-server/telemetry.py
 import os
 import sys
 import traceback
@@ -17,30 +16,65 @@ telemetry_data_all_drones = {}
 last_telemetry_time = {}
 data_lock = threading.Lock()  # Ensure thread-safe access to shared data
 
-# Custom logging formatter
-class CustomFormatter(logging.Formatter):
+# Define colors and symbols for terminal output
+RESET = "\x1b[0m"
+RED = "\x1b[31m"
+GREEN = "\x1b[32m"
+YELLOW = "\x1b[33m"
+BLUE = "\x1b[34m"
+MAGENTA = "\x1b[35m"
+CYAN = "\x1b[36m"
+WHITE = "\x1b[37m"
+BOLD = "\x1b[1m"
+
+SUCCESS_SYMBOL = GREEN + "✔️" + RESET
+ERROR_SYMBOL = RED + "❌" + RESET
+WARNING_SYMBOL = YELLOW + "⚠️" + RESET
+INFO_SYMBOL = BLUE + "ℹ️" + RESET
+
+class ColoredFormatter(logging.Formatter):
     def format(self, record):
-        timestamp = self.formatTime(record, '%Y-%m-%d %H:%M:%S')
-        if record.levelno == logging.INFO:
-            return f"{timestamp} | Drone {record.drone_id} | SUCCESS | {record.getMessage()}"
-        elif record.levelno == logging.ERROR:
-            return f"{timestamp} | Drone {record.drone_id} | ERROR | {record.error_type}: {record.getMessage()}"
-        return super().format(record)
+        levelno = record.levelno
+        if levelno >= logging.CRITICAL:
+            color = RED
+        elif levelno >= logging.ERROR:
+            color = RED
+        elif levelno >= logging.WARNING:
+            color = YELLOW
+        elif levelno >= logging.INFO:
+            color = GREEN
+        else:
+            color = RESET
+        formatter = logging.Formatter(f"{color}%(asctime)s | Drone %(drone_id)s | %(message)s{RESET}", "%Y-%m-%d %H:%M:%S")
+        return formatter.format(record)
 
 # Set up logging
 logger = logging.getLogger('telemetry')
 logger.setLevel(logging.INFO)
 logger.propagate = False  # Prevent propagation to root logger
 handler = logging.StreamHandler()
-handler.setFormatter(CustomFormatter())
-logger.addHandler(handler)
+handler.setFormatter(ColoredFormatter())
+logger.handlers = [handler]  # Replace existing handlers
+
+def get_enum_name(enum_class, value):
+    """
+    Helper function to safely get the name of an Enum member.
+    Tries to get the enum member by value or name; returns 'UNKNOWN' if not found.
+    """
+    try:
+        if isinstance(value, int):
+            return enum_class(value).name
+        elif isinstance(value, str):
+            return enum_class[value.upper()].name
+    except (ValueError, KeyError, TypeError):
+        return 'UNKNOWN'
 
 def initialize_telemetry_tracking(drones):
     for drone in drones:
         with data_lock:
             telemetry_data_all_drones[drone['hw_id']] = {}
         last_telemetry_time[drone['hw_id']] = 0
-    logger.info(f"Initialized tracking for {len(drones)} drones", extra={'drone_id': 'System'})
+    logger.info(f"{INFO_SYMBOL} Initialized tracking for {len(drones)} drones", extra={'drone_id': 'System'})
 
 def poll_telemetry(drone):
     while True:
@@ -59,9 +93,9 @@ def poll_telemetry(drone):
                 with data_lock:
                     telemetry_data_all_drones[drone['hw_id']] = {
                         'Pos_ID': telemetry_data.get('pos_id', 'UNKNOWN'),
-                        'State': State(telemetry_data.get('state', 'UNKNOWN')).name,
-                        'Mission': Mission(telemetry_data.get('mission', 'UNKNOWN')).name,
-                        'lastMission': Mission(telemetry_data.get('last_mission', 'UNKNOWN')).name,
+                        'State': get_enum_name(State, telemetry_data.get('state', 'UNKNOWN')),
+                        'Mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
+                        'lastMission': get_enum_name(Mission, telemetry_data.get('last_mission', 'UNKNOWN')),
                         'Position_Lat': telemetry_data.get('position_lat', 0.0),
                         'Position_Long': telemetry_data.get('position_long', 0.0),
                         'Position_Alt': telemetry_data.get('position_alt', 0.0),
@@ -80,44 +114,51 @@ def poll_telemetry(drone):
                     }
                     last_telemetry_time[drone['hw_id']] = time.time()
 
+                # Log success
+                logger.info(
+                    f"{SUCCESS_SYMBOL} Telemetry updated successfully",
+                    extra={'drone_id': drone['hw_id']}
+                )
+
             else:
                 # Log detailed HTTP error information
                 logger.error(
-                    f"Request failed with status {response.status_code}: {response.text}",
-                    extra={'drone_id': drone['hw_id'], 'error_type': 'HTTP', 'status_code': response.status_code}
+                    f"{ERROR_SYMBOL} Request failed with status {response.status_code}: {response.text}",
+                    extra={'drone_id': drone['hw_id']}
                 )
 
         except requests.Timeout:
             logger.error(
-                "Connection timeout while polling telemetry",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'Timeout'}
+                f"{ERROR_SYMBOL} Connection timeout while polling telemetry",
+                extra={'drone_id': drone['hw_id']}
             )
         except requests.ConnectionError as e:
             logger.error(
-                f"No route to host: {drone['ip']}. Error: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'ConnectionError'}
+                f"{ERROR_SYMBOL} No route to host: {drone['ip']}. Error: {str(e)}",
+                extra={'drone_id': drone['hw_id']}
             )
         except requests.RequestException as e:
             logger.error(
-                f"RequestException occurred: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'RequestException', 'traceback': traceback.format_exc()}
+                f"{ERROR_SYMBOL} RequestException occurred: {str(e)}",
+                extra={'drone_id': drone['hw_id']}
             )
         except Exception as e:
             logger.error(
-                f"Unexpected error: {str(e)}",
-                extra={'drone_id': drone['hw_id'], 'error_type': 'UnexpectedError', 'traceback': traceback.format_exc()}
+                f"{ERROR_SYMBOL} Unexpected error: {str(e)}",
+                extra={'drone_id': drone['hw_id']}
             )
 
         # Purge stale telemetry data if no response for a certain period
         current_time = time.time()
         with data_lock:
             if current_time - last_telemetry_time[drone['hw_id']] > Params.HTTP_REQUEST_TIMEOUT:
-                logger.warning(f"No telemetry received for drone {drone['hw_id']} for over {Params.HTTP_REQUEST_TIMEOUT} seconds. Purging stale data.")
+                logger.warning(
+                    f"{WARNING_SYMBOL} No telemetry received for over {Params.HTTP_REQUEST_TIMEOUT} seconds. Purging stale data.",
+                    extra={'drone_id': drone['hw_id']}
+                )
                 telemetry_data_all_drones[drone['hw_id']] = {}
 
         time.sleep(Params.polling_interval)
-
-
 
 def start_telemetry_polling(drones):
     initialize_telemetry_tracking(drones)
@@ -126,7 +167,7 @@ def start_telemetry_polling(drones):
         thread = threading.Thread(target=poll_telemetry, args=(drone,))
         thread.daemon = True
         thread.start()
-        logger.info(f"Started polling for drone {drone['hw_id']}", extra={'drone_id': drone['hw_id']})
+        logger.info(f"{INFO_SYMBOL} Started polling", extra={'drone_id': drone['hw_id']})
 
 if __name__ == "__main__":
     drones = load_config()
