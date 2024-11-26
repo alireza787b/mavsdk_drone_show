@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# update_repo_ssh.sh
+# update_repo.sh
 # Script to ensure the drone's software repository is up-to-date before operations.
 # Adjust the REPO_DIR variable to match the directory where your repository is located.
 #
@@ -12,9 +12,10 @@
 # Configuration:
 # - REPO_DIR: Directory of the local Git repository.
 # - GIT_URL: URL to the Git repository (SSH by default, but HTTPS can be used as a fallback).
-# - BRANCH_NAME: The branch to synchronize with.
-#   - If -b <branch_name> is passed, the script will switch to the specified branch.
-#   - If no argument is passed, the current branch will be used.
+# - SITL_BRANCH: The default branch for SITL operations (docker-sitl-2).
+# - REAL_BRANCH: The default branch for real operations (main-candidate).
+# - User can select branches using --real or --sitl options.
+# - Repo name and URL can be configured via command line parameters.
 #
 # Logging:
 # The script logs all operations and their outcomes to a log file to aid in debugging
@@ -26,46 +27,29 @@
 # - Enhanced error handling and logging for better troubleshooting.
 #
 # Example usage:
-# ./update_repo_ssh.sh                    # Stays on current branch
-# ./update_repo_ssh.sh -b <branch_name>   # Uses the specified branch
+# ./update_repo.sh                            # Uses default branch (REAL_BRANCH)
+# ./update_repo.sh --sitl                     # Uses SITL_BRANCH
+# ./update_repo.sh --real                     # Uses REAL_BRANCH
+# ./update_repo.sh -b <branch_name>           # Uses the specified branch
+# ./update_repo.sh --repo-url <repo_url>      # Uses the specified repository URL
+# ./update_repo.sh --repo-dir <directory>     # Uses the specified repository directory
 
 set -euo pipefail
-
-# Configuration variables
-REPO_DIR="${HOME}/mavsdk_drone_show"  # Modify this path as needed
-LOG_FILE="${REPO_DIR}/update_repo.log"
-
-# Default Git URL (SSH)
-SSH_GIT_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
-HTTPS_GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
 # Maximum number of retries for network operations
 MAX_RETRIES=5
 INITIAL_DELAY=5  # seconds
 
-# Function to determine branch based on user input
-determine_branch() {
-    local branch=""
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -b|--branch)
-                if [[ -n "${2-}" ]]; then
-                    branch="$2"
-                    shift 2
-                else
-                    echo "Error: --branch requires a non-empty option argument." >&2
-                    exit 1
-                fi
-                ;;
-            *)
-                echo "Unknown option: $1" >&2
-                echo "Usage: $0 [-b <branch_name>]" >&2
-                exit 1
-                ;;
-        esac
-    done
-    printf "%s" "$branch"
-}
+# Default branch names
+SITL_BRANCH="docker-sitl-2"
+REAL_BRANCH="main-candidate"
+
+# Default repository directory
+DEFAULT_REPO_DIR="${HOME}/mavsdk_drone_show"
+
+# Default Git URLs (SSH and HTTPS)
+DEFAULT_SSH_GIT_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
+DEFAULT_HTTPS_GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 
 # Function to log messages with timestamp
 log() {
@@ -121,15 +105,120 @@ check_network_connectivity() {
     log "Network connectivity confirmed."
 }
 
-# Parse branch input
-BRANCH_NAME=$(determine_branch "$@")
+# Function to construct SSH URL from HTTPS URL
+construct_ssh_url() {
+    local https_url="$1"
+    local ssh_url
+    ssh_url="git@github.com:${https_url#https://github.com/}"
+    ssh_url="${ssh_url%.git}.git"
+    echo "$ssh_url"
+}
 
-# Check if SSH key exists
-if [ ! -f "${HOME}/.ssh/id_rsa" ]; then
-    log "No SSH key found. Falling back to HTTPS for Git operations."
-    GIT_URL="$HTTPS_GIT_URL"
+# Function to construct HTTPS URL from SSH URL
+construct_https_url() {
+    local ssh_url="$1"
+    local https_url
+    https_url="https://github.com/${ssh_url#git@github.com:}"
+    https_url="${https_url%.git}.git"
+    echo "$https_url"
+}
+
+# Function to parse command-line arguments
+parse_arguments() {
+    # Default values
+    BRANCH_NAME=""
+    REPO_URL=""
+    REPO_DIR=""
+
+    # Parse arguments
+    PARSED_OPTIONS=$(getopt -n "$0" -o b: --long branch:,sitl,real,repo-url:,repo-dir: -- "$@")
+    if [ $? -ne 0 ]; then
+        echo "Error parsing options"
+        exit 1
+    fi
+
+    eval set -- "$PARSED_OPTIONS"
+
+    while true; do
+        case "$1" in
+            -b|--branch)
+                BRANCH_NAME="$2"
+                shift 2
+                ;;
+            --sitl)
+                BRANCH_NAME="$SITL_BRANCH"
+                shift
+                ;;
+            --real)
+                BRANCH_NAME="$REAL_BRANCH"
+                shift
+                ;;
+            --repo-url)
+                REPO_URL="$2"
+                shift 2
+                ;;
+            --repo-dir)
+                REPO_DIR="$2"
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                echo "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    # Set default branch if none specified
+    if [ -z "${BRANCH_NAME}" ]; then
+        BRANCH_NAME="$REAL_BRANCH"
+    fi
+
+    # Set default repository directory if none specified
+    if [ -z "${REPO_DIR}" ]; then
+        REPO_DIR="$DEFAULT_REPO_DIR"
+    fi
+
+    # Set default repository URL if none specified
+    if [ -z "${REPO_URL}" ]; then
+        REPO_URL="$DEFAULT_SSH_GIT_URL"
+    fi
+}
+
+# Parse command-line arguments
+parse_arguments "$@"
+
+# Set the log file path
+LOG_FILE="${REPO_DIR}/update_repo.log"
+
+# Attempt to use SSH first if possible
+GIT_URL="$REPO_URL"
+
+if [[ "$REPO_URL" == git@* ]]; then
+    # REPO_URL is SSH URL
+    if git ls-remote "$REPO_URL" -q >/dev/null 2>&1; then
+        log "Using SSH for Git operations"
+    else
+        log "Warning: SSH connection to $REPO_URL failed. Attempting to fallback to HTTPS."
+        GIT_URL="$(construct_https_url "$REPO_URL")"
+        log "Using HTTPS URL: $GIT_URL"
+    fi
+elif [[ "$REPO_URL" == https://* ]]; then
+    # REPO_URL is HTTPS URL
+    # Try to use SSH first
+    SSH_URL="$(construct_ssh_url "$REPO_URL")"
+    if git ls-remote "$SSH_URL" -q >/dev/null 2>&1; then
+        GIT_URL="$SSH_URL"
+        log "SSH connection successful. Using SSH URL: $GIT_URL"
+    else
+        GIT_URL="$REPO_URL"
+        log "SSH connection failed. Using HTTPS URL: $GIT_URL"
+    fi
 else
-    GIT_URL="$SSH_GIT_URL"
+    log_error_and_exit "Invalid REPO_URL: $REPO_URL"
 fi
 
 # Ensure the repository directory exists
@@ -140,6 +229,15 @@ fi
 # Navigate to the project directory
 cd "$REPO_DIR" || log_error_and_exit "Failed to navigate to $REPO_DIR"
 
+# Check if the remote origin URL needs to be updated
+current_remote_url=$(git remote get-url origin)
+if [ "$current_remote_url" != "$GIT_URL" ]; then
+    log "Setting remote URL to $GIT_URL"
+    git remote set-url origin "$GIT_URL" || log_error_and_exit "Failed to set remote URL to $GIT_URL"
+else
+    log "Remote URL is already set to $GIT_URL"
+fi
+
 # Stash any local changes
 if git status --porcelain | grep .; then
     log "Stashing local changes..."
@@ -147,9 +245,6 @@ if git status --porcelain | grep .; then
 else
     log "No local changes to stash."
 fi
-
-# Set the Git remote URL to the chosen protocol
-git remote set-url origin "$GIT_URL" || log_error_and_exit "Failed to set remote URL to $GIT_URL"
 
 # Check network connectivity
 check_network_connectivity
@@ -160,22 +255,16 @@ if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
 fi
 
 # Determine the branch to operate on
-if [ -n "$BRANCH_NAME" ]; then
-    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
-        log "Switching to branch $BRANCH_NAME..."
-        if ! git checkout "$BRANCH_NAME"; then
-            log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
-        else
-            log "Switched to branch $BRANCH_NAME"
-        fi
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+    log "Switching to branch $BRANCH_NAME..."
+    if ! git checkout "$BRANCH_NAME"; then
+        log_error_and_exit "Failed to checkout branch $BRANCH_NAME"
     else
-        log "Already on branch $BRANCH_NAME"
+        log "Switched to branch $BRANCH_NAME"
     fi
 else
-    # No branch specified, use current branch
-    BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-    log "No branch specified. Using current branch: $BRANCH_NAME"
+    log "Already on branch $BRANCH_NAME"
 fi
 
 # Reset local changes to match the remote branch
@@ -191,11 +280,5 @@ if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git pull; then
 else
     log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME"
 fi
-
-# Optional: Apply stashed changes if any (currently not needed)
-# if git stash list | grep -q 'stash@{0}'; then
-#     log "Applying stashed changes..."
-#     git stash pop || log_error_and_exit "Failed to apply stashed changes."
-# fi
 
 exit 0
