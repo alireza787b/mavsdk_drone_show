@@ -195,10 +195,23 @@ setup_ssh_key_for_git() {
     # Configure SSH to use the key for GitHub
     SSH_CONFIG_FILE="$HOME/.ssh/config"
     GITHUB_HOST="github.com"
-    if ! grep -q "Host $GITHUB_HOST" "$SSH_CONFIG_FILE" 2>/dev/null; then
-        mkdir -p "$(dirname "$SSH_CONFIG_FILE")"
-        cat >> "$SSH_CONFIG_FILE" << EOF
+    mkdir -p "$(dirname "$SSH_CONFIG_FILE")"
 
+    # Backup existing SSH config
+    if [[ -f "$SSH_CONFIG_FILE" ]]; then
+        cp "$SSH_CONFIG_FILE" "${SSH_CONFIG_FILE}.bak"
+    fi
+
+    # Remove existing Host github.com entries
+    if grep -q "Host $GITHUB_HOST" "$SSH_CONFIG_FILE" 2>/dev/null; then
+        echo "Existing SSH configuration for $GITHUB_HOST found. Updating it."
+        # Remove existing Host $GITHUB_HOST entries
+        awk 'BEGIN {found=0} /^Host '"$GITHUB_HOST"'$/ {found=1; next} found && /^Host/ {found=0} !found' "$SSH_CONFIG_FILE" > "${SSH_CONFIG_FILE}.tmp"
+        mv "${SSH_CONFIG_FILE}.tmp" "$SSH_CONFIG_FILE"
+    fi
+
+    # Append new configuration
+    cat >> "$SSH_CONFIG_FILE" << EOF
 Host $GITHUB_HOST
     HostName github.com
     User git
@@ -206,8 +219,7 @@ Host $GITHUB_HOST
     IdentitiesOnly yes
     StrictHostKeyChecking no
 EOF
-        echo "SSH configuration updated to use $SSH_KEY_PATH for $GITHUB_HOST"
-    fi
+    echo "SSH configuration updated to use $SSH_KEY_PATH for $GITHUB_HOST"
 
     # Display public key and instruct user to add it to GitHub
     PUBLIC_KEY=$(cat "${SSH_KEY_PATH}.pub")
@@ -232,16 +244,17 @@ EOF
 
     # Test SSH connection to GitHub
     echo "Testing SSH connection to GitHub..."
-    set +e  # Temporarily disable exit on error
-    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated"
-    SSH_TEST_RESULT=$?
-    set -e  # Re-enable exit on error
+    set +e
+    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST
+    SSH_EXIT_CODE=$?
+    set -e
 
-    if [[ $SSH_TEST_RESULT -ne 0 ]]; then
+    if [[ $SSH_EXIT_CODE -eq 1 ]]; then
+        echo "SSH connection to GitHub successful."
+    else
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
         exit 1
     fi
-    echo "SSH connection to GitHub successful."
 }
 
 # =============================================================================
@@ -261,7 +274,7 @@ setup_git() {
     fi
 
     # Proceed with git operations
-    git stash push --include-untracked
+    git stash push --include-untracked || true
     git checkout "${BRANCH_NAME:-$DEFAULT_BRANCH}"
     git pull origin "${BRANCH_NAME:-$DEFAULT_BRANCH}"
 
@@ -353,7 +366,7 @@ configure_polkit_for_reboot() {
         else
             echo "Polkit rule file exists, but the 'droneshow' rule is missing. Updating the rule..."
             add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
-        fi
+        }
     else
         echo "Polkit rule file does not exist. Creating it with the necessary reboot rule for 'droneshow'..."
         add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
