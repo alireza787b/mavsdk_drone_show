@@ -19,6 +19,8 @@ IFS=$'\n\t'
 # =============================================================================
 DEFAULT_BRANCH="main-candidate"
 DEFAULT_MANAGEMENT_URL="https://nb1.joomtalk.ir"
+DEFAULT_REPO_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
+DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
 
 # =============================================================================
 # Flags to Skip Steps (default: false)
@@ -40,6 +42,8 @@ Options:
   -d, --drone-id ID           Specify Drone ID (e.g., 1, 2) [Required]
   -k, --netbird-key KEY       Specify Netbird Setup Key [Required unless --skip-netbird is used]
   -u, --management-url URL    Specify Netbird Management URL (default: https://nb1.joomtalk.ir)
+      --repo-url URL          Specify Git repository URL (default: git@github.com:alireza787b/mavsdk_drone_show.git)
+      --ssh-key-path PATH     Specify SSH private key path for GitHub access (default: ~/.ssh/id_rsa_git_deploy)
       --skip-netbird          Skip Netbird setup steps
       --skip-mavsdk           Skip MAVSDK server setup
       --skip-gpio             Skip GPIO configuration
@@ -51,7 +55,7 @@ Examples:
   ./raspberry_setup.sh
 
   # Non-interactive mode with all required arguments
-  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url
+  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url --repo-url git@github.com:user/repo.git
 
   # Non-interactive mode with default branch and management URL
   ./raspberry_setup.sh -d 2 -k anotherNetbirdKey456
@@ -72,7 +76,7 @@ EOF
 # =============================================================================
 parse_args() {
     # Use getopt for parsing both short and long options
-    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
+    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,repo-url:,ssh-key-path:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
     if [[ $? -ne 0 ]]; then
         usage
         exit 1
@@ -96,6 +100,14 @@ parse_args() {
                 ;;
             -u|--management-url)
                 MANAGEMENT_URL="$2"
+                shift 2
+                ;;
+            --repo-url)
+                REPO_URL="$2"
+                shift 2
+                ;;
+            --ssh-key-path)
+                SSH_KEY_PATH="$2"
                 shift 2
                 ;;
             --skip-netbird)
@@ -165,6 +177,11 @@ validate_inputs() {
         usage
         exit 1
     fi
+
+    # Validate REPO_URL
+    if [[ -z "${REPO_URL:-}" ]]; then
+        REPO_URL="$DEFAULT_REPO_URL"
+    fi
 }
 
 # =============================================================================
@@ -173,19 +190,17 @@ validate_inputs() {
 setup_ssh_key_for_git() {
     echo "Setting up SSH key for GitHub access..."
 
-    # Define default SSH key path
-    DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
+    # Use provided SSH key path or default
+    SSH_KEY_PATH="${SSH_KEY_PATH:-$DEFAULT_SSH_KEY_PATH}"
 
     # Check if SSH key already exists
-    if [[ -f "$DEFAULT_SSH_KEY_PATH" ]]; then
-        SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+    if [[ -f "$SSH_KEY_PATH" ]]; then
         echo "Using existing SSH key at $SSH_KEY_PATH"
     else
         # Generate a new SSH key pair without a passphrase
-        echo "No SSH key found at $DEFAULT_SSH_KEY_PATH"
+        echo "No SSH key found at $SSH_KEY_PATH"
         echo "Generating a new SSH key pair..."
-        ssh-keygen -t rsa -b 4096 -f "$DEFAULT_SSH_KEY_PATH" -N "" -C "drone$DRONE_ID@$(hostname)"
-        SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+        ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" -C "drone$DRONE_ID@$(hostname)"
         echo "SSH key generated at $SSH_KEY_PATH"
     fi
 
@@ -195,24 +210,15 @@ setup_ssh_key_for_git() {
     # Configure SSH to use the key for GitHub
     SSH_CONFIG_FILE="$HOME/.ssh/config"
     GITHUB_HOST="github.com"
+
+    # Remove existing SSH config for GitHub to avoid conflicts
+    sed -i '/Host github.com/,+5d' "$SSH_CONFIG_FILE" 2>/dev/null || true
+
+    # Add new SSH config for GitHub
     mkdir -p "$(dirname "$SSH_CONFIG_FILE")"
-
-    # Backup existing SSH config
-    if [[ -f "$SSH_CONFIG_FILE" ]]; then
-        cp "$SSH_CONFIG_FILE" "${SSH_CONFIG_FILE}.bak"
-    fi
-
-    # Remove existing Host github.com entries
-    if grep -q "Host $GITHUB_HOST" "$SSH_CONFIG_FILE" 2>/dev/null; then
-        echo "Existing SSH configuration for $GITHUB_HOST found. Updating it."
-        # Remove existing Host $GITHUB_HOST entries
-        awk 'BEGIN {found=0} /^Host '"$GITHUB_HOST"'$/ {found=1; next} found && /^Host/ {found=0} !found' "$SSH_CONFIG_FILE" > "${SSH_CONFIG_FILE}.tmp"
-        mv "${SSH_CONFIG_FILE}.tmp" "$SSH_CONFIG_FILE"
-    fi
-
-    # Append new configuration
     cat >> "$SSH_CONFIG_FILE" << EOF
-Host $GITHUB_HOST
+
+Host github.com
     HostName github.com
     User git
     IdentityFile $SSH_KEY_PATH
@@ -244,37 +250,34 @@ EOF
 
     # Test SSH connection to GitHub
     echo "Testing SSH connection to GitHub..."
-    set +e
-    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST
-    SSH_EXIT_CODE=$?
-    set -e
+    set +e  # Temporarily disable exit on error
+    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated"
+    SSH_TEST_RESULT=$?
+    set -e  # Re-enable exit on error
 
-    if [[ $SSH_EXIT_CODE -eq 1 ]]; then
-        echo "SSH connection to GitHub successful."
-    else
+    if [[ $SSH_TEST_RESULT -ne 0 ]]; then
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
         exit 1
     fi
+    echo "SSH connection to GitHub successful."
 }
 
 # =============================================================================
 # Function: Setup Git Repository
 # =============================================================================
 setup_git() {
-    echo "Stashing any local changes and updating from Git repository..."
+    echo "Setting up Git repository..."
 
-    # Ensure the git remote uses SSH
-    REMOTE_URL=$(git remote get-url origin)
-    if [[ "$REMOTE_URL" == https://github.com/* || "$REMOTE_URL" == http://github.com/* ]]; then
-        # Convert HTTPS URL to SSH URL
-        SSH_URL=${REMOTE_URL/https:\/\/github.com\//git@github.com:}
-        SSH_URL=${SSH_URL/http:\/\/github.com\//git@github.com:}
-        git remote set-url origin "$SSH_URL"
-        echo "Git remote URL updated to use SSH: $SSH_URL"
-    fi
+    # Ensure the git remote uses SSH and points to the correct repository
+    git remote set-url origin "$REPO_URL"
+    echo "Git remote URL set to: $REPO_URL"
 
     # Proceed with git operations
+    echo "Stashing any local changes..."
     git stash push --include-untracked || true
+
+    echo "Checking out branch ${BRANCH_NAME:-$DEFAULT_BRANCH}..."
+    git fetch origin
     git checkout "${BRANCH_NAME:-$DEFAULT_BRANCH}"
     git pull origin "${BRANCH_NAME:-$DEFAULT_BRANCH}"
 
@@ -344,7 +347,7 @@ configure_sudoers() {
 # =============================================================================
 # Function: Ensure Polkit Rule for Reboot Exists
 # =============================================================================
-configure_polkit_for_reboot() 
+configure_polkit_for_reboot() {
     local polkit_rule_path="/etc/polkit-1/rules.d/50-droneshow-reboot.rules"
     local expected_rule_content="polkit.addRule(function(action, subject) {
     if ((action.id == \"org.freedesktop.login1.reboot\" ||
@@ -366,6 +369,7 @@ configure_polkit_for_reboot()
         else
             echo "Polkit rule file exists, but the 'droneshow' rule is missing. Updating the rule..."
             add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
+        fi
     else
         echo "Polkit rule file does not exist. Creating it with the necessary reboot rule for 'droneshow'..."
         add_polkit_reboot_rule "$polkit_rule_path" "$expected_rule_content"
@@ -466,6 +470,8 @@ if [[ "$SKIP_NETBIRD" == false ]]; then
     echo "  Netbird Setup Key      : [HIDDEN]"
     echo "  Netbird Management URL : ${MANAGEMENT_URL:-$DEFAULT_MANAGEMENT_URL}"
 fi
+echo "  Repository URL         : ${REPO_URL:-$DEFAULT_REPO_URL}"
+echo "  SSH Key Path           : ${SSH_KEY_PATH:-$DEFAULT_SSH_KEY_PATH}"
 echo "  Skip Netbird Setup     : $SKIP_NETBIRD"
 echo "  Skip MAVSDK Setup      : $SKIP_MAVSDK"
 echo "  Skip GPIO Configuration: $SKIP_GPIO"
@@ -485,7 +491,7 @@ SCRIPT_PATH=$(realpath "$SCRIPT_PATH")
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
 # Navigate to the repository directory
-cd "$(dirname "$SCRIPT_PATH")"
+cd "$(dirname "$SCRIPT_PATH")/../.."  # Adjusted to get to the root of the repository
 
 # Set up SSH key for GitHub access
 setup_ssh_key_for_git
