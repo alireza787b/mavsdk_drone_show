@@ -28,6 +28,9 @@ SKIP_MAVSDK=false
 SKIP_GPIO=false
 SKIP_SUDOERS=false
 
+# Initialize variables
+SSH_KEY_PATH=""
+
 # =============================================================================
 # Function: Display Help Message
 # =============================================================================
@@ -40,6 +43,7 @@ Options:
   -d, --drone-id ID           Specify Drone ID (e.g., 1, 2) [Required]
   -k, --netbird-key KEY       Specify Netbird Setup Key [Required unless --skip-netbird is used]
   -u, --management-url URL    Specify Netbird Management URL (default: https://nb1.joomtalk.ir)
+      --ssh-key-path PATH     Specify SSH private key path for GitHub access
       --skip-netbird          Skip Netbird setup steps
       --skip-mavsdk           Skip MAVSDK server setup
       --skip-gpio             Skip GPIO configuration
@@ -51,7 +55,7 @@ Examples:
   ./raspberry_setup.sh
 
   # Non-interactive mode with all required arguments
-  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url
+  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url --ssh-key-path /path/to/key
 
   # Non-interactive mode with default branch and management URL
   ./raspberry_setup.sh -d 2 -k anotherNetbirdKey456
@@ -61,6 +65,9 @@ Examples:
 
   # Non-interactive mode with multiple steps skipped
   ./raspberry_setup.sh -d 4 --skip-netbird --skip-mavsdk --skip-gpio --skip-sudoers
+
+  # Specify SSH key path for GitHub access
+  ./raspberry_setup.sh -d 5 --ssh-key-path /home/user/.ssh/id_rsa_git_deploy
 
   # Display help message
   ./raspberry_setup.sh -h
@@ -72,7 +79,7 @@ EOF
 # =============================================================================
 parse_args() {
     # Use getopt for parsing both short and long options
-    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
+    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,ssh-key-path:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
     if [[ $? -ne 0 ]]; then
         usage
         exit 1
@@ -96,6 +103,10 @@ parse_args() {
                 ;;
             -u|--management-url)
                 MANAGEMENT_URL="$2"
+                shift 2
+                ;;
+            --ssh-key-path)
+                SSH_KEY_PATH="$2"
                 shift 2
                 ;;
             --skip-netbird)
@@ -168,10 +179,74 @@ validate_inputs() {
 }
 
 # =============================================================================
+# Function: Setup SSH Key for GitHub Access
+# =============================================================================
+setup_ssh_key_for_git() {
+    echo "Setting up SSH key for GitHub access..."
+
+    # If SSH_KEY_PATH is not set, check for default key
+    if [[ -z "${SSH_KEY_PATH:-}" ]]; then
+        DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
+        if [[ -f "$DEFAULT_SSH_KEY_PATH" ]]; then
+            SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+            echo "Using default SSH key at $SSH_KEY_PATH"
+        else
+            read -p "Enter the path to your SSH private key for GitHub access: " SSH_KEY_PATH
+        fi
+    fi
+
+    # Ensure the key file exists
+    if [[ ! -f "$SSH_KEY_PATH" ]]; then
+        echo "Error: SSH private key file not found at $SSH_KEY_PATH"
+        exit 1
+    fi
+
+    # Ensure correct permissions
+    chmod 600 "$SSH_KEY_PATH"
+
+    # Configure SSH to use the key for GitHub
+    SSH_CONFIG_FILE="$HOME/.ssh/config"
+    GITHUB_HOST="github.com"
+    if ! grep -q "Host $GITHUB_HOST" "$SSH_CONFIG_FILE" 2>/dev/null; then
+        mkdir -p "$(dirname "$SSH_CONFIG_FILE")"
+        cat >> "$SSH_CONFIG_FILE" << EOF
+
+Host $GITHUB_HOST
+    HostName github.com
+    User git
+    IdentityFile $SSH_KEY_PATH
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+EOF
+        echo "SSH configuration updated to use $SSH_KEY_PATH for $GITHUB_HOST"
+    fi
+
+    # Test SSH connection to GitHub
+    echo "Testing SSH connection to GitHub..."
+    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated" || {
+        echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
+        exit 1
+    }
+    echo "SSH connection to GitHub successful."
+}
+
+# =============================================================================
 # Function: Setup Git Repository
 # =============================================================================
 setup_git() {
     echo "Stashing any local changes and updating from Git repository..."
+
+    # Ensure the git remote uses SSH
+    REMOTE_URL=$(git remote get-url origin)
+    if [[ "$REMOTE_URL" == https://github.com/* || "$REMOTE_URL" == http://github.com/* ]]; then
+        # Convert HTTPS URL to SSH URL
+        SSH_URL=${REMOTE_URL/https:\/\/github.com\//git@github.com:}
+        SSH_URL=${SSH_URL/http:\/\/github.com\//git@github.com:}
+        git remote set-url origin "$SSH_URL"
+        echo "Git remote URL updated to use SSH: $SSH_URL"
+    fi
+
+    # Proceed with git operations
     git stash push --include-untracked
     git checkout "${BRANCH_NAME:-$DEFAULT_BRANCH}"
     git pull origin "${BRANCH_NAME:-$DEFAULT_BRANCH}"
@@ -296,11 +371,10 @@ configure_gpio() {
     sudo usermod -aG gpio droneshow
 }
 
-
 # =============================================================================
 # Function: Setup Wifi-Manager Service
 # =============================================================================
-setup_wifi-manager_service() {
+setup_wifi_manager_service() {
     echo "Setting up the Wifi-Manager System Coordinator service..."
     sudo bash "$HOME/mavsdk_drone_show/tools/wifi-manager/update_wifi-manager_service.sh"
 }
@@ -366,6 +440,11 @@ if [[ "$SKIP_NETBIRD" == false ]]; then
     echo "  Netbird Setup Key      : [HIDDEN]"
     echo "  Netbird Management URL : ${MANAGEMENT_URL:-$DEFAULT_MANAGEMENT_URL}"
 fi
+if [[ -n "${SSH_KEY_PATH:-}" ]]; then
+    echo "  SSH Key Path           : $SSH_KEY_PATH"
+else
+    echo "  SSH Key Path           : Will be determined"
+fi
 echo "  Skip Netbird Setup     : $SKIP_NETBIRD"
 echo "  Skip MAVSDK Setup      : $SKIP_MAVSDK"
 echo "  Skip GPIO Configuration: $SKIP_GPIO"
@@ -386,6 +465,9 @@ INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
 # Navigate to the repository directory
 cd "$(dirname "$SCRIPT_PATH")"
+
+# Set up SSH key for GitHub access
+setup_ssh_key_for_git
 
 # Setup Git Repository
 setup_git "$@"
@@ -424,8 +506,6 @@ else
     echo "real.mode file already exists at: $real_mode_file"
 fi
 
-
-
 # Configure Hostname
 configure_hostname
 
@@ -448,7 +528,7 @@ fi
 configure_polkit_for_reboot
 
 # Setup Wifi-Manager Service
-setup_wifi-manager_service
+setup_wifi_manager_service
 
 # Setup Coordinator Service
 setup_coordinator_service
