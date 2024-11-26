@@ -265,6 +265,8 @@ EOF
 
     if echo "$SSH_OUTPUT" | grep -q "successfully authenticated"; then
         echo "SSH connection to GitHub successful."
+    elif echo "$SSH_OUTPUT" | grep -q "Hi"; then
+        echo "SSH connection to GitHub successful."
     else
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
         echo "SSH Output:"
@@ -278,6 +280,17 @@ EOF
 # =============================================================================
 setup_git() {
     echo "Setting up Git repository..."
+
+    # Ensure we are in the repository directory
+    cd "$REPO_DIR"
+
+    # Check if the directory is a git repository
+    if [[ ! -d ".git" ]]; then
+        echo "Directory $REPO_DIR is not a git repository. Cloning repository..."
+        rm -rf "$REPO_DIR"
+        git clone "$REPO_URL" "$REPO_DIR"
+        cd "$REPO_DIR"
+    fi
 
     # Ensure the git remote uses SSH and points to the correct repository
     git remote set-url origin "$REPO_URL"
@@ -342,7 +355,7 @@ reconnect_netbird() {
 # =============================================================================
 configure_sudoers() {
     sudoers_file="/etc/sudoers.d/mavsdk_sync_time"
-    sync_time_script="$HOME/mavsdk_drone_show/tools/sync_time_linux.sh"
+    sync_time_script="$REPO_DIR/tools/sync_time_linux.sh"
     sudoers_entry="droneshow ALL=(ALL) NOPASSWD: $sync_time_script"
 
     echo "Ensuring sudo permissions for time synchronization script..."
@@ -417,7 +430,7 @@ configure_gpio() {
 # =============================================================================
 setup_wifi_manager_service() {
     echo "Setting up the Wifi-Manager System Coordinator service..."
-    sudo bash "$HOME/mavsdk_drone_show/tools/wifi-manager/update_wifi-manager_service.sh"
+    sudo bash "$REPO_DIR/tools/wifi-manager/update_wifi-manager_service.sh"
 }
 
 # =============================================================================
@@ -425,7 +438,7 @@ setup_wifi_manager_service() {
 # =============================================================================
 setup_coordinator_service() {
     echo "Setting up the Drone Swarm System Coordinator service..."
-    sudo bash "$HOME/mavsdk_drone_show/tools/update_service.sh"
+    sudo bash "$REPO_DIR/tools/update_service.sh"
 }
 
 # =============================================================================
@@ -433,10 +446,10 @@ setup_coordinator_service() {
 # =============================================================================
 check_download_mavsdk() {
     echo "Checking for MAVSDK server binary..."
-    if [[ ! -f "$HOME/mavsdk_drone_show/mavsdk_server" ]]; then
+    if [[ ! -f "$REPO_DIR/mavsdk_server" ]]; then
         echo "MAVSDK server binary not found, downloading..."
-        if [[ -f "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh" ]]; then
-            sudo bash "$HOME/mavsdk_drone_show/tools/download_mavsdk_server.sh"
+        if [[ -f "$REPO_DIR/tools/download_mavsdk_server.sh" ]]; then
+            sudo bash "$REPO_DIR/tools/download_mavsdk_server.sh"
             echo "Note: You might need to manually update the download URL in the 'download_mavsdk_server.sh' script to match the latest MAVSDK server version."
         else
             echo "Error: MAVSDK server download script not found."
@@ -492,14 +505,24 @@ echo
 # Validate inputs
 validate_inputs
 
+# Define the repository directory
+REPO_DIR="$HOME/mavsdk_drone_show"
+
+# Clone the repository if it doesn't exist
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+    echo "Repository directory $REPO_DIR does not exist or is not a git repository. Cloning repository..."
+    rm -rf "$REPO_DIR"
+    git clone "$REPO_URL" "$REPO_DIR"
+fi
+
 # Define the script path
-SCRIPT_PATH="$(realpath "$0")"
+SCRIPT_PATH="$REPO_DIR/tools/$(basename "$0")"
 
 # Calculate initial hash of the script
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
 # Navigate to the repository directory
-cd "$(dirname "$SCRIPT_PATH")/../.."  # Adjusted to get to the root of the repository
+cd "$REPO_DIR"
 
 # Set up SSH key for GitHub access
 setup_ssh_key_for_git
@@ -539,7 +562,7 @@ fi
 # Handle Hardware ID (HWID) File and real.mode
 
 # Define the directory containing HWID and real.mode files
-hwid_dir="$HOME/mavsdk_drone_show"
+hwid_dir="$REPO_DIR"
 
 # Define the HWID file path based on Drone ID
 hwid_file="$hwid_dir/${DRONE_ID}.hwID"
