@@ -19,6 +19,7 @@ import datetime
 import logging
 import sdnotify  # For systemd watchdog notifications
 import asyncio  # Needed for async functions
+import subprocess  # For connectivity checking
 
 # Import necessary modules and classes
 from src.drone_config import DroneConfig
@@ -29,6 +30,7 @@ from src.params import Params
 from src.mavlink_manager import MavlinkManager
 from src.flask_handler import FlaskHandler
 from src.led_controller import LEDController  # Import LEDController
+from src.connectivity_checker import ConnectivityChecker
 
 # For log rotation
 from logging.handlers import RotatingFileHandler
@@ -78,6 +80,8 @@ drone_config = DroneConfig(drones)  # Initialize DroneConfig
 drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 
+connectivity_checker = None  # Initialize connectivity_checker
+
 # Initialize LEDController only if not in simulation mode
 if not Params.sim_mode:
     try:
@@ -89,6 +93,7 @@ else:
 
 # Systemd watchdog notifier
 notifier = sdnotify.SystemdNotifier()
+
 
 def schedule_missions_thread(drone_setup_instance):
     """
@@ -109,24 +114,21 @@ def main_loop():
     """
     Main loop of the coordinator application.
     """
-    global mavlink_manager, drone_comms, drone_setup  # Declare as global variables
+    global mavlink_manager, drone_comms, drone_setup, connectivity_checker  # Declare as global variables
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
-        LEDController.set_color(0, 0, 255)  # Blue
-        logger.info("After intial LED set color...")
+        led_controller.set_color(0, 0, 255)  # Blue
+        logger.info("After initial LED set color...")
 
         # Synchronize time if enabled
         if params.online_sync_time:
             drone_setup.synchronize_time()
             logger.info("Time synchronized.")
 
-        
-
         # Initialization successful
-        LEDController.set_color(0, 255, 0)  # Green
+        led_controller.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
-
 
         # Start mission scheduling thread
         scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
@@ -136,6 +138,9 @@ def main_loop():
         # Variable to track the last state value
         last_state_value = None
         last_mission_value = None
+
+        # Initialize ConnectivityChecker
+        connectivity_checker = ConnectivityChecker(params, led_controller)
 
         while True:
             current_time = time.time()
@@ -156,30 +161,44 @@ def main_loop():
 
                 if current_state == 0:
                     # Idle state on ground
-                    LEDController.set_color(0, 0, 255)  # Blue
-                    logger.debug("Drone is idle on ground (state == 0).")
+                    if not connectivity_checker.is_running:
+                        connectivity_checker.start()
+                        logger.debug("Drone is idle on ground (state == 0). Connectivity checker started.")
+                    else:
+                        logger.debug("Drone is idle on ground (state == 0). Connectivity checker is running.")
                 elif current_state == 1:
                     # Trigger time received; ready to fly
-                    LEDController.set_color(255, 165, 0)  # Orange
+                    if connectivity_checker.is_running:
+                        connectivity_checker.stop()
+                        logger.debug("Connectivity checker stopped.")
+                    led_controller.set_color(255, 165, 0)  # Orange
                     logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == 1).")
                 elif current_state == 2:
                     # Maneuver started; stop changing LEDs
+                    if connectivity_checker.is_running:
+                        connectivity_checker.stop()
+                        logger.debug("Connectivity checker stopped.")
                     logger.info(f"Mission ({current_mission}) started (state == 2).")
                     # Do not change LEDs anymore; drone show script will take over
                 else:
                     # Unknown state; set LEDs to Red
-                    LEDController.set_color(255, 0, 0)  # Red
+                    if connectivity_checker.is_running:
+                        connectivity_checker.stop()
+                        logger.debug("Connectivity checker stopped.")
+                    led_controller.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
-
 
             time.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
         logger.error(f"An error occurred in main loop: {e}", exc_info=True)
-        LEDController.set_color(255, 0, 0)  # Red for error state
+        led_controller.set_color(255, 0, 0)  # Red for error state
 
     finally:
         logger.info("Closing threads and cleaning up...")
+        if connectivity_checker and connectivity_checker.is_running:
+            connectivity_checker.stop()
+            logger.info("Connectivity checker stopped.")
         if mavlink_manager:
             mavlink_manager.terminate()  # Terminate MavlinkManager
             logger.info("MAVLink manager terminated.")
@@ -187,7 +206,7 @@ def main_loop():
             drone_comms.stop_communication()
             logger.info("Drone communication stopped.")
         # Optionally, turn off LEDs or set to a default color
-        # LEDController.turn_off()
+        # led_controller.turn_off()
 
 def main():
     """
@@ -230,8 +249,6 @@ def main():
     # Step 5: Initialize DroneSetup
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
-    
-    
 
     # Step 6: Start the main loop
     main_loop()

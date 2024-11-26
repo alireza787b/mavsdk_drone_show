@@ -40,6 +40,9 @@ class Params:
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     GIT_BRANCH = 'main-candidate'  # Git branch is 'main-candidate' for both modes
+    
+    connectivity_check_ip = "100.93.208.205"  # Default IP to ping
+    connectivity_check_interval = 5    # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
     if sim_mode:
