@@ -19,7 +19,6 @@ import datetime
 import logging
 import sdnotify  # For systemd watchdog notifications
 import asyncio  # Needed for async functions
-import subprocess  # For connectivity checking
 
 # Import necessary modules and classes
 from src.drone_config import DroneConfig
@@ -29,7 +28,7 @@ from src.drone_setup import DroneSetup
 from src.params import Params
 from src.mavlink_manager import MavlinkManager
 from src.flask_handler import FlaskHandler
-from src.led_controller import LEDController  # Import LEDController
+from src.led_controller import LEDController
 from src.connectivity_checker import ConnectivityChecker
 
 # For log rotation
@@ -94,7 +93,6 @@ else:
 # Systemd watchdog notifier
 notifier = sdnotify.SystemdNotifier()
 
-
 def schedule_missions_thread(drone_setup_instance):
     """
     Thread target function to schedule missions asynchronously.
@@ -131,7 +129,7 @@ def main_loop():
         logger.info("Initialization successful. MAVLink is ready.")
 
         # Start mission scheduling thread
-        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,))
+        scheduling_thread = threading.Thread(target=schedule_missions_thread, args=(drone_setup,), daemon=True)
         scheduling_thread.start()
         logger.info("Mission scheduling thread started.")
 
