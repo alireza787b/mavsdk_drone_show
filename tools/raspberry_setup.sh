@@ -28,9 +28,6 @@ SKIP_MAVSDK=false
 SKIP_GPIO=false
 SKIP_SUDOERS=false
 
-# Initialize variables
-SSH_KEY_PATH=""
-
 # =============================================================================
 # Function: Display Help Message
 # =============================================================================
@@ -43,7 +40,6 @@ Options:
   -d, --drone-id ID           Specify Drone ID (e.g., 1, 2) [Required]
   -k, --netbird-key KEY       Specify Netbird Setup Key [Required unless --skip-netbird is used]
   -u, --management-url URL    Specify Netbird Management URL (default: https://nb1.joomtalk.ir)
-      --ssh-key-path PATH     Specify SSH private key path for GitHub access
       --skip-netbird          Skip Netbird setup steps
       --skip-mavsdk           Skip MAVSDK server setup
       --skip-gpio             Skip GPIO configuration
@@ -55,7 +51,7 @@ Examples:
   ./raspberry_setup.sh
 
   # Non-interactive mode with all required arguments
-  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url --ssh-key-path /path/to/key
+  ./raspberry_setup.sh -b develop -d 1 -k myNetbirdKey123 -u https://custom.netbird.url
 
   # Non-interactive mode with default branch and management URL
   ./raspberry_setup.sh -d 2 -k anotherNetbirdKey456
@@ -65,9 +61,6 @@ Examples:
 
   # Non-interactive mode with multiple steps skipped
   ./raspberry_setup.sh -d 4 --skip-netbird --skip-mavsdk --skip-gpio --skip-sudoers
-
-  # Specify SSH key path for GitHub access
-  ./raspberry_setup.sh -d 5 --ssh-key-path /home/user/.ssh/id_rsa_git_deploy
 
   # Display help message
   ./raspberry_setup.sh -h
@@ -79,7 +72,7 @@ EOF
 # =============================================================================
 parse_args() {
     # Use getopt for parsing both short and long options
-    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,ssh-key-path:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
+    PARSED_ARGS=$(getopt -o b:d:k:u:h --long branch:,drone-id:,netbird-key:,management-url:,skip-netbird,skip-mavsdk,skip-gpio,skip-sudoers,help -- "$@")
     if [[ $? -ne 0 ]]; then
         usage
         exit 1
@@ -103,10 +96,6 @@ parse_args() {
                 ;;
             -u|--management-url)
                 MANAGEMENT_URL="$2"
-                shift 2
-                ;;
-            --ssh-key-path)
-                SSH_KEY_PATH="$2"
                 shift 2
                 ;;
             --skip-netbird)
@@ -184,21 +173,20 @@ validate_inputs() {
 setup_ssh_key_for_git() {
     echo "Setting up SSH key for GitHub access..."
 
-    # If SSH_KEY_PATH is not set, check for default key
-    if [[ -z "${SSH_KEY_PATH:-}" ]]; then
-        DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
-        if [[ -f "$DEFAULT_SSH_KEY_PATH" ]]; then
-            SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
-            echo "Using default SSH key at $SSH_KEY_PATH"
-        else
-            read -p "Enter the path to your SSH private key for GitHub access: " SSH_KEY_PATH
-        fi
-    fi
+    # Define default SSH key path
+    DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
 
-    # Ensure the key file exists
-    if [[ ! -f "$SSH_KEY_PATH" ]]; then
-        echo "Error: SSH private key file not found at $SSH_KEY_PATH"
-        exit 1
+    # Check if SSH key already exists
+    if [[ -f "$DEFAULT_SSH_KEY_PATH" ]]; then
+        SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+        echo "Using existing SSH key at $SSH_KEY_PATH"
+    else
+        # Generate a new SSH key pair without a passphrase
+        echo "No SSH key found at $DEFAULT_SSH_KEY_PATH"
+        echo "Generating a new SSH key pair..."
+        ssh-keygen -t rsa -b 4096 -f "$DEFAULT_SSH_KEY_PATH" -N "" -C "drone$DRONE_ID@$(hostname)"
+        SSH_KEY_PATH="$DEFAULT_SSH_KEY_PATH"
+        echo "SSH key generated at $SSH_KEY_PATH"
     fi
 
     # Ensure correct permissions
@@ -221,12 +209,38 @@ EOF
         echo "SSH configuration updated to use $SSH_KEY_PATH for $GITHUB_HOST"
     fi
 
+    # Display public key and instruct user to add it to GitHub
+    PUBLIC_KEY=$(cat "${SSH_KEY_PATH}.pub")
+    echo
+    echo "======================================================================="
+    echo "Please add the following SSH public key as a deployment key to your GitHub repository:"
+    echo
+    echo "$PUBLIC_KEY"
+    echo
+    echo "Instructions:"
+    echo "1. Copy the above SSH public key."
+    echo "2. Go to your GitHub repository settings."
+    echo "3. Navigate to 'Deploy keys' section."
+    echo "4. Click 'Add deploy key'."
+    echo "5. Paste the SSH public key, set a meaningful title (e.g., 'Drone $DRONE_ID Key'), and allow write access if necessary."
+    echo "6. Save the deploy key."
+    echo "======================================================================="
+    echo
+
+    # Wait for user confirmation
+    read -p "Press Enter after you have added the SSH key to your GitHub repository..."
+
     # Test SSH connection to GitHub
     echo "Testing SSH connection to GitHub..."
-    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated" || {
+    set +e  # Temporarily disable exit on error
+    ssh -o "BatchMode=yes" -T git@$GITHUB_HOST 2>&1 | grep -q "successfully authenticated"
+    SSH_TEST_RESULT=$?
+    set -e  # Re-enable exit on error
+
+    if [[ $SSH_TEST_RESULT -ne 0 ]]; then
         echo "Error: SSH connection to GitHub failed. Please ensure your SSH key is added as a deployment key to your GitHub repository."
         exit 1
-    }
+    fi
     echo "SSH connection to GitHub successful."
 }
 
@@ -264,7 +278,7 @@ setup_git() {
 # =============================================================================
 setup_netbird() {
     echo "Disconnecting from Netbird..."
-    netbird down
+    netbird down || true  # Ignore errors if Netbird is not running
 
     echo "Clearing Netbird configurations..."
     sudo rm -rf /etc/netbird/
@@ -439,11 +453,6 @@ echo "  Drone ID               : $DRONE_ID"
 if [[ "$SKIP_NETBIRD" == false ]]; then
     echo "  Netbird Setup Key      : [HIDDEN]"
     echo "  Netbird Management URL : ${MANAGEMENT_URL:-$DEFAULT_MANAGEMENT_URL}"
-fi
-if [[ -n "${SSH_KEY_PATH:-}" ]]; then
-    echo "  SSH Key Path           : $SSH_KEY_PATH"
-else
-    echo "  SSH Key Path           : Will be determined"
 fi
 echo "  Skip Netbird Setup     : $SKIP_NETBIRD"
 echo "  Skip MAVSDK Setup      : $SKIP_MAVSDK"
