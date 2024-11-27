@@ -22,6 +22,16 @@ from network import get_network_info_for_all_drones
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if Params.sim_mode:
+    plots_directory = os.path.join(BASE_DIR, 'shapes_sitl/swarm/plots')
+    skybrush_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/skybrush')
+    shapes_dir = os.path.join(BASE_DIR, 'shapes_sitl')
+else:
+    plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+    skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
+    shapes_dir = os.path.join(BASE_DIR, 'shapes')
+
+    
 sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
@@ -205,7 +215,6 @@ def setup_routes(app):
             logger.warning("No file part or empty filename")
             return error_response('No file part or empty filename', 400)
 
-        skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
         try:
             clear_show_directories(BASE_DIR)
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
@@ -240,7 +249,7 @@ def setup_routes(app):
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
         try:
-            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
+            zip_file = zip_directory(skybrush_dir, os.path.join(BASE_DIR, 'temp/raw_show'))
             return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
         except Exception as e:
             return error_response(f"Error creating raw show zip: {e}")
@@ -248,7 +257,7 @@ def setup_routes(app):
     @app.route('/download-processed-show', methods=['GET'])
     def download_processed_show():
         try:
-            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/processed'), os.path.join(BASE_DIR, 'temp/processed_show'))
+            zip_file = zip_directory(skybrush_dir, os.path.join(BASE_DIR, 'temp/processed_show'))
             return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
         except Exception as e:
             return error_response(f"Error creating processed show zip: {e}")
@@ -257,7 +266,6 @@ def setup_routes(app):
     def send_image(filename):
         logger.info(f"Image requested: {filename}")
         try:
-            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
             return send_from_directory(plots_directory, filename)
         except Exception as e:
             return error_response(f"Error sending image: {e}", 404)
@@ -266,7 +274,6 @@ def setup_routes(app):
     def get_show_plots():
         logger.info("Show plots list requested")
         try:
-            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
             if not os.path.exists(plots_directory):
                 os.makedirs(plots_directory)
 
@@ -348,7 +355,7 @@ def setup_routes(app):
         The image is expected to be located at shapes/active.png.
         """
         try:
-            image_path = os.path.join(BASE_DIR, 'shapes', 'trajectory_plot.png')
+            image_path = os.path.join(shapes_dir, 'trajectory_plot.png')
             print("Debug: Image path being used:", image_path)  # Debug statement
             if os.path.exists(image_path):
                 return send_file(image_path, mimetype='image/png', as_attachment=False)
@@ -468,6 +475,3 @@ def setup_routes(app):
         """
         network_info, status_code = get_network_info_for_all_drones()
         return jsonify(network_info), status_code
-
-
-
