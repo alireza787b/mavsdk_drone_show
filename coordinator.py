@@ -116,7 +116,7 @@ def main_loop():
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
-        led_controller.set_color(0, 0, 255)  # Blue
+        LEDController.set_color(0, 0, 255)  # Blue
         logger.info("After initial LED set color...")
 
         # Synchronize time if enabled
@@ -125,7 +125,7 @@ def main_loop():
             logger.info("Time synchronized.")
 
         # Initialization successful
-        led_controller.set_color(0, 255, 0)  # Green
+        LEDController.set_color(0, 255, 0)  # Green
         logger.info("Initialization successful. MAVLink is ready.")
 
         # Start mission scheduling thread
@@ -138,7 +138,7 @@ def main_loop():
         last_mission_value = None
 
         # Initialize ConnectivityChecker
-        connectivity_checker = ConnectivityChecker(params, led_controller)
+        connectivity_checker = ConnectivityChecker(params, LEDController)
 
         while True:
             current_time = time.time()
@@ -167,7 +167,7 @@ def main_loop():
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
                         logger.debug("Connectivity checker stopped.")
-                    led_controller.set_color(255, 165, 0)  # Orange
+                    LEDController.set_color(255, 165, 0)  # Orange
                     logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == 1).")
                 elif current_state == 2:
                     # Maneuver started; stop changing LEDs
@@ -181,14 +181,14 @@ def main_loop():
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
                         logger.debug("Connectivity checker stopped.")
-                    led_controller.set_color(255, 0, 0)  # Red
+                    LEDController.set_color(255, 0, 0)  # Red
                     logger.warning(f"Unknown drone state: {current_state}")
 
             time.sleep(params.sleep_interval)  # Sleep for defined interval
 
     except Exception as e:
         logger.error(f"An error occurred in main loop: {e}", exc_info=True)
-        led_controller.set_color(255, 0, 0)  # Red for error state
+        LEDController.set_color(255, 0, 0)  # Red for error state
 
     finally:
         logger.info("Closing threads and cleaning up...")
