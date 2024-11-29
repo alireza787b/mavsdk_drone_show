@@ -104,6 +104,7 @@ async def schedule_missions_async(drone_setup_instance):
     Asynchronous function to schedule missions at a specified frequency.
     """
     while True:
+        notifier.notify("WATCHDOG=1")
         logger.info(f"Checking Scheduler: Mission Code:{drone_config.mission}, State: {drone_config.state}, Trigger Time:{drone_config.trigger_time}, Current Time:{int(time.time())}")
         await drone_setup_instance.schedule_mission()
         await asyncio.sleep(1.0 / params.schedule_mission_frequency)

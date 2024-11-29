@@ -11,4 +11,6 @@ export const MAV_MODE_ENUM = {
     29: 'Hold',
     157: 'Take-off',
     192: 'Land',
+    145: 'Return',
+
 };
