@@ -1,4 +1,4 @@
-//app/dashboard/drone-dashboard/src/components/DroneActions.js
+// src/components/DroneActions.js
 import React, { useState } from 'react';
 import {
   FaPlaneDeparture,
@@ -58,37 +58,37 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
               Takeoff
             </button>
           </div>
-          <button 
+          <button
             className="action-button land-button"
-            onClick={() => handleActionClick('LAND', 'Land All: This will land all drones at their current positions. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('LAND')}
           >
             <FaPlaneArrival className="action-icon" />
             Land All
           </button>
-          <button 
+          <button
             className="action-button hold-button"
-            onClick={() => handleActionClick('HOLD', 'Hold Position: This will make all drones hold their current positions. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('HOLD')}
           >
             <FaHandHolding className="action-icon" />
             Hold Position
           </button>
-          <button 
+          <button
             className="action-button rtl-button"
-            onClick={() => handleActionClick('RETURN_RTL', 'Return to Launch: This will command all drones to return to their launch positions. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('RETURN_RTL')}
           >
             <FaHome className="action-icon" />
             Return to Launch
           </button>
-          <button 
+          <button
             className="action-button disarm-button"
-            onClick={() => handleActionClick('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('DISARM')}
           >
             <FaBatteryFull className="action-icon" />
             Disarm Drones
           </button>
-          <button 
+          <button
             className="action-button kill-button"
-            onClick={() => handleActionClick('KILL_TERMINATE', 'EMERGENCY KILL: This will immediately terminate all drone operations. This is for EMERGENCY USE ONLY. Are you absolutely sure you want to proceed?')}
+            onClick={() => handleActionClick('KILL_TERMINATE')}
           >
             <FaSkull className="action-icon" />
             Emergency KILL!
@@ -100,16 +100,16 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       <div className="action-group">
         <h2>Test Actions</h2>
         <div className="action-buttons">
-          <button 
+          <button
             className="action-button test-button"
-            onClick={() => handleActionClick('TEST', 'Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('TEST')}
           >
             <FaVial className="action-icon" />
             Test
           </button>
-          <button 
+          <button
             className="action-button test-led-button"
-            onClick={() => handleActionClick('TEST_LED', 'Test Light Show: Will run the LED controller test script on the ground. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('TEST_LED')}
           >
             <FaLightbulb className="action-icon" />
             Test Light Show
@@ -121,43 +121,29 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       <div className="action-group">
         <h2>System Actions</h2>
         <div className="action-buttons">
-          <button 
+          <button
             className="action-button reboot-fc-button"
-            onClick={() => handleActionClick('REBOOT_FC', 'Reboot Flight Controls: This will reboot all Pixhawk Flight controller boards. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('REBOOT_FC')}
           >
             <FaPowerOff className="action-icon" />
             Reboot Flight Controls
           </button>
-          <button 
+          <button
             className="action-button reboot-sys-button"
-            onClick={() => handleActionClick('REBOOT_SYS', 'Reboot Companion Computer: This will reboot all Companion Computer boards. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('REBOOT_SYS')}
           >
             <FaSyncAlt className="action-icon" />
             Reboot Companion Computer
           </button>
-          <button 
+          <button
             className="action-button update-code-button"
-            onClick={() => handleActionClick('UPDATE_CODE', 'Update Code: This will update the code on all drones. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('UPDATE_CODE')}
           >
             <FaCodeBranch className="action-icon" />
             Update Code
           </button>
         </div>
       </div>
-
-      {/* Confirmation Modal */}
-      {modalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Confirm Action</h3>
-            <p>{currentAction?.confirmationMessage}</p>
-            <div className="modal-actions">
-              <button className="confirm-button" onClick={handleConfirm}>Yes</button>
-              <button className="cancel-button" onClick={handleCancel}>No</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

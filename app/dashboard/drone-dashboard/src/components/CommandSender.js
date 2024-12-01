@@ -1,10 +1,15 @@
 //app/dashboard/drone-dashboard/src/components/CommandSender.js
+// src/components/CommandSender.js
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import { sendDroneCommand } from '../services/droneApiService';
-import { DRONE_MISSION_TYPES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import {
+  DRONE_MISSION_TYPES,
+  DRONE_ACTION_TYPES,
+  getCommandName,
+} from '../constants/droneConstants';
 import '../styles/CommandSender.css';
 
 const CommandSender = ({ drones }) => {
@@ -25,7 +30,7 @@ const CommandSender = ({ drones }) => {
       targetDronesList = selectedDrones.join(', ');
     }
 
-    const missionName = commandData.missionType; // You can map missionType to a human-readable name if necessary
+    const missionName = getCommandName(commandData.missionType);
 
     setCurrentCommandData(commandData);
     setConfirmationMessage(
@@ -33,6 +38,7 @@ const CommandSender = ({ drones }) => {
     );
     setModalOpen(true);
   };
+
 
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
