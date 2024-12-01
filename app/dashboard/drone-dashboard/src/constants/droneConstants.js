@@ -22,6 +22,11 @@ export const DRONE_ACTION_TYPES = {
   DISARM: 9,
 };
 
+export const DRONE_MISSION_IMAGES = {
+  [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: `${getBackendURL()}/get-show-plots/all_drones.png`,
+  [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: `${getCustomShowImageURL()}`,  // Use the function to get the custom show image URL
+};
+
 export const DRONE_MISSION_NAMES = {
   0: 'Cancel Mission',
   1: 'Drone Show from CSV',
@@ -67,3 +72,4 @@ export const getCommandName = (missionType) => {
 };
 
 export const defaultTriggerTimeDelay = 10;
+
