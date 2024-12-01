@@ -1,53 +1,35 @@
+//app/dashboard/drone-dashboard/src/components/DroneActions.js
 import React, { useState } from 'react';
-import { 
-  FaPlaneDeparture, 
-  FaHandHolding, 
-  FaPlaneArrival, 
-  FaVial, 
-  FaLightbulb, 
-  FaBatteryFull, 
+import {
+  FaPlaneDeparture,
+  FaHandHolding,
+  FaPlaneArrival,
+  FaVial,
+  FaLightbulb,
+  FaBatteryFull,
   FaSyncAlt,
   FaPowerOff,
   FaCodeBranch,
-  FaHome,  // Added for RTL
-  FaSkull,  // Added for Kill/Terminate
+  FaHome,
+  FaSkull,
 } from 'react-icons/fa';
 import '../styles/DroneActions.css';
 
 const DroneActions = ({ actionTypes, onSendCommand }) => {
   const [altitude, setAltitude] = useState(10);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [currentAction, setCurrentAction] = useState(null);
 
-  // Function to handle actions with confirmation
-  const handleActionClick = (actionType, confirmationMessage) => {
-    setCurrentAction({ actionType, confirmationMessage });
-    setModalOpen(true);
-  };
+  const handleActionClick = (actionType) => {
+    const commandData = {
+      missionType: actionTypes[actionType],
+      triggerTime: '0', // Immediate action
+    };
 
-  const handleConfirm = () => {
-    if (currentAction) {
-      const { actionType } = currentAction;
-
-      const commandData = {
-        missionType: actionTypes[actionType],
-        triggerTime: '0' // Immediate action
-      };
-
-      // Additional fields for specific actions
-      if (actionType === 'TAKE_OFF') {
-        commandData.takeoff_altitude = altitude;
-      }
-
-      onSendCommand(commandData);
+    // Additional fields for specific actions
+    if (actionType === 'TAKE_OFF') {
+      commandData.takeoff_altitude = altitude;
     }
-    setModalOpen(false);
-    setCurrentAction(null);
-  };
 
-  const handleCancel = () => {
-    setModalOpen(false);
-    setCurrentAction(null);
+    onSendCommand(commandData);
   };
 
   return (
@@ -59,18 +41,18 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
           {/* Takeoff Section */}
           <div className="takeoff-section">
             <label htmlFor="takeoff-altitude">Takeoff Altitude (m):</label>
-            <input 
-              type="number" 
-              id="takeoff-altitude" 
-              value={altitude} 
-              onChange={(e) => setAltitude(Number(e.target.value))} 
+            <input
+              type="number"
+              id="takeoff-altitude"
+              value={altitude}
+              onChange={(e) => setAltitude(Number(e.target.value))}
               min="1"
               max="1000"
               className="altitude-input"
             />
-            <button 
+            <button
               className="action-button takeoff-button"
-              onClick={() => handleActionClick('TAKE_OFF', `Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${altitude}m.`)}
+              onClick={() => handleActionClick('TAKE_OFF')}
             >
               <FaPlaneDeparture className="action-icon" />
               Takeoff

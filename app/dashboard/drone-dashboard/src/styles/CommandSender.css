@@ -59,3 +59,59 @@
         font-size: 14px;
     }
 }
+
+
+.target-selection {
+    margin-bottom: 20px;
+  }
+  
+  .target-selection label {
+    font-weight: bold;
+    margin-right: 10px;
+  }
+  
+  .drone-selection {
+    margin-top: 10px;
+  }
+  
+  .selection-buttons {
+    margin-bottom: 10px;
+  }
+  
+  .selection-buttons button {
+    margin-right: 10px;
+    padding: 8px 12px;
+    border: none;
+    background-color: #2196f3;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .selection-buttons button:hover {
+    background-color: #1976d2;
+  }
+  
+  .drone-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .drone-item {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .drone-item.selected {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+  
+  .selected-count {
+    margin-top: 10px;
+    font-weight: bold;
+  }

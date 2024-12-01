@@ -65,7 +65,7 @@ const Overview = ({ setSelectedDrone }) => {
   return (
     <div className="overview-container">
       <div className="mission-trigger-section">
-        <CommandSender />
+        <CommandSender drones={drones} />
       </div>
 
       <h2 className="connected-drones-header">Connected Drones</h2>
