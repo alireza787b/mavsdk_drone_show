@@ -5,8 +5,7 @@ import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import { sendDroneCommand } from '../services/droneApiService';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify'; // Only import 'toast' here
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -189,10 +188,6 @@ const CommandSender = ({ drones }) => {
           <div className="loading-spinner"></div>
         </div>
       )}
-
-      {/* Toast Notifications */}
-      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
-
     </div>
   );
 };
