@@ -1,9 +1,9 @@
-//app/dashboard/drone-dashboard/src/components/CommandSender.js
 // src/components/CommandSender.js
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
+import Notification from './Notification';
 import { sendDroneCommand } from '../services/droneApiService';
 import {
   DRONE_MISSION_TYPES,
@@ -19,12 +19,14 @@ const CommandSender = ({ drones }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
+  const [notification, setNotification] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSendCommand = (commandData) => {
     let targetDronesList = 'All Drones';
     if (targetMode === 'selected') {
       if (selectedDrones.length === 0) {
-        alert('No drones selected. Please select at least one drone.');
+        setNotification({ type: 'error', message: 'No drones selected. Please select at least one drone.' });
         return;
       }
       targetDronesList = selectedDrones.join(', ');
@@ -39,25 +41,27 @@ const CommandSender = ({ drones }) => {
     setModalOpen(true);
   };
 
-
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
+      setModalOpen(false); // Close the modal immediately
+      setLoading(true); // Show loading indicator
       try {
         let commandDataToSend = { ...currentCommandData };
         if (targetMode === 'selected') {
           commandDataToSend.target_drones = selectedDrones;
         }
         const response = await sendDroneCommand(commandDataToSend);
+
         if (response.status === 'success') {
-          alert('Command sent successfully!');
+          setNotification({ type: 'success', message: 'Command sent successfully!' });
         } else {
-          alert(`Error sending command: ${response.message}`);
+          setNotification({ type: 'error', message: `Error sending command: ${response.message}` });
         }
       } catch (error) {
         console.error('Error sending command:', error);
-        alert('Error sending command. Please check the console for more details.');
+        setNotification({ type: 'error', message: 'Error sending command. Please check the console for more details.' });
       } finally {
-        setModalOpen(false);
+        setLoading(false); // Hide loading indicator
         setCurrentCommandData(null);
       }
     }
@@ -91,8 +95,12 @@ const CommandSender = ({ drones }) => {
 
       {/* Target Selection UI */}
       <div className="target-selection">
-        <label>Command Target:</label>
-        <select value={targetMode} onChange={(e) => setTargetMode(e.target.value)}>
+        <label htmlFor="targetMode">Command Target:</label>
+        <select
+          id="targetMode"
+          value={targetMode}
+          onChange={(e) => setTargetMode(e.target.value)}
+        >
           <option value="all">All Drones</option>
           <option value="selected">Select Drones</option>
         </select>
@@ -136,17 +144,23 @@ const CommandSender = ({ drones }) => {
       </div>
       <div className="tab-content">
         {activeTab === 'missionTrigger' && (
-          <MissionTrigger missionTypes={DRONE_MISSION_TYPES} onSendCommand={handleSendCommand} />
+          <MissionTrigger
+            missionTypes={DRONE_MISSION_TYPES}
+            onSendCommand={handleSendCommand}
+          />
         )}
         {activeTab === 'actions' && (
-          <DroneActions actionTypes={DRONE_ACTION_TYPES} onSendCommand={handleSendCommand} />
+          <DroneActions
+            actionTypes={DRONE_ACTION_TYPES}
+            onSendCommand={handleSendCommand}
+          />
         )}
       </div>
 
       {/* Confirmation Modal */}
       {modalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Confirm Command</h3>
             <p>{confirmationMessage}</p>
             <div className="modal-actions">
@@ -159,6 +173,22 @@ const CommandSender = ({ drones }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Loading Spinner */}
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+        </div>
+      )}
+
+      {/* Notification */}
+      {notification && (
+        <Notification
+          type={notification.type}
+          message={notification.message}
+          onClose={() => setNotification(null)}
+        />
       )}
     </div>
   );
