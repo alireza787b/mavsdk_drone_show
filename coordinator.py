@@ -158,12 +158,14 @@ def main_loop():
                 last_state_value = current_state
                 logger.info(f"Drone state changed to {current_state}")
 
-                if current_mission == 0:
+                if current_state == 0:
                     # Idle state on ground
-                    if not connectivity_checker.is_running:
-                        connectivity_checker.start()
-                        logger.debug("Connectivity checker started.")
-                if current_state == 1:
+                    if current_mission == 0:
+                        if not connectivity_checker.is_running:
+                            connectivity_checker.start()
+                            logger.debug("Connectivity checker started.")
+                    logger.debug("Drone is idle on ground (state == 0).")
+                elif current_state == 1:
                     # Trigger time received; ready to fly
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
