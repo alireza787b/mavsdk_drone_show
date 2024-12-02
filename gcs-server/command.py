@@ -1,4 +1,5 @@
 # gcs-server/command.py
+
 import os
 import sys
 import requests
@@ -82,6 +83,7 @@ def send_commands_to_all(drones, command_data):
         extra={'command': command_data}
     )
     return results
+
 def send_commands_to_selected(drones, command_data, target_drone_ids):
     """Send a command to specifically selected drones."""
     # Create a mapping of drone IDs to drone configs

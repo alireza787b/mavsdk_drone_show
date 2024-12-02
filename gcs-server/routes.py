@@ -1,6 +1,7 @@
-#gcs-server/routes.py
+# gcs-server/routes.py
+
 import os
-import subprocess
+import threading  # Import threading for asynchronous execution
 import sys
 import time
 import traceback
@@ -8,7 +9,7 @@ import zipfile
 import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from telemetry import telemetry_data_all_drones, start_telemetry_polling , data_lock
+from telemetry import telemetry_data_all_drones, start_telemetry_polling, data_lock
 from command import send_commands_to_all, send_commands_to_selected
 from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
@@ -31,7 +32,6 @@ else:
     skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
     shapes_dir = os.path.join(BASE_DIR, 'shapes')
 
-    
 sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
@@ -62,45 +62,66 @@ def setup_routes(app):
 
     @app.route('/submit_command', methods=['POST'])
     def submit_command():
+        """
+        Endpoint to receive commands from the frontend and process them asynchronously.
+        """
         command_data = request.get_json()
         if not command_data:
             return error_response("No command data provided", 400)
 
         # Extract target_drones from command_data if provided
         target_drones = command_data.pop('target_drones', None)
-        
+
         logger.info(f"Received command: {command_data} for drones: {target_drones}")
-        
+
         try:
             drones = load_config()
             if not drones:
                 return error_response("No drones found in the configuration", 500)
 
+            # Start processing the command in a new thread
+            if target_drones:
+                thread = threading.Thread(target=process_command_async, args=(drones, command_data, target_drones))
+            else:
+                thread = threading.Thread(target=process_command_async, args=(drones, command_data))
+
+            thread.daemon = True  # Optional: Daemonize thread if appropriate
+            thread.start()
+
+            logger.info("Command processing started asynchronously.")
+            # Return immediate response
+            response_data = {
+                'status': 'success',
+                'message': "Command received and is being processed."
+            }
+            return jsonify(response_data), 200
+        except Exception as e:
+            logger.error(f"Error initiating command processing: {e}", exc_info=True)
+            return error_response(f"Error initiating command processing: {e}")
+
+    def process_command_async(drones, command_data, target_drones=None):
+        """
+        Function to process the command asynchronously.
+        """
+        try:
             start_time = time.time()
-            
+
             # Choose appropriate sending function based on target_drones
             if target_drones:
                 results = send_commands_to_selected(drones, command_data, target_drones)
+                total_count = len(target_drones)
             else:
                 results = send_commands_to_all(drones, command_data)
-                
+                total_count = len(drones)
+
             elapsed_time = time.time() - start_time
 
             success_count = sum(results.values())
-            total_count = len(target_drones) if target_drones else len(drones)
-            
-            response_data = {
-                'status': 'success',
-                'message': f"Command sent to {success_count}/{total_count} drones",
-                'details': results,
-                'elapsed_time': f"{elapsed_time:.2f} seconds"
-            }
 
-            logger.info(f"Command dispatch completed in {elapsed_time:.2f} seconds")
-            return jsonify(response_data)
+            logger.info(f"Command sent to {success_count}/{total_count} drones in {elapsed_time:.2f} seconds")
         except Exception as e:
-            logger.error(f"Error sending command: {e}", exc_info=True)
-            return error_response(f"Error sending command: {e}")
+            logger.error(f"Error processing command asynchronously: {e}", exc_info=True)
+
     
 
     @app.route('/save-config-data', methods=['POST'])

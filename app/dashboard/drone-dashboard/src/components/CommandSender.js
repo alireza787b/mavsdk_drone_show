@@ -1,10 +1,12 @@
 // src/components/CommandSender.js
+
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
-import Notification from './Notification';
 import { sendDroneCommand } from '../services/droneApiService';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -19,14 +21,14 @@ const CommandSender = ({ drones }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
-  const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Function to handle sending commands from child components
   const handleSendCommand = (commandData) => {
     let targetDronesList = 'All Drones';
     if (targetMode === 'selected') {
       if (selectedDrones.length === 0) {
-        setNotification({ type: 'error', message: 'No drones selected. Please select at least one drone.' });
+        toast.error('No drones selected. Please select at least one drone.');
         return;
       }
       targetDronesList = selectedDrones.join(', ');
@@ -41,6 +43,7 @@ const CommandSender = ({ drones }) => {
     setModalOpen(true);
   };
 
+  // Function to confirm and send the command
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
       setModalOpen(false); // Close the modal immediately
@@ -53,13 +56,13 @@ const CommandSender = ({ drones }) => {
         const response = await sendDroneCommand(commandDataToSend);
 
         if (response.status === 'success') {
-          setNotification({ type: 'success', message: 'Command sent successfully!' });
+          toast.success('Command sent successfully!');
         } else {
-          setNotification({ type: 'error', message: `Error sending command: ${response.message}` });
+          toast.error(`Error sending command: ${response.message}`);
         }
       } catch (error) {
         console.error('Error sending command:', error);
-        setNotification({ type: 'error', message: 'Error sending command. Please check the console for more details.' });
+        toast.error('Error sending command. Please check the console for more details.');
       } finally {
         setLoading(false); // Hide loading indicator
         setCurrentCommandData(null);
@@ -67,11 +70,13 @@ const CommandSender = ({ drones }) => {
     }
   };
 
+  // Function to cancel command sending
   const handleCancelSendCommand = () => {
     setModalOpen(false);
     setCurrentCommandData(null);
   };
 
+  // Functions for drone selection
   const toggleDroneSelection = (droneId) => {
     if (selectedDrones.includes(droneId)) {
       setSelectedDrones(selectedDrones.filter((id) => id !== droneId));
@@ -128,6 +133,7 @@ const CommandSender = ({ drones }) => {
         )}
       </div>
 
+      {/* Tab Navigation */}
       <div className="tab-bar">
         <button
           className={`tab-button ${activeTab === 'missionTrigger' ? 'active' : ''}`}
@@ -142,6 +148,8 @@ const CommandSender = ({ drones }) => {
           Actions
         </button>
       </div>
+
+      {/* Tab Content */}
       <div className="tab-content">
         {activeTab === 'missionTrigger' && (
           <MissionTrigger
@@ -159,7 +167,7 @@ const CommandSender = ({ drones }) => {
 
       {/* Confirmation Modal */}
       {modalOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={handleCancelSendCommand}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Confirm Command</h3>
             <p>{confirmationMessage}</p>
@@ -182,14 +190,9 @@ const CommandSender = ({ drones }) => {
         </div>
       )}
 
-      {/* Notification */}
-      {notification && (
-        <Notification
-          type={notification.type}
-          message={notification.message}
-          onClose={() => setNotification(null)}
-        />
-      )}
+      {/* Toast Notifications */}
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
+
     </div>
   );
 };
