@@ -6,8 +6,8 @@ import logging
 import subprocess
 import time
 import os
-from enum import Enum
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
+
 logger = logging.getLogger(__name__)
 
 class DroneSetup:
@@ -21,10 +21,6 @@ class DroneSetup:
     def __init__(self, params, drone_config):
         """
         Initializes the DroneSetup with configuration parameters and controllers.
-
-        Args:
-            params: Configuration parameters. Must include 'trigger_sooner_seconds'.
-            drone_config: Drone configuration object containing mission details.
         """
         self.params = params
         self.drone_config = drone_config
@@ -119,24 +115,17 @@ class DroneSetup:
                 logger.error(f"Attribute '{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
                 raise TypeError(f"'{attr}' must be of type {expected_types}, got {type(attr_value).__name__}.")
 
+
+
     def _get_python_exec_path(self) -> str:
         """
         Retrieves the absolute path to the Python executable within the virtual environment.
-
-        Returns:
-            str: Path to the Python executable.
         """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'venv', 'bin', 'python')
 
     def _get_script_path(self, script_name: str) -> str:
         """
         Constructs the absolute path to a given script.
-
-        Args:
-            script_name (str): Name of the script.
-
-        Returns:
-            str: Absolute path to the script.
         """
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
@@ -161,24 +150,17 @@ class DroneSetup:
                 else:
                     logger.debug(f"Process '{script_name}' has already terminated.")
             self.running_processes.clear()
+            self.drone_config.state = State.IDLE.value  # Reset state to IDLE
 
     async def execute_mission_script(self, script_name: str, action: str) -> tuple:
         """
-        Executes the specified mission script asynchronously. Ensures that no other mission scripts
-        are running by terminating them before starting the new mission.
-
-        Args:
-            script_name (str): Name of the mission script to execute.
-            action (str): Action parameter to pass to the script.
-
-        Returns:
-            tuple: (status (bool), message (str))
+        Executes the specified mission script asynchronously.
         """
         async with self.process_lock:
             # Terminate any existing running processes
-            # if self.running_processes:
-            #     logger.info("New mission command received. Terminating existing mission scripts.")
-            #     await self.terminate_all_running_processes()
+            if self.running_processes:
+                logger.info("Terminating existing mission scripts before starting a new one.")
+                await self.terminate_all_running_processes()
 
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
@@ -192,84 +174,48 @@ class DroneSetup:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                # self.running_processes[script_name] = process
+                self.running_processes[script_name] = process
+                self.drone_config.state = State.TRIGGERED.value
                 self.drone_config.last_mission = self.drone_config.mission
                 self.drone_config.mission = Mission.NONE.value
-                self.drone_config.last_mission = self.drone_config.mission
-                self.drone_config.state = 0
-                logger.info(
-                        f"Mission script '{script_name}' completed successfully."
-                    )
-                # status = True
-                # message = "Mission script completed successfully."
-                return True , "Done"
-                # # Wait for the process to complete and capture output
-                # stdout, stderr = await process.communicate()
+                logger.info(f"Mission script '{script_name}' started.")
 
-                # if process.returncode == 0:
-                #     logger.info(
-                #         f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
-                #     )
-                #     status = True
-                #     message = "Mission script completed successfully."
-                # else:
-                #     logger.error(
-                #         f"Mission script '{script_name}' encountered an error. Stderr: {stderr.decode().strip()}"
-                #     )
-                #     status = False
-                #     message = f"Mission script error: {stderr.decode().strip()}"
+                # Create a background task to monitor the process
+                asyncio.create_task(self._monitor_process(script_name, process))
 
-                # # Remove the process from the tracking dictionary
-                # del self.running_processes[script_name]
-                # return status, message
+                return True, f"Mission script '{script_name}' started."
 
             except Exception as e:
                 logger.error(f"Exception in execute_mission_script: {e}")
                 return False, f"Exception: {str(e)}"
 
-    def check_running_processes(self):
+    async def _monitor_process(self, script_name: str, process):
         """
-        Checks the status of all running mission scripts. Logs and removes any scripts that have finished.
+        Monitors a running mission script process and updates the drone state when it completes.
         """
-        for script_name, process in list(self.running_processes.items()):
-            if process.returncode is not None:  # Process has finished
-                logger.warning(
-                    f"Process for '{script_name}' has finished unexpectedly with return code {process.returncode}."
-                )
-                del self.running_processes[script_name]
-            else:
-                logger.debug(f"Process for '{script_name}' is still running.")
-
-    def synchronize_time(self):
-        """
-        Executes the time synchronization script.
-        Logs the output and continues execution regardless of success or failure.
-        """
-        script_path = self._get_script_path('tools/sync_time_linux.sh')
         try:
-            # Run the synchronization script
-            result = subprocess.run(
-                [script_path],
-                capture_output=True,
-                text=True,
-                check=False
-            )
-
-            if result.returncode == 0:
-                logger.info(f"Time synchronization successful: {result.stdout.strip()}")
-                print("Time synchronization successful.")
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                logger.info(
+                    f"Mission script '{script_name}' completed successfully. Output: {stdout.decode().strip()}"
+                )
             else:
-                logger.error(f"Time synchronization failed: {result.stderr.strip()}")
-                print("Time synchronization failed, continuing without adjustment.")
+                logger.error(
+                    f"Mission script '{script_name}' encountered an error. Stderr: {stderr.decode().strip()}"
+                )
+            # Remove the process from the tracking dictionary
+            async with self.process_lock:
+                if script_name in self.running_processes:
+                    del self.running_processes[script_name]
+                # Reset drone state to IDLE
+                self.drone_config.state = State.IDLE.value
 
         except Exception as e:
-            logger.error(f"Error executing time synchronization script: {e}")
-            print(f"Error during time synchronization, but continuing: {str(e)}")
+            logger.error(f"Exception in _monitor_process for script '{script_name}': {e}")
 
     async def schedule_mission(self):
         """
         Schedules and executes various drone missions based on the current mission code and state.
-        Ensures proper handling and logger of mission execution results.
         """
         current_time = int(time.time())
         success = False
@@ -290,18 +236,27 @@ class DroneSetup:
         )
 
         try:
-            # self.check_running_processes()  # Check the status of running processes before scheduling a new mission
+            # If a new mission command is received
+            if self.drone_config.mission != Mission.NONE.value:
+                # Terminate any existing running mission scripts
+                if self.running_processes:
+                    logger.info("New mission command received. Terminating existing mission scripts.")
+                    await self.terminate_all_running_processes()
 
-            # Retrieve the handler based on the current mission
-            handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
+                # Retrieve the handler based on the current mission
+                handler = self.mission_handlers.get(self.drone_config.mission, self._handle_unknown_mission)
 
-            # Execute the mission handler
-            success, message = await handler(current_time, earlier_trigger_time)
-            logger.info(f"Mission Execution Result: {success} with message: {message}")
+                # Execute the mission handler
+                success, message = await handler(current_time, earlier_trigger_time)
+                logger.info(f"Mission Execution Result: {success} with message: {message}")
 
-            # Log the result of the mission execution
-            #self._log_mission_result(success, message)
-            #await self._reset_mission_if_needed(success)
+            # Else, if the drone is in state ARMED and it's time to trigger the mission
+            elif self.drone_config.state == State.ARMED.value and current_time >= earlier_trigger_time:
+                # Retrieve the handler based on the last mission
+                handler = self.mission_handlers.get(self.drone_config.last_mission, self._handle_unknown_mission)
+                # Execute the mission handler
+                success, message = await handler(current_time, earlier_trigger_time)
+                logger.info(f"Mission Execution Result: {success} with message: {message}")
 
         except Exception as e:
             logger.error(f"Exception in schedule_mission: {e}")

@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 """
 Coordinator Application for Drone Management
-
-This script initializes and manages various components related to drone operations,
-including MAVLink communication, mission scheduling. It also
-provides LED feedback based on the drone's state to aid field operations.
-
-Author: Alireza Ghaderi
-GitHub Repository: https://github.com/alireza787b
-Date: September 2024
 """
 
 import os
@@ -30,6 +22,7 @@ from src.mavlink_manager import MavlinkManager
 from src.flask_handler import FlaskHandler
 from src.led_controller import LEDController
 from src.connectivity_checker import ConnectivityChecker
+from src.enums import State  # Import State enum
 
 # For log rotation
 from logging.handlers import RotatingFileHandler
@@ -158,26 +151,26 @@ def main_loop():
                 last_state_value = current_state
                 logger.info(f"Drone state changed to {current_state}")
 
-                if current_state == 0:
+                if current_state == State.IDLE.value:
                     # Idle state on ground
                     if current_mission == 0:
                         if not connectivity_checker.is_running:
                             connectivity_checker.start()
                             logger.debug("Connectivity checker started.")
-                    logger.debug("Drone is idle on ground (state == 0).")
-                elif current_state == 1:
+                    logger.debug("Drone is idle on ground (state == IDLE).")
+                elif current_state == State.ARMED.value:
                     # Trigger time received; ready to fly
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
                         logger.debug("Connectivity checker stopped.")
                     LEDController.set_color(255, 165, 0)  # Orange
-                    logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == 1).")
-                elif current_state == 2:
+                    logger.debug(f"Trigger time received({drone_config.trigger_time}). Drone is ready to fly (state == ARMED).")
+                elif current_state == State.TRIGGERED.value:
                     # Maneuver started; stop changing LEDs
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
                         logger.debug("Connectivity checker stopped.")
-                    logger.info(f"Mission ({current_mission}) started (state == 2).")
+                    logger.info(f"Mission started (state == TRIGGERED).")
                     # Do not change LEDs anymore; drone show script will take over
                 else:
                     # Unknown state; set LEDs to Red
