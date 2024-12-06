@@ -597,3 +597,43 @@ class DroneSetup:
         #     self.drone_config.mission = Mission.NONE.value
         #     self.drone_config.state = State.IDLE.value
         pass
+    
+    
+    def check_running_processes(self):
+        """
+        Checks the status of all running mission scripts. Logs and removes any scripts that have finished.
+        """
+        for script_name, process in list(self.running_processes.items()):
+            if process.returncode is not None:  # Process has finished
+                logger.warning(
+                    f"Process for '{script_name}' has finished unexpectedly with return code {process.returncode}."
+                )
+                del self.running_processes[script_name]
+            else:
+                logger.debug(f"Process for '{script_name}' is still running.")
+
+    def synchronize_time(self):
+        """
+        Executes the time synchronization script.
+        Logs the output and continues execution regardless of success or failure.
+        """
+        script_path = self._get_script_path('tools/sync_time_linux.sh')
+        try:
+            # Run the synchronization script
+            result = subprocess.run(
+                [script_path],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+
+            if result.returncode == 0:
+                logger.info(f"Time synchronization successful: {result.stdout.strip()}")
+                print("Time synchronization successful.")
+            else:
+                logger.error(f"Time synchronization failed: {result.stderr.strip()}")
+                print("Time synchronization failed, continuing without adjustment.")
+
+        except Exception as e:
+            logger.error(f"Error executing time synchronization script: {e}")
+            print(f"Error during time synchronization, but continuing: {str(e)}")
