@@ -3,6 +3,7 @@
 import logging
 import threading
 import subprocess
+from src.params import Params
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,11 @@ class ConnectivityChecker:
         """
         try:
             # Use the 'ping' command to check connectivity
-            output = subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
-            return True
+            if Params.sim_mode:
+                return True
+            else:
+                output = subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
+                return True
         except subprocess.CalledProcessError:
             return False
         except Exception as e:

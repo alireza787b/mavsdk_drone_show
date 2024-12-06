@@ -11,5 +11,4 @@ export const FLIGHT_MODES = {
     157: 'Take-off',
     29: 'Hold',
     145: 'Offboard',
-    145: 'Return',
 };
