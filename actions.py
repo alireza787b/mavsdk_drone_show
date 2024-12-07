@@ -1,6 +1,4 @@
-# actions.py
-# Usage: python actions.py --action update_code [--branch feature-branch]
-
+#!/usr/bin/env python3
 """
 actions.py - Drone Action Executor
 
@@ -11,7 +9,6 @@ Usage Examples:
     python actions.py --action takeoff --altitude 20
     python actions.py --action update_code --branch feature-branch
     python actions.py --action update_code  # Update code without specifying a branch
-
 """
 
 import argparse
@@ -31,6 +28,9 @@ from mavsdk import System
 from src.led_controller import LEDController
 from src.params import Params
 
+# Global return code: 0 for success, 1 for any failure
+RETURN_CODE = 0
+
 # =======================
 # Configuration Constants
 # =======================
@@ -43,26 +43,21 @@ HW_ID = None  # Will be set by read_hw_id()
 # Configure Logging
 # =======================
 
-# Create logs directory if it doesn't exist
 logs_directory = os.path.join("logs", "action_logs")
 os.makedirs(logs_directory, exist_ok=True)
 
-# Configure the logger
 logger = logging.getLogger("action_logger")
 logger.setLevel(logging.DEBUG)
 
-# Create formatter
 formatter = logging.Formatter(
     fmt='%(asctime)s - %(levelname)s - %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Create console handler with a higher log level
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 
-# Create rotating file handler
 log_file = os.path.join(logs_directory, "actions.log")
 file_handler = logging.handlers.RotatingFileHandler(
     log_file, maxBytes=10*1024*1024, backupCount=5
@@ -70,7 +65,6 @@ file_handler = logging.handlers.RotatingFileHandler(
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatter)
 
-# Add handlers to the logger
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
@@ -79,15 +73,6 @@ logger.addHandler(file_handler)
 # =======================
 
 def check_mavsdk_server_running(port):
-    """
-    Checks if the MAVSDK server is running on the specified gRPC port.
-
-    Args:
-        port (int): The gRPC port to check.
-
-    Returns:
-        tuple: (is_running (bool), pid (int or None))
-    """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
             for conn in proc.net_connections(kind='inet'):
@@ -98,17 +83,6 @@ def check_mavsdk_server_running(port):
     return False, None
 
 def wait_for_port(port, host='localhost', timeout=10.0):
-    """
-    Wait until a port starts accepting TCP connections.
-
-    Args:
-        port (int): The port to check.
-        host (str): The hostname to check.
-        timeout (float): The maximum time to wait in seconds.
-
-    Returns:
-        bool: True if the port is open, False if the timeout was reached.
-    """
     start_time = time.time()
     while True:
         try:
@@ -121,17 +95,6 @@ def wait_for_port(port, host='localhost', timeout=10.0):
             time.sleep(0.1)
 
 def start_mavsdk_server(grpc_port, udp_port):
-    """
-    Starts the MAVSDK server on the specified gRPC and UDP ports.
-    If a server is already running on the gRPC port, it terminates it before starting a new one.
-
-    Args:
-        grpc_port (int): The gRPC port for MAVSDK server.
-        udp_port (int): The UDP port for MAVSDK server.
-
-    Returns:
-        subprocess.Popen: The subprocess running the MAVSDK server.
-    """
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
         logger.info(f"MAVSDK server already running on port {grpc_port}. Terminating...")
@@ -149,11 +112,12 @@ def start_mavsdk_server(grpc_port, udp_port):
 
     logger.info(f"Starting MAVSDK server on gRPC port: {grpc_port}, UDP port: {udp_port}")
 
-    # Define absolute path to mavsdk_server
     mavsdk_server_path = os.path.join(os.getcwd(), "mavsdk_server")
 
     if not os.path.isfile(mavsdk_server_path):
         logger.error(f"mavsdk_server executable not found at '{mavsdk_server_path}'.")
+        global RETURN_CODE
+        RETURN_CODE = 1
         sys.exit(1)
 
     try:
@@ -163,31 +127,26 @@ def start_mavsdk_server(grpc_port, udp_port):
             stderr=subprocess.PIPE
         )
 
-        # Log MAVSDK server output for debugging
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        # Wait until the server is listening on the gRPC port
         if not wait_for_port(grpc_port, timeout=10):
             logger.error(f"MAVSDK server did not start listening on port {grpc_port} within timeout.")
             mavsdk_server.terminate()
+            RETURN_CODE = 1
             sys.exit(1)
 
         logger.info("MAVSDK server is now listening on gRPC port.")
         return mavsdk_server
     except FileNotFoundError:
         logger.error("mavsdk_server executable not found. Ensure it's in the current directory.")
+        RETURN_CODE = 1
         sys.exit(1)
     except Exception:
         logger.exception("Failed to start MAVSDK server")
+        RETURN_CODE = 1
         sys.exit(1)
 
 async def log_mavsdk_output(mavsdk_server):
-    """
-    Asynchronously logs the stdout and stderr of the MAVSDK server.
-
-    Args:
-        mavsdk_server (subprocess.Popen): The subprocess running the MAVSDK server.
-    """
     try:
         while True:
             line = await asyncio.get_event_loop().run_in_executor(None, mavsdk_server.stdout.readline)
@@ -207,16 +166,10 @@ async def log_mavsdk_output(mavsdk_server):
         logger.exception("Error while reading MAVSDK server stderr")
 
 def read_hw_id():
-    """
-    Reads the hardware ID from files with the '.hwID' extension.
-
-    Returns:
-        int or None: The hardware ID if found, else None.
-    """
     hwid_files = glob.glob('*.hwID')
     if hwid_files:
         filename = hwid_files[0]
-        hw_id_str = os.path.splitext(filename)[0]  # Get filename without extension
+        hw_id_str = os.path.splitext(filename)[0]
         logger.info(f"Hardware ID file detected: {filename}")
         try:
             hw_id = int(hw_id_str)
@@ -230,12 +183,6 @@ def read_hw_id():
         return None
 
 def read_config(filename=Params.config_csv_name):
-    """
-    Reads the drone configuration from a CSV file based on the hardware ID.
-
-    Returns:
-        dict or None: The drone configuration if found, else None.
-    """
     global HW_ID
     logger.info("Reading drone configuration...")
     try:
@@ -264,14 +211,8 @@ def read_config(filename=Params.config_csv_name):
     return None
 
 def stop_mavsdk_server(mavsdk_server):
-    """
-    Terminates the MAVSDK server subprocess.
-
-    Args:
-        mavsdk_server (subprocess.Popen): The subprocess running the MAVSDK server.
-    """
     try:
-        if mavsdk_server.poll() is None:  # Process is still running
+        if mavsdk_server and mavsdk_server.poll() is None:  
             logger.info("Stopping MAVSDK server...")
             mavsdk_server.terminate()
             try:
@@ -288,60 +229,47 @@ def stop_mavsdk_server(mavsdk_server):
         logger.exception("Error stopping MAVSDK server")
 
 async def set_parameters(drone, parameters):
-    """
-    Sets one or more parameters on the drone.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-        parameters (dict): Dictionary of parameter names and their integer values.
-    """
     for param_name, param_value in parameters.items():
         try:
             logger.info(f"Setting parameter '{param_name}' to {param_value}")
             await drone.param.set_param_int(param_name, param_value)
             logger.info(f"Parameter '{param_name}' set to {param_value} successfully.")
         except Exception:
+            global RETURN_CODE
+            RETURN_CODE = 1
             logger.exception(f"Failed to set parameter '{param_name}'")
 
 async def perform_action(action, altitude=None, parameters=None, branch=None):
-    """
-    Orchestrates the entire action execution process, including starting and stopping the MAVSDK server.
-
-    Args:
-        action (str): The action to perform.
-        altitude (float, optional): The altitude for takeoff.
-        parameters (dict, optional): Parameters to set on the drone.
-        branch (str, optional): The branch name for code update.
-    """
+    global RETURN_CODE
     logger.info("Starting to perform action...")
 
     if action == "update_code":
         await update_code(branch)
-        return  # No need to proceed further
+        return  # Return after update_code finishes, return_code set if error occurs
 
-    # Retrieve Hardware ID
-    global HW_ID
     HW_ID = read_hw_id()
     if HW_ID is None:
         logger.error("Hardware ID could not be determined. Exiting...")
+        RETURN_CODE = 1
         return
 
-    # Read Drone Configuration
     drone_config = read_config()
     if not drone_config:
         logger.error("Drone configuration not found. Exiting...")
+        RETURN_CODE = 1
         return
 
-    # Define MAVSDK Ports since it's on each system it's constant
     grpc_port = GRPC_PORT
     udp_port = UDP_PORT
 
     logger.info(f"gRPC Port: {grpc_port}, UDP Port: {udp_port}")
 
-    # Start the MAVSDK server
     mavsdk_server = start_mavsdk_server(grpc_port, udp_port)
+    if mavsdk_server is None:
+        logger.error("Failed to start MAVSDK server.")
+        RETURN_CODE = 1
+        return
 
-    # Initialize the MAVSDK drone system
     drone = System(mavsdk_server_address="localhost", port=grpc_port)
     logger.info("Attempting to connect to drone...")
 
@@ -349,10 +277,10 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         await drone.connect(system_address=f"udp://:{udp_port}")
     except Exception:
         logger.exception("Failed to connect to MAVSDK server")
+        RETURN_CODE = 1
         stop_mavsdk_server(mavsdk_server)
         return
 
-    # Check connection state with a timeout
     logger.info("Checking connection state...")
     connected = False
     start_time = time.time()
@@ -368,460 +296,230 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
                 break
     except Exception:
         logger.exception("Error while checking connection state")
+        RETURN_CODE = 1
         stop_mavsdk_server(mavsdk_server)
         return
 
     if not connected:
         logger.error("Could not establish a connection with the drone.")
+        RETURN_CODE = 1
         stop_mavsdk_server(mavsdk_server)
         return
 
     try:
-        # Set parameters if provided
         if parameters:
             await set_parameters(drone, parameters)
 
         # Perform action
         if action == "takeoff":
-            await takeoff(drone, altitude)
+            if not await safe_action(takeoff, drone, altitude):
+                RETURN_CODE = 1
         elif action == "land":
-            await land(drone)
+            if not await safe_action(land, drone):
+                RETURN_CODE = 1
         elif action == "return_rtl":
-            await return_rtl(drone)
-        elif action == "return_rtl":
-            await hold(drone)
+            if not await safe_action(return_rtl, drone):
+                RETURN_CODE = 1
+        elif action == "hold":
+            if not await safe_action(hold, drone):
+                RETURN_CODE = 1
         elif action == "kill_terminate":
-            await kill_terminate(drone)
+            if not await safe_action(kill_terminate, drone):
+                RETURN_CODE = 1
         elif action == "test":
-            await test(drone)
+            if not await safe_action(test, drone):
+                RETURN_CODE = 1
         elif action == "reboot_fc":
-            await reboot(drone, fc_flag=True, sys_flag=False)
-        elif action == "kill_terminate":
-            await kill_terminate(drone)
+            if not await safe_action(reboot, drone, fc_flag=True, sys_flag=False):
+                RETURN_CODE = 1
         elif action == "reboot_sys":
-            await reboot(drone, fc_flag=False, sys_flag=True)
+            if not await safe_action(reboot, drone, fc_flag=False, sys_flag=True):
+                RETURN_CODE = 1
         else:
             logger.error(f"Invalid action specified: '{action}'")
+            RETURN_CODE = 1
     except Exception:
         logger.exception(f"Error performing action '{action}'")
+        RETURN_CODE = 1
     finally:
         stop_mavsdk_server(mavsdk_server)
         logger.info("Action completed.")
+
+async def safe_action(func, *args, **kwargs):
+    """
+    Wrapper to run an action function and return True on success, False on failure.
+    Any exception inside the action will be logged and indicated by return False.
+    """
+    try:
+        await func(*args, **kwargs)
+        logger.info(f"Action {func.__name__} completed successfully.")
+        return True
+    except Exception:
+        logger.exception(f"Action {func.__name__} failed.")
+        return False
 
 # =======================
 # Action Implementations
 # =======================
 
 async def takeoff(drone, altitude):
-    """
-    Executes the takeoff action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-        altitude (float): The altitude to take off to.
-    """
     led_controller = LEDController.get_instance()
-
-    # Indicate takeoff initiation with yellow color
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)
 
-    try:
-        await drone.action.set_takeoff_altitude(float(altitude))
-        await drone.action.arm()
-
-        # Indicate arming with white color
-        led_controller.set_color(255, 255, 255)  # White
-        await asyncio.sleep(0.5)
-
-        await drone.action.takeoff()
-
-        # Indicate successful takeoff with green blinks
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)  # Green
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("Takeoff successful.")
-    except Exception:
-        logger.exception("Takeoff failed")
-        # Indicate takeoff failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Turn off LEDs after feedback
-        led_controller.turn_off()
-
-async def land(drone):
-    """
-    Executes the land action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
-    led_controller = LEDController.get_instance()
-
-    # Indicate landing initiation with yellow color
-    led_controller.set_color(255, 255, 0)  # Yellow
+    await drone.action.set_takeoff_altitude(float(altitude))
+    await drone.action.arm()
+    led_controller.set_color(255, 255, 255)  # White
     await asyncio.sleep(0.5)
+    await drone.action.takeoff()
 
-    try:
-        await drone.action.hold()  # Switch to Hold mode
-        await asyncio.sleep(1)  # Wait for a short period
-
-        # Indicate landing in progress with blue slow pulse
-        for _ in range(3):
-            led_controller.set_color(0, 0, 255)  # Blue
-            await asyncio.sleep(0.5)
-            led_controller.turn_off()
-            await asyncio.sleep(0.5)
-
-        await drone.action.land()  # Execute land command
-
-        # Indicate successful landing with green blinks
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)  # Green
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("Landing successful.")
-    except Exception:
-        logger.exception("Landing failed")
-        # Indicate landing failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Turn off LEDs after feedback
-        led_controller.turn_off()
-        
-async def return_rtl(drone):
-    """
-    Executes the return and land action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
-    led_controller = LEDController.get_instance()
-
-    # Indicate landing initiation with yellow color
-    led_controller.set_color(255, 0, 255)  # Purple
-    await asyncio.sleep(0.5)
-
-    try:
-        await drone.action.hold()  # Switch to Hold mode
-        await asyncio.sleep(1)  # Wait for a short period
-
-        # Indicate landing in progress with blue slow pulse
-        for _ in range(3):
-            led_controller.set_color(0, 0, 255)  # Blue
-            await asyncio.sleep(0.5)
-            led_controller.turn_off()
-            await asyncio.sleep(0.5)
-
-        await drone.action.return_to_launch()  # Execute rtl command
-
-        # Indicate successful landing with green blinks
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)  # Green
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("RTL and Landing successful.")
-    except Exception:
-        logger.exception("RTL and Landing failed")
-        # Indicate landing failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Turn off LEDs after feedback
-        led_controller.turn_off()
-        
-        
-async def kill_terminate(drone):
-    """
-    Executes the kill and terminate action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
-    led_controller = LEDController.get_instance()
-
-    # Indicate landing initiation with yellow color
-    led_controller.set_color(255, 0, 0)  # Red
-    await asyncio.sleep(0.2)
-    led_controller.set_color(0, 0, 0)  # Off
-    led_controller.set_color(255, 0, 0)  # Red
-    await asyncio.sleep(0.2)
-
-    try:
-        await drone.action.terminate()  # Switch to Terminate mode
-        await asyncio.sleep(1)  # Wait for a short period
-
-
-        # Indicate successful kill with blinks
-        for _ in range(3):
-            led_controller.set_color(0, 255, 0)  # Green
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-
-        logger.info("Kill and Terminate successful.")
-    except Exception:
-        logger.exception("Kill and Terminate failed")
-        # Indicate landing failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Turn off LEDs after feedback
+    for _ in range(3):
+        led_controller.set_color(0, 255, 0)  # Green
+        await asyncio.sleep(0.2)
         led_controller.turn_off()
         await asyncio.sleep(0.2)
-        led_controller.set_color(255, 0, 0)  # Red
+    led_controller.turn_off()
 
-
-async def hold(drone):
-    """
-    Executes the hold position action.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
+async def land(drone):
     led_controller = LEDController.get_instance()
-
-    # Indicate hold command received with blue color
-    led_controller.set_color(0, 0, 255)  # Blue
+    led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)
 
-    try:
-        await drone.action.hold()  # Switch to Hold mode
+    await drone.action.hold()
+    await asyncio.sleep(1)
 
-        # Indicate successful hold with a solid blue color
-        led_controller.set_color(0, 0, 255)  # Solid Blue
-        await asyncio.sleep(1)
-
-        logger.info("Hold position successful.")
-    except Exception:
-        logger.exception("Hold failed")
-        # Indicate hold failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Turn off LEDs after feedback
+    for _ in range(3):
+        led_controller.set_color(0, 0, 255)
+        await asyncio.sleep(0.5)
         led_controller.turn_off()
+        await asyncio.sleep(0.5)
+
+    await drone.action.land()
+
+    for _ in range(3):
+        led_controller.set_color(0, 255, 0)
+        await asyncio.sleep(0.2)
+        led_controller.turn_off()
+        await asyncio.sleep(0.2)
+    led_controller.turn_off()
+
+async def return_rtl(drone):
+    led_controller = LEDController.get_instance()
+    led_controller.set_color(255, 0, 255)
+    await asyncio.sleep(0.5)
+
+    await drone.action.hold()
+    await asyncio.sleep(1)
+
+    for _ in range(3):
+        led_controller.set_color(0, 0, 255)
+        await asyncio.sleep(0.5)
+        led_controller.turn_off()
+        await asyncio.sleep(0.5)
+
+    await drone.action.return_to_launch()
+
+    for _ in range(3):
+        led_controller.set_color(0, 255, 0)
+        await asyncio.sleep(0.2)
+        led_controller.turn_off()
+        await asyncio.sleep(0.2)
+    led_controller.turn_off()
+
+async def kill_terminate(drone):
+    led_controller = LEDController.get_instance()
+    led_controller.set_color(255, 0, 0)
+    await asyncio.sleep(0.2)
+    led_controller.set_color(0, 0, 0)
+    led_controller.set_color(255, 0, 0)
+    await asyncio.sleep(0.2)
+
+    await drone.action.terminate()
+    await asyncio.sleep(1)
+
+    for _ in range(3):
+        led_controller.set_color(0, 255, 0)
+        await asyncio.sleep(0.2)
+        led_controller.turn_off()
+        await asyncio.sleep(0.2)
+
+    led_controller.turn_off()
+    await asyncio.sleep(0.2)
+    led_controller.set_color(255, 0, 0)
+
+async def hold(drone):
+    led_controller = LEDController.get_instance()
+    led_controller.set_color(0, 0, 255)
+    await asyncio.sleep(0.5)
+
+    await drone.action.hold()
+    led_controller.set_color(0, 0, 255)
+    await asyncio.sleep(1)
+    led_controller.turn_off()
 
 async def test(drone):
-    """
-    Executes the test action, which includes arming and disarming the drone with LED feedback.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
     led_controller = LEDController.get_instance()
 
-    try:
-        # Step 1: Set LEDs to red before attempting to arm
-        led_controller.set_color(255, 0, 0)  # Red
-        await asyncio.sleep(1)  # Wait to show red color
-
-        # Step 2: Arm the drone
-        await drone.action.arm()
-
-        # Indicate arming with white color
-        led_controller.set_color(255, 255, 255)  # White
-        await asyncio.sleep(1)  # Wait to show white color
-
-        # Step 3: Change LED colors during the 3-second wait
-        led_controller.set_color(0, 0, 255)  # Blue
-        await asyncio.sleep(1)  # Wait to show blue color
-
-        led_controller.set_color(0, 255, 0)  # Green
-        await asyncio.sleep(1)  # Wait to show green color
-
-        # Step 4: Disarm the drone
-        await drone.action.disarm()
-        logger.info("Test action successful.")
-
-        # Step 5: Turn off LEDs after disarming
-        led_controller.turn_off()
-
-    except Exception:
-        logger.exception("Test failed")
-        # Indicate test failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Ensure LEDs are turned off
-        led_controller.turn_off()
-        
-async def kill_terminate(drone):
-    """
-    Executes the test action, which includes arming and disarming the drone with LED feedback.
-
-    Args:
-        drone (System): The MAVSDK drone system.
-    """
-    led_controller = LEDController.get_instance()
-
-    try:
-        # Step 1: Set LEDs to red before attempting to arm
-        led_controller.set_color(255, 0, 0)  # Red
-        await asyncio.sleep(1)  # Wait to show red color
-
-        led_controller.set_color(255, 255, 255)  # White
-        await asyncio.sleep(1)  # Wait to show white color
-
-        # Step : Disarm the drone
-        await drone.action.terminate()
-        logger.info("Terminate action successful.")
-
-        # Step 5: Turn off LEDs after disarming
-        led_controller.set_color(255, 0, 0)  # Red
-
-    except Exception:
-        logger.exception("Test failed")
-        # Indicate test failure with red blinks
-        for _ in range(3):
-            led_controller.set_color(255, 0, 255)  # Purple
-            await asyncio.sleep(0.2)
-            led_controller.turn_off()
-            await asyncio.sleep(0.2)
-    finally:
-        # Ensure LEDs are turned off
-        led_controller.turn_off()
-        
-        
-
-
+    led_controller.set_color(255, 0, 0)
+    await asyncio.sleep(1)
+    await drone.action.arm()
+    led_controller.set_color(255, 255, 255)
+    await asyncio.sleep(1)
+    led_controller.set_color(0, 0, 255)
+    await asyncio.sleep(1)
+    led_controller.set_color(0, 255, 0)
+    await asyncio.sleep(1)
+    await drone.action.disarm()
+    led_controller.turn_off()
 
 async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
-    """
-    Reboots the flight controller, system, or both, with optional forced reboot.
-
-    Args:
-        drone (System): MAVSDK drone system.
-        fc_flag (bool): Whether to reboot the flight controller.
-        sys_flag (bool): Whether to reboot the Raspberry Pi system.
-        force_reboot (bool): Whether to force a system reboot if the initial reboot fails.
-    """
     led_controller = LEDController.get_instance()
-
-    # Indicate reboot initiation with yellow color
-    led_controller.set_color(255, 255, 0)  # Yellow
-    await asyncio.sleep(0.5)  # Brief feedback
+    led_controller.set_color(255, 255, 0)
+    await asyncio.sleep(0.5)
 
     if fc_flag:
-        try:
-            # Attempt to reboot the flight controller (drone)
-            await drone.action.reboot()
-
-            # Indicate success with green blinks
-            for _ in range(3):
-                led_controller.set_color(0, 255, 0)  # Green
-                await asyncio.sleep(0.2)
-                led_controller.turn_off()
-                await asyncio.sleep(0.2)
-
-            logger.info("Flight controller reboot successful.")
-        except Exception:
-            logger.exception("Flight controller reboot failed")
-
-            # Indicate failure with red blinks
-            for _ in range(3):
-                led_controller.set_color(255, 0, 0)  # Red
-                await asyncio.sleep(0.2)
-                led_controller.turn_off()
-                await asyncio.sleep(0.2)
-
-            if force_reboot:
-                logger.info("Force reboot enabled after flight controller reboot failure.")
+        await drone.action.reboot()
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+        logger.info("Flight controller reboot successful.")
 
     if sys_flag:
-        try:
-            # Attempt system (Raspberry Pi) reboot
-            logger.info("Initiating system reboot...")
-            led_controller.turn_off()
+        logger.info("Initiating system reboot...")
+        led_controller.turn_off()
+        await reboot_system()
 
-            # Use the reboot_system() function to reboot
-            await reboot_system()
-        except Exception:
-            logger.exception("System reboot failed")
-
-            if force_reboot:
-                logger.info("Force reboot enabled, attempting forced system reboot.")
-                try:
-                    await reboot_system()
-                except Exception:
-                    logger.exception("Forced system reboot failed")
-
-    # Final LED cleanup
     led_controller.turn_off()
 
 async def reboot_system():
-    """
-    Reboots the Raspberry Pi using the D-Bus system interface.
-    """
-    try:
-        # Use D-Bus to initiate the reboot without sudo
-        process = await asyncio.create_subprocess_exec(
-            'dbus-send', '--system', '--print-reply', '--dest=org.freedesktop.login1',
-            '/org/freedesktop/login1', 'org.freedesktop.login1.Manager.Reboot', 'boolean:true',
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
+    process = await asyncio.create_subprocess_exec(
+        'dbus-send', '--system', '--print-reply', '--dest=org.freedesktop.login1',
+        '/org/freedesktop/login1', 'org.freedesktop.login1.Manager.Reboot', 'boolean:true',
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
 
-        if process.returncode != 0:
-            logger.error(f"System reboot via D-Bus failed: {stderr.decode().strip()}")
-        else:
-            logger.info("System reboot command executed successfully via D-Bus.")
-    except Exception:
-        logger.exception("System reboot failed")
+    if process.returncode != 0:
+        logger.error(f"System reboot via D-Bus failed: {stderr.decode().strip()}")
+    else:
+        logger.info("System reboot command executed successfully via D-Bus.")
 
 async def update_code(branch=None):
-    """
-    Executes the update_https script to pull code from the requested repo.
-
-    Args:
-        branch (str, optional): The branch name to pull from. If None, default behavior is used.
-    """
+    global RETURN_CODE
     led_controller = LEDController.get_instance()
-
-    # Indicate update initiation with yellow color
-    led_controller.set_color(255, 255, 0)  # Yellow
+    led_controller.set_color(255, 255, 0)
     await asyncio.sleep(0.5)
 
     try:
-        # Build the command
-        #tools/update_repo_ssh.sh
         script_path = os.path.join('tools', 'update_repo_ssh.sh')
         command = [script_path]
-
-        # Append branch name if provided
         if branch:
             command.append(branch)
 
         logger.info(f"Executing update script: {' '.join(command)}")
 
-        # Execute the bash script
         process = await asyncio.create_subprocess_exec(
             *command,
             stdout=asyncio.subprocess.PIPE,
@@ -831,28 +529,26 @@ async def update_code(branch=None):
 
         if process.returncode != 0:
             logger.error(f"Update script failed: {stderr.decode().strip()}")
-            # Indicate failure with red blinks
+            RETURN_CODE = 1
             for _ in range(3):
-                led_controller.set_color(255, 0, 0)  # Red
+                led_controller.set_color(255, 0, 0)
                 await asyncio.sleep(0.2)
                 led_controller.turn_off()
                 await asyncio.sleep(0.2)
         else:
             logger.info(f"Update script executed successfully: {stdout.decode().strip()}")
-            # Indicate success with green blinks
             for _ in range(3):
-                led_controller.set_color(0, 255, 0)  # Green
+                led_controller.set_color(0, 255, 0)
                 await asyncio.sleep(0.2)
     except Exception:
         logger.exception("Update code action failed")
-        # Indicate failure with red blinks
+        RETURN_CODE = 1
         for _ in range(3):
-            led_controller.set_color(255, 0, 0)  # Red
+            led_controller.set_color(255, 0, 0)
             await asyncio.sleep(0.2)
             led_controller.turn_off()
             await asyncio.sleep(0.2)
     finally:
-        # Turn off LEDs after feedback
         led_controller.turn_off()
 
 # =======================
@@ -862,7 +558,7 @@ async def update_code(branch=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action', type=str, required=True,
-                        help='Action to perform: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code')
+                        help='Action: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate')
     parser.add_argument('--altitude', type=float, default=10,
                         help='Altitude for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
@@ -870,13 +566,13 @@ if __name__ == "__main__":
     parser.add_argument('--branch', type=str, help='Branch name for code update')
 
     args = parser.parse_args()
-
-    # Convert parameter arguments to dictionary
     parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
 
     try:
         asyncio.run(perform_action(args.action, args.altitude, parameters, args.branch))
     except Exception:
         logger.exception("An unexpected error occurred")
+        RETURN_CODE = 1
     finally:
         logger.info("Operation completed.")
+        sys.exit(RETURN_CODE)
