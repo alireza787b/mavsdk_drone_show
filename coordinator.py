@@ -144,6 +144,7 @@ def main_loop():
             current_mission = drone_config.mission
 
             if current_mission != last_mission_value:
+                drone_config.last_mission = last_mission_value
                 last_mission_value = current_mission
                 logger.info(f"Drone mission changed to {current_mission}")
 
