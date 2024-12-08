@@ -9,8 +9,8 @@ export const MAV_MODE_ENUM = {
     65536: 'Manual',
     327680: 'Acro',
     29: 'Hold',
-    157: 'Take-off',
+    157: 'Return',
     192: 'Land',
-    145: 'Return',
+    145: 'Offboard',
 
 };
