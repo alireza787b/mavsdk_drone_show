@@ -64,6 +64,8 @@ class Params:
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
 
+
+
     # Flask Server Configuration
     drones_flask_port = 7070                # Port for the drone's Flask server
     polling_interval = 1                    # Polling interval in seconds
@@ -133,6 +135,10 @@ class Params:
     custom_csv_file_name = "active.csv"         # Name of custom CSV execution
     main_offboard_executer = "drone_show.py"    # Name of script that executes offboard missions from CSV
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
+    
+    
+    REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
+    
 
     # Smart Swarm Parameters
     CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz
