@@ -40,6 +40,14 @@ const MissionConfig = () => {
   // Heartbeat data from GCS
   const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, ... }
 
+
+  // Compute available hardware IDs for new drones
+  const allHwIds = new Set(configData.map((drone) => drone.hw_id));
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id))) + 1;
+  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
+    (id) => !allHwIds.has(id)
+  );
+
   // -----------
   // useEffects: Fetch data on mount (config, origin, etc.)
   // -----------
