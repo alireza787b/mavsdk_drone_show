@@ -177,6 +177,8 @@ const DroneEditForm = memo(function DroneEditForm({
 }) {
   const [showPosChangeDialog, setShowPosChangeDialog] = useState(false);
   const [pendingPosId, setPendingPosId] = useState(null);
+  const [droneData, setDroneData] = useState({ ...drone });
+
 
   // For showing old vs. new in the dialog
   const [oldX, setOldX] = useState(droneData.x);
