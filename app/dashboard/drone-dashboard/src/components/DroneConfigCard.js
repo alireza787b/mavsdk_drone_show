@@ -248,21 +248,17 @@ const handleConfirmPosChange = () => {
   }
 
   // Update pos_id in the droneData state
-  onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
+  
 
   // Update x, y if matched with another drone
   const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
   if (matchedDrone) {
     onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
     onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
+    onFieldChange({ target: { name: 'pos_id', value: matchedDrone.pos_id } });
 
     // Ensure the local droneData state is updated
-    setDroneData((prevData) => ({
-      ...prevData,
-      pos_id: pendingPosId,
-      x: matchedDrone.x,
-      y: matchedDrone.y,
-    }));
+    
   } else {
     // If no match, ensure only pos_id is updated
    
