@@ -516,3 +516,10 @@ def setup_routes(app):
     @app.route('/get-heartbeats', methods=['GET'])
     def get_heartbeats():
         return get_all_heartbeats()
+    
+    @app.route('/git-status', methods=['GET'])
+    def get_git_status():
+        """Endpoint to retrieve consolidated git status of all drones."""
+        with data_lock_git_status:
+            git_status_copy = git_status_data_all_drones.copy()
+        return jsonify(git_status_copy)

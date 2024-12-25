@@ -1,59 +1,74 @@
 //app/dashboard/drone-dashboard/src/components/DroneGitStatus.js
 import React, { useState, useEffect } from 'react';
-import { getDroneGitStatusURLById, getGitStatusURL } from '../utilities/utilities';
+import { getUnifiedGitStatusURL } from '../utilities/utilities';
 import '../styles/DroneGitStatus.css'; // Import for consistent styling
 
 const DroneGitStatus = ({ droneID, droneName }) => {
-  const [gitStatus, setGitStatus] = useState(null);
-  const [gcsGitStatus, setGcsGitStatus] = useState(null);
+  const [gitStatuses, setGitStatuses] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchGitStatuses() {
+    async function fetchGitStatus() {
       try {
-        const [droneResponse, gcsResponse] = await Promise.all([
-          fetch(getDroneGitStatusURLById(droneID)),
-          fetch(getGitStatusURL()),
-        ]);
-
-        if (droneResponse.ok && gcsResponse.ok) {
-          const droneData = await droneResponse.json();
-          const gcsData = await gcsResponse.json();
-
-          setGitStatus(droneData);
-          setGcsGitStatus(gcsData);
+        const response = await fetch(getUnifiedGitStatusURL());
+        if (response.ok) {
+          const data = await response.json();
+          setGitStatuses(data);
+          setLoading(false);
         } else {
-          setErrorMessage('Failed to load Git statuses.');
+          setErrorMessage('Failed to load Git statuses from GCS.');
+          setLoading(false);
         }
       } catch (error) {
         setErrorMessage('An error occurred while loading the Git statuses.');
+        setLoading(false);
       }
     }
 
-    fetchGitStatuses();
-  }, [droneID]);
+    fetchGitStatus();
+
+    // Optionally, set an interval to refresh data every 10 seconds
+    const interval = setInterval(fetchGitStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return <div className="git-loading">Loading Git status...</div>;
+  }
+
+  if (errorMessage) {
+    return <div className="git-error-message">{errorMessage}</div>;
+  }
+
+  const droneGitStatus = gitStatuses ? gitStatuses[droneID] : null;
+
+  if (!droneGitStatus) {
+    return (
+      <div className="git-error-message">
+        Git status for this drone is not available.
+      </div>
+    );
+  }
 
   const isInSync =
-    gitStatus &&
-    gcsGitStatus &&
-    gitStatus.branch === gcsGitStatus.branch &&
-    gitStatus.commit === gcsGitStatus.commit;
+    gitStatuses &&
+    gitStatuses.gcs &&
+    droneGitStatus.branch === gitStatuses.gcs.branch &&
+    droneGitStatus.commit === gitStatuses.gcs.commit;
 
   return (
     <div className="drone-git-status">
-      {errorMessage && <div className="git-error-message">{errorMessage}</div>}
-      {gitStatus && gcsGitStatus ? (
-        <div className={`git-status-summary ${isInSync ? 'sync' : 'not-sync'}`}>
-          <p><strong>Git Status</strong></p>
-          <p><strong>Branch:</strong> {gitStatus.branch}</p>
-          <p><strong>Commit:</strong> {gitStatus.commit}</p>
-          {!isInSync && (
-            <p className="warning-text"><strong>Warning:</strong> This drone's Git status differs from the GCS.</p>
-          )}
-        </div>
-      ) : (
-        <div className="git-loading">Loading Git status...</div>
-      )}
+      <div className={`git-status-summary ${isInSync ? 'sync' : 'not-sync'}`}>
+        <p><strong>Drone Name:</strong> {droneName}</p>
+        <p><strong>Branch:</strong> {droneGitStatus.branch}</p>
+        <p><strong>Commit:</strong> {droneGitStatus.commit}</p>
+        {!isInSync && (
+          <p className="warning-text">
+            <strong>Warning:</strong> This drone's Git status differs from the GCS.
+          </p>
+        )}
+      </div>
     </div>
   );
 };
