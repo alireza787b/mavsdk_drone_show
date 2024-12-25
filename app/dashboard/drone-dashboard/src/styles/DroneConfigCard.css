@@ -1,147 +1,216 @@
-/* Drone Config Card Styles */
+/* Drone Config Card Container */
 
 .drone-config-card {
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  transition: box-shadow 0.3s;
-  position: relative;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s;
+    position: relative;
 }
 
 .drone-config-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .drone-config-card h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #1f2937;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #1f2937;
 }
+
+
+/* "New Drone" Badge */
+
+.new-drone-badge {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background-color: #ff9800;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transform: rotate(5deg);
+}
+
+
+/* If there's a mismatch, highlight the left border red */
+
+.mismatch-drone {
+    border-left: 5px solid #dc2626;
+    /* Tailwind Red-600 */
+}
+
 
 /* Labels and Inputs */
 
 .drone-config-card label {
-  display: block;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  color: #374151;
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #374151;
 }
 
-.drone-config-card input,
-.drone-config-card select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  margin-top: 0.25rem;
+.drone-config-card select,
+.drone-config-card input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    box-sizing: border-box;
 }
 
 .drone-config-card input:focus,
 .drone-config-card select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px #2563eb;
 }
+
 
 /* Error Message Styling */
 
 .error-message {
-  color: #ef4444;
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
 }
 
-/* Card Buttons Styling */
+
+/* Card Buttons */
 
 .card-buttons {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
 }
 
 .card-buttons button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
 }
 
+
+/* Button Colors */
+
 .save-drone {
-  background-color: #10b981;
+    background-color: #10b981;
+    /* Tailwind Green-500 */
 }
 
 .save-drone:hover {
-  background-color: #059669;
+    background-color: #059669;
 }
 
 .cancel-edit {
-  background-color: #6b7280;
+    background-color: #6b7280;
 }
 
 .cancel-edit:hover {
-  background-color: #4b5563;
+    background-color: #4b5563;
 }
 
 .edit-drone {
-  background-color: #3b82f6;
+    background-color: #3b82f6;
 }
 
 .edit-drone:hover {
-  background-color: #2563eb;
+    background-color: #2563eb;
 }
 
 .remove-drone {
-  background-color: #ef4444;
+    background-color: #ef4444;
 }
 
 .remove-drone:hover {
-  background-color: #dc2626;
+    background-color: #dc2626;
 }
 
-/* Network Info Styling */
+
+/* Mismatch Message Box */
+
+.mismatch-message {
+    margin-top: 6px;
+    background-color: #fff5f5;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.mismatch-message .accept-button {
+    margin-left: 8px;
+    background-color: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 3px 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.mismatch-message .accept-button:hover {
+    background-color: #b91c1c;
+}
+
+
+/* Network Info Box */
+
 .network-info {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f5e9; /* Light green background for network info */
-  border-left: 4px solid #66bb6a; /* Green border to indicate network */
-  border-radius: 5px;
-  font-size: 0.95rem;
-  color: #2e7d32;
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #e8f5e9;
+    /* Light green background for network info */
+    border-left: 4px solid #66bb6a;
+    /* Green border to indicate network */
+    border-radius: 5px;
+    font-size: 0.95rem;
+    color: #2e7d32;
 }
 
 .network-info p {
-  margin: 4px 0;
+    margin: 4px 0;
 }
 
 .network-info strong {
-  color: #1b5e20;
+    color: #1b5e20;
 }
+
 
 /* Paragraph and Strong Tag Styling */
 
 .drone-config-card p {
-  margin: 0.5rem 0;
-  color: #374151;
+    margin: 0.5rem 0;
+    color: #374151;
 }
 
 .drone-config-card p strong {
-  color: #1f2937;
+    color: #1f2937;
 }
+
 
 /* Alternate Background for Odd Cards */
 
 .drone-config-card:nth-child(odd) {
-  background-color: #f9fafb;
+    background-color: #f9fafb;
 }
 
-/* Hover Effect */
+
+/* Hover Shadow Repeated */
 
 .drone-config-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
