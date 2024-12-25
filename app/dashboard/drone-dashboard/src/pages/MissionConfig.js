@@ -8,7 +8,6 @@ import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import BriefingExport from '../components/BriefingExport';
 import OriginModal from '../components/OriginModal';
-import ConfirmationDialog from '../components/ConfirmationDialog'; // Import ConfirmationDialog
 import { getBackendURL } from '../utilities/utilities';
 import DronePositionMap from '../components/DronePositionMap';
 
@@ -19,6 +18,12 @@ import {
   exportConfig,
 } from '../utilities/missionConfigUtilities';
 
+/**
+ * Main MissionConfig component:
+ * - Manages the entire configData array
+ * - Updates configData only in memory upon card-level saves
+ * - Only commits final changes to server on "Save All" click
+ */
 const MissionConfig = () => {
   // State variables
   const [configData, setConfigData] = useState([]);
@@ -30,33 +35,19 @@ const MissionConfig = () => {
   const [originAvailable, setOriginAvailable] = useState(false);
   const [telemetryData, setTelemetryData] = useState({});
   const [networkInfo, setNetworkInfo] = useState([]);
-  const [loading, setLoading] = useState(false); // Loading state for save operation
+  const [loading, setLoading] = useState(false); // Loading state for "Save All" operation
 
   // Heartbeat data from GCS
-  const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, "2": {...}, ... }
+  const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, ... }
 
-
-  // Position ID to Initial Position Mapping
-  const positionIdMapping = configData.reduce((acc, drone) => {
-    if (drone.pos_id) {
-      acc[drone.pos_id] = { x: drone.x, y: drone.y };
-    }
-    return acc;
-  }, {});
-
-  // Compute available hardware IDs for new drones
-  const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id))) + 1;
-  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
-    (id) => !allHwIds.has(id)
-  );
-
-  // -----------------------------
-  // Fetch config data on mount
-  // -----------------------------
+  // -----------
+  // useEffects: Fetch data on mount (config, origin, etc.)
+  // -----------
   useEffect(() => {
-    const fetchData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
+    // 1) Fetch config data
+    const fetchConfig = async () => {
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
         setConfigData(response.data);
@@ -64,15 +55,9 @@ const MissionConfig = () => {
         console.error('Error fetching config data:', error);
       }
     };
-    fetchData();
-  }, []);
 
-  // -----------------------------
-  // Fetch origin on mount
-  // -----------------------------
-  useEffect(() => {
+    // 2) Fetch origin data
     const fetchOrigin = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-origin`);
         if (response.data.lat && response.data.lon) {
@@ -87,17 +72,17 @@ const MissionConfig = () => {
         setOriginAvailable(false);
       }
     };
+
+    fetchConfig();
     fetchOrigin();
   }, []);
 
-  // -----------------------------
-  // Fetch deviation data
-  // -----------------------------
+  // Deviation data fetch
   useEffect(() => {
     if (!originAvailable) return;
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
     const fetchDeviationData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-position-deviations`);
         setDeviationData(response.data);
@@ -111,12 +96,11 @@ const MissionConfig = () => {
     return () => clearInterval(interval);
   }, [originAvailable]);
 
-  // -----------------------------
-  // Fetch telemetry data
-  // -----------------------------
+  // Telemetry
   useEffect(() => {
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
     const fetchTelemetryData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/telemetry`);
         setTelemetryData(response.data);
@@ -130,31 +114,29 @@ const MissionConfig = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // -----------------------------
-  // Fetch network info
-  // -----------------------------
+  // Network info
   useEffect(() => {
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
     const fetchNetworkInfo = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-network-info`);
         setNetworkInfo(response.data);
       } catch (error) {
-        console.error('Error fetching network information:', error);
+        console.error('Error fetching network info:', error);
       }
     };
 
     fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 10 seconds
+    const interval = setInterval(fetchNetworkInfo, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // -----------------------------
-  // Fetch heartbeats
-  // -----------------------------
+  // Heartbeats
   useEffect(() => {
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
     const fetchHeartbeats = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-heartbeats`);
         setHeartbeats(response.data || {});
@@ -164,17 +146,14 @@ const MissionConfig = () => {
     };
 
     fetchHeartbeats();
-    const interval = setInterval(fetchHeartbeats, 5000); // Poll every 5s
+    const interval = setInterval(fetchHeartbeats, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // -----------------------------
-  // Detect & Add any "new" drones
-  // automatically if we see a heartbeat
-  // for hw_id not in config
-  // -----------------------------
+  // -----------
+  // Auto-add new drones from heartbeats
+  // -----------
   useEffect(() => {
-    // Get all hw_ids from heartbeats
     const heartbeatHwIds = Object.keys(heartbeats);
 
     const newDrones = [];
@@ -190,8 +169,7 @@ const MissionConfig = () => {
           y: '0',
           mavlink_port: (14550 + parseInt(hbHwId)).toString(),
           debug_port: (13540 + parseInt(hbHwId)).toString(),
-          gcs_ip:
-            configData.length > 0 ? configData[0].gcs_ip : '', // fallback to first known
+          gcs_ip: configData[0]?.gcs_ip || '',
           isNew: true,
         });
       }
@@ -202,22 +180,18 @@ const MissionConfig = () => {
     }
   }, [heartbeats, configData]);
 
-  // -----------------------------
-  // Save changes for a drone
-  // -----------------------------
+  // -----------
+  // saveChanges => only updates configData locally
+  // -----------
   const saveChanges = (originalHwId, updatedData) => {
-    // Validation: Check for duplicate hardware ID
-    if (
-      configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)
-    ) {
+    // 1) Check for duplicate hardware ID
+    if (configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)) {
       alert('The selected Hardware ID is already in use. Please choose another one.');
       return;
     }
 
-    // Validation: Check for duplicate position ID
-    if (
-      configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)
-    ) {
+    // 2) Check for duplicate position ID
+    if (configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)) {
       if (
         !window.confirm(
           `Position ID ${updatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
@@ -227,7 +201,7 @@ const MissionConfig = () => {
       }
     }
 
-    // Merge changes and unset isNew
+    // 3) Merge changes into configData
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
         drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
@@ -236,16 +210,12 @@ const MissionConfig = () => {
     setEditingDroneId(null);
   };
 
-  // -----------------------------
-  // Add new drone (manual button)
-  // -----------------------------
+  // Add new drone
   const addNewDrone = () => {
-    const newHwId = availableHwIds[0]?.toString() || (maxHwId).toString();
+    const newHwId = availableHwIds[0]?.toString() || maxHwId.toString();
     if (!newHwId) return;
 
-    const allSameGcsIp = configData.every(
-      (drone) => drone.gcs_ip === configData[0]?.gcs_ip
-    );
+    const allSameGcsIp = configData.every((drone) => drone.gcs_ip === configData[0]?.gcs_ip);
     const commonSubnet =
       configData.length > 0
         ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
@@ -266,28 +236,22 @@ const MissionConfig = () => {
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
   };
 
-  // -----------------------------
   // Remove drone
-  // -----------------------------
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
     }
   };
 
-  // -----------------------------
   // Origin modal submission
-  // -----------------------------
   const handleOriginSubmit = (lat, lon) => {
     setOriginLat(lat);
     setOriginLon(lon);
     setShowOriginModal(false);
+
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     axios
-      .post(`${backendURL}/set-origin`, {
-        lat: lat,
-        lon: lon,
-      })
+      .post(`${backendURL}/set-origin`, { lat, lon })
       .then(() => {
         setOriginAvailable(true);
       })
@@ -296,37 +260,29 @@ const MissionConfig = () => {
       });
   };
 
-  // -----------------------------
-  // Import config (file)
-  // -----------------------------
+  // Import config from CSV
   const handleFileChangeWrapper = (event) => {
     handleFileChange(event, setConfigData);
   };
 
-  // -----------------------------
-  // Revert config
-  // -----------------------------
+  // Revert config changes
   const handleRevertChangesWrapper = () => {
     handleRevertChanges(setConfigData);
   };
 
-  // -----------------------------
-  // Save config to server
-  // -----------------------------
+  // Save all changes to server (Git push, CSV override)
   const handleSaveChangesToServerWrapper = () => {
     handleSaveChangesToServer(configData, setConfigData, setLoading);
   };
 
-  // -----------------------------
   // Export config
-  // -----------------------------
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
   };
 
-  // Sort config for display
+  // Sort drones by hardware ID for display
   const sortedConfigData = [...configData].sort(
-    (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
+    (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
   );
 
   return (
@@ -384,18 +340,22 @@ const MissionConfig = () => {
               saveChanges={saveChanges}
               removeDrone={removeDrone}
               networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
-              heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
-              positionIdMapping={positionIdMapping} // Pass the mapping
+              heartbeatData={heartbeats[drone.hw_id] || null}
             />
           ))}
         </div>
+
         <div className="initial-launch-plot">
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}
             deviationData={deviationData}
           />
-          <DronePositionMap originLat={originLat} originLon={originLon} drones={configData} />
+          <DronePositionMap
+            originLat={originLat}
+            originLon={originLon}
+            drones={configData}
+          />
         </div>
       </div>
     </div>
