@@ -7,14 +7,14 @@
     background-color: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px;
     margin-bottom: 20px;
     transition: box-shadow 0.3s;
     position: relative;
 }
 
 .drone-config-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .drone-config-card h4 {
@@ -28,23 +28,58 @@
 
 .new-drone-badge {
     position: absolute;
-    top: -10px;
-    right: -10px;
-    background-color: #ff9800;
-    color: #fff;
-    padding: 5px 8px;
+    top: 10px;
+    left: 10px;
+    background-color: #3b82f6;
+    /* Tailwind Blue-500 */
+    color: #ffffff;
+    padding: 5px 10px;
     border-radius: 4px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: bold;
-    transform: rotate(5deg);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.new-drone-badge svg {
+    font-size: 1rem;
 }
 
 
-/* If there's a mismatch, highlight the left border red */
+/* Heartbeat Info */
 
-.mismatch-drone {
-    border-left: 5px solid #dc2626;
-    /* Tailwind Red-600 */
+.heartbeat-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    color: #374151;
+}
+
+.status-icon {
+    font-size: 1rem;
+}
+
+.status-icon.online {
+    color: #10b981;
+    /* Tailwind Green-500 */
+}
+
+.status-icon.stale {
+    color: #f59e0b;
+    /* Tailwind Yellow-500 */
+}
+
+.status-icon.offline {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.status-icon.no-heartbeat {
+    color: #6b7280;
+    /* Tailwind Gray-500 */
 }
 
 
@@ -60,27 +95,89 @@
 .drone-config-card select,
 .drone-config-card input {
     width: 100%;
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid #d1d5db;
     border-radius: 4px;
     margin-top: 0.25rem;
     box-sizing: border-box;
+    font-size: 0.95rem;
 }
 
 .drone-config-card input:focus,
 .drone-config-card select:focus {
     outline: none;
     border-color: #2563eb;
+    /* Tailwind Blue-600 */
     box-shadow: 0 0 0 1px #2563eb;
 }
 
 
-/* Error Message Styling */
+/* Input with Icon Wrapper */
 
-.error-message {
+.input-with-icon {
+    position: relative;
+}
+
+.warning-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
     color: #ef4444;
-    font-size: 0.875rem;
-    margin-top: 0.25rem;
+    /* Tailwind Red-500 */
+    pointer-events: none;
+}
+
+
+/* Mismatch Text */
+
+.mismatch-text {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+    font-weight: bold;
+}
+
+
+/* Mismatch Message Box */
+
+.mismatch-message {
+    margin-top: 6px;
+    background-color: #fff5f5;
+    /* Light red background */
+    border: 1px solid #fca5a5;
+    /* Red border */
+    color: #b91c1c;
+    /* Dark red text */
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mismatch-message .accept-button {
+    background-color: #ef4444;
+    /* Tailwind Red-500 */
+    color: #ffffff;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.mismatch-message .accept-button:hover {
+    background-color: #dc2626;
+    /* Tailwind Red-600 */
+}
+
+.mismatch-message svg {
+    font-size: 0.8rem;
 }
 
 
@@ -88,21 +185,25 @@
 
 .card-buttons {
     display: flex;
-    gap: 0.5rem;
+    gap: 10px;
     margin-top: 1rem;
 }
 
 .card-buttons button {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1.2rem;
+    gap: 5px;
+    padding: 8px 12px;
     border: none;
     border-radius: 4px;
-    color: #fff;
+    color: #ffffff;
     cursor: pointer;
     font-size: 0.9rem;
     transition: background-color 0.2s;
+}
+
+.card-buttons button svg {
+    font-size: 1rem;
 }
 
 
@@ -115,58 +216,37 @@
 
 .save-drone:hover {
     background-color: #059669;
+    /* Tailwind Green-600 */
 }
 
 .cancel-edit {
     background-color: #6b7280;
+    /* Tailwind Gray-500 */
 }
 
 .cancel-edit:hover {
     background-color: #4b5563;
+    /* Tailwind Gray-600 */
 }
 
 .edit-drone {
     background-color: #3b82f6;
+    /* Tailwind Blue-500 */
 }
 
 .edit-drone:hover {
     background-color: #2563eb;
+    /* Tailwind Blue-600 */
 }
 
 .remove-drone {
     background-color: #ef4444;
+    /* Tailwind Red-500 */
 }
 
 .remove-drone:hover {
     background-color: #dc2626;
-}
-
-
-/* Mismatch Message Box */
-
-.mismatch-message {
-    margin-top: 6px;
-    background-color: #fff5f5;
-    border: 1px solid #fca5a5;
-    color: #b91c1c;
-    padding: 5px 8px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-}
-
-.mismatch-message .accept-button {
-    margin-left: 8px;
-    background-color: #dc2626;
-    color: #fff;
-    border: none;
-    border-radius: 3px;
-    padding: 3px 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-
-.mismatch-message .accept-button:hover {
-    background-color: #b91c1c;
+    /* Tailwind Red-600 */
 }
 
 
@@ -176,12 +256,13 @@
     margin-top: 10px;
     padding: 10px;
     background-color: #e8f5e9;
-    /* Light green background for network info */
+    /* Light green background */
     border-left: 4px solid #66bb6a;
-    /* Green border to indicate network */
+    /* Green border */
     border-radius: 5px;
     font-size: 0.95rem;
     color: #2e7d32;
+    /* Dark green text */
 }
 
 .network-info p {
@@ -190,6 +271,30 @@
 
 .network-info strong {
     color: #1b5e20;
+    /* Darker green */
+}
+
+
+/* Wi-Fi Icon Colors */
+
+.wifi-icon.strong {
+    color: #10b981;
+    /* Tailwind Green-500 */
+}
+
+.wifi-icon.medium {
+    color: #f59e0b;
+    /* Tailwind Yellow-500 */
+}
+
+.wifi-icon.weak {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.wifi-icon.none {
+    color: #6b7280;
+    /* Tailwind Gray-500 */
 }
 
 
@@ -215,5 +320,5 @@
 /* Hover Shadow Repeated */
 
 .drone-config-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
