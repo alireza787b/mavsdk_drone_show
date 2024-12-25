@@ -174,6 +174,7 @@ const DroneEditForm = memo(function DroneEditForm({
   onCancel,
   hwIdOptions,
   configData,
+  setDroneData,
 }) {
   const [showPosChangeDialog, setShowPosChangeDialog] = useState(false);
   const [pendingPosId, setPendingPosId] = useState(null);
@@ -609,6 +610,7 @@ export default function DroneConfigCard({
           }}
           hwIdOptions={hwIdList}
           configData={configData}
+          setDroneData={setDroneData}
         />
       ) : (
         <DroneReadOnlyView
