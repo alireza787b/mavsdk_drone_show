@@ -240,28 +240,42 @@ const DroneEditForm = memo(function DroneEditForm({
   };
 
   /** Confirm the pos_id change => auto-update local droneData.x,y if matched */
-  const handleConfirmPosChange = () => {
-    if (!pendingPosId) {
-      setShowPosChangeDialog(false);
-      return;
-    }
-  
-    // Update pos_id in the droneData state
-    onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
-  
-    // Update x, y if matched with another drone
-    const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
-    if (matchedDrone) {
-      onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
-      onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
-      onFieldChange({ target: { name: 'pos_id', value: matchedDrone.pos_id } });
-    }
-  
-  
-    setOriginalPosId(pendingPosId); // Finalize the change
+  /** Confirm the pos_id change => auto-update local droneData.x,y if matched */
+const handleConfirmPosChange = () => {
+  if (!pendingPosId) {
     setShowPosChangeDialog(false);
-    setPendingPosId(null);
-  };
+    return;
+  }
+
+  // Update pos_id in the droneData state
+  onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
+
+  // Update x, y if matched with another drone
+  const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
+  if (matchedDrone) {
+    onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
+    onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
+
+    // Ensure the local droneData state is updated
+    setDroneData((prevData) => ({
+      ...prevData,
+      pos_id: pendingPosId,
+      x: matchedDrone.x,
+      y: matchedDrone.y,
+    }));
+  } else {
+    // If no match, ensure only pos_id is updated
+    setDroneData((prevData) => ({
+      ...prevData,
+      pos_id: pendingPosId,
+    }));
+  }
+
+  setOriginalPosId(pendingPosId); // Finalize the change
+  setShowPosChangeDialog(false);
+  setPendingPosId(null);
+};
+
   
 
   /** Generic onChange handler for other fields */
