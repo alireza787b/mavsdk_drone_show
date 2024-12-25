@@ -41,10 +41,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   heartbeatIP,
   heartbeatPos,
   networkInfo,
+  gitStatus, // Add gitStatus to destructured props
   onEdit,
   onRemove,
 }) {
-  // Determine heartbeat icon based on status
   const getHeartbeatIcon = () => {
     switch (heartbeatStatus) {
       case 'Online (Recent)':
@@ -58,7 +58,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     }
   };
 
-  // Determine Wi-Fi icon
   const getWifiIcon = (strength) => {
     if (strength >= 80) return <FontAwesomeIcon icon={faSignal} className="wifi-icon strong" title="Strong Signal" aria-label="Strong Signal" />;
     if (strength >= 50) return <FontAwesomeIcon icon={faSignal} className="wifi-icon medium" title="Medium Signal" aria-label="Medium Signal" />;
@@ -115,23 +114,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </span>
       </p>
 
-      <p><strong>MavLink Port:</strong> {drone.mavlink_port}</p>
-      <p><strong>Debug Port:</strong> {drone.debug_port}</p>
-      <p><strong>GCS IP:</strong> {drone.gcs_ip}</p>
-      <p><strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})</p>
-
-      {networkInfo ? (
-        <div className="network-info" aria-label="Network Information">
-          <p><strong>Network Status:</strong> {ssid ? `SSID: ${ssid}` : 'N/A'}</p>
-          <p>
-            <strong>Signal Strength:</strong> {wifiStrength || 'N/A'} {getWifiIcon(wifiStrength)}
-          </p>
-          <p><strong>Ethernet:</strong> {ethernetInterface || 'N/A'}</p>
-        </div>
-      ) : (
-        <p><strong>Network Info:</strong> Not available</p>
-      )}
-
       <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">
@@ -155,6 +137,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     </>
   );
 });
+
 
 /**
  * Edit Form: Let the user modify drone fields, including `pos_id`.
