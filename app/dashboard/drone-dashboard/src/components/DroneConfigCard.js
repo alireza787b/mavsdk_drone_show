@@ -244,22 +244,28 @@ const DroneEditForm = memo(function DroneEditForm({
       setShowPosChangeDialog(false);
       return;
     }
-
-    // Overwrite pos_id in local state
+  
+    // Update pos_id in the droneData state
     onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
-
-    // If new pos_id belongs to another drone, overwrite x,y
+  
+    // Update x, y if matched with another drone
     const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
     if (matchedDrone) {
       onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
       onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
     }
-
-    // Now the new pos_id is official
-    setOriginalPosId(pendingPosId);
+  
+    // Ensure pos_id is updated in state for UI consistency
+    setDroneData((prevData) => ({
+      ...prevData,
+      pos_id: pendingPosId, // Explicitly update Position ID
+    }));
+  
+    setOriginalPosId(pendingPosId); // Finalize the change
     setShowPosChangeDialog(false);
     setPendingPosId(null);
   };
+  
 
   /** Generic onChange handler for other fields */
   const handleGenericChange = (e) => {
@@ -419,19 +425,19 @@ const DroneEditForm = memo(function DroneEditForm({
       <label>
         Position ID:
         <div className="input-with-icon">
-          <select
-            name="pos_id"
-            value={droneData.pos_id}
-            onChange={handlePosSelectChange}
-            aria-label="Position ID"
-          >
-            {/** Render all discovered pos_ids */}
-            {allPosIds.map((pid) => (
-              <option key={pid} value={pid}>
-                {pid}
-              </option>
-            ))}
-          </select>
+        <select
+        name="pos_id"
+        value={droneData.pos_id} // This should now reflect the updated value
+        onChange={handlePosSelectChange}
+        aria-label="Position ID"
+      >
+        {allPosIds.map((pid) => (
+          <option key={pid} value={pid}>
+            {pid}
+          </option>
+        ))}
+      </select>
+
           {posMismatch && (
             <FontAwesomeIcon
               icon={faExclamationCircle}

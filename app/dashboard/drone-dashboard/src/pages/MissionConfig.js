@@ -192,31 +192,27 @@ const MissionConfig = () => {
   // saveChanges => only updates configData locally
   // -----------
   const saveChanges = (originalHwId, updatedData) => {
-    // 1) Check for duplicate hardware ID
+    // Check for duplicates
     if (configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)) {
-      alert('The selected Hardware ID is already in use. Please choose another one.');
+      alert('The selected Hardware ID is already in use.');
       return;
     }
-
-    // 2) Check for duplicate position ID
+  
     if (configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)) {
-      if (
-        !window.confirm(
-          `Position ID ${updatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
-        )
-      ) {
+      if (!window.confirm(`Position ID ${updatedData.pos_id} is already assigned.`)) {
         return;
       }
     }
-
-    // 3) Merge changes into configData
+  
+    // Merge updates
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
         drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
       )
     );
-    setEditingDroneId(null);
+    setEditingDroneId(null); // Exit edit mode
   };
+  
 
   // Add new drone
   const addNewDrone = () => {
