@@ -12,6 +12,7 @@ import ConfirmationDialog from '../components/ConfirmationDialog'; // Import Con
 import { getBackendURL } from '../utilities/utilities';
 import DronePositionMap from '../components/DronePositionMap';
 
+
 import {
   handleSaveChangesToServer,
   handleRevertChanges,
@@ -30,6 +31,8 @@ const MissionConfig = () => {
   const [originAvailable, setOriginAvailable] = useState(false);
   const [telemetryData, setTelemetryData] = useState({});
   const [networkInfo, setNetworkInfo] = useState([]);
+  const [gitStatusData, setGitStatusData] = useState({});
+
   const [loading, setLoading] = useState(false); // Loading state for save operation
 
   // Heartbeat data from GCS
@@ -129,6 +132,25 @@ const MissionConfig = () => {
     const interval = setInterval(fetchTelemetryData, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // -----------------------------
+  // Fetch Git status data
+  // -----------------------------
+
+    useEffect(() => {
+      const fetchGitStatus = async () => {
+        try {
+          const response = await axios.get(`${getBackendURL()}/git-status`);
+          setGitStatusData(response.data);
+        } catch (error) {
+          console.error('Error fetching Git status data:', error);
+        }
+      };
+  
+      fetchGitStatus();
+      const interval = setInterval(fetchGitStatus, 10000); // Poll every 10 seconds
+      return () => clearInterval(interval);
+    }, []);
 
   // -----------------------------
   // Fetch network info
@@ -377,6 +399,7 @@ const MissionConfig = () => {
             <DroneConfigCard
               key={drone.hw_id}
               drone={drone}
+              gitStatus={gitStatusData[drone.hw_id] || null}
               configData={configData}
               availableHwIds={availableHwIds}
               editingDroneId={editingDroneId}
