@@ -456,60 +456,70 @@ async def initial_setup_and_connection():
         led_controller.set_color(255, 0, 0)  # Red
         raise
 
-async def pre_flight_checks(drone: System):
-    """
-    Perform pre-flight checks to ensure the drone is ready for flight.
+async def pre_flight_checks(drone: System): 
+    """ 
+    Perform pre-flight checks to ensure the drone is ready for flight. 
+ 
+    Args: 
+        drone (System): MAVSDK drone system instance. 
+ 
+    Returns: 
+        GlobalPosition: Home position telemetry data if global position check is required. 
+    """ 
+    logger = logging.getLogger(__name__) 
+    logger.info("Starting pre-flight checks.") 
+    home_position = None 
+    led_controller = LEDController.get_instance() 
 
-    Args:
-        drone (System): MAVSDK drone system instance.
+    # Set color to yellow to indicate waiting/checking 
+    led_controller.set_color(255, 255, 0) 
+    start_time = time.time() 
 
-    Returns:
-        GlobalPosition: Home position telemetry data.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info("Starting pre-flight checks.")
-    home_position = None
-    led_controller = LEDController.get_instance()
-
-    # Set color to yellow to indicate waiting for GPS lock
-    led_controller.set_color(255, 255, 0)
-    start_time = time.time()
-    try:
-        async for health in drone.telemetry.health():
-            if health.is_global_position_ok and health.is_home_position_ok:
-                logger.info("Global position estimate and home position check passed.")
-                # Get home position
-                async for position in drone.telemetry.position():
-                    home_position = position
-                    logger.info(f"Home Position set to: {home_position}")
-                    break
-                if home_position is None:
-                    logger.error("Home position telemetry data is missing.")
-                break
-            else:
-                if not health.is_global_position_ok:
-                    logger.warning("Waiting for global position to be okay.")
-                if not health.is_home_position_ok:
-                    logger.warning("Waiting for home position to be set.")
-
-            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                logger.error("Pre-flight checks timed out.")
-                led_controller.set_color(255, 0, 0)  # Red
-                raise TimeoutError("Pre-flight checks timed out.")
-            await asyncio.sleep(1)
-
-        if home_position:
-            logger.info("Pre-flight checks successful.")
-            led_controller.set_color(0, 255, 0)  # Green
+    try: 
+        # Check if global position check is required 
+        if Params.REQUIRE_GLOBAL_POSITION:
+            async for health in drone.telemetry.health(): 
+                if health.is_global_position_ok and health.is_home_position_ok: 
+                    logger.info("Global position estimate and home position check passed.") 
+                    # Get home position 
+                    async for position in drone.telemetry.position(): 
+                        home_position = position 
+                        logger.info(f"Home Position set to: {home_position}") 
+                        break 
+                    
+                    if home_position is None: 
+                        logger.error("Home position telemetry data is missing.") 
+                    break 
+                else: 
+                    if not health.is_global_position_ok : 
+                        logger.warning("Waiting for global position to be okay.") 
+                    if not health.is_home_position_ok: 
+                        logger.warning("Waiting for home position to be set.") 
+ 
+                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT: 
+                    logger.error("Pre-flight checks timed out.") 
+                    led_controller.set_color(255, 0, 0)  # Red 
+                    raise TimeoutError("Pre-flight checks timed out.") 
+                await asyncio.sleep(1) 
+ 
+            if home_position: 
+                logger.info("Pre-flight checks successful.") 
+                led_controller.set_color(0, 255, 0)  # Green 
+            else: 
+                logger.error("Pre-flight checks failed.") 
+                led_controller.set_color(255, 0, 0)  # Red 
+                raise Exception("Pre-flight checks failed.") 
+ 
+            return home_position 
         else:
-            logger.error("Pre-flight checks failed.")
-            led_controller.set_color(255, 0, 0)  # Red
-            raise Exception("Pre-flight checks failed.")
+            # If global position check is not required, log and continue
+            logger.info("Skipping global position check as per configuration.")
+            led_controller.set_color(0, 255, 0)  # Green 
+            return None
 
-        return home_position
-    except Exception:
-        logger.exception("Error during pre-flight checks")
-        led_controller.set_color(255, 0, 0)  # Red
+    except Exception: 
+        logger.exception("Error during pre-flight checks") 
+        led_controller.set_color(255, 0, 0)  # Red 
         raise
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
@@ -527,23 +537,36 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
         # Set color to green to indicate arming
         led_controller.set_color(0, 255, 0)
 
-        # Get current global position
-        current_global_position = None
-        start_time = time.time()
-        while current_global_position is None:
-            async for position in drone.telemetry.position():
-                current_global_position = position
-                break
-            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                logger.error("Timeout waiting for current global position.")
-                raise TimeoutError("Timeout waiting for current global position.")
-            await asyncio.sleep(0.1)
+        # Compute initial position drift
+        initial_position_drift_ned = None
+        
+        # Check if global position drift calculation is required
+        if Params.REQUIRE_GLOBAL_POSITION:
+            # Get current global position
+            current_global_position = None
+            start_time = time.time()
+            while current_global_position is None:
+                async for position in drone.telemetry.position():
+                    current_global_position = position
+                    break
+                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
+                    logger.error("Timeout waiting for current global position.")
+                    raise TimeoutError("Timeout waiting for current global position.")
+                await asyncio.sleep(0.1)
 
-        # Compute initial position drift in NED coordinates
-        initial_position_drift_ned = global_to_local(current_global_position, home_position)
-        logger.info(f"Initial position drift in NED: {initial_position_drift_ned}")
+            # Compute initial position drift in NED coordinates
+            if home_position:
+                initial_position_drift_ned = global_to_local(current_global_position, home_position)
+                logger.info(f"Initial position drift in NED: {initial_position_drift_ned}")
+            else:
+                logger.warning("Cannot compute drift: No home position available.")
+        else:
+            # If global position is not required
+            logger.info("Skipping global position drift calculation as per configuration.")
+            if home_position:
+                logger.warning("Home position provided but global position checks are disabled.")
 
-        # Store the drift
+        # Store the drift (even if it's None)
         global initial_position_drift
         initial_position_drift = initial_position_drift_ned
 
