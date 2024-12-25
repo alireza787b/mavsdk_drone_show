@@ -4,7 +4,18 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faTrash, faSave, faTimes } from '@fortawesome/free-solid-svg-icons';
+import {
+  faEdit,
+  faTrash,
+  faSave,
+  faTimes,
+  faCircle,
+  faExclamationTriangle,
+  faTimesCircle,
+  faExclamationCircle,
+  faPlusCircle,
+  faSignal,
+} from '@fortawesome/free-solid-svg-icons';
 import '../styles/DroneConfigCard.css';
 
 /**
@@ -22,18 +33,89 @@ function DroneReadOnlyView({
   heartbeatPos,
   networkInfo,
   onEdit,
-  onRemove
+  onRemove,
 }) {
-  // Colorize text if mismatch
-  const ipStyle = ipMismatch ? { color: 'red', fontWeight: 'bold' } : {};
-  const posStyle = posMismatch ? { color: 'red', fontWeight: 'bold' } : {};
+  // Determine heartbeat icon and color based on status
+  const getHeartbeatIcon = () => {
+    switch (heartbeatStatus) {
+      case 'Online (Recent)':
+        return (
+          <FontAwesomeIcon
+            icon={faCircle}
+            className="status-icon online"
+            title="Online (Recent)"
+            aria-label="Online (Recent)"
+          />
+        );
+      case 'Stale (>20s)':
+        return (
+          <FontAwesomeIcon
+            icon={faExclamationTriangle}
+            className="status-icon stale"
+            title="Stale (>20s)"
+            aria-label="Stale (>20s)"
+          />
+        );
+      case 'Offline (>60s)':
+        return (
+          <FontAwesomeIcon
+            icon={faTimesCircle}
+            className="status-icon offline"
+            title="Offline (>60s)"
+            aria-label="Offline (>60s)"
+          />
+        );
+      default:
+        return (
+          <FontAwesomeIcon
+            icon={faCircle}
+            className="status-icon no-heartbeat"
+            title="No Heartbeat"
+            aria-label="No Heartbeat"
+          />
+        );
+    }
+  };
 
-  // Wi-Fi color helper
-  const getWifiStrengthColor = (strength) => {
-    if (!strength) return 'inherit';
-    if (strength >= 80) return 'green';
-    if (strength >= 50) return 'orange';
-    return 'red';
+  // Wi-Fi signal icon based on strength
+  const getWifiIcon = (strength) => {
+    if (strength >= 80) {
+      return (
+        <FontAwesomeIcon
+          icon={faSignal}
+          className="wifi-icon strong"
+          title="Strong Signal"
+          aria-label="Strong Signal"
+        />
+      );
+    } else if (strength >= 50) {
+      return (
+        <FontAwesomeIcon
+          icon={faSignal}
+          className="wifi-icon medium"
+          title="Medium Signal"
+          aria-label="Medium Signal"
+        />
+      );
+    } else if (strength > 0) {
+      return (
+        <FontAwesomeIcon
+          icon={faSignal}
+          className="wifi-icon weak"
+          title="Weak Signal"
+          aria-label="Weak Signal"
+        />
+      );
+    } else {
+      return (
+        <FontAwesomeIcon
+          icon={faSignal}
+          className="wifi-icon none"
+          title="No Signal"
+          aria-label="No Signal"
+        />
+      );
+    }
   };
 
   // Extract network data
@@ -43,61 +125,80 @@ function DroneReadOnlyView({
 
   return (
     <>
-      {/* If it’s a new drone, show a small badge or banner */}
-      {isNew && <div className="new-drone-badge">Newly Detected Drone</div>}
+      {/* If it’s a new drone, show a prominent badge */}
+      {isNew && (
+        <div className="new-drone-badge" aria-label="Newly Detected Drone">
+          <FontAwesomeIcon icon={faPlusCircle} /> Newly Detected
+        </div>
+      )}
 
       {/* Heartbeat Info */}
-      {heartbeatStatus !== 'No heartbeat' && (
-        <p>
-          <strong>Heartbeat:</strong> {heartbeatStatus} ({heartbeatAgeSec || 0}s ago)
-        </p>
-      )}
-      {heartbeatStatus === 'No heartbeat' && (
-        <p style={{ color: 'gray' }}>
-          <strong>Heartbeat:</strong> No heartbeat received
-        </p>
-      )}
+      <div className="heartbeat-info">
+        <strong>Heartbeat:</strong> {getHeartbeatIcon()} {heartbeatStatus}
+        {heartbeatAgeSec !== null && <span> ({heartbeatAgeSec}s ago)</span>}
+      </div>
 
-      <p><strong>Hardware ID:</strong> {drone.hw_id}</p>
+      <p>
+        <strong>Hardware ID:</strong> {drone.hw_id}
+      </p>
 
       {/* IP */}
       <p>
         <strong>IP:</strong>{' '}
-        <span style={ipStyle}>{drone.ip}</span>
-        {ipMismatch && heartbeatIP && (
-          <em style={{ color: 'red', marginLeft: '6px' }}>
-            (Mismatch from {heartbeatIP})
-          </em>
-        )}
+        <span className={ipMismatch ? 'mismatch-text' : ''}>
+          {drone.ip}
+          {ipMismatch && heartbeatIP && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+              aria-label={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+            />
+          )}
+        </span>
       </p>
 
       {/* Position ID */}
       <p>
         <strong>Position ID:</strong>{' '}
-        <span style={posStyle}>{drone.pos_id}</span>
-        {posMismatch && heartbeatPos && (
-          <em style={{ color: 'red', marginLeft: '6px' }}>
-            (Mismatch from {heartbeatPos})
-          </em>
-        )}
+        <span className={posMismatch ? 'mismatch-text' : ''}>
+          {drone.pos_id}
+          {posMismatch && heartbeatPos && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+              aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+            />
+          )}
+        </span>
       </p>
 
-      <p><strong>MavLink Port:</strong> {drone.mavlink_port}</p>
-      <p><strong>Debug Port:</strong> {drone.debug_port}</p>
-      <p><strong>GCS IP:</strong> {drone.gcs_ip}</p>
+      <p>
+        <strong>MavLink Port:</strong> {drone.mavlink_port}
+      </p>
+      <p>
+        <strong>Debug Port:</strong> {drone.debug_port}
+      </p>
+      <p>
+        <strong>GCS IP:</strong> {drone.gcs_ip}
+      </p>
       <p>
         <strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})
       </p>
 
       {/* Network Information Display */}
       {networkInfo ? (
-        <div className="network-info">
-          <p><strong>Network Status</strong></p>
-          <p><strong>SSID:</strong> {ssid || 'N/A'}</p>
-          <p style={{ color: getWifiStrengthColor(wifiStrength) }}>
-            <strong>Signal Strength:</strong> {wifiStrength || 'N/A'}%
+        <div className="network-info" aria-label="Network Information">
+          <p>
+            <strong>Network Status:</strong> {ssid ? `SSID: ${ssid}` : 'N/A'}
           </p>
-          <p><strong>Ethernet:</strong> {ethernetInterface || 'N/A'}</p>
+          <p>
+            <strong>Signal Strength:</strong> {wifiStrength || 'N/A'} {getWifiIcon(wifiStrength)}
+          </p>
+          <p>
+            <strong>Ethernet:</strong> {ethernetInterface || 'N/A'}
+          </p>
         </div>
       ) : (
         <p>
@@ -135,7 +236,7 @@ function DroneEditForm({
   onAcceptPos,
   onSave,
   onCancel,
-  hwIdOptions
+  hwIdOptions,
 }) {
   return (
     <>
@@ -146,8 +247,9 @@ function DroneEditForm({
           value={droneData.hw_id}
           onChange={onFieldChange}
           title="Select Hardware ID"
+          aria-label="Select Hardware ID"
         >
-          {hwIdOptions.map(id => (
+          {hwIdOptions.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>
@@ -158,20 +260,37 @@ function DroneEditForm({
 
       <label>
         IP Address:
-        <input
-          type="text"
-          name="ip"
-          value={droneData.ip}
-          onChange={onFieldChange}
-          placeholder="Enter IP Address"
-          style={ipMismatch ? { borderColor: 'red' } : {}}
-        />
+        <div className="input-with-icon">
+          <input
+            type="text"
+            name="ip"
+            value={droneData.ip}
+            onChange={onFieldChange}
+            placeholder="Enter IP Address"
+            style={ipMismatch ? { borderColor: 'red' } : {}}
+            aria-label="IP Address"
+          />
+          {ipMismatch && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+              aria-label={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+            />
+          )}
+        </div>
         {errors.ip && <span className="error-message">{errors.ip}</span>}
         {ipMismatch && heartbeatIP && (
           <div className="mismatch-message">
-            Mismatch with heartbeat: {heartbeatIP}
-            <button type="button" className="accept-button" onClick={onAcceptIp}>
-              Accept Heartbeat IP
+            IP mismatch with heartbeat: {heartbeatIP}
+            <button
+              type="button"
+              className="accept-button"
+              onClick={onAcceptIp}
+              title="Accept Heartbeat IP"
+              aria-label="Accept Heartbeat IP"
+            >
+              <FontAwesomeIcon icon={faCircle} /> Accept
             </button>
           </div>
         )}
@@ -185,6 +304,7 @@ function DroneEditForm({
           value={droneData.mavlink_port}
           onChange={onFieldChange}
           placeholder="Enter MavLink Port"
+          aria-label="MavLink Port"
         />
         {errors.mavlink_port && <span className="error-message">{errors.mavlink_port}</span>}
       </label>
@@ -197,6 +317,7 @@ function DroneEditForm({
           value={droneData.debug_port}
           onChange={onFieldChange}
           placeholder="Enter Debug Port"
+          aria-label="Debug Port"
         />
         {errors.debug_port && <span className="error-message">{errors.debug_port}</span>}
       </label>
@@ -209,6 +330,7 @@ function DroneEditForm({
           value={droneData.gcs_ip}
           onChange={onFieldChange}
           placeholder="Enter GCS IP Address"
+          aria-label="GCS IP Address"
         />
         {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
       </label>
@@ -221,6 +343,7 @@ function DroneEditForm({
           value={droneData.x}
           onChange={onFieldChange}
           placeholder="Enter Initial X Coordinate"
+          aria-label="Initial X Coordinate"
         />
         {errors.x && <span className="error-message">{errors.x}</span>}
       </label>
@@ -233,40 +356,59 @@ function DroneEditForm({
           value={droneData.y}
           onChange={onFieldChange}
           placeholder="Enter Initial Y Coordinate"
+          aria-label="Initial Y Coordinate"
         />
         {errors.y && <span className="error-message">{errors.y}</span>}
       </label>
 
       <label>
         Position ID:
-        <input
-          type="text"
-          name="pos_id"
-          value={droneData.pos_id}
-          onChange={onFieldChange}
-          placeholder="Enter Position ID"
-          style={posMismatch ? { borderColor: 'red' } : {}}
-        />
+        <div className="input-with-icon">
+          <input
+            type="text"
+            name="pos_id"
+            value={droneData.pos_id}
+            onChange={onFieldChange}
+            placeholder="Enter Position ID"
+            style={posMismatch ? { borderColor: 'red' } : {}}
+            aria-label="Position ID"
+          />
+          {posMismatch && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+              aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+            />
+          )}
+        </div>
         {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
         {posMismatch && heartbeatPos && (
           <div className="mismatch-message">
-            Mismatch with heartbeat: {heartbeatPos}
-            <button type="button" className="accept-button" onClick={onAcceptPos}>
-              Accept Heartbeat PosID
+            Position ID mismatch with heartbeat: {heartbeatPos}
+            <button
+              type="button"
+              className="accept-button"
+              onClick={onAcceptPos}
+              title="Accept Heartbeat PosID"
+              aria-label="Accept Heartbeat PosID"
+            >
+              <FontAwesomeIcon icon={faCircle} /> Accept
             </button>
           </div>
         )}
       </label>
 
       <div className="card-buttons">
-        <button className="save-drone" onClick={onSave} title="Save changes">
+        <button className="save-drone" onClick={onSave} title="Save changes" aria-label="Save changes">
           <FontAwesomeIcon icon={faSave} /> Save
         </button>
-        <button className="cancel-edit" onClick={onCancel} title="Cancel editing">
+        <button className="cancel-edit" onClick={onCancel} title="Cancel editing" aria-label="Cancel editing">
           <FontAwesomeIcon icon={faTimes} /> Cancel
         </button>
       </div>
     </>
+
   );
 }
 
@@ -282,7 +424,7 @@ export default function DroneConfigCard({
   saveChanges,
   removeDrone,
   networkInfo,
-  heartbeatData
+  heartbeatData,
 }) {
   const isEditing = editingDroneId === drone.hw_id;
 
@@ -292,9 +434,7 @@ export default function DroneConfigCard({
 
   // Calculate heartbeatAgeSec and heartbeatStatus
   const now = Date.now();
-  const heartbeatAgeSec = heartbeatData
-    ? Math.floor((now - heartbeatData.timestamp) / 1000)
-    : null;
+  const heartbeatAgeSec = heartbeatData ? Math.floor((now - heartbeatData.timestamp) / 1000) : null;
 
   let heartbeatStatus = 'No heartbeat';
   if (heartbeatAgeSec !== null) {
@@ -312,16 +452,16 @@ export default function DroneConfigCard({
   const posMismatch = heartbeatData ? heartbeatData.pos_id !== drone.pos_id : false;
 
   // Compute hardware ID options
-  const allHwIds = new Set(configData.map(d => d.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id))) + 1;
+  const allHwIds = new Set(configData.map((d) => d.hw_id));
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id))) + 1;
   const hwIdOptions = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
-    id => !allHwIds.has(id) || id === drone.hw_id
+    (id) => !allHwIds.has(id) || id === drone.hw_id
   );
 
   // Extra class based on status
   const cardExtraClass = drone.isNew
     ? ' new-drone'
-    : (ipMismatch || posMismatch)
+    : ipMismatch || posMismatch
     ? ' mismatch-drone'
     : '';
 
@@ -402,5 +542,5 @@ DroneConfigCard.propTypes = {
   saveChanges: PropTypes.func.isRequired,
   removeDrone: PropTypes.func.isRequired,
   networkInfo: PropTypes.object,
-  heartbeatData: PropTypes.object
+  heartbeatData: PropTypes.object,
 };
