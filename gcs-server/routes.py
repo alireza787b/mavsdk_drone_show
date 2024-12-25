@@ -1,5 +1,6 @@
 # gcs-server/routes.py
 
+import json
 import os
 import threading  # Import threading for asynchronous execution
 import sys
@@ -133,7 +134,13 @@ def setup_routes(app):
             return error_response("No configuration data provided", 400)
 
         logger.info("Received configuration data for saving")
+        logger.debug(f"Configuration data received: {json.dumps(config_data, indent=2)}")  # Log the received data
+
         try:
+            # Validate config_data
+            if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
+                raise ValueError("Invalid configuration data format")
+
             # Save the configuration data
             save_config(config_data)
             logger.info("Configuration saved successfully")
@@ -163,6 +170,8 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error saving configuration: {e}", exc_info=True)
             return error_response(f"Error saving configuration: {e}")
+
+
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
