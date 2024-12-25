@@ -254,6 +254,7 @@ const DroneEditForm = memo(function DroneEditForm({
     if (matchedDrone) {
       onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
       onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
+      onFieldChange({ target: { name: 'pos_id', value: matchedDrone.pos_id } });
     }
   
   
