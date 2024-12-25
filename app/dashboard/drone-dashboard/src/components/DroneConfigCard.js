@@ -55,6 +55,8 @@ function DroneReadOnlyView({
           <strong>Heartbeat:</strong> No heartbeat received
         </p>
       )}
+      <p><strong>Hardware ID:</strong> {drone.hw_id}</p>
+
 
       {/* IP */}
       <p>
