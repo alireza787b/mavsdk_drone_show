@@ -1,5 +1,4 @@
 // src/pages/MissionConfig.js
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
@@ -31,6 +30,9 @@ const MissionConfig = () => {
   const [networkInfo, setNetworkInfo] = useState([]);
   const [loading, setLoading] = useState(false); // Add loading state for save operation
 
+  // New: Heartbeat data from GCS
+  const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, "2": {...}, ... }
+
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
   const maxHwId = Math.max(0, ...Array.from(allHwIds)) + 1;
@@ -38,7 +40,9 @@ const MissionConfig = () => {
     (id) => !allHwIds.has(id)
   );
 
-  // Fetch configuration data from the backend when the component mounts
+  // -----------------------------
+  // Fetch config data on mount
+  // -----------------------------
   useEffect(() => {
     const fetchData = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
@@ -52,7 +56,9 @@ const MissionConfig = () => {
     fetchData();
   }, []);
 
-  // Fetch origin coordinates from the backend when the component mounts
+  // -----------------------------
+  // Fetch origin on mount
+  // -----------------------------
   useEffect(() => {
     const fetchOrigin = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
@@ -73,7 +79,9 @@ const MissionConfig = () => {
     fetchOrigin();
   }, []);
 
-  // Fetch deviation data periodically (every 2 seconds)
+  // -----------------------------
+  // Fetch deviation data
+  // -----------------------------
   useEffect(() => {
     if (!originAvailable) return;
 
@@ -92,7 +100,9 @@ const MissionConfig = () => {
     return () => clearInterval(interval);
   }, [originAvailable]);
 
-  // Fetch telemetry data periodically (every 2 seconds)
+  // -----------------------------
+  // Fetch telemetry data
+  // -----------------------------
   useEffect(() => {
     const fetchTelemetryData = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
@@ -109,7 +119,9 @@ const MissionConfig = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch network info for all drones
+  // -----------------------------
+  // Fetch network info
+  // -----------------------------
   useEffect(() => {
     const fetchNetworkInfo = async () => {
       const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
@@ -122,11 +134,67 @@ const MissionConfig = () => {
     };
 
     fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 10 seconds
+    const interval = setInterval(fetchNetworkInfo, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Save changes for a specific drone
+  // -----------------------------
+  // New: Fetch heartbeats
+  // -----------------------------
+  useEffect(() => {
+    const fetchHeartbeats = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      try {
+        const response = await axios.get(`${backendURL}/get-heartbeats`);
+        setHeartbeats(response.data || {});
+      } catch (error) {
+        console.error('Error fetching heartbeats:', error);
+      }
+    };
+
+    fetchHeartbeats();
+    const interval = setInterval(fetchHeartbeats, 5000); // poll every 5s
+    return () => clearInterval(interval);
+  }, []);
+
+  // -----------------------------
+  // Detect & Add any "new" drones
+  // automatically if we see a heartbeat
+  // for hw_id not in config
+  // -----------------------------
+  useEffect(() => {
+    // Get all hw_ids from heartbeats
+    const heartbeatHwIds = Object.keys(heartbeats);
+
+    const newDrones = [];
+    for (const hbHwId of heartbeatHwIds) {
+      if (!configData.some((d) => d.hw_id === hbHwId)) {
+        // It's new
+        const hb = heartbeats[hbHwId];
+        newDrones.push({
+          hw_id: hbHwId,
+          pos_id: hb.pos_id || hbHwId, // fallback
+          ip: hb.ip || '',
+          x: '0',
+          y: '0',
+          mavlink_port: (14550 + parseInt(hbHwId)).toString(),
+          debug_port: (13540 + parseInt(hbHwId)).toString(),
+          gcs_ip:
+            configData.length > 0 ? configData[0].gcs_ip : '', // fallback to first known
+          // We could also mark a custom field, like isNew: true
+          isNew: true,
+        });
+      }
+    }
+
+    if (newDrones.length > 0) {
+      setConfigData((prev) => [...prev, ...newDrones]);
+    }
+  }, [heartbeats, configData]);
+
+  // -----------------------------
+  // Save changes for a drone
+  // -----------------------------
   const saveChanges = (originalHwId, updatedData) => {
     // Validation: Check for duplicate hardware ID
     if (
@@ -149,16 +217,22 @@ const MissionConfig = () => {
       }
     }
 
-    // Update the configuration data with the changes
+    // Merge changes
     setConfigData((prevConfig) =>
-      prevConfig.map((drone) => (drone.hw_id === originalHwId ? updatedData : drone))
+      prevConfig.map((drone) =>
+        drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
+      )
     );
     setEditingDroneId(null);
   };
 
-  // Add a new drone to the configuration
+  // -----------------------------
+  // Add new drone (manual button)
+  // -----------------------------
   const addNewDrone = () => {
-    const newHwId = availableHwIds[0].toString();
+    const newHwId = availableHwIds[0]?.toString() || (maxHwId).toString();
+    if (!newHwId) return;
+
     const allSameGcsIp = configData.every(
       (drone) => drone.gcs_ip === configData[0]?.gcs_ip
     );
@@ -176,19 +250,24 @@ const MissionConfig = () => {
       x: '0',
       y: '0',
       pos_id: newHwId,
+      isNew: true,
     };
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
   };
 
-  // Remove a drone from the configuration
+  // -----------------------------
+  // Remove drone
+  // -----------------------------
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
     }
   };
 
-  // Handle origin submission from the modal
+  // -----------------------------
+  // Origin modal submission
+  // -----------------------------
   const handleOriginSubmit = (lat, lon) => {
     setOriginLat(lat);
     setOriginLon(lon);
@@ -207,26 +286,35 @@ const MissionConfig = () => {
       });
   };
 
-  // Handle file change for importing configuration
+  // -----------------------------
+  // Import config (file)
+  // -----------------------------
   const handleFileChangeWrapper = (event) => {
     handleFileChange(event, setConfigData);
   };
 
-  // Handle revert changes
+  // -----------------------------
+  // Revert config
+  // -----------------------------
   const handleRevertChangesWrapper = () => {
     handleRevertChanges(setConfigData);
   };
 
-  // Handle save changes to server with loading state
+  // -----------------------------
+  // Save config to server
+  // -----------------------------
   const handleSaveChangesToServerWrapper = () => {
     handleSaveChangesToServer(configData, setConfigData, setLoading);
   };
 
-  // Handle export configuration
+  // -----------------------------
+  // Export config
+  // -----------------------------
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
   };
 
+  // Sort config for display
   const sortedConfigData = [...configData].sort(
     (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
   );
@@ -242,9 +330,9 @@ const MissionConfig = () => {
         handleFileChange={handleFileChangeWrapper}
         exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
-        configData={configData} // Pass configData
-        setConfigData={setConfigData} // Pass setConfigData
-        loading={loading} // Pass loading state
+        configData={configData}
+        setConfigData={setConfigData}
+        loading={loading}
       />
 
       <BriefingExport
@@ -285,7 +373,8 @@ const MissionConfig = () => {
               setEditingDroneId={setEditingDroneId}
               saveChanges={saveChanges}
               removeDrone={removeDrone}
-              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)} // Pass network info for this drone
+              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+              heartbeatData={heartbeats[drone.hw_id] || null} // pass the heartbeat data
             />
           ))}
         </div>

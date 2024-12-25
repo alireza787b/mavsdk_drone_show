@@ -19,6 +19,8 @@ from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
+from heartbeat import handle_heartbeat_post, get_all_heartbeats
+
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -496,3 +498,12 @@ def setup_routes(app):
         """
         network_info, status_code = get_network_info_for_all_drones()
         return jsonify(network_info), status_code
+
+
+    @app.route('/drone-heartbeat', methods=['POST'])
+    def drone_heartbeat():
+        return handle_heartbeat_post()
+
+    @app.route('/get-heartbeats', methods=['GET'])
+    def get_heartbeats():
+        return get_all_heartbeats()

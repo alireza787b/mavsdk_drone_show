@@ -137,6 +137,14 @@ class Params:
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
     
+    # Heartbeat interval (in seconds)
+    heartbeat_interval = 10  
+
+    # The Flask endpoint path for receiving drone heartbeats on GCS
+    gcs_heartbeat_endpoint = "/drone-heartbeat"
+
+    netbird_ip_prefix = "100."
+    
     REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
     
 

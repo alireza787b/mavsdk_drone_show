@@ -12,6 +12,7 @@ body {
     padding: 20px;
 }
 
+
 /* Heading Styles */
 
 h2 {
@@ -28,11 +29,15 @@ h4 {
     display: inline-block;
 }
 
+
 /* Network Info Styles */
+
 .network-info {
     margin-top: 10px;
-    background-color: #e8f5e9; /* Light green background for network info */
-    border-left: 4px solid #66bb6a; /* Green border to signify connection status */
+    background-color: #e8f5e9;
+    /* Light green background for network info */
+    border-left: 4px solid #66bb6a;
+    /* Green border to signify connection status */
     padding: 10px;
     border-radius: 5px;
     font-size: 0.95rem;
@@ -46,6 +51,7 @@ h4 {
 .network-info strong {
     color: #1b5e20;
 }
+
 
 /* Reference Point Inputs */
 
@@ -74,6 +80,7 @@ h4 {
     color: #555;
     margin-bottom: 1.5rem;
 }
+
 
 /* Button Styles */
 
@@ -141,6 +148,7 @@ button.remove:hover {
     background-color: #c0392b;
 }
 
+
 /* Input Field Styles */
 
 input[type="text"],
@@ -153,6 +161,7 @@ select {
     border-radius: 4px;
     box-sizing: border-box;
 }
+
 
 /* Drone Config Card Styles */
 
@@ -173,6 +182,7 @@ select {
 .drone-config-card h4 {
     margin-bottom: 1rem;
 }
+
 
 /* Content Layout */
 
@@ -201,12 +211,14 @@ select {
     max-width: 60%;
 }
 
+
 /* Plot Container */
 
 .initial-launch-plot {
     background-color: #f7f7f7;
     padding: 15px;
 }
+
 
 /* Git Status Styling */
 
@@ -223,11 +235,13 @@ select {
     margin-top: 10px;
 }
 
+
 /* Hover Effects */
 
 button:hover {
     opacity: 0.9;
 }
+
 
 /* Print Styles */
 
@@ -266,6 +280,7 @@ button:hover {
     }
 }
 
+
 /* Responsive Design */
 
 @media (max-width: 768px) {
@@ -276,4 +291,63 @@ button:hover {
     .initial-launch-plot {
         max-width: 100%;
     }
+}
+
+
+/* New drone badge */
+
+.new-drone-badge {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background-color: #ff9800;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transform: rotate(5deg);
+}
+
+
+/* If the card has mismatch-drone class, highlight border */
+
+.mismatch-drone {
+    border-left: 5px solid red !important;
+}
+
+
+/* Mismatch message styling (under IP or pos_id field) */
+
+.mismatch-message {
+    margin-top: 5px;
+    background-color: #fff5f5;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.mismatch-message .accept-button {
+    margin-left: 10px;
+    padding: 3px 6px;
+    background-color: #ef4444;
+    border: none;
+    border-radius: 3px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.mismatch-message .accept-button:hover {
+    background-color: #dc2626;
+}
+
+
+/* Mark new drones with a subtle highlight color, so user sees it's newly discovered */
+
+.new-drone {
+    border-left: 5px solid #ff9800;
+    /* orange */
 }
