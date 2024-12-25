@@ -6,9 +6,21 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
-    console.log('ConfigData being sent to server:', JSON.stringify(configData, null, 2)); // Add this line for logging
+    // Define the expected structure
+    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip'];
 
-    const hwIds = configData.map(drone => parseInt(drone.hw_id));
+    // Clean and transform the configData
+    const cleanedConfigData = configData.map(drone => {
+        const cleanedDrone = {};
+        expectedFields.forEach(field => {
+            cleanedDrone[field] = drone[field] || ''; // Default missing fields to an empty string
+        });
+        return cleanedDrone;
+    });
+
+    console.log('Cleaned ConfigData being sent to server:', JSON.stringify(cleanedConfigData, null, 2)); // Log cleaned data
+
+    const hwIds = cleanedConfigData.map(drone => parseInt(drone.hw_id));
     const missingIds = [];
     const maxId = Math.max(...hwIds);
 
@@ -26,7 +38,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
     try {
         setLoading(true); // Set loading state to true
-        const response = await axios.post(`${backendURL}/save-config-data`, configData);
+        const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
         toast.success(response.data.message);
     } catch (error) {
         console.error('Error saving updated config data:', error);
@@ -39,6 +51,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         setLoading(false); // Set loading state to false
     }
 };
+
 
 
 export const handleRevertChanges = async(setConfigData) => {
