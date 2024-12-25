@@ -21,7 +21,7 @@ def poll_git_status(drone):
     """Poll git status from a single drone."""
     while True:
         try:
-            full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/{Params.get_git_status_URI}"
+            full_uri = f"http://{drone['ip']}:{Params.drones_flask_port}/get-git-status"
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)
 
             if response.status_code == 200:

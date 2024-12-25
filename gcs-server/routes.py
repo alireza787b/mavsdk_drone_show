@@ -21,6 +21,8 @@ from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
 from heartbeat import handle_heartbeat_post, get_all_heartbeats
+from git_status import git_status_data_all_drones, data_lock_git_status
+
 
 
 # Configure base directory for better path management
