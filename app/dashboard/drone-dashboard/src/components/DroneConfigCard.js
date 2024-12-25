@@ -265,10 +265,7 @@ const handleConfirmPosChange = () => {
     }));
   } else {
     // If no match, ensure only pos_id is updated
-    setDroneData((prevData) => ({
-      ...prevData,
-      pos_id: pendingPosId,
-    }));
+   
   }
 
   setOriginalPosId(pendingPosId); // Finalize the change
