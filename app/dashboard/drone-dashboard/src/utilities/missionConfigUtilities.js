@@ -6,6 +6,8 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
+    console.log('ConfigData being sent to server:', JSON.stringify(configData, null, 2)); // Add this line for logging
+
     const hwIds = configData.map(drone => parseInt(drone.hw_id));
     const missingIds = [];
     const maxId = Math.max(...hwIds);
@@ -18,8 +20,6 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
     if (missingIds.length > 0) {
         toast.warn(`Missing Drone IDs: ${missingIds.join(', ')}. Please check before saving.`);
-        // Optionally, you can stop the function here if needed
-        // return;
     }
 
     const backendURL = getBackendURL();
@@ -39,6 +39,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         setLoading(false); // Set loading state to false
     }
 };
+
 
 export const handleRevertChanges = async(setConfigData) => {
     if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
