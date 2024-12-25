@@ -633,6 +633,7 @@ export default function DroneConfigCard({
 
 DroneConfigCard.propTypes = {
   drone: PropTypes.object.isRequired,
+  gitStatus: PropTypes.array,
   configData: PropTypes.array.isRequired,
   availableHwIds: PropTypes.array.isRequired,
   editingDroneId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
