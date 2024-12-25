@@ -1,6 +1,6 @@
 // src/components/DroneConfigCard.js
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -22,7 +22,7 @@ import '../styles/DroneConfigCard.css';
  * Subcomponent: Displays the drone data in read-only format,
  * including heartbeat, mismatch warnings, and network info.
  */
-function DroneReadOnlyView({
+const DroneReadOnlyView = memo(function DroneReadOnlyView({
   drone,
   isNew,
   ipMismatch,
@@ -210,21 +210,21 @@ function DroneReadOnlyView({
       <DroneGitStatus droneID={drone.hw_id} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">
-        <button className="edit-drone" onClick={onEdit} title="Edit drone configuration">
+        <button className="edit-drone" onClick={onEdit} title="Edit drone configuration" aria-label="Edit drone configuration">
           <FontAwesomeIcon icon={faEdit} /> Edit
         </button>
-        <button className="remove-drone" onClick={onRemove} title="Remove this drone">
+        <button className="remove-drone" onClick={onRemove} title="Remove this drone" aria-label="Remove this drone">
           <FontAwesomeIcon icon={faTrash} /> Remove
         </button>
       </div>
     </>
   );
-}
+});
 
 /**
  * Subcomponent: Renders editable form fields, including mismatch acceptance buttons.
  */
-function DroneEditForm({
+const DroneEditForm = memo(function DroneEditForm({
   droneData,
   errors,
   ipMismatch,
@@ -408,9 +408,8 @@ function DroneEditForm({
         </button>
       </div>
     </>
-
   );
-}
+});
 
 /**
  * Main DroneConfigCard: decides whether to show edit form or read-only view.
@@ -431,6 +430,14 @@ export default function DroneConfigCard({
   // Local states
   const [droneData, setDroneData] = useState({ ...drone });
   const [errors, setErrors] = useState({});
+
+  // Reset droneData when entering edit mode or when drone prop changes
+  useEffect(() => {
+    if (isEditing) {
+      setDroneData({ ...drone });
+      setErrors({});
+    }
+  }, [isEditing, drone]);
 
   // Calculate heartbeatAgeSec and heartbeatStatus
   const now = Date.now();
@@ -453,7 +460,7 @@ export default function DroneConfigCard({
 
   // Compute hardware ID options
   const allHwIds = new Set(configData.map((d) => d.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id))) + 1;
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
   const hwIdOptions = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
     (id) => !allHwIds.has(id) || id === drone.hw_id
   );
@@ -511,6 +518,7 @@ export default function DroneConfigCard({
           onCancel={() => {
             setEditingDroneId(null);
             setDroneData({ ...drone }); // Revert changes
+            setErrors({});
           }}
           hwIdOptions={hwIdOptions}
         />
