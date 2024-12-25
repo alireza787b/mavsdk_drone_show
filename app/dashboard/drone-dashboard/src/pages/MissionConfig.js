@@ -1,4 +1,5 @@
 // src/pages/MissionConfig.js
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/MissionConfig.css';
@@ -28,15 +29,15 @@ const MissionConfig = () => {
   const [originAvailable, setOriginAvailable] = useState(false);
   const [telemetryData, setTelemetryData] = useState({});
   const [networkInfo, setNetworkInfo] = useState([]);
-  const [loading, setLoading] = useState(false); // Add loading state for save operation
+  const [loading, setLoading] = useState(false); // Loading state for save operation
 
-  // New: Heartbeat data from GCS
+  // Heartbeat data from GCS
   const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, "2": {...}, ... }
 
   // Compute available hardware IDs for new drones
-  const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds)) + 1;
-  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => i + 1).filter(
+  const allHwIds = new Set(configData.map((drone) => drone.hw_id));
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id))) + 1;
+  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
     (id) => !allHwIds.has(id)
   );
 
@@ -134,12 +135,12 @@ const MissionConfig = () => {
     };
 
     fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000);
+    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
   // -----------------------------
-  // New: Fetch heartbeats
+  // Fetch heartbeats
   // -----------------------------
   useEffect(() => {
     const fetchHeartbeats = async () => {
@@ -153,7 +154,7 @@ const MissionConfig = () => {
     };
 
     fetchHeartbeats();
-    const interval = setInterval(fetchHeartbeats, 5000); // poll every 5s
+    const interval = setInterval(fetchHeartbeats, 5000); // Poll every 5s
     return () => clearInterval(interval);
   }, []);
 
@@ -181,7 +182,6 @@ const MissionConfig = () => {
           debug_port: (13540 + parseInt(hbHwId)).toString(),
           gcs_ip:
             configData.length > 0 ? configData[0].gcs_ip : '', // fallback to first known
-          // We could also mark a custom field, like isNew: true
           isNew: true,
         });
       }
@@ -217,7 +217,7 @@ const MissionConfig = () => {
       }
     }
 
-    // Merge changes
+    // Merge changes and unset isNew
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
         drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
@@ -374,7 +374,7 @@ const MissionConfig = () => {
               saveChanges={saveChanges}
               removeDrone={removeDrone}
               networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
-              heartbeatData={heartbeats[drone.hw_id] || null} // pass the heartbeat data
+              heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
             />
           ))}
         </div>

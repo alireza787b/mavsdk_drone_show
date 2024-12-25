@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// src/components/DroneConfigCard.js
+
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,7 +9,7 @@ import '../styles/DroneConfigCard.css';
 
 /**
  * Subcomponent: Displays the drone data in read-only format,
- * plus heartbeat, mismatch warnings, and network info.
+ * including heartbeat, mismatch warnings, and network info.
  */
 function DroneReadOnlyView({
   drone,
@@ -55,8 +57,8 @@ function DroneReadOnlyView({
           <strong>Heartbeat:</strong> No heartbeat received
         </p>
       )}
-      <p><strong>Hardware ID:</strong> {drone.hw_id}</p>
 
+      <p><strong>Hardware ID:</strong> {drone.hw_id}</p>
 
       {/* IP */}
       <p>
@@ -119,7 +121,7 @@ function DroneReadOnlyView({
 }
 
 /**
- * Subcomponent: Renders editable form fields, plus mismatch acceptance buttons.
+ * Subcomponent: Renders editable form fields, including mismatch acceptance buttons.
  */
 function DroneEditForm({
   droneData,
@@ -288,33 +290,14 @@ export default function DroneConfigCard({
   const [droneData, setDroneData] = useState({ ...drone });
   const [errors, setErrors] = useState({});
 
-  // Mismatch flags
-  const [ipMismatch, setIpMismatch] = useState(false);
-  const [posMismatch, setPosMismatch] = useState(false);
+  // Calculate heartbeatAgeSec and heartbeatStatus
+  const now = Date.now();
+  const heartbeatAgeSec = heartbeatData
+    ? Math.floor((now - heartbeatData.timestamp) / 1000)
+    : null;
 
-  // Heartbeat
   let heartbeatStatus = 'No heartbeat';
-  let heartbeatAgeSec = null;
-  let heartbeatIP = null;
-  let heartbeatPos = null;
-  let highlightCard = false;
-
-  // Re-calc mismatch whenever 'drone' or 'heartbeatData' changes
-  useEffect(() => {
-    if (!heartbeatData) {
-      setIpMismatch(false);
-      setPosMismatch(false);
-      heartbeatStatus = 'No heartbeat';
-      return;
-    }
-
-    // Extract from heartbeat
-    heartbeatIP = heartbeatData.ip;
-    heartbeatPos = heartbeatData.pos_id;
-    const now = Date.now();
-    heartbeatAgeSec = Math.floor((now - heartbeatData.timestamp) / 1000);
-
-    // Determine status
+  if (heartbeatAgeSec !== null) {
     if (heartbeatAgeSec < 20) {
       heartbeatStatus = 'Online (Recent)';
     } else if (heartbeatAgeSec < 60) {
@@ -322,67 +305,11 @@ export default function DroneConfigCard({
     } else {
       heartbeatStatus = 'Offline (>60s)';
     }
+  }
 
-    // Check IP mismatch
-    if (heartbeatIP && heartbeatIP !== drone.ip) {
-      setIpMismatch(true);
-      highlightCard = true;
-    } else {
-      setIpMismatch(false);
-    }
-
-    // Check pos_id mismatch
-    if (heartbeatPos && heartbeatPos.toString() !== drone.pos_id.toString()) {
-      setPosMismatch(true);
-      highlightCard = true;
-    } else {
-      setPosMismatch(false);
-    }
-  }, [drone, heartbeatData]);
-
-  const validateInputs = () => {
-    const e = {};
-    if (!droneData.hw_id) e.hw_id = 'Hardware ID is required.';
-    if (!droneData.ip) e.ip = 'IP Address is required.';
-    if (!droneData.mavlink_port) e.mavlink_port = 'MavLink Port is required.';
-    if (!droneData.debug_port) e.debug_port = 'Debug Port is required.';
-    if (!droneData.gcs_ip) e.gcs_ip = 'GCS IP is required.';
-    if (!droneData.x || isNaN(droneData.x)) e.x = 'Valid X coordinate is required.';
-    if (!droneData.y || isNaN(droneData.y)) e.y = 'Valid Y coordinate is required.';
-    if (!droneData.pos_id) e.pos_id = 'Position ID is required.';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleFieldChange = (e) => {
-    const { name, value } = e.target;
-    setDroneData({ ...droneData, [name]: value });
-  };
-
-  const handleAcceptIp = () => {
-    if (heartbeatData?.ip) {
-      setDroneData({ ...droneData, ip: heartbeatData.ip });
-    }
-  };
-
-  const handleAcceptPos = () => {
-    if (heartbeatData?.pos_id) {
-      setDroneData({ ...droneData, pos_id: heartbeatData.pos_id });
-    }
-  };
-
-  const handleSave = () => {
-    if (!validateInputs()) return;
-    // pass up to parent
-    saveChanges(drone.hw_id, droneData);
-  };
-
-  const handleCancel = () => {
-    setEditingDroneId(null);
-    setDroneData({ ...drone }); // revert changes
-  };
-
-  const handleRemove = () => removeDrone(drone.hw_id);
+  // Determine mismatches
+  const ipMismatch = heartbeatData ? heartbeatData.ip !== drone.ip : false;
+  const posMismatch = heartbeatData ? heartbeatData.pos_id !== drone.pos_id : false;
 
   // Compute hardware ID options
   const allHwIds = new Set(configData.map(d => d.hw_id));
@@ -391,12 +318,15 @@ export default function DroneConfigCard({
     id => !allHwIds.has(id) || id === drone.hw_id
   );
 
-  // Extra class
+  // Extra class based on status
   const cardExtraClass = drone.isNew
     ? ' new-drone'
     : (ipMismatch || posMismatch)
     ? ' mismatch-drone'
     : '';
+
+  // Debugging: Ensure heartbeatData is received correctly
+  // console.log(`Drone ${drone.hw_id} Heartbeat:`, heartbeatData);
 
   return (
     <div className={`drone-config-card${cardExtraClass}`}>
@@ -408,11 +338,40 @@ export default function DroneConfigCard({
           posMismatch={posMismatch}
           heartbeatIP={heartbeatData?.ip}
           heartbeatPos={heartbeatData?.pos_id}
-          onFieldChange={handleFieldChange}
-          onAcceptIp={handleAcceptIp}
-          onAcceptPos={handleAcceptPos}
-          onSave={handleSave}
-          onCancel={handleCancel}
+          onFieldChange={(e) => {
+            const { name, value } = e.target;
+            setDroneData({ ...droneData, [name]: value });
+          }}
+          onAcceptIp={() => {
+            if (heartbeatData?.ip) {
+              setDroneData({ ...droneData, ip: heartbeatData.ip });
+            }
+          }}
+          onAcceptPos={() => {
+            if (heartbeatData?.pos_id) {
+              setDroneData({ ...droneData, pos_id: heartbeatData.pos_id });
+            }
+          }}
+          onSave={() => {
+            // Validate inputs before saving
+            const validationErrors = {};
+            if (!droneData.hw_id) validationErrors.hw_id = 'Hardware ID is required.';
+            if (!droneData.ip) validationErrors.ip = 'IP Address is required.';
+            if (!droneData.mavlink_port) validationErrors.mavlink_port = 'MavLink Port is required.';
+            if (!droneData.debug_port) validationErrors.debug_port = 'Debug Port is required.';
+            if (!droneData.gcs_ip) validationErrors.gcs_ip = 'GCS IP is required.';
+            if (!droneData.x || isNaN(droneData.x)) validationErrors.x = 'Valid X coordinate is required.';
+            if (!droneData.y || isNaN(droneData.y)) validationErrors.y = 'Valid Y coordinate is required.';
+            if (!droneData.pos_id) validationErrors.pos_id = 'Position ID is required.';
+            setErrors(validationErrors);
+            if (Object.keys(validationErrors).length === 0) {
+              saveChanges(drone.hw_id, droneData);
+            }
+          }}
+          onCancel={() => {
+            setEditingDroneId(null);
+            setDroneData({ ...drone }); // Revert changes
+          }}
           hwIdOptions={hwIdOptions}
         />
       ) : (
@@ -423,11 +382,11 @@ export default function DroneConfigCard({
           posMismatch={posMismatch}
           heartbeatStatus={heartbeatStatus}
           heartbeatAgeSec={heartbeatAgeSec}
-          heartbeatIP={heartbeatIP}
-          heartbeatPos={heartbeatPos}
+          heartbeatIP={heartbeatData?.ip}
+          heartbeatPos={heartbeatData?.pos_id}
           networkInfo={networkInfo}
           onEdit={() => setEditingDroneId(drone.hw_id)}
-          onRemove={handleRemove}
+          onRemove={() => removeDrone(drone.hw_id)}
         />
       )}
     </div>
