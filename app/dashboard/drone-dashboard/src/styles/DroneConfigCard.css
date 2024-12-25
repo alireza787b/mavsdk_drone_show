@@ -322,3 +322,182 @@
 .drone-config-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+
+.drone-config-card {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.new-drone-badge {
+    background-color: #10b981;
+    /* Tailwind Green-500 */
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.heartbeat-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.status-icon.online {
+    color: #10b981;
+    /* Tailwind Green-500 */
+}
+
+.status-icon.stale {
+    color: #f59e0b;
+    /* Tailwind Yellow-500 */
+}
+
+.status-icon.offline {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.status-icon.no-heartbeat {
+    color: #9ca3af;
+    /* Tailwind Gray-400 */
+}
+
+.wifi-icon.strong {
+    color: #10b981;
+    /* Tailwind Green-500 */
+}
+
+.wifi-icon.medium {
+    color: #f59e0b;
+    /* Tailwind Yellow-500 */
+}
+
+.wifi-icon.weak {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.wifi-icon.none {
+    color: #9ca3af;
+    /* Tailwind Gray-400 */
+}
+
+.mismatch-text {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.warning-icon {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+    margin-left: 8px;
+}
+
+.mismatch-message {
+    margin-top: 8px;
+    color: #ef4444;
+    /* Tailwind Red-500 */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.accept-button {
+    background-color: #3b82f6;
+    /* Tailwind Blue-500 */
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.accept-button:hover {
+    background-color: #2563eb;
+    /* Tailwind Blue-600 */
+}
+
+.error-message {
+    color: #ef4444;
+    /* Tailwind Red-500 */
+    font-size: 0.875rem;
+}
+
+
+/* Card Buttons */
+
+.card-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.edit-drone,
+.remove-drone {
+    background-color: #3b82f6;
+    /* Tailwind Blue-500 */
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.edit-drone:hover {
+    background-color: #2563eb;
+    /* Tailwind Blue-600 */
+}
+
+.remove-drone {
+    background-color: #ef4444;
+    /* Tailwind Red-500 */
+}
+
+.remove-drone:hover {
+    background-color: #dc2626;
+    /* Tailwind Red-600 */
+}
+
+
+/* Input with Icon */
+
+.input-with-icon {
+    display: flex;
+    align-items: center;
+}
+
+.input-with-icon input,
+.input-with-icon select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+}
+
+.input-with-icon input:focus,
+.input-with-icon select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    /* Tailwind Blue-500 */
+    box-shadow: 0 0 0 1px #3b82f6;
+}
+
+
+/* Button Styles in Mismatch Messages */
+
+.mismatch-message button.accept-button {
+    padding: 4px 8px;
+    font-size: 0.875rem;
+}

@@ -8,6 +8,7 @@ import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import BriefingExport from '../components/BriefingExport';
 import OriginModal from '../components/OriginModal';
+import ConfirmationDialog from '../components/ConfirmationDialog'; // Import ConfirmationDialog
 import { getBackendURL } from '../utilities/utilities';
 import DronePositionMap from '../components/DronePositionMap';
 
@@ -33,6 +34,15 @@ const MissionConfig = () => {
 
   // Heartbeat data from GCS
   const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, "2": {...}, ... }
+
+
+  // Position ID to Initial Position Mapping
+  const positionIdMapping = configData.reduce((acc, drone) => {
+    if (drone.pos_id) {
+      acc[drone.pos_id] = { x: drone.x, y: drone.y };
+    }
+    return acc;
+  }, {});
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
@@ -375,6 +385,7 @@ const MissionConfig = () => {
               removeDrone={removeDrone}
               networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
               heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
+              positionIdMapping={positionIdMapping} // Pass the mapping
             />
           ))}
         </div>
