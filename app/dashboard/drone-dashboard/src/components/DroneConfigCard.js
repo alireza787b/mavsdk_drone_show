@@ -256,11 +256,6 @@ const DroneEditForm = memo(function DroneEditForm({
       onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
     }
   
-    // Ensure pos_id is updated in state for UI consistency
-    setDroneData((prevData) => ({
-      ...prevData,
-      pos_id: pendingPosId, // Explicitly update Position ID
-    }));
   
     setOriginalPosId(pendingPosId); // Finalize the change
     setShowPosChangeDialog(false);
