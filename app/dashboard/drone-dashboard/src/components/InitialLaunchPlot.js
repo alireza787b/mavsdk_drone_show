@@ -26,11 +26,10 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
     };
   });
 
-  // Marker Colors and Styles
+  // Marker Colors and Border Styles
   const markerColors = customData.map((data) => {
-    if (data.isDisabled) return 'lightgray'; // Disabled drones
     if (data.isPosMismatch) return 'orange'; // Position mismatch
-    return 'green'; // Correct match
+    return 'blue'; // Normal match
   });
 
   const markerBorderColors = customData.map((data) =>
@@ -113,9 +112,12 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       onClick={(data) => {
         const clickedDroneHwId = data.points[0].customdata.hw_id;
         onDroneClick(clickedDroneHwId);
-        document
-          .querySelector(`.drone-config-card[data-hw-id="${clickedDroneHwId}"]`)
-          ?.scrollIntoView({ behavior: 'smooth' });
+        const element = document.querySelector(
+          `.drone-config-card[data-hw-id="${clickedDroneHwId}"]`
+        );
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' }); // Smooth scrolling
+        }
       }}
     />
   );
