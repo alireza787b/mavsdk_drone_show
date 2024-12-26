@@ -111,7 +111,7 @@ const MissionConfig = () => {
     };
 
     fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 2000);
+    const interval = setInterval(fetchDeviationData, 5000);
     return () => clearInterval(interval);
   }, [originAvailable]);
 
@@ -151,7 +151,7 @@ const MissionConfig = () => {
     };
 
     fetchGcsGitStatus();
-    const interval = setInterval(fetchGcsGitStatus, 10000); // Poll every 10 seconds
+    const interval = setInterval(fetchGcsGitStatus, 30000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -175,7 +175,7 @@ const MissionConfig = () => {
     };
   
     fetchGitStatus();
-    const interval = setInterval(fetchGitStatus, 10000); // Poll every 10 seconds
+    const interval = setInterval(fetchGitStatus, 20000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, []);
   
