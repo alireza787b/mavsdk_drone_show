@@ -77,7 +77,7 @@ def start_network_status_polling(drones):
         thread.start()
         logger.info(f"Started network status polling for drone {drone['hw_id']} on thread {thread.name}")
 
-def get_network_status():
+def get_network_info_for_all_drones():
     """
     Retrieve the latest network status data for all drones.
     
