@@ -32,6 +32,7 @@ const MissionConfig = () => {
   const [telemetryData, setTelemetryData] = useState({});
   const [networkInfo, setNetworkInfo] = useState([]);
   const [gitStatusData, setGitStatusData] = useState({});
+  const [gcsGitStatus, setGcsGitStatus] = useState(null); // New state for GCS Git status
 
   const [loading, setLoading] = useState(false); // Loading state for save operation
 
@@ -130,6 +131,27 @@ const MissionConfig = () => {
 
     fetchTelemetryData();
     const interval = setInterval(fetchTelemetryData, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+
+  // -----------------------------
+  // Fetch GCS Git status
+  // -----------------------------
+  useEffect(() => {
+    const fetchGcsGitStatus = async () => {
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+      try {
+        const response = await axios.get(`${backendURL}/get-gcs-git-status`);
+        setGcsGitStatus(response.data);
+        console.log('GCS Git Status Fetched:', response.data); // Debugging
+      } catch (error) {
+        console.error('Error fetching GCS Git status:', error);
+      }
+    };
+
+    fetchGcsGitStatus();
+    const interval = setInterval(fetchGcsGitStatus, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -404,18 +426,20 @@ const MissionConfig = () => {
           {sortedConfigData.map((drone) => (
             
             <DroneConfigCard
-            key={drone.hw_id}
-            drone={drone}
-            gitStatus={gitStatusData?.[drone.hw_id] || null}
-            configData={configData}
-            availableHwIds={availableHwIds}
-            editingDroneId={editingDroneId}
-            setEditingDroneId={setEditingDroneId}
-            saveChanges={saveChanges}
-            removeDrone={removeDrone}
-            networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
-            heartbeatData={heartbeats[drone.hw_id] || null}
-          />
+              key={drone.hw_id}
+              drone={drone}
+              gitStatus={gitStatusData[drone.hw_id] || null}
+              gcsGitStatus={gcsGitStatus} // Pass GCS Git status
+              configData={configData}
+              availableHwIds={availableHwIds}
+              editingDroneId={editingDroneId}
+              setEditingDroneId={setEditingDroneId}
+              saveChanges={saveChanges}
+              removeDrone={removeDrone}
+              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+              heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
+              positionIdMapping={positionIdMapping} // Pass the mapping
+            />
           
           ))}
         </div>

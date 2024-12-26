@@ -10,10 +10,9 @@ import {
   faChevronDown,
   faChevronUp,
   faCopy,
-  faInfoCircle,
 } from '@fortawesome/free-solid-svg-icons';
 
-const DroneGitStatus = ({ gitStatus, droneName }) => {
+const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -21,7 +20,8 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
     return <div className="git-status git-loading">Git status not available.</div>;
   }
 
-  const isInSync = gitStatus.status === 'clean';
+  // Determine synchronization status
+  const isInSync = gcsGitStatus ? gitStatus.commit === gcsGitStatus.commit : false;
 
   const handleCopyCommit = async () => {
     try {
@@ -42,18 +42,25 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
       <div className="git-status-header">
         <div className="status-indicator">
           {isInSync ? (
-            <FontAwesomeIcon icon={faCheckCircle} className="status-icon online" title="Clean" aria-label="Clean" />
+            <FontAwesomeIcon icon={faCheckCircle} className="status-icon online" title="In Sync" aria-label="In Sync" />
           ) : (
-            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon dirty" title="Dirty" aria-label="Dirty" />
+            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon dirty" title="Not In Sync" aria-label="Not In Sync" />
           )}
         </div>
         <div className="git-basic-info">
-          <span className="branch-name">{gitStatus.branch}</span>
-          <span className="commit-hash" onClick={handleCopyCommit} title="Click to copy full commit hash" aria-label="Commit hash, click to copy">
+          <span className="branch-name" title={`Branch: ${gitStatus.branch}`}>
+            {gitStatus.branch}
+          </span>
+          <span
+            className="commit-hash"
+            onClick={handleCopyCommit}
+            title="Click to copy full commit hash"
+            aria-label="Commit hash, click to copy"
+          >
             {gitStatus.commit.slice(0, 7)}
             <FontAwesomeIcon icon={faCopy} className="copy-icon" />
+            {copySuccess && <span className="copy-tooltip">Copied!</span>}
           </span>
-          {copySuccess && <span className="copy-tooltip">Copied!</span>}
         </div>
         <div className="details-toggle">
           <button
@@ -96,7 +103,7 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
           )}
         </div>
       )}
-      {!isInSync && <div className="git-warning">Git status is not in sync.</div>}
+      {!isInSync && <div className="git-warning">Git status is not in sync with GCS.</div>}
     </div>
   );
 };
@@ -111,6 +118,9 @@ DroneGitStatus.propTypes = {
     author_name: PropTypes.string.isRequired,
     author_email: PropTypes.string.isRequired,
     uncommitted_changes: PropTypes.arrayOf(PropTypes.string),
+  }),
+  gcsGitStatus: PropTypes.shape({
+    commit: PropTypes.string.isRequired,
   }),
   droneName: PropTypes.string.isRequired,
 };

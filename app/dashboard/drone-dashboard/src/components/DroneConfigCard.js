@@ -34,6 +34,7 @@ function findDroneByPositionId(configData, targetPosId, excludeHwId) {
 const DroneReadOnlyView = memo(function DroneReadOnlyView({
   drone,
   gitStatus,
+  gcsGitStatus,
   isNew,
   ipMismatch,
   posMismatch,
@@ -135,8 +136,11 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
       {/* Corrected gitInfo display */}
       {/* <p><strong>git Info:</strong> {gitStatus ? JSON.stringify(gitStatus) : 'N/A'}</p> */}
-      <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
-
+      <DroneGitStatus
+        gitStatus={gitStatus}
+        gcsGitStatus={gcsGitStatus}
+        droneName={`Drone ${drone.hw_id}`}
+      />
       <div className="card-buttons">
         <button
           className="edit-drone"
@@ -593,6 +597,7 @@ const handleConfirmPosChange = () => {
 export default function DroneConfigCard({
   drone,
   gitStatus, // Added destructuring for gitStatus
+  gcsGitStatus,
   configData,
   availableHwIds,
   editingDroneId,
@@ -721,6 +726,7 @@ export default function DroneConfigCard({
         <DroneReadOnlyView
           drone={drone}
           gitStatus={gitStatus} // Pass gitStatus to DroneReadOnlyView
+          gcsGitStatus={gcsGitStatus} // Pass GCS Git status
           isNew={drone.isNew}
           ipMismatch={ipMismatch}
           posMismatch={posMismatch}
@@ -740,6 +746,7 @@ export default function DroneConfigCard({
 DroneConfigCard.propTypes = {
   drone: PropTypes.object.isRequired,
   gitStatus: PropTypes.object, // Ensure gitStatus is defined here
+  gcsGitStatus: PropTypes.object, // Ensure gcsGitStatus is defined
   configData: PropTypes.array.isRequired,
   availableHwIds: PropTypes.array.isRequired,
   editingDroneId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
