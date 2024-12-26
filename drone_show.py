@@ -1,5 +1,5 @@
 # drone_show/drone_show.py
-
+#TODO: make the init x subtracting auto from the first line instead of reading from config.
 import os
 import sys
 import time
