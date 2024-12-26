@@ -46,7 +46,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   onRemove,
 }) {
   // Determine heartbeat icon based on status
-  console.log(gitStatus)
   const getHeartbeatIcon = () => {
     switch (heartbeatStatus) {
       case 'Online (Recent)':
@@ -133,7 +132,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       ) : (
         <p><strong>Network Info:</strong> Not available</p>
       )}
-
+              <p><strong>git Info:</strong> {gitStatus.toString || 'N/A'}</p>
       <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">
