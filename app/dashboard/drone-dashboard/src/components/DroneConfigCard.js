@@ -684,7 +684,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <FontAwesomeIcon icon={faTimes} /> Cancel
         </button>
       </div>
-    </DroneEditForm>
+    </>
   );
 });
 
@@ -742,7 +742,10 @@ export default function DroneConfigCard({
 
   // Generate Hardware ID options, ensuring uniqueness
   const allHwIds = new Set(configData.map((d) => d.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
+  const maxHwId =
+    allHwIds.size > 0
+      ? Math.max(...Array.from(allHwIds, (id) => parseInt(id, 10)))
+      : 0;
   const hwIdList = Array.from({ length: maxHwId }, (_, i) =>
     (i + 1).toString()
   ).filter((id) => !allHwIds.has(id) || id === drone.hw_id);
