@@ -436,13 +436,59 @@ const handleConfirmPosChange = () => {
       </label>
 
       <label>
-        Position ID:
-        <div className="input-with-icon">
-        <select
+  Position ID:
+  <div className="input-with-icon">
+    {isCustomPosId ? (
+      // Input field for new Position ID
+      <input
+        type="text"
+        name="custom_pos_id"
+        value={customPosId}
+        placeholder="Enter new Position ID"
+        onChange={(e) => {
+          const newPosId = e.target.value;
+          setCustomPosId(newPosId);
+
+          // Update droneData for new Position ID with default coordinates
+          setDroneData((prevData) => ({
+            ...prevData,
+            pos_id: newPosId,
+            x: 0,
+            y: 0,
+          }));
+
+          alert(`Position ID "${newPosId}" defaults to (0, 0).`);
+        }}
+        aria-label="Custom Position ID"
+      />
+    ) : (
+      // Dropdown for existing Position IDs
+      <select
         name="pos_id"
-        value={droneData.pos_id} // This should now reflect the updated value
-        onChange={handlePosSelectChange}
-        aria-label="Position ID"
+        value={droneData.pos_id}
+        onChange={(e) => {
+          const chosenPosId = e.target.value;
+
+          // Check if the chosen Position ID is in the configData
+          const matchedDrone = findDroneByPositionId(configData, chosenPosId, droneData.hw_id);
+          const x = matchedDrone ? matchedDrone.x : 0;
+          const y = matchedDrone ? matchedDrone.y : 0;
+
+          // Update droneData with selected Position ID and coordinates
+          setDroneData((prevData) => ({
+            ...prevData,
+            pos_id: chosenPosId,
+            x,
+            y,
+          }));
+
+          alert(
+            matchedDrone
+              ? `Using existing Position ID (${chosenPosId}).`
+              : `Position ID (${chosenPosId}) defaults to (0, 0).`
+          );
+        }}
+        aria-label="Select Position ID"
       >
         {allPosIds.map((pid) => (
           <option key={pid} value={pid}>
@@ -450,32 +496,59 @@ const handleConfirmPosChange = () => {
           </option>
         ))}
       </select>
+    )}
 
-          {posMismatch && (
-            <FontAwesomeIcon
-              icon={faExclamationCircle}
-              className="warning-icon"
-              title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
-              aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
-            />
-          )}
-        </div>
-        {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
-        {posMismatch && heartbeatPos && (
-          <div className="mismatch-message">
-            Position ID mismatch with heartbeat: {heartbeatPos}
-            <button
-              type="button"
-              className="accept-button"
-              onClick={onAcceptPos}
-              title="Accept Heartbeat PosID"
-              aria-label="Accept Heartbeat PosID"
-            >
-              <FontAwesomeIcon icon={faCircle} /> Accept
-            </button>
-          </div>
-        )}
-      </label>
+    {/* Mismatch warning icon */}
+    {posMismatch && (
+      <FontAwesomeIcon
+        icon={faExclamationCircle}
+        className="warning-icon"
+        title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+        aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+      />
+    )}
+
+    {/* Toggle button to switch between dropdown and input */}
+    <button
+      type="button"
+      onClick={() => {
+        setIsCustomPosId((prev) => !prev);
+        if (!isCustomPosId) {
+          setCustomPosId('');
+        }
+      }}
+      aria-label={isCustomPosId ? 'Switch to selecting an existing Position ID' : 'Switch to entering a new Position ID'}
+    >
+      {isCustomPosId ? 'Select Existing' : 'Enter New'}
+    </button>
+  </div>
+
+  {/* Error message */}
+  {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
+
+  {/* Mismatch message and Accept button */}
+  {posMismatch && heartbeatPos && (
+    <div className="mismatch-message">
+      Position ID mismatch with heartbeat: {heartbeatPos}
+      <button
+        type="button"
+        className="accept-button"
+        onClick={() => {
+          setDroneData((prevData) => ({
+            ...prevData,
+            pos_id: heartbeatPos,
+          }));
+          alert(`Position ID updated to match heartbeat (${heartbeatPos}).`);
+        }}
+        title="Accept Heartbeat Position ID"
+        aria-label="Accept Heartbeat Position ID"
+      >
+        <FontAwesomeIcon icon={faCircle} /> Accept
+      </button>
+    </div>
+  )}
+</label>
+
 
       <div className="card-buttons">
         <button
