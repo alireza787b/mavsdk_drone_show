@@ -145,6 +145,7 @@ const MissionConfig = () => {
         const response = await axios.get(`${backendURL}/git-status`);
         setGitStatusData(response.data);
         console.log('Git Status Data Fetched:', response.data); // Debugging
+        console.log('Git Status Data Fetched 1 :', response.data[0]); // Debugging
       } catch (error) {
         console.error('Error fetching Git status data:', error);
       }
