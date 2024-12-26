@@ -179,6 +179,8 @@ const DroneEditForm = memo(function DroneEditForm({
 }) {
   const [showPosChangeDialog, setShowPosChangeDialog] = useState(false);
   const [pendingPosId, setPendingPosId] = useState(null);
+  const [isCustomPosId, setIsCustomPosId] = useState(false);
+  const [customPosId, setCustomPosId] = useState('');
 
 
   // For showing old vs. new in the dialog
@@ -187,6 +189,8 @@ const DroneEditForm = memo(function DroneEditForm({
   const [newX, setNewX] = useState(droneData.x);
   const [newY, setNewY] = useState(droneData.y);
 
+
+  
   // We keep a separate local copy of the original pos_id for revert
   const [originalPosId, setOriginalPosId] = useState(droneData.pos_id);
 
