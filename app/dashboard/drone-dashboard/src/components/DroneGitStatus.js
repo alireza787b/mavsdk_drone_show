@@ -22,13 +22,27 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
 
   const handleCopyCommit = async () => {
     try {
-      await navigator.clipboard.writeText(gitStatus.commit);
-      setCopySuccess(true);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(gitStatus.commit);
+        console.log('Copied to clipboard:', gitStatus.commit);
+        setCopySuccess(true);
+      } else {
+        // Fallback for unsupported browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = gitStatus.commit;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        console.log('Copied to clipboard using fallback:', gitStatus.commit);
+        setCopySuccess(true);
+      }
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       console.error('Could not copy text: ', err);
     }
   };
+  
 
   const toggleDetails = () => {
     setIsExpanded(!isExpanded);
