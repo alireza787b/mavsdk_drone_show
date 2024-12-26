@@ -140,7 +140,7 @@ const MissionConfig = () => {
     useEffect(() => {
       const fetchGitStatus = async () => {
         try {
-          const response = await axios.get(`${getBackendURL()}/git-status`);
+          const response = await axios.get(`${getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000')}/git-status`);
           setGitStatusData(response.data);
         } catch (error) {
           console.error('Error fetching Git status data:', error);
