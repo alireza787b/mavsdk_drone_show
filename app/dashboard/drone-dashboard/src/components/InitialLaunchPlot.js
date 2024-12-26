@@ -24,9 +24,8 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
 
   // Marker Colors and Border Styles
   const markerColors = customData.map((data) => {
-    if (data.within_acceptable_range === false) return 'red'; // Too much deviation
     if (data.isPosMismatch) return 'orange'; // Position mismatch
-    return 'green'; // Normal
+    return 'green'; // Correct match
   });
 
   const markerBorderColors = customData.map((data) =>
@@ -42,27 +41,25 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
         {
           x: xPlotValues,
           y: yPlotValues,
-          text: customData.map(
-            (data) => `HW: ${data.hw_id}, POS: ${data.pos_id}`
-          ),
+          text: customData.map((data) => `${data.hw_id}`), // Only show HW ID on markers
           customdata: customData,
           type: 'scatter',
           mode: 'markers+text',
           marker: {
-            size: 30,
+            size: 20,
             color: markerColors,
             opacity: 0.8,
             line: {
               color: markerBorderColors,
-              width: 3,
+              width: 2,
             },
           },
           textfont: {
             color: 'black',
-            size: 12,
+            size: 10,
             family: 'Arial',
           },
-          textposition: 'top center',
+          textposition: 'middle center',
           hovertemplate:
             '<b>Hardware ID:</b> %{customdata.hw_id}<br>' +
             '<b>Position ID:</b> %{customdata.pos_id}<br>' +
@@ -71,7 +68,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
             '<b>Deviation North:</b> %{customdata.deviation_north}<br>' +
             '<b>Deviation East:</b> %{customdata.deviation_east}<br>' +
             '<b>Total Deviation:</b> %{customdata.total_deviation}<br>' +
-            '<b>Mismatch:</b> %{customdata.isPosMismatch}<extra></extra>',
+            '<b>Status:</b> %{customdata.isPosMismatch ? "Mismatch" : "Correct"}<extra></extra>',
         },
       ]}
       layout={{
@@ -89,11 +86,11 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
         hovermode: 'closest',
         plot_bgcolor: '#f7f7f7',
         paper_bgcolor: '#f7f7f7',
-        legend: {
-          orientation: 'h',
-          x: 0.5,
-          y: -0.2,
-          xanchor: 'center',
+        margin: {
+          l: 50,
+          r: 50,
+          t: 50,
+          b: 50,
         },
       }}
       onClick={(data) => {
