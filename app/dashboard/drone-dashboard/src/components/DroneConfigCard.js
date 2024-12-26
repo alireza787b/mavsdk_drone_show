@@ -134,7 +134,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       )}
 
       {/* Corrected gitInfo display */}
-      <p><strong>git Info:</strong> {gitStatus ? JSON.stringify(gitStatus) : 'N/A'}</p>
+      {/* <p><strong>git Info:</strong> {gitStatus ? JSON.stringify(gitStatus) : 'N/A'}</p> */}
       <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">

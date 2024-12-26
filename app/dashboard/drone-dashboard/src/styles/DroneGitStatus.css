@@ -1,39 +1,130 @@
-.drone-git-status {
-    margin-top: 10px;
+/* src/styles/DroneGitStatus.css */
+
+.git-status {
+    font-family: Arial, sans-serif;
 }
 
-.git-error-message {
-    color: #ef4444;
-    font-size: 0.875rem;
-    margin-bottom: 10px;
-    border-left: 4px solid #ef4444;
-    padding-left: 10px;
+.git-status-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.git-status-summary {
-    border: 1px solid #e5e7eb;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #f9fafb;
-    transition: all 0.3s ease;
+.git-status-card.sync {
+    border-left: 5px solid #4caf50;
+    /* Green */
 }
 
-.git-status-summary.sync {
-    border-left: 5px solid #10b981;
-    background-color: #e6fffa;
+.git-status-card.not-sync {
+    border-left: 5px solid #f44336;
+    /* Red */
 }
 
-.git-status-summary.not-sync {
-    border-left: 5px solid #ef4444;
-    background-color: #ffefef;
+.git-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
 }
 
-.warning-text {
-    color: #ef4444;
+.drone-name {
+    font-size: 1.1em;
+}
+
+.status-indicator .status-icon {
+    font-size: 1.2em;
+}
+
+.status-icon.online {
+    color: #4caf50;
+    /* Green */
+}
+
+.status-icon.dirty {
+    color: #f44336;
+    /* Red */
+}
+
+.git-status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.git-info-row {
+    display: flex;
+    gap: 8px;
+}
+
+.git-label {
+    font-weight: bold;
+    width: 80px;
+}
+
+.git-value {
+    color: #555;
+}
+
+.commit-hash {
+    cursor: pointer;
+    color: #1a73e8;
+    display: flex;
+    align-items: center;
+}
+
+.copy-icon {
+    margin-left: 4px;
+    font-size: 0.9em;
+    color: #888;
+}
+
+.copy-icon:hover {
+    color: #555;
+}
+
+.git-status-details {
+    margin-top: 12px;
+}
+
+.toggle-details-button {
+    background-color: transparent;
+    border: none;
+    color: #1a73e8;
+    cursor: pointer;
+    font-size: 0.95em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.toggle-details-button:hover {
+    text-decoration: underline;
+}
+
+.uncommitted-changes {
+    margin-top: 8px;
+    padding-left: 16px;
+}
+
+.uncommitted-changes ul {
+    list-style-type: disc;
+    padding-left: 20px;
+    margin-top: 4px;
+}
+
+.git-warning {
+    margin-top: 12px;
+    padding: 8px;
+    background-color: #fdecea;
+    color: #d32f2f;
+    border-radius: 4px;
+    font-weight: bold;
 }
 
 .git-loading {
-    color: #374151;
-    font-size: 0.875rem;
     font-style: italic;
+    color: #888;
 }
