@@ -210,7 +210,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </p>
       )}
 
-      {/* Correctly pass the gitStatus prop here */}
+      {/* Correctly pass the gitStatus prop without inline comments */}
       <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">
@@ -684,7 +684,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <FontAwesomeIcon icon={faTimes} /> Cancel
         </button>
       </div>
-    </>
+    </DroneEditForm>
   );
 });
 
