@@ -12,6 +12,7 @@ import ConfirmationDialog from '../components/ConfirmationDialog'; // Import Con
 import { getBackendURL } from '../utilities/utilities';
 import DronePositionMap from '../components/DronePositionMap';
 
+
 import {
   handleSaveChangesToServer,
   handleRevertChanges,
@@ -37,6 +38,7 @@ const MissionConfig = () => {
   // Heartbeat data from GCS
   const [heartbeats, setHeartbeats] = useState({}); // shape: { "1": { pos_id, ip, timestamp }, "2": {...}, ... }
 
+
   // Position ID to Initial Position Mapping
   const positionIdMapping = configData.reduce((acc, drone) => {
     if (drone.pos_id) {
@@ -47,7 +49,7 @@ const MissionConfig = () => {
 
   // Compute available hardware IDs for new drones
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id, 10))) + 1;
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, id => parseInt(id))) + 1;
   const availableHwIds = Array.from({ length: maxHwId }, (_, i) => (i + 1).toString()).filter(
     (id) => !allHwIds.has(id)
   );
@@ -57,20 +59,10 @@ const MissionConfig = () => {
   // -----------------------------
   useEffect(() => {
     const fetchData = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-config-data`);
-        // Normalize hw_id to trimmed strings
-        const normalizedConfigData = response.data.map((drone) => ({
-          ...drone,
-          hw_id: String(drone.hw_id).trim(),
-          pos_id: drone.pos_id ? String(drone.pos_id).trim() : drone.pos_id,
-          gcs_ip: drone.gcs_ip ? drone.gcs_ip.trim() : '',
-          ip: drone.ip ? drone.ip.trim() : '',
-        }));
-        setConfigData(normalizedConfigData);
-        console.log('Config Data Fetched and Normalized:', normalizedConfigData); // Debugging
+        setConfigData(response.data);
       } catch (error) {
         console.error('Error fetching config data:', error);
       }
@@ -83,8 +75,7 @@ const MissionConfig = () => {
   // -----------------------------
   useEffect(() => {
     const fetchOrigin = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-origin`);
         if (response.data.lat && response.data.lon) {
@@ -94,7 +85,6 @@ const MissionConfig = () => {
         } else {
           setOriginAvailable(false);
         }
-        console.log('Origin Data Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching origin data:', error);
         setOriginAvailable(false);
@@ -110,12 +100,10 @@ const MissionConfig = () => {
     if (!originAvailable) return;
 
     const fetchDeviationData = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-position-deviations`);
         setDeviationData(response.data);
-        console.log('Deviation Data Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching deviation data:', error);
       }
@@ -131,12 +119,10 @@ const MissionConfig = () => {
   // -----------------------------
   useEffect(() => {
     const fetchTelemetryData = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/telemetry`);
         setTelemetryData(response.data);
-        console.log('Telemetry Data Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching telemetry data:', error);
       }
@@ -150,43 +136,35 @@ const MissionConfig = () => {
   // -----------------------------
   // Fetch Git status data
   // -----------------------------
+
   useEffect(() => {
     const fetchGitStatus = async () => {
       const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
       const backendURL = getBackendURL(backendPort);
       try {
         const response = await axios.get(`${backendURL}/git-status`);
-        // Normalize gitStatusData keys to trimmed strings
-        const normalizedGitStatusData = {};
-        for (const key in response.data) {
-          if (response.data.hasOwnProperty(key)) {
-            const trimmedKey = String(key).trim();
-            normalizedGitStatusData[trimmedKey] = response.data[key];
-          }
-        }
-        setGitStatusData(normalizedGitStatusData);
-        console.log('Git Status Data Fetched and Normalized:', normalizedGitStatusData); // Debugging
+        setGitStatusData(response.data);
+        console.log('Git Status Data Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching Git status data:', error);
       }
     };
-
+  
     fetchGitStatus();
     const interval = setInterval(fetchGitStatus, 10000); // Poll every 10 seconds
     return () => clearInterval(interval);
   }, []);
+  
 
   // -----------------------------
   // Fetch network info
   // -----------------------------
   useEffect(() => {
     const fetchNetworkInfo = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-network-info`);
         setNetworkInfo(response.data);
-        console.log('Network Info Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching network information:', error);
       }
@@ -202,12 +180,10 @@ const MissionConfig = () => {
   // -----------------------------
   useEffect(() => {
     const fetchHeartbeats = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
+      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
       try {
         const response = await axios.get(`${backendURL}/get-heartbeats`);
         setHeartbeats(response.data || {});
-        console.log('Heartbeats Data Fetched:', response.data); // Debugging
       } catch (error) {
         console.error('Error fetching heartbeats:', error);
       }
@@ -229,20 +205,19 @@ const MissionConfig = () => {
 
     const newDrones = [];
     for (const hbHwId of heartbeatHwIds) {
-      const trimmedHbHwId = String(hbHwId).trim(); // Normalize hw_id
-      if (!configData.some((d) => d.hw_id === trimmedHbHwId)) {
+      if (!configData.some((d) => d.hw_id === hbHwId)) {
         // It's new
         const hb = heartbeats[hbHwId];
         newDrones.push({
-          hw_id: trimmedHbHwId,
-          pos_id: hb.pos_id ? String(hb.pos_id).trim() : trimmedHbHwId, // Normalize pos_id
-          ip: hb.ip ? hb.ip.trim() : '',
+          hw_id: hbHwId,
+          pos_id: hb.pos_id || hbHwId, // fallback
+          ip: hb.ip || '',
           x: '0',
           y: '0',
-          mavlink_port: (14550 + parseInt(trimmedHbHwId, 10)).toString(),
-          debug_port: (13540 + parseInt(trimmedHbHwId, 10)).toString(),
+          mavlink_port: (14550 + parseInt(hbHwId)).toString(),
+          debug_port: (13540 + parseInt(hbHwId)).toString(),
           gcs_ip:
-            configData.length > 0 ? configData[0].gcs_ip.trim() : '', // Normalize gcs_ip
+            configData.length > 0 ? configData[0].gcs_ip : '', // fallback to first known
           isNew: true,
         });
       }
@@ -250,7 +225,6 @@ const MissionConfig = () => {
 
     if (newDrones.length > 0) {
       setConfigData((prev) => [...prev, ...newDrones]);
-      console.log('New Drones Added from Heartbeats:', newDrones); // Debugging
     }
   }, [heartbeats, configData]);
 
@@ -258,18 +232,9 @@ const MissionConfig = () => {
   // Save changes for a drone
   // -----------------------------
   const saveChanges = (originalHwId, updatedData) => {
-    // Normalize hw_id in updatedData
-    const normalizedUpdatedData = {
-      ...updatedData,
-      hw_id: String(updatedData.hw_id).trim(),
-      pos_id: updatedData.pos_id ? String(updatedData.pos_id).trim() : updatedData.pos_id,
-      gcs_ip: updatedData.gcs_ip ? updatedData.gcs_ip.trim() : '',
-      ip: updatedData.ip ? updatedData.ip.trim() : '',
-    };
-
     // Validation: Check for duplicate hardware ID
     if (
-      configData.some((d) => d.hw_id === normalizedUpdatedData.hw_id && d.hw_id !== originalHwId)
+      configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)
     ) {
       alert('The selected Hardware ID is already in use. Please choose another one.');
       return;
@@ -277,11 +242,11 @@ const MissionConfig = () => {
 
     // Validation: Check for duplicate position ID
     if (
-      configData.some((d) => d.pos_id === normalizedUpdatedData.pos_id && d.hw_id !== originalHwId)
+      configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)
     ) {
       if (
         !window.confirm(
-          `Position ID ${normalizedUpdatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
+          `Position ID ${updatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
         )
       ) {
         return;
@@ -291,21 +256,17 @@ const MissionConfig = () => {
     // Merge changes and unset isNew
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
-        drone.hw_id === originalHwId
-          ? { ...normalizedUpdatedData, isNew: false }
-          : drone
+        drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
       )
     );
     setEditingDroneId(null);
-    console.log(`Drone ${originalHwId} updated to:`, normalizedUpdatedData); // Debugging
   };
 
   // -----------------------------
   // Add new drone (manual button)
   // -----------------------------
   const addNewDrone = () => {
-    const newHwIdRaw = availableHwIds[0]?.toString() || (maxHwId).toString();
-    const newHwId = newHwIdRaw.trim(); // Ensure hw_id is a trimmed string
+    const newHwId = availableHwIds[0]?.toString() || (maxHwId).toString();
     if (!newHwId) return;
 
     const allSameGcsIp = configData.every(
@@ -319,9 +280,9 @@ const MissionConfig = () => {
     const newDrone = {
       hw_id: newHwId,
       ip: commonSubnet,
-      mavlink_port: (14550 + parseInt(newHwId, 10)).toString(),
-      debug_port: (13540 + parseInt(newHwId, 10)).toString(),
-      gcs_ip: allSameGcsIp ? configData[0].gcs_ip.trim() : '',
+      mavlink_port: (14550 + parseInt(newHwId)).toString(),
+      debug_port: (13540 + parseInt(newHwId)).toString(),
+      gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
       x: '0',
       y: '0',
       pos_id: newHwId,
@@ -329,7 +290,6 @@ const MissionConfig = () => {
     };
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
-    console.log('New Drone Added Manually:', newDrone); // Debugging
   };
 
   // -----------------------------
@@ -338,7 +298,6 @@ const MissionConfig = () => {
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
-      console.log(`Drone ${hw_id} removed.`); // Debugging
     }
   };
 
@@ -349,8 +308,7 @@ const MissionConfig = () => {
     setOriginLat(lat);
     setOriginLon(lon);
     setShowOriginModal(false);
-    const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-    const backendURL = getBackendURL(backendPort);
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     axios
       .post(`${backendURL}/set-origin`, {
         lat: lat,
@@ -358,7 +316,6 @@ const MissionConfig = () => {
       })
       .then(() => {
         setOriginAvailable(true);
-        console.log('Origin set successfully:', { lat, lon }); // Debugging
       })
       .catch((error) => {
         console.error('Error saving origin to backend:', error);
@@ -370,7 +327,6 @@ const MissionConfig = () => {
   // -----------------------------
   const handleFileChangeWrapper = (event) => {
     handleFileChange(event, setConfigData);
-    console.log('Config Imported from File'); // Debugging
   };
 
   // -----------------------------
@@ -378,7 +334,6 @@ const MissionConfig = () => {
   // -----------------------------
   const handleRevertChangesWrapper = () => {
     handleRevertChanges(setConfigData);
-    console.log('Config Changes Reverted'); // Debugging
   };
 
   // -----------------------------
@@ -386,7 +341,6 @@ const MissionConfig = () => {
   // -----------------------------
   const handleSaveChangesToServerWrapper = () => {
     handleSaveChangesToServer(configData, setConfigData, setLoading);
-    console.log('Config Changes Saved to Server'); // Debugging
   };
 
   // -----------------------------
@@ -394,25 +348,12 @@ const MissionConfig = () => {
   // -----------------------------
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
-    console.log('Config Exported'); // Debugging
   };
 
   // Sort config for display
   const sortedConfigData = [...configData].sort(
-    (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
+    (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
   );
-
-  // -----------------------------
-  // Debugging: Verify Mappings
-  // -----------------------------
-  useEffect(() => {
-    console.log('Verifying Drone to Git Status Mappings:');
-    sortedConfigData.forEach((drone) => {
-      const hwIdStr = String(drone.hw_id).trim();
-      const gitStatus = gitStatusData[hwIdStr] || null;
-      console.log(`Drone HW_ID: ${hwIdStr} | Git Status: ${gitStatus ? 'Available' : 'Not Available'}`);
-    });
-  }, [sortedConfigData, gitStatusData]);
 
   return (
     <div className="mission-config-container">
@@ -458,26 +399,22 @@ const MissionConfig = () => {
 
       <div className="content-flex">
         <div className="drone-cards">
-          {sortedConfigData.map((drone) => {
-            const hwIdStr = String(drone.hw_id).trim(); // Ensure hw_id is a trimmed string
-            const gitStatus = gitStatusData[hwIdStr] || null;
-            return (
-              <DroneConfigCard
-                key={hwIdStr}
-                drone={drone}
-                gitStatus={gitStatus}
-                configData={configData}
-                availableHwIds={availableHwIds}
-                editingDroneId={editingDroneId}
-                setEditingDroneId={setEditingDroneId}
-                saveChanges={saveChanges}
-                removeDrone={removeDrone}
-                networkInfo={networkInfo.find((info) => String(info.hw_id).trim() === hwIdStr)}
-                heartbeatData={heartbeats[hwIdStr] || null} // Pass the heartbeat data
-                positionIdMapping={positionIdMapping} // Pass the mapping
-              />
-            );
-          })}
+          {sortedConfigData.map((drone) => (
+            <DroneConfigCard
+              key={drone.hw_id}
+              drone={drone}
+              gitStatus={gitStatusData[drone.hw_id] || null}
+              configData={configData}
+              availableHwIds={availableHwIds}
+              editingDroneId={editingDroneId}
+              setEditingDroneId={setEditingDroneId}
+              saveChanges={saveChanges}
+              removeDrone={removeDrone}
+              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+              heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
+              positionIdMapping={positionIdMapping} // Pass the mapping
+            />
+          ))}
         </div>
         <div className="initial-launch-plot">
           <InitialLaunchPlot
