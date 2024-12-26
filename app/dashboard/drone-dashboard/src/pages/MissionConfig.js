@@ -139,17 +139,14 @@ const MissionConfig = () => {
 
   useEffect(() => {
     const fetchGitStatus = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
-      try {
-        const response = await axios.get(`${backendURL}/git-status`);
-        setGitStatusData(response.data);
-        console.log('Git Status Data Fetched:', response.data); // Debugging
-        // console.log('Git Status Data Fetched 1 :', response.data[1]); // Debugging
-      } catch (error) {
-        console.error('Error fetching Git status data:', error);
-      }
+      const response = await axios.get(`${backendURL}/git-status`);
+      const normalizedData = {}; // Normalize keys to match hw_id
+      Object.entries(response.data).forEach(([key, value]) => {
+        normalizedData[key.toString()] = value;
+      });
+      setGitStatusData(normalizedData);
     };
+    
   
     fetchGitStatus();
     const interval = setInterval(fetchGitStatus, 10000); // Poll every 10 seconds
