@@ -3,8 +3,11 @@ import Plot from 'react-plotly.js';
 
 function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
   // Prepare data for plotting
-  const xValues = drones.map((drone) => parseFloat(drone.x)); // North (X)
-  const yValues = drones.map((drone) => parseFloat(drone.y)); // East (Y)
+  const groupedData = {}; // To group drones by position slot (pos_id)
+  drones.forEach((drone) => {
+    if (!groupedData[drone.pos_id]) groupedData[drone.pos_id] = [];
+    groupedData[drone.pos_id].push(drone);
+  });
 
   const customData = drones.map((drone) => {
     const deviation = deviationData[drone.hw_id];
@@ -19,11 +22,13 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       total_deviation: deviation?.total_deviation?.toFixed(2) || 'N/A',
       within_acceptable_range: deviation?.within_acceptable_range,
       isPosMismatch,
+      isDisabled: drone.isDisabled || false, // Indicate if the drone is disabled
     };
   });
 
-  // Marker Colors and Border Styles
+  // Marker Colors and Styles
   const markerColors = customData.map((data) => {
+    if (data.isDisabled) return 'lightgray'; // Disabled drones
     if (data.isPosMismatch) return 'orange'; // Position mismatch
     return 'green'; // Correct match
   });
@@ -32,8 +37,20 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
     data.within_acceptable_range ? 'green' : 'red'
   );
 
-  const xPlotValues = yValues; // East (Y)
-  const yPlotValues = xValues; // North (X)
+  // Adjust position to handle overlaps
+  const xPlotValues = drones.map((drone, i) => {
+    const overlapIndex = groupedData[drone.pos_id].findIndex(
+      (d) => d.hw_id === drone.hw_id
+    );
+    return parseFloat(drone.y) + overlapIndex * 0.5; // Offset for overlapping markers
+  });
+
+  const yPlotValues = drones.map((drone, i) => {
+    const overlapIndex = groupedData[drone.pos_id].findIndex(
+      (d) => d.hw_id === drone.hw_id
+    );
+    return parseFloat(drone.x) + overlapIndex * 0.5; // Offset for overlapping markers
+  });
 
   return (
     <Plot
@@ -41,7 +58,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
         {
           x: xPlotValues,
           y: yPlotValues,
-          text: customData.map((data) => `${data.hw_id}`), // Only show HW ID on markers
+          text: customData.map((data) => `${data.hw_id}`), // Show only HW ID
           customdata: customData,
           type: 'scatter',
           mode: 'markers+text',
@@ -55,7 +72,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
             },
           },
           textfont: {
-            color: 'black',
+            color: 'white', // Use white for better contrast
             size: 10,
             family: 'Arial',
           },
