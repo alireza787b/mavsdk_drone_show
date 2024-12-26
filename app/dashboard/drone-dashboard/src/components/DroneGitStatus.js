@@ -35,9 +35,6 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
   return (
     <div className={`git-status-card ${isInSync ? 'sync' : 'not-sync'}`}>
       <div className="git-status-header">
-        <div className="drone-name">
-          <strong>{droneName}</strong>
-        </div>
         <div className="status-indicator">
           {isInSync ? (
             <FontAwesomeIcon icon={faCheckCircle} className="status-icon online" title="Clean" aria-label="Clean" />
@@ -59,8 +56,7 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
           </span>
         </div>
         <div className="git-info-row">
-          <span className="git-label">Status:</span>
-          <span className="git-value">{gitStatus.status}</span>
+          
         </div>
       </div>
       {gitStatus.uncommitted_changes && gitStatus.uncommitted_changes.length > 0 && (
@@ -89,6 +85,9 @@ const DroneGitStatus = ({ gitStatus, droneName }) => {
                   <li key={index}>{change}</li>
                 ))}
               </ul>
+              <span className="git-label">Status:</span>
+              <span className="git-value">{gitStatus.status}</span>
+
             </div>
           )}
         </div>
