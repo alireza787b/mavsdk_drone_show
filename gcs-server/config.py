@@ -78,7 +78,7 @@ def save_swarm(swarm, file_path=SWARM_FILE_PATH):
     save_csv(swarm, file_path,fieldnames=SWARM_COLUMNS)
 
 
-def get_gcs_git_status():
+def get_gcs_git_report():
     """Retrieve the Git status of the GCS."""
     try:
         branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip().decode('utf-8')
