@@ -143,11 +143,7 @@ const MissionConfig = () => {
       const backendURL = getBackendURL(backendPort);
       try {
         const response = await axios.get(`${backendURL}/git-status`);
-        const normalizedData = {}; // Normalize keys to match hw_id
-        Object.entries(response.data).forEach(([key, value]) => {
-          normalizedData[key.toString()] = value;
-        });
-        setGitStatusData(normalizedData);
+        
         setGitStatusData(response.data);
         console.log('Git Status Data Fetched:', response.data); // Debugging
         // console.log('Git Status Data Fetched 1 :', response.data[1]); // Debugging
@@ -407,19 +403,19 @@ const MissionConfig = () => {
         <div className="drone-cards">
           {sortedConfigData.map((drone) => (
             <DroneConfigCard
-              key={drone.hw_id}
-              drone={drone}
-              gitStatus={gitStatusData[drone.hw_id] || null}
-              configData={configData}
-              availableHwIds={availableHwIds}
-              editingDroneId={editingDroneId}
-              setEditingDroneId={setEditingDroneId}
-              saveChanges={saveChanges}
-              removeDrone={removeDrone}
-              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
-              heartbeatData={heartbeats[drone.hw_id] || null} // Pass the heartbeat data
-              positionIdMapping={positionIdMapping} // Pass the mapping
-            />
+            key={drone.hw_id}
+            drone={drone}
+            gitStatus={gitStatusData?.[drone.hw_id] || null}
+            configData={configData}
+            availableHwIds={availableHwIds}
+            editingDroneId={editingDroneId}
+            setEditingDroneId={setEditingDroneId}
+            saveChanges={saveChanges}
+            removeDrone={removeDrone}
+            networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+            heartbeatData={heartbeats[drone.hw_id] || null}
+          />
+          
           ))}
         </div>
         <div className="initial-launch-plot">
