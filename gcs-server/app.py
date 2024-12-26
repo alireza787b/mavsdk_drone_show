@@ -7,6 +7,7 @@ from flask_cors import CORS
 from routes import setup_routes
 from telemetry import start_telemetry_polling
 from git_status import start_git_status_polling
+from network import start_network_status_polling
 from config import load_config
 
 # Configure logging at the entry point of the application
@@ -72,6 +73,8 @@ if __name__ == "__main__":
         start_telemetry_polling(drones)
         logging.info(f"Starting git status polling for {len(drones)} drones.")
         start_git_status_polling(drones)
+        logging.info(f"Starting network status polling for {len(drones)} drones.")
+        start_network_status_polling(drones)
     else:
         logging.error("No drones found in configuration. Telemetry polling will not be started.")
 
