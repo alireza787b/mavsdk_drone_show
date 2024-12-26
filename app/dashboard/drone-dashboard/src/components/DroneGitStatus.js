@@ -1,5 +1,3 @@
-// src/components/DroneGitStatus.js
-
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/DroneGitStatus.css';
@@ -20,14 +18,13 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
     return <div className="git-status git-loading">Git status not available.</div>;
   }
 
-  // Determine synchronization status
   const isInSync = gcsGitStatus ? gitStatus.commit === gcsGitStatus.commit : false;
 
   const handleCopyCommit = async () => {
     try {
       await navigator.clipboard.writeText(gitStatus.commit);
       setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       console.error('Could not copy text: ', err);
     }
@@ -77,6 +74,10 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
       </div>
       {isExpanded && (
         <div id={`git-details-${droneName}`} className="git-status-details">
+          <div className="detail-row">
+            <span className="detail-label">Full Commit Hash:</span>
+            <span className="detail-value">{gitStatus.commit}</span>
+          </div>
           <div className="detail-row">
             <span className="detail-label">Commit Message:</span>
             <span className="detail-value">{gitStatus.commit_message}</span>
