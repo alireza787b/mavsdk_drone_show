@@ -4,25 +4,23 @@ import React, { useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import PropTypes from 'prop-types';
 
-// Constants for marker colors and styles
+// Constants for marker colors
 const COLORS = {
-  NORMAL_FILL: '#2ecc71',       // Green for normal assignments
-  NORMAL_BORDER: '#27ae60',
-  SUBSTITUTE_FILL: '#f1c40f',   // Yellow for substitutions
-  SUBSTITUTE_BORDER: '#f39c12',
-  INACTIVE_FILL: '#e74c3c',     // Red for inactive drones or conflicts
-  INACTIVE_BORDER: '#c0392b',
-  UNASSIGNED_FILL: 'rgba(149, 165, 166, 0.5)', // Grey with transparency for unassigned
-  UNASSIGNED_BORDER: '#7f8c8d',
+  NORMAL_FILL: '#3498db',       // Blue for normal assignments
+  SUBSTITUTE_FILL: '#f39c12',   // Orange for substitutions
+  BORDER_GREEN: '#2ecc71',      // Green border for acceptable deviation
+  BORDER_RED: '#e74c3c',        // Red border for excessive deviation
+  UNASSIGNED_FILL: 'rgba(149, 165, 166, 0.3)', // Grey with transparency for unassigned
 };
 
-const MARKER_SIZE = 40; // Increased size for better visibility
-const TOTAL_POSITIONS = 10; // Adjust based on operational setup
+// Size constants
+const MARKER_SIZE = 30;
+const OFFSET_INCREMENT = 0.5; // Increment for offsetting multiple drones
 
 function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
   // Prepare data using useMemo for performance optimization
   const plotData = useMemo(() => {
-    // Map pos_id to drone assignments
+    // Map pos_id to assigned drones
     const posIdMap = {};
     drones.forEach((drone) => {
       if (posIdMap[drone.pos_id]) {
@@ -32,67 +30,65 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       }
     });
 
-    // Determine plot points
     const plotPoints = [];
-    const conflictPosIds = new Set();
 
-    Object.keys(posIdMap).forEach((posId) => {
-      const assignedDrones = posIdMap[posId];
-      if (assignedDrones.length > 1) {
-        // Conflict: Multiple drones assigned to the same pos_id
-        conflictPosIds.add(posId);
-      }
-
-      assignedDrones.forEach((drone) => {
+    // Process each position
+    Object.entries(posIdMap).forEach(([posId, assignedDrones]) => {
+      assignedDrones.forEach((drone, index) => {
         const deviation = deviationData[drone.hw_id];
-        const isSubstitute = parseInt(drone.pos_id, 10) !== parseInt(drone.hw_id, 10);
+        const isSubstitute = drone.hw_id !== drone.pos_id;
         const withinRange = deviation?.within_acceptable_range;
 
-        let fillColor = COLORS.NORMAL_FILL;
-        let borderColor = COLORS.NORMAL_BORDER;
+        // Determine fill color based on assignment type
+        const fillColor = isSubstitute ? COLORS.SUBSTITUTE_FILL : COLORS.NORMAL_FILL;
 
-        if (isSubstitute) {
-          fillColor = COLORS.SUBSTITUTE_FILL;
-          borderColor = COLORS.SUBSTITUTE_BORDER;
-        }
+        // Determine border color based on deviation
+        const borderColor = withinRange ? COLORS.BORDER_GREEN : COLORS.BORDER_RED;
 
-        if (withinRange === false || conflictPosIds.has(posId)) {
-          fillColor = COLORS.INACTIVE_FILL;
-          borderColor = COLORS.INACTIVE_BORDER;
-        }
+        // Offset positions if multiple drones are assigned to the same pos_id
+        const offset = assignedDrones.length > 1 ? (index - (assignedDrones.length - 1) / 2) * OFFSET_INCREMENT : 0;
 
         plotPoints.push({
           hw_id: drone.hw_id,
           pos_id: drone.pos_id,
-          x: parseFloat(drone.x),
-          y: parseFloat(drone.y),
+          x: parseFloat(drone.x) + offset, // North (X) with offset
+          y: parseFloat(drone.y) + offset, // East (Y) with offset
           deviation_north: deviation?.deviation_north?.toFixed(2) || 'N/A',
           deviation_east: deviation?.deviation_east?.toFixed(2) || 'N/A',
           total_deviation: deviation?.total_deviation?.toFixed(2) || 'N/A',
-          within_acceptable_range: deviation?.within_acceptable_range,
+          within_acceptable_range: withinRange,
           isSubstitute,
           fillColor,
           borderColor,
+          label: drone.hw_id,
         });
       });
     });
 
+    // Identify total positions based on pos_id range
+    const posIds = drones.map((drone) => drone.pos_id);
+    const totalPositions = Math.max(...posIds, 10); // At least 10 positions
+
     // Identify unassigned positions
-    const existingPosIds = new Set(drones.map((drone) => drone.pos_id));
-    for (let pos = 1; pos <= TOTAL_POSITIONS; pos++) {
-      if (!existingPosIds.has(pos)) {
+    for (let pos = 1; pos <= totalPositions; pos++) {
+      if (!posIdMap[pos]) {
+        // Assuming each position has fixed coordinates
+        // Replace the following with actual position coordinates if available
+        const defaultX = 0;
+        const defaultY = 0;
         plotPoints.push({
           hw_id: null,
           pos_id: pos,
-          x: null,
-          y: null,
+          x: defaultX,
+          y: defaultY,
           deviation_north: 'N/A',
           deviation_east: 'N/A',
           total_deviation: 'N/A',
           within_acceptable_range: null,
           isSubstitute: false,
           fillColor: COLORS.UNASSIGNED_FILL,
-          borderColor: COLORS.UNASSIGNED_BORDER,
+          borderColor: 'transparent',
+          label: `Pos ${pos}`,
         });
       }
     }
@@ -111,11 +107,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
           // Assigned Drones
           x: assignedPoints.map((p) => p.y), // East (Y)
           y: assignedPoints.map((p) => p.x), // North (X)
-          text: assignedPoints.map((p) =>
-            p.isSubstitute
-              ? `Substitute: HW ID ${p.hw_id}`
-              : `HW ID: ${p.hw_id}`
-          ),
+          text: assignedPoints.map((p) => p.label),
           customdata: assignedPoints,
           type: 'scatter',
           mode: 'markers+text',
@@ -151,7 +143,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
           // Unassigned Positions
           x: unassignedPoints.map((p) => p.y),
           y: unassignedPoints.map((p) => p.x),
-          text: unassignedPoints.map((p) => `Unassigned Position: ${p.pos_id}`),
+          text: unassignedPoints.map((p) => p.label),
           type: 'scatter',
           mode: 'markers+text',
           marker: {
@@ -164,7 +156,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
             symbol: 'circle-open',
             opacity: 0.6,
           },
-          text: unassignedPoints.map((p) => p.pos_id),
+          text: unassignedPoints.map((p) => `Pos ${p.pos_id}`),
           textfont: {
             color: '#7f8c8d',
             size: 12,
@@ -210,9 +202,6 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
           t: 50,
           b: 100,
         },
-        shapes: [
-          // Optional: Add shapes or gridlines representing positions
-        ],
       }}
       config={{
         responsive: true,
