@@ -9,6 +9,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
     groupedData[drone.pos_id].push(drone);
   });
 
+  // Preprocess data for plotting
   const customData = drones.map((drone) => {
     const deviation = deviationData[drone.hw_id];
     const isPosMismatch = drone.hw_id !== drone.pos_id; // Check for position mismatch
@@ -23,28 +24,28 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
       within_acceptable_range: deviation?.within_acceptable_range,
       isPosMismatch,
       isDisabled: drone.isDisabled || false, // Indicate if the drone is disabled
+      status: isPosMismatch ? "Mismatch" : "Correct", // Add status field
     };
   });
 
   // Marker Colors and Border Styles
-  const markerColors = customData.map((data) => {
-    if (data.isPosMismatch) return 'orange'; // Position mismatch
-    return 'blue'; // Normal match
-  });
+  const markerColors = customData.map((data) =>
+    data.isPosMismatch ? 'orange' : 'blue' // Color based on position mismatch
+  );
 
   const markerBorderColors = customData.map((data) =>
-    data.within_acceptable_range ? 'green' : 'red'
+    data.within_acceptable_range ? 'green' : 'red' // Border color based on deviation
   );
 
   // Adjust position to handle overlaps
-  const xPlotValues = drones.map((drone, i) => {
+  const xPlotValues = drones.map((drone) => {
     const overlapIndex = groupedData[drone.pos_id].findIndex(
       (d) => d.hw_id === drone.hw_id
     );
     return parseFloat(drone.y) + overlapIndex * 0.5; // Offset for overlapping markers
   });
 
-  const yPlotValues = drones.map((drone, i) => {
+  const yPlotValues = drones.map((drone) => {
     const overlapIndex = groupedData[drone.pos_id].findIndex(
       (d) => d.hw_id === drone.hw_id
     );
@@ -84,7 +85,7 @@ function InitialLaunchPlot({ drones, onDroneClick, deviationData }) {
             '<b>Deviation North:</b> %{customdata.deviation_north}<br>' +
             '<b>Deviation East:</b> %{customdata.deviation_east}<br>' +
             '<b>Total Deviation:</b> %{customdata.total_deviation}<br>' +
-            '<b>Status:</b> %{customdata.isPosMismatch ? "Mismatch" : "Correct"}<extra></extra>',
+            '<b>Status:</b> %{customdata.status}<extra></extra>', // Use precomputed status field
         },
       ]}
       layout={{
