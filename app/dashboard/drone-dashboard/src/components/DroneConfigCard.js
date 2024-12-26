@@ -132,6 +132,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       ) : (
         <p><strong>Network Info:</strong> Not available</p>
       )}
+
+      {/* Corrected gitInfo display */}
+      <p><strong>git Info:</strong> {gitStatus ? JSON.stringify(gitStatus) : 'N/A'}</p>
       <DroneGitStatus gitStatus={gitStatus} droneName={`Drone ${drone.hw_id}`} />
 
       <div className="card-buttons">
@@ -589,6 +592,7 @@ const handleConfirmPosChange = () => {
  */
 export default function DroneConfigCard({
   drone,
+  gitStatus, // Added destructuring for gitStatus
   configData,
   availableHwIds,
   editingDroneId,
@@ -597,6 +601,7 @@ export default function DroneConfigCard({
   removeDrone,
   networkInfo,
   heartbeatData,
+  positionIdMapping, // If used
 }) {
   const isEditing = editingDroneId === drone.hw_id;
 
@@ -641,43 +646,42 @@ export default function DroneConfigCard({
     : '';
 
   /** Validate and then pass updated data to parent's `saveChanges` */
-const handleLocalSave = () => {
-  // Basic validation
-  const validationErrors = {};
-  if (droneData.hw_id === undefined || droneData.hw_id === '') {
-    validationErrors.hw_id = 'Hardware ID is required.';
-  }
-  if (droneData.ip === undefined || droneData.ip === '') {
-    validationErrors.ip = 'IP Address is required.';
-  }
-  if (droneData.mavlink_port === undefined || droneData.mavlink_port === '') {
-    validationErrors.mavlink_port = 'MavLink Port is required.';
-  }
-  if (droneData.debug_port === undefined || droneData.debug_port === '') {
-    validationErrors.debug_port = 'Debug Port is required.';
-  }
-  if (droneData.gcs_ip === undefined || droneData.gcs_ip === '') {
-    validationErrors.gcs_ip = 'GCS IP is required.';
-  }
-  if (droneData.x === undefined || isNaN(droneData.x)) {
-    validationErrors.x = 'Valid X coordinate is required.';
-  }
-  if (droneData.y === undefined || isNaN(droneData.y)) {
-    validationErrors.y = 'Valid Y coordinate is required.';
-  }
-  if (droneData.pos_id === undefined || droneData.pos_id === '') {
-    validationErrors.pos_id = 'Position ID is required.';
-  }
+  const handleLocalSave = () => {
+    // Basic validation
+    const validationErrors = {};
+    if (droneData.hw_id === undefined || droneData.hw_id === '') {
+      validationErrors.hw_id = 'Hardware ID is required.';
+    }
+    if (droneData.ip === undefined || droneData.ip === '') {
+      validationErrors.ip = 'IP Address is required.';
+    }
+    if (droneData.mavlink_port === undefined || droneData.mavlink_port === '') {
+      validationErrors.mavlink_port = 'MavLink Port is required.';
+    }
+    if (droneData.debug_port === undefined || droneData.debug_port === '') {
+      validationErrors.debug_port = 'Debug Port is required.';
+    }
+    if (droneData.gcs_ip === undefined || droneData.gcs_ip === '') {
+      validationErrors.gcs_ip = 'GCS IP is required.';
+    }
+    if (droneData.x === undefined || isNaN(droneData.x)) {
+      validationErrors.x = 'Valid X coordinate is required.';
+    }
+    if (droneData.y === undefined || isNaN(droneData.y)) {
+      validationErrors.y = 'Valid Y coordinate is required.';
+    }
+    if (droneData.pos_id === undefined || droneData.pos_id === '') {
+      validationErrors.pos_id = 'Position ID is required.';
+    }
 
-  if (Object.keys(validationErrors).length > 0) {
-    setErrors(validationErrors);
-    return;
-  }
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
-  // Let parent handle final insertion into configData
-  saveChanges(drone.hw_id, droneData);
-};
-
+    // Let parent handle final insertion into configData
+    saveChanges(drone.hw_id, droneData);
+  };
 
   return (
     <div className={`drone-config-card${cardExtraClass}`}>
@@ -716,6 +720,7 @@ const handleLocalSave = () => {
       ) : (
         <DroneReadOnlyView
           drone={drone}
+          gitStatus={gitStatus} // Pass gitStatus to DroneReadOnlyView
           isNew={drone.isNew}
           ipMismatch={ipMismatch}
           posMismatch={posMismatch}
@@ -734,7 +739,7 @@ const handleLocalSave = () => {
 
 DroneConfigCard.propTypes = {
   drone: PropTypes.object.isRequired,
-  gitStatus: PropTypes.object,
+  gitStatus: PropTypes.object, // Ensure gitStatus is defined here
   configData: PropTypes.array.isRequired,
   availableHwIds: PropTypes.array.isRequired,
   editingDroneId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
@@ -743,5 +748,5 @@ DroneConfigCard.propTypes = {
   removeDrone: PropTypes.func.isRequired,
   networkInfo: PropTypes.object,
   heartbeatData: PropTypes.object,
+  positionIdMapping: PropTypes.object, // If used
 };
-

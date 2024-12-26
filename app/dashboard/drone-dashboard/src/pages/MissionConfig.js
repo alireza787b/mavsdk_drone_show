@@ -402,6 +402,7 @@ const MissionConfig = () => {
       <div className="content-flex">
         <div className="drone-cards">
           {sortedConfigData.map((drone) => (
+            
             <DroneConfigCard
             key={drone.hw_id}
             drone={drone}
