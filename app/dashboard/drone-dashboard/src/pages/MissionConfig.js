@@ -264,19 +264,6 @@ const MissionConfig = () => {
       return;
     }
 
-    // Validation: Check for duplicate position ID
-    if (
-      configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)
-    ) {
-      if (
-        !window.confirm(
-          `Position ID ${updatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
-        )
-      ) {
-        return;
-      }
-    }
-
     // Merge changes and unset isNew
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>

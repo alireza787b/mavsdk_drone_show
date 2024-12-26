@@ -135,7 +135,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       )}
 
       {/* Corrected gitInfo display */}
-      {/* <p><strong>git Info:</strong> {gitStatus ? JSON.stringify(gitStatus) : 'N/A'}</p> */}
       <DroneGitStatus
         gitStatus={gitStatus}
         gcsGitStatus={gcsGitStatus}
@@ -188,15 +187,12 @@ const DroneEditForm = memo(function DroneEditForm({
   const [isCustomPosId, setIsCustomPosId] = useState(false);
   const [customPosId, setCustomPosId] = useState('');
 
-
   // For showing old vs. new in the dialog
   const [oldX, setOldX] = useState(droneData.x);
   const [oldY, setOldY] = useState(droneData.y);
   const [newX, setNewX] = useState(droneData.x);
   const [newY, setNewY] = useState(droneData.y);
 
-
-  
   // We keep a separate local copy of the original pos_id for revert
   const [originalPosId, setOriginalPosId] = useState(droneData.pos_id);
 
@@ -247,48 +243,45 @@ const DroneEditForm = memo(function DroneEditForm({
   const handleCancelPosChange = () => {
     setShowPosChangeDialog(false);
     setPendingPosId(null);
-    // revert the select box
+    // Revert the select box
     onFieldChange({ target: { name: 'pos_id', value: originalPosId } });
   };
 
   /** Confirm the pos_id change => auto-update local droneData.x,y if matched */
-  /** Confirm the pos_id change => auto-update local droneData.x,y if matched */
-const handleConfirmPosChange = () => {
-  if (!pendingPosId) {
+  const handleConfirmPosChange = () => {
+    if (!pendingPosId) {
+      setShowPosChangeDialog(false);
+      return;
+    }
+
+    // Update pos_id in the droneData state
+    onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
+
+    // Update x, y if matched with another drone
+    const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
+    if (matchedDrone) {
+      onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
+      onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
+
+      // Ensure the local droneData state is updated
+      setDroneData((prevData) => ({
+        ...prevData,
+        pos_id: pendingPosId,
+        x: matchedDrone.x,
+        y: matchedDrone.y,
+      }));
+    } else {
+      // If no match, ensure only pos_id is updated
+      setDroneData((prevData) => ({
+        ...prevData,
+        pos_id: pendingPosId,
+      }));
+    }
+
+    setOriginalPosId(pendingPosId); // Finalize the change
     setShowPosChangeDialog(false);
-    return;
-  }
-
-  // Update pos_id in the droneData state
-  onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
-
-  // Update x, y if matched with another drone
-  const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
-  if (matchedDrone) {
-    onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
-    onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
-
-    // Ensure the local droneData state is updated
-    setDroneData((prevData) => ({
-      ...prevData,
-      pos_id: pendingPosId,
-      x: matchedDrone.x,
-      y: matchedDrone.y,
-    }));
-  } else {
-    // If no match, ensure only pos_id is updated
-    setDroneData((prevData) => ({
-      ...prevData,
-      pos_id: pendingPosId,
-    }));
-  }
-
-  setOriginalPosId(pendingPosId); // Finalize the change
-  setShowPosChangeDialog(false);
-  setPendingPosId(null);
-};
-
-  
+    setPendingPosId(null);
+  };
 
   /** Generic onChange handler for other fields */
   const handleGenericChange = (e) => {
@@ -446,126 +439,103 @@ const handleConfirmPosChange = () => {
       </label>
 
       <label>
-  Position ID:
-  <div className="input-with-icon">
-    {isCustomPosId ? (
-      // Input field for new Position ID
-      <input
-        type="text"
-        name="custom_pos_id"
-        value={customPosId}
-        placeholder="Enter new Position ID"
-        onChange={(e) => {
-          const newPosId = e.target.value;
-          setCustomPosId(newPosId);
+        Position ID:
+        <div className="input-with-icon">
+          {isCustomPosId ? (
+            // Input field for new Position ID
+            <input
+              type="text"
+              name="custom_pos_id"
+              value={customPosId}
+              placeholder="Enter new Position ID"
+              onChange={(e) => {
+                const newPosId = e.target.value;
+                setCustomPosId(newPosId);
 
-          // Update droneData for new Position ID with default coordinates
-          setDroneData((prevData) => ({
-            ...prevData,
-            pos_id: newPosId,
-            x: 0,
-            y: 0,
-          }));
+                // Update droneData for new Position ID with default coordinates
+                setDroneData((prevData) => ({
+                  ...prevData,
+                  pos_id: newPosId,
+                  x: 0,
+                  y: 0,
+                }));
 
-          alert(`Position ID "${newPosId}" defaults to (0, 0).`);
-        }}
-        aria-label="Custom Position ID"
-      />
-    ) : (
-      // Dropdown for existing Position IDs
-      <select
-        name="pos_id"
-        value={droneData.pos_id}
-        onChange={(e) => {
-          const chosenPosId = e.target.value;
+                alert(`Position ID "${newPosId}" defaults to (0, 0).`);
+              }}
+              aria-label="Custom Position ID"
+            />
+          ) : (
+            // Dropdown for existing Position IDs
+            <select
+              name="pos_id"
+              value={droneData.pos_id}
+              onChange={handlePosSelectChange}
+              aria-label="Select Position ID"
+            >
+              {allPosIds.map((pid) => (
+                <option key={pid} value={pid}>
+                  {pid}
+                </option>
+              ))}
+            </select>
+          )}
 
-          // Check if the chosen Position ID is in the configData
-          const matchedDrone = findDroneByPositionId(configData, chosenPosId, droneData.hw_id);
-          const x = matchedDrone ? matchedDrone.x : 0;
-          const y = matchedDrone ? matchedDrone.y : 0;
+          {/* Mismatch warning icon */}
+          {posMismatch && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+              aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
+            />
+          )}
 
-          // Update droneData with selected Position ID and coordinates
-          setDroneData((prevData) => ({
-            ...prevData,
-            pos_id: chosenPosId,
-            x,
-            y,
-          }));
+          {/* Toggle button to switch between dropdown and input */}
+          <div className="toggle-container">
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={isCustomPosId}
+                onChange={() => {
+                  setIsCustomPosId((prev) => !prev);
+                  if (!isCustomPosId) {
+                    setCustomPosId('');
+                  }
+                }}
+              />
+              <span className="slider round"></span>
+            </label>
+            <span className="toggle-label">
+              {isCustomPosId ? 'Enter New Position ID' : 'Select Existing Position ID'}
+            </span>
+          </div>
+        </div>
 
-          alert(
-            matchedDrone
-              ? `Using existing Position ID (${chosenPosId}).`
-              : `Position ID (${chosenPosId}) defaults to (0, 0).`
-          );
-        }}
-        aria-label="Select Position ID"
-      >
-        {allPosIds.map((pid) => (
-          <option key={pid} value={pid}>
-            {pid}
-          </option>
-        ))}
-      </select>
-    )}
+        {/* Error message */}
+        {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
 
-    {/* Mismatch warning icon */}
-    {posMismatch && (
-      <FontAwesomeIcon
-        icon={faExclamationCircle}
-        className="warning-icon"
-        title={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
-        aria-label={`Position ID Mismatch: Heartbeat PosID is ${heartbeatPos}`}
-      />
-    )}
-
-    {/* Toggle button to switch between dropdown and input */}
-<div className="toggle-container">
-  <label className="switch">
-    <input
-      type="checkbox"
-      checked={isCustomPosId}
-      onChange={() => {
-        setIsCustomPosId((prev) => !prev);
-        if (!isCustomPosId) {
-          setCustomPosId('');
-        }
-      }}
-    />
-    <span className="slider round"></span>
-  </label>
-  <span className="toggle-label">
-    {isCustomPosId ? 'Enter New Position ID' : 'Select Existing Position ID'}
-  </span>
-</div>
-
-  </div>
-
-  {/* Error message */}
-  {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
-
-  {/* Mismatch message and Accept button */}
-  {posMismatch && heartbeatPos && (
-    <div className="mismatch-message">
-      Position ID mismatch with heartbeat: {heartbeatPos}
-      <button
-        type="button"
-        className="accept-button"
-        onClick={() => {
-          setDroneData((prevData) => ({
-            ...prevData,
-            pos_id: heartbeatPos,
-          }));
-          alert(`Position ID updated to match heartbeat (${heartbeatPos}).`);
-        }}
-        title="Accept Heartbeat Position ID"
-        aria-label="Accept Heartbeat Position ID"
-      >
-        <FontAwesomeIcon icon={faCircle} /> Accept
-      </button>
-    </div>
-  )}
-</label>
-
+        {/* Mismatch message and Accept button */}
+        {posMismatch && heartbeatPos && (
+          <div className="mismatch-message">
+            Position ID mismatch with heartbeat: {heartbeatPos}
+            <button
+              type="button"
+              className="accept-button"
+              onClick={() => {
+                setDroneData((prevData) => ({
+                  ...prevData,
+                  pos_id: heartbeatPos,
+                }));
+                alert(`Position ID updated to match heartbeat (${heartbeatPos}).`);
+              }}
+              title="Accept Heartbeat Position ID"
+              aria-label="Accept Heartbeat Position ID"
+            >
+              <FontAwesomeIcon icon={faCircle} /> Accept
+            </button>
+          </div>
+        )}
+      </label>
 
       <div className="card-buttons">
         <button
@@ -612,7 +582,6 @@ export default function DroneConfigCard({
 
   const [droneData, setDroneData] = useState({ ...drone });
   const [errors, setErrors] = useState({});
-  const [showDuplicatePosDialog, setShowDuplicatePosDialog] = useState(false);
 
   // Reset local form on entering edit mode
   useEffect(() => {
