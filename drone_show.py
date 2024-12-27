@@ -5,7 +5,7 @@ Drone Show Script (`drone_show.py`)
 ----------------------------------------
 Author: Alireza Ghaderi
 Date: 2024-12-27
-Version: 2.2.0
+Version: 2.3.0
 ----------------------------------------
 
 **Description:**
@@ -16,13 +16,14 @@ Additionally, it provides visual feedback through LED indicators to represent va
 **Features:**
 - Executes predefined trajectories from CSV files.
 - Supports both auto and manual initial position settings.
+- Allows overriding auto launch position via command-line argument.
 - Provides clear and informative logging for monitoring and debugging.
 - Visual feedback through LEDs to indicate drone states.
 - Robust error handling to ensure safe drone operations.
 
 **Usage:**
 ```bash
-python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto_launch_position] [--debug]
+python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto_launch_position {True,False}] [--debug]
 ```
 
 **Command-Line Arguments:**
@@ -32,8 +33,9 @@ python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto
 - `--custom_csv CUSTOM_CSV`  
   Name of the custom trajectory CSV file (e.g., `active.csv`). If not provided, the drone show mode is used.
 
-- `--auto_launch_position`  
-  Enable automated initial position extraction from the trajectory CSV.
+- `--auto_launch_position {True,False}`  
+  Explicitly enable (`True`) or disable (`False`) automated initial position extraction from the trajectory CSV.
+  If not provided, the default value from `Params.AUTO_LAUNCH_POSITION` is used.
 
 - `--debug`  
   Enable debug mode for verbose logging. Useful for troubleshooting.
@@ -54,7 +56,6 @@ python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto
 
 **Note:**
 Ensure that the `mavsdk_server` executable is present in the specified directory and has the necessary execution permissions.
-
 """
 
 import os
@@ -114,6 +115,29 @@ CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
 # ----------------------------- #
 #         Helper Functions      #
 # ----------------------------- #
+
+
+def str2bool(v):
+    """
+    Convert a string to a boolean.
+
+    Args:
+        v (str): Input string.
+
+    Returns:
+        bool: Converted boolean value.
+
+    Raises:
+        argparse.ArgumentTypeError: If the input is not a valid boolean string.
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def read_config(filename: str) -> Drone:
@@ -1221,8 +1245,11 @@ def main():
     parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file, e.g., active.csv')
     parser.add_argument(
         '--auto_launch_position',
-        action='store_true',
-        help='Enable automated initial position extraction from trajectory CSV.',
+        type=str2bool,
+        nargs='?',
+        const=True,
+        default=None,
+        help='Explicitly enable (True) or disable (False) automated initial position extraction from trajectory CSV.',
     )
     parser.add_argument(
         '--debug',
@@ -1253,9 +1280,9 @@ def main():
     global_synchronized_start_time = synchronized_start_time
 
     # Determine if auto launch position is enabled
-    if args.auto_launch_position:
-        auto_launch_position = True
-        logger.info("Command-line argument '--auto_launch_position' detected. Auto Launch Position ENABLED.")
+    if args.auto_launch_position is not None:
+        auto_launch_position = args.auto_launch_position
+        logger.info(f"Command-line argument '--auto_launch_position' set to {auto_launch_position}.")
     else:
         auto_launch_position = Params.AUTO_LAUNCH_POSITION
         logger.info(
