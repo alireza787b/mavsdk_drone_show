@@ -1,5 +1,61 @@
-# drone_show/drone_show.py
-# TODO: Make the initial X, Y, Z subtraction automatic from the first line instead of reading from config.
+#!/usr/bin/env python3
+"""
+Drone Show Script (`drone_show.py`)
+
+----------------------------------------
+Author: Alireza Ghaderi
+Date: 2024-12-27
+Version: 2.2.0
+----------------------------------------
+
+**Description:**
+This script controls a drone during a coordinated show, executing predefined trajectories with precise timing.
+It interfaces with the MAVSDK to manage drone operations such as arming, offboard mode control, and landing.
+Additionally, it provides visual feedback through LED indicators to represent various states of the drone.
+
+**Features:**
+- Executes predefined trajectories from CSV files.
+- Supports both auto and manual initial position settings.
+- Provides clear and informative logging for monitoring and debugging.
+- Visual feedback through LEDs to indicate drone states.
+- Robust error handling to ensure safe drone operations.
+
+**Usage:**
+```bash
+python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto_launch_position] [--debug]
+```
+
+**Command-Line Arguments:**
+- `--start_time START_TIME`  
+  Synchronized start time in UNIX timestamp. If not provided, the current time is used.
+
+- `--custom_csv CUSTOM_CSV`  
+  Name of the custom trajectory CSV file (e.g., `active.csv`). If not provided, the drone show mode is used.
+
+- `--auto_launch_position`  
+  Enable automated initial position extraction from the trajectory CSV.
+
+- `--debug`  
+  Enable debug mode for verbose logging. Useful for troubleshooting.
+
+**Dependencies:**
+- Python 3.7+
+- MAVSDK (`pip install mavsdk`)
+- `psutil` (`pip install psutil`)
+- `tenacity` (`pip install tenacity`)
+- Other dependencies as specified in the script.
+
+**LED Indicators:**
+- **Blue:** Initialization in progress.
+- **Yellow:** Pre-flight checks in progress.
+- **Green:** Ready to fly or mission completed.
+- **White:** Ready to fly.
+- **Red:** Error or disarmed.
+
+**Note:**
+Ensure that the `mavsdk_server` executable is present in the specified directory and has the necessary execution permissions.
+
+"""
 
 import os
 import sys
@@ -134,7 +190,9 @@ def extract_initial_positions(first_waypoint: dict) -> tuple:
         raise ValueError(f"Invalid value in first waypoint: {ve}")
 
 
-def adjust_waypoints(waypoints: list, initial_x: float, initial_y: float, initial_z: float = 0.0) -> list:
+def adjust_waypoints(
+    waypoints: list, initial_x: float, initial_y: float, initial_z: float = 0.0
+) -> list:
     """
     Adjust all waypoints by subtracting the initial positions.
 
@@ -403,12 +461,15 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     ledb,
                 ) = waypoint
 
-                # Log waypoint details
-                logger.debug(
+                # Log waypoint execution details
+                logger.info(
                     f"Executing Waypoint {waypoint_index + 1}/{total_waypoints}: "
-                    f"Time={t_wp}s, Position=({px}, {py}, {pz}), "
-                    f"Velocity=({vx}, {vy}, {vz}), Acceleration=({ax}, {ay}, {az}), "
-                    f"Yaw={yaw}, Mode={mode}, LED Color=({ledr}, {ledg}, {ledb})"
+                    f"Time={t_wp:.2f}s, Position=({px:.2f}, {py:.2f}, {pz:.2f})m, Yaw={yaw:.2f}°"
+                )
+                logger.debug(
+                    f"Setpoints - Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})m/s, "
+                    f"Acceleration: ({ax:.2f}, {ay:.2f}, {az:.2f})m/s², Mode: {mode}, "
+                    f"LED Color: ({ledr}, {ledg}, {ledb})"
                 )
 
                 # Update LED colors from trajectory
@@ -442,7 +503,6 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 mission_progress = (waypoint_index + 1) / total_waypoints
 
                 logger.info(
-                    f"Waypoint {waypoint_index + 1}/{total_waypoints} executed. "
                     f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s"
                 )
 
@@ -1182,10 +1242,12 @@ def main():
     # Get the synchronized start time
     if args.start_time:
         synchronized_start_time = args.start_time
-        logger.info(f"Synchronized start time provided: {time.ctime(synchronized_start_time)}.")
+        formatted_time = time.ctime(synchronized_start_time)
+        logger.info(f"Synchronized start time provided: {formatted_time}.")
     else:
         synchronized_start_time = time.time()
-        logger.info(f"No synchronized start time provided. Using current time: {time.ctime(synchronized_start_time)}.")
+        formatted_time = time.ctime(synchronized_start_time)
+        logger.info(f"No synchronized start time provided. Using current time: {formatted_time}.")
 
     global global_synchronized_start_time
     global_synchronized_start_time = synchronized_start_time
