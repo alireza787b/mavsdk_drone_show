@@ -175,6 +175,10 @@ class Params:
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
     CONTROLLED_LANDING_TIMEOUT = 15        # Maximum time to wait during controlled landing
 
+
+    AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
+
+
     # Initial Position Correction
     ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
 
