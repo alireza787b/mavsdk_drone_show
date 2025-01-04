@@ -520,19 +520,6 @@ validate_inputs
 SCRIPT_PATH="$(realpath "$0")"
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
-# Set up SSH key for GitHub access
-setup_ssh_key_for_git
-
-# Set GIT_SSH_COMMAND to ensure the correct SSH key is used
-export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes"
-
-# Setup Git Repository
-setup_git "$@"
-
-echo
-echo "Git repository setup complete."
-
-echo
 echo "Starting setup for the Drone Swarm System..."
 
 # Handle Hardware ID (HWID) File and real.mode
@@ -576,6 +563,21 @@ fi
 
 # Add the polkit rule for reboot if it doesn't exist
 configure_polkit_for_reboot
+
+# Set up SSH key for GitHub access
+setup_ssh_key_for_git
+
+# Set GIT_SSH_COMMAND to ensure the correct SSH key is used
+export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o IdentitiesOnly=yes"
+
+# Setup Git Repository
+setup_git "$@"
+
+echo
+echo "Git repository setup complete."
+
+echo
+
 
 # Setup Wifi-Manager Service
 setup_wifi_manager_service
