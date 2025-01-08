@@ -35,13 +35,14 @@
 # - Verify that the environment variables and paths set in the service file are accurate for your deployment environment.
 # - Adjust the security settings according to your operational security policies before deploying in a production environment.
 
+
 [Unit]
 Description=Drone Swarm System Coordinator
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-# Pre-start steps
+# Pre-start steps (ensure repo update, wifi-manager, service checks, etc.)
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh --real
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
@@ -59,20 +60,17 @@ Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/us
 Restart=always
 RestartSec=5s
 
-# Capabilities
+# Capabilities (we sync time with Python, also need GPIO access, etc.)
+# Additional capabilities may be needed for drone operations
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 
-# Log output settings
-StandardOutput=journal
-StandardError=inherit
-
-# Log output settings
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=coordinator
 
-# Service watchdog and timeout settings
+# Watchdog / timeouts
 WatchdogSec=10s
 TimeoutStartSec=60
 TimeoutStopSec=30
