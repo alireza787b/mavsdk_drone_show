@@ -1,3 +1,5 @@
+/* app/dashboard/drone-dashboard/src/styles/DroneWidget.css */
+
 .drone-widget {
     border: 2px solid #ccc;
     padding: 16px;
@@ -160,4 +162,13 @@
 
 .drone-widget {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.drone-critical-commands-section {
+    margin-top: 8px;
+    /* or as desired */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    /* spacing between icons */
 }
