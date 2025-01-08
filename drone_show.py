@@ -436,7 +436,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     total_waypoints = len(waypoints)
     waypoint_index = 0
     landing_detected = False
-
+    global initial_position_drift
     # Initialize LEDController
     led_controller = LEDController.get_instance()
 
