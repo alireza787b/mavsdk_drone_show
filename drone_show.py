@@ -839,6 +839,10 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
         global initial_position_drift
         initial_position_drift = initial_position_drift_ned
 
+        # Set Drone to Hold flight mode (just in case)
+        logger.info("Setting Hold Flight Mode")
+        await drone.action.hold()
+
         # Proceed to arm and start offboard mode
         logger.info("Arming drone.")
         await drone.action.arm()
