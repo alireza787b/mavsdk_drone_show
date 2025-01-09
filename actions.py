@@ -256,7 +256,7 @@ def start_mavsdk_server(grpc_port, udp_port):
 
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        if not wait_for_port(grpc_port, timeout=10):
+        if not wait_for_port(grpc_port, timeout=20):
             logger.error("MAVSDK server did not start listening in time.")
             mavsdk_server.terminate()
             fail()

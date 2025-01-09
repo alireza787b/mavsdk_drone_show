@@ -51,20 +51,13 @@ Wants=network-online.target
 # Update the repository with the latest changes
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh --real
 
-ExecStartPre=-/usr/bin/sleep 10
-
 # Check and update WiFi manager configuration
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
-ExecStartPre=-/usr/bin/sleep 5
-
 # Verify and update the system service configuration
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
-ExecStartPre=-/usr/bin/sleep 10
 
 # Initialize MAVLink system ID based on drone hardware ID
 ExecStartPre=-/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/actions.py --action init_sysid
-
-ExecStartPre=-/usr/bin/sleep 10
 
 
 # Main service start command
