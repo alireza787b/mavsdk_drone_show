@@ -219,10 +219,37 @@ def stop_mavsdk_server(mavsdk_server):
     else:
         logger.debug("MAVSDK server already stopped or never started.")
 
+def find_mavsdk_server():
+    """
+    Finds the path to the mavsdk_server binary.
+    Priority:
+    1. MAVSDK_SERVER_PATH environment variable.
+    2. Current script directory (relative to __file__).
+    3. Default fallback directory: project root.
+    """
+    # 1. Check environment variable
+    mavsdk_server_path = os.environ.get("MAVSDK_SERVER_PATH")
+    if mavsdk_server_path and os.path.isfile(mavsdk_server_path):
+        return mavsdk_server_path
+
+    # 2. Check script directory (relative to __file__)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    mavsdk_server_path = os.path.join(script_dir, "mavsdk_server")
+    if os.path.isfile(mavsdk_server_path):
+        return mavsdk_server_path
+
+    # 3. Check fallback directory (project root)
+    fallback_path = os.path.join(script_dir, "..", "mavsdk_server")
+    if os.path.isfile(fallback_path):
+        return fallback_path
+
+    return None
+
+
 def start_mavsdk_server(grpc_port, udp_port):
     """
-    Starts or restarts the MAVSDK server, ensuring any previously running server on
-    the same gRPC port is stopped first. Returns the subprocess.Popen instance.
+    Starts or restarts the MAVSDK server, ensuring any previously running server
+    on the same gRPC port is stopped first. Returns the subprocess.Popen instance.
     """
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
@@ -239,14 +266,13 @@ def start_mavsdk_server(grpc_port, udp_port):
             psutil.Process(pid).wait()
             logger.info(f"Killed MAVSDK server (PID: {pid}).")
 
-    logger.info(f"Starting MAVSDK server on gRPC:{grpc_port}, UDP:{udp_port}")
-    mavsdk_server_path = os.path.join(os.getcwd(), "mavsdk_server")
-
-    if not os.path.isfile(mavsdk_server_path):
-        logger.error(f"mavsdk_server not found at '{mavsdk_server_path}'")
+    mavsdk_server_path = find_mavsdk_server()
+    if not mavsdk_server_path:
+        logger.error("mavsdk_server executable not found.")
         fail()
         sys.exit(1)
 
+    logger.info(f"Starting MAVSDK server: {mavsdk_server_path} on gRPC:{grpc_port}, UDP:{udp_port}")
     try:
         mavsdk_server = subprocess.Popen(
             [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
@@ -256,7 +282,7 @@ def start_mavsdk_server(grpc_port, udp_port):
 
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        if not wait_for_port(grpc_port, timeout=20):
+        if not wait_for_port(grpc_port, timeout=10):
             logger.error("MAVSDK server did not start listening in time.")
             mavsdk_server.terminate()
             fail()
@@ -264,14 +290,11 @@ def start_mavsdk_server(grpc_port, udp_port):
 
         logger.info("MAVSDK server ready.")
         return mavsdk_server
-    except FileNotFoundError:
-        logger.error("mavsdk_server executable not found.")
-        fail()
-        sys.exit(1)
     except Exception:
         logger.exception("Failed to start MAVSDK server")
         fail()
         sys.exit(1)
+
 
 def parse_param_value(value_str):
     """
