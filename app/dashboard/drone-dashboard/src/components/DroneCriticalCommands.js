@@ -1,75 +1,74 @@
 // src/components/DroneCriticalCommands.js
-
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
-import { FaSkull, FaHome, FaPlaneArrival } from 'react-icons/fa'; 
+import { FaSkull, FaHome, FaPlaneArrival, FaHandPaper } from 'react-icons/fa';
 import ConfirmationModal from './ConfirmationModal';
-import { sendDroneCommand } from '../services/droneApiService'; 
+import { buildActionCommand, sendDroneCommand } from '../services/droneApiService';
+import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import '../styles/DroneCriticalCommands.css';
 
 /**
  * DroneCriticalCommands
- * 
- * Props:
- * - droneId (string): The unique ID of the drone (e.g. drone.hw_ID) 
- *   to which we send commands.
+ *
+ * Renders four critical commands (Hold, Land, Return, Kill) for a single drone.
  */
 const DroneCriticalCommands = ({ droneId }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
   /**
-   * Available critical commands.
-   * For clarity, we define a small array of objects describing each command:
-   * actionType => matches your DRONE_ACTION_TYPES or backend missionType
-   * icon => React component from react-icons
-   * label => Short label for tooltips or text
-   * isDanger => If true, show the modal confirm button in 'danger' style
+   * Limit to 4 commands for now, but easily extensible later.
    */
   const CRITICAL_COMMANDS = [
     {
-      actionType: 'RETURN_RTL',
-      icon: <FaHome />,
-      label: 'Return',
+      actionType: DRONE_ACTION_TYPES.HOLD, // numeric 102
+      icon: <FaHandPaper style={{ color: '#4caf50' }} />, // green-ish
+      label: 'Hold',
       isDanger: false,
     },
     {
-      actionType: 'LAND',
-      icon: <FaPlaneArrival />,
+      actionType: DRONE_ACTION_TYPES.LAND, // numeric 101
+      icon: <FaPlaneArrival style={{ color: '#008cba' }} />, // blue-ish
       label: 'Land',
       isDanger: false,
     },
     {
-      actionType: 'KILL_TERMINATE',
-      icon: <FaSkull />,
+      actionType: DRONE_ACTION_TYPES.RETURN_RTL, // numeric 104
+      icon: <FaHome style={{ color: '#ff9800' }} />, // orange
+      label: 'Return',
+      isDanger: false,
+    },
+    {
+      actionType: DRONE_ACTION_TYPES.KILL_TERMINATE, // numeric 105
+      icon: <FaSkull style={{ color: '#f44336' }} />, // red
       label: 'Kill',
       isDanger: true,
     },
   ];
 
-  // User clicks an icon => show modal => store which action we want to send
+  // User clicks an icon => open modal
   const handleCommandClick = (command) => {
     setPendingAction(command);
     setModalOpen(true);
   };
 
-  // If user confirms => send command to only this drone
+  // Confirm => send to backend
   const handleConfirm = async () => {
     if (!pendingAction || !droneId) {
       setModalOpen(false);
       return;
     }
 
-    // Close modal so it doesn't linger
+    // Close modal
     setModalOpen(false);
 
-    // Build the command data
-    const commandData = {
-      missionType: pendingAction.actionType, 
-      target_drones: [droneId],
-      triggerTime: '0', 
-    };
+    // Build standardized command object
+    const commandData = buildActionCommand(
+      pendingAction.actionType,
+      [droneId], // single drone
+      0 // immediate
+    );
 
     try {
       const response = await sendDroneCommand(commandData);
@@ -79,21 +78,20 @@ const DroneCriticalCommands = ({ droneId }) => {
         );
       } else {
         toast.error(
-          `Error sending command "${pendingAction.label}" to drone ${droneId}: ` +
-            (response.message || 'Unknown error')
+          `Error sending command "${pendingAction.label}" to drone ${droneId}: ${
+            response.message || 'Unknown error'
+          }`
         );
       }
     } catch (error) {
       console.error('Error sending command:', error);
-      toast.error(
-        `Failed to send command "${pendingAction.label}" to drone ${droneId}. Check console.`
-      );
+      toast.error(`Failed to send "${pendingAction.label}" to drone ${droneId}.`);
     } finally {
       setPendingAction(null);
     }
   };
 
-  // If user cancels or clicks outside => just close
+  // Cancel => close modal
   const handleCancel = () => {
     setModalOpen(false);
     setPendingAction(null);
@@ -117,7 +115,7 @@ const DroneCriticalCommands = ({ droneId }) => {
         title={pendingAction?.isDanger ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
-            ? `Are you sure you want to "${pendingAction.label}" drone ${droneId}?`
+            ? `Are you sure you want to ${pendingAction.label} drone ${droneId}?`
             : ''
         }
         confirmLabel={pendingAction?.label || 'Yes'}

@@ -33,3 +33,17 @@
 .critical-command-button.danger:hover {
     background-color: #ffcccc;
 }
+
+.hold-icon {
+    color: #4caf50; /* or another green */
+  }
+  .land-icon {
+    color: #008cba;
+  }
+  .return-icon {
+    color: #ff9800;
+  }
+  .kill-icon {
+    color: #f44336;
+  }
+  

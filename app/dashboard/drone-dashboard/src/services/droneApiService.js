@@ -1,26 +1,38 @@
 // app/dashboard/drone-dashboard/src/services/droneApiService.js
+
 import axios from 'axios';
 import { getBackendURL } from '../utilities/utilities';
+
+/**
+ * Builds a standardized command object for an action mission.
+ * @param {number} actionType - The numeric code (e.g. 101 for LAND).
+ * @param {string[]|undefined} droneIds - Array of drone IDs (if applicable).
+ * @param {number} triggerTime - Optional trigger time for scheduling (default immediate).
+ */
+export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) => {
+  // Note: If droneIds is empty, backend might interpret as "All Drones" 
+  // or you can handle that in your caller.
+  return {
+    missionType: actionType,
+    target_drones: droneIds,
+    triggerTime: String(triggerTime), // ensure it’s a string
+  };
+};
 
 export const sendDroneCommand = async (commandData) => {
   const requestURI = `${getBackendURL()}/submit_command`;
 
   try {
-    // Log the command being sent, along with the request URI
     console.log('Sending command:', JSON.stringify(commandData));
     console.log('Request URI:', requestURI);
     console.log('Base Server URL:', process.env.REACT_APP_SERVER_URL);
     console.log('Service Port:', process.env.REACT_APP_FLASK_PORT);
 
-    // Send the POST request
     const response = await axios.post(requestURI, commandData);
-
-    // Log the response received from the server
     console.log('Response received from server:', response.data);
 
-    return response.data;  // This might contain status and message fields
+    return response.data; // e.g. { status: 'success', message: ... }
   } catch (error) {
-    // Log detailed error information
     console.error('Error in sendDroneCommand:', error);
 
     if (error.response) {
@@ -32,6 +44,6 @@ export const sendDroneCommand = async (commandData) => {
       console.error('Error message:', error.message);
     }
 
-    throw error;  // Rethrowing the error to be handled by the caller
+    throw error;
   }
 };
