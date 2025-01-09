@@ -21,18 +21,19 @@ import { DRONE_ACTION_NAMES } from '../constants/droneConstants';
 import '../styles/DroneActions.css';
 
 const DroneActions = ({ actionTypes, onSendCommand }) => {
+  // Altitude input for takeoff
   const [altitude, setAltitude] = useState(10);
-  const [rebootAfter, setRebootAfter] = useState(false);
 
-  // Helper to build the commandData
+  // Helper to build and send the commandData object
   const handleActionClick = (actionKey, extraData = {}) => {
     const actionTypeValue = actionTypes[actionKey];
     const commandData = {
       missionType: actionTypeValue,
       triggerTime: '0', // immediate
-      ...extraData
+      ...extraData,
     };
 
+    // If user clicks Takeoff, include altitude
     if (actionKey === 'TAKE_OFF') {
       commandData.takeoff_altitude = altitude;
     }
@@ -42,11 +43,13 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
   return (
     <div className="drone-actions-container">
-      {/* Flight Control Actions */}
+      {/* -------------------------
+          Flight Control Actions
+         ------------------------- */}
       <div className="action-group">
         <h2>Flight Control Actions</h2>
         <div className="action-buttons">
-          {/* Takeoff Section */}
+          {/* Takeoff */}
           <div className="takeoff-section">
             <label htmlFor="takeoff-altitude">Takeoff Altitude (m):</label>
             <input
@@ -67,6 +70,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             </button>
           </div>
 
+          {/* Land */}
           <button
             className="action-button land-button"
             onClick={() => handleActionClick('LAND')}
@@ -75,6 +79,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.LAND]}
           </button>
 
+          {/* Hold */}
           <button
             className="action-button hold-button"
             onClick={() => handleActionClick('HOLD')}
@@ -83,6 +88,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.HOLD]}
           </button>
 
+          {/* Return to Launch */}
           <button
             className="action-button rtl-button"
             onClick={() => handleActionClick('RETURN_RTL')}
@@ -91,6 +97,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.RETURN_RTL]}
           </button>
 
+          {/* Disarm */}
           <button
             className="action-button disarm-button"
             onClick={() => handleActionClick('DISARM')}
@@ -99,6 +106,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.DISARM] || 'Disarm'}
           </button>
 
+          {/* Emergency Kill */}
           <button
             className="action-button kill-button"
             onClick={() => handleActionClick('KILL_TERMINATE')}
@@ -109,10 +117,13 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
         </div>
       </div>
 
-      {/* Test Actions */}
+      {/* -------------------------
+          Test Actions
+         ------------------------- */}
       <div className="action-group">
         <h2>Test Actions</h2>
         <div className="action-buttons">
+          {/* Test */}
           <button
             className="action-button test-button"
             onClick={() => handleActionClick('TEST')}
@@ -120,6 +131,8 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             <FaVial className="action-icon" />
             {DRONE_ACTION_NAMES[actionTypes.TEST]}
           </button>
+
+          {/* Test Light Show */}
           <button
             className="action-button test-led-button"
             onClick={() => handleActionClick('TEST_LED')}
@@ -130,10 +143,13 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
         </div>
       </div>
 
-      {/* System Actions */}
+      {/* -------------------------
+          System & Maintenance
+         ------------------------- */}
       <div className="action-group">
-        <h2>System Actions</h2>
+        <h2>System & Maintenance</h2>
         <div className="action-buttons">
+          {/* Reboot Flight Controls */}
           <button
             className="action-button reboot-fc-button"
             onClick={() => handleActionClick('REBOOT_FC')}
@@ -142,6 +158,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.REBOOT_FC]}
           </button>
 
+          {/* Reboot Companion Computer */}
           <button
             className="action-button reboot-sys-button"
             onClick={() => handleActionClick('REBOOT_SYS')}
@@ -150,6 +167,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.REBOOT_SYS]}
           </button>
 
+          {/* Update Code */}
           <button
             className="action-button update-code-button"
             onClick={() => handleActionClick('UPDATE_CODE')}
@@ -157,13 +175,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             <FaCodeBranch className="action-icon" />
             {DRONE_ACTION_NAMES[actionTypes.UPDATE_CODE]}
           </button>
-        </div>
-      </div>
 
-      {/* NEW: Setup / Maintenance Actions */}
-      <div className="action-group">
-        <h2>Setup / Maintenance</h2>
-        <div className="action-buttons">
           {/* Init SysID */}
           <button
             className="action-button"
@@ -174,29 +186,17 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
             {DRONE_ACTION_NAMES[actionTypes.INIT_SYSID]}
           </button>
 
-          {/* Apply Common Params */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
-            <button
-              className="action-button"
-              style={{ backgroundColor: '#795548' }}
-              onClick={() =>
-                handleActionClick('APPLY_COMMON_PARAMS', { reboot_after: rebootAfter })
-              }
-            >
-              <FaWrench className="action-icon" />
-              {DRONE_ACTION_NAMES[actionTypes.APPLY_COMMON_PARAMS]}
-            </button>
-
-            <label style={{ marginTop: '8px', fontWeight: 'bold' }}>
-              <input
-                type="checkbox"
-                style={{ marginRight: '5px' }}
-                checked={rebootAfter}
-                onChange={(e) => setRebootAfter(e.target.checked)}
-              />
-              Reboot after apply?
-            </label>
-          </div>
+          {/* Apply Common Params (auto reboot) */}
+          <button
+            className="action-button"
+            style={{ backgroundColor: '#795548' }}
+            onClick={() =>
+              handleActionClick('APPLY_COMMON_PARAMS', { reboot_after: true })
+            }
+          >
+            <FaWrench className="action-icon" />
+            {DRONE_ACTION_NAMES[actionTypes.APPLY_COMMON_PARAMS]}
+          </button>
         </div>
       </div>
     </div>
