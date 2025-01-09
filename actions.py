@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
 """
-actions.py - Drone Action Executor
+===============================================================
+Drone Action Executor with MAVSDK - Multi-Parameter Setting
+---------------------------------------------------------------
+Usage Examples:
+---------------
+1) Take off with altitude 15 and set multiple PX4 parameters:
+   python3 actions.py --action takeoff --altitude 15 \
+       --param MAV_SYS_ID 4 \
+       --param MPC_XY_CRUISE 8
 
-This script executes various drone actions (takeoff, land, hold, test, reboot, update_code, etc.)
-using MAVSDK. It provides LED feedback and returns appropriate exit codes for success (0) or failure (1).
+2) Land without setting any parameters:
+   python3 actions.py --action land
 
-Key Features:
-- Robust logging: Detailed logs for debugging issues.
-- Proper exit codes: If an action fails, we return code 1, allowing the coordinator to detect failure.
-- Safety checks: Validate MAVSDK connection, drone health, and readiness before actions.
-- Modular design: A 'safe_action' wrapper ensures exceptions are caught, logged, and handled.
+3) Update code from a specific branch (e.g., "new_feature_branch"):
+   python3 actions.py --action update_code --branch new_feature_branch
+
+4) Set only parameters (no flight action). If you want to just set parameters,
+   you can still pick an action (like "hold") or any other valid action to
+   ensure the script runs, but supply all your desired parameters:
+   python3 actions.py --action hold \
+       --param MAV_SYS_ID 6 \
+       --param MPC_XY_VEL_MAX 10 \
+       --param MIS_TAKEOFF_ALT 5
+
+Description:
+------------
+This script executes various drone actions using MAVSDK:
+ - takeoff, land, hold, test, reboot, kill_terminate, update_code, etc.
+ - Safely manages MAVSDK server launch/teardown.
+ - Provides logging, exit codes, LED status feedback, and robust error handling.
+ - Supports setting multiple PX4 parameters in a single run via repeated --param.
+
+---------------------------------------------------------------
 """
 
 import argparse
@@ -62,7 +85,18 @@ logger.addHandler(file_handler)
 # Helper / Setup Functions
 # -----------------------
 
+def fail():
+    """
+    Sets the return code to 1 indicating failure.
+    """
+    global RETURN_CODE
+    RETURN_CODE = 1
+
 def check_mavsdk_server_running(port):
+    """
+    Checks if a mavsdk_server process is already running on the specified port.
+    Returns (bool, pid).
+    """
     for proc in psutil.process_iter(['pid', 'name']):
         try:
             for conn in proc.net_connections(kind='inet'):
@@ -73,6 +107,10 @@ def check_mavsdk_server_running(port):
     return False, None
 
 def wait_for_port(port, host='localhost', timeout=10.0):
+    """
+    Waits until a port on the specified host is open, or until timeout is reached.
+    Returns True if open, False otherwise.
+    """
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -83,7 +121,9 @@ def wait_for_port(port, host='localhost', timeout=10.0):
     return False
 
 async def log_mavsdk_output(mavsdk_server):
-    # Asynchronously read mavsdk_server stdout and stderr for debugging
+    """
+    Asynchronously reads MAVSDK server's stdout/stderr for logging.
+    """
     loop = asyncio.get_event_loop()
     try:
         while True:
@@ -104,6 +144,10 @@ async def log_mavsdk_output(mavsdk_server):
         logger.exception("Error reading MAVSDK server stderr")
 
 def read_hw_id():
+    """
+    Attempts to read the first *.hwID file in the current directory
+    and parse it as an integer hardware ID.
+    """
     hwid_files = glob.glob('*.hwID')
     if hwid_files:
         filename = hwid_files[0]
@@ -121,6 +165,10 @@ def read_hw_id():
         return None
 
 def read_config(filename=Params.config_csv_name):
+    """
+    Reads the drone configuration from a CSV file matching the HW_ID.
+    Returns a dictionary with drone_config or None if not found/failed.
+    """
     global HW_ID
     logger.info("Reading drone configuration...")
     try:
@@ -149,6 +197,9 @@ def read_config(filename=Params.config_csv_name):
     return None
 
 def stop_mavsdk_server(mavsdk_server):
+    """
+    Gracefully stops the MAVSDK server if it's still running.
+    """
     if mavsdk_server and mavsdk_server.poll() is None:
         logger.info("Stopping MAVSDK server...")
         mavsdk_server.terminate()
@@ -163,11 +214,11 @@ def stop_mavsdk_server(mavsdk_server):
     else:
         logger.debug("MAVSDK server already stopped or never started.")
 
-def fail():
-    global RETURN_CODE
-    RETURN_CODE = 1
-
 def start_mavsdk_server(grpc_port, udp_port):
+    """
+    Starts or restarts the MAVSDK server, ensuring any previously running server on
+    the same gRPC port is stopped first. Returns the subprocess.Popen instance.
+    """
     is_running, pid = check_mavsdk_server_running(grpc_port)
     if is_running:
         logger.info(f"MAVSDK server already running on port {grpc_port}, terminating it.")
@@ -217,11 +268,40 @@ def start_mavsdk_server(grpc_port, udp_port):
         fail()
         sys.exit(1)
 
+def parse_param_value(value_str):
+    """
+    Attempt to parse the string value for a PX4 param as an integer.
+    If that fails, parse as float. Raises ValueError if neither works.
+    Returns: (value, value_type) -> (int or float, 'int' or 'float')
+    """
+    try:
+        val_int = int(value_str)
+        return val_int, 'int'
+    except ValueError:
+        pass
+
+    try:
+        val_float = float(value_str)
+        return val_float, 'float'
+    except ValueError:
+        logger.error(f"Could not parse parameter value '{value_str}' as int or float.")
+        raise ValueError(f"Invalid param value: {value_str}")
+
 async def set_parameters(drone, parameters):
-    for param_name, param_value in parameters.items():
+    """
+    Sets multiple parameters on the drone using MAVSDK's param interface.
+    parameters is a dict {param_name: param_value_str}, where param_value_str can be int or float in string form.
+    """
+    for param_name, raw_value in parameters.items():
         try:
-            logger.info(f"Setting param '{param_name}' to {param_value}")
-            await drone.param.set_param_int(param_name, param_value)
+            param_value, param_type = parse_param_value(raw_value)
+            logger.info(f"Setting param '{param_name}' to {param_value} (type: {param_type})")
+
+            if param_type == 'int':
+                await drone.param.set_param_int(param_name, param_value)
+            else:
+                await drone.param.set_param_float(param_name, param_value)
+
             logger.info(f"Param '{param_name}' set successfully.")
         except Exception:
             fail()
@@ -232,13 +312,18 @@ async def set_parameters(drone, parameters):
 # -----------------------
 
 async def perform_action(action, altitude=None, parameters=None, branch=None):
+    """
+    Main entry to perform the requested action with optional altitude/parameters/branch.
+    """
     logger.info(f"Requested action: {action}, altitude: {altitude}, parameters: {parameters}, branch: {branch}")
     global HW_ID
 
+    # Special case: code update
     if action == "update_code":
         await update_code(branch)
         return
 
+    # Read hardware ID from .hwID file
     HW_ID = read_hw_id()
     if HW_ID is None:
         logger.error("No valid HW_ID found, cannot proceed.")
@@ -282,7 +367,7 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
     if parameters:
         await set_parameters(drone, parameters)
 
-    # Now execute the requested action safely
+    # Execute the requested action safely
     try:
         if action == "takeoff":
             if not await safe_action(takeoff, drone, altitude):
@@ -319,6 +404,10 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         logger.info("Action completed.")
 
 async def wait_for_drone_connection(drone, timeout=10):
+    """
+    Waits up to 'timeout' seconds for drone connection.
+    Returns True if connected, else False.
+    """
     logger.info("Waiting for drone connection state...")
     start = time.time()
     async for state in drone.core.connection_state():
@@ -331,8 +420,8 @@ async def wait_for_drone_connection(drone, timeout=10):
 
 async def safe_action(func, *args, **kwargs):
     """
-    Runs a given action function with exception handling.
-    Logs start/end, returns True if success, False if failure.
+    Wraps an action function with exception handling.
+    Logs start/end, returns True if success, False otherwise.
     """
     action_name = func.__name__
     logger.info(f"Starting action: {action_name}")
@@ -375,7 +464,7 @@ async def ensure_ready_for_flight(drone):
 
 async def takeoff(drone, altitude):
     """
-    Arms and takes off to the specified altitude.
+    Arms and takes off to the specified altitude (in meters).
     """
     led_controller = LEDController.get_instance()
     # Check preflight conditions
@@ -408,6 +497,9 @@ async def takeoff(drone, altitude):
     logger.info("Takeoff successful.")
 
 async def land(drone):
+    """
+    Commands the drone to land safely.
+    """
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 255, 0)  # Yellow
     await asyncio.sleep(0.5)
@@ -440,6 +532,9 @@ async def land(drone):
         raise
 
 async def return_rtl(drone):
+    """
+    Commands the drone to return to launch (home) position.
+    """
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 255)  # Purple start
     await asyncio.sleep(0.5)
@@ -471,6 +566,9 @@ async def return_rtl(drone):
         raise
 
 async def kill_terminate(drone):
+    """
+    Immediately terminates the drone (emergency kill).
+    """
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 0, 0)
     await asyncio.sleep(0.2)
@@ -498,6 +596,9 @@ async def kill_terminate(drone):
         raise
 
 async def hold(drone):
+    """
+    Commands the drone to hold (loiter) at current position.
+    """
     led_controller = LEDController.get_instance()
     led_controller.set_color(0, 0, 255)
     await asyncio.sleep(0.5)
@@ -515,8 +616,10 @@ async def hold(drone):
         raise
 
 async def test(drone):
+    """
+    A simple test action to verify connectivity and LED control.
+    """
     led_controller = LEDController.get_instance()
-
     try:
         led_controller.set_color(255, 0, 0)
         await asyncio.sleep(1)
@@ -538,6 +641,9 @@ async def test(drone):
         raise
 
 async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
+    """
+    Reboots flight controller or entire system (Linux-based), or both.
+    """
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 255, 0)
     await asyncio.sleep(0.5)
@@ -566,6 +672,9 @@ async def reboot(drone, fc_flag, sys_flag, force_reboot=True):
         raise
 
 async def reboot_system():
+    """
+    Reboots the entire system via D-Bus (for Linux-based OS).
+    """
     process = await asyncio.create_subprocess_exec(
         'dbus-send', '--system', '--print-reply', '--dest=org.freedesktop.login1',
         '/org/freedesktop/login1', 'org.freedesktop.login1.Manager.Reboot', 'boolean:true',
@@ -578,6 +687,10 @@ async def reboot_system():
         logger.info("System reboot command executed successfully.")
 
 async def update_code(branch=None):
+    """
+    Pulls latest code from a git repository (via tools/update_repo_ssh.sh).
+    Optionally checks out a specific branch.
+    """
     global RETURN_CODE
     led_controller = LEDController.get_instance()
     led_controller.set_color(255, 255, 0)
@@ -627,13 +740,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action',
                         help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate')
-    parser.add_argument('--altitude', type=float, default=10.0, help='Altitude for takeoff')
+    parser.add_argument('--altitude', type=float, default=10.0, help='Altitude (meters) for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
-                        help='Set parameters e.g. --param MPC_XY_CRUISE 5')
+                        help='Set one or more PX4 parameters, e.g.: --param MPC_XY_CRUISE 5.0 --param MAV_SYS_ID 4')
     parser.add_argument('--branch', type=str, help='Branch name for code update')
 
     args = parser.parse_args()
-    parameters = {param[0]: int(param[1]) for param in args.param} if args.param else None
+
+    # Convert all param pairs into a dictionary { 'param_name': 'param_value_str', ... }
+    parameters = {p[0]: p[1] for p in args.param} if args.param else None
 
     try:
         asyncio.run(perform_action(args.action, args.altitude, parameters, args.branch))
