@@ -37,9 +37,7 @@
 #   - 'update_repo_ssh.sh'
 #   - 'check_and_update_wifi-manager.sh'
 #   - 'check_and_update_service.sh'
-# - The Python command for initializing `mav_sys_id` uses the virtual environment (`venv`) located in the project directory.
-# - The MAVSDK server path is explicitly set using the `MAVSDK_SERVER_PATH` environment variable for consistency.
-# - Verify the paths and environment variables set in the service file match your deployment environment.
+
 # - Adjust the capabilities and security settings according to your production security policies.
 
 [Unit]
@@ -57,8 +55,6 @@ ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/che
 # Verify and update the system service configuration
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 
-# Initialize MAVLink system ID based on drone hardware ID
-ExecStartPre=-/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/actions.py --action init_sysid
 
 # Main service start command
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
@@ -73,7 +69,6 @@ Group=droneshow
 # Environment variables
 # Ensure the virtual environment and MAVSDK server path are properly configured
 Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-Environment="MAVSDK_SERVER_PATH=/home/droneshow/mavsdk_drone_show/mavsdk_server"
 
 # Restart settings
 # Automatically restart the service upon failure
