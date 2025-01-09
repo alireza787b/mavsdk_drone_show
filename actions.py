@@ -24,13 +24,18 @@ Usage Examples:
        --param MPC_XY_VEL_MAX 10 \
        --param MIS_TAKEOFF_ALT 5
 
+5) Initialize the system ID automatically from the detected hardware ID
+   and reboot the flight controller:
+   python3 actions.py --action init_sysid
+
 Description:
 ------------
 This script executes various drone actions using MAVSDK:
- - takeoff, land, hold, test, reboot, kill_terminate, update_code, etc.
+ - takeoff, land, hold, test, reboot, kill_terminate, update_code, return_rtl, init_sysid, etc.
  - Safely manages MAVSDK server launch/teardown.
  - Provides logging, exit codes, LED status feedback, and robust error handling.
  - Supports setting multiple PX4 parameters in a single run via repeated --param.
+ - Supports automatically setting MAV_SYS_ID based on a local .hwID file with 'init_sysid'.
 
 ---------------------------------------------------------------
 """
@@ -323,19 +328,28 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         await update_code(branch)
         return
 
-    # Read hardware ID from .hwID file
+    # Read hardware ID from .hwID file (unless action doesn't require it, but most do)
+    # We do it here to ensure we can reuse HW_ID inside specific actions if needed.
     HW_ID = read_hw_id()
-    if HW_ID is None:
-        logger.error("No valid HW_ID found, cannot proceed.")
+    if action == "init_sysid" and HW_ID is None:
+        # For init_sysid, we need a valid HW_ID. If none, fail fast.
+        logger.error("No valid HW_ID found. Cannot initialize system ID.")
         fail()
         return
 
-    drone_config = read_config()
-    if not drone_config:
-        logger.error("Drone config not found, cannot proceed.")
-        fail()
-        return
+    if action not in ["init_sysid", "update_code"]:
+        # For normal flight actions, we also need to read config
+        if HW_ID is None:
+            logger.error("No valid HW_ID found, cannot proceed.")
+            fail()
+            return
+        drone_config = read_config()
+        if not drone_config:
+            logger.error("Drone config not found, cannot proceed.")
+            fail()
+            return
 
+    # Start MAVSDK if not just "update_code" (that doesn't need flight connect).
     grpc_port = GRPC_PORT
     udp_port = UDP_PORT
     logger.info(f"MAVSDK: gRPC Port: {grpc_port}, UDP Port: {udp_port}")
@@ -393,6 +407,10 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         elif action == "reboot_sys":
             if not await safe_action(reboot, drone, fc_flag=False, sys_flag=True):
                 fail()
+        elif action == "init_sysid":
+            # New action: automatically set MAV_SYS_ID from HW_ID, then reboot FC
+            if not await safe_action(init_sysid, drone):
+                fail()
         else:
             logger.error(f"Invalid action specified: {action}")
             fail()
@@ -421,7 +439,7 @@ async def wait_for_drone_connection(drone, timeout=10):
 async def safe_action(func, *args, **kwargs):
     """
     Wraps an action function with exception handling.
-    Logs start/end, returns True if success, False otherwise.
+    Logs start/end, returns True if success, False if failure.
     """
     action_name = func.__name__
     logger.info(f"Starting action: {action_name}")
@@ -733,13 +751,65 @@ async def update_code(branch=None):
         led_controller.turn_off()
 
 # -----------------------
+# New Action: init_sysid
+# -----------------------
+
+async def init_sysid(drone):
+    """
+    Automatically set MAV_SYS_ID based on the hardware ID file and
+    then reboot the flight controller.
+    """
+    led_controller = LEDController.get_instance()
+
+    # We rely on the global HW_ID already read in perform_action().
+    global HW_ID
+
+    if HW_ID is None:
+        raise Exception("HW_ID not found or invalid. Cannot init system ID.")
+
+    logger.info(f"Initializing system ID: MAV_SYS_ID = {HW_ID}")
+
+    try:
+        # Indicate start with yellow LED
+        led_controller.set_color(255, 255, 0)
+        await asyncio.sleep(0.5)
+
+        # Set MAV_SYS_ID param
+        await drone.param.set_param_int("MAV_SYS_ID", HW_ID)
+        logger.info("MAV_SYS_ID parameter set successfully.")
+
+        # Reboot FC to make the new system ID take effect
+        led_controller.set_color(0, 255, 255)  # Cyan to indicate reboot in progress
+        await asyncio.sleep(0.5)
+
+        logger.info("Rebooting flight controller for system ID change...")
+        await drone.action.reboot()
+
+        # Blink green a few times for success
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
+        logger.info("init_sysid action completed successfully.")
+    except ActionError as e:
+        logger.error(f"init_sysid failed with ActionError: {e}")
+        raise
+    except Exception:
+        logger.exception("Unexpected error during init_sysid")
+        raise
+    finally:
+        led_controller.turn_off()
+
+# -----------------------
 # Main Entry Point
 # -----------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action',
-                        help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate')
+                        help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate, init_sysid')
     parser.add_argument('--altitude', type=float, default=10.0, help='Altitude (meters) for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
                         help='Set one or more PX4 parameters, e.g.: --param MPC_XY_CRUISE 5.0 --param MAV_SYS_ID 4')
