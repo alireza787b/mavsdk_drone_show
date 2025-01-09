@@ -1,6 +1,5 @@
 // src/components/ControlButtons.js
 
-
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ControlButtons.css';
@@ -15,6 +14,12 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { CircularProgress } from '@mui/material';
 
+/**
+ * ControlButtons
+ * 
+ * Provides top-level actions: Save, Add Drone, Set Origin, Import, Export, Revert
+ * with a consistent UI/UX approach.
+ */
 const ControlButtons = ({
   addNewDrone,
   handleSaveChangesToServer,
@@ -24,7 +29,7 @@ const ControlButtons = ({
   openOriginModal,
   configData,
   setConfigData,
-  loading, // Receive loading state
+  loading,
 }) => {
   const fileInputRef = useRef(null);
 
@@ -36,34 +41,55 @@ const ControlButtons = ({
 
   return (
     <div className="control-buttons">
+      {/* 
+        Primary Actions 
+      */}
       <div className="primary-actions">
+        {/* Save */}
         <button
           className="save"
           onClick={handleSaveChangesToServer}
           title="Save all changes"
-          disabled={loading} // Disable button when loading
+          disabled={loading}
         >
           {loading ? (
             <>
               <CircularProgress size={20} color="inherit" />
-              Saving...
+              &nbsp;Saving...
             </>
           ) : (
             <>
-              <FontAwesomeIcon icon={faSave} /> Save Changes
+              <FontAwesomeIcon icon={faSave} />
+              Save Changes
             </>
           )}
         </button>
+
+        {/* Add New Drone */}
         <button className="add" onClick={addNewDrone} title="Add a new drone">
-          <FontAwesomeIcon icon={faPlus} /> Add New Drone
+          <FontAwesomeIcon icon={faPlus} />
+          Add New Drone
         </button>
+
+        {/* Set Origin */}
         <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
-          <FontAwesomeIcon icon={faMapMarkerAlt} /> Set Origin Reference
+          <FontAwesomeIcon icon={faMapMarkerAlt} />
+          Set Origin
         </button>
       </div>
+
+      {/* 
+        Secondary Actions 
+      */}
       <div className="secondary-actions">
-        <button className="file-upload-btn" onClick={triggerFileInput} title="Import drone configuration from CSV">
-          <FontAwesomeIcon icon={faUpload} /> Import CSV
+        {/* Import CSV */}
+        <button
+          className="file-upload-btn"
+          onClick={triggerFileInput}
+          title="Import drone config from CSV"
+        >
+          <FontAwesomeIcon icon={faUpload} />
+          Import CSV
         </button>
         <input
           type="file"
@@ -72,15 +98,21 @@ const ControlButtons = ({
           style={{ display: 'none' }}
           accept=".csv"
         />
+
+        {/* Export Config */}
         <button
           className="export-config"
           onClick={exportConfig}
-          title="Export current drone configurations to a CSV file"
+          title="Export current drone configs to CSV"
         >
-          <FontAwesomeIcon icon={faFileCsv} /> Export Config
+          <FontAwesomeIcon icon={faFileCsv} />
+          Export Config
         </button>
+
+        {/* Revert */}
         <button className="revert" onClick={handleRevertChanges} title="Revert all unsaved changes">
-          <FontAwesomeIcon icon={faUndo} /> Revert
+          <FontAwesomeIcon icon={faUndo} />
+          Revert
         </button>
       </div>
     </div>
