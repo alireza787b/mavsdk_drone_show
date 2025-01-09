@@ -63,8 +63,8 @@ ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavs
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
 
 # User and group to run the service under
-User=droneshow
-Group=droneshow
+User=root
+Group=root
 
 # Environment variables
 # Ensure the virtual environment and MAVSDK server path are properly configured
