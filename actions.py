@@ -625,7 +625,7 @@ async def update_code(branch=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
-    parser.add_argument('--action', required=True,
+    parser.add_argument('--action',
                         help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate')
     parser.add_argument('--altitude', type=float, default=10.0, help='Altitude for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
