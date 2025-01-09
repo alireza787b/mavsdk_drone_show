@@ -26,13 +26,13 @@ if [ "$new_checksum" != "$current_checksum" ]; then
     echo "Coordinator service file has changed. Updating systemd service..."
 
     # Copy the new service file
-    cp "$SERVICE_FILE_REPO_PATH" "$SYSTEMD_SERVICE_PATH"
+    sudo cp "$SERVICE_FILE_REPO_PATH" "$SYSTEMD_SERVICE_PATH"
 
     # Reload systemd daemon
-    systemctl daemon-reload
+    sudo systemctl daemon-reload
 
     # Restart the Coordinator service
-    systemctl restart coordinator.service
+    sudo systemctl restart coordinator.service
 
     echo "Coordinator service updated and restarted."
 else
