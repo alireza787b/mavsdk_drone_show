@@ -28,14 +28,21 @@ Usage Examples:
    and reboot the flight controller:
    python3 actions.py --action init_sysid
 
+6) Apply common parameters from 'common_params.csv' in the project root folder:
+   python3 actions.py --action apply_common_params
+   (Optionally add --reboot_after to reboot the flight controller right after)
+
 Description:
 ------------
 This script executes various drone actions using MAVSDK:
- - takeoff, land, hold, test, reboot, kill_terminate, update_code, return_rtl, init_sysid, etc.
+ - takeoff, land, hold, test, reboot, kill_terminate, update_code,
+   return_rtl, init_sysid, apply_common_params, etc.
  - Safely manages MAVSDK server launch/teardown.
  - Provides logging, exit codes, LED status feedback, and robust error handling.
  - Supports setting multiple PX4 parameters in a single run via repeated --param.
  - Supports automatically setting MAV_SYS_ID based on a local .hwID file with 'init_sysid'.
+ - Now supports applying a shared set of parameters stored in a 'common_params.csv' file
+   via the 'apply_common_params' action.
 
 ---------------------------------------------------------------
 """
@@ -245,7 +252,6 @@ def find_mavsdk_server():
 
     return None
 
-
 def start_mavsdk_server(grpc_port, udp_port):
     """
     Starts or restarts the MAVSDK server, ensuring any previously running server
@@ -295,7 +301,6 @@ def start_mavsdk_server(grpc_port, udp_port):
         fail()
         sys.exit(1)
 
-
 def parse_param_value(value_str):
     """
     Attempt to parse the string value for a PX4 param as an integer.
@@ -339,11 +344,13 @@ async def set_parameters(drone, parameters):
 # Core Action Execution
 # -----------------------
 
-async def perform_action(action, altitude=None, parameters=None, branch=None):
+async def perform_action(action, altitude=None, parameters=None, branch=None, reboot_after=False):
     """
-    Main entry to perform the requested action with optional altitude/parameters/branch.
+    Main entry to perform the requested action with optional altitude/parameters/branch, plus
+    an optional reboot_after boolean for certain actions like apply_common_params.
     """
-    logger.info(f"Requested action: {action}, altitude: {altitude}, parameters: {parameters}, branch: {branch}")
+    logger.info(f"Requested action: {action}, altitude: {altitude}, parameters: {parameters}, "
+                f"branch: {branch}, reboot_after: {reboot_after}")
     global HW_ID
 
     # Special case: code update
@@ -351,21 +358,17 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         await update_code(branch)
         return
 
-    # Read hardware ID from .hwID file (unless action doesn't require it, but most do)
-    # We do it here to ensure we can reuse HW_ID inside specific actions if needed.
+    # For init_sysid, we do need a valid HW_ID. That is checked later in init_sysid logic.
+    # For apply_common_params or normal flight actions, we also read HW_ID for consistency.
     HW_ID = read_hw_id()
-    if action == "init_sysid" and HW_ID is None:
-        # For init_sysid, we need a valid HW_ID. If none, fail fast.
-        logger.error("No valid HW_ID found. Cannot initialize system ID.")
-        fail()
-        return
 
     if action not in ["init_sysid", "update_code"]:
-        # For normal flight actions, we also need to read config
+        # For normal flight actions (and apply_common_params), we also read config
         if HW_ID is None:
             logger.error("No valid HW_ID found, cannot proceed.")
             fail()
             return
+
         drone_config = read_config()
         if not drone_config:
             logger.error("Drone config not found, cannot proceed.")
@@ -400,7 +403,7 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
         stop_mavsdk_server(mavsdk_server)
         return
 
-    # Set parameters if provided
+    # Set parameters if provided via CLI
     if parameters:
         await set_parameters(drone, parameters)
 
@@ -431,8 +434,11 @@ async def perform_action(action, altitude=None, parameters=None, branch=None):
             if not await safe_action(reboot, drone, fc_flag=False, sys_flag=True):
                 fail()
         elif action == "init_sysid":
-            # New action: automatically set MAV_SYS_ID from HW_ID, then reboot FC
+            # automatically set MAV_SYS_ID from HW_ID, then reboot FC
             if not await safe_action(init_sysid, drone):
+                fail()
+        elif action == "apply_common_params":
+            if not await safe_action(apply_common_params, drone, reboot_after):
                 fail()
         else:
             logger.error(f"Invalid action specified: {action}")
@@ -476,6 +482,73 @@ async def safe_action(func, *args, **kwargs):
     except Exception:
         logger.exception(f"Action {action_name} failed with an unexpected error.")
         return False
+
+# -----------------------
+# New Action: apply_common_params
+# -----------------------
+
+async def apply_common_params(drone, reboot_after=False):
+    """
+    Reads a 'common_params.csv' file in the project root,
+    applies each param to the drone, and optionally reboots the FC.
+
+    The CSV file format is expected to have two columns:
+      param_name,param_value
+    Example:
+      MPC_XY_CRUISE,4
+      GF_MAX_HOR_DIST,100
+      GF_MAX_VER_DIST,30
+
+    :param drone: The connected MAVSDK System instance
+    :param reboot_after: Boolean indicating if the flight controller should reboot afterwards
+    """
+    led_controller = LEDController.get_instance()
+    common_file = 'common_params.csv'
+
+    # Indicate start with a distinct LED color (e.g., magenta)
+    led_controller.set_color(255, 0, 255)
+    await asyncio.sleep(0.5)
+
+    if not os.path.isfile(common_file):
+        logger.error(f"Common parameter file '{common_file}' not found.")
+        fail()
+        return
+
+    logger.info(f"Loading common parameters from {common_file} ...")
+    try:
+        common_params = {}
+        with open(common_file, newline='') as csvfile:
+            reader = csv.DictReader(csvfile, fieldnames=['param_name', 'param_value'])
+            for row in reader:
+                param_name = row['param_name'].strip()
+                param_value = row['param_value'].strip()
+                common_params[param_name] = param_value
+
+        logger.info(f"Found {len(common_params)} common parameters. Applying now...")
+        await set_parameters(drone, common_params)
+
+        # Blink green a few times for success
+        for _ in range(3):
+            led_controller.set_color(0, 255, 0)
+            await asyncio.sleep(0.2)
+            led_controller.turn_off()
+            await asyncio.sleep(0.2)
+
+        if reboot_after:
+            logger.info("Rebooting flight controller as requested...")
+            await drone.action.reboot()
+            # Optional: LED feedback for reboot
+            led_controller.set_color(255, 255, 0)
+            await asyncio.sleep(1.0)
+
+        logger.info("apply_common_params action completed successfully.")
+
+    except Exception:
+        logger.exception("Error applying common parameters")
+        fail()
+    finally:
+        led_controller.turn_off()
+
 
 # -----------------------
 # Action Implementations
@@ -774,7 +847,7 @@ async def update_code(branch=None):
         led_controller.turn_off()
 
 # -----------------------
-# New Action: init_sysid
+# Action: init_sysid
 # -----------------------
 
 async def init_sysid(drone):
@@ -832,11 +905,14 @@ async def init_sysid(drone):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action',
-                        help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, return_rtl, kill_terminate, init_sysid')
+                        help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, '
+                             'return_rtl, kill_terminate, init_sysid, apply_common_params')
     parser.add_argument('--altitude', type=float, default=10.0, help='Altitude (meters) for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
                         help='Set one or more PX4 parameters, e.g.: --param MPC_XY_CRUISE 5.0 --param MAV_SYS_ID 4')
     parser.add_argument('--branch', type=str, help='Branch name for code update')
+    parser.add_argument('--reboot_after', action='store_true',
+                        help='If set, certain actions (e.g. apply_common_params) will reboot FC at the end')
 
     args = parser.parse_args()
 
@@ -844,7 +920,15 @@ if __name__ == "__main__":
     parameters = {p[0]: p[1] for p in args.param} if args.param else None
 
     try:
-        asyncio.run(perform_action(args.action, args.altitude, parameters, args.branch))
+        asyncio.run(
+            perform_action(
+                action=args.action,
+                altitude=args.altitude,
+                parameters=parameters,
+                branch=args.branch,
+                reboot_after=args.reboot_after
+            )
+        )
     except Exception:
         logger.exception("An unexpected error occurred in the main block.")
         fail()

@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import { sendDroneCommand } from '../services/droneApiService';
-import { toast } from 'react-toastify'; // Only import 'toast' here
+import { toast } from 'react-toastify';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -22,7 +22,7 @@ const CommandSender = ({ drones }) => {
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Function to handle sending commands from child components
+  // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
     let targetDronesList = 'All Drones';
     if (targetMode === 'selected') {
@@ -34,7 +34,6 @@ const CommandSender = ({ drones }) => {
     }
 
     const missionName = getCommandName(commandData.missionType);
-
     setCurrentCommandData(commandData);
     setConfirmationMessage(
       `Command "${missionName}" will be sent to: ${targetDronesList}. Are you sure?`
@@ -42,16 +41,17 @@ const CommandSender = ({ drones }) => {
     setModalOpen(true);
   };
 
-  // Function to confirm and send the command
+  // Confirm and send the command
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
-      setModalOpen(false); // Close the modal immediately
-      setLoading(true); // Show loading indicator
+      setModalOpen(false);
+      setLoading(true);
       try {
-        let commandDataToSend = { ...currentCommandData };
+        const commandDataToSend = { ...currentCommandData };
         if (targetMode === 'selected') {
           commandDataToSend.target_drones = selectedDrones;
         }
+
         const response = await sendDroneCommand(commandDataToSend);
 
         if (response.status === 'success') {
@@ -61,27 +61,27 @@ const CommandSender = ({ drones }) => {
         }
       } catch (error) {
         console.error('Error sending command:', error);
-        toast.error('Error sending command. Please check the console for more details.');
+        toast.error('Error sending command. Please check console for details.');
       } finally {
-        setLoading(false); // Hide loading indicator
+        setLoading(false);
         setCurrentCommandData(null);
       }
     }
   };
 
-  // Function to cancel command sending
+  // Cancel the command
   const handleCancelSendCommand = () => {
     setModalOpen(false);
     setCurrentCommandData(null);
   };
 
-  // Functions for drone selection
+  // Drone selection functions
   const toggleDroneSelection = (droneId) => {
-    if (selectedDrones.includes(droneId)) {
-      setSelectedDrones(selectedDrones.filter((id) => id !== droneId));
-    } else {
-      setSelectedDrones([...selectedDrones, droneId]);
-    }
+    setSelectedDrones((prev) =>
+      prev.includes(droneId)
+        ? prev.filter((id) => id !== droneId)
+        : [...prev, droneId]
+    );
   };
 
   const selectAllDrones = () => {
@@ -99,7 +99,7 @@ const CommandSender = ({ drones }) => {
 
       {/* Target Selection UI */}
       <div className="target-selection">
-        <label htmlFor="targetMode">Command Target:</label>
+        <label htmlFor="targetMode" style={{ marginRight: '10px' }}>Command Target:</label>
         <select
           id="targetMode"
           value={targetMode}
@@ -108,6 +108,7 @@ const CommandSender = ({ drones }) => {
           <option value="all">All Drones</option>
           <option value="selected">Select Drones</option>
         </select>
+
         {targetMode === 'selected' && (
           <div className="drone-selection">
             <div className="selection-buttons">
@@ -127,7 +128,9 @@ const CommandSender = ({ drones }) => {
                 </div>
               ))}
             </div>
-            <div className="selected-count">Selected Drones: {selectedDrones.length}</div>
+            <div className="selected-count">
+              Selected Drones: {selectedDrones.length}
+            </div>
           </div>
         )}
       </div>

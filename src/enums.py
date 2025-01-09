@@ -5,7 +5,7 @@ class Mission(Enum):
     NONE = 0
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
-    CUSTOM_CSV_DRONE_SHOW = 3 
+    CUSTOM_CSV_DRONE_SHOW = 3
     TAKE_OFF = 10
     LAND = 101
     HOLD = 102
@@ -16,10 +16,14 @@ class Mission(Enum):
     UPDATE_CODE = 103
     RETURN_RTL = 104
     KILL_TERMINATE = 105
-    UNKNOWN = 999  # Ensure UNKNOWN is included
+    UNKNOWN = 999
+
+    # New Missions:
+    INIT_SYSID = 110
+    APPLY_COMMON_PARAMS = 111
 
 class State(Enum):
     IDLE = 0
     ARMED = 1
     TRIGGERED = 2
-    UNKNOWN = 999  # Added UNKNOWN to State enum
+    UNKNOWN = 999

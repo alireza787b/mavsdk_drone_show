@@ -53,6 +53,9 @@ class DroneSetup:
             Mission.REBOOT_SYS.value: self._execute_reboot_sys,
             Mission.TEST_LED.value: self._execute_test_led,
             Mission.UPDATE_CODE.value: self._execute_update_code,
+            Mission.INIT_SYSID.value: self._execute_init_sysid,
+            Mission.APPLY_COMMON_PARAMS.value: self._execute_apply_common_params,
+
         }
 
     def _validate_params(self):
@@ -368,6 +371,33 @@ class DroneSetup:
         logger.info(f"Starting Update Code Mission with branch '{branch_name}'")
         action_command = f"--action=update_code --branch={branch_name}"
         return await self.execute_mission_script("actions.py", action_command)
+    
+    async def _execute_init_sysid(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Starts the mission to initialize system ID based on .hwID file
+        and reboot the FC using --action=init_sysid in actions.py.
+        """
+        logger.info("Starting Init SysID Mission")
+
+        # If desired, check if we're in the correct state/time:
+        # if self.drone_config.state == 1 and (current_time or time.time()) >= (earlier_trigger_time or 0):
+        #     self.drone_config.state = 2
+
+        return await self.execute_mission_script("actions.py", "--action=init_sysid")
+
+    async def _execute_apply_common_params(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """
+        Starts the mission to apply the common_params.csv from actions.py.
+        Optionally reboots the flight controller if a flag is set.
+        """
+        logger.info("Starting Apply Common Params Mission")
+
+        reboot_after = getattr(self.drone_config, "reboot_after_params", False)
+        action_args = "--action=apply_common_params"
+        if reboot_after:
+            action_args += " --reboot_after"
+
+        return await self.execute_mission_script("actions.py", action_args)
 
     def _log_mission_result(self, success: bool, message: str):
         # Only log if mission or state changed

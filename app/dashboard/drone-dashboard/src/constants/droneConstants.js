@@ -20,6 +20,8 @@ export const DRONE_ACTION_TYPES = {
   REBOOT_SYS: 7,
   TEST_LED: 8,
   DISARM: 9,
+  INIT_SYSID: 110,
+  APPLY_COMMON_PARAMS: 111,
 };
 
 export const DRONE_MISSION_IMAGES = {
@@ -46,6 +48,8 @@ export const DRONE_ACTION_NAMES = {
   103: 'Update Code',
   104: 'Return to Launch',
   105: 'Emergency Kill',
+  110: 'Init System ID',
+  111: 'Apply Common Params',
 };
 
 export const getMissionDescription = (missionType) => {
