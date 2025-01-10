@@ -15,6 +15,11 @@ const useComputeOrigin = (params) => {
   const [loading, setLoading] = useState(false);
 
   const computeOrigin = async () => {
+    if (!params) {
+      setError('Missing parameters for origin computation.');
+      return;
+    }
+
     const { current_lat, current_lon, intended_east, intended_north } = params;
     if (
       current_lat === undefined ||
@@ -39,30 +44,26 @@ const useComputeOrigin = (params) => {
 
       if (
         response.data &&
+        response.data.status === 'success' &&
         typeof response.data.lat === 'number' &&
         typeof response.data.lon === 'number'
       ) {
         setOrigin({ lat: response.data.lat, lon: response.data.lon });
         setError(null);
-      } else if (response.data && response.data.error) {
-        setError(response.data.error);
+      } else if (response.data && response.data.status === 'error') {
+        setError(response.data.message || 'Error computing origin.');
       } else {
         setError('Unexpected response from server.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error computing origin.');
+      setError(err.response?.data?.message || 'Error computing origin.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (
-      params.current_lat !== undefined &&
-      params.current_lon !== undefined &&
-      params.intended_east !== undefined &&
-      params.intended_north !== undefined
-    ) {
+    if (params) {
       computeOrigin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -21,6 +21,7 @@ import {
   handleFileChange,
   exportConfig,
 } from '../utilities/missionConfigUtilities';
+import { toast } from 'react-toastify';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
@@ -193,6 +194,7 @@ const MissionConfig = () => {
 
     if (newDrones.length > 0) {
       setConfigData((prev) => [...prev, ...newDrones]);
+      toast.info(`${newDrones.length} new drone(s) detected and added.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heartbeats, configData]);
@@ -217,6 +219,7 @@ const MissionConfig = () => {
       )
     );
     setEditingDroneId(null);
+    toast.success(`Drone ${originalHwId} updated successfully.`);
   };
 
   // Add new drone (manual button)
@@ -244,12 +247,14 @@ const MissionConfig = () => {
     };
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
+    toast.success(`New drone ${newHwId} added.`);
   };
 
   // Remove drone
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
+      toast.success(`Drone ${hw_id} removed.`);
     }
   };
 
@@ -260,7 +265,17 @@ const MissionConfig = () => {
     setOrigin(newOrigin);
     setShowOriginModal(false);
     setOriginAvailable(true);
-    // Optionally, you can also update originLat and originLon if used elsewhere
+    toast.success('Origin set successfully.');
+
+    // Optionally, send the origin to the backend if not handled within OriginModal
+    // axios.post(`${backendURL}/set-origin`, newOrigin)
+    //   .then(() => {
+    //     toast.success('Origin saved to server.');
+    //   })
+    //   .catch((error) => {
+    //     console.error('Error saving origin to backend:', error);
+    //     toast.error('Failed to save origin to server.');
+    //   });
   };
 
   // -----------------------------------------------------
@@ -272,14 +287,17 @@ const MissionConfig = () => {
 
   const handleRevertChangesWrapper = () => {
     handleRevertChanges(setConfigData);
+    toast.info('All unsaved changes have been reverted.');
   };
 
   const handleSaveChangesToServerWrapper = () => {
     handleSaveChangesToServer(configData, setConfigData, setLoading);
+    toast.info('Saving changes to server...');
   };
 
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
+    toast.success('Configuration exported successfully.');
   };
 
   // Sort config data for display
@@ -295,7 +313,28 @@ const MissionConfig = () => {
       <h2>Mission Configuration</h2>
 
       {/* 
-        Organized Top Control Buttons 
+        Mission Briefing and Current Origin Display
+      */}
+      <div className="briefing-origin-section">
+        <BriefingExport
+          configData={configData}
+          originLat={origin.lat}
+          originLon={origin.lon}
+          setOriginLat={(lat) => setOrigin((prev) => ({ ...prev, lat }))}
+          setOriginLon={(lon) => setOrigin((prev) => ({ ...prev, lon }))}
+        />
+
+        {originAvailable && (
+          <div className="current-origin-display">
+            <p>
+              <strong>Current Origin:</strong> Latitude: {origin.lat}, Longitude: {origin.lon}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 
+        Control Buttons 
         (Save, Add, Import/Export, Revert, Set Origin, etc.) 
       */}
       <ControlButtons
@@ -308,18 +347,6 @@ const MissionConfig = () => {
         configData={configData}
         setConfigData={setConfigData}
         loading={loading}
-      />
-
-      {/* 
-        Optional: Additional briefing or summary info 
-        about the current mission configuration
-      */}
-      <BriefingExport
-        configData={configData}
-        originLat={origin.lat}
-        originLon={origin.lon}
-        setOriginLat={(lat) => setOrigin((prev) => ({ ...prev, lat }))}
-        setOriginLon={(lon) => setOrigin((prev) => ({ ...prev, lon }))}
       />
 
       {/* 
@@ -355,23 +382,27 @@ const MissionConfig = () => {
           Left column: Drone config cards 
         */}
         <div className="drone-cards">
-          {sortedConfigData.map((drone) => (
-            <DroneConfigCard
-              key={drone.hw_id}
-              drone={drone}
-              gitStatus={gitStatusData[drone.hw_id] || null}
-              gcsGitStatus={gcsGitStatus}
-              configData={configData}
-              availableHwIds={availableHwIds}
-              editingDroneId={editingDroneId}
-              setEditingDroneId={setEditingDroneId}
-              saveChanges={saveChanges}
-              removeDrone={removeDrone}
-              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
-              heartbeatData={heartbeats[drone.hw_id] || null}
-              positionIdMapping={positionIdMapping}
-            />
-          ))}
+          {sortedConfigData.length > 0 ? (
+            sortedConfigData.map((drone) => (
+              <DroneConfigCard
+                key={drone.hw_id}
+                drone={drone}
+                gitStatus={gitStatusData[drone.hw_id] || null}
+                gcsGitStatus={gcsGitStatus}
+                configData={configData}
+                availableHwIds={availableHwIds}
+                editingDroneId={editingDroneId}
+                setEditingDroneId={setEditingDroneId}
+                saveChanges={saveChanges}
+                removeDrone={removeDrone}
+                networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+                heartbeatData={heartbeats[drone.hw_id] || null}
+                positionIdMapping={positionIdMapping}
+              />
+            ))
+          ) : (
+            <p>No drones connected. Please add a drone or connect one to proceed.</p>
+          )}
         </div>
 
         {/* 
