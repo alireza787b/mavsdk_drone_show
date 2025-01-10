@@ -1,4 +1,5 @@
-// app/dashboard/drone-dashboard/src/components/MissionConfig.js
+// src/pages/MissionConfig.js
+
 import React, { useState, useEffect } from 'react';
 import '../styles/MissionConfig.css';
 
@@ -21,6 +22,7 @@ import {
   exportConfig,
 } from '../utilities/missionConfigUtilities';
 import { toast } from 'react-toastify';
+import { getBackendURL } from '../utilities/utilities';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
@@ -30,7 +32,7 @@ const MissionConfig = () => {
   const [editingDroneId, setEditingDroneId] = useState(null);
 
   // Origin
-  const [origin, setOrigin] = useState({ lat: null, lon: null }); // Updated initialization
+  const [origin, setOrigin] = useState({ lat: null, lon: null });
   const [originAvailable, setOriginAvailable] = useState(false);
   const [showOriginModal, setShowOriginModal] = useState(false);
 
@@ -112,7 +114,8 @@ const MissionConfig = () => {
 
   // Available HwIds
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
+  const maxHwId =
+    Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
   const availableHwIds = Array.from(
     { length: maxHwId },
     (_, i) => (i + 1).toString()
@@ -136,7 +139,7 @@ const MissionConfig = () => {
       });
       setOriginAvailable(true);
     } else {
-      setOrigin({ lat: null, lon: null }); // Reset to null if origin is not available
+      setOrigin({ lat: null, lon: null });
       setOriginAvailable(false);
     }
   }, [originDataFetched]);
@@ -271,7 +274,8 @@ const MissionConfig = () => {
     setOriginAvailable(true);
     toast.success('Origin set successfully.');
 
-    // Optionally, send the origin to the backend if not handled within OriginModal
+    // Send the origin to the backend
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     axios.post(`${backendURL}/set-origin`, newOrigin)
       .then(() => {
         toast.success('Origin saved to server.');

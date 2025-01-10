@@ -1,4 +1,5 @@
-// app/dashboard/drone-dashboard/src/components/MissionLayout.js
+// src/components/MissionLayout.js
+
 import React from 'react';
 import PropTypes from 'prop-types';
 import '../styles/MissionLayout.css';
@@ -6,6 +7,11 @@ import BriefingExport from './BriefingExport';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
 
+/**
+ * MissionLayout
+ * 
+ * Provides mission-related actions and displays current origin.
+ */
 const MissionLayout = ({ configData, origin, openOriginModal }) => {
   return (
     <div className="mission-layout">
@@ -39,8 +45,8 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
 MissionLayout.propTypes = {
   configData: PropTypes.array.isRequired,
   origin: PropTypes.shape({
-    lat: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])]),
-    lon: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])]),
+    lat: PropTypes.number,
+    lon: PropTypes.number,
   }).isRequired,
   openOriginModal: PropTypes.func.isRequired,
 };

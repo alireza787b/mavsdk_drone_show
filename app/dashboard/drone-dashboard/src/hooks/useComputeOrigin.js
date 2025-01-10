@@ -1,26 +1,27 @@
 // src/hooks/useComputeOrigin.js
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { getBackendURL } from '../utilities/utilities';
 
 /**
  * Custom hook to compute origin based on drone's current position and intended N-E positions.
- * @param {object} params - { current_lat, current_lon, intended_east, intended_north }
- * @returns {object} - { origin, error, loading }
+ * Allows manual triggering of the computation.
+ * @returns {object} - { origin, error, loading, computeOrigin }
  */
-const useComputeOrigin = (params) => {
+const useComputeOrigin = () => {
   const [origin, setOrigin] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const computeOrigin = async () => {
-    if (!params) {
-      setError('Missing parameters for origin computation.');
-      return;
-    }
-
+  /**
+   * Triggers the origin computation.
+   * @param {object} params - { current_lat, current_lon, intended_east, intended_north }
+   */
+  const computeOrigin = async (params) => {
     const { current_lat, current_lon, intended_east, intended_north } = params;
+
+    // Validate input parameters
     if (
       current_lat === undefined ||
       current_lon === undefined ||
@@ -62,14 +63,7 @@ const useComputeOrigin = (params) => {
     }
   };
 
-  useEffect(() => {
-    if (params) {
-      computeOrigin();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params]);
-
-  return { origin, error, loading };
+  return { origin, error, loading, computeOrigin };
 };
 
 export default useComputeOrigin;
