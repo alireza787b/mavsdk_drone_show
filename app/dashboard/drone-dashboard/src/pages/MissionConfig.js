@@ -1,5 +1,3 @@
-// src/pages/MissionConfig.js
-
 import React, { useState, useEffect } from 'react';
 import '../styles/MissionConfig.css';
 
@@ -7,7 +5,7 @@ import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
-import BriefingExport from '../components/BriefingExport';
+import MissionLayout from '../components/MissionLayout'; // Renamed Component
 import OriginModal from '../components/OriginModal';
 import DronePositionMap from '../components/DronePositionMap';
 
@@ -313,25 +311,13 @@ const MissionConfig = () => {
       <h2>Mission Configuration</h2>
 
       {/* 
-        Mission Briefing and Current Origin Display
+        Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
       */}
-      <div className="briefing-origin-section">
-        <BriefingExport
-          configData={configData}
-          originLat={origin.lat}
-          originLon={origin.lon}
-          setOriginLat={(lat) => setOrigin((prev) => ({ ...prev, lat }))}
-          setOriginLon={(lon) => setOrigin((prev) => ({ ...prev, lon }))}
-        />
-
-        {originAvailable && (
-          <div className="current-origin-display">
-            <p>
-              <strong>Origin:</strong> Lat: {origin.lat}, Lon: {origin.lon}
-            </p>
-          </div>
-        )}
-      </div>
+      <MissionLayout
+        configData={configData}
+        origin={origin}
+        openOriginModal={() => setShowOriginModal(true)}
+      />
 
       {/* 
         Control Buttons 
@@ -406,7 +392,7 @@ const MissionConfig = () => {
         </div>
 
         {/* 
-          Right column: Visual plots 
+          Right column: Visual plots and additional mission details 
         */}
         <div className="initial-launch-plot">
           <InitialLaunchPlot

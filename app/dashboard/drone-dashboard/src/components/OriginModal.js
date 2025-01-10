@@ -1,5 +1,3 @@
-// src/components/OriginModal.js
-
 import React, { useState, useEffect } from 'react';
 import '../styles/OriginModal.css';
 import MapSelector from './MapSelector';
@@ -13,6 +11,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
   const [selectedLatLon, setSelectedLatLon] = useState(null);
   const [originMethod, setOriginMethod] = useState('manual'); // 'manual' or 'drone'
   const [selectedDroneId, setSelectedDroneId] = useState('');
+  const [hasError, setHasError] = useState(false); // To track if error has been shown
 
   const [computeParams, setComputeParams] = useState(null);
   const { origin: computedOrigin, error: computeError, loading: computeLoading } = useComputeOrigin(computeParams);
@@ -23,6 +22,19 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
       setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`);
     }
   }, [selectedLatLon]);
+
+  // Show error once
+  useEffect(() => {
+    if (computeError && !hasError) {
+      toast.error(computeError);
+      setHasError(true);
+    }
+  }, [computeError, hasError]);
+
+  // Reset hasError when originMethod changes
+  useEffect(() => {
+    setHasError(false);
+  }, [originMethod]);
 
   // Validate and parse manual coordinate input
   const validateManualInput = () => {
@@ -156,7 +168,6 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
               </select>
             </label>
             {computeLoading && <p className="loading-text">Computing origin...</p>}
-            {computeError && <span className="error-message">{computeError}</span>}
             {computedOrigin && (
               <div className="computed-origin">
                 <p><strong>Computed Origin:</strong></p>

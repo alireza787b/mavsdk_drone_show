@@ -32,36 +32,6 @@ h2 {
 }
 
 
-/* Briefing and Origin Section */
-
-.briefing-origin-section {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.current-origin-display {
-    background-color: #d1fae5;
-    /* Light green */
-    border-left: 4px solid #10b981;
-    padding: 8px 12px;
-    /* Reduced padding */
-    border-radius: 4px;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    /* Smaller font size */
-}
-
-.current-origin-display p {
-    margin: 0;
-    color: #065f46;
-    font-weight: 500;
-}
-
-
 /* Origin Warning */
 
 .origin-warning {
@@ -110,10 +80,6 @@ h2 {
 /* Responsive Design */
 
 @media (max-width: 768px) {
-    .briefing-origin-section {
-        flex-direction: column;
-        align-items: flex-start;
-    }
     .content-flex {
         flex-direction: column;
     }

@@ -1,0 +1,56 @@
+/* src/styles/MissionLayout.css */
+
+.mission-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1rem;
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+.kml-output-section,
+.set-origin-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.export-kml-btn,
+.set-origin-btn {
+    padding: 0.5rem 1rem;
+    background-color: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.3s;
+}
+
+.export-kml-btn:hover,
+.set-origin-btn:hover {
+    background-color: #2563eb;
+}
+
+.current-origin {
+    background-color: #d1fae5;
+    /* Light green */
+    border-left: 4px solid #10b981;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    /* Reduced font size */
+    margin-top: 0.5rem;
+    /* Added margin for spacing */
+}
+
+.current-origin p {
+    margin: 0;
+    color: #065f46;
+    font-weight: 500;
+}
