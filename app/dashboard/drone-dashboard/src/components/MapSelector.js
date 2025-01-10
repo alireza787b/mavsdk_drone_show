@@ -1,6 +1,14 @@
-// app/dashboard/drone-dashboard/src/components/MapSelector.js
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, useMapEvents, Marker, Popup, LayersControl } from 'react-leaflet';
+// src/components/MapSelector.js
+
+import React, { useEffect, useState } from 'react';
+import {
+  MapContainer,
+  TileLayer,
+  useMapEvents,
+  Marker,
+  Popup,
+  LayersControl,
+} from 'react-leaflet';
 import '../styles/MapSelector.css';
 import PropTypes from 'prop-types';
 import L from 'leaflet';
@@ -20,28 +28,34 @@ L.Icon.Default.mergeOptions({
 });
 
 const MapSelector = ({ onSelect, initialPosition }) => {
-  const position = initialPosition || { lat: 35.6895, lon: 139.6917 }; // Default to Tokyo if no initial position
+  // Default center: e.g., somewhere visible (Tokyo).
+  const [mapCenter, setMapCenter] = useState({
+    lat: initialPosition ? initialPosition.lat : 35.6895,
+    lon: initialPosition ? initialPosition.lon : 139.6917,
+  });
 
-  // Flag to prevent map from continuously recentering once user has interacted
-  const [hasInteracted, setHasInteracted] = React.useState(false);
+  // Prevent continuous recenter if user moves the map
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   function MapEvents() {
     const map = useMapEvents({
-      click(event) {
-        const { lat, lng } = event.latlng;
+      click(e) {
+        const { lat, lng } = e.latlng;
         onSelect({ lat, lon: lng });
       },
       moveend() {
         if (!hasInteracted) {
-          setHasInteracted(true); // User has interacted with the map
+          setHasInteracted(true);
         }
-      }
+      },
     });
 
-    // Only recenter map if position is updated and no prior interaction occurred
+    // Recenter on initial pos if user hasn't interacted
     useEffect(() => {
       if (initialPosition && !hasInteracted) {
-        map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), { animate: false });
+        map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), {
+          animate: false,
+        });
       }
     }, [initialPosition, map, hasInteracted]);
 
@@ -51,39 +65,45 @@ const MapSelector = ({ onSelect, initialPosition }) => {
   return (
     <div className="map-selector">
       <MapContainer
-        center={[position.lat, position.lon]}
+        center={[mapCenter.lat, mapCenter.lon]}
         zoom={13}
-        scrollWheelZoom={true}  // Enable scroll zoom
+        scrollWheelZoom
         style={{ height: '300px', width: '100%' }}
       >
-        {/* Layers Control (Satellite and Standard Map) */}
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="OpenStreetMap">
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Open Street Satellite">
             <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://opentopomap.org/copyright">OpenTopoMap</a>'
+              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
           </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Google Satellite">
+
+          <LayersControl.BaseLayer name="OpenTopoMap">
             <TileLayer
-              url="https://{s}.google.com/maps/vt?lyrs=s&x={x}&y={y}&z={z}"
-              attribution='&copy; <a href="https://google.com">Google</a>'
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution="&copy; OpenTopoMap"
+            />
+          </LayersControl.BaseLayer>
+
+          {/*
+            "Google Satellite" is tricky, as official direct tiles from Google 
+            are behind paywalls or usage restrictions. We'll use a known 
+            'gdal2tiles' style server or fallback to an alternative satellite provider.
+          */}
+          <LayersControl.BaseLayer name="Satellite (Unofficial)">
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
             />
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {/* Map Events */}
         <MapEvents />
 
-        {/* Marker that reflects selected position */}
+        {/* Marker if there's an initial position */}
         {initialPosition && (
           <Marker position={[initialPosition.lat, initialPosition.lon]}>
-            <Popup>
-              <span>Selected Location</span>
-            </Popup>
+            <Popup>Selected Location</Popup>
           </Marker>
         )}
       </MapContainer>

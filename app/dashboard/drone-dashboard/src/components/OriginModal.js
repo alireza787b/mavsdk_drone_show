@@ -1,6 +1,6 @@
 // src/components/OriginModal.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/OriginModal.css';
 import MapSelector from './MapSelector';
 import { toast } from 'react-toastify';
@@ -9,7 +9,21 @@ import PropTypes from 'prop-types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 
-const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, currentOrigin }) => {
+/**
+ * OriginModal
+ * 
+ * - "Manual" tab: user types in lat/long OR picks from the map.
+ * - "Drone" tab: user picks a drone. The system automatically computes 
+ *   once on selection (only if no prior success). If it fails, show Retry.
+ */
+const OriginModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  telemetryData,
+  configData,
+  currentOrigin,
+}) => {
   const [coordinateInput, setCoordinateInput] = useState('');
   const [errors, setErrors] = useState({});
   const [selectedLatLon, setSelectedLatLon] = useState(null);
@@ -18,13 +32,37 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
 
   const { origin, error, loading, computeOrigin } = useComputeOrigin();
 
-  // Initialize modal state with currentOrigin when opened
+  /**
+   * 1. If user picks a drone, automatically compute origin 
+   *    (only if we haven't got a successful result yet).
+   * 2. If already successful, we won't re-run unless user clicks "Retry".
+   */
+  const autoComputeIfNeeded = useCallback(
+    (droneId) => {
+      if (!droneId) return;
+      // If there's no successful origin from computeOrigin yet, do one-time compute
+      if (!origin && !loading) {
+        const selectedDrone = configData.find((d) => d.hw_id === droneId);
+        if (!selectedDrone) {
+          toast.error('Selected drone not found.');
+          return;
+        }
+        const { current_lat, current_lon, intended_east, intended_north } =
+          extractDroneParameters(selectedDrone);
+        computeOrigin({ current_lat, current_lon, intended_east, intended_north });
+      }
+    },
+    [origin, loading, configData, computeOrigin]
+  );
+
+  // On open or change, sync the coordinate input if we have a current origin
   useEffect(() => {
     if (isOpen && currentOrigin.lat && currentOrigin.lon) {
       setCoordinateInput(`${currentOrigin.lat}, ${currentOrigin.lon}`);
       setSelectedLatLon({ lat: currentOrigin.lat, lon: currentOrigin.lon });
       setOriginMethod('manual');
-    } else {
+    } else if (isOpen) {
+      // If user is opening fresh
       setCoordinateInput('');
       setSelectedLatLon(null);
     }
@@ -32,59 +70,21 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
     setSelectedDroneId('');
   }, [isOpen, currentOrigin]);
 
-  // Update coordinateInput when a point is selected on the map
+  // If user picks a lat/lon from map, sync that into text input
   useEffect(() => {
     if (selectedLatLon) {
       setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`);
     }
   }, [selectedLatLon]);
 
-  // Validate and parse manual coordinate input
-  const validateManualInput = () => {
-    const ddRegex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
-    if (ddRegex.test(coordinateInput.trim())) {
-      const [lat, lon] = coordinateInput.trim().split(',').map(Number);
-      return { lat, lon };
+  // If user selects a drone, automatically compute once
+  useEffect(() => {
+    if (originMethod === 'drone' && selectedDroneId) {
+      autoComputeIfNeeded(selectedDroneId);
     }
-    setErrors({ input: 'Invalid coordinate format. Please enter as "lat, lon" in decimal degrees.' });
-    return null;
-  };
+  }, [originMethod, selectedDroneId, autoComputeIfNeeded]);
 
-  const handleInputChange = (e) => {
-    setCoordinateInput(e.target.value);
-    setSelectedLatLon(null); // Reset map selection
-    setErrors({});
-  };
-
-  // Handle origin submission
-  const handleSubmit = () => {
-    if (originMethod === 'manual') {
-      if (selectedLatLon) {
-        onSubmit({ lat: selectedLatLon.lat, lon: selectedLatLon.lon });
-        toast.success('Origin set successfully.');
-      } else {
-        const validated = validateManualInput();
-        if (validated) {
-          onSubmit(validated);
-          toast.success('Origin set successfully.');
-        }
-      }
-    } else if (originMethod === 'drone') {
-      if (selectedDroneId) {
-        const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
-        if (!selectedDrone) {
-          toast.error('Selected drone not found.');
-          return;
-        }
-        const { current_lat, current_lon, intended_east, intended_north } = extractDroneParameters(selectedDrone);
-        computeOrigin({ current_lat, current_lon, intended_east, intended_north });
-      } else {
-        setErrors({ drone: 'Please select a drone to compute origin.' });
-      }
-    }
-  };
-
-  // Handle computation result
+  // If we get a new computed origin from the hook, finish up
   useEffect(() => {
     if (origin) {
       onSubmit(origin);
@@ -97,55 +97,117 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, error]);
 
-  // Extract necessary parameters from selected drone
+  // Helpers
+  const handleInputChange = (e) => {
+    setCoordinateInput(e.target.value);
+    setSelectedLatLon(null);
+    setErrors({});
+  };
+
+  // Validate manual input
+  const validateManualInput = () => {
+    const ddRegex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
+    if (ddRegex.test(coordinateInput.trim())) {
+      const [lat, lon] = coordinateInput.trim().split(',').map(Number);
+      return { lat, lon };
+    }
+    setErrors({
+      input: 'Invalid format. Please enter coordinates as "lat, lon" in decimal degrees.',
+    });
+    return null;
+  };
+
+  // Called when user clicks "Set Origin"
+  const handleSubmit = () => {
+    if (originMethod === 'manual') {
+      if (selectedLatLon) {
+        onSubmit({ lat: selectedLatLon.lat, lon: selectedLatLon.lon });
+        toast.success('Origin set successfully.');
+        onClose();
+      } else {
+        const validated = validateManualInput();
+        if (validated) {
+          onSubmit(validated);
+          toast.success('Origin set successfully.');
+          onClose();
+        }
+      }
+    } else {
+      // Drone-based; if we already have a successful origin, we're done
+      // If not, user can click Retry
+      if (!selectedDroneId) {
+        setErrors({ drone: 'Please select a drone to compute origin.' });
+        return;
+      }
+      if (!origin && !loading) {
+        // Attempt one last time
+        handleRetryCompute();
+      } else if (origin) {
+        // Already have origin
+        toast.success('Origin set successfully.');
+        onClose();
+      }
+    }
+  };
+
+  // Retry button for drone-based origin
+  const handleRetryCompute = () => {
+    if (!selectedDroneId) {
+      toast.error('No drone selected.');
+      return;
+    }
+    const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
+    if (!selectedDrone) {
+      toast.error('Selected drone not found.');
+      return;
+    }
+    const { current_lat, current_lon, intended_east, intended_north } = extractDroneParameters(selectedDrone);
+    computeOrigin({ current_lat, current_lon, intended_east, intended_north });
+  };
+
+  // Pull relevant data from telemetry
   const extractDroneParameters = (drone) => {
-    // Placeholder: Extract current_lat, current_lon, intended_east, intended_north from telemetryData or drone config
-    // You need to replace this with actual data extraction logic based on your data structure
     const current_lat = telemetryData[drone.hw_id]?.lat || 0;
     const current_lon = telemetryData[drone.hw_id]?.lon || 0;
     const intended_east = parseFloat(drone.x) || 0;
     const intended_north = parseFloat(drone.y) || 0;
-
     return { current_lat, current_lon, intended_east, intended_north };
-  };
-
-  // Manual retry for drone-based origin computation
-  const handleRetryCompute = () => {
-    if (selectedDroneId) {
-      const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
-      if (!selectedDrone) {
-        toast.error('Selected drone not found.');
-        return;
-      }
-      const { current_lat, current_lon, intended_east, intended_north } = extractDroneParameters(selectedDrone);
-      computeOrigin({ current_lat, current_lon, intended_east, intended_north });
-    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="origin-modal-overlay" onClick={onClose}>
-      <div className="origin-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="origin-modal"
+        onClick={(e) => {
+          e.stopPropagation(); // prevent closing when clicking inside
+        }}
+      >
         <h3>Set Origin Coordinates</h3>
 
-        {/* Origin Method Selection */}
+        {/* Tab Buttons */}
         <div className="origin-method-selection">
           <button
             className={`method-button ${originMethod === 'manual' ? 'active' : ''}`}
-            onClick={() => setOriginMethod('manual')}
+            onClick={() => {
+              setOriginMethod('manual');
+              setErrors({});
+            }}
           >
             Enter Coordinates Manually
           </button>
           <button
             className={`method-button ${originMethod === 'drone' ? 'active' : ''}`}
-            onClick={() => setOriginMethod('drone')}
+            onClick={() => {
+              setOriginMethod('drone');
+              setErrors({});
+            }}
           >
             Use Drone as Reference
           </button>
         </div>
 
-        {/* Manual Entry */}
         {originMethod === 'manual' && (
           <div className="manual-entry">
             <label>
@@ -159,14 +221,16 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
             </label>
             {errors.input && <span className="error-message">{errors.input}</span>}
             <p className="or-text">OR</p>
+            {/* Map Selector for manual click */}
             <MapSelector
               onSelect={setSelectedLatLon}
-              initialPosition={selectedLatLon ? { lat: selectedLatLon.lat, lon: selectedLatLon.lon } : null}
+              initialPosition={
+                selectedLatLon ? { lat: selectedLatLon.lat, lon: selectedLatLon.lon } : null
+              }
             />
           </div>
         )}
 
-        {/* Drone Reference */}
         {originMethod === 'drone' && (
           <div className="drone-reference">
             <label>
@@ -188,26 +252,29 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
             </label>
             {errors.drone && <span className="error-message">{errors.drone}</span>}
 
-            {/* Computation Feedback */}
             {loading && <p className="loading-text">Computing origin...</p>}
+
+            {/* If we have an origin, show it */}
             {origin && (
               <div className="computed-origin">
-                <p><strong>Computed Origin:</strong></p>
+                <p>
+                  <strong>Computed Origin:</strong>
+                </p>
                 <p>Latitude: {origin.lat.toFixed(8)}</p>
                 <p>Longitude: {origin.lon.toFixed(8)}</p>
               </div>
             )}
 
-            {/* Retry Button */}
-            {error && (
+            {/* If there's an error, show Retry button */}
+            {error && !origin && (
               <button className="retry-button" onClick={handleRetryCompute} disabled={loading}>
-                <FontAwesomeIcon icon={faSyncAlt} /> Retry
+                <FontAwesomeIcon icon={faSyncAlt} />
+                Retry
               </button>
             )}
           </div>
         )}
 
-        {/* Modal Actions */}
         <div className="modal-actions">
           <button onClick={handleSubmit} className="ok-button" disabled={loading}>
             Set Origin

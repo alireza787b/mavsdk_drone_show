@@ -7,7 +7,7 @@ import '../styles/MissionConfig.css';
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
-import MissionLayout from '../components/MissionLayout'; // Renamed Component
+import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
 import DronePositionMap from '../components/DronePositionMap';
 import axios from 'axios';
@@ -56,56 +56,39 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   const {
     data: configDataFetched,
-    error: configError,
-    loading: configLoading,
   } = useFetch('/get-config-data');
 
   const {
     data: originDataFetched,
-    error: originError,
-    loading: originLoading,
   } = useFetch('/get-origin');
 
   const {
     data: deviationDataFetched,
-    error: deviationError,
-    loading: deviationLoading,
   } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
 
   const {
     data: telemetryDataFetched,
-    error: telemetryError,
-    loading: telemetryLoading,
   } = useFetch('/telemetry', 2000);
 
   const {
     data: gcsGitStatusFetched,
-    error: gcsGitError,
-    loading: gcsGitLoading,
   } = useFetch('/get-gcs-git-status', 30000);
 
   const {
     data: gitStatusDataFetched,
-    error: gitStatusError,
-    loading: gitStatusLoading,
   } = useFetch('/git-status', 20000);
 
   const {
     data: networkInfoFetched,
-    error: networkInfoError,
-    loading: networkInfoLoading,
   } = useFetch('/get-network-info', 10000);
 
   const {
     data: heartbeatsFetched,
-    error: heartbeatsError,
-    loading: heartbeatsLoading,
   } = useFetch('/get-heartbeats', 5000);
 
   // -----------------------------------------------------
   // Derived Data & Helpers
   // -----------------------------------------------------
-  // Create positionIdMapping for quick access in DroneConfigCard
   const positionIdMapping = configData.reduce((acc, drone) => {
     if (drone.pos_id) {
       acc[drone.pos_id] = { x: drone.x, y: drone.y };
@@ -113,7 +96,6 @@ const MissionConfig = () => {
     return acc;
   }, {});
 
-  // Available HwIds
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
   const maxHwId =
     Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
@@ -123,7 +105,7 @@ const MissionConfig = () => {
   ).filter((id) => !allHwIds.has(id));
 
   // -----------------------------------------------------
-  // Effect: Update state when data is fetched
+  // Effects: Update local state when data is fetched
   // -----------------------------------------------------
   useEffect(() => {
     if (configDataFetched) {
@@ -132,8 +114,11 @@ const MissionConfig = () => {
   }, [configDataFetched]);
 
   useEffect(() => {
-    if (originDataFetched && originDataFetched.lat !== undefined && originDataFetched.lon !== undefined) {
-      // Ensure lat and lon are numbers
+    if (
+      originDataFetched &&
+      originDataFetched.lat !== undefined &&
+      originDataFetched.lon !== undefined
+    ) {
       setOrigin({
         lat: Number(originDataFetched.lat),
         lon: Number(originDataFetched.lon),
@@ -176,7 +161,7 @@ const MissionConfig = () => {
   }, [heartbeatsFetched]);
 
   // -----------------------------------------------------
-  // Detect & add "new" drones automatically by heartbeat
+  // Detect & add "new" drones by heartbeat
   // -----------------------------------------------------
   useEffect(() => {
     const heartbeatHwIds = Object.keys(heartbeats);
@@ -184,7 +169,6 @@ const MissionConfig = () => {
     const newDrones = [];
     for (const hbHwId of heartbeatHwIds) {
       if (!configData.some((d) => d.hw_id === hbHwId)) {
-        // It's new
         const hb = heartbeats[hbHwId];
         newDrones.push({
           hw_id: hbHwId,
@@ -210,9 +194,7 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // CRUD operations
   // -----------------------------------------------------
-  // Save changes for a drone
   const saveChanges = (originalHwId, updatedData) => {
-    // Check for duplicate hardware ID
     if (
       configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)
     ) {
@@ -220,7 +202,6 @@ const MissionConfig = () => {
       return;
     }
 
-    // Merge changes
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
         drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
@@ -230,7 +211,6 @@ const MissionConfig = () => {
     toast.success(`Drone ${originalHwId} updated successfully.`);
   };
 
-  // Add new drone (manual button)
   const addNewDrone = () => {
     const newHwId = availableHwIds[0]?.toString() || maxHwId.toString();
     if (!newHwId) return;
@@ -258,7 +238,6 @@ const MissionConfig = () => {
     toast.success(`New drone ${newHwId} added.`);
   };
 
-  // Remove drone
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
@@ -275,9 +254,9 @@ const MissionConfig = () => {
     setOriginAvailable(true);
     toast.success('Origin set successfully.');
 
-    // Send the origin to the backend
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-    axios.post(`${backendURL}/set-origin`, newOrigin)
+    axios
+      .post(`${backendURL}/set-origin`, newOrigin)
       .then(() => {
         toast.success('Origin saved to server.');
       })
@@ -309,7 +288,7 @@ const MissionConfig = () => {
     toast.success('Configuration exported successfully.');
   };
 
-  // Sort config data for display
+  // Sort config data
   const sortedConfigData = [...configData].sort(
     (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
   );
@@ -321,10 +300,7 @@ const MissionConfig = () => {
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
 
-      {/* 
-        Control Buttons 
-        (Save, Add, Import/Export, Revert, Set Origin, etc.) 
-      */}
+      {/* Top Control Buttons */}
       <ControlButtons
         addNewDrone={addNewDrone}
         handleSaveChangesToServer={handleSaveChangesToServerWrapper}
@@ -337,9 +313,6 @@ const MissionConfig = () => {
         loading={loading}
       />
 
-      {/* 
-        Prompt user to set origin if not available 
-      */}
       {!originAvailable && (
         <div className="origin-warning">
           <p>
@@ -349,9 +322,7 @@ const MissionConfig = () => {
         </div>
       )}
 
-      {/* 
-        Render the Origin modal if needed 
-      */}
+      {/* Origin Modal */}
       {showOriginModal && (
         <OriginModal
           isOpen={showOriginModal}
@@ -359,17 +330,12 @@ const MissionConfig = () => {
           onSubmit={handleOriginSubmit}
           telemetryData={telemetryDataFetched || {}}
           configData={configData}
-          currentOrigin={origin} // Passed current origin
+          currentOrigin={origin}
         />
       )}
 
-      {/* 
-        Main content: Drone cards and plots 
-      */}
+      {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
-        {/* 
-          Left column: Drone config cards 
-        */}
         <div className="drone-cards">
           {sortedConfigData.length > 0 ? (
             sortedConfigData.map((drone) => (
@@ -394,19 +360,12 @@ const MissionConfig = () => {
           )}
         </div>
 
-        {/* 
-          Right column: Visual plots and additional mission details 
-        */}
         <div className="initial-launch-plot">
-          {/* 
-            Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
-          */}
           <MissionLayout
             configData={configData}
             origin={origin}
             openOriginModal={() => setShowOriginModal(true)}
           />
-
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}

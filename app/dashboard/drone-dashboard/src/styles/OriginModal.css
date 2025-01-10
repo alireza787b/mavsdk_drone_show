@@ -1,32 +1,43 @@
 /* src/styles/OriginModal.css */
 
+
+/* Overlay */
+
 .origin-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
 }
 
+
+/* Modal Container */
+
 .origin-modal {
-    background: #fff;
-    padding: 20px;
-    border-radius: 8px;
+    background-color: #fff;
     width: 90%;
     max-width: 600px;
+    padding: 20px;
+    border-radius: 8px;
     position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .origin-modal h3 {
     margin-top: 0;
+    color: #2c3e50;
     margin-bottom: 1rem;
-    color: #374151;
+    text-align: center;
 }
+
+
+/* Tab Buttons */
 
 .origin-method-selection {
     display: flex;
@@ -37,24 +48,28 @@
 .method-button {
     flex: 1;
     padding: 0.6rem;
-    background-color: #e5e7eb;
-    /* Light gray */
+    text-align: center;
     border: 1px solid #d1d5db;
     border-radius: 4px;
+    background-color: #e5e7eb;
+    color: #374151;
     cursor: pointer;
     transition: background-color 0.3s, border-color 0.3s;
+    font-size: 1rem;
 }
 
 .method-button.active {
     background-color: #2563eb;
-    /* Blue */
     color: #fff;
     border-color: #1d4ed8;
 }
 
-.method-button:hover {
+.method-button:hover:not(.active) {
     background-color: #d1d5db;
 }
+
+
+/* Form Sections */
 
 .manual-entry,
 .drone-reference {
@@ -68,21 +83,24 @@
 .drone-reference label {
     display: flex;
     flex-direction: column;
-    font-weight: 500;
+    font-weight: 600;
     color: #374151;
 }
 
 .manual-entry input,
 .drone-reference select {
     padding: 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid #ccc;
     border-radius: 4px;
     margin-top: 0.3rem;
     font-size: 1rem;
 }
 
+
+/* Error & Info */
+
 .error-message {
-    color: #ef4444;
+    color: #e74c3c;
     font-size: 0.85rem;
     margin-top: 0.2rem;
 }
@@ -91,16 +109,21 @@
     text-align: center;
     margin: 0.5rem 0;
     color: #6b7280;
+    font-style: italic;
 }
 
 .loading-text {
     color: #6b7280;
     font-size: 0.9rem;
+    margin-top: 0.5rem;
 }
+
+
+/* Computed Origin Box */
 
 .computed-origin {
     background-color: #f0fdf4;
-    /* Light green */
+    /* light green */
     border: 1px solid #10b981;
     padding: 10px;
     border-radius: 4px;
@@ -108,34 +131,39 @@
 }
 
 .computed-origin p {
-    margin: 0.2rem 0;
+    margin: 0.3rem 0;
 }
 
-.refresh-button {
-    margin-top: 0.5rem;
-    padding: 0.4rem 0.8rem;
-    background-color: #3b82f6;
+
+/* Retry Button */
+
+.retry-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 8px 12px;
+    background-color: #f1c40f;
     color: #fff;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     transition: background-color 0.3s;
+    margin-top: 0.5rem;
 }
 
-.refresh-button:hover {
-    background-color: #2563eb;
+.retry-button:hover {
+    background-color: #d4ac0d;
 }
 
-.refresh-button:disabled {
-    background-color: #93c5fd;
-    cursor: not-allowed;
-}
+
+/* Modal Actions */
 
 .modal-actions {
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
+    margin-top: 1rem;
 }
 
 .ok-button,
@@ -150,7 +178,6 @@
 
 .ok-button {
     background-color: #10b981;
-    /* Green */
     color: #fff;
 }
 
@@ -160,161 +187,9 @@
 
 .cancel-button {
     background-color: #ef4444;
-    /* Red */
     color: #fff;
 }
 
 .cancel-button:hover {
     background-color: #dc2626;
-}
-
-.origin-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.origin-modal {
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 600px;
-    position: relative;
-}
-
-.origin-modal h3 {
-    margin-top: 0;
-    color: #2c3e50;
-}
-
-.origin-method-selection {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 20px;
-}
-
-.method-button {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
-    background-color: #ecf0f1;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-}
-
-.method-button.active {
-    background-color: #3498db;
-    color: #fff;
-}
-
-.method-button:hover:not(.active) {
-    background-color: #bdc3c7;
-}
-
-.manual-entry,
-.drone-reference {
-    margin-bottom: 20px;
-}
-
-.manual-entry label,
-.drone-reference label {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 10px;
-}
-
-.manual-entry input {
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.error-message {
-    color: #e74c3c;
-    font-size: 0.9rem;
-}
-
-.or-text {
-    text-align: center;
-    margin: 10px 0;
-    color: #7f8c8d;
-}
-
-.computed-origin {
-    background-color: #ecf0f1;
-    padding: 10px;
-    border-radius: 4px;
-    margin-top: 10px;
-}
-
-.computed-origin p {
-    margin: 5px 0;
-}
-
-.retry-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 8px 12px;
-    background-color: #f1c40f;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.3s;
-}
-
-.retry-button:hover {
-    background-color: #d4ac0d;
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-}
-
-.ok-button {
-    padding: 8px 16px;
-    background-color: #27ae60;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.ok-button:hover {
-    background-color: #1e8449;
-}
-
-.cancel-button {
-    padding: 8px 16px;
-    background-color: #e74c3c;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-.cancel-button:hover {
-    background-color: #c0392b;
-}
-
-.loading-text {
-    color: #2980b9;
-    font-size: 0.9rem;
-    margin-top: 10px;
 }
