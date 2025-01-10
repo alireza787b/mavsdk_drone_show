@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import '../styles/MapSelector.css';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import PropTypes from 'prop-types'
 
 /**
  * Fix the default icon issue in Leaflet when using with React
