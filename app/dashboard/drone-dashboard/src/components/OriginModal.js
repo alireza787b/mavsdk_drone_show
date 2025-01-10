@@ -20,9 +20,9 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
   // Initialize modal state with currentOrigin when opened
   useEffect(() => {
     if (isOpen && currentOrigin.lat && currentOrigin.lon) {
-      setCoordinateInput(`${currentOrigin.lat}, ${currentOrigin.lon}`); // Fixed template literal
+      setCoordinateInput(`${currentOrigin.lat}, ${currentOrigin.lon}`);
       setSelectedLatLon({ lat: currentOrigin.lat, lon: currentOrigin.lon });
-      setOriginMethod('manual'); // Default to manual if origin exists
+      setOriginMethod('manual');
     } else {
       setCoordinateInput('');
       setSelectedLatLon(null);
@@ -32,22 +32,9 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
   // Update coordinateInput when a point is selected on the map
   useEffect(() => {
     if (selectedLatLon) {
-      setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`); // Fixed template literal
+      setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`);
     }
   }, [selectedLatLon]);
-
-  // Show error once
-  useEffect(() => {
-    if (computeError && !hasError) {
-      toast.error(computeError);
-      setHasError(true);
-    }
-  }, [computeError, hasError]);
-
-  // Reset hasError when originMethod changes
-  useEffect(() => {
-    setHasError(false);
-  }, [originMethod]);
 
   // Validate and parse manual coordinate input
   const validateManualInput = () => {
@@ -58,6 +45,12 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
     }
     setErrors({ input: 'Invalid coordinate format. Please enter as "lat, lon" in decimal degrees.' });
     return null;
+  };
+
+  const handleInputChange = (e) => {
+    setCoordinateInput(e.target.value);
+    setSelectedLatLon(null); // Reset map selection
+    setErrors({});
   };
 
   // Handle origin submission
@@ -83,30 +76,14 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
     }
   };
 
-  // Handle drone selection and set compute parameters
   useEffect(() => {
-    if (originMethod === 'drone' && selectedDroneId) {
-      const droneConfig = configData.find((drone) => drone.hw_id === selectedDroneId);
-      const droneTelemetry = telemetryData[selectedDroneId];
-      if (droneConfig && droneTelemetry) {
-        const { x: intended_east, y: intended_north } = droneConfig;
-        const { Position_Lat: current_lat, Position_Long: current_lon } = droneTelemetry;
-        if (current_lat && current_lon && intended_east && intended_north) {
-          setComputeParams({
-            current_lat: parseFloat(current_lat),
-            current_lon: parseFloat(current_lon),
-            intended_east: parseFloat(intended_east),
-            intended_north: parseFloat(intended_north),
-          });
-        } else {
-          toast.error('Incomplete telemetry or configuration data for the selected drone.');
-        }
-      } else {
-        toast.error('Selected drone configuration or telemetry data not found.');
+    if (coordinateInput.trim()) {
+      const validated = validateManualInput();
+      if (validated) {
+        setSelectedLatLon(validated);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originMethod, selectedDroneId, configData, telemetryData]);
+  }, [coordinateInput]);
 
   if (!isOpen) return null;
 
@@ -149,11 +126,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
               <input
                 type="text"
                 value={coordinateInput}
-                onChange={(e) => {
-                  setCoordinateInput(e.target.value);
-                  setSelectedLatLon(null); // Reset map selection
-                  setErrors({});
-                }}
+                onChange={handleInputChange}
                 placeholder='e.g., "35.4079, 50.1649"'
               />
             </label>
@@ -161,7 +134,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, cur
             <p className="or-text">OR</p>
             <MapSelector 
               onSelect={setSelectedLatLon} 
-              initialPosition={selectedLatLon ? { lat: selectedLatLon.lat, lon: selectedLatLon.lon } : null} // Added initialPosition
+              initialPosition={selectedLatLon ? { lat: selectedLatLon.lat, lon: selectedLatLon.lon } : null} // Pass the selectedLatLon to MapSelector
             />
           </div>
         )}
@@ -221,7 +194,7 @@ OriginModal.propTypes = {
   onSubmit: PropTypes.func.isRequired,
   telemetryData: PropTypes.object.isRequired,
   configData: PropTypes.array.isRequired,
-  currentOrigin: PropTypes.shape({ // Added PropType for currentOrigin
+  currentOrigin: PropTypes.shape({ 
     lat: PropTypes.number,
     lon: PropTypes.number,
   }),

@@ -1,3 +1,4 @@
+// app/dashboard/drone-dashboard/src/components/MapSelector.js
 import React from 'react';
 import { MapContainer, TileLayer, useMapEvents, Marker, Popup, LayersControl } from 'react-leaflet';
 import '../styles/MapSelector.css';
@@ -11,87 +12,56 @@ delete L.Icon.Default.prototype._getIconUrl;
 
 L.Icon.Default.mergeOptions({
   iconUrl: icon,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
   shadowUrl: iconShadow,
+  shadowSize: [41, 41],
 });
 
-const { BaseLayer } = LayersControl;
-
 const MapSelector = ({ onSelect, initialPosition }) => {
-  // Initialize position to [0, 0] if not provided
-  const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]);
-  const [centered, setCentered] = React.useState(false);  // Track if map is already centered
+  const position = initialPosition || { lat: 35.6895, lon: 139.6917 }; // Default to Tokyo if no initial position
 
-  // Update position only if initialPosition changes and is different from current position
-  React.useEffect(() => {
-    if (initialPosition && (position[0] !== initialPosition.lat || position[1] !== initialPosition.lon)) {
-      setPosition([initialPosition.lat, initialPosition.lon]);
-      onSelect(initialPosition); // Only call onSelect if the position is actually updated
-    }
-  }, [initialPosition, position, onSelect]);
-
-  const LocationMarker = () => {
+  function MapEvents() {
     const map = useMapEvents({
-      click(e) {
-        const { lat, lng } = e.latlng;
-        setPosition([lat, lng]);
+      click(event) {
+        const { lat, lng } = event.latlng;
         onSelect({ lat, lon: lng });
       },
     });
 
-    // Adjust the map's center to the marker's position when the position changes
+    // Center the map on the initial position, but don't animate it
     React.useEffect(() => {
-      if (map && position && !centered) {
-        map.setView(position, map.getZoom(), {
-          animate: true,
-        });
-        setCentered(true); // Set centered to true so map doesn't recenter again
-      } else if (map && position && centered) {
-        map.setView(position, map.getZoom()); // Allow zoom adjustments without re-centering
+      if (initialPosition) {
+        map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), { animate: false });
       }
-    }, [position, map, centered]);
+    }, [initialPosition, map]);
 
-    return position === null ? null : (
-      <Marker position={position}>
-        <Popup>
-          Selected Origin: <br /> Lat: {position[0].toFixed(6)}, Lon: {position[1].toFixed(6)}
-        </Popup>
-      </Marker>
-    );
-  };
+    return null;
+  }
 
   return (
-    <MapContainer 
-      center={position} // Dynamically set the center to position
-      zoom={5} 
-      scrollWheelZoom={true} 
-      className="map-selector-container"
-    >
-      <LayersControl position="topright">
-        <BaseLayer name="Google Satellite" checked>
-          <TileLayer
-            url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-            attribution="Map data &copy; Google"
-          />
-        </BaseLayer>
-        <BaseLayer name="OpenStreetMap">
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="Map data &copy; OpenStreetMap contributors"
-            maxZoom={18}
-          />
-        </BaseLayer>
-      </LayersControl>
-      <LocationMarker />
-    </MapContainer>
+    <div className="map-selector">
+      <MapContainer center={[position.lat, position.lon]} zoom={13} scrollWheelZoom={false} style={{ height: '300px', width: '100%' }}>
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <MapEvents />
+        {initialPosition && (
+          <Marker position={[initialPosition.lat, initialPosition.lon]}>
+            <Popup>
+              <span>Selected Location</span>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+    </div>
   );
 };
 
 MapSelector.propTypes = {
   onSelect: PropTypes.func.isRequired,
-  initialPosition: PropTypes.shape({ 
-    lat: PropTypes.number,
-    lon: PropTypes.number,
+  initialPosition: PropTypes.shape({
+    lat: PropTypes.number.isRequired,
+    lon: PropTypes.number.isRequired,
   }),
 };
 
