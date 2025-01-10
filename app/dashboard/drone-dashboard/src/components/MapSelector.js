@@ -71,7 +71,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
         style={{ height: '300px', width: '100%' }}
       >
         <LayersControl position="topright">
-          <LayersControl.BaseLayer name="OpenStreetMap">
+          <LayersControl.BaseLayer checked name="OpenStreetMap">
             <TileLayer
               attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -90,7 +90,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             are behind paywalls or usage restrictions. We'll use a known 
             'gdal2tiles' style server or fallback to an alternative satellite provider.
           */}
-          <LayersControl.BaseLayer checked name="Satellite (gdal2tiles)">
+          <LayersControl.BaseLayer name="Satellite (gdal2tiles)">
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
@@ -103,6 +103,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
               attribution="Map data &copy; Google"
             />
         </LayersControl.BaseLayer>
+        </LayersControl>
 
         <MapEvents />
 
