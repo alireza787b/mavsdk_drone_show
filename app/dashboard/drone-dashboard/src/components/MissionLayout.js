@@ -4,9 +4,8 @@ import PropTypes from 'prop-types';
 import '../styles/MissionLayout.css';
 import BriefingExport from './BriefingExport';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-    faMapMarkerAlt,
-  } from '@fortawesome/free-solid-svg-icons';
+import { faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
+
 const MissionLayout = ({ configData, origin, openOriginModal }) => {
   return (
     <div className="mission-layout">
@@ -22,8 +21,8 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
       {/* Set Origin */}
       <div className="set-origin-section">
         <button className="set-origin-btn" onClick={openOriginModal}>
-        <FontAwesomeIcon icon={faMapMarkerAlt} />
-        Set Origin
+          <FontAwesomeIcon icon={faMapMarkerAlt} />
+          Set Origin
         </button>
         {origin.lat && origin.lon && (
           <div className="current-origin">

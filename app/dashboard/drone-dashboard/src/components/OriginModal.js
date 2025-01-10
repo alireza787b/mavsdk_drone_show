@@ -1,3 +1,4 @@
+//app/dashboard/drone-dashboard/src/components/OriginModal.js
 import React, { useState, useEffect } from 'react';
 import '../styles/OriginModal.css';
 import MapSelector from './MapSelector';
@@ -5,13 +6,13 @@ import { toast } from 'react-toastify';
 import useComputeOrigin from '../hooks/useComputeOrigin';
 import PropTypes from 'prop-types';
 
-const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) => {
+const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData, origin }) => {
   const [coordinateInput, setCoordinateInput] = useState('');
   const [errors, setErrors] = useState({});
-  const [selectedLatLon, setSelectedLatLon] = useState(null);
+  const [selectedLatLon, setSelectedLatLon] = useState(origin ? { lat: origin.lat, lon: origin.lon } : null);
   const [originMethod, setOriginMethod] = useState('manual'); // 'manual' or 'drone'
   const [selectedDroneId, setSelectedDroneId] = useState('');
-  const [hasError, setHasError] = useState(false); // To track if error has been shown
+  const [hasError, setHasError] = useState(false);
 
   const [computeParams, setComputeParams] = useState(null);
   const { origin: computedOrigin, error: computeError, loading: computeLoading } = useComputeOrigin(computeParams);
@@ -35,6 +36,14 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
   useEffect(() => {
     setHasError(false);
   }, [originMethod]);
+
+  // Initialize coordinateInput with the current origin if available
+  useEffect(() => {
+    if (origin && origin.lat && origin.lon) {
+      setCoordinateInput(`${origin.lat}, ${origin.lon}`);
+      setSelectedLatLon({ lat: origin.lat, lon: origin.lon });
+    }
+  }, [origin]);
 
   // Validate and parse manual coordinate input
   const validateManualInput = () => {
@@ -70,31 +79,6 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
     }
   };
 
-  // Handle drone selection and set compute parameters
-  useEffect(() => {
-    if (originMethod === 'drone' && selectedDroneId) {
-      const droneConfig = configData.find((drone) => drone.hw_id === selectedDroneId);
-      const droneTelemetry = telemetryData[selectedDroneId];
-      if (droneConfig && droneTelemetry) {
-        const { x: intended_east, y: intended_north } = droneConfig;
-        const { Position_Lat: current_lat, Position_Long: current_lon } = droneTelemetry;
-        if (current_lat && current_lon && intended_east && intended_north) {
-          setComputeParams({
-            current_lat: parseFloat(current_lat),
-            current_lon: parseFloat(current_lon),
-            intended_east: parseFloat(intended_east),
-            intended_north: parseFloat(intended_north),
-          });
-        } else {
-          toast.error('Incomplete telemetry or configuration data for the selected drone.');
-        }
-      } else {
-        toast.error('Selected drone configuration or telemetry data not found.');
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originMethod, selectedDroneId, configData, telemetryData]);
-
   if (!isOpen) return null;
 
   return (
@@ -110,7 +94,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
               setOriginMethod('manual');
               setErrors({});
               setSelectedDroneId('');
-              setComputeParams(null); // Reset compute params
+              setComputeParams(null);
             }}
           >
             Enter Coordinates Manually
@@ -146,7 +130,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
             </label>
             {errors.input && <span className="error-message">{errors.input}</span>}
             <p className="or-text">OR</p>
-            <MapSelector onSelect={setSelectedLatLon} />
+            <MapSelector onSelect={setSelectedLatLon} initialPosition={selectedLatLon} />
           </div>
         )}
 
@@ -170,29 +154,17 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
             {computeLoading && <p className="loading-text">Computing origin...</p>}
             {computedOrigin && (
               <div className="computed-origin">
-                <p><strong>Computed Origin:</strong></p>
-                <p>Latitude: {computedOrigin.lat.toFixed(8)}</p>
-                <p>Longitude: {computedOrigin.lon.toFixed(8)}</p>
-                <button
-                  className="refresh-button"
-                  onClick={() => setComputeParams({ ...computeParams })} // Trigger re-computation
-                  disabled={computeLoading}
-                >
-                  Refresh
-                </button>
+                <strong>Computed Origin:</strong>
+                <p>Lat: {computedOrigin.lat}, Lon: {computedOrigin.lon}</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Modal Actions */}
+        {/* Submit & Close Buttons */}
         <div className="modal-actions">
-          <button onClick={handleSubmit} className="ok-button" disabled={computeLoading}>
-            Set Origin
-          </button>
-          <button onClick={onClose} className="cancel-button" disabled={computeLoading}>
-            Cancel
-          </button>
+          <button className="cancel-btn" onClick={onClose}>Cancel</button>
+          <button className="submit-btn" onClick={handleSubmit}>Set Origin</button>
         </div>
       </div>
     </div>
@@ -203,8 +175,13 @@ OriginModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
-  telemetryData: PropTypes.object.isRequired,
+  telemetryData: PropTypes.array,
   configData: PropTypes.array.isRequired,
+  origin: PropTypes.shape({
+    lat: PropTypes.number,
+    lon: PropTypes.number,
+  }),
 };
 
 export default OriginModal;
+

@@ -1,3 +1,4 @@
+// app/dashboard/drone-dashboard/src/components/MapSelector.js
 import React from 'react';
 import { MapContainer, TileLayer, useMapEvents, Marker, Popup, LayersControl } from 'react-leaflet';
 import '../styles/MapSelector.css';
