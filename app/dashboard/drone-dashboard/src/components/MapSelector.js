@@ -96,14 +96,13 @@ const MapSelector = ({ onSelect, initialPosition }) => {
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
             />
           </LayersControl.BaseLayer>
-          <BaseLayer name="Google Satellite" checked>
+          <LayersControl.BaseLayer name="Google Satellite">
             <TileLayer
               url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
               attribution="Map data &copy; Google"
             />
-          </BaseLayer>
-        </LayersControl>
+        </LayersControl.BaseLayer>
 
         <MapEvents />
 
