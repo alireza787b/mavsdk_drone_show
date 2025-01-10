@@ -104,19 +104,38 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
       <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} style={{ height: '400px' }}>
+
         <LayersControl position="topright">
+          <LayersControl.BaseLayer name="OpenStreetMap">
+            <TileLayer
+              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="OpenTopoMap">
+            <TileLayer
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution="&copy; OpenTopoMap"
+            />
+          </LayersControl.BaseLayer>
+
+          {/*
+            "Google Satellite" is tricky, as official direct tiles from Google 
+            are behind paywalls or usage restrictions. We'll use a known 
+            'gdal2tiles' style server or fallback to an alternative satellite provider.
+          */}
+          <LayersControl.BaseLayer checked name="Satellite (gdal2tiles)">
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
+            />
+          </LayersControl.BaseLayer>
           <BaseLayer name="Google Satellite" checked>
             <TileLayer
               url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
               attribution="Map data &copy; Google"
-            />
-          </BaseLayer>
-          <BaseLayer name="OpenStreetMap">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="Map data &copy; OpenStreetMap contributors"
-              maxZoom={18}
             />
           </BaseLayer>
         </LayersControl>
