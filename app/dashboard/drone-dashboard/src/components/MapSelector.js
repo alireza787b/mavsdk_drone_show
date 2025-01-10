@@ -19,6 +19,7 @@ const { BaseLayer } = LayersControl;
 const MapSelector = ({ onSelect, initialPosition }) => {
   // Initialize position to [0, 0] if not provided
   const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]);
+  const [centered, setCentered] = React.useState(false);  // Track if map is already centered
 
   // Update position only if initialPosition changes and is different from current position
   React.useEffect(() => {
@@ -39,12 +40,15 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
     // Adjust the map's center to the marker's position when the position changes
     React.useEffect(() => {
-      if (map && position) {
+      if (map && position && !centered) {
         map.setView(position, map.getZoom(), {
           animate: true,
         });
+        setCentered(true); // Set centered to true so map doesn't recenter again
+      } else if (map && position && centered) {
+        map.setView(position, map.getZoom()); // Allow zoom adjustments without re-centering
       }
-    }, [position, map]);
+    }, [position, map, centered]);
 
     return position === null ? null : (
       <Marker position={position}>
