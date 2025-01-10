@@ -90,7 +90,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
             are behind paywalls or usage restrictions. We'll use a known 
             'gdal2tiles' style server or fallback to an alternative satellite provider.
           */}
-          <LayersControl.BaseLayer name="Satellite (Unofficial)">
+          <LayersControl.BaseLayer name="Satellite (gdal2tiles)">
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
