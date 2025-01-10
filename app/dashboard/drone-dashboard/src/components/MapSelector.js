@@ -1,4 +1,3 @@
-// app/dashboard/drone-dashboard/src/components/MapSelector.js
 import React from 'react';
 import { MapContainer, TileLayer, useMapEvents, Marker, Popup, LayersControl } from 'react-leaflet';
 import '../styles/MapSelector.css';
@@ -30,13 +29,22 @@ const MapSelector = ({ onSelect, initialPosition }) => {
   }, [initialPosition, position, onSelect]);
 
   const LocationMarker = () => {
-    useMapEvents({
+    const map = useMapEvents({
       click(e) {
         const { lat, lng } = e.latlng;
         setPosition([lat, lng]);
         onSelect({ lat, lon: lng });
       },
     });
+
+    // Adjust the map's center to the marker's position when the position changes
+    React.useEffect(() => {
+      if (map && position) {
+        map.setView(position, map.getZoom(), {
+          animate: true,
+        });
+      }
+    }, [position, map]);
 
     return position === null ? null : (
       <Marker position={position}>
