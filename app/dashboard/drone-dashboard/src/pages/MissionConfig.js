@@ -310,14 +310,7 @@ const MissionConfig = () => {
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
 
-      {/* 
-        Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
-      */}
-      <MissionLayout
-        configData={configData}
-        origin={origin}
-        openOriginModal={() => setShowOriginModal(true)}
-      />
+      
 
       {/* 
         Control Buttons 
@@ -391,10 +384,24 @@ const MissionConfig = () => {
           )}
         </div>
 
+
+
+
         {/* 
           Right column: Visual plots and additional mission details 
         */}
         <div className="initial-launch-plot">
+
+          {/* 
+        Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
+      */}
+      <MissionLayout
+        configData={configData}
+        origin={origin}
+        openOriginModal={() => setShowOriginModal(true)}
+      />
+
+      
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}

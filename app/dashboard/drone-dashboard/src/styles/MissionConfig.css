@@ -13,7 +13,6 @@ body {
 .mission-config-container {
     margin: 0 auto;
     padding: 20px;
-    max-width: 1200px;
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
