@@ -54,7 +54,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
     useEffect(() => {
       if (initialPosition && !hasInteracted) {
         map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), {
-          animate: false,
+          animate: true,
         });
       }
     }, [initialPosition, map, hasInteracted]);
@@ -67,8 +67,8 @@ const MapSelector = ({ onSelect, initialPosition }) => {
       <MapContainer
         center={[mapCenter.lat, mapCenter.lon]}
         zoom={13}
+        maxZoom={22}
         scrollWheelZoom
-        style={{ height: '300px', width: '100%' }}
       >
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="OpenStreetMap">

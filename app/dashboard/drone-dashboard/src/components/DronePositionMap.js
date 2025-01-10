@@ -103,7 +103,7 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
   return (
     <div className="drone-position-map">
       <h3>Drone Positions on Map</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} style={{ height: '400px' }}>
+      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} scrollWheelZoom >
 
         <LayersControl position="topright">
           <LayersControl.BaseLayer name="OpenStreetMap">
