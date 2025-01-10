@@ -1,5 +1,5 @@
 // app/dashboard/drone-dashboard/src/components/MapSelector.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, useMapEvents, Marker, Popup, LayersControl } from 'react-leaflet';
 import '../styles/MapSelector.css';
 import PropTypes from 'prop-types';
@@ -22,20 +22,28 @@ L.Icon.Default.mergeOptions({
 const MapSelector = ({ onSelect, initialPosition }) => {
   const position = initialPosition || { lat: 35.6895, lon: 139.6917 }; // Default to Tokyo if no initial position
 
+  // Flag to prevent map from continuously recentering once user has interacted
+  const [hasInteracted, setHasInteracted] = React.useState(false);
+
   function MapEvents() {
     const map = useMapEvents({
       click(event) {
         const { lat, lng } = event.latlng;
         onSelect({ lat, lon: lng });
       },
+      moveend() {
+        if (!hasInteracted) {
+          setHasInteracted(true); // User has interacted with the map
+        }
+      }
     });
 
-    // Center the map on the initial position, but don't animate it
-    React.useEffect(() => {
-      if (initialPosition) {
+    // Only recenter map if position is updated and no prior interaction occurred
+    useEffect(() => {
+      if (initialPosition && !hasInteracted) {
         map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), { animate: false });
       }
-    }, [initialPosition, map]);
+    }, [initialPosition, map, hasInteracted]);
 
     return null;
   }
@@ -53,7 +61,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
           <LayersControl.BaseLayer checked name="OpenStreetMap">
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="OS Satellite">
+          <LayersControl.BaseLayer name="Open Street Satellite">
             <TileLayer
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://opentopomap.org/copyright">OpenTopoMap</a>'
@@ -61,8 +69,8 @@ const MapSelector = ({ onSelect, initialPosition }) => {
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Google Satellite">
             <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://opentopomap.org/copyright">OpenTopoMap</a>'
+              url="https://{s}.google.com/maps/vt?lyrs=s&x={x}&y={y}&z={z}"
+              attribution='&copy; <a href="https://google.com">Google</a>'
             />
           </LayersControl.BaseLayer>
         </LayersControl>
