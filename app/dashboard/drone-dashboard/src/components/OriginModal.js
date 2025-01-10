@@ -39,27 +39,32 @@ const OriginModal = ({
   const { origin, error, loading, computeOrigin } = useComputeOrigin();
 
   // ------------------------------------------
-  // Step 1: If user picks a drone, auto-compute once.
+  // Step 1: If user picks a drone, auto-compute once, 
+  //         but only if we have valid lat/lon.
   // ------------------------------------------
   const autoComputeIfNeeded = useCallback(
     (droneId) => {
-      // If user hasn't selected a valid drone ID, do nothing
-      if (!droneId) return;
+      if (!droneId) return; // no valid selection
 
-      // If we already have a successful origin from the hook, do nothing
+      // If we already have a successful origin, do nothing
       if (origin) return;
 
-      // We don't want to re-run repeatedly if there's an error or it succeeded once
-      // So we only re-run if we have no origin + not loading
+      // We only re-run if no origin yet + not loading
       if (!origin && !loading) {
         const selectedDrone = configData.find((d) => d.hw_id === droneId);
         if (!selectedDrone) {
           setErrors({ drone: 'Selected drone not found.' });
           return;
         }
-        // Extract relevant parameters
-        const { current_lat, current_lon, intended_east, intended_north } =
+        // Extract lat/lon from telemetry. If invalid or zero => treat as error
+        const { current_lat, current_lon, intended_east, intended_north, isValid } =
           extractDroneParameters(selectedDrone);
+        if (!isValid) {
+          setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
+          return;
+        }
+
+        // Attempt to compute origin
         computeOrigin({ current_lat, current_lon, intended_east, intended_north });
       }
     },
@@ -102,26 +107,43 @@ const OriginModal = ({
 
   // ------------------------------------------
   // Step 3: Hook outcomes
-  // If the hook got an error, show it in the UI. 
+  // If the hook got an error, we show it. 
   // If success, do NOT auto-close. The user must click "Set Origin".
   // ------------------------------------------
   useEffect(() => {
     if (error) {
-      // Show error toast once
       toast.error(`Origin computation failed: ${error}`);
     }
   }, [error]);
 
   // ------------------------------------------
-  // Utility: Extract Drone parameters for computing origin
+  // Utility: Extract Drone parameters 
+  // with validation for lat/lon != 0 or none
   // ------------------------------------------
   const extractDroneParameters = (drone) => {
-    // You may adapt for real telemetry fields
-    const current_lat = telemetryData[drone.hw_id]?.lat || 0;
-    const current_lon = telemetryData[drone.hw_id]?.lon || 0;
-    const intended_east = parseFloat(drone.x) || 0;
-    const intended_north = parseFloat(drone.y) || 0;
-    return { current_lat, current_lon, intended_east, intended_north };
+    // Attempt to read the lat/lon from telemetry
+    const tData = telemetryData[drone.hw_id] || {};
+    const lat = parseFloat(tData.lat || tData.Position_Lat || 0);
+    const lon = parseFloat(tData.lon || tData.Position_Long || 0);
+
+    // If lat/lon are effectively zero or missing, treat as invalid
+    if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
+      return {
+        current_lat: lat,
+        current_lon: lon,
+        intended_east: parseFloat(drone.x) || 0,
+        intended_north: parseFloat(drone.y) || 0,
+        isValid: false,
+      };
+    }
+
+    return {
+      current_lat: lat,
+      current_lon: lon,
+      intended_east: parseFloat(drone.x) || 0, // config file: x=East, y=North
+      intended_north: parseFloat(drone.y) || 0,
+      isValid: true,
+    };
   };
 
   // ------------------------------------------
@@ -191,8 +213,14 @@ const OriginModal = ({
       setErrors({ drone: 'Selected drone not found.' });
       return;
     }
-    const { current_lat, current_lon, intended_east, intended_north } =
+    const { current_lat, current_lon, intended_east, intended_north, isValid } =
       extractDroneParameters(selectedDrone);
+
+    if (!isValid) {
+      setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
+      return;
+    }
+
     computeOrigin({ current_lat, current_lon, intended_east, intended_north });
   };
 
