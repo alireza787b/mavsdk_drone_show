@@ -17,45 +17,45 @@ class DroneConfig:
     It manages configuration files, swarm behavior, and telemetry data processing.
     """
     def __init__(self, drones, hw_id=None):
+        """
+        Initializes the drone configuration, including hardware ID, swarm setup,
+        and configuration files.
+        """
         self.hw_id = self.get_hw_id(hw_id)  # Unique hardware ID for the drone
-        self.trigger_time = 0
-        self.config = self.read_config()  # Read configuration settings
+        self.config = self.read_config()  # Read configuration settings from CSV or online source
         self.swarm = self.read_swarm()  # Read swarm configuration
+        self.pos_id = self.config.get('pos_id', self.hw_id)  # Initialize pos_id from config or hw_id
+        self.detected_pos_id = self.pos_id  # Initially, detected pos_id is the same as pos_id
         self.state = 0  # Initial state of the drone
-        self.pos_id = self.get_hw_id(hw_id)  # Position ID, typically same as hardware ID
         self.mission = 0  # Current mission state
         self.last_mission = 0
         self.trigger_time = 0  # Time of the last trigger event
         self.drone_setup = None
-        # Position and velocity information
-        self.position = {'lat': 0, 'long': 0, 'alt': 0}
-        self.velocity = {'north': 0, 'east': 0, 'down': 0}
+        self.position = {'lat': 0, 'long': 0, 'alt': 0}  # Initial position (lat, long, alt)
+        self.velocity = {'north': 0, 'east': 0, 'down': 0}  # Initial velocity components
         self.yaw = 0  # Yaw angle in degrees
 
-        # Battery voltage
-        self.battery = 0  # Voltage in volts
+        # Battery voltage and last update timestamp
+        self.battery = 0  # Battery voltage in volts
         self.last_update_timestamp = 0  # Timestamp of the last telemetry update
 
-        # Home position, set after receiving the first valid HOME_POSITION message
+        # Home position (initialized after receiving the first valid HOME_POSITION message)
         self.home_position = None
 
         # Target drone for swarm operations (if applicable)
         self.target_drone = None
         self.drones = drones  # List of drones in the swarm
 
-
-        # Altitude for takeoff
+        # Altitude for takeoff (from Params)
         self.takeoff_altitude = Params.default_takeoff_alt
 
-        # GPS data
+        # GPS and MAVLink data
         self.hdop = 0  # Horizontal dilution of precision
-        self.vdop = 0  # Vertical dilution of precision (new field)
+        self.vdop = 0  # Vertical dilution of precision
+        self.mav_mode = 0  # MAVLink mode
+        self.system_status = 0  # System status from MAVLink HEARTBEAT message
 
-        # MAVLink mode and system status (new fields)
-        self.mav_mode = 0  # MAV_MODE value from the MAVLink HEARTBEAT message
-        self.system_status = 0  # System status from the MAVLink HEARTBEAT message
-
-        # Sensor health and calibration statuses
+        # Sensor calibration statuses
         self.is_gyrometer_calibration_ok = False
         self.is_accelerometer_calibration_ok = False
         self.is_magnetometer_calibration_ok = False
@@ -63,6 +63,7 @@ class DroneConfig:
     def get_hw_id(self, hw_id=None):
         """
         Retrieve the hardware ID either from the provided ID or from a local file.
+        If hw_id is provided, it is used; otherwise, it is fetched from a .hwID file.
         """
         if hw_id is not None:
             return hw_id
@@ -98,6 +99,7 @@ class DroneConfig:
     def read_config(self):
         """
         Read configuration either from a local CSV file or from an online source.
+        If offline_config is true, local CSV is used; otherwise, the configuration is fetched online.
         """
         if Params.offline_config:
             return self.read_file(Params.config_csv_name, 'local CSV file', self.hw_id)
@@ -137,8 +139,9 @@ class DroneConfig:
     def find_target_drone(self):
         """
         Determine which drone this drone should follow in a swarm configuration.
+        This is useful for swarm behavior where one drone follows another.
         """
-        follow_hw_id = int(self.swarm['follow'])
+        follow_hw_id = int(self.swarm.get('follow', 0))  # Get the target drone's hw_id
         if follow_hw_id == 0:
             logging.info(f"Drone {self.hw_id} is a master drone and not following anyone.")
         elif follow_hw_id == self.hw_id:
@@ -156,5 +159,3 @@ class DroneConfig:
         """
         yaw_degrees = math.degrees(yaw_radians)
         return yaw_degrees if yaw_degrees >= 0 else yaw_degrees + 360
-
-

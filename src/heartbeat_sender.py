@@ -70,6 +70,7 @@ class HeartbeatSender:
         """
         hw_id = self.drone_config.hw_id
         pos_id = self.drone_config.pos_id
+        detected_pos_id = self.drone_config.detected_pos_id
 
         # Attempt to discover the Netbird IP that starts with "100."
         netbird_ip = self._get_netbird_ip()
@@ -80,6 +81,7 @@ class HeartbeatSender:
         data = {
             "hw_id": hw_id,
             "pos_id": pos_id,
+            "detected_pos_id":detected_pos_id,
             "ip": netbird_ip,
             "timestamp": int(time.time() * 1000),  # ms precision
         }
