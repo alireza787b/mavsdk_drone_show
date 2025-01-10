@@ -196,3 +196,24 @@
 .cancel-button:hover {
     background-color: #4b5563;
 }
+
+.refresh-button {
+    margin-top: 0.5rem;
+    padding: 0.4rem 0.8rem;
+    background-color: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.3s;
+}
+
+.refresh-button:hover {
+    background-color: #2563eb;
+}
+
+.refresh-button:disabled {
+    background-color: #93c5fd;
+    cursor: not-allowed;
+}

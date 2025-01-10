@@ -47,9 +47,12 @@ h2 {
     background-color: #d1fae5;
     /* Light green */
     border-left: 4px solid #10b981;
-    padding: 10px 15px;
+    padding: 8px 12px;
+    /* Reduced padding */
     border-radius: 4px;
-    flex: 1;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    /* Smaller font size */
 }
 
 .current-origin-display p {

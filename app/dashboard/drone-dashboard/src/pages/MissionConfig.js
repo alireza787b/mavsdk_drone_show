@@ -327,7 +327,7 @@ const MissionConfig = () => {
         {originAvailable && (
           <div className="current-origin-display">
             <p>
-              <strong>Current Origin:</strong> Latitude: {origin.lat}, Longitude: {origin.lon}
+              <strong>Origin:</strong> Lat: {origin.lat}, Lon: {origin.lon}
             </p>
           </div>
         )}

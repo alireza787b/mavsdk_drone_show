@@ -7,16 +7,6 @@ import { toast } from 'react-toastify';
 import useComputeOrigin from '../hooks/useComputeOrigin';
 import PropTypes from 'prop-types';
 
-/**
- * OriginModal
- *
- * Props:
- * - isOpen (bool): Whether the modal is open.
- * - onClose (func): Function to close the modal.
- * - onSubmit (func): Function to handle origin submission.
- * - telemetryData (object): Telemetry data for drones.
- * - configData (array): Configuration data for drones.
- */
 const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) => {
   const [coordinateInput, setCoordinateInput] = useState('');
   const [errors, setErrors] = useState({});
@@ -27,16 +17,20 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
   const [computeParams, setComputeParams] = useState(null);
   const { origin: computedOrigin, error: computeError, loading: computeLoading } = useComputeOrigin(computeParams);
 
+  // Update coordinateInput when a point is selected on the map
+  useEffect(() => {
+    if (selectedLatLon) {
+      setCoordinateInput(`${selectedLatLon.lat}, ${selectedLatLon.lon}`);
+    }
+  }, [selectedLatLon]);
+
   // Validate and parse manual coordinate input
   const validateManualInput = () => {
-    // Simple regex to validate decimal degrees (DD) format
     const ddRegex = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/;
     if (ddRegex.test(coordinateInput.trim())) {
       const [lat, lon] = coordinateInput.trim().split(',').map(Number);
       return { lat, lon };
     }
-    // If not DD, attempt to parse DMS or other formats using external libraries if needed
-    // For simplicity, only DD is handled here
     setErrors({ input: 'Invalid coordinate format. Please enter as "lat, lon" in decimal degrees.' });
     return null;
   };
@@ -45,18 +39,18 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
   const handleSubmit = () => {
     if (originMethod === 'manual') {
       if (selectedLatLon) {
-        onSubmit(selectedLatLon.lat, selectedLatLon.lon);
+        onSubmit({ lat: selectedLatLon.lat, lon: selectedLatLon.lon });
         toast.success('Origin set successfully.');
       } else {
         const validated = validateManualInput();
         if (validated) {
-          onSubmit(validated.lat, validated.lon);
+          onSubmit(validated);
           toast.success('Origin set successfully.');
         }
       }
     } else if (originMethod === 'drone') {
       if (computedOrigin) {
-        onSubmit(computedOrigin.lat, computedOrigin.lon);
+        onSubmit(computedOrigin);
         toast.success('Origin computed and set successfully.');
       } else {
         toast.error('Origin computation failed. Please try again.');
@@ -104,6 +98,7 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
               setOriginMethod('manual');
               setErrors({});
               setSelectedDroneId('');
+              setComputeParams(null); // Reset compute params
             }}
           >
             Enter Coordinates Manually
@@ -167,6 +162,13 @@ const OriginModal = ({ isOpen, onClose, onSubmit, telemetryData, configData }) =
                 <p><strong>Computed Origin:</strong></p>
                 <p>Latitude: {computedOrigin.lat.toFixed(8)}</p>
                 <p>Longitude: {computedOrigin.lon.toFixed(8)}</p>
+                <button
+                  className="refresh-button"
+                  onClick={() => setComputeParams({ ...computeParams })} // Trigger re-computation
+                  disabled={computeLoading}
+                >
+                  Refresh
+                </button>
               </div>
             )}
           </div>
