@@ -1,5 +1,37 @@
 /* src/styles/MapSelector.css */
 
+.map-selector {
+    margin-top: 1rem;
+}
+
+.current-location-btn {
+    padding: 0.5rem 1rem;
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-bottom: 10px;
+}
+
+.current-location-btn:hover {
+    background-color: #1d4ed8;
+}
+
+.map-instruction {
+    text-align: center;
+    margin-top: 0.5rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.leaflet-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+}
+
 .map-selector-container {
     width: 100%;
     height: 300px;
