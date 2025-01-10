@@ -40,18 +40,20 @@ const MapSelector = ({ onSelect }) => {
   return (
     <MapContainer center={[0, 0]} zoom={5} scrollWheelZoom={true} className="map-selector-container">
       <LayersControl position="topright">
-        <BaseLayer checked name="Default">
-          <TileLayer
-            attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-        </BaseLayer>
-        <BaseLayer name="Satellite">
-          <TileLayer
-            attribution='&copy; <a href="https://www.mapbox.com/">Mapbox</a>'
-            url="https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/{z}/{x}/{y}?access_token=YOUR_MAPBOX_ACCESS_TOKEN"
-          />
-        </BaseLayer>
+      <BaseLayer name="Google Satellite" checked>
+            <TileLayer
+              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+              attribution="Map data &copy; Google"
+            />
+          </BaseLayer>
+          <BaseLayer name="OpenStreetMap">
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="Map data &copy; OpenStreetMap contributors"
+              maxZoom={18}
+            />
+          </BaseLayer>
       </LayersControl>
       <LocationMarker />
     </MapContainer>

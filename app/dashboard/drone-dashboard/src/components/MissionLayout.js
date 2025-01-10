@@ -3,6 +3,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import '../styles/MissionLayout.css';
 import BriefingExport from './BriefingExport';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 const MissionLayout = ({ configData, origin, openOriginModal }) => {
   return (
@@ -16,18 +17,11 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
         setOriginLon={() => {}} // Not required here
       />
 
-      {/* KML Output */}
-      <div className="kml-output-section">
-        <h4>KML Output</h4>
-        <button className="export-kml-btn">
-          Download KML
-        </button>
-      </div>
-
       {/* Set Origin */}
       <div className="set-origin-section">
         <button className="set-origin-btn" onClick={openOriginModal}>
-          <i className="fa fa-map-marker-alt"></i> Set Origin
+        <FontAwesomeIcon icon={faMapMarkerAlt} />
+        Set Origin
         </button>
         {origin.lat && origin.lon && (
           <div className="current-origin">
