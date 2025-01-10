@@ -24,7 +24,7 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
           <FontAwesomeIcon icon={faMapMarkerAlt} />
           Set Origin
         </button>
-        {origin.lat && origin.lon && (
+        {origin.lat !== null && origin.lon !== null && (
           <div className="current-origin">
             <p>
               <strong>Origin:</strong> Lat: {origin.lat}, Lon: {origin.lon}
@@ -39,8 +39,8 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
 MissionLayout.propTypes = {
   configData: PropTypes.array.isRequired,
   origin: PropTypes.shape({
-    lat: PropTypes.number,
-    lon: PropTypes.number,
+    lat: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])]),
+    lon: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])]),
   }).isRequired,
   openOriginModal: PropTypes.func.isRequired,
 };

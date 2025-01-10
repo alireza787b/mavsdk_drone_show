@@ -30,7 +30,7 @@ const MissionConfig = () => {
   const [editingDroneId, setEditingDroneId] = useState(null);
 
   // Origin
-  const [origin, setOrigin] = useState({ lat: '', lon: '' });
+  const [origin, setOrigin] = useState({ lat: null, lon: null }); // Updated initialization
   const [originAvailable, setOriginAvailable] = useState(false);
   const [showOriginModal, setShowOriginModal] = useState(false);
 
@@ -128,7 +128,7 @@ const MissionConfig = () => {
   }, [configDataFetched]);
 
   useEffect(() => {
-    if (originDataFetched && originDataFetched.lat && originDataFetched.lon) {
+    if (originDataFetched && originDataFetched.lat !== undefined && originDataFetched.lon !== undefined) {
       // Ensure lat and lon are numbers
       setOrigin({
         lat: Number(originDataFetched.lat),
@@ -136,6 +136,7 @@ const MissionConfig = () => {
       });
       setOriginAvailable(true);
     } else {
+      setOrigin({ lat: null, lon: null }); // Reset to null if origin is not available
       setOriginAvailable(false);
     }
   }, [originDataFetched]);
