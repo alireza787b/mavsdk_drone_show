@@ -18,7 +18,7 @@ L.Icon.Default.mergeOptions({
 const { BaseLayer } = LayersControl;
 
 const MapSelector = ({ onSelect, initialPosition }) => {
-  const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : null);
+  const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]);
 
   // Update position if initialPosition changes
   React.useEffect(() => {
@@ -48,7 +48,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
   return (
     <MapContainer 
-      center={initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]} 
+      center={position} // Dynamically update the map's center based on the position
       zoom={5} 
       scrollWheelZoom={true} 
       className="map-selector-container"
@@ -76,7 +76,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
 MapSelector.propTypes = {
   onSelect: PropTypes.func.isRequired,
-  initialPosition: PropTypes.shape({ // Added PropType for initialPosition
+  initialPosition: PropTypes.shape({ 
     lat: PropTypes.number,
     lon: PropTypes.number,
   }),
