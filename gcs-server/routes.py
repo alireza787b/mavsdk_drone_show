@@ -397,8 +397,6 @@ def setup_routes(app):
                 return jsonify({'error': f'Custom show image not found at {image_path}'}), 404
         except Exception as e:
             return jsonify({'error': str(e)}), 500
-
-
     @app.route('/set-origin', methods=['POST'])
     def set_origin():
         data = request.get_json()
@@ -419,12 +417,14 @@ def setup_routes(app):
     def get_origin():
         try:
             data = load_origin()
-            return jsonify(data)
+            if data['lat'] and data['lon']:
+                return jsonify(data)
+            else:
+                return jsonify({'lat': None, 'lon': None})
         except Exception as e:
             logger.error(f"Error loading origin: {e}")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
-        
-        
+
     @app.route('/get-position-deviations', methods=['GET'])
     def get_position_deviations():
         """
@@ -433,7 +433,7 @@ def setup_routes(app):
         try:
             # Step 1: Get the origin coordinates
             origin = load_origin()
-            if not origin or 'lat' not in origin or 'lon' not in origin:
+            if not origin or 'lat' not in origin or 'lon' not in origin or not origin['lat'] or not origin['lon']:
                 return jsonify({"error": "Origin coordinates not set on GCS"}), 400
             origin_lat = float(origin['lat'])
             origin_lon = float(origin['lon'])
@@ -458,8 +458,7 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error in get_position_deviations: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
-        
-        
+
     @app.route('/compute-origin', methods=['POST'])
     def compute_origin():
         """
@@ -471,10 +470,11 @@ def setup_routes(app):
 
             # Validate input data
             required_fields = ['current_lat', 'current_lon', 'intended_east', 'intended_north']
-            for field in required_fields:
-                if field not in data:
-                    logger.error(f"Missing required field: {field}")
-                    return jsonify({'error': f"Missing required field: {field}"}), 400
+            missing_fields = [field for field in required_fields if field not in data]
+            if missing_fields:
+                error_msg = f"Missing required field(s): {', '.join(missing_fields)}"
+                logger.error(error_msg)
+                return jsonify({'status': 'error', 'message': error_msg}), 400
 
             # Parse and validate numerical inputs
             try:
@@ -483,8 +483,9 @@ def setup_routes(app):
                 intended_east = float(data.get('intended_east'))
                 intended_north = float(data.get('intended_north'))
             except (TypeError, ValueError) as e:
-                logger.error(f"Invalid input data types: {e}")
-                return jsonify({'error': f"Invalid input data types: {e}"}), 400
+                error_msg = f"Invalid input data types: {e}"
+                logger.error(error_msg)
+                return jsonify({'status': 'error', 'message': error_msg}), 400
 
             logger.info(f"Parsed inputs - current_lat: {current_lat}, current_lon: {current_lon}, intended_east: {intended_east}, intended_north: {intended_north}")
 
@@ -494,11 +495,11 @@ def setup_routes(app):
             # Save the origin
             save_origin({'lat': origin_lat, 'lon': origin_lon})
 
-            return jsonify({'lat': origin_lat, 'lon': origin_lon}), 200
+            return jsonify({'status': 'success', 'lat': origin_lat, 'lon': origin_lon}), 200
 
         except Exception as e:
             logger.error(f"Error in compute_origin endpoint: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
     @app.route('/get-network-info', methods=['GET'])

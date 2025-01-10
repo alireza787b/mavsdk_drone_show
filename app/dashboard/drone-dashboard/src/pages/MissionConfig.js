@@ -1,7 +1,6 @@
 // src/pages/MissionConfig.js
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import '../styles/MissionConfig.css';
 
 // Components
@@ -10,8 +9,10 @@ import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import BriefingExport from '../components/BriefingExport';
 import OriginModal from '../components/OriginModal';
-import ConfirmationDialog from '../components/ConfirmationDialog'; 
 import DronePositionMap from '../components/DronePositionMap';
+
+// Hooks
+import useFetch from '../hooks/useFetch';
 
 // Utilities
 import {
@@ -20,7 +21,6 @@ import {
   handleFileChange,
   exportConfig,
 } from '../utilities/missionConfigUtilities';
-import { getBackendURL } from '../utilities/utilities';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
@@ -30,14 +30,12 @@ const MissionConfig = () => {
   const [editingDroneId, setEditingDroneId] = useState(null);
 
   // Origin
-  const [originLat, setOriginLat] = useState('');
-  const [originLon, setOriginLon] = useState('');
+  const [origin, setOrigin] = useState({ lat: '', lon: '' });
   const [originAvailable, setOriginAvailable] = useState(false);
   const [showOriginModal, setShowOriginModal] = useState(false);
 
-  // Deviations / Telemetry
+  // Deviations
   const [deviationData, setDeviationData] = useState({});
-  const [telemetryData, setTelemetryData] = useState({});
 
   // Git & Network
   const [networkInfo, setNetworkInfo] = useState([]);
@@ -49,6 +47,57 @@ const MissionConfig = () => {
 
   // UI & Loading
   const [loading, setLoading] = useState(false);
+
+  // -----------------------------------------------------
+  // Data Fetching using custom hooks
+  // -----------------------------------------------------
+  const {
+    data: configDataFetched,
+    error: configError,
+    loading: configLoading,
+  } = useFetch('/get-config-data');
+
+  const {
+    data: originDataFetched,
+    error: originError,
+    loading: originLoading,
+  } = useFetch('/get-origin');
+
+  const {
+    data: deviationDataFetched,
+    error: deviationError,
+    loading: deviationLoading,
+  } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
+
+  const {
+    data: telemetryDataFetched,
+    error: telemetryError,
+    loading: telemetryLoading,
+  } = useFetch('/telemetry', 2000);
+
+  const {
+    data: gcsGitStatusFetched,
+    error: gcsGitError,
+    loading: gcsGitLoading,
+  } = useFetch('/get-gcs-git-status', 30000);
+
+  const {
+    data: gitStatusDataFetched,
+    error: gitStatusError,
+    loading: gitStatusLoading,
+  } = useFetch('/git-status', 20000);
+
+  const {
+    data: networkInfoFetched,
+    error: networkInfoError,
+    loading: networkInfoLoading,
+  } = useFetch('/get-network-info', 10000);
+
+  const {
+    data: heartbeatsFetched,
+    error: heartbeatsError,
+    loading: heartbeatsLoading,
+  } = useFetch('/get-heartbeats', 5000);
 
   // -----------------------------------------------------
   // Derived Data & Helpers
@@ -63,168 +112,59 @@ const MissionConfig = () => {
 
   // Available HwIds
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId =
-    Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
   const availableHwIds = Array.from(
     { length: maxHwId },
     (_, i) => (i + 1).toString()
   ).filter((id) => !allHwIds.has(id));
 
   // -----------------------------------------------------
-  // Fetch config data on mount
+  // Effect: Update state when data is fetched
   // -----------------------------------------------------
   useEffect(() => {
-    const fetchData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-config-data`);
-        setConfigData(response.data);
-      } catch (error) {
-        console.error('Error fetching config data:', error);
-      }
-    };
-    fetchData();
-  }, []);
+    if (configDataFetched) {
+      setConfigData(configDataFetched);
+    }
+  }, [configDataFetched]);
 
-  // -----------------------------------------------------
-  // Fetch origin on mount
-  // -----------------------------------------------------
   useEffect(() => {
-    const fetchOrigin = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-origin`);
-        if (response.data.lat && response.data.lon) {
-          setOriginLat(response.data.lat);
-          setOriginLon(response.data.lon);
-          setOriginAvailable(true);
-        } else {
-          setOriginAvailable(false);
-        }
-      } catch (error) {
-        console.error('Error fetching origin data:', error);
-        setOriginAvailable(false);
-      }
-    };
-    fetchOrigin();
-  }, []);
+    if (originDataFetched && originDataFetched.lat && originDataFetched.lon) {
+      setOrigin({ lat: originDataFetched.lat, lon: originDataFetched.lon });
+      setOriginAvailable(true);
+    } else {
+      setOriginAvailable(false);
+    }
+  }, [originDataFetched]);
 
-  // -----------------------------------------------------
-  // Fetch deviation data (if origin is available)
-  // -----------------------------------------------------
   useEffect(() => {
-    if (!originAvailable) return;
+    if (deviationDataFetched) {
+      setDeviationData(deviationDataFetched);
+    }
+  }, [deviationDataFetched]);
 
-    const fetchDeviationData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-position-deviations`);
-        setDeviationData(response.data);
-      } catch (error) {
-        console.error('Error fetching deviation data:', error);
-      }
-    };
-
-    fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 5000);
-    return () => clearInterval(interval);
-  }, [originAvailable]);
-
-  // -----------------------------------------------------
-  // Fetch telemetry data
-  // -----------------------------------------------------
   useEffect(() => {
-    const fetchTelemetryData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/telemetry`);
-        setTelemetryData(response.data);
-      } catch (error) {
-        console.error('Error fetching telemetry data:', error);
-      }
-    };
+    if (gcsGitStatusFetched) {
+      setGcsGitStatus(gcsGitStatusFetched);
+    }
+  }, [gcsGitStatusFetched]);
 
-    fetchTelemetryData();
-    const interval = setInterval(fetchTelemetryData, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // -----------------------------------------------------
-  // Fetch GCS Git status
-  // -----------------------------------------------------
   useEffect(() => {
-    const fetchGcsGitStatus = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-gcs-git-status`);
-        setGcsGitStatus(response.data);
-      } catch (error) {
-        console.error('Error fetching GCS Git status:', error);
-      }
-    };
+    if (gitStatusDataFetched) {
+      setGitStatusData(gitStatusDataFetched);
+    }
+  }, [gitStatusDataFetched]);
 
-    fetchGcsGitStatus();
-    const interval = setInterval(fetchGcsGitStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // -----------------------------------------------------
-  // Fetch Git status data
-  // -----------------------------------------------------
   useEffect(() => {
-    const fetchGitStatus = async () => {
-      const backendPort = process.env.REACT_APP_FLASK_PORT || '5000';
-      const backendURL = getBackendURL(backendPort);
-      try {
-        const response = await axios.get(`${backendURL}/git-status`);
-        setGitStatusData(response.data);
-      } catch (error) {
-        console.error('Error fetching Git status data:', error);
-      }
-    };
+    if (networkInfoFetched) {
+      setNetworkInfo(networkInfoFetched);
+    }
+  }, [networkInfoFetched]);
 
-    fetchGitStatus();
-    const interval = setInterval(fetchGitStatus, 20000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // -----------------------------------------------------
-  // Fetch network info
-  // -----------------------------------------------------
   useEffect(() => {
-    const fetchNetworkInfo = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-network-info`);
-        setNetworkInfo(response.data);
-      } catch (error) {
-        console.error('Error fetching network information:', error);
-      }
-    };
-
-    fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // -----------------------------------------------------
-  // Fetch heartbeats
-  // -----------------------------------------------------
-  useEffect(() => {
-    const fetchHeartbeats = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-heartbeats`);
-        setHeartbeats(response.data || {});
-      } catch (error) {
-        console.error('Error fetching heartbeats:', error);
-      }
-    };
-
-    fetchHeartbeats();
-    const interval = setInterval(fetchHeartbeats, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (heartbeatsFetched) {
+      setHeartbeats(heartbeatsFetched);
+    }
+  }, [heartbeatsFetched]);
 
   // -----------------------------------------------------
   // Detect & add "new" drones automatically by heartbeat
@@ -254,6 +194,7 @@ const MissionConfig = () => {
     if (newDrones.length > 0) {
       setConfigData((prev) => [...prev, ...newDrones]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heartbeats, configData]);
 
   // -----------------------------------------------------
@@ -315,19 +256,11 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Origin Modal submission
   // -----------------------------------------------------
-  const handleOriginSubmit = (lat, lon) => {
-    setOriginLat(lat);
-    setOriginLon(lon);
+  const handleOriginSubmit = (newOrigin) => {
+    setOrigin(newOrigin);
     setShowOriginModal(false);
-
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-    axios.post(`${backendURL}/set-origin`, { lat, lon })
-      .then(() => {
-        setOriginAvailable(true);
-      })
-      .catch((error) => {
-        console.error('Error saving origin to backend:', error);
-      });
+    setOriginAvailable(true);
+    // Optionally, you can also update originLat and originLon if used elsewhere
   };
 
   // -----------------------------------------------------
@@ -383,10 +316,10 @@ const MissionConfig = () => {
       */}
       <BriefingExport
         configData={configData}
-        originLat={originLat}
-        originLon={originLon}
-        setOriginLat={setOriginLat}
-        setOriginLon={setOriginLon}
+        originLat={origin.lat}
+        originLon={origin.lon}
+        setOriginLat={(lat) => setOrigin((prev) => ({ ...prev, lat }))}
+        setOriginLon={(lon) => setOrigin((prev) => ({ ...prev, lon }))}
       />
 
       {/* 
@@ -409,7 +342,7 @@ const MissionConfig = () => {
           isOpen={showOriginModal}
           onClose={() => setShowOriginModal(false)}
           onSubmit={handleOriginSubmit}
-          telemetryData={telemetryData}
+          telemetryData={telemetryDataFetched || {}}
           configData={configData}
         />
       )}
@@ -451,8 +384,8 @@ const MissionConfig = () => {
             deviationData={deviationData}
           />
           <DronePositionMap
-            originLat={originLat}
-            originLon={originLon}
+            originLat={origin.lat}
+            originLon={origin.lon}
             drones={configData}
           />
         </div>

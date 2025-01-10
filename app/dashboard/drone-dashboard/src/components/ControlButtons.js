@@ -41,9 +41,7 @@ const ControlButtons = ({
 
   return (
     <div className="control-buttons">
-      {/* 
-        Primary Actions 
-      */}
+      {/* Primary Actions */}
       <div className="primary-actions">
         {/* Save */}
         <button
@@ -78,9 +76,7 @@ const ControlButtons = ({
         </button>
       </div>
 
-      {/* 
-        Secondary Actions 
-      */}
+      {/* Secondary Actions */}
       <div className="secondary-actions">
         {/* Import CSV */}
         <button

@@ -6,12 +6,12 @@
     justify-content: space-between;
     margin-bottom: 1rem;
     gap: 1rem;
-    /* Slightly more breathing room */
+    /* Added gap for better spacing */
 }
 
 
 /* 
-    We group the buttons in two main sections:
+    Group the buttons in two main sections:
     - .primary-actions 
     - .secondary-actions
   */
@@ -35,6 +35,7 @@ button {
     border: none;
     border-radius: 4px;
     background-color: #2563eb;
+    /* Default blue */
     color: #fff;
     cursor: pointer;
     font-size: 0.9rem;
@@ -60,6 +61,7 @@ button:disabled {
 
 .file-upload-btn {
     background-color: #f59e0b;
+    /* Amber */
 }
 
 .file-upload-btn:hover {
@@ -68,6 +70,7 @@ button:disabled {
 
 .export-config {
     background-color: #10b981;
+    /* Green */
 }
 
 .export-config:hover {
@@ -76,6 +79,7 @@ button:disabled {
 
 .revert {
     background-color: #ef4444;
+    /* Red */
 }
 
 .revert:hover {
@@ -84,6 +88,7 @@ button:disabled {
 
 .add {
     background-color: #22c55e;
+    /* Emerald */
 }
 
 .add:hover {
@@ -92,6 +97,7 @@ button:disabled {
 
 .set-origin {
     background-color: #6b7280;
+    /* Gray */
 }
 
 .set-origin:hover {
@@ -100,6 +106,7 @@ button:disabled {
 
 .save {
     background-color: #2563eb;
+    /* Blue */
 }
 
 .save:hover {

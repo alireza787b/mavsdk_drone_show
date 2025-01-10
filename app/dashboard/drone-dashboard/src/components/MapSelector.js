@@ -1,11 +1,13 @@
-// app/dashboard/drone-dashboard/src/components/MapSelector.js
+// src/components/MapSelector.js
 
 import React, { useState } from 'react';
 import '../styles/MapSelector.css';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
-// Fix the default icon issue in Leaflet
+/**
+ * Fix the default icon issue in Leaflet when using with React
+ */
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -16,6 +18,12 @@ L.Icon.Default.mergeOptions({
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+/**
+ * MapSelector Component
+ *
+ * Allows users to select coordinates visually on a map.
+ * On selection, it calls the onSelect callback with the selected latitude and longitude.
+ */
 const MapSelector = ({ onSelect }) => {
   const [position, setPosition] = useState(null);
   const [userPosition, setUserPosition] = useState(null);
@@ -27,9 +35,11 @@ const MapSelector = ({ onSelect }) => {
           const { latitude, longitude } = position.coords;
           setUserPosition([latitude, longitude]);
           setPosition([latitude, longitude]);
+          onSelect(latitude, longitude);
         },
         (error) => {
           console.error("Error getting user location:", error);
+          alert("Unable to retrieve your location.");
         }
       );
     } else {
@@ -48,11 +58,11 @@ const MapSelector = ({ onSelect }) => {
   };
 
   return (
-    <div className="map-container">
-      <button onClick={getCurrentPosition} style={{ marginBottom: '10px' }}>
+    <div className="map-selector">
+      <button onClick={getCurrentPosition} className="current-location-btn">
         Show My Location
       </button>
-      <MapContainer center={[35.6892, 51.3890]} zoom={6} maxZoom={22} style={{ height: '400px' }}>
+      <MapContainer center={[35.6892, 51.3890]} zoom={6} maxZoom={22} style={{ height: '300px', width: '100%' }}>
         <LayersControl position="topright">
           <LayersControl.BaseLayer name="Google Satellite" checked>
             <TileLayer
@@ -65,7 +75,7 @@ const MapSelector = ({ onSelect }) => {
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution="Map data &copy; OpenStreetMap contributors"
-              maxZoom={18} // Set appropriate max zoom for OSM
+              maxZoom={18} /* Set appropriate max zoom for OSM */
             />
           </LayersControl.BaseLayer>
         </LayersControl>
@@ -80,8 +90,13 @@ const MapSelector = ({ onSelect }) => {
         
         {position && <Marker position={position} />}
       </MapContainer>
+      <p className="map-instruction">Click on the map to select coordinates.</p>
     </div>
   );
+};
+
+MapSelector.propTypes = {
+  onSelect: PropTypes.func.isRequired,
 };
 
 export default MapSelector;
