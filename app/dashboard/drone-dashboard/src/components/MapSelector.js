@@ -18,15 +18,16 @@ L.Icon.Default.mergeOptions({
 const { BaseLayer } = LayersControl;
 
 const MapSelector = ({ onSelect, initialPosition }) => {
+  // Initialize position to [0, 0] if not provided
   const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]);
 
-  // Update position if initialPosition changes
+  // Update position only if initialPosition changes and is different from current position
   React.useEffect(() => {
-    if (initialPosition) {
+    if (initialPosition && (position[0] !== initialPosition.lat || position[1] !== initialPosition.lon)) {
       setPosition([initialPosition.lat, initialPosition.lon]);
-      onSelect(initialPosition);
+      onSelect(initialPosition); // Only call onSelect if the position is actually updated
     }
-  }, [initialPosition, onSelect]);
+  }, [initialPosition, position, onSelect]);
 
   const LocationMarker = () => {
     useMapEvents({
@@ -48,7 +49,7 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
   return (
     <MapContainer 
-      center={position} // Dynamically update the map's center based on the position
+      center={position} // Dynamically set the center to position
       zoom={5} 
       scrollWheelZoom={true} 
       className="map-selector-container"
