@@ -128,12 +128,17 @@ const MissionConfig = () => {
 
   useEffect(() => {
     if (originDataFetched && originDataFetched.lat && originDataFetched.lon) {
-      setOrigin({ lat: originDataFetched.lat, lon: originDataFetched.lon });
+      // Ensure lat and lon are numbers
+      setOrigin({
+        lat: Number(originDataFetched.lat),
+        lon: Number(originDataFetched.lon),
+      });
       setOriginAvailable(true);
     } else {
       setOriginAvailable(false);
     }
   }, [originDataFetched]);
+  
 
   useEffect(() => {
     if (deviationDataFetched) {
