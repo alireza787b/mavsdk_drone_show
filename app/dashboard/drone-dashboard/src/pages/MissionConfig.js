@@ -1,3 +1,4 @@
+// app/dashboard/drone-dashboard/src/components/MissionConfig.js
 import React, { useState, useEffect } from 'react';
 import '../styles/MissionConfig.css';
 
@@ -138,7 +139,6 @@ const MissionConfig = () => {
       setOriginAvailable(false);
     }
   }, [originDataFetched]);
-  
 
   useEffect(() => {
     if (deviationDataFetched) {
@@ -315,8 +315,6 @@ const MissionConfig = () => {
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
 
-      
-
       {/* 
         Control Buttons 
         (Save, Add, Import/Export, Revert, Set Origin, etc.) 
@@ -355,6 +353,7 @@ const MissionConfig = () => {
           onSubmit={handleOriginSubmit}
           telemetryData={telemetryDataFetched || {}}
           configData={configData}
+          currentOrigin={origin} // Passed current origin
         />
       )}
 
@@ -389,24 +388,19 @@ const MissionConfig = () => {
           )}
         </div>
 
-
-
-
         {/* 
           Right column: Visual plots and additional mission details 
         */}
         <div className="initial-launch-plot">
-
           {/* 
-        Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
-      */}
-      <MissionLayout
-        configData={configData}
-        origin={origin}
-        openOriginModal={() => setShowOriginModal(true)}
-      />
+            Mission Layout Section: Briefing, KML Output, Set Origin, Current Origin
+          */}
+          <MissionLayout
+            configData={configData}
+            origin={origin}
+            openOriginModal={() => setShowOriginModal(true)}
+          />
 
-      
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}

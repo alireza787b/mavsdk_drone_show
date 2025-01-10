@@ -17,8 +17,16 @@ L.Icon.Default.mergeOptions({
 
 const { BaseLayer } = LayersControl;
 
-const MapSelector = ({ onSelect }) => {
-  const [position, setPosition] = React.useState(null);
+const MapSelector = ({ onSelect, initialPosition }) => {
+  const [position, setPosition] = React.useState(initialPosition ? [initialPosition.lat, initialPosition.lon] : null);
+
+  // Update position if initialPosition changes
+  React.useEffect(() => {
+    if (initialPosition) {
+      setPosition([initialPosition.lat, initialPosition.lon]);
+      onSelect(initialPosition);
+    }
+  }, [initialPosition, onSelect]);
 
   const LocationMarker = () => {
     useMapEvents({
@@ -39,22 +47,27 @@ const MapSelector = ({ onSelect }) => {
   };
 
   return (
-    <MapContainer center={[0, 0]} zoom={5} scrollWheelZoom={true} className="map-selector-container">
+    <MapContainer 
+      center={initialPosition ? [initialPosition.lat, initialPosition.lon] : [0, 0]} 
+      zoom={5} 
+      scrollWheelZoom={true} 
+      className="map-selector-container"
+    >
       <LayersControl position="topright">
-      <BaseLayer name="Google Satellite" checked>
-            <TileLayer
-              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-              attribution="Map data &copy; Google"
-            />
-          </BaseLayer>
-          <BaseLayer name="OpenStreetMap">
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="Map data &copy; OpenStreetMap contributors"
-              maxZoom={18}
-            />
-          </BaseLayer>
+        <BaseLayer name="Google Satellite" checked>
+          <TileLayer
+            url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+            attribution="Map data &copy; Google"
+          />
+        </BaseLayer>
+        <BaseLayer name="OpenStreetMap">
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="Map data &copy; OpenStreetMap contributors"
+            maxZoom={18}
+          />
+        </BaseLayer>
       </LayersControl>
       <LocationMarker />
     </MapContainer>
@@ -63,6 +76,10 @@ const MapSelector = ({ onSelect }) => {
 
 MapSelector.propTypes = {
   onSelect: PropTypes.func.isRequired,
+  initialPosition: PropTypes.shape({ // Added PropType for initialPosition
+    lat: PropTypes.number,
+    lon: PropTypes.number,
+  }),
 };
 
 export default MapSelector;
