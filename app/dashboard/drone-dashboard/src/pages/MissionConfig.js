@@ -272,14 +272,14 @@ const MissionConfig = () => {
     toast.success('Origin set successfully.');
 
     // Optionally, send the origin to the backend if not handled within OriginModal
-    // axios.post(`${backendURL}/set-origin`, newOrigin)
-    //   .then(() => {
-    //     toast.success('Origin saved to server.');
-    //   })
-    //   .catch((error) => {
-    //     console.error('Error saving origin to backend:', error);
-    //     toast.error('Failed to save origin to server.');
-    //   });
+    axios.post(`${backendURL}/set-origin`, newOrigin)
+      .then(() => {
+        toast.success('Origin saved to server.');
+      })
+      .catch((error) => {
+        console.error('Error saving origin to backend:', error);
+        toast.error('Failed to save origin to server.');
+      });
   };
 
   // -----------------------------------------------------
