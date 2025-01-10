@@ -42,9 +42,35 @@ const MapSelector = ({ onSelect, initialPosition }) => {
 
   return (
     <div className="map-selector">
-      <MapContainer center={[position.lat, position.lon]} zoom={13} scrollWheelZoom={false} style={{ height: '300px', width: '100%' }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <MapContainer
+        center={[position.lat, position.lon]}
+        zoom={13}
+        scrollWheelZoom={true}  // Enable scroll zoom
+        style={{ height: '300px', width: '100%' }}
+      >
+        {/* Layers Control (Satellite and Standard Map) */}
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer checked name="OpenStreetMap">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="OS Satellite">
+            <TileLayer
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://opentopomap.org/copyright">OpenTopoMap</a>'
+            />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Google Satellite">
+            <TileLayer
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://opentopomap.org/copyright">OpenTopoMap</a>'
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
+
+        {/* Map Events */}
         <MapEvents />
+
+        {/* Marker that reflects selected position */}
         {initialPosition && (
           <Marker position={[initialPosition.lat, initialPosition.lon]}>
             <Popup>
