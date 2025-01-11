@@ -1,52 +1,78 @@
 // app/dashboard/drone-dashboard/src/components/DroneWidget.js
+
+// Import necessary dependencies
 import React from 'react';
-import DroneDetail from './DroneDetail';
-import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { MAV_MODE_ENUM } from '../constants/mavModeEnum';  // Import MAV mode enumeration
-import DroneCriticalCommands from './DroneCriticalCommands'; // NEW import for our critical commands
-import '../styles/DroneWidget.css';
-import { FaExclamationTriangle } from 'react-icons/fa'; // Import warning icon from react-icons
-import ReactTooltip from 'react-tooltip'; // Import tooltip library
+import DroneDetail from './DroneDetail'; // Component to display detailed drone information
+import { getFlightModeTitle } from '../utilities/flightModeUtils'; // Utility to get flight mode title
+import { MAV_MODE_ENUM } from '../constants/mavModeEnum'; // MAV mode enumeration constants
+import DroneCriticalCommands from './DroneCriticalCommands'; // Component for drone-specific commands
+import '../styles/DroneWidget.css'; // Styles for the DroneWidget component
+import { FaExclamationTriangle } from 'react-icons/fa'; // Warning icon from react-icons
+import { Tooltip } from 'react-tooltip'; // Tooltip library for displaying additional information
 
+/**
+ * DroneWidget Component
+ * Displays summarized information about a drone and provides interaction options.
+ * @param {Object} props - Component props.
+ * @param {Object} props.drone - The drone data to display.
+ * @param {Function} props.toggleDroneDetails - Function to toggle the expanded state of the widget.
+ * @param {boolean} props.isExpanded - Determines if the widget is expanded.
+ * @param {Function} props.setSelectedDrone - Sets the currently selected drone.
+ */
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
-  const currentTimeInMs = Date.now(); // Current time in milliseconds
-  const isStale = (currentTimeInMs - (drone.Timestamp || 0)) > 5 * 1000;  // Checking staleness with 5000 ms threshold
+  // Current time in milliseconds
+  const currentTimeInMs = Date.now();
 
-  // Get the flight mode title from the flight mode code
+  // Check if the drone data is stale (older than 5000ms)
+  const isStale = (currentTimeInMs - (drone.Timestamp || 0)) > 5 * 1000;
+
+  // Get the flight mode title using the flight mode code
   const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
 
-  // Map MAV_MODE to a readable name and determine if the drone is armable
+  // Map MAV_MODE code to a readable name; determine armable status
   const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || drone.Flight_Mode;
-  const isArmable = drone.Flight_Mode !== 0; // Any mode other than PREFLIGHT (0) is considered armable
+  const isArmable = drone.Flight_Mode !== 0; // Drone is armable if not in PREFLIGHT mode (0)
 
-  // Determine HDOP/VDOP class based on value
+  /**
+   * Determine the HDOP/VDOP class based on the average DOP value.
+   * @param {number} hdop - Horizontal dilution of precision.
+   * @param {number} vdop - Vertical dilution of precision.
+   * @returns {string} - Corresponding CSS class ('green', 'yellow', or 'red').
+   */
   const getHdopVdopClass = (hdop, vdop) => {
     const avgDop = (hdop + vdop) / 2;
-    if (avgDop < 0.8) return 'green';
-    if (avgDop <= 1.0) return 'yellow';
-    return 'red';
+    if (avgDop < 0.8) return 'green'; // High precision
+    if (avgDop <= 1.0) return 'yellow'; // Moderate precision
+    return 'red'; // Poor precision
   };
 
-  // Determine Battery Voltage class based on value
+  /**
+   * Determine the battery voltage class based on its value.
+   * @param {number} voltage - The drone's battery voltage.
+   * @returns {string} - Corresponding CSS class ('green', 'yellow', or 'red').
+   */
   const getBatteryClass = (voltage) => {
-    if (voltage >= 16) return 'green';
-    if (voltage >= 14.8) return 'yellow';
-    return 'red';
+    if (voltage >= 16) return 'green'; // Battery is in good condition
+    if (voltage >= 14.8) return 'yellow'; // Battery is moderate
+    return 'red'; // Battery is low
   };
 
-  // Determine the border color class based on the armable status
+  // Determine the border color class based on the drone's armable status
   const armableClass = isArmable ? 'armable' : 'not-armable';
 
-  // Check for pos_id discrepancy
+  // Check if there's a discrepancy between the configured and detected Position ID
   const hasPosIdDiscrepancy = drone.pos_id !== drone.Detected_Pos_ID;
 
+  // Main component render
   return (
     <div className={`drone-widget ${armableClass} ${isExpanded ? 'expanded' : ''}`}>
+      {/* Header section with drone title and status indicator */}
       <h3 onClick={() => toggleDroneDetails(drone)}>
         <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
         Drone {drone.hw_ID || 'Unknown'}
       </h3>
 
+      {/* Core drone information */}
       <div className="drone-info">
         <p><strong>Mission:</strong> {drone.lastMission || 'N/A'}</p>
         <p><strong>Flight Mode:</strong> {flightModeTitle}</p>
@@ -67,10 +93,7 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
           </span>
         </p>
 
-        {/* 
-          NEW SECTION:
-          Display Configured Pos ID and Detected Pos ID with discrepancy warning
-        */}
+        {/* Position ID section with discrepancy warning */}
         <div className="drone-posid-section">
           <p>
             <strong>Configured Pos ID:</strong> {drone.pos_id}
@@ -80,21 +103,21 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
               <strong>Detected Pos ID:</strong> {drone.Detected_Pos_ID}
               <FaExclamationTriangle
                 className="warning-icon"
-                data-tip
-                data-for={`posid-tooltip-${drone.hw_ID}`}
+                data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
+                data-tooltip-content="Detected Pos ID does not match Configured Pos ID."
               />
-              <ReactTooltip id={`posid-tooltip-${drone.hw_ID}`} place="top" effect="solid">
-                Detected Pos ID does not match Configured Pos ID.
-              </ReactTooltip>
+              <Tooltip id={`posid-tooltip-${drone.hw_ID}`} place="top" effect="solid" />
             </p>
           )}
         </div>
 
+        {/* Critical commands section for the drone */}
         <div className="drone-critical-commands-section">
           <DroneCriticalCommands droneId={drone.hw_ID} />
         </div>
       </div>
 
+      {/* Expanded details content */}
       {isExpanded && (
         <div className="details-content">
           <DroneDetail drone={drone} isAccordionView={true} />
