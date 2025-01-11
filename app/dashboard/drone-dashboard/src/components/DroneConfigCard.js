@@ -55,12 +55,16 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   onAcceptConfigFromHb,
 }) {
   /**
-   * Convert numeric or string heartbeat values to strings
-   * to ensure consistent comparison vs. '0' or other IDs.
+   * Convert numeric or string heartbeat values to strings for consistent checks.
    */
-  const hbAssignedPosStr = heartbeatPos !== undefined ? String(heartbeatPos) : '';
+  const hbAssignedPosStr =
+    heartbeatPos !== undefined && heartbeatPos !== null
+      ? String(heartbeatPos)
+      : '';
   const hbDetectedPosStr =
-    heartbeatDetectedPos !== undefined ? String(heartbeatDetectedPos) : '';
+    heartbeatDetectedPos !== undefined && heartbeatDetectedPos !== null
+      ? String(heartbeatDetectedPos)
+      : '';
 
   /**
    * Returns the correct heartbeat status icon based on `heartbeatStatus`.
@@ -161,7 +165,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
   /**
    * If there's no mismatch, no newly detected drone, and auto-detection is not '0',
-   * plus a valid heartbeat, show "All Good".
+   * plus a valid heartbeat => show "All Good".
    */
   const isAllGood =
     !ipMismatch &&
@@ -174,7 +178,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
   return (
     <>
-      {/* If newly detected (via heartbeat and not in config) */}
       {isNew && (
         <div className="new-drone-badge" aria-label="Newly Detected Drone">
           <FontAwesomeIcon icon={faPlusCircle} /> Newly Detected
@@ -683,15 +686,12 @@ const DroneEditForm = memo(function DroneEditForm({
               onChange={(e) => {
                 const newPosId = e.target.value;
                 setCustomPosId(newPosId);
-                // Immediately reflect in the local droneData
                 setDroneData((prevData) => ({
                   ...prevData,
                   pos_id: newPosId,
                   x: 0,
                   y: 0,
                 }));
-                // Prefer tooltip or inline note to alerts for better UX
-                console.log(`Position ID "${newPosId}" defaults to (0, 0).`);
               }}
               aria-label="Custom Position ID"
             />
@@ -835,12 +835,15 @@ export default function DroneConfigCard({
   saveChanges,
   removeDrone,
   networkInfo,
-  heartbeatData = {}, // If not provided, default to empty object
+  heartbeatData = null, // Might be null or undefined
   positionIdMapping,
 }) {
   const isEditing = editingDroneId === drone.hw_id;
 
-  // We keep a local state for the edit form. `drone` is what's in config.
+  // Safely handle heartbeatData (avoid referencing null)
+  const safeHeartbeatData = heartbeatData || {};
+
+  // We keep a local state for the edit form.
   const [droneData, setDroneData] = useState({ ...drone });
   const [errors, setErrors] = useState({});
 
@@ -853,7 +856,7 @@ export default function DroneConfigCard({
   }, [isEditing, drone]);
 
   // Safely handle heartbeat timestamp
-  const timestampVal = heartbeatData?.timestamp;
+  const timestampVal = safeHeartbeatData.timestamp;
   const now = Date.now();
   const heartbeatAgeSec =
     typeof timestampVal === 'number'
@@ -868,35 +871,35 @@ export default function DroneConfigCard({
     else heartbeatStatus = 'Offline (>60s)';
   }
 
-  // Mismatch checks — convert to strings for consistent comparisons
+  // Mismatch checks (string compare to avoid issues)
   const ipMismatch =
-    typeof heartbeatData.ip === 'string' &&
-    heartbeatData.ip !== drone.ip;
+    typeof safeHeartbeatData.ip === 'string' &&
+    safeHeartbeatData.ip !== drone.ip;
 
   const posMismatch =
-    heartbeatData.pos_id !== undefined &&
-    String(heartbeatData.pos_id) !== String(drone.pos_id);
+    safeHeartbeatData.pos_id !== undefined &&
+    String(safeHeartbeatData.pos_id) !== String(drone.pos_id);
 
   const hasValidAuto =
-    heartbeatData.detected_pos_id &&
-    String(heartbeatData.detected_pos_id) !== '0';
+    safeHeartbeatData.detected_pos_id &&
+    String(safeHeartbeatData.detected_pos_id) !== '0';
 
   const autoDetectMismatch =
     hasValidAuto &&
-    String(heartbeatData.detected_pos_id) !== String(drone.pos_id);
+    String(safeHeartbeatData.detected_pos_id) !== String(drone.pos_id);
 
   const internalHbPosMismatch =
-    heartbeatData.pos_id !== undefined &&
+    safeHeartbeatData.pos_id !== undefined &&
     hasValidAuto &&
-    String(heartbeatData.pos_id) !== String(heartbeatData.detected_pos_id);
+    String(safeHeartbeatData.pos_id) !== String(safeHeartbeatData.detected_pos_id);
 
-  // Highlight card if any mismatch or newly detected
+  // Highlight card if mismatch or newly detected
   const hasAnyMismatch =
     ipMismatch || posMismatch || autoDetectMismatch || drone.isNew;
   const cardExtraClass = hasAnyMismatch ? ' mismatch-drone' : '';
 
   /**
-   * Validate local fields, then call `saveChanges` if all good.
+   * Validate local fields, then call `saveChanges` if no errors.
    */
   const handleLocalSave = () => {
     const validationErrors = {};
@@ -945,44 +948,47 @@ export default function DroneConfigCard({
           posMismatch={posMismatch}
           autoDetectMismatch={autoDetectMismatch}
           internalHbPosMismatch={internalHbPosMismatch}
-          heartbeatIP={heartbeatData?.ip}
-          heartbeatPos={heartbeatData?.pos_id}
-          heartbeatDetectedPos={heartbeatData?.detected_pos_id}
+          heartbeatIP={safeHeartbeatData.ip}
+          heartbeatPos={safeHeartbeatData.pos_id}
+          heartbeatDetectedPos={safeHeartbeatData.detected_pos_id}
           onFieldChange={(e) => {
             const { name, value } = e.target;
             setDroneData({ ...droneData, [name]: value });
           }}
           onAcceptIp={() => {
-            if (heartbeatData?.ip) {
-              setDroneData({ ...droneData, ip: heartbeatData.ip });
+            if (safeHeartbeatData.ip) {
+              setDroneData({ ...droneData, ip: safeHeartbeatData.ip });
             }
           }}
           onAcceptPos={() => {
-            if (heartbeatData?.pos_id) {
+            if (safeHeartbeatData.pos_id) {
               setDroneData({
                 ...droneData,
-                pos_id: String(heartbeatData.pos_id),
+                pos_id: String(safeHeartbeatData.pos_id),
               });
             }
           }}
           onAcceptPosAuto={() => {
-            if (heartbeatData?.detected_pos_id) {
+            if (safeHeartbeatData.detected_pos_id) {
               setDroneData({
                 ...droneData,
-                pos_id: String(heartbeatData.detected_pos_id),
+                pos_id: String(safeHeartbeatData.detected_pos_id),
               });
             }
           }}
           onAcceptPosFromHbVsAuto={(choice) => {
-            if (choice === 'assigned' && heartbeatData?.pos_id) {
+            if (choice === 'assigned' && safeHeartbeatData.pos_id) {
               setDroneData({
                 ...droneData,
-                pos_id: String(heartbeatData.pos_id),
+                pos_id: String(safeHeartbeatData.pos_id),
               });
-            } else if (choice === 'detected' && heartbeatData?.detected_pos_id) {
+            } else if (
+              choice === 'detected' &&
+              safeHeartbeatData.detected_pos_id
+            ) {
               setDroneData({
                 ...droneData,
-                pos_id: String(heartbeatData.detected_pos_id),
+                pos_id: String(safeHeartbeatData.detected_pos_id),
               });
             }
           }}
@@ -1008,9 +1014,9 @@ export default function DroneConfigCard({
           internalHbPosMismatch={internalHbPosMismatch}
           heartbeatStatus={heartbeatStatus}
           heartbeatAgeSec={heartbeatAgeSec}
-          heartbeatIP={heartbeatData?.ip}
-          heartbeatPos={heartbeatData?.pos_id}
-          heartbeatDetectedPos={heartbeatData?.detected_pos_id}
+          heartbeatIP={safeHeartbeatData.ip}
+          heartbeatPos={safeHeartbeatData.pos_id}
+          heartbeatDetectedPos={safeHeartbeatData.detected_pos_id}
           networkInfo={networkInfo}
           onEdit={() => setEditingDroneId(drone.hw_id)}
           onRemove={() => removeDrone(drone.hw_id)}
@@ -1051,8 +1057,13 @@ DroneConfigCard.propTypes = {
 
   /** Optional: network info object, if available. */
   networkInfo: PropTypes.object,
-  /** Optional: heartbeat data, e.g. { ip, pos_id, detected_pos_id, timestamp, ... } */
-  heartbeatData: PropTypes.object,
+
+  /**
+   * Optional: heartbeat data, e.g. {
+   *   ip, pos_id, detected_pos_id, timestamp, ...
+   * }
+   */
+  heartbeatData: PropTypes.any,
 
   /** Optional: used if you have a mapping of pos_id => something else. */
   positionIdMapping: PropTypes.object,
