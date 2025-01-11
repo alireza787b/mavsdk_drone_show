@@ -6,7 +6,6 @@ import math
 
 import numpy as np
 from src.params import Params
-from src.flask_handler import FlaskHandler  # Assuming FlaskHandler has _get_origin_from_gcs method
 import navpy
 
 class PosIDAutoDetector:

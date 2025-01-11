@@ -134,12 +134,7 @@ def main_loop():
         # Initialize ConnectivityChecker
         connectivity_checker = ConnectivityChecker(params, LEDController)
 
-        # Initialize and start PosIDAutoDetector
-        if params.auto_detection_enabled:
-            pos_id_auto_detector = PosIDAutoDetector(drone_config, params, flask_handler)
-            pos_id_auto_detector.start()
-        else:
-            logger.info("PosIDAutoDetector is disabled via parameters.")
+        
 
         # Variable to track the last state value
         last_state_value = None
@@ -266,8 +261,15 @@ def main():
     # Step 6: Initialize DroneSetup
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
+    
+    # Step 7: Initialize and start PosIDAutoDetector
+    if params.auto_detection_enabled:
+        pos_id_auto_detector = PosIDAutoDetector(drone_config, params, flask_handler)
+        pos_id_auto_detector.start()
+    else:
+        logger.info("PosIDAutoDetector is disabled via parameters.")
 
-    # Step 7: Start the main loop
+    # Step 8: Start the main loop
     main_loop()
 
 if __name__ == "__main__":
