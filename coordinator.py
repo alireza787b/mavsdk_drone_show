@@ -76,6 +76,7 @@ drone_setup = None  # Initialize drone_setup as None
 heartbeat_sender = None
 connectivity_checker = None  # Initialize connectivity_checker
 pos_id_auto_detector = None  # Initialize PosIDAutoDetector
+flask_handler = None
 
 # Initialize LEDController only if not in simulation mode
 if not Params.sim_mode:
@@ -109,7 +110,7 @@ def main_loop():
     """
     Main loop of the coordinator application.
     """
-    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector  # Declare as global variables
+    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, flask_handler  # Declare as global variables
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
