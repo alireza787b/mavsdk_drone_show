@@ -234,7 +234,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 <p>
   <strong>Position ID (config):</strong>{' '}
   <span className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}>
-    {String(drone.pos_id).trim() || 'N/A'}
+    {drone.pos_id || 'N/A'}
     {/* If heartbeat's assigned pos_id doesn't match */}
     {posMismatch && hbAssignedPosStr && (
       <FontAwesomeIcon
@@ -256,73 +256,68 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   </span>
 </p>
 
+{/* Show heartbeat's assigned pos_id if present and valid */}
+{hbAssignedPosStr && hbAssignedPosStr !== '0' && (
+  <p>
+    <strong>Heartbeat’s Assigned Pos ID:</strong> {hbAssignedPosStr}
+  </p>
+)}
 
-      {/* Show heartbeat's assigned pos_id if present and not '0' */}
-      {hbAssignedPosStr && hbAssignedPosStr !== '0' && (
-        <p>
-          <strong>Heartbeat’s Assigned Pos ID:</strong> {hbAssignedPosStr}
-        </p>
-      )}
+{/* If auto-detection returned 0, show warning */}
+{isAutoDetectionUnavailable && (
+  <div
+    className="mismatch-message"
+    style={{ border: '1px solid #f59e0b', backgroundColor: '#fffaeb' }}
+    title="Auto-detection returned 0 (no valid detection)."
+  >
+    <FontAwesomeIcon
+      icon={faExclamationTriangle}
+      className="warning-icon"
+    />
+    <strong>Auto-Detection Unavailable</strong>
+    <span style={{ color: '#f59e0b' }}>
+      &nbsp;— No valid auto-detected position ID found.
+    </span>
+  </div>
+)}
 
-      {/* If auto-detect is '0' => show amber warning icon + tooltip */}
-      {isAutoDetectionUnavailable && (
-        <div
-          className="mismatch-message"
-          style={{ border: '1px solid #f59e0b', backgroundColor: '#fffaeb' }}
-          title="Auto-detection returned 0 (no valid detection)."
-        >
-          <FontAwesomeIcon
-            icon={faExclamationTriangle}
-            className="warning-icon"
-          />
-          <strong>Auto-Detection Unavailable</strong>
-          <span style={{ color: '#f59e0b' }}>
-            &nbsp;— No valid auto-detected position ID found.
-          </span>
-        </div>
-      )}
+{/* If auto-detection is valid and differs, show detected value */}
+{!isAutoDetectionUnavailable && hbDetectedPosStr && hbDetectedPosStr !== '0' && (
+  <p>
+    <strong>Heartbeat’s Detected Pos ID:</strong> {hbDetectedPosStr}
+  </p>
+)}
 
-      {/* If auto-detect is not '0', show it explicitly */}
-      {!isAutoDetectionUnavailable && hbDetectedPosStr && hbDetectedPosStr !== '0' && (
-        <p>
-          <strong>Heartbeat’s Detected Pos ID:</strong> {hbDetectedPosStr}
-        </p>
-      )}
-
-      {/* If heartbeat pos_id differs from detected_pos_id internally */}
-      {internalHbPosMismatch && (
-        <div className="mismatch-message">
-          <FontAwesomeIcon
-            icon={faExclamationCircle}
-            className="warning-icon"
-            title="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
-            aria-label="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
-          />
-          <span>
-            <em>Conflict:</em> assigned pos_id = <strong>{hbAssignedPosStr}</strong>, but
-            auto-detected pos_id = <strong>{hbDetectedPosStr}</strong>.
-          </span>
-          <button
-            type="button"
-            className="accept-button"
-            onClick={() => {
-              onAcceptConfigFromAuto?.(hbDetectedPosStr);
-            }}
-          >
-            Accept Detected
-          </button>
-          <button
-            type="button"
-            className="accept-button"
-            style={{ backgroundColor: '#059669' }}
-            onClick={() => {
-              onAcceptConfigFromHb?.(hbAssignedPosStr);
-            }}
-          >
-            Accept Assigned
-          </button>
-        </div>
-      )}
+{/* Handle internal mismatch between heartbeat-assigned and detected pos_id */}
+{internalHbPosMismatch && (
+  <div className="mismatch-message">
+    <FontAwesomeIcon
+      icon={faExclamationCircle}
+      className="warning-icon"
+      title="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
+      aria-label="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
+    />
+    <span>
+      <em>Conflict:</em> assigned pos_id = <strong>{hbAssignedPosStr}</strong>, but
+      auto-detected pos_id = <strong>{hbDetectedPosStr}</strong>.
+    </span>
+    <button
+      type="button"
+      className="accept-button"
+      onClick={() => onAcceptConfigFromAuto?.(hbDetectedPosStr)}
+    >
+      Accept Detected
+    </button>
+    <button
+      type="button"
+      className="accept-button"
+      style={{ backgroundColor: '#059669' }}
+      onClick={() => onAcceptConfigFromHb?.(hbAssignedPosStr)}
+    >
+      Accept Assigned
+    </button>
+  </div>
+)}
 
       {/* Drone's basic config fields */}
       <p>
