@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaExclamationTriangle, FaCheckCircle } from 'react-icons/fa';
+import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip'; // For hover tooltips
 import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
@@ -51,14 +51,25 @@ const DroneWidget = ({
   };
 
   // For position ID vs. auto-detected
+  // We'll treat '0' as a special case => "no auto detection available"
   const posId = drone.Pos_ID ?? 'N/A';
-  const detectedPosId = drone.Detected_Pos_ID ?? 'N/A';
-  const posMismatch = posId !== detectedPosId && detectedPosId !== 'N/A';
+  const detectedPosRaw = drone.Detected_Pos_ID; // might be 0, or an actual number, or undefined
+  const detectedPosId = detectedPosRaw === undefined ? 'N/A' : String(detectedPosRaw);
 
-  // A small handler to navigate or link to /mission-config
+  // True mismatch = both are valid (not 'N/A'), auto != 0, and they differ
+  const isAutoDetectZero = detectedPosId === '0';
+  const posMismatch =
+    posId !== 'N/A' &&
+    detectedPosId !== 'N/A' &&
+    !isAutoDetectZero &&
+    posId !== detectedPosId;
+
+  /**
+   * A small handler to navigate or link to /mission-config
+   * Only used if there's a real mismatch.
+   */
   const handlePositionConfigClick = (ev) => {
     ev.stopPropagation(); // Stop from toggling details
-    // You could use react-router or window.location here:
     window.location.href = '/mission-config';
   };
 
@@ -74,29 +85,52 @@ const DroneWidget = ({
         Drone {drone.hw_ID || 'Unknown'}
       </h3>
 
-{/* Single Position ID row with icon indicating match/mismatch */}
-<div className="drone-posid-section">
-          <p className="single-posid-row">
-            <strong>Position ID:</strong> {posId}{' '}
-            {posMismatch ? (
-              <>
-                {/* Warning icon if mismatch */}
-                <FaExclamationTriangle
-                  className="posid-warning-icon"
-                  data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
-                  data-tooltip-content={`Mismatch: Auto-detected = ${detectedPosId}. Click to fix.`}
-                  onClick={handlePositionConfigClick}
-                  style={{ cursor: 'pointer', marginLeft: '8px' }}
-                />
-                <Tooltip
-                  id={`posid-tooltip-${drone.hw_ID}`}
-                  place="top"
-                  effect="solid"
-                />
-              </>
-            ) : (
-              // Green check if there's no mismatch and we have valid data
-              posId !== 'N/A' && detectedPosId !== 'N/A' && (
+      {/* Single Position ID row with icon indicating match/mismatch or auto=0 */}
+      <div className="drone-posid-section">
+        <p className="single-posid-row">
+          <strong>Position ID:</strong> {posId}{' '}
+          {(() => {
+            // 1) If auto detection is 0 => show an info icon (less critical)
+            if (isAutoDetectZero) {
+              return (
+                <>
+                  <FaInfoCircle
+                    className="posid-info-icon"
+                    data-tooltip-id={`posid-tooltip-info-${drone.hw_ID}`}
+                    data-tooltip-content="Auto-detected pos_id=0 (not available yet)."
+                    style={{ color: 'gray', marginLeft: '8px' }}
+                  />
+                  <Tooltip
+                    id={`posid-tooltip-info-${drone.hw_ID}`}
+                    place="top"
+                    effect="solid"
+                  />
+                </>
+              );
+            }
+            // 2) If mismatch => show warning icon
+            if (posMismatch) {
+              return (
+                <>
+                  <FaExclamationTriangle
+                    className="posid-warning-icon"
+                    data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
+                    data-tooltip-content={`Mismatch: Auto-detected = ${detectedPosId}. Click to fix.`}
+                    onClick={handlePositionConfigClick}
+                    style={{ cursor: 'pointer', marginLeft: '8px' }}
+                  />
+                  <Tooltip
+                    id={`posid-tooltip-${drone.hw_ID}`}
+                    place="top"
+                    effect="solid"
+                  />
+                </>
+              );
+            }
+            // 3) If both are 'N/A', or we don't have a real mismatch => either no icon or a green check
+            // If both are valid (posId != 'N/A' && detectedPosId != 'N/A'), show green check
+            if (posId !== 'N/A' && detectedPosId !== 'N/A') {
+              return (
                 <>
                   <FaCheckCircle
                     className="posid-match-icon"
@@ -110,10 +144,13 @@ const DroneWidget = ({
                     effect="solid"
                   />
                 </>
-              )
-            )}
-          </p>
-        </div>
+              );
+            }
+            // 4) Otherwise, do nothing
+            return null;
+          })()}
+        </p>
+      </div>
 
       {/* Main info block */}
       <div className="drone-info">
@@ -155,8 +192,6 @@ const DroneWidget = ({
               : 'N/A'}
           </span>
         </p>
-
-        
 
         {/* Drone-critical commands */}
         <div className="drone-critical-commands-section">

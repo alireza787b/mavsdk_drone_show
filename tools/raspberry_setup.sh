@@ -595,5 +595,11 @@ if [[ "$SKIP_NETBIRD" == false ]]; then
     setup_netbird
 fi
 
+echo "Setup Finished..."
+echo "Initiating Reboot..."
+sudo reboot
+
+
+
 echo
 echo "Setup complete! The system is now configured for Drone ID $DRONE_ID."

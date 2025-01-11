@@ -1,5 +1,3 @@
-/* app/dashboard/drone-dashboard/src/styles/DroneWidget.css */
-
 .drone-widget {
     border: 2px solid #ccc;
     padding: 16px;
@@ -13,7 +11,7 @@
 }
 
 
-/* Armable vs Not-Armable */
+/* Armable vs. Not-Armable */
 
 .drone-widget.armable {
     border-color: green;
@@ -115,7 +113,7 @@
 }
 
 
-/* Icons for position ID match/mismatch */
+/* Icons for position ID match/mismatch/no detection */
 
 .posid-warning-icon {
     color: #ff9800;
@@ -125,7 +123,12 @@
 
 .posid-match-icon {
     font-size: 1.1em;
-    /* color: green; set inline for clarity */
+    /* color: green; set inline where used */
+}
+
+.posid-info-icon {
+    font-size: 1.1em;
+    /* color: gray; set inline where used */
 }
 
 
@@ -136,6 +139,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    /* spacing */
 }
 
 
@@ -173,7 +177,7 @@
 }
 
 
-/* Tooltip styling overrides (if desired) */
+/* Tooltip styling overrides (optional) */
 
 .__react_component_tooltip {
     font-size: 0.85em;
