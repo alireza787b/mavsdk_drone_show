@@ -10,21 +10,21 @@
     position: relative;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.3s;
-}
-
-/* Hover effect for better user feedback */
-.drone-config-card:hover {
+  }
+  
+  /* Hover effect for better user feedback */
+  .drone-config-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* If there's any mismatch or the drone is newly detected, highlight visually */
-.drone-config-card.mismatch-drone {
-    border-left: 4px solid #ef4444; /* a red bar on the left */
+  }
+  
+  /* Highlight visually if there's any mismatch or newly detected */
+  .drone-config-card.mismatch-drone {
+    border-left: 4px solid #ef4444;
     padding-left: 12px;
-}
-
-/* "New Drone" Badge */
-.new-drone-badge {
+  }
+  
+  /* "New Drone" Badge */
+  .new-drone-badge {
     position: absolute;
     top: 10px;
     left: 10px;
@@ -36,17 +36,17 @@
     display: flex;
     align-items: center;
     gap: 4px;
-}
-
-/* Heartbeat Info */
-.heartbeat-info {
+  }
+  
+  /* Heartbeat Info */
+  .heartbeat-info {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
-}
-
-.all-good-indicator {
+  }
+  
+  .all-good-indicator {
     display: inline-flex;
     align-items: center;
     color: #10b981; /* green */
@@ -54,51 +54,50 @@
     margin-left: 10px;
     gap: 4px;
     font-size: 0.9rem;
-}
-
-/* Icons for heartbeat statuses */
-.status-icon {
+  }
+  
+  /* Icons for heartbeat statuses */
+  .status-icon {
     font-size: 1rem;
-}
-
-.status-icon.online {
+  }
+  
+  .status-icon.online {
     color: #10b981; /* green */
-}
-.status-icon.stale {
+  }
+  .status-icon.stale {
     color: #f59e0b; /* amber */
-}
-.status-icon.offline {
+  }
+  .status-icon.offline {
     color: #ef4444; /* red */
-}
-.status-icon.no-heartbeat {
+  }
+  .status-icon.no-heartbeat {
     color: #9ca3af; /* gray */
-}
-.status-icon.all-good {
+  }
+  .status-icon.all-good {
     color: #10b981; /* green check */
-}
-
-/* Info (question) icon, for helpful tooltips */
-.info-icon {
+  }
+  
+  /* Info (question) icon, for helpful tooltips */
+  .info-icon {
     color: #6b7280;
     margin-left: 6px;
     cursor: help;
-}
-
-/* Mismatch styling */
-.mismatch-text {
-    color: #ef4444; /* red */
-    font-weight: bold;
-}
-
-/* Exclamation circle for mismatch warnings */
-.warning-icon {
+  }
+  
+  /* Mismatch text in red */
+  .mismatch-text {
     color: #ef4444;
-    margin-left: 8px;
-    pointer-events: none;
-}
-
-/* Mismatch message with a red background box */
-.mismatch-message {
+    font-weight: bold;
+  }
+  
+  /* Exclamation circle for mismatch warnings */
+  .warning-icon {
+    color: #ef4444;
+    margin-left: 6px;
+  }
+  
+  /* Mismatch message with a light red background */
+  .mismatch-message {
     margin-top: 8px;
     color: #ef4444;
     display: flex;
@@ -109,10 +108,10 @@
     border: 1px solid #fca5a5; /* red border */
     padding: 8px 10px;
     border-radius: 4px;
-}
-
-/* Accept Button for mismatches */
-.accept-button {
+  }
+  
+  /* Accept Button for mismatches */
+  .accept-button {
     background-color: #3b82f6; /* blue */
     color: #ffffff;
     border: none;
@@ -123,21 +122,21 @@
     display: flex;
     align-items: center;
     gap: 5px;
-}
-.accept-button:hover {
+  }
+  .accept-button:hover {
     background-color: #2563eb;
-}
-
-/* Form Labels and Inputs */
-.drone-config-card label {
+  }
+  
+  /* Form Labels and Inputs */
+  .drone-config-card label {
     display: block;
     margin-bottom: 1rem;
     font-weight: 600;
     color: #374151;
-}
-
-.drone-config-card select,
-.drone-config-card input {
+  }
+  
+  .drone-config-card select,
+  .drone-config-card input {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid #d1d5db;
@@ -145,28 +144,28 @@
     margin-top: 0.25rem;
     font-size: 0.95rem;
     box-sizing: border-box;
-}
-
-.drone-config-card input:focus,
-.drone-config-card select:focus {
+  }
+  
+  .drone-config-card input:focus,
+  .drone-config-card select:focus {
     outline: none;
     border-color: #2563eb;
     box-shadow: 0 0 0 1px #2563eb;
-}
-
-/* Input with Icon Wrapper */
-.input-with-icon {
+  }
+  
+  /* Input with Icon Wrapper */
+  .input-with-icon {
     position: relative;
-}
-
-/* Buttons at the bottom of the card (Edit, Remove, etc.) */
-.card-buttons {
+  }
+  
+  /* Card action buttons */
+  .card-buttons {
     display: flex;
     gap: 10px;
     margin-top: 12px;
-}
-
-.card-buttons button {
+  }
+  
+  .card-buttons button {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -177,45 +176,45 @@
     cursor: pointer;
     font-size: 0.9rem;
     transition: background-color 0.2s;
-}
-
-/* Style each button type */
-.edit-drone {
+  }
+  
+  /* Style each button type */
+  .edit-drone {
     background-color: #3b82f6;
-}
-.edit-drone:hover {
+  }
+  .edit-drone:hover {
     background-color: #2563eb;
-}
-
-.remove-drone {
+  }
+  
+  .remove-drone {
     background-color: #ef4444;
-}
-.remove-drone:hover {
+  }
+  .remove-drone:hover {
     background-color: #dc2626;
-}
-
-.save-drone {
+  }
+  
+  .save-drone {
     background-color: #10b981;
-}
-.save-drone:hover {
+  }
+  .save-drone:hover {
     background-color: #059669;
-}
-
-.cancel-edit {
+  }
+  
+  .cancel-edit {
     background-color: #6b7280;
-}
-.cancel-edit:hover {
+  }
+  .cancel-edit:hover {
     background-color: #4b5563;
-}
-
-/* Validation Error Messages */
-.error-message {
+  }
+  
+  /* Validation Error Messages */
+  .error-message {
     color: #ef4444;
     font-size: 0.875rem;
-}
-
-/* Additional Network Info */
-.network-info {
+  }
+  
+  /* Additional Network Info */
+  .network-info {
     margin-top: 10px;
     padding: 10px;
     background-color: #e8f5e9;
@@ -223,46 +222,49 @@
     border-radius: 5px;
     font-size: 0.95rem;
     color: #2e7d32;
-}
-.network-info p {
+  }
+  .network-info p {
     margin: 4px 0;
-}
-
-/* Wi-Fi Icon Colors */
-.wifi-icon.strong {
+  }
+  
+  /* Wi-Fi Icon Colors */
+  .wifi-icon.strong {
     color: #10b981;
-}
-.wifi-icon.medium {
+  }
+  .wifi-icon.medium {
     color: #f59e0b;
-}
-.wifi-icon.weak {
+  }
+  .wifi-icon.weak {
     color: #ef4444;
-}
-.wifi-icon.none {
+  }
+  .wifi-icon.none {
     color: #9ca3af;
-}
-
-/* Toggle Switch for custom vs. dropdown pos_id */
-.switch {
+  }
+  
+  /* Toggle Switch for custom vs. dropdown pos_id */
+  .switch {
     position: relative;
     display: inline-block;
     width: 34px;
     height: 20px;
-}
-.switch input {
+  }
+  .switch input {
     opacity: 0;
     width: 0;
     height: 0;
-}
-.slider {
+  }
+  .slider {
     position: absolute;
     cursor: pointer;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-color: #ccc;
     transition: 0.4s;
     border-radius: 20px;
-}
-.slider:before {
+  }
+  .slider:before {
     position: absolute;
     content: '';
     height: 14px;
@@ -272,21 +274,21 @@
     background-color: white;
     transition: 0.4s;
     border-radius: 50%;
-}
-input:checked + .slider {
-    background-color: #2196F3;
-}
-input:checked + .slider:before {
+  }
+  input:checked + .slider {
+    background-color: #2196f3;
+  }
+  input:checked + .slider:before {
     transform: translateX(14px);
-}
-.toggle-label {
+  }
+  .toggle-label {
     margin-left: 10px;
     font-size: 0.9rem;
     color: #333;
-}
-
-/* Confirmation Dialog Backdrop */
-.confirmation-dialog-backdrop {
+  }
+  
+  /* Confirmation Dialog Backdrop */
+  .confirmation-dialog-backdrop {
     position: fixed;
     top: 0;
     left: 0;
@@ -297,38 +299,39 @@ input:checked + .slider:before {
     justify-content: center;
     align-items: center;
     z-index: 1000;
-}
-
-/* Confirmation Dialog */
-.confirmation-dialog {
+  }
+  
+  /* Confirmation Dialog */
+  .confirmation-dialog {
     background-color: #fff;
     padding: 20px;
     border-radius: 8px;
     width: 400px;
     max-width: 90%;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-.confirmation-dialog h4 {
+  }
+  .confirmation-dialog h4 {
     margin-top: 0;
-}
-.dialog-buttons {
+  }
+  .dialog-buttons {
     display: flex;
     justify-content: flex-end;
     margin-top: 20px;
-}
-.confirm-button,
-.cancel-button {
+  }
+  .confirm-button,
+  .cancel-button {
     padding: 8px 16px;
     margin-left: 10px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-}
-.confirm-button {
+  }
+  .confirm-button {
     background-color: #4caf50;
     color: white;
-}
-.cancel-button {
+  }
+  .cancel-button {
     background-color: #f44336;
     color: white;
-}
+  }
+  
