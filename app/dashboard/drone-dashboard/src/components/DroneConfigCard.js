@@ -245,7 +245,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       />
     )}
     {/* If auto-detected pos_id doesn't match */}
-    {autoDetectMismatch && hbDetectedPosStr && (
+    {autoDetectMismatch && (
       <FontAwesomeIcon
         icon={faExclamationCircle}
         className="warning-icon"
