@@ -5,6 +5,8 @@ import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { MAV_MODE_ENUM } from '../constants/mavModeEnum';  // Import MAV mode enumeration
 import DroneCriticalCommands from './DroneCriticalCommands'; // NEW import for our critical commands
 import '../styles/DroneWidget.css';
+import { FaExclamationTriangle } from 'react-icons/fa'; // Import warning icon from react-icons
+import ReactTooltip from 'react-tooltip'; // Import tooltip library
 
 const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }) => {
   const currentTimeInMs = Date.now(); // Current time in milliseconds
@@ -35,6 +37,9 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
   // Determine the border color class based on the armable status
   const armableClass = isArmable ? 'armable' : 'not-armable';
 
+  // Check for pos_id discrepancy
+  const hasPosIdDiscrepancy = drone.pos_id !== drone.Detected_Pos_ID;
+
   return (
     <div className={`drone-widget ${armableClass} ${isExpanded ? 'expanded' : ''}`}>
       <h3 onClick={() => toggleDroneDetails(drone)}>
@@ -64,9 +69,27 @@ const DroneWidget = ({ drone, toggleDroneDetails, isExpanded, setSelectedDrone }
 
         {/* 
           NEW SECTION:
-          Render per-drone "critical commands" inside the widget 
-          for quick actions like Land, Return, Kill, etc.
+          Display Configured Pos ID and Detected Pos ID with discrepancy warning
         */}
+        <div className="drone-posid-section">
+          <p>
+            <strong>Configured Pos ID:</strong> {drone.pos_id}
+          </p>
+          {hasPosIdDiscrepancy && (
+            <p className="posid-discrepancy">
+              <strong>Detected Pos ID:</strong> {drone.Detected_Pos_ID}
+              <FaExclamationTriangle
+                className="warning-icon"
+                data-tip
+                data-for={`posid-tooltip-${drone.hw_ID}`}
+              />
+              <ReactTooltip id={`posid-tooltip-${drone.hw_ID}`} place="top" effect="solid">
+                Detected Pos ID does not match Configured Pos ID.
+              </ReactTooltip>
+            </p>
+          )}
+        </div>
+
         <div className="drone-critical-commands-section">
           <DroneCriticalCommands droneId={drone.hw_ID} />
         </div>

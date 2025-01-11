@@ -60,6 +60,9 @@ class DroneConfig:
         self.is_accelerometer_calibration_ok = False
         self.is_magnetometer_calibration_ok = False
 
+        # Load all configurations for auto-detection
+        self.all_configs = self.load_all_configs()
+
     def get_hw_id(self, hw_id=None):
         """
         Retrieve the hardware ID either from the provided ID or from a local file.
@@ -136,6 +139,26 @@ class DroneConfig:
             logging.error(f"Failed to load online configuration: {e}")
             return None
     
+    def load_all_configs(self):
+        """
+        Load all drone configurations from config.csv.
+        """
+        all_configs = {}
+        try:
+            with open(Params.config_csv_name, newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    pos_id = int(row['pos_id'])
+                    x = float(row['x'])
+                    y = float(row['y'])
+                    all_configs[pos_id] = {'x': x, 'y': y}
+            logging.info("All drone configurations loaded successfully.")
+        except FileNotFoundError:
+            logging.error(f"Config file {Params.config_csv_name} not found.")
+        except Exception as e:
+            logging.error(f"Error loading all drone configurations: {e}")
+        return all_configs
+
     def find_target_drone(self):
         """
         Determine which drone this drone should follow in a swarm configuration.

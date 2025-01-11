@@ -197,6 +197,12 @@ class Params:
 
     # Low-Pass Filter Parameter
     LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1
+    
+    
+    # New parameters for pos_id auto-detection
+    auto_detection_enabled = True  # Enable or disable auto-detection
+    auto_detection_interval = 30  # Interval in seconds
+    max_deviation = 2.0  # Maximum allowed deviation in meters for pos_id detection
 
     @classmethod
     def get_trajectory_files(cls, position_id, custom_csv):

@@ -24,7 +24,7 @@ from src.led_controller import LEDController
 from src.connectivity_checker import ConnectivityChecker
 from src.enums import State  # Import State enum
 from src.heartbeat_sender import HeartbeatSender
-
+from src.pos_id_auto_detector import PosIDAutoDetector  # Import the new class
 
 # For log rotation
 from logging.handlers import RotatingFileHandler
@@ -75,6 +75,7 @@ drone_comms = None  # Initialize drone_comms as None
 drone_setup = None  # Initialize drone_setup as None
 heartbeat_sender = None
 connectivity_checker = None  # Initialize connectivity_checker
+pos_id_auto_detector = None  # Initialize PosIDAutoDetector
 
 # Initialize LEDController only if not in simulation mode
 if not Params.sim_mode:
@@ -108,7 +109,7 @@ def main_loop():
     """
     Main loop of the coordinator application.
     """
-    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender  # Declare as global variables
+    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector  # Declare as global variables
     try:
         logger.info("Starting the main loop...")
         # Set LEDs to Blue to indicate initialization in progress
@@ -129,12 +130,19 @@ def main_loop():
         scheduling_thread.start()
         logger.info("Mission scheduling thread started.")
 
+        # Initialize ConnectivityChecker
+        connectivity_checker = ConnectivityChecker(params, LEDController)
+
+        # Initialize and start PosIDAutoDetector
+        if params.auto_detection_enabled:
+            pos_id_auto_detector = PosIDAutoDetector(drone_config, params, flask_handler)
+            pos_id_auto_detector.start()
+        else:
+            logger.info("PosIDAutoDetector is disabled via parameters.")
+
         # Variable to track the last state value
         last_state_value = None
         last_mission_value = None
-
-        # Initialize ConnectivityChecker
-        connectivity_checker = ConnectivityChecker(params, LEDController)
 
         while True:
             current_time = time.time()
@@ -201,9 +209,13 @@ def main_loop():
             drone_comms.stop_communication()
             logger.info("Drone communication stopped.")
             
-        if HeartbeatSender:
+        if heartbeat_sender:
             heartbeat_sender.stop()
-            logger.info("HeartBear Sender stopped.")
+            logger.info("HeartbeatSender stopped.")
+        
+        if pos_id_auto_detector:
+            pos_id_auto_detector.stop()
+            logger.info("PosIDAutoDetector stopped.")
         # Optionally, turn off LEDs or set to a default color
         # led_controller.turn_off()
 
@@ -211,7 +223,7 @@ def main():
     """
     Main function to start the coordinator application.
     """
-    global drone_comms, drone_setup , mavlink_manager # Declare as global variables
+    global drone_comms, drone_setup , mavlink_manager, heartbeat_sender  # Declare as global variables
     logger.info("Starting the coordinator application...")
 
     # Initialize MAVLink communication
@@ -245,16 +257,16 @@ def main():
         flask_thread.start()
         logger.info("Flask HTTP server started.")
         
-    # Step 5: initialize and start HeartbeatSender
+    # Step 5: Initialize and start HeartbeatSender
     heartbeat_sender = HeartbeatSender(drone_config)
     heartbeat_sender.start()
     logger.info("HeartbeatSender has been started.")
 
-    # Step 5: Initialize DroneSetup
+    # Step 6: Initialize DroneSetup
     drone_setup = DroneSetup(params, drone_config)
     logger.info("DroneSetup initialized.")
 
-    # Step 6: Start the main loop
+    # Step 7: Start the main loop
     main_loop()
 
 if __name__ == "__main__":

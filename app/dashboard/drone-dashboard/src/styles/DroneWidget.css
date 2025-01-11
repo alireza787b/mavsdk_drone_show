@@ -172,3 +172,45 @@
     gap: 6px;
     /* spacing between icons */
 }
+
+/* Positional ID Section */
+.drone-posid-section {
+    margin-top: 8px;
+}
+
+.drone-posid-section p {
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+}
+
+.posid-discrepancy {
+    color: red;
+    font-weight: bold;
+}
+
+.warning-icon {
+    color: orange;
+    margin-left: 6px;
+    cursor: pointer;
+}
+
+/* Tooltip Styling (optional customization) */
+.__react_component_tooltip {
+    font-size: 0.9em;
+    padding: 8px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    /* Existing responsive styles */
+
+    .drone-posid-section p {
+        font-size: 0.85em;
+    }
+
+    .warning-icon {
+        width: 16px;
+        height: 16px;
+    }
+}
