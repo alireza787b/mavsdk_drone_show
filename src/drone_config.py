@@ -25,7 +25,7 @@ class DroneConfig:
         self.config = self.read_config()  # Read configuration settings from CSV or online source
         self.swarm = self.read_swarm()  # Read swarm configuration
         self.pos_id = self.config.get('pos_id', self.hw_id)  # Initialize pos_id from config or hw_id
-        self.detected_pos_id = 2  # Initially, detected pos_id is 0 meaning undetected
+        self.detected_pos_id = 0  # Initially, detected pos_id is 0 meaning undetected
         self.state = 0  # Initial state of the drone
         self.mission = 0  # Current mission state
         self.last_mission = 0
