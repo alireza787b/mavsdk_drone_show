@@ -5,7 +5,7 @@ import { generateKML } from '../utilities/missionConfigUtilities';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDownload, faPrint } from '@fortawesome/free-solid-svg-icons';
 import OriginModal from './OriginModal';
-import '../styles/MissionConfig.css'; // Ensure all styles are in MissionConfig.css
+import '../styles/BriefingExport.css'; // Ensure all styles are in MissionConfig.css
 
 const BriefingExport = ({ configData, originLat, originLon, setOriginLat, setOriginLon }) => {
   const [showOriginModal, setShowOriginModal] = useState(false);
