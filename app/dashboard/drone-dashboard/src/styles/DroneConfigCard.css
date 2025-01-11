@@ -1,90 +1,120 @@
 /* src/styles/DroneConfigCard.css */
 
-
-/* Drone Config Card Container */
-
+/* Base Card Container */
 .drone-config-card {
     background-color: #ffffff;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    transition: box-shadow 0.3s;
+    padding: 16px;
+    margin-bottom: 16px;
     position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s;
 }
 
+/* Hover effect */
 .drone-config-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.drone-config-card h4 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    color: #1f2937;
+.drone-config-card.mismatch-drone {
+    /* 
+      Optional: highlight the card if there's any mismatch
+      e.g., subtle red border or different background
+    */
+    /* border-color: #ef4444; */
 }
 
-
 /* "New Drone" Badge */
-
 .new-drone-badge {
     position: absolute;
     top: 10px;
     left: 10px;
-    background-color: #3b82f6;
-    /* Tailwind Blue-500 */
+    background-color: #10b981; /* Green */
     color: #ffffff;
-    padding: 5px 10px;
+    padding: 4px 8px;
     border-radius: 4px;
-    font-size: 0.85rem;
     font-weight: bold;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+    margin-bottom: 8px;
 }
-
-.new-drone-badge svg {
-    font-size: 1rem;
-}
-
 
 /* Heartbeat Info */
-
 .heartbeat-info {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 1rem;
-    font-size: 0.95rem;
-    color: #374151;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
+/* Heartbeat Status Icons */
 .status-icon {
     font-size: 1rem;
 }
 
 .status-icon.online {
-    color: #10b981;
-    /* Tailwind Green-500 */
+    color: #10b981; /* green */
 }
 
 .status-icon.stale {
-    color: #f59e0b;
-    /* Tailwind Yellow-500 */
+    color: #f59e0b; /* yellow */
 }
 
 .status-icon.offline {
-    color: #ef4444;
-    /* Tailwind Red-500 */
+    color: #ef4444; /* red */
 }
 
 .status-icon.no-heartbeat {
-    color: #6b7280;
-    /* Tailwind Gray-500 */
+    color: #9ca3af; /* gray */
 }
 
+/* Mismatch Text & Icon */
+.mismatch-text {
+    color: #ef4444; /* red */
+    font-weight: bold;
+}
 
-/* Labels and Inputs */
+.warning-icon {
+    color: #ef4444; /* red */
+    margin-left: 8px;
+    pointer-events: none;
+}
 
+/* Mismatch Message */
+.mismatch-message {
+    margin-top: 8px;
+    color: #ef4444; /* red */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    background-color: #fff5f5; /* Light red background */
+    border: 1px solid #fca5a5; /* Red border */
+    padding: 8px 10px;
+    border-radius: 4px;
+}
+
+/* Accept Button */
+.accept-button {
+    background-color: #3b82f6; /* blue */
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.accept-button:hover {
+    background-color: #2563eb; /* darker blue */
+}
+
+/* Form Labels and Inputs */
 .drone-config-card label {
     display: block;
     margin-bottom: 1rem;
@@ -99,94 +129,27 @@
     border: 1px solid #d1d5db;
     border-radius: 4px;
     margin-top: 0.25rem;
-    box-sizing: border-box;
     font-size: 0.95rem;
+    box-sizing: border-box;
 }
 
 .drone-config-card input:focus,
 .drone-config-card select:focus {
     outline: none;
     border-color: #2563eb;
-    /* Tailwind Blue-600 */
     box-shadow: 0 0 0 1px #2563eb;
 }
 
-
 /* Input with Icon Wrapper */
-
 .input-with-icon {
     position: relative;
 }
 
-.warning-icon {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #ef4444;
-    /* Tailwind Red-500 */
-    pointer-events: none;
-}
-
-
-/* Mismatch Text */
-
-.mismatch-text {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-    font-weight: bold;
-}
-
-
-/* Mismatch Message Box */
-
-.mismatch-message {
-    margin-top: 6px;
-    background-color: #fff5f5;
-    /* Light red background */
-    border: 1px solid #fca5a5;
-    /* Red border */
-    color: #b91c1c;
-    /* Dark red text */
-    padding: 8px 10px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.mismatch-message .accept-button {
-    background-color: #ef4444;
-    /* Tailwind Red-500 */
-    color: #ffffff;
-    border: none;
-    border-radius: 3px;
-    padding: 4px 8px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    transition: background-color 0.2s;
-}
-
-.mismatch-message .accept-button:hover {
-    background-color: #dc2626;
-    /* Tailwind Red-600 */
-}
-
-.mismatch-message svg {
-    font-size: 0.8rem;
-}
-
-
 /* Card Buttons */
-
 .card-buttons {
     display: flex;
     gap: 10px;
-    margin-top: 1rem;
+    margin-top: 12px;
 }
 
 .card-buttons button {
@@ -202,309 +165,71 @@
     transition: background-color 0.2s;
 }
 
-.card-buttons button svg {
-    font-size: 1rem;
-}
-
-
-/* Button Colors */
-
-.save-drone {
-    background-color: #10b981;
-    /* Tailwind Green-500 */
-}
-
-.save-drone:hover {
-    background-color: #059669;
-    /* Tailwind Green-600 */
-}
-
-.cancel-edit {
-    background-color: #6b7280;
-    /* Tailwind Gray-500 */
-}
-
-.cancel-edit:hover {
-    background-color: #4b5563;
-    /* Tailwind Gray-600 */
-}
-
+/* Common Buttons */
 .edit-drone {
     background-color: #3b82f6;
-    /* Tailwind Blue-500 */
 }
-
 .edit-drone:hover {
     background-color: #2563eb;
-    /* Tailwind Blue-600 */
 }
 
 .remove-drone {
     background-color: #ef4444;
-    /* Tailwind Red-500 */
 }
-
 .remove-drone:hover {
     background-color: #dc2626;
-    /* Tailwind Red-600 */
 }
 
+.save-drone {
+    background-color: #10b981;
+}
+.save-drone:hover {
+    background-color: #059669;
+}
 
-/* Network Info Box */
+.cancel-edit {
+    background-color: #6b7280;
+}
+.cancel-edit:hover {
+    background-color: #4b5563;
+}
 
+/* Error Messages */
+.error-message {
+    color: #ef4444;
+    font-size: 0.875rem;
+}
+
+/* Additional Network Info */
 .network-info {
     margin-top: 10px;
     padding: 10px;
     background-color: #e8f5e9;
-    /* Light green background */
     border-left: 4px solid #66bb6a;
-    /* Green border */
     border-radius: 5px;
     font-size: 0.95rem;
     color: #2e7d32;
-    /* Dark green text */
 }
 
 .network-info p {
     margin: 4px 0;
 }
 
-.network-info strong {
-    color: #1b5e20;
-    /* Darker green */
-}
-
-
 /* Wi-Fi Icon Colors */
-
 .wifi-icon.strong {
     color: #10b981;
-    /* Tailwind Green-500 */
 }
-
 .wifi-icon.medium {
     color: #f59e0b;
-    /* Tailwind Yellow-500 */
 }
-
 .wifi-icon.weak {
     color: #ef4444;
-    /* Tailwind Red-500 */
 }
-
-.wifi-icon.none {
-    color: #6b7280;
-    /* Tailwind Gray-500 */
-}
-
-
-/* Paragraph and Strong Tag Styling */
-
-.drone-config-card p {
-    margin: 0.5rem 0;
-    color: #374151;
-}
-
-.drone-config-card p strong {
-    color: #1f2937;
-}
-
-
-/* Alternate Background for Odd Cards */
-
-.drone-config-card:nth-child(odd) {
-    background-color: #f9fafb;
-}
-
-
-/* Hover Shadow Repeated */
-
-.drone-config-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.drone-config-card {
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 16px;
-    background-color: #ffffff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.new-drone-badge {
-    background-color: #10b981;
-    /* Tailwind Green-500 */
-    color: #ffffff;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 8px;
-}
-
-.heartbeat-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.status-icon.online {
-    color: #10b981;
-    /* Tailwind Green-500 */
-}
-
-.status-icon.stale {
-    color: #f59e0b;
-    /* Tailwind Yellow-500 */
-}
-
-.status-icon.offline {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-}
-
-.status-icon.no-heartbeat {
-    color: #9ca3af;
-    /* Tailwind Gray-400 */
-}
-
-.wifi-icon.strong {
-    color: #10b981;
-    /* Tailwind Green-500 */
-}
-
-.wifi-icon.medium {
-    color: #f59e0b;
-    /* Tailwind Yellow-500 */
-}
-
-.wifi-icon.weak {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-}
-
 .wifi-icon.none {
     color: #9ca3af;
-    /* Tailwind Gray-400 */
 }
 
-.mismatch-text {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-}
-
-.warning-icon {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-    margin-left: 8px;
-}
-
-.mismatch-message {
-    margin-top: 8px;
-    color: #ef4444;
-    /* Tailwind Red-500 */
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.accept-button {
-    background-color: #3b82f6;
-    /* Tailwind Blue-500 */
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.accept-button:hover {
-    background-color: #2563eb;
-    /* Tailwind Blue-600 */
-}
-
-.error-message {
-    color: #ef4444;
-    /* Tailwind Red-500 */
-    font-size: 0.875rem;
-}
-
-
-/* Card Buttons */
-
-.card-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 12px;
-}
-
-.edit-drone,
-.remove-drone {
-    background-color: #3b82f6;
-    /* Tailwind Blue-500 */
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.edit-drone:hover {
-    background-color: #2563eb;
-    /* Tailwind Blue-600 */
-}
-
-.remove-drone {
-    background-color: #ef4444;
-    /* Tailwind Red-500 */
-}
-
-.remove-drone:hover {
-    background-color: #dc2626;
-    /* Tailwind Red-600 */
-}
-
-
-/* Input with Icon */
-
-.input-with-icon {
-    display: flex;
-    align-items: center;
-}
-
-.input-with-icon input,
-.input-with-icon select {
-    flex: 1;
-    padding: 6px 8px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-}
-
-.input-with-icon input:focus,
-.input-with-icon select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    /* Tailwind Blue-500 */
-    box-shadow: 0 0 0 1px #3b82f6;
-}
-
-
-/* Button Styles in Mismatch Messages */
-
-.mismatch-message button.accept-button {
-    padding: 4px 8px;
-    font-size: 0.875rem;
-}
-
-
-/* Toggle Switch */
-
+/* Toggle Switch in Edit Form */
 .switch {
     position: relative;
     display: inline-block;
@@ -542,11 +267,11 @@
     border-radius: 50%;
 }
 
-input:checked+.slider {
+input:checked + .slider {
     background-color: #2196F3;
 }
 
-input:checked+.slider:before {
+input:checked + .slider:before {
     transform: translateX(14px);
 }
 
@@ -556,6 +281,7 @@ input:checked+.slider:before {
     color: #333;
 }
 
+/* Confirmation Dialog Backdrop */
 .confirmation-dialog-backdrop {
     position: fixed;
     top: 0;
@@ -569,9 +295,7 @@ input:checked+.slider:before {
     z-index: 1000;
 }
 
-
 /* Confirmation Dialog */
-
 .confirmation-dialog {
     background-color: #fff;
     padding: 20px;

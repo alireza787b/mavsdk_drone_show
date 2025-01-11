@@ -12,7 +12,7 @@ from src.drone_config import DroneConfig
 class HeartbeatSender:
     """
     Periodically sends a POST request (heartbeat) to GCS with
-    timestamp, hw_id, pos_id, and discovered Netbird IP.
+    timestamp, hw_id, pos_id,detected_pos_id, and discovered Netbird IP.
     """
 
     def __init__(self, drone_config: DroneConfig):
@@ -65,11 +65,13 @@ class HeartbeatSender:
         Sends a single HTTP POST request with minimal data:
         - hw_id
         - pos_id
+        - detected_pos_id
         - current Netbird IP (or fallback to CSV ip)
         - timestamp
         """
         hw_id = self.drone_config.hw_id
         pos_id = self.drone_config.pos_id
+        detected_pos_id = self.drone_config.detected_pos_id
 
         # Attempt to discover the Netbird IP that starts with "100."
         netbird_ip = self._get_netbird_ip()
@@ -80,6 +82,7 @@ class HeartbeatSender:
         data = {
             "hw_id": hw_id,
             "pos_id": pos_id,
+            "detected_pos_id": detected_pos_id,
             "ip": netbird_ip,
             "timestamp": int(time.time() * 1000),  # ms precision
         }
