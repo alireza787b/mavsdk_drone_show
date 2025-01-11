@@ -205,7 +205,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <div className="position-id-block neutral-block">
           <strong>Position ID (Config):</strong> {configStr || 'N/A'}
           <span className="tooltip-text">
-            (No heartbeat data available yet; cannot compare.)
+            (No heartbeat data available yet...)
           </span>
         </div>
       );
@@ -239,7 +239,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             title="No auto-detection available. Config & assigned match."
           />
           <span className="tooltip-text">
-            (Auto-detected pos_id=0 or missing; Config={configStr}, Assigned={assignedStr})
+            (Auto-detected pos_id missing; Config={configStr}, Assigned={assignedStr})
           </span>
         </div>
       );
@@ -339,8 +339,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </span>
       </p>
 
-      {/* Render position ID block(s) */}
-      {renderPositionIdInfo()}
+      
 
       {/* Drone's assigned (config) hardware ID */}
       <p>
@@ -352,6 +351,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           aria-label="Hardware ID Info"
         />
       </p>
+
+      {/* Render position ID block(s) */}
+      {renderPositionIdInfo()}
 
       {/* Drone's basic config fields */}
       <p>

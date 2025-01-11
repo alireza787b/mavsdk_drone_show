@@ -13,18 +13,16 @@
 }
 
 
-/* Armable and Not-Armable Styles with Inward Tinted Shadow */
+/* Armable vs Not-Armable */
 
 .drone-widget.armable {
     border-color: green;
     box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.3), 0 2px 8px rgba(0, 255, 0, 0.15);
-    /* Inward green shadow with a subtle outward glow */
 }
 
 .drone-widget.not-armable {
     border-color: red;
     box-shadow: inset 0 0 10px rgba(255, 0, 0, 0.3), 0 2px 8px rgba(255, 0, 0, 0.15);
-    /* Inward red shadow with a subtle outward glow */
 }
 
 
@@ -36,7 +34,14 @@
 }
 
 
-/* Heading Styling */
+/* Expanded State */
+
+.drone-widget.expanded {
+    background-color: #f0f0f0;
+}
+
+
+/* Header / Title */
 
 .drone-widget h3 {
     cursor: pointer;
@@ -49,14 +54,7 @@
 }
 
 
-/* Expanded State */
-
-.drone-widget.expanded {
-    background-color: #f0f0f0;
-}
-
-
-/* Status Indicator */
+/* Status Indicator (Active vs. Stale) */
 
 .status-indicator {
     display: inline-block;
@@ -76,7 +74,7 @@
 }
 
 
-/* Drone Info Styling */
+/* Drone Info block */
 
 .drone-info {
     margin-bottom: 12px;
@@ -89,33 +87,7 @@
 }
 
 
-/* Drone Actions */
-
-.drone-actions {
-    text-align: right;
-    margin-top: 12px;
-}
-
-.external-view-btn {
-    background: none;
-    border: none;
-    color: #007bff;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: color 0.3s ease;
-}
-
-.external-view-btn:hover {
-    color: #0056b3;
-    text-decoration: underline;
-}
-
-.details-content {
-    margin-top: 16px;
-}
-
-
-/* Conditional Color Classes */
+/* HDOP/VDOP / Battery color classes */
 
 .green {
     color: green;
@@ -123,7 +95,6 @@
 
 .yellow {
     color: #ffc107;
-    /* Bootstrap yellow color */
 }
 
 .red {
@@ -131,7 +102,59 @@
 }
 
 
-/* Improved Responsiveness */
+/* Single Position ID row styling */
+
+.drone-posid-section {
+    margin-top: 8px;
+}
+
+.single-posid-row {
+    display: flex;
+    align-items: center;
+    margin: 6px 0;
+}
+
+
+/* Icons for position ID match/mismatch */
+
+.posid-warning-icon {
+    color: #ff9800;
+    /* orange-ish */
+    font-size: 1.1em;
+}
+
+.posid-match-icon {
+    font-size: 1.1em;
+    /* color: green; set inline for clarity */
+}
+
+
+/* Drone-critical commands section */
+
+.drone-critical-commands-section {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+/* Expanded details content */
+
+.details-content {
+    margin-top: 16px;
+}
+
+
+/* Focus states for better accessibility */
+
+.drone-widget:focus-within {
+    border-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+}
+
+
+/* Responsive adjustments */
 
 @media (max-width: 768px) {
     .drone-widget {
@@ -144,73 +167,16 @@
     .drone-widget h3 {
         font-size: 1.1em;
     }
-    .external-view-btn {
-        font-size: 0.85em;
+    .single-posid-row {
+        font-size: 0.9em;
     }
 }
 
 
-/* Focus States for Better Accessibility */
+/* Tooltip styling overrides (if desired) */
 
-.drone-widget:focus-within {
-    border-color: #007bff;
-    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
-}
-
-
-/* Subtle Animation for Status Change */
-
-.drone-widget {
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.drone-critical-commands-section {
-    margin-top: 8px;
-    /* or as desired */
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    /* spacing between icons */
-}
-
-/* Positional ID Section */
-.drone-posid-section {
-    margin-top: 8px;
-}
-
-.drone-posid-section p {
-    margin: 4px 0;
-    display: flex;
-    align-items: center;
-}
-
-.posid-discrepancy {
-    color: red;
-    font-weight: bold;
-}
-
-.warning-icon {
-    color: orange;
-    margin-left: 6px;
-    cursor: pointer;
-}
-
-/* Tooltip Styling (optional customization) */
 .__react_component_tooltip {
-    font-size: 0.9em;
+    font-size: 0.85em;
     padding: 8px;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-    /* Existing responsive styles */
-
-    .drone-posid-section p {
-        font-size: 0.85em;
-    }
-
-    .warning-icon {
-        width: 16px;
-        height: 16px;
-    }
+    border-radius: 4px;
 }
