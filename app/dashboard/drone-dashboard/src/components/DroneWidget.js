@@ -51,7 +51,7 @@ const DroneWidget = ({
   };
 
   // For position ID vs. auto-detected
-  const posId = drone.pos_id ?? 'N/A';
+  const posId = drone.Pos_ID ?? 'N/A';
   const detectedPosId = drone.Detected_Pos_ID ?? 'N/A';
   const posMismatch = posId !== detectedPosId && detectedPosId !== 'N/A';
 
