@@ -12,14 +12,14 @@
     transition: box-shadow 0.3s;
 }
 
-/* Hover effect */
+/* Hover effect for better user feedback */
 .drone-config-card:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Highlight card if there's any mismatch or it's newly detected */
+/* If there's any mismatch or the drone is newly detected, highlight visually */
 .drone-config-card.mismatch-drone {
-    border-left: 4px solid #ef4444; /* red highlight on the left */
+    border-left: 4px solid #ef4444; /* a red bar on the left */
     padding-left: 12px;
 }
 
@@ -36,7 +36,6 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-bottom: 8px;
 }
 
 /* Heartbeat Info */
@@ -50,14 +49,14 @@
 .all-good-indicator {
     display: inline-flex;
     align-items: center;
-    color: #10b981;
+    color: #10b981; /* green */
     font-weight: 600;
     margin-left: 10px;
     gap: 4px;
     font-size: 0.9rem;
 }
 
-/* Heartbeat Status Icons */
+/* Icons for heartbeat statuses */
 .status-icon {
     font-size: 1rem;
 }
@@ -78,26 +77,27 @@
     color: #10b981; /* green check */
 }
 
-/* Info Icon (Question Mark) */
+/* Info (question) icon, for helpful tooltips */
 .info-icon {
     color: #6b7280;
     margin-left: 6px;
     cursor: help;
 }
 
-/* Mismatch Text & Icon */
+/* Mismatch styling */
 .mismatch-text {
     color: #ef4444; /* red */
     font-weight: bold;
 }
 
+/* Exclamation circle for mismatch warnings */
 .warning-icon {
     color: #ef4444;
     margin-left: 8px;
     pointer-events: none;
 }
 
-/* Mismatch Message */
+/* Mismatch message with a red background box */
 .mismatch-message {
     margin-top: 8px;
     color: #ef4444;
@@ -105,13 +105,13 @@
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
-    background-color: #fff5f5; /* Light red */
-    border: 1px solid #fca5a5; /* Red border */
+    background-color: #fff5f5; /* light red background */
+    border: 1px solid #fca5a5; /* red border */
     padding: 8px 10px;
     border-radius: 4px;
 }
 
-/* Accept Button */
+/* Accept Button for mismatches */
 .accept-button {
     background-color: #3b82f6; /* blue */
     color: #ffffff;
@@ -124,7 +124,6 @@
     align-items: center;
     gap: 5px;
 }
-
 .accept-button:hover {
     background-color: #2563eb;
 }
@@ -160,7 +159,7 @@
     position: relative;
 }
 
-/* Card Buttons */
+/* Buttons at the bottom of the card (Edit, Remove, etc.) */
 .card-buttons {
     display: flex;
     gap: 10px;
@@ -180,7 +179,7 @@
     transition: background-color 0.2s;
 }
 
-/* Common Buttons */
+/* Style each button type */
 .edit-drone {
     background-color: #3b82f6;
 }
@@ -209,7 +208,7 @@
     background-color: #4b5563;
 }
 
-/* Error Messages */
+/* Validation Error Messages */
 .error-message {
     color: #ef4444;
     font-size: 0.875rem;
@@ -225,7 +224,6 @@
     font-size: 0.95rem;
     color: #2e7d32;
 }
-
 .network-info p {
     margin: 4px 0;
 }
@@ -244,32 +242,26 @@
     color: #9ca3af;
 }
 
-/* Toggle Switch in Edit Form */
+/* Toggle Switch for custom vs. dropdown pos_id */
 .switch {
     position: relative;
     display: inline-block;
     width: 34px;
     height: 20px;
 }
-
 .switch input {
     opacity: 0;
     width: 0;
     height: 0;
 }
-
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background-color: #ccc;
     transition: 0.4s;
     border-radius: 20px;
 }
-
 .slider:before {
     position: absolute;
     content: '';
@@ -281,15 +273,12 @@
     transition: 0.4s;
     border-radius: 50%;
 }
-
 input:checked + .slider {
     background-color: #2196F3;
 }
-
 input:checked + .slider:before {
     transform: translateX(14px);
 }
-
 .toggle-label {
     margin-left: 10px;
     font-size: 0.9rem;
@@ -319,17 +308,14 @@ input:checked + .slider:before {
     max-width: 90%;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
 .confirmation-dialog h4 {
     margin-top: 0;
 }
-
 .dialog-buttons {
     display: flex;
     justify-content: flex-end;
     margin-top: 20px;
 }
-
 .confirm-button,
 .cancel-button {
     padding: 8px 16px;
@@ -338,12 +324,10 @@ input:checked + .slider:before {
     border-radius: 4px;
     cursor: pointer;
 }
-
 .confirm-button {
     background-color: #4caf50;
     color: white;
 }
-
 .cancel-button {
     background-color: #f44336;
     color: white;

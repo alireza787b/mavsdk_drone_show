@@ -21,8 +21,8 @@ import {
 import '../styles/DroneConfigCard.css';
 
 /**
- * Finds a drone (other than the current one) that already uses `targetPosId`.
- * Returns the entire matched drone object, or null if none found.
+ * Utility: Finds a drone (other than the current one) that already uses `targetPosId`.
+ * Returns the matched drone object or null if none is found.
  */
 function findDroneByPositionId(configData, targetPosId, excludeHwId) {
   return configData.find(
@@ -31,8 +31,8 @@ function findDroneByPositionId(configData, targetPosId, excludeHwId) {
 }
 
 /**
- * Subcomponent: Read-only view of a drone card.
- * Displays mismatch info, a green check icon if all good, etc.
+ * Read-only view of a drone card: Shows the drone's config data and heartbeat
+ * details, plus mismatch indicators and acceptance buttons.
  */
 const DroneReadOnlyView = memo(function DroneReadOnlyView({
   drone,
@@ -54,7 +54,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   onAcceptConfigFromAuto,
   onAcceptConfigFromHb,
 }) {
-  // Determine heartbeat icon based on status
+  /**
+   * Returns the correct heartbeat status icon based on `heartbeatStatus` string:
+   * 'Online (Recent)', 'Stale (>20s)', 'Offline (>60s)', or 'No heartbeat'.
+   */
   const getHeartbeatIcon = () => {
     switch (heartbeatStatus) {
       case 'Online (Recent)':
@@ -85,7 +88,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           />
         );
       default:
-        // "No Heartbeat" or uninitialized
+        // "No heartbeat"
         return (
           <FontAwesomeIcon
             icon={faCircle}
@@ -97,7 +100,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     }
   };
 
-  // Wi-Fi icon based on signal strength
+  /**
+   * Wi-Fi icon based on a numeric `strength`.
+   */
   const getWifiIcon = (strength) => {
     if (strength >= 80) {
       return (
@@ -139,27 +144,31 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     );
   };
 
-  // Safely get network stats
+  // Basic network data
   const wifiStrength = networkInfo?.wifi?.signal_strength_percent;
   const ethernetInterface = networkInfo?.ethernet?.interface;
   const ssid = networkInfo?.wifi?.ssid;
 
-  // Indicate if auto-detection is "unavailable" (i.e. '0')
+  // If auto-detected pos_id is `0`, that means no valid detection.
   const isAutoDetectionUnavailable =
     heartbeatDetectedPos !== undefined && heartbeatDetectedPos === '0';
 
-  // Check if there are *no mismatches at all*
+  /**
+   * If there's no mismatch at all, no newly detected drone, and auto-detection is not 0,
+   * we consider everything "all good".
+   */
   const isAllGood =
     !ipMismatch &&
     !posMismatch &&
     !autoDetectMismatch &&
     !internalHbPosMismatch &&
     !isNew &&
-    !isAutoDetectionUnavailable;
+    !isAutoDetectionUnavailable &&
+    heartbeatStatus !== 'No heartbeat'; // Also require a valid heartbeat
 
   return (
     <>
-      {/* If newly detected (from heartbeats) */}
+      {/* If newly detected (via heartbeat and not in config) */}
       {isNew && (
         <div className="new-drone-badge" aria-label="Newly Detected Drone">
           <FontAwesomeIcon icon={faPlusCircle} /> Newly Detected
@@ -169,28 +178,30 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       {/* Heartbeat Info */}
       <div className="heartbeat-info">
         <strong>Heartbeat:</strong> {getHeartbeatIcon()} {heartbeatStatus}
-        {/* Show time since last heartbeat if available */}
         {heartbeatAgeSec !== null && <span> ({heartbeatAgeSec}s ago)</span>}
 
-        {/* 
-          If everything is perfect and there's a heartbeat,
-          show a green check next to "All Good!"
-        */}
-        {heartbeatStatus !== 'No heartbeat' && isAllGood && (
-          <span className="all-good-indicator" title="All assigned IDs match; no issues.">
-            <FontAwesomeIcon icon={faCheckCircle} className="status-icon all-good" />
+        {/* If everything is perfect, show a green check "All Good" */}
+        {isAllGood && (
+          <span
+            className="all-good-indicator"
+            title="All assigned IDs match; no issues."
+          >
+            <FontAwesomeIcon
+              icon={faCheckCircle}
+              className="status-icon all-good"
+            />
             All Good
           </span>
         )}
       </div>
 
-      {/* Basic Drone Info */}
+      {/* Drone's assigned (config) hardware ID */}
       <p>
         <strong>Hardware ID:</strong> {drone.hw_id}{' '}
         <FontAwesomeIcon
           icon={faQuestionCircle}
           className="info-icon"
-          title="Hardware ID uniquely identifies the physical drone."
+          title="Hardware ID is a unique ID physically attached to this drone."
           aria-label="Hardware ID Info"
         />
       </p>
@@ -204,54 +215,55 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             <FontAwesomeIcon
               icon={faExclamationCircle}
               className="warning-icon"
-              title={`IP Mismatch: Actual IP from heartbeat is ${heartbeatIP}`}
-              aria-label={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+              title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
+              aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
             />
           )}
         </span>
       </p>
 
-      {/* Position ID (Config) with mismatch checks */}
+      {/* Position ID (config) vs. potential mismatches */}
       <p>
-        <strong>Position ID:</strong>{' '}
+        <strong>Position ID (config):</strong>{' '}
         <span className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}>
           {drone.pos_id}
-          {/* Heartbeat assigned mismatch icon */}
+          {/* If heartbeat's assigned pos_id doesn't match */}
           {posMismatch && heartbeatPos && (
             <FontAwesomeIcon
               icon={faExclamationCircle}
               className="warning-icon"
-              title={`Pos ID mismatch: Heartbeat assigned pos_id is ${heartbeatPos}`}
-              aria-label={`Pos ID mismatch: Heartbeat pos_id is ${heartbeatPos}`}
+              title={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
+              aria-label={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
             />
           )}
-          {/* Auto-detected mismatch icon */}
+          {/* If auto-detected pos_id doesn't match */}
           {autoDetectMismatch && heartbeatDetectedPos && (
             <FontAwesomeIcon
               icon={faExclamationCircle}
               className="warning-icon"
-              title={`Pos ID mismatch: Auto-detected pos_id is ${heartbeatDetectedPos}`}
-              aria-label={`Pos ID mismatch: Auto-detected pos_id is ${heartbeatDetectedPos}`}
+              title={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
+              aria-label={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
             />
           )}
         </span>
       </p>
 
-      {/* Show the heartbeat's assigned pos_id and detected_pos_id explicitly if you want */}
+      {/* Show heartbeat's assigned pos_id if present */}
       {heartbeatPos && (
         <p>
           <strong>Heartbeat’s Assigned Pos ID:</strong> {heartbeatPos}
         </p>
       )}
 
-      {/* Mild warning if auto-detected is '0' */}
+      {/* If auto-detect is 0 => mild amber note */}
       {isAutoDetectionUnavailable && (
         <p style={{ color: '#f59e0b' }}>
-          <strong>Auto-Detection:</strong> Not available or failed to detect.
+          <strong>Auto-Detection Unavailable:</strong> The system reported a detected_pos_id of 0,
+          meaning no valid auto-detection could be found.
         </p>
       )}
 
-      {/* If auto-detected is a valid nonzero ID, display it */}
+      {/* If auto-detect is not 0, show it explicitly */}
       {!isAutoDetectionUnavailable &&
         heartbeatDetectedPos !== undefined &&
         heartbeatDetectedPos !== '0' && (
@@ -260,7 +272,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </p>
         )}
 
-      {/* If there's a mismatch within the heartbeat itself (pos_id vs. detected_pos_id) */}
+      {/* If heartbeat pos_id also differs from detected_pos_id internally */}
       {internalHbPosMismatch && (
         <div className="mismatch-message">
           <FontAwesomeIcon
@@ -270,9 +282,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             aria-label="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
           />
           <span>
-            Heartbeat pos_id (<em>{heartbeatPos}</em>) differs from detected_pos_id (<em>{heartbeatDetectedPos}</em>).
+            <em>Conflict:</em> assigned pos_id = <strong>{heartbeatPos}</strong>, but
+            auto-detected pos_id = <strong>{heartbeatDetectedPos}</strong>.
           </span>
-          {/* Let the user choose which to adopt for the config */}
           <button
             type="button"
             className="accept-button"
@@ -285,7 +297,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <button
             type="button"
             className="accept-button"
-            style={{ backgroundColor: '#059669' }} // green
+            style={{ backgroundColor: '#059669' }}
             onClick={() => {
               onAcceptConfigFromHb?.(heartbeatPos);
             }}
@@ -295,6 +307,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </div>
       )}
 
+      {/* Drone's basic config fields */}
       <p>
         <strong>MavLink Port:</strong> {drone.mavlink_port}
       </p>
@@ -308,7 +321,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})
       </p>
 
-      {/* Network Info */}
+      {/* If we have network info, show it */}
       {networkInfo ? (
         <div className="network-info" aria-label="Network Information">
           <p>
@@ -328,14 +341,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </p>
       )}
 
-      {/* Git Info */}
+      {/* Git Info for this drone */}
       <DroneGitStatus
         gitStatus={gitStatus}
         gcsGitStatus={gcsGitStatus}
         droneName={`Drone ${drone.hw_id}`}
       />
 
-      {/* Edit / Remove Buttons */}
+      {/* Edit / Remove action buttons */}
       <div className="card-buttons">
         <button
           className="edit-drone"
@@ -359,8 +372,8 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 });
 
 /**
- * Edit Form: Let the user modify drone fields, including `pos_id`.
- * If the user picks a `pos_id` used by another drone, we'll show old/new (x,y) confirmation.
+ * Edit form: Allows user to modify hardware ID, IP, pos_id, etc.
+ * If user picks a pos_id from the existing set, we may auto-copy x,y from that drone.
  */
 const DroneEditForm = memo(function DroneEditForm({
   droneData,
@@ -383,45 +396,40 @@ const DroneEditForm = memo(function DroneEditForm({
   configData,
   setDroneData,
 }) {
-  // State for the position ID confirmation dialog
+  // If user changes the pos_id to that of another drone, we show a dialog comparing old vs. new x,y
   const [showPosChangeDialog, setShowPosChangeDialog] = useState(false);
   const [pendingPosId, setPendingPosId] = useState(null);
 
-  // Toggle for the user to choose "Enter New PosID" or "Select from existing"
   const [isCustomPosId, setIsCustomPosId] = useState(false);
   const [customPosId, setCustomPosId] = useState('');
 
-  // For showing old vs. new in the dialog
+  // For confirmation dialog
   const [oldX, setOldX] = useState(droneData.x);
   const [oldY, setOldY] = useState(droneData.y);
   const [newX, setNewX] = useState(droneData.x);
   const [newY, setNewY] = useState(droneData.y);
 
-  // Keep a separate local copy of the original pos_id to revert if needed
   const [originalPosId, setOriginalPosId] = useState(droneData.pos_id);
 
-  // Position IDs from configData for the dropdown
+  // Gather all pos_ids from configData for the dropdown
   const allPosIds = Array.from(new Set(configData.map((d) => d.pos_id)));
-  // If current pos_id is not in that array (e.g. brand new), include it
   if (!allPosIds.includes(droneData.pos_id)) {
     allPosIds.push(droneData.pos_id);
   }
-  // Sort them numerically for nicer UI
   allPosIds.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
-  /** 
-   * Called when user selects a different PosID from the dropdown.
-   * We'll open a confirmation dialog if the user is effectively changing the ID.
+  /**
+   * Handler: user changes the pos_id from the dropdown.
+   * We show a confirmation dialog if the user is effectively changing the ID.
    */
   const handlePosSelectChange = (e) => {
     const chosenPos = e.target.value;
-    if (chosenPos === droneData.pos_id) return; // no change
+    if (chosenPos === droneData.pos_id) return; // No real change
     setPendingPosId(chosenPos);
 
-    // Find if that pos_id belongs to an existing drone => we can auto-copy x,y
+    // If another drone in configData has this pos_id, copy x,y from that drone
     const matchedDrone = findDroneByPositionId(configData, chosenPos, droneData.hw_id);
 
-    // Save old x,y for the confirmation dialog
     setOldX(droneData.x);
     setOldY(droneData.y);
 
@@ -436,31 +444,29 @@ const DroneEditForm = memo(function DroneEditForm({
     setShowPosChangeDialog(true);
   };
 
-  /** User canceled changing the pos_id => revert to the original. */
+  /** Cancel pos_id change => revert the select box to the old pos_id. */
   const handleCancelPosChange = () => {
     setShowPosChangeDialog(false);
     setPendingPosId(null);
+    // Revert pos_id in the local form
     onFieldChange({ target: { name: 'pos_id', value: originalPosId } });
   };
 
-  /** User confirmed => update droneData.pos_id (and x,y if needed). */
+  /** Confirm pos_id change => update local droneData. */
   const handleConfirmPosChange = () => {
     if (!pendingPosId) {
       setShowPosChangeDialog(false);
       return;
     }
-    // Update local state
+
+    // Update pos_id in the form
     onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
 
-    const matchedDrone = findDroneByPositionId(
-      configData,
-      pendingPosId,
-      droneData.hw_id
-    );
+    const matchedDrone = findDroneByPositionId(configData, pendingPosId, droneData.hw_id);
     if (matchedDrone) {
+      // If we found a matched drone, copy its x,y
       onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
       onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
-
       setDroneData((prevData) => ({
         ...prevData,
         pos_id: pendingPosId,
@@ -468,6 +474,7 @@ const DroneEditForm = memo(function DroneEditForm({
         y: matchedDrone.y,
       }));
     } else {
+      // No matched drone => just update pos_id
       setDroneData((prevData) => ({
         ...prevData,
         pos_id: pendingPosId,
@@ -479,17 +486,13 @@ const DroneEditForm = memo(function DroneEditForm({
     setPendingPosId(null);
   };
 
-  /** Generic onChange handler for fields other than pos_id */
+  /** Generic onChange for other fields (IP, X, Y, etc.). */
   const handleGenericChange = (e) => {
     onFieldChange(e);
   };
 
   return (
     <>
-      {/* 
-        Confirmation Dialog for pos_id changes
-        Shows old vs. new x,y 
-      */}
       {showPosChangeDialog && (
         <div className="confirmation-dialog-backdrop">
           <div className="confirmation-dialog" role="dialog" aria-modal="true">
@@ -503,7 +506,7 @@ const DroneEditForm = memo(function DroneEditForm({
               <em>New (x,y):</em> ({newX}, {newY})
             </p>
             <p style={{ marginTop: '1rem' }}>
-              Are you sure you want to proceed?
+              Do you want to proceed?
             </p>
             <div className="dialog-buttons">
               <button className="confirm-button" onClick={handleConfirmPosChange}>
@@ -536,7 +539,7 @@ const DroneEditForm = memo(function DroneEditForm({
         {errors.hw_id && <span className="error-message">{errors.hw_id}</span>}
       </label>
 
-      {/* IP + Mismatch */}
+      {/* IP + mismatch acceptance */}
       <label>
         IP Address:
         <div className="input-with-icon">
@@ -546,15 +549,15 @@ const DroneEditForm = memo(function DroneEditForm({
             value={droneData.ip}
             onChange={handleGenericChange}
             placeholder="Enter IP Address"
-            style={ipMismatch ? { borderColor: 'red' } : {}}
             aria-label="IP Address"
+            style={ipMismatch ? { borderColor: 'red' } : {}}
           />
           {ipMismatch && (
             <FontAwesomeIcon
               icon={faExclamationCircle}
               className="warning-icon"
-              title={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
-              aria-label={`IP Mismatch: Heartbeat IP is ${heartbeatIP}`}
+              title={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
+              aria-label={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
             />
           )}
         </div>
@@ -566,8 +569,8 @@ const DroneEditForm = memo(function DroneEditForm({
               type="button"
               className="accept-button"
               onClick={onAcceptIp}
-              title="Accept Heartbeat IP"
-              aria-label="Accept Heartbeat IP"
+              title="Accept heartbeat IP"
+              aria-label="Accept heartbeat IP"
             >
               <FontAwesomeIcon icon={faCircle} /> Accept
             </button>
@@ -615,8 +618,8 @@ const DroneEditForm = memo(function DroneEditForm({
           name="gcs_ip"
           value={droneData.gcs_ip}
           onChange={handleGenericChange}
-          placeholder="Enter GCS IP Address"
-          aria-label="GCS IP Address"
+          placeholder="Enter GCS IP"
+          aria-label="GCS IP"
         />
         {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
       </label>
@@ -629,8 +632,8 @@ const DroneEditForm = memo(function DroneEditForm({
           name="x"
           value={droneData.x}
           onChange={handleGenericChange}
-          placeholder="Enter Initial X Coordinate"
-          aria-label="Initial X Coordinate"
+          placeholder="Enter X Coordinate"
+          aria-label="X Coordinate"
         />
         {errors.x && <span className="error-message">{errors.x}</span>}
       </label>
@@ -642,18 +645,18 @@ const DroneEditForm = memo(function DroneEditForm({
           name="y"
           value={droneData.y}
           onChange={handleGenericChange}
-          placeholder="Enter Initial Y Coordinate"
-          aria-label="Initial Y Coordinate"
+          placeholder="Enter Y Coordinate"
+          aria-label="Y Coordinate"
         />
         {errors.y && <span className="error-message">{errors.y}</span>}
       </label>
 
-      {/* Position ID + Mismatch / Accept Blocks */}
+      {/* Position ID + Mismatch blocks */}
       <label>
         Position ID:
         <div className="input-with-icon">
           {isCustomPosId ? (
-            /* Input field for new Position ID */
+            // A text field for new pos_id
             <input
               type="text"
               name="custom_pos_id"
@@ -662,7 +665,7 @@ const DroneEditForm = memo(function DroneEditForm({
               onChange={(e) => {
                 const newPosId = e.target.value;
                 setCustomPosId(newPosId);
-                // Update droneData to reflect the new pos_id
+                // Immediately reflect in local droneData
                 setDroneData((prevData) => ({
                   ...prevData,
                   pos_id: newPosId,
@@ -674,7 +677,7 @@ const DroneEditForm = memo(function DroneEditForm({
               aria-label="Custom Position ID"
             />
           ) : (
-            /* Dropdown for existing Position IDs */
+            // A dropdown listing all known pos_ids from config
             <select
               name="pos_id"
               value={droneData.pos_id}
@@ -688,18 +691,17 @@ const DroneEditForm = memo(function DroneEditForm({
               ))}
             </select>
           )}
-
-          {/* Mismatch icon if assigned mismatch or auto-detect mismatch */}
+          {/* Show mismatch icon if the assigned or auto-detected pos_id doesn't match */}
           {(posMismatch || autoDetectMismatch) && (
             <FontAwesomeIcon
               icon={faExclamationCircle}
               className="warning-icon"
-              title={`Pos ID mismatch with Heartbeat or Auto-Detected value`}
-              aria-label={`Pos ID mismatch with Heartbeat or Auto-Detected value`}
+              title="Position ID mismatch with heartbeat or auto-detected value"
+              aria-label="Position ID mismatch with heartbeat or auto-detected value"
             />
           )}
 
-          {/* Toggle button to switch between dropdown and input */}
+          {/* Toggle to switch between dropdown and custom input */}
           <div className="toggle-container">
             <label className="switch">
               <input
@@ -707,9 +709,7 @@ const DroneEditForm = memo(function DroneEditForm({
                 checked={isCustomPosId}
                 onChange={() => {
                   setIsCustomPosId((prev) => !prev);
-                  if (!isCustomPosId) {
-                    setCustomPosId('');
-                  }
+                  if (!isCustomPosId) setCustomPosId('');
                 }}
               />
               <span className="slider round"></span>
@@ -724,23 +724,23 @@ const DroneEditForm = memo(function DroneEditForm({
 
         {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
 
-        {/* Mismatch with assigned heartbeat pos_id */}
+        {/* Mismatch: assigned heartbeat pos_id */}
         {posMismatch && heartbeatPos && (
           <div className="mismatch-message">
-            Position ID mismatch with heartbeat: {heartbeatPos}
+            Position ID mismatch with heartbeat (assigned): {heartbeatPos}
             <button
               type="button"
               className="accept-button"
               onClick={onAcceptPos}
-              title="Accept Heartbeat Assigned PosID"
-              aria-label="Accept Heartbeat Assigned PosID"
+              title="Accept heartbeat assigned Pos ID"
+              aria-label="Accept heartbeat assigned Pos ID"
             >
               <FontAwesomeIcon icon={faCircle} /> Accept
             </button>
           </div>
         )}
 
-        {/* Mismatch with auto-detected pos_id */}
+        {/* Mismatch: auto-detected pos_id */}
         {autoDetectMismatch && heartbeatDetectedPos && (
           <div className="mismatch-message">
             Position ID mismatch with auto-detected: {heartbeatDetectedPos}
@@ -748,18 +748,18 @@ const DroneEditForm = memo(function DroneEditForm({
               type="button"
               className="accept-button"
               onClick={onAcceptPosAuto}
-              title="Accept Auto-Detected PosID"
-              aria-label="Accept Auto-Detected PosID"
+              title="Accept auto-detected Pos ID"
+              aria-label="Accept auto-detected Pos ID"
             >
               <FontAwesomeIcon icon={faCircle} /> Accept Auto
             </button>
           </div>
         )}
 
-        {/* If heartbeat pos_id also differs from detected_pos_id internally */}
+        {/* Mismatch: assigned pos_id vs. detected pos_id inside heartbeat */}
         {internalHbPosMismatch && (
           <div className="mismatch-message">
-            Heartbeat pos_id ({heartbeatPos}) vs detected_pos_id ({heartbeatDetectedPos}) differ.
+            Heartbeat pos_id ({heartbeatPos}) differs from detected_pos_id ({heartbeatDetectedPos}).
             <button
               type="button"
               className="accept-button"
@@ -778,7 +778,7 @@ const DroneEditForm = memo(function DroneEditForm({
         )}
       </label>
 
-      {/* Save / Cancel Buttons */}
+      {/* Save / Cancel buttons */}
       <div className="card-buttons">
         <button
           className="save-drone"
@@ -802,8 +802,7 @@ const DroneEditForm = memo(function DroneEditForm({
 });
 
 /**
- * Main DroneConfigCard:
- * Decides whether to show the read-only or edit form.
+ * Main DroneConfigCard: Decides between Read-Only or Edit mode, wires up mismatch logic.
  */
 export default function DroneConfigCard({
   drone,
@@ -816,14 +815,16 @@ export default function DroneConfigCard({
   saveChanges,
   removeDrone,
   networkInfo,
-  heartbeatData = {}, // Defaults to empty object if not provided
+  heartbeatData = {}, // If not provided, default to empty object
   positionIdMapping,
 }) {
   const isEditing = editingDroneId === drone.hw_id;
+
+  // We keep a local state `droneData` for the form. `drone` is what's in config.
   const [droneData, setDroneData] = useState({ ...drone });
   const [errors, setErrors] = useState({});
 
-  // Reset local form state when toggling edit mode
+  // Reset local form if we switch in/out of edit mode
   useEffect(() => {
     if (isEditing) {
       setDroneData({ ...drone });
@@ -831,17 +832,15 @@ export default function DroneConfigCard({
     }
   }, [isEditing, drone]);
 
-  // Safely get the heartbeat timestamp
+  // Safely handle timestamp
   const timestampVal = heartbeatData?.timestamp;
   const now = Date.now();
-
-  // If no numeric timestamp, assume no heartbeat
   const heartbeatAgeSec =
     typeof timestampVal === 'number'
       ? Math.floor((now - timestampVal) / 1000)
       : null;
 
-  // Compute a heartbeat status string
+  // Convert ageSec to a user-friendly status
   let heartbeatStatus = 'No heartbeat';
   if (heartbeatAgeSec !== null) {
     if (heartbeatAgeSec < 20) heartbeatStatus = 'Online (Recent)';
@@ -849,7 +848,7 @@ export default function DroneConfigCard({
     else heartbeatStatus = 'Offline (>60s)';
   }
 
-  // Mismatch checks:
+  // Mismatch checks
   const ipMismatch =
     heartbeatData?.ip !== undefined && heartbeatData.ip !== drone.ip;
 
@@ -869,14 +868,14 @@ export default function DroneConfigCard({
     hasValidAuto &&
     heartbeatData.pos_id !== heartbeatData.detected_pos_id;
 
-  // Indicate if there's any mismatch or if the drone is newly detected
+  // If there's any mismatch or the drone is newly detected, highlight the card
   const hasAnyMismatch =
     ipMismatch || posMismatch || autoDetectMismatch || drone.isNew;
-
-  // Extra class to highlight mismatch visually
   const cardExtraClass = hasAnyMismatch ? ' mismatch-drone' : '';
 
-  /** Validate and then pass updated data to the parent's saveChanges. */
+  /**
+   * Validate local fields and then call `saveChanges` from parent if all good.
+   */
   const handleLocalSave = () => {
     const validationErrors = {};
 
@@ -896,10 +895,10 @@ export default function DroneConfigCard({
       validationErrors.gcs_ip = 'GCS IP is required.';
     }
     if (droneData.x === undefined || isNaN(droneData.x)) {
-      validationErrors.x = 'Valid X coordinate is required.';
+      validationErrors.x = 'A valid numeric X coordinate is required.';
     }
     if (droneData.y === undefined || isNaN(droneData.y)) {
-      validationErrors.y = 'Valid Y coordinate is required.';
+      validationErrors.y = 'A valid numeric Y coordinate is required.';
     }
     if (!droneData.pos_id) {
       validationErrors.pos_id = 'Position ID is required.';
@@ -910,14 +909,13 @@ export default function DroneConfigCard({
       return;
     }
 
-    // Let parent handle final saving
+    // If no validation errors, let parent handle the final saving
     saveChanges(drone.hw_id, droneData);
   };
 
   return (
     <div className={`drone-config-card${cardExtraClass}`}>
       {isEditing ? (
-        // Show the Edit Form
         <DroneEditForm
           droneData={droneData}
           errors={errors}
@@ -971,7 +969,6 @@ export default function DroneConfigCard({
           setDroneData={setDroneData}
         />
       ) : (
-        // Show the Read-Only View
         <DroneReadOnlyView
           drone={drone}
           gitStatus={gitStatus}
@@ -990,7 +987,6 @@ export default function DroneConfigCard({
           onEdit={() => setEditingDroneId(drone.hw_id)}
           onRemove={() => removeDrone(drone.hw_id)}
           onAcceptConfigFromAuto={(detectedValue) => {
-            // Quick override in read-only mode
             if (!detectedValue || detectedValue === '0') return;
             saveChanges(drone.hw_id, { ...drone, pos_id: detectedValue });
           }}
@@ -1005,16 +1001,31 @@ export default function DroneConfigCard({
 }
 
 DroneConfigCard.propTypes = {
+  /** The drone object from your config (or fetched data). */
   drone: PropTypes.object.isRequired,
+
+  /** Git statuses if relevant to show in the UI. */
   gitStatus: PropTypes.object,
   gcsGitStatus: PropTypes.object,
+
+  /** The entire configData array, to look up pos_id collisions. */
   configData: PropTypes.array.isRequired,
   availableHwIds: PropTypes.array.isRequired,
+
+  /** If this card is currently in "editing" mode, it will show the edit form. */
   editingDroneId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   setEditingDroneId: PropTypes.func.isRequired,
+
+  /** Callback to save the changes in parent state or server. */
   saveChanges: PropTypes.func.isRequired,
+  /** Callback to remove the drone entirely. */
   removeDrone: PropTypes.func.isRequired,
+
+  /** Optional: network info object, if available. */
   networkInfo: PropTypes.object,
+  /** Optional: heartbeat data, e.g. { ip, pos_id, detected_pos_id, timestamp, ... } */
   heartbeatData: PropTypes.object,
+
+  /** Optional: used if you have a mapping of pos_id => something else. */
   positionIdMapping: PropTypes.object,
 };
