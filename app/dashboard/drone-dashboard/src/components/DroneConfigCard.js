@@ -231,32 +231,31 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       </p>
 
       {/* Position ID (config) vs. potential mismatches */}
-      <p>
-        <strong>Position ID (config):</strong>{' '}
-        <span
-          className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}
-        >
-          {drone.pos_id}
-          {/* If heartbeat's assigned pos_id doesn't match */}
-          {posMismatch && hbAssignedPosStr && (
-            <FontAwesomeIcon
-              icon={faExclamationCircle}
-              className="warning-icon"
-              title={`Pos ID mismatch: Heartbeat assigned pos_id=${hbAssignedPosStr}`}
-              aria-label={`Pos ID mismatch: Heartbeat assigned pos_id=${hbAssignedPosStr}`}
-            />
-          )}
-          {/* If auto-detected pos_id doesn't match */}
-          {autoDetectMismatch && hbDetectedPosStr && (
-            <FontAwesomeIcon
-              icon={faExclamationCircle}
-              className="warning-icon"
-              title={`Pos ID mismatch: auto-detected pos_id=${hbDetectedPosStr}`}
-              aria-label={`Pos ID mismatch: auto-detected pos_id=${hbDetectedPosStr}`}
-            />
-          )}
-        </span>
-      </p>
+<p>
+  <strong>Position ID (config):</strong>{' '}
+  <span className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}>
+    {String(drone.pos_id).trim() || 'N/A'}
+    {/* If heartbeat's assigned pos_id doesn't match */}
+    {posMismatch && hbAssignedPosStr && (
+      <FontAwesomeIcon
+        icon={faExclamationCircle}
+        className="warning-icon"
+        title={`Pos ID mismatch: Heartbeat assigned pos_id=${hbAssignedPosStr}`}
+        aria-label={`Pos ID mismatch: Heartbeat assigned pos_id=${hbAssignedPosStr}`}
+      />
+    )}
+    {/* If auto-detected pos_id doesn't match */}
+    {autoDetectMismatch && hbDetectedPosStr && (
+      <FontAwesomeIcon
+        icon={faExclamationCircle}
+        className="warning-icon"
+        title={`Pos ID mismatch: auto-detected pos_id=${hbDetectedPosStr}`}
+        aria-label={`Pos ID mismatch: auto-detected pos_id=${hbDetectedPosStr}`}
+      />
+    )}
+  </span>
+</p>
+
 
       {/* Show heartbeat's assigned pos_id if present and not '0' */}
       {hbAssignedPosStr && hbAssignedPosStr !== '0' && (
