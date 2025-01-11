@@ -126,9 +126,12 @@
     background-color: #2563eb;
 }
 
+
+/* Variation for assigned acceptance button */
+
 .accept-assigned-btn {
     background-color: #059669;
-    /* slightly different for assigned acceptance */
+    /* greenish */
 }
 
 .accept-assigned-btn:hover {
@@ -144,6 +147,18 @@
     padding: 8px;
     border-radius: 6px;
     font-size: 0.95rem;
+}
+
+
+/* Neutral block: used when we have no heartbeat data */
+
+.neutral-block {
+    background-color: #f9fafb;
+    /* light grey */
+    border: 1px solid #d1d5db;
+    /* grey border */
+    color: #374151;
+    /* normal text color */
 }
 
 .success-block {
@@ -195,7 +210,7 @@
 }
 
 
-/* Tooltips via .tooltip-text (very simple approach, can refine with a library) */
+/* Tooltips via .tooltip-text (simple approach; can refine with a library) */
 
 .tooltip-text {
     font-size: 0.85rem;
