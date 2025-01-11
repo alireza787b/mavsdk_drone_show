@@ -223,90 +223,89 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       </p>
 
       {/* Position ID (config) vs. potential mismatches */}
-<p>
-  <strong>Position ID (config):</strong>{' '}
-  <span className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}>
-    {typeof drone.pos_id === 'number' ? drone.pos_id : parseInt(drone.pos_id, 10)}
-    {/* If heartbeat's assigned pos_id doesn't match */}
-    {posMismatch && heartbeatPos && (
-      <FontAwesomeIcon
-        icon={faExclamationCircle}
-        className="warning-icon"
-        title={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
-        aria-label={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
-      />
-    )}
-    {/* If auto-detected pos_id doesn't match */}
-    {autoDetectMismatch && heartbeatDetectedPos && (
-      <FontAwesomeIcon
-        icon={faExclamationCircle}
-        className="warning-icon"
-        title={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
-        aria-label={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
-      />
-    )}
-  </span>
-</p>
+      <p>
+        <strong>Position ID (config):</strong>{' '}
+        <span className={posMismatch || autoDetectMismatch ? 'mismatch-text' : ''}>
+          {drone.pos_id}
+          {/* If heartbeat's assigned pos_id doesn't match */}
+          {posMismatch && heartbeatPos && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
+              aria-label={`Pos ID mismatch: Heartbeat assigned pos_id=${heartbeatPos}`}
+            />
+          )}
+          {/* If auto-detected pos_id doesn't match */}
+          {autoDetectMismatch && heartbeatDetectedPos && (
+            <FontAwesomeIcon
+              icon={faExclamationCircle}
+              className="warning-icon"
+              title={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
+              aria-label={`Pos ID mismatch: auto-detected pos_id=${heartbeatDetectedPos}`}
+            />
+          )}
+        </span>
+      </p>
 
-{/* Show heartbeat's assigned pos_id if present */}
-{heartbeatPos && (
-  <p>
-    <strong>Heartbeat’s Assigned Pos ID:</strong> {heartbeatPos}
-  </p>
-)}
+      {/* Show heartbeat's assigned pos_id if present */}
+      {heartbeatPos && (
+        <p>
+          <strong>Heartbeat’s Assigned Pos ID:</strong> {heartbeatPos}
+        </p>
+      )}
 
-{/* If auto-detect is 0 => mild amber note */}
-{isAutoDetectionUnavailable && (
-  <p style={{ color: '#f59e0b' }}>
-    <strong>Auto-Detection Unavailable:</strong> The system reported a detected_pos_id of 0,
-    meaning no valid auto-detection could be found.
-  </p>
-)}
+      {/* If auto-detect is 0 => mild amber note */}
+      {isAutoDetectionUnavailable && (
+        <p style={{ color: '#f59e0b' }}>
+          <strong>Auto-Detection Unavailable:</strong> The system reported a detected_pos_id of 0,
+          meaning no valid auto-detection could be found.
+        </p>
+      )}
 
-{/* If auto-detect is not 0, show it explicitly */}
-{!isAutoDetectionUnavailable &&
-  heartbeatDetectedPos &&
-  heartbeatDetectedPos !== '0' && (
-    <p>
-      <strong>Heartbeat’s Detected Pos ID:</strong> {heartbeatDetectedPos}
-    </p>
-  )}
+      {/* If auto-detect is not 0, show it explicitly */}
+      {!isAutoDetectionUnavailable &&
+        heartbeatDetectedPos !== undefined &&
+        heartbeatDetectedPos !== '0' && (
+          <p>
+            <strong>Heartbeat’s Detected Pos ID:</strong> {heartbeatDetectedPos}
+          </p>
+        )}
 
-{/* If heartbeat pos_id also differs from detected_pos_id internally */}
-{internalHbPosMismatch && (
-  <div className="mismatch-message">
-    <FontAwesomeIcon
-      icon={faExclamationCircle}
-      className="warning-icon"
-      title="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
-      aria-label="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
-    />
-    <span>
-      <em>Conflict:</em> assigned pos_id = <strong>{heartbeatPos}</strong>, but
-      auto-detected pos_id = <strong>{heartbeatDetectedPos}</strong>.
-    </span>
-    <button
-      type="button"
-      className="accept-button"
-      onClick={() => {
-        onAcceptConfigFromAuto?.(heartbeatDetectedPos);
-      }}
-    >
-      Accept Detected
-    </button>
-    <button
-      type="button"
-      className="accept-button"
-      style={{ backgroundColor: '#059669' }}
-      onClick={() => {
-        onAcceptConfigFromHb?.(heartbeatPos);
-      }}
-    >
-      Accept Assigned
-    </button>
-  </div>
-)}
-
+      {/* If heartbeat pos_id also differs from detected_pos_id internally */}
+      {internalHbPosMismatch && (
+        <div className="mismatch-message">
+          <FontAwesomeIcon
+            icon={faExclamationCircle}
+            className="warning-icon"
+            title="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
+            aria-label="Heartbeat assigned pos_id vs. detected_pos_id mismatch"
+          />
+          <span>
+            <em>Conflict:</em> assigned pos_id = <strong>{heartbeatPos}</strong>, but
+            auto-detected pos_id = <strong>{heartbeatDetectedPos}</strong>.
+          </span>
+          <button
+            type="button"
+            className="accept-button"
+            onClick={() => {
+              onAcceptConfigFromAuto?.(heartbeatDetectedPos);
+            }}
+          >
+            Accept Detected
+          </button>
+          <button
+            type="button"
+            className="accept-button"
+            style={{ backgroundColor: '#059669' }}
+            onClick={() => {
+              onAcceptConfigFromHb?.(heartbeatPos);
+            }}
+          >
+            Accept Assigned
+          </button>
+        </div>
+      )}
 
       {/* Drone's basic config fields */}
       <p>
