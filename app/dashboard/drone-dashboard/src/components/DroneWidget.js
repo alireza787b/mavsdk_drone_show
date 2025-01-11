@@ -74,6 +74,47 @@ const DroneWidget = ({
         Drone {drone.hw_ID || 'Unknown'}
       </h3>
 
+{/* Single Position ID row with icon indicating match/mismatch */}
+<div className="drone-posid-section">
+          <p className="single-posid-row">
+            <strong>Position ID:</strong> {posId}{' '}
+            {posMismatch ? (
+              <>
+                {/* Warning icon if mismatch */}
+                <FaExclamationTriangle
+                  className="posid-warning-icon"
+                  data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
+                  data-tooltip-content={`Mismatch: Auto-detected = ${detectedPosId}. Click to fix.`}
+                  onClick={handlePositionConfigClick}
+                  style={{ cursor: 'pointer', marginLeft: '8px' }}
+                />
+                <Tooltip
+                  id={`posid-tooltip-${drone.hw_ID}`}
+                  place="top"
+                  effect="solid"
+                />
+              </>
+            ) : (
+              // Green check if there's no mismatch and we have valid data
+              posId !== 'N/A' && detectedPosId !== 'N/A' && (
+                <>
+                  <FaCheckCircle
+                    className="posid-match-icon"
+                    data-tooltip-id={`posid-tooltip-match-${drone.hw_ID}`}
+                    data-tooltip-content={`Auto-detected matches config (${detectedPosId}).`}
+                    style={{ color: 'green', marginLeft: '8px' }}
+                  />
+                  <Tooltip
+                    id={`posid-tooltip-match-${drone.hw_ID}`}
+                    place="top"
+                    effect="solid"
+                  />
+                </>
+              )
+            )}
+          </p>
+        </div>
+
       {/* Main info block */}
       <div className="drone-info">
         <p>
@@ -115,46 +156,7 @@ const DroneWidget = ({
           </span>
         </p>
 
-        {/* Single Position ID row with icon indicating match/mismatch */}
-        <div className="drone-posid-section">
-          <p className="single-posid-row">
-            <strong>Position ID:</strong> {posId}{' '}
-            {posMismatch ? (
-              <>
-                {/* Warning icon if mismatch */}
-                <FaExclamationTriangle
-                  className="posid-warning-icon"
-                  data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
-                  data-tooltip-content={`Mismatch: Auto-detected = ${detectedPosId}. Click to fix.`}
-                  onClick={handlePositionConfigClick}
-                  style={{ cursor: 'pointer', marginLeft: '8px' }}
-                />
-                <Tooltip
-                  id={`posid-tooltip-${drone.hw_ID}`}
-                  place="top"
-                  effect="solid"
-                />
-              </>
-            ) : (
-              // Green check if there's no mismatch and we have valid data
-              posId !== 'N/A' && detectedPosId !== 'N/A' && (
-                <>
-                  <FaCheckCircle
-                    className="posid-match-icon"
-                    data-tooltip-id={`posid-tooltip-match-${drone.hw_ID}`}
-                    data-tooltip-content={`Auto-detected matches config (${detectedPosId}).`}
-                    style={{ color: 'green', marginLeft: '8px' }}
-                  />
-                  <Tooltip
-                    id={`posid-tooltip-match-${drone.hw_ID}`}
-                    place="top"
-                    effect="solid"
-                  />
-                </>
-              )
-            )}
-          </p>
-        </div>
+        
 
         {/* Drone-critical commands */}
         <div className="drone-critical-commands-section">
