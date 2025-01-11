@@ -94,6 +94,7 @@ def poll_telemetry(drone):
                 with data_lock:
                     telemetry_data_all_drones[drone['hw_id']] = {
                         'Pos_ID': telemetry_data.get('pos_id', 'UNKNOWN'),
+                        'Detected_Pos_ID': telemetry_data.get('detected_pos_id', 'UNKNOWN'),
                         'State': get_enum_name(State, telemetry_data.get('state', 'UNKNOWN')),
                         'Mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
                         'lastMission': get_enum_name(Mission, telemetry_data.get('last_mission', 'UNKNOWN')),

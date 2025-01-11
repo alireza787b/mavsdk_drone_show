@@ -258,7 +258,8 @@ class DroneCommunicator:
 
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
-            "pos_id": safe_int(safe_get(self.drone_config.config, 'pos_id')),  # Position ID
+            "pos_id": safe_int(self.drone_config.pos_id),  # Position ID
+            "detected_pos_id": safe_int(self.drone_config.detected_pos_id),  # Auto Detected Position ID
             "state": safe_int(self.drone_config.state),  # Current state of the drone
             "mission": safe_int(self.drone_config.mission),  # Current mission state
             "last_mission": safe_int(self.drone_config.last_mission),  # Last mission state
