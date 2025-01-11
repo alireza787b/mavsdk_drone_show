@@ -17,12 +17,10 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Highlight card if there's any mismatch or it's newly detected */
 .drone-config-card.mismatch-drone {
-    /* 
-      Optional: highlight the card if there's any mismatch
-      e.g., subtle red border or different background
-    */
-    /* border-color: #ef4444; */
+    border-left: 4px solid #ef4444; /* red highlight on the left */
+    padding-left: 12px;
 }
 
 /* "New Drone" Badge */
@@ -30,7 +28,7 @@
     position: absolute;
     top: 10px;
     left: 10px;
-    background-color: #10b981; /* Green */
+    background-color: #10b981;
     color: #ffffff;
     padding: 4px 8px;
     border-radius: 4px;
@@ -49,6 +47,16 @@
     margin-bottom: 8px;
 }
 
+.all-good-indicator {
+    display: inline-flex;
+    align-items: center;
+    color: #10b981;
+    font-weight: 600;
+    margin-left: 10px;
+    gap: 4px;
+    font-size: 0.9rem;
+}
+
 /* Heartbeat Status Icons */
 .status-icon {
     font-size: 1rem;
@@ -57,17 +65,24 @@
 .status-icon.online {
     color: #10b981; /* green */
 }
-
 .status-icon.stale {
-    color: #f59e0b; /* yellow */
+    color: #f59e0b; /* amber */
 }
-
 .status-icon.offline {
     color: #ef4444; /* red */
 }
-
 .status-icon.no-heartbeat {
     color: #9ca3af; /* gray */
+}
+.status-icon.all-good {
+    color: #10b981; /* green check */
+}
+
+/* Info Icon (Question Mark) */
+.info-icon {
+    color: #6b7280;
+    margin-left: 6px;
+    cursor: help;
 }
 
 /* Mismatch Text & Icon */
@@ -77,7 +92,7 @@
 }
 
 .warning-icon {
-    color: #ef4444; /* red */
+    color: #ef4444;
     margin-left: 8px;
     pointer-events: none;
 }
@@ -85,12 +100,12 @@
 /* Mismatch Message */
 .mismatch-message {
     margin-top: 8px;
-    color: #ef4444; /* red */
+    color: #ef4444;
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
-    background-color: #fff5f5; /* Light red background */
+    background-color: #fff5f5; /* Light red */
     border: 1px solid #fca5a5; /* Red border */
     padding: 8px 10px;
     border-radius: 4px;
@@ -111,7 +126,7 @@
 }
 
 .accept-button:hover {
-    background-color: #2563eb; /* darker blue */
+    background-color: #2563eb;
 }
 
 /* Form Labels and Inputs */
