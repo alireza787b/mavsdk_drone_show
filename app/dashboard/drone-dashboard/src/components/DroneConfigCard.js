@@ -250,6 +250,8 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       return (
         <div className="position-id-block mismatch-block">
           <strong>Position ID(s):</strong>
+          <span title="First make sure your latest changes are saved to the server and drones are on same commit ID and synced.">
+            </span>
           <div className="mismatch-row">
             <span title="Configured position ID in the system">
               <em>Config:</em> {configStr || 'N/A'}
@@ -291,7 +293,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
           {noAutoDetection && (
             <div className="no-auto-message">
-              Auto-detection is not available (auto pos_id=0 or missing).
+              Auto-detection is not available.
             </div>
           )}
         </div>
