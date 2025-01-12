@@ -249,20 +249,21 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     if (anyMismatch) {
       return (
         <div className="position-id-block mismatch-block">
-          <strong>Position ID(s):</strong>
-          <span title="First make sure your latest changes are saved to the server and drones are on same commit ID and synced.">
-            </span>
-          <div className="mismatch-row">
-            <span title="Configured position ID in the system">
-              <em>Config:</em> {configStr || 'N/A'}
-            </span>
-            <span title="Position ID assigned by the drone's heartbeat">
-              <em>Assigned (HB):</em> {assignedStr || 'N/A'}
-            </span>
-            <span title="Auto-detected position ID from the drone's heartbeat">
-              <em>Auto-detected (HB):</em> {autoStr || 'N/A'}
-            </span>
-          </div>
+    <strong>Position ID(s):</strong>
+    <span title="First make sure your latest changes are saved to the server and drones are on same commit ID and synced.">
+      Please ensure synchronization before proceeding.
+    </span>
+    <div className="mismatch-row">
+      <span title="Configured position ID in the system">
+        <em>Config:</em> {configStr || 'N/A'}
+      </span>
+      <span title="Position ID assigned by the drone's heartbeat">
+        <em>Assigned (HB):</em> {assignedStr || 'N/A'}
+      </span>
+      <span title="Auto-detected position ID from the drone's heartbeat">
+        <em>Auto-detected (HB):</em> {autoStr || 'N/A'}
+      </span>
+    </div>
 
           {/* If auto != config, show Accept from Auto */}
           {autoStr && autoStr !== '0' && autoStr !== configStr && (
