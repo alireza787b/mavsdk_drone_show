@@ -249,7 +249,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     if (anyMismatch) {
       return (
         <div className="position-id-block mismatch-block">
-    <strong>Position ID(s):</strong>
+    <strong>Position ID(s):</strong> <br />
     <span title="First make sure your latest changes are saved to the server and drones are on same commit ID and synced.">
       Please ensure synchronization before proceeding.
     </span>
