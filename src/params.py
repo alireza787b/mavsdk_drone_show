@@ -201,8 +201,8 @@ class Params:
     
     # New parameters for pos_id auto-detection
     auto_detection_enabled = True  # Enable or disable auto-detection
-    auto_detection_interval = 30  # Interval in seconds
-    max_deviation = 2.0  # Maximum allowed deviation in meters for pos_id detection
+    auto_detection_interval = 15  # Interval in seconds
+    max_deviation = 1.5 # Maximum allowed deviation in meters for pos_id detection
 
     @classmethod
     def get_trajectory_files(cls, position_id, custom_csv):
