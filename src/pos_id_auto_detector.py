@@ -122,6 +122,11 @@ class PosIDAutoDetector:
         min_distance = float('inf')
         best_pos_id = 0  # Default to 0 indicating failure
         for pos_id, coords in self.drone_config.all_configs.items():
+            if 'x' not in coords or 'y' not in coords:
+                # Skip if coordinates are missing in config for this drone
+                self.logger.warning(f"Missing coordinates for pos_id {pos_id}. Skipping.")
+                continue
+
             dx = x - coords['x']
             dy = y - coords['y']
             distance = math.sqrt(dx**2 + dy**2)
