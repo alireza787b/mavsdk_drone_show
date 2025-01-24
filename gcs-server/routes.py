@@ -297,8 +297,8 @@ def setup_routes(app):
             return error_response(f"Error creating processed show zip: {e}")
         
         
-    @app.route('/get-show-duration', methods=['GET'])
-    def get_show_duration():
+    @app.route('/get-show-info', methods=['GET'])
+    def get_show_info():
         try:
             # Find all Drone CSV files
             drone_csv_files = [f for f in os.listdir(skybrush_dir) if f.startswith('Drone ') and f.endswith('.csv')]
@@ -306,6 +306,9 @@ def setup_routes(app):
             # If no drone files found, return error
             if not drone_csv_files:
                 return error_response("No drone CSV files found")
+            
+            # Count number of drones
+            drone_count = len(drone_csv_files)
             
             # Read duration from the first drone file (assuming all have same duration)
             csv_path = os.path.join(skybrush_dir, drone_csv_files[0])
@@ -328,6 +331,7 @@ def setup_routes(app):
             duration_seconds = (duration_ms % 60000) / 1000
             
             return jsonify({
+                'drone_count': drone_count,
                 'duration_ms': duration_ms,
                 'duration_minutes': round(duration_minutes, 2),
                 'duration_seconds': round(duration_seconds, 2)
@@ -336,7 +340,7 @@ def setup_routes(app):
         except FileNotFoundError:
             return error_response("Drone CSV files not found in skybrush directory")
         except Exception as e:
-            return error_response(f"Error reading show duration: {e}")
+            return error_response(f"Error reading show info: {e}")
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):

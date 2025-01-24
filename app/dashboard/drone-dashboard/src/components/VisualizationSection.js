@@ -1,4 +1,3 @@
-// app/dashboard/drone-dashboard/src/pages/VisualizationSection.js
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
 import Modal from './Modal';
@@ -11,7 +10,6 @@ import {
 } from '@mui/material';
 import { 
     AccessTime as AccessTimeIcon,
-    Speed as SpeedIcon,
     Theaters as TheatersIcon 
 } from '@mui/icons-material';
 
@@ -22,9 +20,8 @@ const VisualizationSection = ({ uploadCount }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showDetails, setShowDetails] = useState({
-        duration: null,
         droneCount: 0,
-        averageSpeed: null
+        duration: null
     });
 
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
@@ -42,19 +39,17 @@ const VisualizationSection = ({ uploadCount }) => {
                     const filteredPlots = plotsData.filenames || [];
                     setPlots(filteredPlots);
 
-                    // Fetch show duration
-                    const durationResponse = await fetch(`${backendURL}/get-show-duration`);
-                    const durationData = await durationResponse.json();
-
-                    // Estimate drone count
-                    const droneCount = filteredPlots.filter(
-                        name => name.startsWith('Drone') && name.endsWith('.png')
-                    ).length;
+                    // Fetch show info
+                    const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
+                    const showInfoData = await showInfoResponse.json();
 
                     setShowDetails({
-                        duration: durationData,
-                        droneCount: droneCount,
-                        averageSpeed: calculateAverageSpeed(durationData)
+                        droneCount: showInfoData.drone_count,
+                        duration: {
+                            ms: showInfoData.duration_ms,
+                            minutes: showInfoData.duration_minutes,
+                            seconds: showInfoData.duration_seconds
+                        }
                     });
                 } else {
                     throw new Error(plotsData.error || 'Failed to fetch plots');
@@ -70,16 +65,10 @@ const VisualizationSection = ({ uploadCount }) => {
         fetchShowData();
     }, [uploadCount, backendURL]);
 
-    const calculateAverageSpeed = (duration) => {
-        // Placeholder for more sophisticated speed calculation
-        return duration ? (Math.random() * 10).toFixed(2) : null;
-    };
-
-    const formatDuration = (durationMs) => {
-        if (!durationMs) return 'N/A';
-        const minutes = Math.floor(durationMs / 60000);
-        const seconds = ((durationMs % 60000) / 1000).toFixed(1);
-        return `${minutes}m ${seconds}s`;
+    const formatDuration = () => {
+        const { duration } = showDetails;
+        if (!duration) return 'N/A';
+        return `${duration.minutes}m ${duration.seconds.toFixed(1)}s`;
     };
 
     const openModal = (index) => {
@@ -105,7 +94,7 @@ const VisualizationSection = ({ uploadCount }) => {
             
             {/* Show Details Cards */}
             <Grid container spacing={2} sx={{ marginBottom: 2 }}>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={6}>
                     <Card variant="outlined">
                         <CardContent>
                             <Grid container alignItems="center" spacing={2}>
@@ -115,16 +104,14 @@ const VisualizationSection = ({ uploadCount }) => {
                                 <Grid item xs>
                                     <Typography variant="subtitle1">Show Duration</Typography>
                                     <Typography variant="h6">
-                                        {showDetails.duration 
-                                            ? formatDuration(showDetails.duration.duration_ms)
-                                            : 'Calculating...'}
+                                        {formatDuration()}
                                     </Typography>
                                 </Grid>
                             </Grid>
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={12} sm={6}>
                     <Card variant="outlined">
                         <CardContent>
                             <Grid container alignItems="center" spacing={2}>
@@ -135,25 +122,6 @@ const VisualizationSection = ({ uploadCount }) => {
                                     <Typography variant="subtitle1">Drone Count</Typography>
                                     <Typography variant="h6">
                                         {showDetails.droneCount || 'N/A'}
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                    <Card variant="outlined">
-                        <CardContent>
-                            <Grid container alignItems="center" spacing={2}>
-                                <Grid item>
-                                    <SpeedIcon color="error" fontSize="large" />
-                                </Grid>
-                                <Grid item xs>
-                                    <Typography variant="subtitle1">Avg. Speed</Typography>
-                                    <Typography variant="h6">
-                                        {showDetails.averageSpeed 
-                                            ? `${showDetails.averageSpeed} m/s` 
-                                            : 'Calculating...'}
                                     </Typography>
                                 </Grid>
                             </Grid>
@@ -204,7 +172,7 @@ const VisualizationSection = ({ uploadCount }) => {
                 )}
             </div>
 
-            {/* Enhanced Modal for displaying the selected image */}
+            {/* Modal for displaying the selected image */}
             <Modal isOpen={isModalOpen} onClose={closeModal}>
                 {plots.length > 0 && (
                     <div className="modal-image-container">
