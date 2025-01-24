@@ -300,8 +300,7 @@ def setup_routes(app):
     @app.route('/get-show-info', methods=['GET'])
     def get_show_info():
         try:
-            # Get the "check_all" query parameter (default is 'false')
-            check_all = request.args.get('check_all', 'false').lower() == 'true'
+            check_all = True
 
             # Find all Drone CSV files
             drone_csv_files = [f for f in os.listdir(skybrush_dir) 
