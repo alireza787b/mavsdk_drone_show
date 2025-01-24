@@ -73,8 +73,8 @@ if __name__ == "__main__":
         start_telemetry_polling(drones)
         logging.info(f"Starting git status polling for {len(drones)} drones.")
         start_git_status_polling(drones)
-        logging.info(f"Starting network status polling for {len(drones)} drones.")
-        start_network_status_polling(drones)
+        # logging.info(f"Starting network status polling for {len(drones)} drones.")
+        # start_network_status_polling(drones)
     else:
         logging.error("No drones found in configuration. Telemetry polling will not be started.")
 

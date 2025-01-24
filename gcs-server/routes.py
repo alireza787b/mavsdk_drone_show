@@ -508,8 +508,9 @@ def setup_routes(app):
         Endpoint to get network information for all drones.
         Each drone is queried individually, and the results are aggregated into a single JSON response.
         """
-        network_info, status_code = get_network_info_for_all_drones()
-        return jsonify(network_info), status_code
+        # network_info, status_code = get_network_info_for_all_drones()
+        # return jsonify(network_info), status_code
+        pass
 
 
     @app.route('/drone-heartbeat', methods=['POST'])
