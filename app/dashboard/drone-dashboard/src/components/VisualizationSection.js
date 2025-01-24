@@ -1,4 +1,3 @@
-// app/dashboard/drone-dashboard/src/components/VisualizationSection.js
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
 import Modal from './Modal';
@@ -26,6 +25,7 @@ const VisualizationSection = ({ uploadCount }) => {
     });
 
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    console.log(`Backend URL: ${backendURL}`); // Log backend URL for debugging
 
     useEffect(() => {
         const fetchShowData = async () => {
@@ -33,15 +33,21 @@ const VisualizationSection = ({ uploadCount }) => {
             setError('');
             try {
                 // Fetch plots
+                console.log('Fetching plots...');
                 const plotsResponse = await fetch(`${backendURL}/get-show-plots`);
                 const plotsData = await plotsResponse.json();
+                console.log('Plots Response:', plotsData);
 
                 if (plotsResponse.ok) {
-                    setPlots(plotsData.filenames || []);
+                    const filenames = plotsData.filenames || [];
+                    setPlots(filenames);
+                    console.log('Filtered Plots:', filenames);
 
                     // Fetch show info
+                    console.log('Fetching show info...');
                     const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
                     const showInfoData = await showInfoResponse.json();
+                    console.log('Show Info Response:', showInfoData);
 
                     setShowDetails({
                         droneCount: showInfoData.drone_count,
@@ -55,6 +61,7 @@ const VisualizationSection = ({ uploadCount }) => {
                     throw new Error(plotsData.error || 'Failed to fetch plots');
                 }
             } catch (err) {
+                console.error('Error fetching data:', err.message);
                 setError(err.message);
                 setPlots([]);
             } finally {
@@ -72,20 +79,26 @@ const VisualizationSection = ({ uploadCount }) => {
     };
 
     const openModal = (index) => {
+        console.log(`Opening modal for index: ${index}`);
         setCurrentIndex(index);
         setIsModalOpen(true);
     };
 
     const closeModal = () => {
+        console.log('Closing modal...');
         setIsModalOpen(false);
     };
 
     const showPrevious = () => {
-        setCurrentIndex((prevIndex) => (prevIndex === 0 ? plots.length - 1 : prevIndex - 1));
+        const previousIndex = currentIndex === 0 ? plots.length - 1 : currentIndex - 1;
+        console.log(`Showing previous image. Current Index: ${currentIndex}, New Index: ${previousIndex}`);
+        setCurrentIndex(previousIndex);
     };
 
     const showNext = () => {
-        setCurrentIndex((prevIndex) => (prevIndex === plots.length - 1 ? 0 : prevIndex + 1));
+        const nextIndex = currentIndex === plots.length - 1 ? 0 : currentIndex + 1;
+        console.log(`Showing next image. Current Index: ${currentIndex}, New Index: ${nextIndex}`);
+        setCurrentIndex(nextIndex);
     };
 
     return (
@@ -137,37 +150,45 @@ const VisualizationSection = ({ uploadCount }) => {
                 {/* Combined Plot */}
                 {plots
                     .filter((name) => name === 'combined_drone_paths.png')
-                    .map((plot, index) => (
-                        <div
-                            key={`combined-${index}`}
-                            className="plot-full-width clickable-image"
-                            onClick={() => openModal(0)} // First modal index
-                        >
-                            <img
-                                src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                                alt="All Drones"
-                                style={{ width: '100%' }}
-                            />
-                        </div>
-                    ))}
+                    .map((plot, index) => {
+                        const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+                        console.log('Combined Plot URL:', plotUrl);
+                        return (
+                            <div
+                                key={`combined-${index}`}
+                                className="plot-full-width clickable-image"
+                                onClick={() => openModal(0)} // First modal index
+                            >
+                                <img
+                                    src={plotUrl}
+                                    alt="All Drones"
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                        );
+                    })}
 
                 {/* Individual Plots */}
                 <div className="plot-grid">
                     {plots
                         .filter((name) => name !== 'combined_drone_paths.png')
-                        .map((plot, index) => (
-                            <div
-                                key={`individual-${index}`}
-                                className="plot clickable-image"
-                                onClick={() => openModal(index + 1)} // Offset index by 1 for modal
-                            >
-                                <img
-                                    src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                                    alt={`Plot ${index}`}
-                                    style={{ width: '100%' }}
-                                />
-                            </div>
-                        ))}
+                        .map((plot, index) => {
+                            const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+                            console.log(`Individual Plot URL (index ${index + 1}):`, plotUrl);
+                            return (
+                                <div
+                                    key={`individual-${index}`}
+                                    className="plot clickable-image"
+                                    onClick={() => openModal(index + 1)} // Offset index by 1 for modal
+                                >
+                                    <img
+                                        src={plotUrl}
+                                        alt={`Plot ${index}`}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                            );
+                        })}
                 </div>
             </div>
 
