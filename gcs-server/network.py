@@ -84,6 +84,7 @@ def get_network_info_for_all_drones():
     Returns:
         dict: A dictionary containing network status for each drone.
     """
-    with data_lock_network_status:
-        # Return a copy to prevent race conditions
-        return network_status_data_all_drones.copy()
+    # with data_lock_network_status:
+    #     # Return a copy to prevent race conditions
+    #     return network_status_data_all_drones.copy()
+    pass
