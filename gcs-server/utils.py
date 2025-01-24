@@ -54,30 +54,42 @@ def ensure_directory(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-
-# Utility function for Git operations
 def git_operations(base_dir, commit_message):
     """
     Handles Git operations using GitPython for better control and error handling.
+    This version automatically resolves conflicts and maintains an uninterrupted workflow.
     """
     try:
         repo = Repo(base_dir)
         git = repo.git
 
-        # Check for uncommitted changes
+        # Fetch latest changes from the remote repository
+        logging.info("Fetching latest changes from remote...")
+        git.fetch('origin')
+
+        # Check for uncommitted changes and stage them if necessary
         if repo.is_dirty(untracked_files=True):
             logging.info("Staging changes...")
             repo.git.add('--all')
-
             logging.info("Committing changes...")
             repo.index.commit(commit_message)
-        else:
-            message = "No changes to commit."
-            logging.info(message)
 
         # Pull latest changes with rebase
         logging.info("Rebasing local changes on top of remote changes...")
-        git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+        try:
+            git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+        except GitCommandError as e:
+            if 'merge conflict' in str(e):
+                logging.error("Merge conflict detected. Attempting to resolve automatically...")
+                
+                # Abort the merge if conflicts occur
+                git.merge('--abort')
+                
+                # Reset to the last known good state
+                git.reset('--hard', 'HEAD')
+                
+                # Retry pulling with rebase after resetting
+                git.pull('--rebase', 'origin', Params.GIT_BRANCH)
 
         # Push changes to remote
         logging.info("Pushing changes to remote repository...")
