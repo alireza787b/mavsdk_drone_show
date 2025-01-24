@@ -295,6 +295,48 @@ def setup_routes(app):
             return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
         except Exception as e:
             return error_response(f"Error creating processed show zip: {e}")
+        
+        
+    @app.route('/get-show-duration', methods=['GET'])
+    def get_show_duration():
+        try:
+            # Find all Drone CSV files
+            drone_csv_files = [f for f in os.listdir(skybrush_dir) if f.startswith('Drone ') and f.endswith('.csv')]
+            
+            # If no drone files found, return error
+            if not drone_csv_files:
+                return error_response("No drone CSV files found")
+            
+            # Read duration from the first drone file (assuming all have same duration)
+            csv_path = os.path.join(skybrush_dir, drone_csv_files[0])
+            
+            with open(csv_path, 'r') as file:
+                # Skip the header
+                next(file)
+                
+                # Read all lines to get the last line
+                lines = file.readlines()
+                
+                # Get the last line and split its values
+                last_line = lines[-1].strip().split(',')
+                
+                # Extract the duration (first column - Time [msec])
+                duration_ms = float(last_line[0])
+            
+            # Convert to minutes and seconds
+            duration_minutes = duration_ms / 60000
+            duration_seconds = (duration_ms % 60000) / 1000
+            
+            return jsonify({
+                'duration_ms': duration_ms,
+                'duration_minutes': round(duration_minutes, 2),
+                'duration_seconds': round(duration_seconds, 2)
+            })
+        
+        except FileNotFoundError:
+            return error_response("Drone CSV files not found in skybrush directory")
+        except Exception as e:
+            return error_response(f"Error reading show duration: {e}")
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
