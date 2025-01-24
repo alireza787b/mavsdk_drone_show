@@ -75,10 +75,17 @@ const VisualizationSection = ({ uploadCount }) => {
     fetchShowData();
   }, [uploadCount, backendURL]);
 
+  // Format duration with no decimal seconds
   const formatDuration = () => {
     const { duration } = showDetails;
     if (!duration) return 'N/A';
-    return `${duration.minutes}m ${duration.seconds.toFixed(1)}s`;
+    return `${duration.minutes}m ${duration.seconds}s`; // No decimals
+  };
+
+  // Format max altitude with rounding up to 1 decimal
+  const formatMaxAltitude = () => {
+    if (showDetails.maxAltitude == null) return 'N/A';
+    return `${Math.ceil(showDetails.maxAltitude * 10) / 10} m`; // Round up to 1 decimal
   };
 
   const openModal = (index) => {
@@ -145,7 +152,7 @@ const VisualizationSection = ({ uploadCount }) => {
             />
             <CardContent>
               <Typography variant="h6">
-                {showDetails.maxAltitude ? `${showDetails.maxAltitude} m` : 'N/A'}
+                {formatMaxAltitude()}
               </Typography>
             </CardContent>
           </Card>
