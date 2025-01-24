@@ -185,3 +185,30 @@ input[type="file"] {
     display: block;
     cursor: pointer;
 }
+
+.plot-full-width {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.plot-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.plot {
+    width: 150px;
+    /* Adjust size as needed */
+    height: auto;
+    cursor: pointer;
+}
+
+.clickable-image img {
+    max-width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
