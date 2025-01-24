@@ -11,7 +11,7 @@ const ManageDroneShow = () => {
   const [uploadCount, setUploadCount] = useState(0);
 
   return (
-    <Container className="manage-drone-show-container">
+    <Container maxWidth="97%" className="manage-drone-show-container">
       <ToastContainer />
       
       <Typography variant="h4" align="center" gutterBottom sx={{ mt: 3, color: '#0056b3' }}>
