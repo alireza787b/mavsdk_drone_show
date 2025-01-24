@@ -9,9 +9,12 @@ def setup_matplotlib_style():
     """
     Configure global Matplotlib styling for professional visualizations.
     """
-    plt.style.use('seaborn-v0_8')  # Updated style name
+    # Use a different sans-serif font if Arial is not available
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = ['Liberation Sans', 'DejaVu Sans']  # Fallback fonts
     plt.rcParams.update({
-        'font.family': 'Arial',
+        'axes.facecolor': 'white',  # Set background color to white
+        'figure.facecolor': 'white',  # Set figure background color to white
         'font.size': 12,
         'axes.titlesize': 14,
         'axes.labelsize': 12,
