@@ -300,47 +300,70 @@ def setup_routes(app):
     @app.route('/get-show-info', methods=['GET'])
     def get_show_info():
         try:
+            # Get the "check_all" query parameter (default is 'false')
+            check_all = request.args.get('check_all', 'false').lower() == 'true'
+
             # Find all Drone CSV files
-            drone_csv_files = [f for f in os.listdir(skybrush_dir) if f.startswith('Drone ') and f.endswith('.csv')]
+            drone_csv_files = [f for f in os.listdir(skybrush_dir) 
+                            if f.startswith('Drone ') and f.endswith('.csv')]
             
-            # If no drone files found, return error
             if not drone_csv_files:
                 return error_response("No drone CSV files found")
-            
-            # Count number of drones
+
+            # If check_all is False, filter to just "Drone 1.csv" (or first in the list)
+            if not check_all:
+                drone_csv_files = [drone_csv_files[0]]
+
             drone_count = len(drone_csv_files)
-            
-            # Read duration from the first drone file (assuming all have same duration)
-            csv_path = os.path.join(skybrush_dir, drone_csv_files[0])
-            
-            with open(csv_path, 'r') as file:
-                # Skip the header
-                next(file)
-                
-                # Read all lines to get the last line
-                lines = file.readlines()
-                
-                # Get the last line and split its values
-                last_line = lines[-1].strip().split(',')
-                
-                # Extract the duration (first column - Time [msec])
-                duration_ms = float(last_line[0])
-            
-            # Convert to minutes and seconds
-            duration_minutes = duration_ms / 60000
-            duration_seconds = (duration_ms % 60000) / 1000
+
+            max_duration_ms = 0.0
+            max_altitude = 0.0
+
+            # Iterate over each CSV to find the maximum duration and altitude
+            for csv_file in drone_csv_files:
+                csv_path = os.path.join(skybrush_dir, csv_file)
+
+                with open(csv_path, 'r') as file:
+                    # Skip the header
+                    next(file)
+
+                    lines = file.readlines()
+                    if not lines:
+                        continue
+
+                    # Last line for time
+                    last_line = lines[-1].strip().split(',')
+                    duration_ms = float(last_line[0])
+                    # Update max duration
+                    if duration_ms > max_duration_ms:
+                        max_duration_ms = duration_ms
+
+                    # Find max altitude in this CSV
+                    for line in lines:
+                        parts = line.strip().split(',')
+                        if len(parts) < 4:
+                            continue
+                        z_val = float(parts[3])  # 'z [m]' is the 4th column
+                        if z_val > max_altitude:
+                            max_altitude = z_val
+
+            # Convert max duration to minutes / seconds
+            duration_minutes = max_duration_ms / 60000
+            duration_seconds = (max_duration_ms % 60000) / 1000
             
             return jsonify({
                 'drone_count': drone_count,
-                'duration_ms': duration_ms,
+                'duration_ms': max_duration_ms,
                 'duration_minutes': round(duration_minutes, 2),
-                'duration_seconds': round(duration_seconds, 2)
+                'duration_seconds': round(duration_seconds, 2),
+                'max_altitude': round(max_altitude, 2)
             })
-        
+
         except FileNotFoundError:
             return error_response("Drone CSV files not found in skybrush directory")
         except Exception as e:
             return error_response(f"Error reading show info: {e}")
+
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):

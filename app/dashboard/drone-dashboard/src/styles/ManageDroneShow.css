@@ -1,214 +1,185 @@
-/* General container and layout styles */
+/* src/styles/ManageDroneShow.css */
 
 .manage-drone-show-container {
-    margin: 0 auto;
-    padding: 20px;
     background-color: #f4f4f9;
-    color: #333;
-    font-family: 'Arial', sans-serif;
-}
-
-h1,
-h2 {
-    color: #0056b3;
-}
-
-h1 {
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-h2 {
-    margin-top: 30px;
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
+    padding-bottom: 30px;
 }
 
 
-/* Styling for section containers */
+/* Section styling */
 
 .import-section,
 .export-section,
 .visualization-section {
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.intro-section ul {
+    list-style: disc inside;
+    margin-left: 20px;
 }
 
 
-/* Buttons and inputs */
+/* File Upload Label */
 
-button {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    margin-top: 10px;
-    cursor: pointer;
-    border-radius: 5px;
-    font-size: 16px;
-}
-
-button:hover {
-    background-color: #0056b3;
-}
-
-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
-
-input[type="file"] {
-    padding: 10px;
-    margin-top: 5px;
-}
-
-
-/* Drag and drop area */
-
-.drop-zone {
-    border: 2px dashed #007bff;
-    padding: 20px;
-    text-align: center;
-    margin-top: 15px;
-    background-color: #f9f9f9;
-}
-
-.drop-zone.dragging {
-    background-color: #e9ecef;
-    border-color: #0056b3;
-}
-
-
-/* Response and info messages */
-
-.response-message {
-    margin-top: 20px;
-    font-size: 16px;
-    color: green;
-}
-
-.response-message.failure {
-    color: red;
-}
-
-.info {
-    font-size: 14px;
-    color: #666;
-    margin-top: 5px;
-}
-
-.error {
-    color: red;
-}
-
-
-/* Progress Bar Styles */
-
-.progress-bar {
-    width: 100%;
-    background-color: #f1f1f1;
-    border-radius: 5px;
-    margin-top: 10px;
-}
-
-.progress-bar-fill {
-    height: 20px;
-    background-color: #007bff;
-    width: 0%;
-    /* Default width, will be set dynamically */
-    border-radius: 5px;
-    transition: width 0.4s ease-in-out;
-}
-
-
-/* Styling for image display and galleries */
-
-.visualization-section img {
-    width: 100%;
-    margin: 10px;
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-
-/* Responsive design */
-
-@media (max-width: 768px) {
-    .manage-drone-show-container {
-        padding: 10px;
-    }
-    button {
-        width: 100%;
-    }
-    .export-buttons button {
-        margin-top: 10px;
-    }
-}
-
-.visualization-section {
-    margin-top: 20px;
-}
-
-.plot-container {
+.file-upload {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
 }
 
-.plot-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 10px;
-}
 
-.plot img {
-    width: 100%;
-    height: auto;
-    display: block;
-    cursor: pointer;
-}
+/* Modal Overlay and Content */
 
-.plot-full-width {
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
+    align-items: center;
+    z-index: 1000;
+    padding: 20px;
+    backdrop-filter: blur(5px);
 }
 
-.plot-full-width img {
-    width: 80%;
-    /* Adjust this value as needed to make it bigger than the rest */
-    max-width: 800px;
-    /* Ensures it doesn't get too large on wider screens */
-    display: block;
+.modal-content {
+    position: relative;
+    max-width: 95%;
+    max-height: 95%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.modal-close-button {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 2rem;
     cursor: pointer;
+    transition: background 0.3s ease;
 }
 
-.plot-full-width {
-    margin-bottom: 20px;
+.modal-close-button:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+
+/* Navigation buttons inside the modal */
+
+.modal-image-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.nav-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.nav-button:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.prev-button {
+    left: 20px;
+}
+
+.next-button {
+    right: 20px;
+}
+
+.modal-image-wrapper {
+    max-width: 90vw;
+    max-height: 90vh;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-.plot-grid {
+.modal-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+}
+
+
+/* Plots styling */
+
+.plot-full-width {
     display: flex;
-    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.clickable-image {
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.clickable-image:hover {
+    transform: scale(1.02);
+}
+
+
+/* Plot grid for individual images */
+
+.plot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     justify-content: center;
 }
 
-.plot {
-    width: 150px;
-    /* Adjust size as needed */
+.plot img {
+    width: 100%;
     height: auto;
-    cursor: pointer;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.clickable-image img {
-    max-width: 100%;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+
+/* Responsive adjustments */
+
+@media (max-width: 768px) {
+    .plot-full-width img {
+        width: 100%;
+        max-width: 100%;
+    }
+    .plot-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
 }
