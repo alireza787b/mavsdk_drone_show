@@ -9,12 +9,11 @@ def setup_matplotlib_style():
     """
     Configure global Matplotlib styling for professional visualizations.
     """
-    # Use a different sans-serif font if Arial is not available
     plt.rcParams['font.family'] = 'sans-serif'
     plt.rcParams['font.sans-serif'] = ['Liberation Sans', 'DejaVu Sans']  # Fallback fonts
     plt.rcParams.update({
-        'axes.facecolor': 'white',  # Set background color to white
-        'figure.facecolor': 'white',  # Set figure background color to white
+        'axes.facecolor': 'white',
+        'figure.facecolor': 'white',
         'font.size': 12,
         'axes.titlesize': 14,
         'axes.labelsize': 12,
@@ -92,11 +91,13 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         return
 
     num_drones = len(processed_files)
-    colormap = plt.cm.get_cmap('viridis', num_drones)
+    # Updated colormap creation to use new Matplotlib API
+    colormap = plt.colormaps['viridis']
+    color_indices = np.linspace(0, 1, num_drones)
 
     # Prepare data and color mapping
     drone_data = []
-    color_dict = {file: colormap(i) for i, file in enumerate(processed_files)}
+    color_dict = {file: colormap(color_indices[i]) for i, file in enumerate(processed_files)}
 
     # Individual drone path plots
     for file in processed_files:
