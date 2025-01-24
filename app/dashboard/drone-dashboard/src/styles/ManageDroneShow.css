@@ -29,6 +29,16 @@
 }
 
 
+/* 
+  Override default MUI container styling to match 
+  your "97% width" requirement 
+*/
+
+.MuiContainer-root {
+    width: 97% !important;
+}
+
+
 /* Modal Overlay and Content */
 
 .modal-overlay {
@@ -182,8 +192,4 @@
     .plot-grid {
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
-}
-
-.MuiContainer-root {
-    width: 97%;
 }

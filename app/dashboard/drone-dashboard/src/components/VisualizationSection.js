@@ -1,22 +1,23 @@
 // src/components/VisualizationSection.js
+
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
 import Modal from './Modal';
-import { 
+import {
   Box,
   Typography,
   Card,
-  CardContent,
   CardHeader,
-  CardActions,
+  CardContent,
   Grid,
   LinearProgress,
   Button
 } from '@mui/material';
-import { 
+import {
   AccessTime as AccessTimeIcon,
-  Theaters as TheatersIcon
+  Theaters as TheatersIcon,
 } from '@mui/icons-material';
+import HeightIcon from '@mui/icons-material/Height'; // For altitude icon
 
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
@@ -24,13 +25,14 @@ const VisualizationSection = ({ uploadCount }) => {
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
   const [showDetails, setShowDetails] = useState({
     droneCount: 0,
     duration: null,
+    maxAltitude: null, // Initialize
   });
 
   const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-  console.log(`Backend URL: ${backendURL}`);
 
   useEffect(() => {
     const fetchShowData = async () => {
@@ -41,27 +43,26 @@ const VisualizationSection = ({ uploadCount }) => {
         const plotsResponse = await fetch(`${backendURL}/get-show-plots`);
         const plotsData = await plotsResponse.json();
 
-        if (plotsResponse.ok) {
-          const filenames = plotsData.filenames || [];
-          setPlots(filenames);
-
-          // Fetch show info
-          const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
-          const showInfoData = await showInfoResponse.json();
-
-          setShowDetails({
-            droneCount: showInfoData.drone_count,
-            duration: {
-              ms: showInfoData.duration_ms,
-              minutes: parseInt(showInfoData.duration_minutes),
-              seconds: parseInt(showInfoData.duration_seconds),
-            },
-            // If you add max_altitude to your backend, store it here:
-            // maxAltitude: showInfoData.max_altitude
-          });
-        } else {
+        if (!plotsResponse.ok) {
           throw new Error(plotsData.error || 'Failed to fetch plots');
         }
+
+        const filenames = plotsData.filenames || [];
+        setPlots(filenames);
+
+        // Fetch show info
+        const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
+        const showInfoData = await showInfoResponse.json();
+
+        setShowDetails({
+          droneCount: showInfoData.drone_count,
+          duration: {
+            ms: showInfoData.duration_ms,
+            minutes: parseInt(showInfoData.duration_minutes),
+            seconds: parseInt(showInfoData.duration_seconds),
+          },
+          maxAltitude: showInfoData.max_altitude, // Store altitude
+        });
       } catch (err) {
         console.error('Error fetching data:', err.message);
         setError(err.message);
@@ -105,9 +106,9 @@ const VisualizationSection = ({ uploadCount }) => {
         Drone Show Visualization
       </Typography>
 
-      {/* Show Details (Duration, Drone Count, etc.) */}
+      {/* Show Details (Duration, Drone Count, Max Altitude) */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card variant="outlined">
             <CardHeader 
               avatar={<AccessTimeIcon color="primary" fontSize="large" />} 
@@ -121,7 +122,7 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card variant="outlined">
             <CardHeader 
               avatar={<TheatersIcon color="secondary" fontSize="large" />} 
@@ -135,12 +136,11 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        {/* If you add max_altitude, you can place a card here */}
-        {/* 
-        <Grid item xs={12} sm={6}>
+        {/* New card for Maximum Altitude */}
+        <Grid item xs={12} sm={6} md={4}>
           <Card variant="outlined">
             <CardHeader
-              avatar={<HeightIcon color="primary" fontSize="large" />} 
+              avatar={<HeightIcon color="success" fontSize="large" />}
               title="Max Altitude"
             />
             <CardContent>
@@ -150,7 +150,6 @@ const VisualizationSection = ({ uploadCount }) => {
             </CardContent>
           </Card>
         </Grid>
-        */}
       </Grid>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -166,7 +165,7 @@ const VisualizationSection = ({ uploadCount }) => {
         .map((plot, index) => {
           const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
           return (
-            <Box 
+            <Box
               key={`combined-${index}`}
               className="plot-full-width clickable-image"
               onClick={() => openModal(0)}
