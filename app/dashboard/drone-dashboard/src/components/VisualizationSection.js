@@ -35,10 +35,9 @@ const VisualizationSection = ({ uploadCount }) => {
                 // Fetch plots
                 const plotsResponse = await fetch(`${backendURL}/get-show-plots`);
                 const plotsData = await plotsResponse.json();
-                
+
                 if (plotsResponse.ok) {
-                    const filteredPlots = plotsData.filenames || [];
-                    setPlots(filteredPlots);
+                    setPlots(plotsData.filenames || []);
 
                     // Fetch show info
                     const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
@@ -91,116 +90,116 @@ const VisualizationSection = ({ uploadCount }) => {
 
     return (
         <div className="visualization-section">
-    <h2>Drone Show Visualization</h2>
-    
-    {/* Show Details Cards */}
-    <Grid container spacing={2} sx={{ marginBottom: 2 }}>
-        <Grid item xs={12} sm={6}>
-            <Card variant="outlined">
-                <CardContent>
-                    <Grid container alignItems="center" spacing={2}>
-                        <Grid item>
-                            <AccessTimeIcon color="primary" fontSize="large" />
-                        </Grid>
-                        <Grid item xs>
-                            <Typography variant="subtitle1">Show Duration</Typography>
-                            <Typography variant="h6">
-                                {formatDuration()}
-                            </Typography>
-                        </Grid>
-                    </Grid>
-                </CardContent>
-            </Card>
-        </Grid>
-        <Grid item xs={12} sm={6}>
-            <Card variant="outlined">
-                <CardContent>
-                    <Grid container alignItems="center" spacing={2}>
-                        <Grid item>
-                            <TheatersIcon color="secondary" fontSize="large" />
-                        </Grid>
-                        <Grid item xs>
-                            <Typography variant="subtitle1">Drone Count</Typography>
-                            <Typography variant="h6">
-                                {showDetails.droneCount || 'N/A'}
-                            </Typography>
-                        </Grid>
-                    </Grid>
-                </CardContent>
-            </Card>
-        </Grid>
-    </Grid>
+            <h2>Drone Show Visualization</h2>
+            
+            {/* Show Details Cards */}
+            <Grid container spacing={2} sx={{ marginBottom: 2 }}>
+                <Grid item xs={12} sm={6}>
+                    <Card variant="outlined">
+                        <CardContent>
+                            <Grid container alignItems="center" spacing={2}>
+                                <Grid item>
+                                    <AccessTimeIcon color="primary" fontSize="large" />
+                                </Grid>
+                                <Grid item xs>
+                                    <Typography variant="subtitle1">Show Duration</Typography>
+                                    <Typography variant="h6">
+                                        {formatDuration()}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                    <Card variant="outlined">
+                        <CardContent>
+                            <Grid container alignItems="center" spacing={2}>
+                                <Grid item>
+                                    <TheatersIcon color="secondary" fontSize="large" />
+                                </Grid>
+                                <Grid item xs>
+                                    <Typography variant="subtitle1">Drone Count</Typography>
+                                    <Typography variant="h6">
+                                        {showDetails.droneCount || 'N/A'}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
 
-    {loading && <LinearProgress />}
-    {error && <Typography color="error">{error}</Typography>}
+            {loading && <LinearProgress />}
+            {error && <Typography color="error">{error}</Typography>}
 
-    <div>
-        {/* Combined Plot */}
-        {plots
-            .filter((name) => name === 'combined_drone_paths.png')
-            .map((plot, index) => (
-                <div
-                    key={index}
-                    className="plot-full-width clickable-image"
-                    onClick={() => openModal(index)}
-                >
-                    <img
-                        src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                        alt="All Drones"
-                        style={{ width: '100%' }}
-                    />
+            <div>
+                {/* Combined Plot */}
+                {plots
+                    .filter((name) => name === 'combined_drone_paths.png')
+                    .map((plot, index) => (
+                        <div
+                            key={`combined-${index}`}
+                            className="plot-full-width clickable-image"
+                            onClick={() => openModal(0)} // First modal index
+                        >
+                            <img
+                                src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
+                                alt="All Drones"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                    ))}
+
+                {/* Individual Plots */}
+                <div className="plot-grid">
+                    {plots
+                        .filter((name) => name !== 'combined_drone_paths.png')
+                        .map((plot, index) => (
+                            <div
+                                key={`individual-${index}`}
+                                className="plot clickable-image"
+                                onClick={() => openModal(index + 1)} // Offset index by 1 for modal
+                            >
+                                <img
+                                    src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
+                                    alt={`Plot ${index}`}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                        ))}
                 </div>
-            ))}
-
-        {/* Individual Plots */}
-        <div className="plot-grid">
-            {plots
-                .filter((name) => name !== 'combined_drone_paths.png')
-                .map((plot, index) => (
-                    <div
-                        key={index}
-                        className="plot clickable-image"
-                        onClick={() => openModal(index)}
-                    >
-                        <img
-                            src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                            alt={`Plot ${index}`}
-                        />
-                    </div>
-                ))}
-        </div>
-    </div>
-
-    {/* Modal for displaying the selected image */}
-    <Modal isOpen={isModalOpen} onClose={closeModal}>
-        {plots.length > 0 && (
-            <div className="modal-image-container">
-                <button 
-                    className="nav-button prev-button" 
-                    onClick={showPrevious}
-                    aria-label="Previous Image"
-                >
-                    &#10094;
-                </button>
-                <div className="modal-image-wrapper">
-                    <img
-                        src={`${backendURL}/get-show-plots/${encodeURIComponent(plots[currentIndex])}`}
-                        alt={`Plot ${currentIndex}`}
-                        className="modal-image"
-                    />
-                </div>
-                <button 
-                    className="nav-button next-button" 
-                    onClick={showNext}
-                    aria-label="Next Image"
-                >
-                    &#10095;
-                </button>
             </div>
-        )}
-    </Modal>
-</div>
 
+            {/* Modal for displaying the selected image */}
+            <Modal isOpen={isModalOpen} onClose={closeModal}>
+                {plots.length > 0 && (
+                    <div className="modal-image-container">
+                        <button 
+                            className="nav-button prev-button" 
+                            onClick={showPrevious}
+                            aria-label="Previous Image"
+                        >
+                            &#10094;
+                        </button>
+                        <div className="modal-image-wrapper">
+                            <img
+                                src={`${backendURL}/get-show-plots/${encodeURIComponent(plots[currentIndex])}`}
+                                alt={`Plot ${currentIndex}`}
+                                className="modal-image"
+                            />
+                        </div>
+                        <button 
+                            className="nav-button next-button" 
+                            onClick={showNext}
+                            aria-label="Next Image"
+                        >
+                            &#10095;
+                        </button>
+                    </div>
+                )}
+            </Modal>
+        </div>
     );
 };
 
