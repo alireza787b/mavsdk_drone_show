@@ -3,13 +3,13 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 def setup_matplotlib_style():
     """
     Configure global Matplotlib styling for professional visualizations.
     """
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')  # Updated style name
     plt.rcParams.update({
         'font.family': 'Arial',
         'font.size': 12,
@@ -72,6 +72,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     """
     # Setup logging and matplotlib
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
     if high_quality:
         setup_matplotlib_style()
 
@@ -82,6 +83,11 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
 
     # Collect processed files
     processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
+    
+    if not processed_files:
+        logging.warning("No processed CSV files found in the specified directory.")
+        return
+
     num_drones = len(processed_files)
     colormap = plt.cm.get_cmap('viridis', num_drones)
 
@@ -121,6 +127,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         
         if show_plots:
             plt.show()
+        
         plt.close(fig)
 
     # Combined plot with computed limits
@@ -128,6 +135,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     ax_combined = fig_combined.add_subplot(111, projection='3d')
     
     plot_limits = compute_plot_limits(drone_data)
+    
     ax_combined.set_xlim(plot_limits[0], plot_limits[1])
     ax_combined.set_ylim(plot_limits[2], plot_limits[3])
     ax_combined.set_zlim(plot_limits[4], plot_limits[5])
@@ -148,9 +156,11 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     ax_combined.set_xlabel('East (m)', fontweight='bold')
     ax_combined.set_ylabel('North (m)', fontweight='bold')
     ax_combined.set_zlabel('Altitude (m)', fontweight='bold')
+    
     ax_combined.legend(loc='best', title='Drone IDs')
     
     plt.tight_layout()
+    
     plt.savefig(os.path.join(plots_dir, 'combined_drone_paths.png'), dpi=300)
     
     if show_plots:
