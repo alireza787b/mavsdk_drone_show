@@ -14,7 +14,7 @@ class DroneSetup:
     """
     DroneSetup manages the execution of drone missions (like drone shows, takeoff, landing, etc.) by handling mission scripts.
     - Ensures only one mission runs at a time (can terminate existing if needed).
-    - Waits for mission scripts to fully complete before resetting mission/state.
+    - Can interrupt an existing mission script if a new command arrives (emergency override).
     - Logs success/failure with detailed info.
     - Checks for the existence of executer scripts and handles missing parameters gracefully.
     """
@@ -31,7 +31,10 @@ class DroneSetup:
         self.drone_config = drone_config
         self.last_logged_mission = None
         self.last_logged_state = None
-        self.running_processes = {}  # {script_name: process}
+
+        # Tracks the currently running processes {script_name: process}
+        # We'll manage them asynchronously, so a new command can kill them anytime.
+        self.running_processes = {}
         self.process_lock = asyncio.Lock()
 
         self._validate_params()
@@ -55,7 +58,6 @@ class DroneSetup:
             Mission.UPDATE_CODE.value: self._execute_update_code,
             Mission.INIT_SYSID.value: self._execute_init_sysid,
             Mission.APPLY_COMMON_PARAMS.value: self._execute_apply_common_params,
-
         }
 
     def _validate_params(self):
@@ -117,6 +119,10 @@ class DroneSetup:
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', script_name)
 
     async def terminate_all_running_processes(self):
+        """
+        Forcibly stops all currently running mission scripts.
+        Useful for emergency overrides (e.g., new land command).
+        """
         async with self.process_lock:
             for script_name, process in list(self.running_processes.items()):
                 if process.returncode is None:
@@ -130,11 +136,19 @@ class DroneSetup:
                         process.kill()
                         await process.wait()
                         logger.info(f"Process '{script_name}' killed forcefully.")
+
+                    # If we forcibly killed the script, we might want to mark the mission as "failed"
+                    # so the system is in a safe default state. 
+                    self._reset_mission_state(success=False)
                 else:
                     logger.debug(f"Process '{script_name}' already ended.")
             self.running_processes.clear()
 
     async def execute_mission_script(self, script_name: str, action: str) -> tuple:
+        """
+        Launches a mission script asynchronously (so it won't block new commands).
+        A background task `_monitor_script_process` will watch its completion.
+        """
         async with self.process_lock:
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
@@ -146,7 +160,7 @@ class DroneSetup:
                 return False, f"Script '{script_name}' not found."
 
             command = [python_exec_path, script_path] + action.split()
-            logger.info(f"Executing mission script: {' '.join(command)}")
+            logger.info(f"Executing mission script asynchronously: {' '.join(command)}")
 
             try:
                 process = await asyncio.create_subprocess_exec(
@@ -156,40 +170,64 @@ class DroneSetup:
                 )
                 self.running_processes[script_name] = process
 
-                stdout, stderr = await process.communicate()
-                del self.running_processes[script_name]
+                # Create a background task that monitors this script's completion
+                asyncio.create_task(self._monitor_script_process(script_name, process))
 
-                return_code = process.returncode
-                stdout_str = stdout.decode().strip() if stdout else ""
-                stderr_str = stderr.decode().strip() if stderr else ""
-
-                if return_code == 0:
-                    logger.info(f"Mission script '{script_name}' completed successfully. Output: {stdout_str}")
-                    self._reset_mission_state(success=True)
-                    return True, "Mission script completed successfully."
-                else:
-                    logger.error(
-                        f"Mission script '{script_name}' failed with return code {return_code}. "
-                        f"Stderr: {stderr_str}"
-                    )
-                    self._reset_mission_state(success=False)
-                    return False, f"Mission script error: {stderr_str if stderr_str else 'Unknown error'}"
+                # Return immediately - do NOT block on process.communicate()
+                return True, f"Started mission script '{script_name}' asynchronously."
             except Exception as e:
                 logger.error(f"Exception running '{script_name}': {e}", exc_info=True)
                 self._reset_mission_state(success=False)
                 return False, f"Exception: {str(e)}"
 
+    async def _monitor_script_process(self, script_name: str, process: asyncio.subprocess.Process):
+        """
+        Monitors the lifetime of the subprocess for a given script.
+        Cleans up upon completion, sets mission state accordingly.
+        """
+        try:
+            stdout, stderr = await process.communicate()
+            return_code = process.returncode
+            stdout_str = stdout.decode().strip() if stdout else ""
+            stderr_str = stderr.decode().strip() if stderr else ""
+
+            # Remove from running processes
+            async with self.process_lock:
+                if script_name in self.running_processes:
+                    del self.running_processes[script_name]
+
+            if return_code == 0:
+                logger.info(f"Mission script '{script_name}' completed successfully. Output: {stdout_str}")
+                self._reset_mission_state(success=True)
+            else:
+                logger.error(
+                    f"Mission script '{script_name}' failed with return code {return_code}. "
+                    f"Stderr: {stderr_str}"
+                )
+                self._reset_mission_state(success=False)
+        except Exception as e:
+            # If there's an exception while waiting, treat it as mission failure
+            logger.error(f"Exception in _monitor_script_process for '{script_name}': {e}", exc_info=True)
+            self._reset_mission_state(success=False)
+            async with self.process_lock:
+                if script_name in self.running_processes:
+                    del self.running_processes[script_name]
+
     def _reset_mission_state(self, success: bool):
         """
-        Reset the mission and state after script completion. For now, both success and failure 
-        lead to setting mission=NONE and state=IDLE. This ensures the system is stable for the next mission.
+        Reset the mission and state after script completion or forced kill.
+        Both success and failure lead to setting mission=NONE and state=IDLE.
         """
-        logger.info(f"Resetting mission state after script completion. Success={success}")
+        logger.info(f"Resetting mission state. Success={success}")
         self.drone_config.mission = Mission.NONE.value
         self.drone_config.state = State.IDLE.value
         self._log_mission_result(success, "Mission finished." if success else "Mission failed.")
 
     def check_running_processes(self):
+        """
+        Debug helper to see if any processes ended unexpectedly.
+        If a process ended, we remove it from the dictionary.
+        """
         for script_name, process in list(self.running_processes.items()):
             if process.returncode is not None:
                 logger.warning(f"Process '{script_name}' ended unexpectedly with code {process.returncode}.")
@@ -213,6 +251,10 @@ class DroneSetup:
             logger.error(f"Error during time synchronization: {e}")
 
     async def schedule_mission(self):
+        """
+        Called periodically from coordinator to see if we should start a mission 
+        or handle the one currently set in self.drone_config.
+        """
         current_time = int(time.time())
         try:
             trigger_time = int(self.drone_config.trigger_time)
@@ -224,7 +266,8 @@ class DroneSetup:
 
         logger.info(
             f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
-            f"Mission: {Mission(self.drone_config.mission).name}, State: {State(self.drone_config.state).name}"
+            f"Mission: {Mission(self.drone_config.mission).name}, "
+            f"State: {State(self.drone_config.state).name}"
         )
 
         try:
@@ -243,7 +286,6 @@ class DroneSetup:
         return False, "Unknown mission code."
 
     async def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
-        # Check conditions and parameters
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
             self.drone_config.state = 2
             real_trigger_time = self.drone_config.trigger_time
@@ -371,25 +413,12 @@ class DroneSetup:
         logger.info(f"Starting Update Code Mission with branch '{branch_name}'")
         action_command = f"--action=update_code --branch={branch_name}"
         return await self.execute_mission_script("actions.py", action_command)
-    
+
     async def _execute_init_sysid(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
-        """
-        Starts the mission to initialize system ID based on .hwID file
-        and reboot the FC using --action=init_sysid in actions.py.
-        """
         logger.info("Starting Init SysID Mission")
-
-        # If desired, check if we're in the correct state/time:
-        # if self.drone_config.state == 1 and (current_time or time.time()) >= (earlier_trigger_time or 0):
-        #     self.drone_config.state = 2
-
         return await self.execute_mission_script("actions.py", "--action=init_sysid")
 
     async def _execute_apply_common_params(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
-        """
-        Starts the mission to apply the common_params.csv from actions.py.
-        Optionally reboots the flight controller if a flag is set.
-        """
         logger.info("Starting Apply Common Params Mission")
 
         reboot_after = getattr(self.drone_config, "reboot_after_params", False)
@@ -400,7 +429,6 @@ class DroneSetup:
         return await self.execute_mission_script("actions.py", action_args)
 
     def _log_mission_result(self, success: bool, message: str):
-        # Only log if mission or state changed
         if (self.last_logged_mission != self.drone_config.mission) or (self.last_logged_state != self.drone_config.state):
             if message:
                 if success:
