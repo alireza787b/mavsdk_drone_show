@@ -1,3 +1,4 @@
+// src/components/DronePositionMap.js
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
@@ -17,11 +18,10 @@ L.Icon.Default.mergeOptions({
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const DronePositionMap = ({ originLat, originLon, drones }) => {
+const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) => {
   const [dronePositions, setDronePositions] = useState([]);
 
   useEffect(() => {
-    // Helper function to check if a value is a valid number
     const isValidNumber = (value) => !isNaN(value) && isFinite(value);
 
     if (originLat && originLon && drones.length > 0) {
@@ -35,48 +35,70 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
 
       const origin = new LatLon(parsedOriginLat, parsedOriginLon);
 
-      const positions = drones.map((drone) => {
-        const x = parseFloat(drone.x);
-        const y = parseFloat(drone.y);
+      const positions = drones
+        .map((drone) => {
+          const x = parseFloat(drone.x); // north
+          const y = parseFloat(drone.y); // east
+          if (!isValidNumber(x) || !isValidNumber(y)) {
+            console.error(`Invalid drone coords for hw_id=${drone.hw_id}:`, { x, y });
+            return null;
+          }
 
-        if (!isValidNumber(x) || !isValidNumber(y)) {
-          console.error(`Invalid drone coordinates for drone ${drone.hw_id}:`, { x, y });
-          return null; // Skip this drone
-        }
+          // Distance in meters from origin
+          const distance = Math.sqrt(x * x + y * y);
 
-        const distance = Math.sqrt(x * x + y * y); // Ensure distance is in meters
-        const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+          // Base bearing from origin if heading=0 (y -> east, x -> north):
+          //   bearing = atan2(east, north) in degrees
+          //   Typically we do: bearing = atan2(Y, X) => range [-180..180]
+          let rawBearingDeg = (Math.atan2(y, x) * 180) / Math.PI; // east=90°, north=0
+          // Convert to 0..360 range
+          if (rawBearingDeg < 0) {
+            rawBearingDeg += 360;
+          }
 
-        // Validate distance and bearing
-        if (!isValidNumber(distance) || !isValidNumber(bearing)) {
-          console.error(`Invalid distance or bearing for drone ${drone.hw_id}:`, { distance, bearing });
-          return null; // Skip this drone
-        }
+          // Now incorporate the forward heading offset
+          // So if heading=90 => forward heading is east => shift bearing by +90
+          let finalBearing = rawBearingDeg + forwardHeading;
+          finalBearing %= 360;
 
-        let destination;
-        try {
-          destination = origin.destinationPoint(distance, bearing);
-        } catch (error) {
-          console.error(`Error calculating destination for drone ${drone.hw_id}:`, error);
-          return null; // Skip this drone
-        }
+          let destination;
+          try {
+            // Move 'distance' meters at 'finalBearing' from the origin
+            destination = origin.destinationPoint(distance, finalBearing);
+          } catch (error) {
+            console.error(
+              `Error calculating destination for drone hw_id=${drone.hw_id}:`,
+              error
+            );
+            return null;
+          }
 
-        if (!destination || !isValidNumber(destination.lat) || !isValidNumber(destination.lon)) {
-          console.error(`Invalid destination coordinates for drone ${drone.hw_id}:`, destination);
-          return null; // Skip this drone
-        }
+          if (
+            !destination ||
+            !isValidNumber(destination.lat) ||
+            !isValidNumber(destination.lon)
+          ) {
+            console.error(
+              `Invalid destination coords for drone hw_id=${drone.hw_id}:`,
+              destination
+            );
+            return null;
+          }
 
-        return {
-          hw_id: drone.hw_id,
-          pos_id: drone.pos_id,
-          lat: destination.lat,
-          lon: destination.lon,
-        };
-      }).filter(position => position !== null); // Remove any null entries
+          return {
+            hw_id: drone.hw_id,
+            pos_id: drone.pos_id,
+            lat: destination.lat,
+            lon: destination.lon,
+          };
+        })
+        .filter((pos) => pos !== null);
 
       setDronePositions(positions);
+    } else {
+      setDronePositions([]);
     }
-  }, [originLat, originLon, drones]);
+  }, [originLat, originLon, drones, forwardHeading]);
 
   if (!originLat || !originLon) {
     return <p>Please set the origin coordinates to view the drone positions on the map.</p>;
@@ -86,10 +108,9 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
     return <p>No drone positions available to display on the map.</p>;
   }
 
-  const avgLat =
-    dronePositions.reduce((sum, drone) => sum + drone.lat, 0) / dronePositions.length;
-  const avgLon =
-    dronePositions.reduce((sum, drone) => sum + drone.lon, 0) / dronePositions.length;
+  // Compute center
+  const avgLat = dronePositions.reduce((sum, d) => sum + d.lat, 0) / dronePositions.length;
+  const avgLon = dronePositions.reduce((sum, d) => sum + d.lon, 0) / dronePositions.length;
 
   const createCustomIcon = (pos_id) => {
     return L.divIcon({
@@ -102,40 +123,19 @@ const DronePositionMap = ({ originLat, originLon, drones }) => {
 
   return (
     <div className="drone-position-map">
-      <h3>Drone Positions on Map</h3>
-      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} scrollWheelZoom >
-
+      <h3>Drone Positions on Map (Heading = {forwardHeading}°)</h3>
+      <MapContainer center={[avgLat, avgLon]} zoom={16} maxZoom={22} scrollWheelZoom>
         <LayersControl position="topright">
-          <LayersControl.BaseLayer name="OpenStreetMap">
-            <TileLayer
-              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          </LayersControl.BaseLayer>
-
-          <LayersControl.BaseLayer name="OpenTopoMap">
-            <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenTopoMap"
-            />
-          </LayersControl.BaseLayer>
-
-          {/*
-            "Google Satellite" is tricky, as official direct tiles from Google 
-            are behind paywalls or usage restrictions. We'll use a known 
-            'gdal2tiles' style server or fallback to an alternative satellite provider.
-          */}
-          <LayersControl.BaseLayer checked name="Satellite (gdal2tiles)">
+          <BaseLayer checked name="Satellite">
             <TileLayer
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               attribution="&copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
             />
-          </LayersControl.BaseLayer>
-          <BaseLayer name="Google Satellite" checked>
+          </BaseLayer>
+          <BaseLayer name="OpenStreetMap">
             <TileLayer
-              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-              attribution="Map data &copy; Google"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://osm.org/copyright">OSM</a>'
             />
           </BaseLayer>
         </LayersControl>

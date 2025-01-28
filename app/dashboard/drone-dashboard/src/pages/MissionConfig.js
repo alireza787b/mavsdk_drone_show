@@ -27,6 +27,11 @@ import { getBackendURL } from '../utilities/utilities';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
+  // Heading slider: single source of truth
+  // -----------------------------------------------------
+  const [forwardHeading, setForwardHeading] = useState(0);
+
+  // -----------------------------------------------------
   // State variables
   // -----------------------------------------------------
   const [configData, setConfigData] = useState([]);
@@ -54,37 +59,14 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Data Fetching using custom hooks
   // -----------------------------------------------------
-  const {
-    data: configDataFetched,
-  } = useFetch('/get-config-data');
-
-  const {
-    data: originDataFetched,
-  } = useFetch('/get-origin');
-
-  const {
-    data: deviationDataFetched,
-  } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
-
-  const {
-    data: telemetryDataFetched,
-  } = useFetch('/telemetry', 2000);
-
-  const {
-    data: gcsGitStatusFetched,
-  } = useFetch('/get-gcs-git-status', 30000);
-
-  const {
-    data: gitStatusDataFetched,
-  } = useFetch('/git-status', 20000);
-
-  const {
-    data: networkInfoFetched,
-  } = useFetch('/get-network-info', 10000);
-
-  const {
-    data: heartbeatsFetched,
-  } = useFetch('/get-heartbeats', 5000);
+  const { data: configDataFetched } = useFetch('/get-config-data');
+  const { data: originDataFetched } = useFetch('/get-origin');
+  const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
+  const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
+  const { data: gcsGitStatusFetched } = useFetch('/get-gcs-git-status', 30000);
+  const { data: gitStatusDataFetched } = useFetch('/git-status', 20000);
+  const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
+  const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
 
   // -----------------------------------------------------
   // Derived Data & Helpers
@@ -97,8 +79,7 @@ const MissionConfig = () => {
   }, {});
 
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
-  const maxHwId =
-    Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
   const availableHwIds = Array.from(
     { length: maxHwId },
     (_, i) => (i + 1).toString()
@@ -334,6 +315,41 @@ const MissionConfig = () => {
         />
       )}
 
+      <MissionLayout
+        configData={configData}
+        origin={origin}
+        openOriginModal={() => setShowOriginModal(true)}
+      />
+
+      {/* 
+        --------------------------------------------------------
+         Heading Slider: Shared for both plots
+        --------------------------------------------------------
+      */}
+      <div style={{ margin: '1rem 0' }}>
+        <label htmlFor="headingSlider" style={{ marginRight: '10px' }}>
+          Forward Heading (°): {forwardHeading}
+        </label>
+        <input
+          id="headingSlider"
+          type="range"
+          min={0}
+          max={359}
+          value={forwardHeading}
+          onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
+          style={{ width: '50%' }}
+        />
+        <button
+          style={{ marginLeft: '20px' }}
+          onClick={() => {
+            // Example placeholder for saving heading to server
+            toast.info(`TODO: Save heading=${forwardHeading} to server (placeholder).`);
+          }}
+        >
+          Save Heading to Server
+        </button>
+      </div>
+
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
         <div className="drone-cards">
@@ -361,20 +377,26 @@ const MissionConfig = () => {
         </div>
 
         <div className="initial-launch-plot">
-          <MissionLayout
-            configData={configData}
-            origin={origin}
-            openOriginModal={() => setShowOriginModal(true)}
-          />
+          {/* 
+            Plotly-based top-down drone layout 
+            with real-time heading rotation 
+          */}
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}
             deviationData={deviationData}
+            forwardHeading={forwardHeading}  // <-- Pass heading here
           />
+
+          {/* 
+            Leaflet-based map for real-world lat/lon display 
+            that also uses the heading to adjust bearing 
+          */}
           <DronePositionMap
             originLat={origin.lat}
             originLon={origin.lon}
             drones={configData}
+            forwardHeading={forwardHeading}  // <-- Pass heading here
           />
         </div>
       </div>
