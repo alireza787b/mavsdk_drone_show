@@ -31,10 +31,12 @@ root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if Params.sim_mode:
     plots_directory = os.path.join(BASE_DIR, 'shapes_sitl/swarm/plots')
     skybrush_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/skybrush')
+    processed_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/processed')
     shapes_dir = os.path.join(BASE_DIR, 'shapes_sitl')
 else:
     plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
     skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
+    processed_dir = os.path.join(BASE_DIR, 'shapes/swarm/processed')
     shapes_dir = os.path.join(BASE_DIR, 'shapes')
 
 sys.path.append(BASE_DIR)
@@ -240,8 +242,12 @@ def setup_routes(app):
     @app.route('/import-show', methods=['POST'])
     def import_show():
         """
-        Endpoint to handle the uploading and processing of drone show files,
-        saves the uploaded files, processes them, and optionally pushes changes to a Git repository.
+        Endpoint to handle the uploading and processing of drone show files:
+          1) Clears the SITL or real show directories (depending on sim_mode).
+          2) Saves the uploaded zip.
+          3) Extracts it into the correct skybrush_dir.
+          4) Calls run_formation_process.
+          5) Optionally pushes changes to Git.
         """
         logger.info("Show import requested")
         file = request.files.get('file')
@@ -250,18 +256,25 @@ def setup_routes(app):
             return error_response('No file part or empty filename', 400)
 
         try:
+            # 1) Clear the correct SITL/real show directories
             clear_show_directories(BASE_DIR)
+
+            # 2) Save the uploaded zip into a temp folder
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
+            os.makedirs(os.path.dirname(zip_path), exist_ok=True)
             file.save(zip_path)
+
+            # 3) Extract the zip into the correct skybrush folder
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
 
-            # Debug log before processing
+            # 4) Process formation
             logger.debug(f"Starting process formation for files in {skybrush_dir}")
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
+            # 5) Optionally do Git commit/push
             if Params.GIT_AUTO_PUSH:
                 logger.info("Git auto-push is enabled. Attempting to push show changes to repository.")
                 git_result = git_operations(
@@ -280,6 +293,7 @@ def setup_routes(app):
         except Exception as e:
             return error_response(f"Unexpected error during show import: {traceback.format_exc()}")
 
+
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
         try:
@@ -291,7 +305,7 @@ def setup_routes(app):
     @app.route('/download-processed-show', methods=['GET'])
     def download_processed_show():
         try:
-            zip_file = zip_directory(skybrush_dir, os.path.join(BASE_DIR, 'temp/processed_show'))
+            zip_file = zip_directory(processed_dir, os.path.join(BASE_DIR, 'temp/processed_show'))
             return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
         except Exception as e:
             return error_response(f"Error creating processed show zip: {e}")
