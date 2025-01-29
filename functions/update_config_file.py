@@ -1,4 +1,3 @@
-# functions/update_config_file.py
 import pandas as pd
 import os
 import re
@@ -7,66 +6,64 @@ from functions.file_management import ensure_directory_exists, setup_logging
 
 def update_config_file(skybrush_dir, config_file):
     """
-    Update configuration file with the initial positions from drone CSV files.
+    Update the SITL or real config file with initial positions from 
+    each 'DroneX.csv' in the given skybrush_dir.
     
-    The function reads all CSV files in 'skybrush_dir' that match the pattern 
-    Drone<number>.csv (e.g. Drone1.csv). For each matching drone, it extracts
-    the first x and y positions and updates them in the config CSV file.
-
-    Args:
-        skybrush_dir (str): Directory containing the original drone CSV files
-        config_file (str): Path to the config CSV file
+    If SITL -> config_file is 'config_sitl.csv',
+    otherwise -> 'config.csv'.
     """
     setup_logging()
-    logging.info("Starting update of the config file...")
+    logging.info(f"[update_config_file] Reading from {skybrush_dir} and updating {config_file}...")
 
-    # Ensure the directory exists
     ensure_directory_exists(skybrush_dir)
+
+    # If config_file does not exist, let's just create an empty one
+    if not os.path.exists(config_file):
+        logging.warning(f"No config file found at {config_file}; creating an empty one.")
+        open(config_file, 'a').close()
 
     try:
         config_df = pd.read_csv(config_file)
+    except pd.errors.EmptyDataError:
+        # If it's empty, create basic structure
+        logging.warning("Config file is empty. Initializing with columns: pos_id, x, y")
+        config_df = pd.DataFrame(columns=['pos_id','x','y'])
 
-        # Regex to match Drone1.csv, Drone2.csv, etc.
-        drone_file_pattern = re.compile(r'^Drone(\d+)\.csv$')
+    drone_file_pattern = re.compile(r'^Drone(\d+)\.csv$')
 
-        # Process relevant CSV files
-        for filename in os.listdir(skybrush_dir):
-            match = drone_file_pattern.match(filename)
-            if match:
-                drone_id = int(match.group(1))
-                filepath = os.path.join(skybrush_dir, filename)
-                try:
-                    df = pd.read_csv(filepath)
+    # For each Drone<number>.csv, update config
+    for filename in os.listdir(skybrush_dir):
+        match = drone_file_pattern.match(filename)
+        if match:
+            drone_id = int(match.group(1))
+            filepath = os.path.join(skybrush_dir, filename)
+            try:
+                df = pd.read_csv(filepath)
 
-                    # Extract initial x and y
-                    initial_x = df.loc[0, 'x [m]']
-                    initial_y = df.loc[0, 'y [m]']
+                initial_x = df.loc[0, 'x [m]']
+                initial_y = df.loc[0, 'y [m]']
 
-                    # Update config dataframe
-                    config_df.loc[config_df['pos_id'] == drone_id, ['x', 'y']] = [initial_x, initial_y]
-                    logging.info(f"Updated position for Drone {drone_id}")
+                # If this pos_id doesn't exist in config, add a new row.
+                if not (config_df['pos_id'] == drone_id).any():
+                    config_df = config_df.append(
+                        {'pos_id': drone_id, 'x': initial_x, 'y': initial_y},
+                        ignore_index=True
+                    )
+                else:
+                    # Otherwise update existing
+                    config_df.loc[config_df['pos_id'] == drone_id, ['x','y']] = [initial_x, initial_y]
+                logging.info(f"Updated Drone {drone_id} => x={initial_x}, y={initial_y}")
 
-                except (KeyError, ValueError, IndexError) as e:
-                    logging.warning(f"Skipping {filename}: {e}")
-                except Exception as e:
-                    logging.error(f"Error processing {filename}: {e}")
+            except (KeyError, ValueError, IndexError) as e:
+                logging.warning(f"Skipping {filename}: {e}")
+            except Exception as e:
+                logging.error(f"Error processing {filename}: {e}")
 
-        # Save updated config
-        config_df.to_csv(config_file, index=False)
-        logging.info(f"Config file updated: {config_file}")
-
-    except Exception as e:
-        logging.error(f"Failed to update config file: {e}")
-        raise
+    config_df.to_csv(config_file, index=False)
+    logging.info(f"[update_config_file] Successfully updated {config_file}")
 
 if __name__ == "__main__":
-    """
-    Example usage for SITL/real modes. Typically triggered by process_formation.py.
-    """
-    from src.params import Params
-
-    base_dir = "/root/mavsdk_drone_show"
-    base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
-    skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
-    config_file = os.path.join(base_dir, "config.csv")  # or param-based
-    update_config_file(skybrush_dir, config_file)
+    # Basic test usage
+    test_skybrush = "./some_temp_skybrush"
+    test_config = "./config_sitl.csv"
+    update_config_file(test_skybrush, test_config)
