@@ -6,7 +6,7 @@ from scipy.signal import savgol_filter
 from functions.file_management import ensure_directory_exists, clear_directory, setup_logging
 import logging
 import os
-from typing import Optional, Union, List, Tuple
+from typing import Optional, List
 
 def validate_drone_data(df: pd.DataFrame) -> bool:
     """
@@ -33,6 +33,10 @@ def smooth_trajectory(data: np.ndarray, window_length: int = 11, poly_order: int
     Returns:
         np.ndarray: Smoothed trajectory data
     """
+    # Ensure window_length doesn't exceed data length
+    window_length = min(window_length, len(data)) if len(data) > 1 else 3
+    if window_length % 2 == 0:
+        window_length += 1  # make it odd if needed
     return savgol_filter(data, window_length, poly_order)
 
 def process_drone_files(
@@ -46,9 +50,9 @@ def process_drone_files(
     Process drone files with advanced trajectory generation.
     
     Args:
-        skybrush_dir (str): Source directory for drone files
+        skybrush_dir (str): Source directory for drone CSV files
         processed_dir (str): Destination directory for processed files
-        method (str): Interpolation method ('cubic', 'akima')
+        method (str): Interpolation method ('cubic', 'akima', 'linear')
         dt (float): Time step for resampling
         smoothing (bool): Apply trajectory smoothing
     
@@ -88,33 +92,33 @@ def process_drone_files(
             # Normalize time to seconds
             x = df['Time [msec]'] / 1000
             
-            # Adjust Z axis (if needed)
+            # Flip Z if necessary
             df['z [m]'] *= -1
 
-            # Interpolate trajectories
+            # Prepare interpolators
             cs_pos = Interpolator(x, df[['x [m]', 'y [m]', 'z [m]']])
             cs_led = Interpolator(x, df[['Red', 'Green', 'Blue']])
 
             # Generate new time points
             t_new = np.arange(0, x.iloc[-1], dt)
             
-            # Compute trajectories
+            # Compute positions, velocities, accelerations, LED colors
             pos_new = cs_pos(t_new)
             vel_new = cs_pos.derivative()(t_new)
             acc_new = cs_pos.derivative().derivative()(t_new)
             led_new = cs_led(t_new)
 
-            # Optional smoothing
-            if smoothing:
-                pos_new = np.array([
+            # Smoothing if enabled
+            if smoothing and len(t_new) > 2:
+                pos_new = np.column_stack([
                     smooth_trajectory(pos_new[:, 0]),
                     smooth_trajectory(pos_new[:, 1]),
                     smooth_trajectory(pos_new[:, 2])
-                ]).T
+                ])
                 vel_new = np.gradient(pos_new, dt, axis=0)
                 acc_new = np.gradient(vel_new, dt, axis=0)
 
-            # Prepare processed data
+            # Construct output DataFrame
             data = {
                 'idx': np.arange(len(t_new)),
                 't': t_new,
@@ -127,8 +131,8 @@ def process_drone_files(
                 'ax': acc_new[:, 0],
                 'ay': acc_new[:, 1],
                 'az': acc_new[:, 2],
-                'yaw': np.zeros_like(t_new),  # Placeholder
-                'mode': np.full_like(t_new, 70),  # Placeholder
+                'yaw': np.zeros_like(t_new),        # placeholder
+                'mode': np.full_like(t_new, 70),    # placeholder
                 'ledr': led_new[:, 0],
                 'ledg': led_new[:, 1],
                 'ledb': led_new[:, 2],
@@ -143,13 +147,22 @@ def process_drone_files(
             logging.info(f"Processed file saved: {new_filepath}")
 
         except Exception as e:
-            logging.error(f"Error processing {filename}: {e}")
+            logging.error(f"Error processing {filename}: {e}", exc_info=True)
 
     logging.info(f"Processed {len(processed_files)} drone files.")
     return processed_files
 
 if __name__ == "__main__":
-    # Example usage
-    skybrush_dir = "/root/mavsdk_drone_show/shapes/swarm/skybrush"
-    processed_dir = "/root/mavsdk_drone_show/shapes/swarm/processed"
+    """
+    Example usage to demonstrate SITL/real switching.
+    You could run this file standalone for testing, 
+    but typically it's called via process_formation.py.
+    """
+    from src.params import Params
+
+    base_dir = "/root/mavsdk_drone_show"
+    base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
+    skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
+    processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
+
     process_drone_files(skybrush_dir, processed_dir)

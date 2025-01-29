@@ -1,11 +1,9 @@
 # process_formation.py
-# Use python process_formation --r for manual execution
 import logging
 import argparse
 import os
 import sys
-from typing import Optional, List
-
+from typing import Optional
 from functions.plot_drone_paths import plot_drone_paths
 from functions.process_drone_files import process_drone_files
 from functions.update_config_file import update_config_file
@@ -29,22 +27,23 @@ def setup_logging(log_level: int = logging.INFO) -> None:
 
 def get_swarm_directory(base_dir: str) -> tuple[str, str]:
     """
-    Determine the correct swarm directories based on simulation mode.
-    
+    Determine the correct swarm directories (skybrush/processed) 
+    based on simulation mode.
+
     Args:
         base_dir (str): Base directory for processing
     
     Returns:
-        tuple: (skybrush_dir, processed_dir) paths
+        tuple[str, str]: (skybrush_dir, processed_dir) 
+            - SITL -> shapes_sitl/swarm/skybrush, shapes_sitl/swarm/processed
+            - real -> shapes/swarm/skybrush, shapes/swarm/processed
     
     Raises:
         ValueError: If required directories do not exist
     """
-    # Determine directory structure based on simulation mode
     mode = "SITL" if Params.sim_mode else "real"
     base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
     
-    # Construct directory paths
     skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
     processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
     
@@ -57,13 +56,28 @@ def get_swarm_directory(base_dir: str) -> tuple[str, str]:
     
     return skybrush_dir, processed_dir
 
+def get_plots_directory(base_dir: str) -> str:
+    """
+    Return the correct 'plots' directory based on simulation mode.
+
+    Args:
+        base_dir (str): Base directory
+
+    Returns:
+        str: Full path to the 'plots' directory
+    """
+    base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
+    plots_dir = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+    return plots_dir
+
 def run_formation_process(base_dir: Optional[str] = None) -> str:
     """
-    Execute drone formation processing workflow with mode awareness.
-    
+    Execute the entire drone formation processing workflow, 
+    selecting SITL or real mode automatically.
+
     Args:
         base_dir (Optional[str]): Base directory for processing. 
-                                  Defaults to current working directory.
+            Defaults to current working directory.
     
     Returns:
         str: Processing result message
@@ -73,24 +87,34 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
     logging.info(f"Operating in {'SITL' if Params.sim_mode else 'real'} mode")
 
     try:
-        # Set base directory
+        # Determine the base directory
         base_dir = base_dir or os.getcwd()
         logging.debug(f"Using base directory: {base_dir}")
 
-        # Validate and get directories
+        # Get relevant directories
         skybrush_dir, processed_dir = get_swarm_directory(base_dir)
         logging.info(f"Using skybrush directory: {skybrush_dir}")
         logging.info(f"Using processed directory: {processed_dir}")
 
-        # Configure paths
         config_file = os.path.join(base_dir, Params.config_csv_name)
         logging.debug(f"Using config file: {config_file}")
 
-        # Execute processing pipeline
-        process_drone_files(skybrush_dir, processed_dir, 'cubic', 0.05)
+        # 1) Process drone files
+        process_drone_files(
+            skybrush_dir=skybrush_dir, 
+            processed_dir=processed_dir, 
+            method='cubic', 
+            dt=0.05
+        )
+
+        # 2) Update config file with initial positions
         update_config_file(skybrush_dir, config_file)
-        plot_drone_paths(base_dir, show_plot=False)
-        
+
+        # 3) Generate and save plots
+        #   plot_drone_paths will automatically detect SITL vs. real
+        #   and pick the correct processed/plots folder.
+        plot_drone_paths(base_dir, show_plots=False)
+
         logging.info("Processing complete!")
         return "Processing completed successfully!"
 
@@ -100,7 +124,7 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
 
 def main():
     """
-    Command-line interface for drone formation processing with mode awareness.
+    Command-line interface for drone formation processing with SITL/real mode support.
     """
     parser = argparse.ArgumentParser(
         description="Process drone formation data with SITL/real mode support"
@@ -124,7 +148,6 @@ def main():
     args = parser.parse_args()
 
     if args.run:
-        # Configure debug logging if requested
         log_level = logging.DEBUG if args.verbose else logging.INFO
         setup_logging(log_level)
         
