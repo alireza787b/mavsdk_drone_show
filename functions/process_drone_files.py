@@ -25,31 +25,34 @@ def smooth_trajectory(data: np.ndarray, window_length: int = 11, poly_order: int
     return savgol_filter(data, window_length, poly_order)
 
 def process_drone_files(
-    skybrush_dir: str,
-    processed_dir: str,
-    method: str = 'cubic',
-    dt: float = 0.05,
+    skybrush_dir: str, 
+    processed_dir: str, 
+    method: str = 'cubic', 
+    dt: float = 0.05, 
     smoothing: bool = True
 ) -> List[str]:
     """
-    Process drone files with advanced trajectory generation, 
-    placing processed outputs into processed_dir.
-    
-    Returns a list of processed file paths.
+    Process drone files with advanced trajectory generation.
+    - Clears the existing processed_dir,
+    - Reads CSVs from skybrush_dir,
+    - Outputs processed CSVs to processed_dir.
+
+    Returns:
+        A list of processed file paths.
     """
     setup_logging()
-    logging.info(f"[process_drone_files] Using skybrush_dir={skybrush_dir}, processed_dir={processed_dir}")
+    logging.info(f"[process_drone_files] Starting with skybrush_dir={skybrush_dir}, processed_dir={processed_dir}")
 
     ensure_directory_exists(skybrush_dir)
     ensure_directory_exists(processed_dir)
-
-    # Clear the processed_dir so old processed CSVs are removed
+    # Remove old processed files
     clear_directory(processed_dir)
 
     processed_files = []
     csv_files = [f for f in os.listdir(skybrush_dir) if f.endswith(".csv")]
-    logging.info(f"Detected {len(csv_files)} CSV files in skybrush for processing.")
+    logging.info(f"Detected {len(csv_files)} CSV files in {skybrush_dir} to process.")
 
+    # Choose interpolation
     interpolation_methods = {
         'cubic': CubicSpline,
         'akima': Akima1DInterpolator,
@@ -58,31 +61,34 @@ def process_drone_files(
     Interpolator = interpolation_methods.get(method, CubicSpline)
 
     for filename in csv_files:
-        filepath = os.path.join(skybrush_dir, filename)
+        src_path = os.path.join(skybrush_dir, filename)
         try:
-            df = pd.read_csv(filepath)
+            df = pd.read_csv(src_path)
+
             if not validate_drone_data(df):
-                logging.warning(f"Invalid columns or insufficient rows in {filename}, skipping.")
+                logging.warning(f"[process_drone_files] Invalid data in {filename}, skipping.")
                 continue
 
-            # Convert time to seconds
-            x = df['Time [msec]'] / 1000
-            # Flip Z as needed
+            # Time in seconds
+            t_sec = df['Time [msec]'] / 1000
+            # Invert Z if needed
             df['z [m]'] *= -1
 
-            # Interpolators
-            cs_pos = Interpolator(x, df[['x [m]', 'y [m]', 'z [m]']])
-            cs_led = Interpolator(x, df[['Red', 'Green', 'Blue']])
+            # Build interpolators
+            cs_pos = Interpolator(t_sec, df[['x [m]', 'y [m]', 'z [m]']])
+            cs_led = Interpolator(t_sec, df[['Red', 'Green', 'Blue']])
 
-            # New time steps
-            t_end = x.iloc[-1]
+            # Make new timeline
+            t_end = t_sec.iloc[-1]
             t_new = np.arange(0, t_end, dt)
 
+            # Interpolate
             pos_new = cs_pos(t_new)
             vel_new = cs_pos.derivative()(t_new)
             acc_new = cs_pos.derivative().derivative()(t_new)
             led_new = cs_led(t_new)
 
+            # Optional smoothing
             if smoothing and len(t_new) > 2:
                 pos_new = np.column_stack([
                     smooth_trajectory(pos_new[:, 0]),
@@ -92,7 +98,7 @@ def process_drone_files(
                 vel_new = np.gradient(pos_new, dt, axis=0)
                 acc_new = np.gradient(vel_new, dt, axis=0)
 
-            data_out = {
+            out_df = pd.DataFrame({
                 'idx': np.arange(len(t_new)),
                 't': t_new,
                 'px': pos_new[:, 0],
@@ -109,22 +115,21 @@ def process_drone_files(
                 'ledr': led_new[:, 0],
                 'ledg': led_new[:, 1],
                 'ledb': led_new[:, 2],
-            }
+            })
 
-            processed_path = os.path.join(processed_dir, filename)
-            pd.DataFrame(data_out).to_csv(processed_path, index=False)
-            processed_files.append(processed_path)
-            logging.info(f"Processed & saved: {processed_path}")
+            processed_filepath = os.path.join(processed_dir, filename)
+            out_df.to_csv(processed_filepath, index=False)
+            processed_files.append(processed_filepath)
+            logging.info(f"[process_drone_files] Processed -> {processed_filepath}")
 
-        except Exception as e:
-            logging.error(f"Error processing {filename}: {e}", exc_info=True)
+        except Exception as ex:
+            logging.error(f"[process_drone_files] Error processing {filename}: {ex}", exc_info=True)
 
-    logging.info(f"Completed processing {len(processed_files)} files.")
+    logging.info(f"[process_drone_files] Finished. {len(processed_files)} files processed.")
     return processed_files
 
 if __name__ == "__main__":
-    # Example for standalone usage — but typically you call from process_formation.py
-    base_test_dir = os.getcwd()
-    skybrush_test = os.path.join(base_test_dir, 'some_temp_skybrush')
-    processed_test = os.path.join(base_test_dir, 'some_temp_processed')
+    # Example usage or debugging
+    skybrush_test = "./shapes/swarm/skybrush"
+    processed_test = "./shapes/swarm/processed"
     process_drone_files(skybrush_test, processed_test)

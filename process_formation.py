@@ -1,259 +1,135 @@
+import pandas as pd
+import numpy as np
+from scipy.interpolate import CubicSpline, Akima1DInterpolator, interp1d
+from scipy.signal import savgol_filter
+from functions.file_management import ensure_directory_exists, clear_directory, setup_logging
 import logging
-import argparse
 import os
-import shutil
-import sys
-from typing import Optional, Tuple
-from functions.plot_drone_paths import plot_drone_paths
-from functions.process_drone_files import process_drone_files
-from functions.update_config_file import update_config_file
-from functions.file_management import ensure_directory_exists, clear_directory
-from src.params import Params
+from typing import List
 
-def setup_logging(log_level: int = logging.INFO) -> None:
+def validate_drone_data(df: pd.DataFrame) -> bool:
     """
-    Configure logging with consistent formatting and output.
+    Validate input drone data for required columns and basic sanity checks.
     """
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler('formation_process.log')
-        ]
-    )
+    required_columns = ['Time [msec]', 'x [m]', 'y [m]', 'z [m]', 'Red', 'Green', 'Blue']
+    return all(col in df.columns for col in required_columns) and len(df) > 2
 
-def get_base_folder() -> str:
+def smooth_trajectory(data: np.ndarray, window_length: int = 11, poly_order: int = 3) -> np.ndarray:
     """
-    Return the correct folder for SITL vs. real mode:
-    - SITL mode -> 'shapes_sitl'
-    - Real mode -> 'shapes'
+    Apply Savitzky-Golay filter to smooth trajectory data.
     """
-    return 'shapes_sitl' if Params.sim_mode else 'shapes'
+    # Ensure window_length doesn't exceed data length
+    window_length = min(window_length, len(data)) if len(data) > 1 else 3
+    if window_length % 2 == 0:
+        window_length += 1
+    return savgol_filter(data, window_length, poly_order)
 
-def get_config_file(base_dir: str) -> str:
+def process_drone_files(
+    skybrush_dir: str, 
+    processed_dir: str, 
+    method: str = 'cubic', 
+    dt: float = 0.05, 
+    smoothing: bool = True
+) -> List[str]:
     """
-    Return the correct config file name for SITL vs. real mode:
-    - SITL -> 'config_sitl.csv'
-    - Real -> 'config.csv'
-    """
-    if Params.sim_mode:
-        return os.path.join(base_dir, 'config_sitl.csv')
-    else:
-        return os.path.join(base_dir, 'config.csv')
-
-def get_swarm_directories(base_dir: str) -> Tuple[str, str, str]:
-    """
-    Return the (skybrush_dir, processed_dir, plots_dir) 
-    corresponding to SITL or real mode. 
-    Each subfolder is under shapes_sitl/swarm or shapes/swarm.
-    """
-    base_folder = get_base_folder()
-    skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
-    processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
-    plots_dir = os.path.join(base_dir, base_folder, 'swarm', 'plots')
-    return skybrush_dir, processed_dir, plots_dir
-
-def run_pipeline_in_temp(base_dir: str, uploaded_csv_dir: str) -> str:
-    """
-    Run the entire pipeline (process, config update, plots) in a 
-    temporary staging directory using the newly uploaded CSV files.
-
-    If everything completes with no errors, return the path to 
-    the temp folder so we can finalize/copy results from there.
-    Otherwise, raise an exception.
-    
-    Args:
-        base_dir (str): The root of your project (e.g. /root/mavsdk_drone_show).
-        uploaded_csv_dir (str): A folder containing newly uploaded CSV files 
-                                from the user (e.g. an unzipped location).
-    
-    Returns:
-        str: The path to the staging directory that now holds processed CSV & plots.
-    """
-    logging.info("[run_pipeline_in_temp] Starting pipeline in a temp staging area...")
-    
-    # Create a local temp folder for staging
-    temp_base = os.path.join(base_dir, 'tmp_upload')
-    skybrush_temp = os.path.join(temp_base, 'skybrush')
-    processed_temp = os.path.join(temp_base, 'processed')
-    plots_temp = os.path.join(temp_base, 'plots')
-    
-    # Clean up and recreate the staging area
-    if os.path.exists(temp_base):
-        shutil.rmtree(temp_base)
-    ensure_directory_exists(skybrush_temp)
-    ensure_directory_exists(processed_temp)
-    ensure_directory_exists(plots_temp)
-    
-    # Copy newly uploaded CSVs -> skybrush_temp
-    # This ensures the pipeline only sees the "new" files
-    for file in os.listdir(uploaded_csv_dir):
-        if file.endswith(".csv"):
-            shutil.copy2(os.path.join(uploaded_csv_dir, file), skybrush_temp)
-    logging.info(f"Copied uploaded CSVs into staging area: {skybrush_temp}")
-    
-    # We also pick which config file to use for SITL or real
-    config_file = get_config_file(base_dir)
-    if not os.path.exists(config_file):
-        # optionally create a blank config if missing, or raise an error
-        open(config_file, 'a').close()  # create empty
-        logging.warning(f"Created an empty config file: {config_file}")
-
-    # 1) Process new CSV in staging area
-    process_drone_files(
-        skybrush_dir=skybrush_temp,
-        processed_dir=processed_temp,
-        method='cubic',
-        dt=0.05
-    )
-    # 2) Update config (using the staging skybrush data)
-    update_config_file(skybrush_temp, config_file)
-    # 3) Generate plots, but point the plot routine to use 
-    #    *staging* folders so it won't pollute real directories.
-    # 
-    # Here we pass a special argument "override_dirs" so we can do 
-    # a custom location for processed & plots:
-    plot_drone_paths(
-        base_dir=base_dir, 
-        show_plots=False,
-        high_quality=True,
-        override_processed=processed_temp, 
-        override_plots=plots_temp
-    )
-
-    # If we got here, pipeline was success
-    logging.info("[run_pipeline_in_temp] Pipeline in staging area was successful!")
-    return temp_base
-
-def finalize_results_into_real(base_dir: str, temp_base: str) -> None:
-    """
-    Once the pipeline in the temp staging folder succeeds, 
-    finalize by removing old real-mode or SITL-mode folders and 
-    copying the new data from the staging folder. 
-    Then you can do a git sync if desired.
-
-    Args:
-        base_dir (str): The root of your project
-        temp_base (str): The path returned by run_pipeline_in_temp()
-    """
-    logging.info("[finalize_results_into_real] Promoting staged data to real SITL/real folders...")
-
-    # Identify actual SITL/real directories
-    skybrush_dir, processed_dir, plots_dir = get_swarm_directories(base_dir)
-    
-    # Remove all contents from the real directories
-    clear_directory(skybrush_dir)
-    clear_directory(processed_dir)
-    clear_directory(plots_dir)
-    
-    skybrush_temp = os.path.join(temp_base, 'skybrush')
-    processed_temp = os.path.join(temp_base, 'processed')
-    plots_temp = os.path.join(temp_base, 'plots')
-
-    # Copy the newly uploaded CSV (staged) to the real skybrush folder
-    for f in os.listdir(skybrush_temp):
-        src = os.path.join(skybrush_temp, f)
-        dst = os.path.join(skybrush_dir, f)
-        shutil.copy2(src, dst)
-    # Copy processed CSV to real processed folder
-    for f in os.listdir(processed_temp):
-        src = os.path.join(processed_temp, f)
-        dst = os.path.join(processed_dir, f)
-        shutil.copy2(src, dst)
-    # Copy new plots
-    for f in os.listdir(plots_temp):
-        src = os.path.join(plots_temp, f)
-        dst = os.path.join(plots_dir, f)
-        shutil.copy2(src, dst)
-
-    logging.info("[finalize_results_into_real] Real SITL/real folders updated with new data!")
-
-    # (Optionally) do a git sync here if desired
-    # e.g. run a git command or trigger some sync function
-    # git_sync_function()
-
-def run_formation_process(base_dir: Optional[str], uploaded_csv_dir: str) -> str:
-    """
-    Full process when you have new uploaded CSVs:
-      1. Create a staging area
-      2. Run pipeline (process, config, plots) in staging
-      3. If success, finalize to the real SITL or real folders
-      4. If fail, do not touch the real SITL/real data
-
-    Args:
-        base_dir (str): The root of your project
-        uploaded_csv_dir (str): Where the new CSV files are located 
-            (unzipped from the user’s upload)
+    Process drone files with advanced trajectory generation.
+    - Clears the existing processed_dir,
+    - Reads CSVs from skybrush_dir,
+    - Outputs processed CSVs to processed_dir.
 
     Returns:
-        str: A success/fail message
+        A list of processed file paths.
     """
-    # Setup logging and confirm mode
     setup_logging()
-    mode_str = 'SITL' if Params.sim_mode else 'real'
-    logging.info(f"Starting run_formation_process in {mode_str} mode")
+    logging.info(f"[process_drone_files] Starting with skybrush_dir={skybrush_dir}, processed_dir={processed_dir}")
 
-    # Use the user-provided or current directory if missing
-    base = base_dir or os.getcwd()
+    ensure_directory_exists(skybrush_dir)
+    ensure_directory_exists(processed_dir)
+    # Remove old processed files
+    clear_directory(processed_dir)
 
-    try:
-        # 1) Run pipeline in a temporary staging area
-        temp_path = run_pipeline_in_temp(base, uploaded_csv_dir)
+    processed_files = []
+    csv_files = [f for f in os.listdir(skybrush_dir) if f.endswith(".csv")]
+    logging.info(f"Detected {len(csv_files)} CSV files in {skybrush_dir} to process.")
 
-        # 2) If we made it here, the pipeline worked. So finalize.
-        finalize_results_into_real(base, temp_path)
+    # Choose interpolation
+    interpolation_methods = {
+        'cubic': CubicSpline,
+        'akima': Akima1DInterpolator,
+        'linear': interp1d
+    }
+    Interpolator = interpolation_methods.get(method, CubicSpline)
 
-        msg = "Processing completed successfully!"
-        logging.info(msg)
-        return msg
+    for filename in csv_files:
+        src_path = os.path.join(skybrush_dir, filename)
+        try:
+            df = pd.read_csv(src_path)
 
-    except Exception as e:
-        err = f"Processing error: {str(e)}"
-        logging.error(err, exc_info=True)
-        return err
+            if not validate_drone_data(df):
+                logging.warning(f"[process_drone_files] Invalid data in {filename}, skipping.")
+                continue
 
-def main():
-    """
-    Command-line interface for drone formation processing with SITL/real mode support.
-    
-    Usage example:
-      python process_formation.py --run -d /root/mavsdk_drone_show --upload ./my_uploaded_csvs
-    """
-    parser = argparse.ArgumentParser(
-        description="Process drone formation data with SITL/real mode support"
-    )
-    parser.add_argument(
-        '-r', '--run', 
-        action='store_true', 
-        help='Run the processing immediately'
-    )
-    parser.add_argument(
-        '-d', '--directory', 
-        type=str, 
-        help='Specify base directory for processing'
-    )
-    parser.add_argument(
-        '--upload', 
-        type=str, 
-        help='Path to newly uploaded CSV files (unzipped folder).'
-    )
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Enable verbose logging (debug level)'
-    )
-    
-    args = parser.parse_args()
-    if args.run:
-        log_level = logging.DEBUG if args.verbose else logging.INFO
-        setup_logging(log_level)
+            # Time in seconds
+            t_sec = df['Time [msec]'] / 1000
+            # Invert Z if needed
+            df['z [m]'] *= -1
 
-        base_dir = args.directory or os.getcwd()
-        uploaded_csv_dir = args.upload or os.path.join(base_dir, "uploaded_files")
+            # Build interpolators
+            cs_pos = Interpolator(t_sec, df[['x [m]', 'y [m]', 'z [m]']])
+            cs_led = Interpolator(t_sec, df[['Red', 'Green', 'Blue']])
 
-        result = run_formation_process(base_dir, uploaded_csv_dir)
-        print(result)
+            # Make new timeline
+            t_end = t_sec.iloc[-1]
+            t_new = np.arange(0, t_end, dt)
+
+            # Interpolate
+            pos_new = cs_pos(t_new)
+            vel_new = cs_pos.derivative()(t_new)
+            acc_new = cs_pos.derivative().derivative()(t_new)
+            led_new = cs_led(t_new)
+
+            # Optional smoothing
+            if smoothing and len(t_new) > 2:
+                pos_new = np.column_stack([
+                    smooth_trajectory(pos_new[:, 0]),
+                    smooth_trajectory(pos_new[:, 1]),
+                    smooth_trajectory(pos_new[:, 2])
+                ])
+                vel_new = np.gradient(pos_new, dt, axis=0)
+                acc_new = np.gradient(vel_new, dt, axis=0)
+
+            out_df = pd.DataFrame({
+                'idx': np.arange(len(t_new)),
+                't': t_new,
+                'px': pos_new[:, 0],
+                'py': pos_new[:, 1],
+                'pz': pos_new[:, 2],
+                'vx': vel_new[:, 0],
+                'vy': vel_new[:, 1],
+                'vz': vel_new[:, 2],
+                'ax': acc_new[:, 0],
+                'ay': acc_new[:, 1],
+                'az': acc_new[:, 2],
+                'yaw': np.zeros_like(t_new),
+                'mode': np.full_like(t_new, 70),
+                'ledr': led_new[:, 0],
+                'ledg': led_new[:, 1],
+                'ledb': led_new[:, 2],
+            })
+
+            processed_filepath = os.path.join(processed_dir, filename)
+            out_df.to_csv(processed_filepath, index=False)
+            processed_files.append(processed_filepath)
+            logging.info(f"[process_drone_files] Processed -> {processed_filepath}")
+
+        except Exception as ex:
+            logging.error(f"[process_drone_files] Error processing {filename}: {ex}", exc_info=True)
+
+    logging.info(f"[process_drone_files] Finished. {len(processed_files)} files processed.")
+    return processed_files
 
 if __name__ == "__main__":
-    main()
+    # Example usage or debugging
+    skybrush_test = "./shapes/swarm/skybrush"
+    processed_test = "./shapes/swarm/processed"
+    process_drone_files(skybrush_test, processed_test)

@@ -4,66 +4,60 @@ import re
 import logging
 from functions.file_management import ensure_directory_exists, setup_logging
 
-def update_config_file(skybrush_dir, config_file):
+def update_config_file(skybrush_dir: str, config_file: str) -> None:
     """
-    Update the SITL or real config file with initial positions from 
-    each 'DroneX.csv' in the given skybrush_dir.
-    
-    If SITL -> config_file is 'config_sitl.csv',
-    otherwise -> 'config.csv'.
+    Update the SITL or real config CSV with the initial x,y from 
+    each 'DroneX.csv' in skybrush_dir.
     """
     setup_logging()
-    logging.info(f"[update_config_file] Reading from {skybrush_dir} and updating {config_file}...")
+    logging.info(f"[update_config_file] Updating config: {config_file} using {skybrush_dir}")
 
     ensure_directory_exists(skybrush_dir)
 
-    # If config_file does not exist, let's just create an empty one
+    # If config file doesn't exist, create an empty one
     if not os.path.exists(config_file):
-        logging.warning(f"No config file found at {config_file}; creating an empty one.")
+        logging.warning(f"{config_file} not found. Creating a new one.")
         open(config_file, 'a').close()
 
+    # Attempt to read config
     try:
         config_df = pd.read_csv(config_file)
     except pd.errors.EmptyDataError:
-        # If it's empty, create basic structure
-        logging.warning("Config file is empty. Initializing with columns: pos_id, x, y")
-        config_df = pd.DataFrame(columns=['pos_id','x','y'])
+        logging.warning(f"{config_file} is empty, initializing with columns: pos_id, x, y")
+        config_df = pd.DataFrame(columns=['pos_id', 'x', 'y'])
 
     drone_file_pattern = re.compile(r'^Drone(\d+)\.csv$')
 
-    # For each Drone<number>.csv, update config
     for filename in os.listdir(skybrush_dir):
         match = drone_file_pattern.match(filename)
         if match:
             drone_id = int(match.group(1))
-            filepath = os.path.join(skybrush_dir, filename)
+            file_path = os.path.join(skybrush_dir, filename)
             try:
-                df = pd.read_csv(filepath)
+                df = pd.read_csv(file_path)
+                init_x = df.loc[0, 'x [m]']
+                init_y = df.loc[0, 'y [m]']
 
-                initial_x = df.loc[0, 'x [m]']
-                initial_y = df.loc[0, 'y [m]']
-
-                # If this pos_id doesn't exist in config, add a new row.
+                # If config doesn't have this pos_id, append
                 if not (config_df['pos_id'] == drone_id).any():
-                    config_df = config_df.append(
-                        {'pos_id': drone_id, 'x': initial_x, 'y': initial_y},
-                        ignore_index=True
-                    )
+                    new_row = {'pos_id': drone_id, 'x': init_x, 'y': init_y}
+                    config_df = config_df.append(new_row, ignore_index=True)
                 else:
-                    # Otherwise update existing
-                    config_df.loc[config_df['pos_id'] == drone_id, ['x','y']] = [initial_x, initial_y]
-                logging.info(f"Updated Drone {drone_id} => x={initial_x}, y={initial_y}")
+                    # Otherwise update existing row
+                    config_df.loc[config_df['pos_id'] == drone_id, ['x', 'y']] = [init_x, init_y]
+
+                logging.info(f"[update_config_file] Drone {drone_id}: x={init_x}, y={init_y}")
 
             except (KeyError, ValueError, IndexError) as e:
-                logging.warning(f"Skipping {filename}: {e}")
+                logging.warning(f"[update_config_file] Skipping {filename}: {str(e)}")
             except Exception as e:
-                logging.error(f"Error processing {filename}: {e}")
+                logging.error(f"[update_config_file] Error processing {filename}: {str(e)}")
 
     config_df.to_csv(config_file, index=False)
     logging.info(f"[update_config_file] Successfully updated {config_file}")
 
 if __name__ == "__main__":
-    # Basic test usage
-    test_skybrush = "./some_temp_skybrush"
-    test_config = "./config_sitl.csv"
-    update_config_file(test_skybrush, test_config)
+    # Test usage
+    skybrush_test = "./shapes/swarm/skybrush"
+    config_test = "./config.csv"
+    update_config_file(skybrush_test, config_test)

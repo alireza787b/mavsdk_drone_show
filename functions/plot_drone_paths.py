@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 from src.params import Params
 
 def setup_matplotlib_style():
@@ -24,16 +24,18 @@ def setup_matplotlib_style():
 
 def extract_drone_id(filename: str) -> str:
     """
-    Extract numerical drone ID from 'Drone1.csv' -> '1'
+    Extract digits from 'Drone10.csv' -> '10'
     """
     return ''.join(filter(str.isdigit, filename))
 
 def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, float, float, float, float]:
     """
-    Compute consistent plot limits for 3D visualization across multiple drones.
+    Determine a uniform bounding box for all drones so we can 
+    keep the same scale on the combined plot.
     """
     all_east = pd.concat([df['py'] for df in data_list])
     all_north = pd.concat([df['px'] for df in data_list])
+    # Use negative pz as altitude
     all_altitude = pd.concat([-df['pz'] for df in data_list])
 
     max_range = np.array([
@@ -44,132 +46,125 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
 
     mid_east = (all_east.max() + all_east.min()) * 0.5
     mid_north = (all_north.max() + all_north.min()) * 0.5
-    mid_altitude = (all_altitude.max() + all_altitude.min()) * 0.5
+    mid_alt = (all_altitude.max() + all_altitude.min()) * 0.5
 
     return (
         mid_east - max_range, mid_east + max_range,
         mid_north - max_range, mid_north + max_range,
-        0, mid_altitude + max_range
+        0, mid_alt + max_range
     )
 
-def plot_drone_paths(
-    base_dir: str, 
-    show_plots: bool = False, 
-    high_quality: bool = True,
-    override_processed: Optional[str] = None,
-    override_plots: Optional[str] = None
-):
+def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
     """
-    Advanced drone path visualization with enhanced styling and analysis.
-    
-    By default, reads/writes from SITL or real:
-      - SITL -> shapes_sitl/swarm/processed + shapes_sitl/swarm/plots
-      - Real -> shapes/swarm/processed + shapes/swarm/plots
-    
-    If override_processed or override_plots are specified, 
-    those folders are used instead (for staging in a temp directory).
+    Generate both individual and combined 3D path plots for each drone.
+
+    By default, checks if sim_mode is True or False:
+      - True -> uses shapes_sitl/swarm/processed, shapes_sitl/swarm/plots
+      - False -> uses shapes/swarm/processed, shapes/swarm/plots
     """
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     if high_quality:
         setup_matplotlib_style()
 
-    # Figure out processed/plots directories
-    if override_processed and override_plots:
-        processed_dir = override_processed
-        plots_dir = override_plots
-    else:
-        # Fallback to SITL or real
-        base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
-        processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
-        plots_dir = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+    # Which folder to read from?
+    base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
+    processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
+    plots_dir = os.path.join(base_dir, base_folder, 'swarm', 'plots')
 
     os.makedirs(plots_dir, exist_ok=True)
 
     processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
     if not processed_files:
-        logging.warning("[plot_drone_paths] No processed CSV files found.")
+        logging.warning("[plot_drone_paths] No processed CSV files found to plot.")
         return
 
     num_drones = len(processed_files)
     colormap = plt.colormaps['viridis']
     color_indices = np.linspace(0, 1, num_drones)
 
-    # Prepare data for combined plotting
-    drone_data = []
-    color_dict = {
-        file: colormap(color_indices[i]) for i, file in enumerate(processed_files)
-    }
+    # For combined plot, gather data
+    all_data = []
+    color_map = {}
 
-    # Plot each drone separately
-    for file in processed_files:
-        path = os.path.join(processed_dir, file)
+    for i, filename in enumerate(processed_files):
+        color_map[filename] = colormap(color_indices[i])
+
+    # Plot each drone individually
+    for filename in processed_files:
+        path = os.path.join(processed_dir, filename)
         df = pd.read_csv(path)
-        drone_data.append(df)
+        all_data.append(df)
 
         fig = plt.figure(figsize=(14, 10))
         ax = fig.add_subplot(111, projection='3d')
-
-        color = color_dict[file]
-        drone_id = extract_drone_id(file)
+        color = color_map[filename]
+        drone_id = extract_drone_id(filename)
 
         east = df['py']
         north = df['px']
-        altitude = -df['pz']  # negative sign to match real altitude
+        alt = -df['pz']  # negative sign to match altitude
 
-        ax.plot(east, north, altitude, color=color, linewidth=3, alpha=0.8)
-        ax.scatter(east.iloc[0], north.iloc[0], altitude.iloc[0],
+        ax.plot(east, north, alt, color=color, linewidth=3, alpha=0.8)
+        ax.scatter(east.iloc[0], north.iloc[0], alt.iloc[0],
                    color=color, s=100, edgecolor='black')
+        ax.text(east.iloc[0], north.iloc[0], alt.iloc[0],
+                f"Drone {drone_id}", color=color, fontsize=12)
 
-        ax.text(east.iloc[0], north.iloc[0], altitude.iloc[0],
-                f" Drone {drone_id}", color=color, fontsize=12)
-
-        ax.set_title(f'Drone Path: Drone {drone_id}', fontweight='bold')
-        ax.set_xlabel('East (m)', fontweight='bold')
-        ax.set_ylabel('North (m)', fontweight='bold')
-        ax.set_zlabel('Altitude (m)', fontweight='bold')
+        ax.set_title(f"Drone Path: Drone {drone_id}", fontweight='bold')
+        ax.set_xlabel("East (m)", fontweight='bold')
+        ax.set_ylabel("North (m)", fontweight='bold')
+        ax.set_zlabel("Altitude (m)", fontweight='bold')
 
         plt.tight_layout()
-        out_file = os.path.join(plots_dir, f'drone_{drone_id}_path.png')
-        plt.savefig(out_file, dpi=300)
+        out_path = os.path.join(plots_dir, f"drone_{drone_id}_path.png")
+        plt.savefig(out_path, dpi=300)
+
         if show_plots:
             plt.show()
         plt.close(fig)
 
     # Combined 3D plot
-    fig_c = plt.figure(figsize=(16, 12))
-    ax_c = fig_c.add_subplot(111, projection='3d')
+    if all_data:
+        fig_c = plt.figure(figsize=(16, 12))
+        ax_c = fig_c.add_subplot(111, projection='3d')
 
-    plot_limits = compute_plot_limits(drone_data)
-    ax_c.set_xlim(plot_limits[0], plot_limits[1])
-    ax_c.set_ylim(plot_limits[2], plot_limits[3])
-    ax_c.set_zlim(plot_limits[4], plot_limits[5])
+        xlim_min, xlim_max, ylim_min, ylim_max, zlim_min, zlim_max = compute_plot_limits(all_data)
+        ax_c.set_xlim(xlim_min, xlim_max)
+        ax_c.set_ylim(ylim_min, ylim_max)
+        ax_c.set_zlim(zlim_min, zlim_max)
 
-    for file in processed_files:
-        path = os.path.join(processed_dir, file)
-        df = pd.read_csv(path)
-        color = color_dict[file]
-        drone_id = extract_drone_id(file)
+        for filename in processed_files:
+            path = os.path.join(processed_dir, filename)
+            df = pd.read_csv(path)
+            color = color_map[filename]
+            drone_id = extract_drone_id(filename)
 
-        east = df['py']
-        north = df['px']
-        altitude = -df['pz']
+            east = df['py']
+            north = df['px']
+            alt = -df['pz']
 
-        ax_c.plot(east, north, altitude, color=color, linewidth=2, label=f'Drone {drone_id}')
-        ax_c.scatter(east.iloc[0], north.iloc[0], altitude.iloc[0],
-                     color=color, s=50)
+            ax_c.plot(east, north, alt, color=color, linewidth=2, label=f"Drone {drone_id}")
+            ax_c.scatter(east.iloc[0], north.iloc[0], alt.iloc[0],
+                         color=color, s=50)
 
-    ax_c.set_title('Combined Drone Paths', fontweight='bold')
-    ax_c.set_xlabel('East (m)', fontweight='bold')
-    ax_c.set_ylabel('North (m)', fontweight='bold')
-    ax_c.set_zlabel('Altitude (m)', fontweight='bold')
-    ax_c.legend(loc='best', title='Drone IDs')
+        ax_c.set_title("Combined Drone Paths", fontweight='bold')
+        ax_c.set_xlabel("East (m)", fontweight='bold')
+        ax_c.set_ylabel("North (m)", fontweight='bold')
+        ax_c.set_zlabel("Altitude (m)", fontweight='bold')
+        ax_c.legend(loc='best', title='Drone IDs')
 
-    plt.tight_layout()
-    out_combined = os.path.join(plots_dir, 'combined_drone_paths.png')
-    plt.savefig(out_combined, dpi=300)
-    if show_plots:
-        plt.show()
-    plt.close(fig_c)
+        plt.tight_layout()
+        combined_path = os.path.join(plots_dir, "combined_drone_paths.png")
+        plt.savefig(combined_path, dpi=300)
 
-    logging.info("[plot_drone_paths] Finished generating drone path plots.")
+        if show_plots:
+            plt.show()
+        plt.close(fig_c)
+
+    logging.info("[plot_drone_paths] Finished plotting all drone paths.")
+
+if __name__ == "__main__":
+    # Example usage
+    base_test_dir = os.getcwd()
+    plot_drone_paths(base_test_dir, show_plots=False)
