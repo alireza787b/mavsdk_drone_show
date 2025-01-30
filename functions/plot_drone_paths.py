@@ -64,6 +64,7 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
         mid_up - max_range, mid_up + max_range
     )
 
+
 def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
     """
     3D path visualization in a North–East–Up frame (axes labeled with <-> to indicate opposite directions).
@@ -130,9 +131,9 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
                    color=color, s=100, edgecolor='black')
 
         # Axes with "N <-> S", "E <-> W", "U <-> D"
-        ax.set_xlabel('North <-> South (m)', fontweight='bold')
-        ax.set_ylabel('East <-> West (m)',   fontweight='bold')
-        ax.set_zlabel('Up <-> Down (m)',     fontweight='bold')
+        ax.set_xlabel('← South | North → (m)', fontweight='bold')
+        ax.set_ylabel('← West | East → (m)',   fontweight='bold')
+        ax.set_zlabel('← Down | Up → (m)',     fontweight='bold')
 
         # Title referencing the drone
         ax.set_title(f"Drone {drone_id} Path (N–E–Up)", fontweight='bold')
@@ -185,9 +186,9 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
                   color=color, fontsize=10)
 
     # Axis labels with <->
-    ax_c.set_xlabel('North <-> South (m)', fontweight='bold')
-    ax_c.set_ylabel('East <-> West (m)',   fontweight='bold')
-    ax_c.set_zlabel('Up <-> Down (m)',     fontweight='bold')
+    ax_c.set_xlabel('← South | North → (m)', fontweight='bold')
+    ax_c.set_ylabel('← West | East → (m)',   fontweight='bold')
+    ax_c.set_zlabel('← Down | Up → (m)',     fontweight='bold')
 
     ax_c.set_title('Combined Drone Paths (N–E–Up)', fontweight='bold')
     ax_c.legend(loc='best', title='Drone IDs')
