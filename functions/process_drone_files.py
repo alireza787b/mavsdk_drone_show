@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import CubicSpline, Akima1DInterpolator, interp1d
 from scipy.signal import savgol_filter
-from functions.file_management import ensure_directory_exists, clear_directory, setup_logging
+from functions.file_management import ensure_directory_exists, clear_directory
 import logging
 import os
 from typing import List
@@ -33,27 +33,20 @@ def process_drone_files(
     smoothing: bool = True
 ) -> List[str]:
     """
-    Process drone files in 'skybrush_dir' with advanced trajectory generation.
-    The resulting CSVs are saved to 'processed_dir', with columns for
-    position, velocity, acceleration, LED color, etc.
-
-    Returns a list of processed file paths.
+    Process drone files in 'skybrush_dir' -> 'processed_dir'.
+    We'll rely on the top-level logging config from process_formation.
     """
-    setup_logging()
     logging.info("[process_drone_files] Starting processing pipeline...")
-
-    # Ensure the directories exist
     ensure_directory_exists(skybrush_dir)
     ensure_directory_exists(processed_dir)
 
-    # Clear old processed CSVs so we only keep fresh results
+    # Clear old processed CSVs
     clear_directory(processed_dir)
 
     processed_files = []
     csv_files = [f for f in os.listdir(skybrush_dir) if f.endswith(".csv")]
-    logging.info(f"Detected {len(csv_files)} CSV files in {skybrush_dir}.")
+    logging.info(f"[process_drone_files] Found {len(csv_files)} CSV files in {skybrush_dir}.")
 
-    # Supported interpolation methods
     interpolation_methods = {
         'cubic': CubicSpline,
         'akima': Akima1DInterpolator,
@@ -63,27 +56,28 @@ def process_drone_files(
 
     for filename in csv_files:
         filepath = os.path.join(skybrush_dir, filename)
+        logging.debug(f"[process_drone_files] Reading {filename} ...")
         try:
             df = pd.read_csv(filepath)
             if not validate_drone_data(df):
-                logging.warning(f"Invalid data or missing columns in {filename}. Skipping.")
+                logging.warning(f"[process_drone_files] Invalid data in {filename}, skipping.")
                 continue
 
             # Convert time to seconds
-            x = df['Time [msec]'] / 1000.0
+            x_sec = df['Time [msec]'] / 1000.0
 
-            # Flip z if necessary
+            # Flip z for internal usage
             df['z [m]'] *= -1
 
             # Build interpolators
-            cs_pos = Interpolator(x, df[['x [m]', 'y [m]', 'z [m]']])
-            cs_led = Interpolator(x, df[['Red', 'Green', 'Blue']])
+            cs_pos = Interpolator(x_sec, df[['x [m]', 'y [m]', 'z [m]']])
+            cs_led = Interpolator(x_sec, df[['Red', 'Green', 'Blue']])
 
             # Generate new time steps
-            t_end = x.iloc[-1]  # last timestamp
+            t_end = x_sec.iloc[-1]
             t_new = np.arange(0, t_end, dt)
 
-            # Compute position, velocity, acceleration, LED color
+            # Evaluate position, velocity, acceleration
             pos_new = cs_pos(t_new)
             vel_new = cs_pos.derivative()(t_new)
             acc_new = cs_pos.derivative().derivative()(t_new)
@@ -120,16 +114,10 @@ def process_drone_files(
             out_path = os.path.join(processed_dir, filename)
             pd.DataFrame(out_data).to_csv(out_path, index=False)
             processed_files.append(out_path)
-            logging.info(f"Processed file saved: {out_path}")
+            logging.info(f"[process_drone_files] Processed and saved: {out_path}")
+
         except Exception as e:
-            logging.error(f"Error processing {filename}: {e}", exc_info=True)
+            logging.error(f"[process_drone_files] Error processing {filename}: {e}", exc_info=True)
 
     logging.info(f"[process_drone_files] Completed processing {len(processed_files)} files.")
     return processed_files
-
-if __name__ == "__main__":
-    # Example usage if run standalone (not typical in production)
-    base_test = os.getcwd()
-    skybrush_test = os.path.join(base_test, "test_skybrush")
-    processed_test = os.path.join(base_test, "test_processed")
-    process_drone_files(skybrush_test, processed_test)
