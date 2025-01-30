@@ -4,8 +4,8 @@ Drone Show Script (`drone_show.py`)
 
 ----------------------------------------
 Author: Alireza Ghaderi
-Date: 2024-12-27
-Version: 2.3.0
+Date: 2025-1-29
+Version: 2.6.0
 ----------------------------------------
 
 **Description:**
@@ -140,9 +140,37 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
+def blender_north_west_up_to_ned(x_b, y_b, z_b=0.0):
+    """
+    Convert a 3D vector from a Blender-like system where:
+      - X = North
+      - Y = West
+      - Z = Up
+    into NED coordinates:
+      - X = North
+      - Y = East (so Y_ned = - Y_blender)
+      - Z = Down (so Z_ned = - Z_blender)
+
+    Args:
+        x_b (float): Blender X (north)
+        y_b (float): Blender Y (west)
+        z_b (float): Blender Z (up)
+
+    Returns:
+        (float, float, float): (N, E, D) in NED
+    """
+    n = x_b          # North is unchanged
+    e = -y_b         # West => negative East
+    d = -z_b         # Up => negative Down
+    return (n, e, d)
+
+
 def read_config(filename: str) -> Drone:
     """
     Read the drone configuration from a CSV file.
+    This CSV is assumed to store real NED coordinates directly:
+      - initial_x => North
+      - initial_y => East
 
     Args:
         filename (str): Path to the config CSV file.
@@ -159,12 +187,14 @@ def read_config(filename: str) -> Drone:
                     hw_id = int(row["hw_id"])
                     if hw_id == HW_ID:
                         pos_id = int(row["pos_id"])
-                        initial_x = float(row["x"])
-                        initial_y = float(row["y"])
+                        # For config.csv, we do NOT transform: it is already NED
+                        initial_x = float(row["x"])  # North
+                        initial_y = float(row["y"])  # East
                         ip = row["ip"]
                         mavlink_port = int(row["mavlink_port"])
                         debug_port = int(row["debug_port"])
                         gcs_ip = row["gcs_ip"]
+
                         drone = Drone(
                             hw_id,
                             pos_id,
@@ -191,7 +221,7 @@ def read_config(filename: str) -> Drone:
 
 def extract_initial_positions(first_waypoint: dict) -> tuple:
     """
-    Extract initial X, Y, Z positions from the first waypoint.
+    Extract initial X, Y, Z positions from the first waypoint in Blender-like coords.
 
     Args:
         first_waypoint (dict): Dictionary representing the first waypoint.
@@ -218,16 +248,16 @@ def adjust_waypoints(
     waypoints: list, initial_x: float, initial_y: float, initial_z: float = 0.0
 ) -> list:
     """
-    Adjust all waypoints by subtracting the initial positions.
+    Adjust all waypoints by subtracting the initial positions in NED coordinates.
 
     Args:
         waypoints (list): List of waypoints as tuples.
-        initial_x (float): Initial X-coordinate.
-        initial_y (float): Initial Y-coordinate.
-        initial_z (float): Initial Z-coordinate.
+        initial_x (float): Initial X-coordinate (north).
+        initial_y (float): Initial Y-coordinate (east).
+        initial_z (float): Initial Z-coordinate (down).
 
     Returns:
-        list: List of adjusted waypoints.
+        list: List of adjusted waypoints, such that the first position is (0,0,0).
     """
     adjusted_waypoints = []
     logger = logging.getLogger(__name__)
@@ -274,14 +304,21 @@ def read_trajectory_file(
     """
     Read and adjust the trajectory waypoints from a CSV file.
 
+    The CSV is assumed to be in a Blender-like coordinate system:
+      - X = North
+      - Y = West
+      - Z = Up
+    So we transform to real NED (X=north, Y=east, Z=down), then optionally shift
+    so that the first point is (0,0,0) if auto_launch_position is True (or if we subtract config initial_x / initial_y).
+
     Args:
         filename (str): Path to the drone-specific trajectory CSV file.
-        auto_launch_position (bool): Flag to determine if initial positions should be auto-extracted.
-        initial_x (float): Initial X-coordinate from config (used if auto_launch_position is False).
-        initial_y (float): Initial Y-coordinate from config (used if auto_launch_position is False).
+        auto_launch_position (bool): Flag to determine if initial positions should be auto-extracted from the first waypoint.
+        initial_x (float): Initial X (N) from config (if auto_launch_position=False).
+        initial_y (float): Initial Y (E) from config (if auto_launch_position=False).
 
     Returns:
-        list: List of adjusted waypoints.
+        list: List of adjusted waypoints in NED.
     """
     logger = logging.getLogger(__name__)
     waypoints = []
@@ -296,30 +333,41 @@ def read_trajectory_file(
                 sys.exit(1)
 
             if auto_launch_position:
-                # Extract initial positions from the first waypoint
+                # Extract initial positions from the first waypoint (in blender coords)
                 try:
-                    initial_x, initial_y, initial_z = extract_initial_positions(rows[0])
+                    b_x, b_y, b_z = extract_initial_positions(rows[0])
+                    # Transform from Blender north-west-up to NED
+                    init_n, init_e, init_d = blender_north_west_up_to_ned(b_x, b_y, b_z)
                     logger.info(
-                        f"Auto Launch Position Enabled. Initial positions extracted: X={initial_x}, "
-                        f"Y={initial_y}, Z={initial_z}"
+                        f"Auto Launch Position ENABLED. Blender->NED for first waypoint: "
+                        f"(N={init_n:.2f}, E={init_e:.2f}, D={init_d:.2f})"
                     )
                 except (KeyError, ValueError) as e:
                     logger.error(f"Failed to extract initial positions: {e}")
                     sys.exit(1)
 
-                # Read and collect all waypoints
+                # Read and collect all waypoints in NED
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        px = float(row["px"])
-                        py = float(row["py"])
-                        pz = float(row.get("pz", 0.0))  # Default to 0.0 if pz not present
-                        vx = float(row["vx"])
-                        vy = float(row["vy"])
-                        vz = float(row["vz"])
-                        ax = float(row["ax"])
-                        ay = float(row["ay"])
-                        az = float(row["az"])
+                        # Positions in Blender -> transform to NED
+                        b_px = float(row["px"])
+                        b_py = float(row["py"])
+                        b_pz = float(row.get("pz", 0.0))
+                        px, py, pz = blender_north_west_up_to_ned(b_px, b_py, b_pz)
+
+                        # Velocities in Blender -> transform to NED
+                        b_vx = float(row["vx"])
+                        b_vy = float(row["vy"])
+                        b_vz = float(row["vz"])
+                        vx, vy, vz = blender_north_west_up_to_ned(b_vx, b_vy, b_vz)
+
+                        # Accelerations in Blender -> transform to NED
+                        b_ax = float(row["ax"])
+                        b_ay = float(row["ay"])
+                        b_az = float(row["az"])
+                        ax, ay, az = blender_north_west_up_to_ned(b_ax, b_ay, b_az)
+
                         yaw = float(row["yaw"])
                         ledr = clamp_led_value(row.get("ledr", 0))
                         ledg = clamp_led_value(row.get("ledg", 0))
@@ -346,31 +394,39 @@ def read_trajectory_file(
                             )
                         )
                     except ValueError as ve:
-                        logger.error(f"Invalid data type in trajectory file row {idx}: {row}. Error: {ve}")
+                        logger.error(f"Invalid data type in row {idx}: {row}. Error: {ve}")
                     except KeyError as ke:
-                        logger.error(f"Missing key in trajectory file row {idx}: {row}. Error: {ke}")
+                        logger.error(f"Missing key in row {idx}: {row}. Error: {ke}")
 
-                # Adjust waypoints to start from (0,0,0)
-                waypoints = adjust_waypoints(waypoints, initial_x, initial_y, initial_z)
-                logger.info(f"Trajectory waypoints adjusted to start from (0, 0, 0).")
+                # Adjust waypoints so the first point is (0,0,0) in NED
+                waypoints = adjust_waypoints(waypoints, init_n, init_e, init_d)
+                logger.info(f"Trajectory waypoints adjusted to start from NED (0, 0, 0).")
 
             else:
-                # Manual adjustment using initial_x and initial_y from config
-                initial_z = 0.0  # z remains unchanged
+                # We already have initial_x, initial_y in real NED from config.
+                init_d = 0.0  # Typically 0 if we only store 2D offsets
 
-                # Read waypoints with manual subtraction
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        px = float(row["px"]) - initial_x
-                        py = float(row["py"]) - initial_y
-                        pz = float(row["pz"])
-                        vx = float(row["vx"])
-                        vy = float(row["vy"])
-                        vz = float(row["vz"])
-                        ax = float(row["ax"])
-                        ay = float(row["ay"])
-                        az = float(row["az"])
+                        # Positions in Blender -> transform to NED
+                        b_px = float(row["px"])
+                        b_py = float(row["py"])
+                        b_pz = float(row["pz"])
+                        px, py, pz = blender_north_west_up_to_ned(b_px, b_py, b_pz)
+
+                        # Velocities in Blender -> transform to NED
+                        b_vx = float(row["vx"])
+                        b_vy = float(row["vy"])
+                        b_vz = float(row["vz"])
+                        vx, vy, vz = blender_north_west_up_to_ned(b_vx, b_vy, b_vz)
+
+                        # Accelerations in Blender -> transform to NED
+                        b_ax = float(row["ax"])
+                        b_ay = float(row["ay"])
+                        b_az = float(row["az"])
+                        ax, ay, az = blender_north_west_up_to_ned(b_ax, b_ay, b_az)
+
                         yaw = float(row["yaw"])
                         ledr = clamp_led_value(row.get("ledr", 0))
                         ledg = clamp_led_value(row.get("ledg", 0))
@@ -397,15 +453,18 @@ def read_trajectory_file(
                             )
                         )
                     except ValueError as ve:
-                        logger.error(f"Invalid data type in trajectory file row {idx}: {row}. Error: {ve}")
+                        logger.error(f"Invalid data type in row {idx}: {row}. Error: {ve}")
                     except KeyError as ke:
-                        logger.error(f"Missing key in trajectory file row {idx}: {row}. Error: {ke}")
+                        logger.error(f"Missing key in row {idx}: {row}. Error: {ke}")
 
                 logger.info(f"Trajectory file '{filename}' read successfully with {len(waypoints)} waypoints.")
 
-                # Adjust waypoints to start from (0,0,0) using initial_x and initial_y from config
-                waypoints = adjust_waypoints(waypoints, initial_x, initial_y, initial_z)
-                logger.info(f"Trajectory waypoints adjusted using config initial positions.")
+                # Now shift the entire path so that the first point is (0,0,0) in NED by subtracting (initial_x, initial_y, 0).
+                waypoints = adjust_waypoints(waypoints, initial_x, initial_y, init_d)
+                logger.info(
+                    f"Trajectory waypoints adjusted using config initial positions "
+                    f"(N={initial_x}, E={initial_y}, D={init_d})."
+                )
 
     except FileNotFoundError:
         logger.exception(f"Trajectory file '{filename}' not found.")
@@ -427,7 +486,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     Args:
         drone (System): MAVSDK drone system instance.
-        waypoints (list): List of trajectory waypoints.
+        waypoints (list): List of trajectory waypoints (in NED).
         home_position: Home position telemetry data.
         start_time (float): Synchronized start time.
     """
@@ -440,9 +499,10 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     # Initialize LEDController
     led_controller = LEDController.get_instance()
 
-    # Determine if trajectory ends high or at ground level
-    final_altitude = waypoints[-1][3]  # pz of the last waypoint
+    # final_altitude is the last waypoint's pz in NED, so pz>0 means below the origin
+    final_altitude = waypoints[-1][3]
     if final_altitude > Params.GROUND_ALTITUDE_THRESHOLD:
+        # If pz is > threshold, we interpret as the final waypoint is "high" in NED (less negative)
         trajectory_ends_high = True
         logger.info("Trajectory ends high in the sky. Will perform PX4 native landing.")
     else:
@@ -532,6 +592,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
                 # Check if we should initiate controlled landing
                 if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
+                    # In NED, pz is + downward, so -1*pz is altitude above ground
                     if (time_to_end <= Params.CONTROLLED_LANDING_TIME) or (-1 * pz < Params.CONTROLLED_LANDING_ALTITUDE):
                         logger.info("Mission progress threshold reached. Initiating controlled landing phase.")
                         await controlled_landing(drone)
@@ -1187,7 +1248,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 logger.error("Failed to read HW ID. Exiting program.")
                 sys.exit(1)
 
-            # Read Drone Configuration
+            # Read Drone Configuration (already NED)
             drone_config = read_config(CONFIG_CSV_NAME)
             if drone_config is None:
                 logger.error("Drone configuration not found. Exiting program.")
@@ -1203,18 +1264,21 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             waypoints = read_trajectory_file(
                 filename=trajectory_filename,
                 auto_launch_position=auto_launch_position,
-                initial_x=drone_config.initial_x,
-                initial_y=drone_config.initial_y,
+                initial_x=drone_config.initial_x,  # N
+                initial_y=drone_config.initial_y,  # E
             )
             logger.info(f"Drone show trajectory file 'Drone {position_id}.csv' loaded successfully.")
 
         # Log initial position details
         if auto_launch_position:
             logger.info("Auto Launch Position is ENABLED.")
-            logger.info(f"Initial Position Set to (Relative): X=0.0, Y=0.0, Z=0.0")
+            logger.info("First waypoint in CSV sets the origin => (0,0,0) after transform to NED.")
         else:
             logger.info("Auto Launch Position is DISABLED.")
-            logger.info(f"Initial Position from Config: X={drone_config.initial_x}, Y={drone_config.initial_y}, Z=0.0")
+            logger.info(
+                f"Initial Position from Config: X={drone_config.initial_x}, "
+                f"Y={drone_config.initial_y}, Z=0.0 (NED)"
+            )
 
         # Step 7: Execute Trajectory
         await perform_trajectory(drone, waypoints, home_position, synchronized_start_time)
@@ -1290,14 +1354,17 @@ def main():
     else:
         auto_launch_position = Params.AUTO_LAUNCH_POSITION
         logger.info(
-            f"Using Params.AUTO_LAUNCH_POSITION = {Params.AUTO_LAUNCH_POSITION} as '--auto_launch_position' was not provided."
+            f"Using Params.AUTO_LAUNCH_POSITION = {Params.AUTO_LAUNCH_POSITION} "
+            f"as '--auto_launch_position' was not provided."
         )
 
     # Display initial position configuration
     if auto_launch_position:
-        logger.info("Initial Position: Auto Launch Position is ENABLED. Initial position will be set relative to the first waypoint.")
+        logger.info("Initial Position: Auto Launch Position is ENABLED.")
+        logger.info("Waypoints will be re-centered so the first waypoint becomes (0,0,0) in NED.")
     else:
-        logger.info("Initial Position: Auto Launch Position is DISABLED. Initial position will be set based on configuration.")
+        logger.info("Initial Position: Auto Launch Position is DISABLED.")
+        logger.info("Positions will be shifted by config's initial_x and initial_y in NED.")
 
     try:
         asyncio.run(

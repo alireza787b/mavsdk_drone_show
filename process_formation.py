@@ -44,15 +44,15 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
     automatically choosing SITL or real directories and config.
 
     Steps:
-    1) Identify correct shape folder (shapes_sitl vs. shapes).
+    1) Identify correct shapes folder (shapes_sitl vs. shapes).
     2) Identify correct config file (config_sitl.csv vs. config.csv).
     3) Process new CSVs in skybrush_dir -> output to processed_dir.
-    4) Update config file with initial positions from DroneX.csv.
+    4) Update config file with initial positions from DroneX.csv 
+       (with coordinate transform from Blender -> NED).
     5) Generate & save plots in plots_dir.
 
     Return a success or error message string.
     """
-    # Logging
     setup_logging()
     mode_str = "SITL" if Params.sim_mode else "real"
     logging.info(f"[run_formation_process] Starting in {mode_str} mode")
@@ -64,21 +64,21 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         # For SITL or real?
         base_folder = get_base_folder()
 
-        # Build the three swarm subfolders
+        # Build subfolders
         skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
         processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
-        plots_dir = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+        plots_dir    = os.path.join(base_dir, base_folder, 'swarm', 'plots')
 
-        # Decide which config file
+        # Pick which config file
         config_csv_name = get_config_filename()
         config_file = os.path.join(base_dir, config_csv_name)
 
-        logging.debug(f"Skybrush dir: {skybrush_dir}")
+        logging.debug(f"Skybrush dir:  {skybrush_dir}")
         logging.debug(f"Processed dir: {processed_dir}")
-        logging.debug(f"Plots dir: {plots_dir}")
-        logging.debug(f"Config file: {config_file}")
+        logging.debug(f"Plots dir:     {plots_dir}")
+        logging.debug(f"Config file:   {config_file}")
 
-        # 1) Process the raw CSVs in skybrush -> processed
+        # 1) Process the raw CSVs (skybrush -> processed)
         process_drone_files(
             skybrush_dir=skybrush_dir, 
             processed_dir=processed_dir, 
@@ -86,12 +86,11 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
             dt=0.05
         )
 
-        # 2) Update config file based on the newly processed CSVs
-        #    Actually we only need the raw Drone CSV from skybrush,
-        #    since the first row is used to glean initial positions.
+        # 2) Update config file from the raw CSV's first line
+        #    and do coordinate transform from Blender -> NED
         update_config_file(skybrush_dir, config_file)
 
-        # 3) Generate & save the 3D path plots
+        # 3) Generate 3D path plots
         plot_drone_paths(base_dir, show_plots=False)
 
         msg = "Processing completed successfully!"
