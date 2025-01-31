@@ -335,11 +335,11 @@ def read_trajectory_file(
             if auto_launch_position:
                 # Extract initial positions from the first waypoint (in blender coords)
                 try:
-                    b_x, b_y, b_z = extract_initial_positions(rows[0])
-                    # Transform from Blender north-west-up to NED
-                    init_n, init_e, init_d = blender_north_west_up_to_ned(b_x, b_y, b_z)
+                    init_n, init_e, init_d = extract_initial_positions(rows[0])
+                    # # Transform from Blender north-west-up to NED
+                    # init_n, init_e, init_d = blender_north_west_up_to_ned(b_x, b_y, b_z)
                     logger.info(
-                        f"Auto Launch Position ENABLED. Blender->NED for first waypoint: "
+                        f"Auto Launch Position ENABLED. NED for first waypoint: "
                         f"(N={init_n:.2f}, E={init_e:.2f}, D={init_d:.2f})"
                     )
                 except (KeyError, ValueError) as e:
@@ -350,23 +350,20 @@ def read_trajectory_file(
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        # Positions in Blender -> transform to NED
-                        b_px = float(row["px"])
-                        b_py = float(row["py"])
-                        b_pz = float(row.get("pz", 0.0))
-                        px, py, pz = blender_north_west_up_to_ned(b_px, b_py, b_pz)
+                        # Positions in Blender -> transform to NED (already NED)
+                        px = float(row["px"])
+                        py = float(row["py"])
+                        pz = float(row.get("pz", 0.0))
 
-                        # Velocities in Blender -> transform to NED
-                        b_vx = float(row["vx"])
-                        b_vy = float(row["vy"])
-                        b_vz = float(row["vz"])
-                        vx, vy, vz = blender_north_west_up_to_ned(b_vx, b_vy, b_vz)
+                        # Velocities in Blender -> transform to NED (already NED)
+                        vx = float(row["vx"])
+                        vy = float(row["vy"])
+                        vz = float(row["vz"])
 
-                        # Accelerations in Blender -> transform to NED
-                        b_ax = float(row["ax"])
-                        b_ay = float(row["ay"])
-                        b_az = float(row["az"])
-                        ax, ay, az = blender_north_west_up_to_ned(b_ax, b_ay, b_az)
+                        # Accelerations in Blender -> transform to NED (already NED)
+                        ax = float(row["ax"])
+                        ay = float(row["ay"])
+                        az = float(row["az"])
 
                         yaw = float(row["yaw"])
                         ledr = clamp_led_value(row.get("ledr", 0))
@@ -409,23 +406,20 @@ def read_trajectory_file(
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        # Positions in Blender -> transform to NED
-                        b_px = float(row["px"])
-                        b_py = float(row["py"])
-                        b_pz = float(row["pz"])
-                        px, py, pz = blender_north_west_up_to_ned(b_px, b_py, b_pz)
+                        # Positions in Blender -> transform to NED already on that
+                        px = float(row["px"])
+                        py = float(row["py"])
+                        pz = float(row["pz"])
 
                         # Velocities in Blender -> transform to NED
-                        b_vx = float(row["vx"])
-                        b_vy = float(row["vy"])
-                        b_vz = float(row["vz"])
-                        vx, vy, vz = blender_north_west_up_to_ned(b_vx, b_vy, b_vz)
+                        vx = float(row["vx"])
+                        vy = float(row["vy"])
+                        vz = float(row["vz"])
 
                         # Accelerations in Blender -> transform to NED
-                        b_ax = float(row["ax"])
-                        b_ay = float(row["ay"])
-                        b_az = float(row["az"])
-                        ax, ay, az = blender_north_west_up_to_ned(b_ax, b_ay, b_az)
+                        ax = float(row["ax"])
+                        ay = float(row["ay"])
+                        az = float(row["az"])
 
                         yaw = float(row["yaw"])
                         ledr = clamp_led_value(row.get("ledr", 0))
