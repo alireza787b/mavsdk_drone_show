@@ -139,9 +139,9 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
                    color=color, s=100, edgecolor='black')
 
         # Axes labels (N, E, Up)
-        ax.set_xlabel('North (m)', fontweight='bold')
-        ax.set_ylabel('East (m)',  fontweight='bold')
-        ax.set_zlabel('Up (m)',    fontweight='bold')
+        ax.set_xlabel('← South | North → (m)', fontweight='bold')
+        ax.set_ylabel('← West | East → (m)',   fontweight='bold')
+        ax.set_zlabel('← Down | Up → (m)',     fontweight='bold')
 
         # Title referencing the drone
         ax.set_title(f"Drone {drone_id} Path (N–E–Up)", fontweight='bold')
@@ -194,9 +194,9 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
                   color=color, fontsize=10)
 
     # Axis labels
-    ax_c.set_xlabel('North (m)', fontweight='bold')
-    ax_c.set_ylabel('East (m)',  fontweight='bold')
-    ax_c.set_zlabel('Up (m)',    fontweight='bold')
+    ax_c.set_xlabel('← South | North → (m)', fontweight='bold')
+    ax_c.set_ylabel('← West | East → (m)',   fontweight='bold')
+    ax_c.set_zlabel('← Down | Up → (m)',     fontweight='bold')
 
     ax_c.set_title('Combined Drone Paths (N–E–Up)', fontweight='bold')
     ax_c.legend(loc='best', title='Drone IDs')
