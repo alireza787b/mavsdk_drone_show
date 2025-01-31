@@ -1,4 +1,5 @@
 // src/components/DronePositionMap.js
+
 import React, { useEffect, useState } from 'react';
 import '../styles/DronePositionMap.css';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl } from 'react-leaflet';
@@ -48,22 +49,16 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
           const distance = Math.sqrt(x * x + y * y);
 
           // Base bearing from origin if heading=0 (y -> east, x -> north):
-          //   bearing = atan2(east, north) in degrees
-          //   Typically we do: bearing = atan2(Y, X) => range [-180..180]
           let rawBearingDeg = (Math.atan2(y, x) * 180) / Math.PI; // east=90°, north=0
-          // Convert to 0..360 range
           if (rawBearingDeg < 0) {
             rawBearingDeg += 360;
           }
 
-          // Now incorporate the forward heading offset
-          // So if heading=90 => forward heading is east => shift bearing by +90
           let finalBearing = rawBearingDeg + forwardHeading;
           finalBearing %= 360;
 
           let destination;
           try {
-            // Move 'distance' meters at 'finalBearing' from the origin
             destination = origin.destinationPoint(distance, finalBearing);
           } catch (error) {
             console.error(
@@ -73,24 +68,14 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
             return null;
           }
 
-          if (
-            !destination ||
-            !isValidNumber(destination.lat) ||
-            !isValidNumber(destination.lon)
-          ) {
-            console.error(
-              `Invalid destination coords for drone hw_id=${drone.hw_id}:`,
-              destination
-            );
-            return null;
-          }
-
-          return {
-            hw_id: drone.hw_id,
-            pos_id: drone.pos_id,
-            lat: destination.lat,
-            lon: destination.lon,
-          };
+          return destination
+            ? {
+                hw_id: drone.hw_id,
+                pos_id: drone.pos_id,
+                lat: destination.lat,
+                lon: destination.lon,
+              }
+            : null;
         })
         .filter((pos) => pos !== null);
 
@@ -108,7 +93,6 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
     return <p>No drone positions available to display on the map.</p>;
   }
 
-  // Compute center
   const avgLat = dronePositions.reduce((sum, d) => sum + d.lat, 0) / dronePositions.length;
   const avgLon = dronePositions.reduce((sum, d) => sum + d.lon, 0) / dronePositions.length;
 

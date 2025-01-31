@@ -85,8 +85,8 @@ function InitialLaunchPlot({
     const eOffset = e + overlapIndex * 0.3;
 
     // Pre-transform so X_pre>0 => west is left, Y_pre>0 => north is up
-    const X_pre = -eOffset; // if e>0 => X_pre <0 => left side
-    const Y_pre = nOffset;  // if n>0 => Y_pre>0 => up
+    const X_pre = -eOffset; // East becomes negative for West on the plot
+    const Y_pre = nOffset;  // North stays as is
 
     // Rotate clockwise by forwardHeading
     const { xRot, yRot } = rotateCW(X_pre, Y_pre, forwardHeading);
@@ -147,8 +147,6 @@ function InitialLaunchPlot({
           title: '← South | North →',
           showgrid: true,
           zeroline: true,
-          // If you prefer "up is north," you can keep the standard direction.
-          // Or do "autorange: 'reversed'" if you need to invert vertical direction
         },
         hovermode: 'closest',
         plot_bgcolor: '#f7f7f7',
