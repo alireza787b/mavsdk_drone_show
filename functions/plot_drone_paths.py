@@ -1,4 +1,3 @@
-# functions/plot_drone_paths.py
 import logging
 import os
 import pandas as pd
@@ -31,23 +30,31 @@ def extract_drone_id(filename: str) -> str:
 
 def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, float, float, float, float]:
     """
-    Determine consistent 3D plot bounds in an N–E–Up system:
-      n=px, e=-py, up=-pz
-    Returns (n_min,n_max, e_min,e_max, u_min,u_max).
+    Determine consistent 3D plot bounds in an N–E–Up coordinate system
+    for multiple drones.
+
+    We have columns in NED:
+       px = north, py = east, pz = down
+    So we plot up = -pz for the Z-axis.
+
+    Returns: (n_min,n_max, e_min,e_max, u_min,u_max)
+    for consistent bounding across all drones.
     """
     all_n, all_e, all_up = [], [], []
     for df in data_list:
-        n = df['px']
-        e = -df['py']
-        u = -df['pz']
+        n  = df['px']      # N
+        e  = df['py']      # E
+        up = -df['pz']     # Up = - Down
         all_n.append(n)
         all_e.append(e)
-        all_up.append(u)
+        all_up.append(up)
 
+    # Concatenate all values to find global min/max
     all_n  = pd.concat(all_n)
     all_e  = pd.concat(all_e)
     all_up = pd.concat(all_up)
 
+    # We center the bounding box around midpoints
     max_range = np.array([
         all_n.max() - all_n.min(),
         all_e.max() - all_e.min(),
@@ -64,21 +71,22 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
         mid_up - max_range, mid_up + max_range
     )
 
-
 def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
     """
-    3D path visualization in a North–East–Up frame (axes labeled with <-> to indicate opposite directions).
-    By default, we read from SITL or real:
-      shapes_sitl/swarm/processed -> shapes_sitl/swarm/plots
-      shapes/swarm/processed      -> shapes/swarm/plots
+    3D path visualization in a North–East–Up frame.
+
+    We read from the 'processed' folder, which now stores NED columns:
+      px = north, py = east, pz = down
+
+    For plotting, we do:
+      north = px
+      east  = py
+      up    = -pz
 
     Steps:
-      1) Draw single-drone plots with axis named 'North <-> South (m)' etc.
-         - Title includes "Drone X"
-         - No label on the drone's start point (less clutter).
-      2) Draw a combined plot with a legend "Drone X" for each path,
-         but label the launch point with "(X)" offset so it doesn't collide.
-      3) Use a vantage angle that orients North 'up' and East 'right'.
+      1) For each drone, create a single 3D plot with axes labeled N–E–Up.
+      2) Create a combined 3D plot overlaying all drone paths.
+      3) Axes are labeled as (North (m), East (m), Up (m)) with indicative arrows.
     """
     logging.info("[plot_drone_paths] Generating 3D path visuals...")
 
@@ -113,10 +121,10 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         df = pd.read_csv(df_path)
         drone_data.append(df)
 
-        # Convert px->North, py->West => East, pz->Down => Up
-        north = df['px']
-        east  = -df['py']
-        up    = -df['pz']
+        # Convert pz=down -> up = - pz
+        north = df['px']      # N
+        east  = df['py']      # E
+        up    = -df['pz']     # Up
 
         fig = plt.figure(figsize=(14, 10))
         ax  = fig.add_subplot(111, projection='3d')
@@ -126,19 +134,19 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
 
         # Plot path
         ax.plot(north, east, up, color=color, linewidth=3, alpha=0.85)
-        # Mark the starting point - no text label here
+        # Mark the starting point
         ax.scatter(north.iloc[0], east.iloc[0], up.iloc[0],
                    color=color, s=100, edgecolor='black')
 
-        # Axes with "N <-> S", "E <-> W", "U <-> D"
-        ax.set_xlabel('← South | North → (m)', fontweight='bold')
-        ax.set_ylabel('← West | East → (m)',   fontweight='bold')
-        ax.set_zlabel('← Down | Up → (m)',     fontweight='bold')
+        # Axes labels (N, E, Up)
+        ax.set_xlabel('North (m)', fontweight='bold')
+        ax.set_ylabel('East (m)',  fontweight='bold')
+        ax.set_zlabel('Up (m)',    fontweight='bold')
 
         # Title referencing the drone
         ax.set_title(f"Drone {drone_id} Path (N–E–Up)", fontweight='bold')
 
-        # Rotate view so north is "up"
+        # Set a vantage angle
         ax.view_init(elev=30, azim=-60)
 
         plt.tight_layout()
@@ -171,7 +179,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         drone_id= extract_drone_id(file)
 
         north = df['px']
-        east  = -df['py']
+        east  = df['py']
         up    = -df['pz']
 
         # Plot the path
@@ -185,10 +193,10 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
                   f"({drone_id})",
                   color=color, fontsize=10)
 
-    # Axis labels with <->
-    ax_c.set_xlabel('← South | North → (m)', fontweight='bold')
-    ax_c.set_ylabel('← West | East → (m)',   fontweight='bold')
-    ax_c.set_zlabel('← Down | Up → (m)',     fontweight='bold')
+    # Axis labels
+    ax_c.set_xlabel('North (m)', fontweight='bold')
+    ax_c.set_ylabel('East (m)',  fontweight='bold')
+    ax_c.set_zlabel('Up (m)',    fontweight='bold')
 
     ax_c.set_title('Combined Drone Paths (N–E–Up)', fontweight='bold')
     ax_c.legend(loc='best', title='Drone IDs')
@@ -204,4 +212,4 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         plt.show()
     plt.close(fig_c)
 
-    logging.info("[plot_drone_paths] All plots generated with user-friendly orientation and labeling.")
+    logging.info("[plot_drone_paths] All plots generated (N–E–Up).")
