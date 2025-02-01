@@ -56,7 +56,8 @@
     backdrop-filter: blur(5px);
 }
 
-.modal-content {
+
+/* .modal-content {
     position: relative;
     max-width: 95%;
     max-height: 95%;
@@ -66,7 +67,7 @@
     background: transparent;
     border-radius: 8px;
     overflow: hidden;
-}
+} */
 
 .modal-close-button {
     position: absolute;
