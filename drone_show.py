@@ -333,11 +333,9 @@ def read_trajectory_file(
                 sys.exit(1)
 
             if auto_launch_position:
-                # Extract initial positions from the first waypoint (in blender coords)
+                # Extract initial positions from the first waypoint (in NED coords)
                 try:
                     init_n, init_e, init_d = extract_initial_positions(rows[0])
-                    # # Transform from Blender north-west-up to NED
-                    # init_n, init_e, init_d = blender_north_west_up_to_ned(b_x, b_y, b_z)
                     logger.info(
                         f"Auto Launch Position ENABLED. NED for first waypoint: "
                         f"(N={init_n:.2f}, E={init_e:.2f}, D={init_d:.2f})"
@@ -350,17 +348,17 @@ def read_trajectory_file(
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        # Positions in Blender -> transform to NED (already NED)
+                        # Positions in  NED (already NED)
                         px = float(row["px"])
                         py = float(row["py"])
                         pz = float(row.get("pz", 0.0))
 
-                        # Velocities in Blender -> transform to NED (already NED)
+                        # Velocities in NED (already NED)
                         vx = float(row["vx"])
                         vy = float(row["vy"])
                         vz = float(row["vz"])
 
-                        # Accelerations in Blender -> transform to NED (already NED)
+                        # Accelerations in NED (already NED)
                         ax = float(row["ax"])
                         ay = float(row["ay"])
                         az = float(row["az"])

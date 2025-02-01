@@ -1,5 +1,4 @@
 // src/components/InitialLaunchPlot.js
-
 import React from 'react';
 import Plot from 'react-plotly.js';
 
@@ -64,7 +63,7 @@ function InitialLaunchPlot({
   // --------------------------------------------------------------
   // Compute final plot (x,y) by:
   //   1) Overlap offset
-  //   2) Pre-transform: X_pre = -east, Y_pre = north
+  //   2) Pre-transform: X_pre = east, Y_pre = north (no negation for east)
   //   3) Rotate clockwise by heading
   // --------------------------------------------------------------
   const xPlotValues = [];
@@ -75,18 +74,18 @@ function InitialLaunchPlot({
       (d) => d.hw_id === drone.hw_id
     );
 
-    // Original "north"/"east"
-    const n = parseFloat(drone.x);
-    const e = parseFloat(drone.y);
+    // Original "north"/"east" (already in NED format)
+    const n = parseFloat(drone.x);  // North
+    const e = parseFloat(drone.y);  // East
 
     // Overlap offset: push each subsequent drone in the same pos_id
     // a little in both n/e to avoid markers stacking exactly
     const nOffset = n + overlapIndex * 0.3;
     const eOffset = e + overlapIndex * 0.3;
 
-    // Pre-transform so X_pre>0 => west is left, Y_pre>0 => north is up
-    const X_pre = -eOffset; // East becomes negative for West on the plot
-    const Y_pre = nOffset;  // North stays as is
+    // Pre-transform: X_pre = east, Y_pre = north (no negation for east)
+    const X_pre = eOffset; // East remains as East
+    const Y_pre = nOffset; // North remains as North
 
     // Rotate clockwise by forwardHeading
     const { xRot, yRot } = rotateCW(X_pre, Y_pre, forwardHeading);
