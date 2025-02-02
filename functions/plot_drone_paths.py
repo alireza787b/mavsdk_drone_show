@@ -37,7 +37,7 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
        px = north, py = east, pz = down
     So we plot up = -pz for the Z-axis.
 
-    Returns: (n_min,n_max, e_min,e_max, u_min,u_max)
+    Returns: (n_min, n_max, e_min, e_max, u_min, u_max)
     for consistent bounding across all drones.
     """
     all_n, all_e, all_up = [], [], []
@@ -93,10 +93,10 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     if high_quality:
         setup_matplotlib_style()
 
-    # SITL or real
-    base_folder  = 'shapes_sitl' if Params.sim_mode else 'shapes'
-    processed_dir= os.path.join(base_dir, base_folder, 'swarm', 'processed')
-    plots_dir    = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+    # Determine folder based on simulation mode
+    base_folder   = 'shapes_sitl' if Params.sim_mode else 'shapes'
+    processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
+    plots_dir     = os.path.join(base_dir, base_folder, 'swarm', 'plots')
     os.makedirs(plots_dir, exist_ok=True)
 
     processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
@@ -121,10 +121,10 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         df = pd.read_csv(df_path)
         drone_data.append(df)
 
-        # Convert pz=down -> up = - pz
-        north = df['px']      # N
-        east  = df['py']      # E
-        up    = -df['pz']     # Up
+        # Convert pz=down -> up = -pz
+        north = df['px']  # N
+        east  = df['py']  # E
+        up    = -df['pz'] # Up
 
         fig = plt.figure(figsize=(14, 10))
         ax  = fig.add_subplot(111, projection='3d')
@@ -151,7 +151,8 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
 
         plt.tight_layout()
         single_out = os.path.join(plots_dir, f'drone_{drone_id}_path.jpeg')
-        plt.savefig(single_out, dpi=80, format='jpeg', quality=65)  # Save as JPEG with compression
+        # Save as JPEG with a lower DPI to optimize file size; note that 'quality' is not supported here.
+        plt.savefig(single_out, dpi=80, format='jpeg')
 
         if show_plots:
             plt.show()
@@ -206,7 +207,8 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
 
     plt.tight_layout()
     combined_out = os.path.join(plots_dir, 'combined_drone_paths.jpeg')
-    plt.savefig(combined_out, dpi=150, format='jpeg', quality=85)  # Save as JPEG with compression
+    # Save as JPEG with a lower DPI to optimize file size; no 'quality' parameter here.
+    plt.savefig(combined_out, dpi=150, format='jpeg')
 
     if show_plots:
         plt.show()
