@@ -25,7 +25,7 @@ export const DRONE_ACTION_TYPES = {
 };
 
 export const DRONE_MISSION_IMAGES = {
-    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: `${getBackendURL()}/get-show-plots/combined_drone_paths.png`,
+    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: `${getBackendURL()}/get-show-plots/combined_drone_paths.jpg`,
     [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: `${getCustomShowImageURL()}`, // Use the function to get the custom show image URL
 };
 
