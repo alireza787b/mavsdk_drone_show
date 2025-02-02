@@ -1,12 +1,11 @@
 [Unit]
 Description=LED Indicator for Drone System
-#After=network-online.target
-Before=coordinator.service  # Ensure it runs before the coordinator service
+Before=multi-user.target  # This ensures it starts before other services
+DefaultDependencies=no   # Disable default dependencies to avoid waiting for other services
 
 [Service]
-# Run the LED indicator script from the virtual environment without restart
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py
-Restart=no  # Do not restart on failure, just log it and skip
+Restart=no
 User=droneshow
 Group=droneshow
 
