@@ -19,7 +19,7 @@ def setup_matplotlib_style():
         'axes.titlesize': 14,
         'axes.labelsize': 12,
         'legend.fontsize': 10,
-        'figure.dpi': 300
+        'figure.dpi': 150  # Set default figure DPI to 150 for smaller size
     })
 
 def extract_drone_id(filename: str) -> str:
@@ -32,7 +32,7 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
     """
     Determine consistent 3D plot bounds in an N–E–Up coordinate system
     for multiple drones.
-
+    
     We have columns in NED:
        px = north, py = east, pz = down
     So we plot up = -pz for the Z-axis.
@@ -74,7 +74,7 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
 def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
     """
     3D path visualization in a North–East–Up frame.
-
+    
     We read from the 'processed' folder, which now stores NED columns:
       px = north, py = east, pz = down
 
@@ -133,10 +133,10 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         color    = color_dict[file]
 
         # Plot path
-        ax.plot(north, east, up, color=color, linewidth=3, alpha=0.85)
+        ax.plot(north, east, up, color=color, linewidth=2, alpha=0.85)
         # Mark the starting point
         ax.scatter(north.iloc[0], east.iloc[0], up.iloc[0],
-                   color=color, s=100, edgecolor='black')
+                   color=color, s=80, edgecolor='black')
 
         # Axes labels (N, E, Up)
         ax.set_xlabel('← South | North → (m)', fontweight='bold')
@@ -150,8 +150,8 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         ax.view_init(elev=30, azim=-60)
 
         plt.tight_layout()
-        single_out = os.path.join(plots_dir, f'drone_{drone_id}_path.png')
-        plt.savefig(single_out, dpi=300)
+        single_out = os.path.join(plots_dir, f'drone_{drone_id}_path.jpeg')
+        plt.savefig(single_out, dpi=80, format='jpeg', quality=65)  # Save as JPEG with compression
 
         if show_plots:
             plt.show()
@@ -205,8 +205,8 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     ax_c.view_init(elev=30, azim=-60)
 
     plt.tight_layout()
-    combined_out = os.path.join(plots_dir, 'combined_drone_paths.png')
-    plt.savefig(combined_out, dpi=300)
+    combined_out = os.path.join(plots_dir, 'combined_drone_paths.jpeg')
+    plt.savefig(combined_out, dpi=150, format='jpeg', quality=85)  # Save as JPEG with compression
 
     if show_plots:
         plt.show()
