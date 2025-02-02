@@ -1,6 +1,6 @@
 [Unit]
 Description=LED Indicator for Drone System
-Before=multi-user.target  # This ensures it starts before other services
+Before=network-online.target  # This ensures it starts before other services
 DefaultDependencies=no   # Disable default dependencies to avoid waiting for other services
 
 [Service]
