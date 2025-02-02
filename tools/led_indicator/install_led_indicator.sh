@@ -24,12 +24,13 @@ else
     echo "LED Indicator Python script already exists. Skipping creation."
 fi
 
-# Step 2: Check if the service file exists, if not, install it
+# Step 2: Check if the service file exists, and replace it if necessary
 if [ -f "$SERVICE_FILE" ]; then
-    echo "LED Indicator service file already exists. Skipping installation."
+    echo "LED Indicator service file exists. Replacing the existing service file..."
+    # Replace the existing service file with the source one
+    cp "$SOURCE_SERVICE_FILE" "$SERVICE_FILE"
 else
     echo "LED Indicator service file not found. Installing the service file..."
-
     # Check if the source service file exists
     if [ ! -f "$SOURCE_SERVICE_FILE" ]; then
         echo "Error: Source LED Indicator service file not found at $SOURCE_SERVICE_FILE!" 1>&2
@@ -39,11 +40,11 @@ else
     # Copy the LED service file to /etc/systemd/system/
     echo "Copying LED Indicator service file to /etc/systemd/system/..."
     cp "$SOURCE_SERVICE_FILE" "$SERVICE_FILE"
-
-    # Reload systemd to recognize the new service
-    echo "Reloading systemd to recognize the new service..."
-    systemctl daemon-reload
 fi
+
+# Reload systemd to recognize the new or updated service
+echo "Reloading systemd to recognize the new service..."
+systemctl daemon-reload
 
 # Step 3: Enable the service to start on boot
 echo "Enabling LED Indicator service to start on boot..."
