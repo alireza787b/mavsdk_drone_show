@@ -5,7 +5,7 @@ Before=coordinator.service  # Ensure it runs before the coordinator service
 
 [Service]
 # Run the LED indicator script from the virtual environment without restart
-ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/tools/led_indicator/led_indicator.py
+ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py
 Restart=no  # Do not restart on failure, just log it and skip
 User=droneshow
 Group=droneshow
