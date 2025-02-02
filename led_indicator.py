@@ -32,15 +32,6 @@ try:
 
     logging.info("LEDs set to red")
 
-    # Keep the LEDs on for 5 seconds
-    time.sleep(5)
-
-    # Optionally, you can turn off the LEDs after the 5 seconds
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, Color(0, 0, 0))  # Set all LEDs to off
-    strip.show()
-
-    logging.info("LEDs turned off")
 
 except Exception as e:
     # Log any errors that occur during the process
