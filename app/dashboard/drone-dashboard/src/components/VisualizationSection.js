@@ -168,7 +168,7 @@ const VisualizationSection = ({ uploadCount }) => {
 
       {/* Render the Combined Plot (if it exists) */}
       {plots
-        .filter((name) => name === 'combined_drone_paths.png')
+        .filter((name) => name === 'combined_drone_paths.jpg')
         .map((plot, index) => {
           const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
           return (
@@ -186,7 +186,7 @@ const VisualizationSection = ({ uploadCount }) => {
       {/* Individual Plots in a Grid */}
       <Box className="plot-grid">
         {plots
-          .filter((name) => name !== 'combined_drone_paths.png')
+          .filter((name) => name !== 'combined_drone_paths.jpg')
           .map((plot, index) => {
             const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
             return (

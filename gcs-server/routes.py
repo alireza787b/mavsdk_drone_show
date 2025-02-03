@@ -393,10 +393,10 @@ def setup_routes(app):
             if not os.path.exists(plots_directory):
                 os.makedirs(plots_directory)
 
-            filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
+            filenames = [f for f in os.listdir(plots_directory) if f.endswith('.jpg')]
             upload_time = "unknown"
             if 'combined_drone_paths.png' in filenames:
-                upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'combined_drone_paths.png')))
+                upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'combined_drone_paths.jpg')))
 
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:

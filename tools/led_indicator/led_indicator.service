@@ -1,0 +1,13 @@
+[Unit]
+Description=LED Indicator for Drone System
+Before=network-online.target  # This ensures it starts before other services
+DefaultDependencies=no   # Disable default dependencies to avoid waiting for other services
+
+[Service]
+ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py
+Restart=no
+User=droneshow
+Group=droneshow
+
+[Install]
+WantedBy=multi-user.target
