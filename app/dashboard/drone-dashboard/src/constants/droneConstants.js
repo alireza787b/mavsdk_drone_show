@@ -13,6 +13,7 @@ export const DRONE_ACTION_TYPES = {
     LAND: 101,
     HOLD: 102,
     TEST: 100,
+    HOVER_TEST: 106,
     UPDATE_CODE: 103,
     RETURN_RTL: 104,
     KILL_TERMINATE: 105,
@@ -50,6 +51,7 @@ export const DRONE_ACTION_NAMES = {
     105: 'Emergency Kill',
     110: 'Init System ID',
     111: 'Apply Common Params',
+    112: 'Hover Test',
 };
 
 export const getMissionDescription = (missionType) => {

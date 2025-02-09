@@ -13,6 +13,7 @@ import {
   FaPowerOff,
   FaCodeBranch,
   FaHome,
+  FaRocket,
   FaSkull,
   FaToolbox,
   FaWrench
@@ -118,30 +119,40 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
       </div>
 
       {/* -------------------------
-          Test Actions
-         ------------------------- */}
-      <div className="action-group">
-        <h2>Test Actions</h2>
-        <div className="action-buttons">
-          {/* Test */}
-          <button
-            className="action-button test-button"
-            onClick={() => handleActionClick('TEST')}
-          >
-            <FaVial className="action-icon" />
-            {DRONE_ACTION_NAMES[actionTypes.TEST]}
-          </button>
+    Test Actions
+   ------------------------- */}
+<div className="action-group">
+  <h2>Test Actions</h2>
+  <div className="action-buttons">
+    {/* Test */}
+    <button
+      className="action-button test-button"
+      onClick={() => handleActionClick('TEST')}
+    >
+      <FaVial className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.TEST]}
+    </button>
 
-          {/* Test Light Show */}
-          <button
-            className="action-button test-led-button"
-            onClick={() => handleActionClick('TEST_LED')}
-          >
-            <FaLightbulb className="action-icon" />
-            {DRONE_ACTION_NAMES[actionTypes.TEST_LED]}
-          </button>
-        </div>
-      </div>
+    {/* Test Light Show */}
+    <button
+      className="action-button test-led-button"
+      onClick={() => handleActionClick('TEST_LED')}
+    >
+      <FaLightbulb className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.TEST_LED]}
+    </button>
+
+    {/* Hover Test */}
+    <button
+      className="action-button hover-test-button"
+      onClick={() => handleActionClick('HOVER_TEST')}
+    >
+      <FaRocket className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.HOVER_TEST]}
+    </button>
+  </div>
+</div>
+
 
       {/* -------------------------
           System & Maintenance

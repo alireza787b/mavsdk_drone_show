@@ -45,6 +45,7 @@ class DroneSetup:
             Mission.NONE.value: self._handle_no_mission,
             Mission.DRONE_SHOW_FROM_CSV.value: self._execute_standard_drone_show,
             Mission.CUSTOM_CSV_DRONE_SHOW.value: self._execute_custom_drone_show,
+            Mission.HOVER_TEST.value: self._execute_hover_test,
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
@@ -328,6 +329,32 @@ class DroneSetup:
 
         logger.info("Conditions not met for triggering Custom CSV Drone Show.")
         return False, "Conditions not met for Custom CSV Drone Show."
+    
+    async def _execute_hover_test(self, current_time: int, earlier_trigger_time: int) -> tuple:
+        if self.drone_config.state == 1 and current_time >= earlier_trigger_time:
+            self.drone_config.state = 2
+            real_trigger_time = self.drone_config.trigger_time
+            self.drone_config.trigger_time = 0
+
+            main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
+            hover_test_csv_file_name = getattr(self.params, 'hover_test_csv_file_name', None)
+
+            if not main_offboard_executer:
+                logger.error("No main_offboard_executer specified for custom drone show.")
+                self._reset_mission_state(False)
+                return False, "No executer script specified."
+
+            if not hover_test_csv_file_name:
+                logger.error("No hover test CSV file specified for Custom Drone Show.")
+                self._reset_mission_state(False)
+                return False, "No hover test CSV file specified."
+
+            logger.info(f"Starting Hover Test Show with {hover_test_csv_file_name} using {main_offboard_executer}")
+            action = f"--start_time={real_trigger_time} --custom_csv={hover_test_csv_file_name}"
+            return await self.execute_mission_script(main_offboard_executer, action)
+
+        logger.info("Conditions not met for triggering Hover Test CSV Drone Show.")
+        return False, "Conditions not met for Hover Test CSV Drone Show."
 
     async def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
         if self.drone_config.state == 1 and current_time >= earlier_trigger_time:

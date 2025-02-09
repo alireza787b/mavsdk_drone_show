@@ -133,6 +133,7 @@ class Params:
     led_channel = 0       # GPIO channel
 
     custom_csv_file_name = "active.csv"         # Name of custom CSV execution
+    hover_test_csv_file_name = "hover_test.csv" # Name of hover test CSV execution
     main_offboard_executer = "drone_show.py"    # Name of script that executes offboard missions from CSV
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
@@ -169,11 +170,11 @@ class Params:
 
     # Trajectory and Landing Configuration
     GROUND_ALTITUDE_THRESHOLD = 1.0        # Threshold to determine if trajectory ends at ground level
-    CONTROLLED_LANDING_ALTITUDE = 3.0      # Minimum altitude to start controlled landing
-    CONTROLLED_LANDING_TIME = 2.0          # Minimum time before end of trajectory to start controlled landing
+    CONTROLLED_LANDING_ALTITUDE = 2.0      # Minimum altitude to start controlled landing
+    CONTROLLED_LANDING_TIME = 1.0          # Minimum time before end of trajectory to start controlled landing
     MISSION_PROGRESS_THRESHOLD = 0.5       # Minimum mission progress percentage for controlled landing
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
-    CONTROLLED_LANDING_TIMEOUT = 15        # Maximum time to wait during controlled landing
+    CONTROLLED_LANDING_TIMEOUT = 10        # Maximum time to wait during controlled landing
 
 
     AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
