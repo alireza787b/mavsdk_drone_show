@@ -161,12 +161,12 @@ parse_arguments "$@"
 cleanup_lock_file() {
     local lock_file="$REPO_DIR/.git/index.lock"
     local tries=0
-    local max_tries=2
+    local max_tries=3
 
     while [ -f "$lock_file" ] && [ $tries -lt $max_tries ]; do
         if pgrep -f "git" >/dev/null 2>&1; then
-            log "Detected .git/index.lock while another Git process might be running. Waiting 2 seconds..."
-            sleep 2
+            log "Detected .git/index.lock while another Git process might be running. Waiting 3 seconds..."
+            sleep 3
         else
             log "Stale .git/index.lock found. Attempting removal..."
             rm -f "$lock_file"
@@ -174,18 +174,25 @@ cleanup_lock_file() {
         tries=$((tries+1))
     done
 
-    # If still present, forcibly remove
     if [ -f "$lock_file" ]; then
-        log "WARNING: .git/index.lock still present after $max_tries tries. Forcibly removing it and continuing."
+        log "WARNING: .git/index.lock still present after $max_tries tries. Forcibly removing it."
         rm -f "$lock_file"
-    else
-        log "No .git/index.lock remains or it has been successfully removed."
     fi
 }
 
-# -------------------------------------------
+# -------------------------------------------------
+# Check Git Repository Integrity
+# -------------------------------------------------
+check_git_repository_integrity() {
+    log "Checking repository integrity..."
+    if ! git fsck --full; then
+        log_error_and_exit "Git repository integrity check failed. Corruption detected."
+    fi
+}
+
+# -------------------------------------------------
 # Main Script Execution
-# -------------------------------------------
+# -------------------------------------------------
 log "==========================================="
 log "Starting repository update script."
 log "Branch: $BRANCH_NAME"
@@ -250,6 +257,9 @@ log "Fetching latest commits from origin..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
     log_error_and_exit "Failed to fetch from $GIT_URL."
 fi
+
+# Check repository integrity
+check_git_repository_integrity
 
 # Re-check lock
 cleanup_lock_file
