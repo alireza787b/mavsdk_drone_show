@@ -472,6 +472,61 @@ setup_netbird() {
 }
 
 # =============================================================================
+# NEW FUNCTION: Setup Python Virtual Environment
+# =============================================================================
+setup_python_venv() {
+    echo
+    echo "------------------------------------------------------"
+    echo "Setting up Python virtual environment in $REPO_DIR..."
+    echo "------------------------------------------------------"
+
+    # Check if python3 is available
+    if ! command -v python3 &> /dev/null; then
+        echo "Python3 not found. Installing python3..."
+        sudo apt-get update
+        sudo apt-get install -y python3
+    fi
+
+    # Check if python3-venv is installed
+    if ! dpkg -s python3-venv &> /dev/null; then
+        echo "python3-venv not installed. Installing it..."
+        sudo apt-get update
+        sudo apt-get install -y python3-venv
+    fi
+
+    # Move to repository directory (already cloned by setup_git)
+    cd "$REPO_DIR"
+
+    # Check if venv folder exists
+    if [[ -d "venv" ]]; then
+        echo "Existing virtual environment detected. Activating..."
+    else
+        echo "No existing 'venv' found. Creating a new virtual environment..."
+        python3 -m venv venv
+    fi
+
+    echo "Activating the virtual environment..."
+    # shellcheck disable=SC1091
+    source venv/bin/activate
+
+    echo "Upgrading pip and installing required packages..."
+    pip install --upgrade pip
+
+    if [[ -f "requirements.txt" ]]; then
+        echo "Installing from requirements.txt..."
+        pip install -r requirements.txt
+    else
+        echo "requirements.txt not found. Skipping pip install from file."
+    fi
+
+    echo "Deactivating virtual environment to avoid conflicts with the rest of the script."
+    deactivate
+
+    echo "Python virtual environment setup is complete."
+    echo
+}
+
+# =============================================================================
 # Main Script Execution
 # =============================================================================
 
@@ -575,9 +630,12 @@ setup_git "$@"
 
 echo
 echo "Git repository setup complete."
-
 echo
 
+# ----------------------------------------------------------------------
+# CALL OUR NEW VIRTUAL ENV SETUP FUNCTION (if desired, no skip flag for it)
+# ----------------------------------------------------------------------
+setup_python_venv
 
 # Setup Wifi-Manager Service
 setup_wifi_manager_service
@@ -598,7 +656,6 @@ fi
 echo "Setup Finished..."
 echo "Initiating Reboot..."
 sudo reboot
-
 
 
 echo
