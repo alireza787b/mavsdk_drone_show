@@ -4,6 +4,7 @@ import glob
 import logging
 import logging.handlers
 from datetime import datetime
+from mavsdk.system import System
 from src.params import Params
 
 from mavsdk.offboard import PositionNedYaw
