@@ -11,6 +11,7 @@ from src.params import Params
 from mavsdk.offboard import PositionNedYaw
 import numpy as np
 from pyproj import CRS, Transformer
+import navpy
 
 def calculate_ned_origin(current_gps, ned_position):
     lat, lon, alt = current_gps
