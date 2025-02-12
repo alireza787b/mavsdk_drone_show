@@ -12,46 +12,33 @@ from src.params import Params
 
 from mavsdk.offboard import PositionNedYaw
 
+import numpy as np
 
-import math
-from typing import Tuple
-
-def ned_to_gps(current_lat: float, current_lon: float, current_alt: float,
-               north: float, east: float, down: float) -> Tuple[float, float, float]:
+def calculate_ned_origin(current_gps, ned_position):
     """
-    Calculate the GPS coordinates of the NED origin based on the drone's current position
-    and its local NED position using a flat-earth approximation.
+    Calculate the GPS coordinates of the NED origin based on the current position
+    and local NED position.
 
-    Parameters:
-    - current_lat (float): Current latitude in degrees.
-    - current_lon (float): Current longitude in degrees.
-    - current_alt (float): Current altitude in meters above mean sea level (AMSL).
-    - north (float): North component of the NED position in meters.
-    - east (float): East component of the NED position in meters.
-    - down (float): Down component of the NED position in meters.
+    Args:
+        current_gps (tuple): Current GPS position (latitude, longitude, altitude) in degrees and meters.
+        ned_position (tuple): Current NED position (North, East, Down) in meters.
 
     Returns:
-    - Tuple[float, float, float]: Approximate latitude, longitude, and altitude of the NED origin.
+        tuple: Origin latitude, longitude, and altitude (in meters).
     """
-    # Earth's radius in meters
-    earth_radius = 6371000
+    lat, lon, alt = current_gps
+    north, east, down = ned_position
 
-    # Convert current latitude and longitude from degrees to radians
-    lat_rad = math.radians(current_lat)
-    lon_rad = math.radians(current_lon)
+    # Convert current GPS to ECEF coordinates (Earth Centered, Earth Fixed)
+    ecef_current = navpy.geodetic2ecef(lat, lon, alt)
+    
+    # Calculate the ECEF position of the NED origin
+    ecef_origin = ecef_current - np.array([north, east, down])
 
-    # Calculate the change in latitude and longitude based on the NED position
-    delta_lat = (north / earth_radius) * (180 / math.pi)
-    delta_lon = (east / (earth_radius * math.cos(lat_rad))) * (180 / math.pi)
+    # Convert back to geodetic coordinates (latitude, longitude, altitude)
+    lat_origin, lon_origin, alt_origin = navpy.ecef2geodetic(ecef_origin)
 
-    # Calculate the origin's latitude and longitude
-    origin_lat = current_lat - delta_lat
-    origin_lon = current_lon - delta_lon
-
-    # Calculate the origin's altitude
-    origin_alt = current_alt - down
-
-    return origin_lat, origin_lon, origin_alt
+    return lat_origin, lon_origin, alt_origin
 
 
 

@@ -85,6 +85,9 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
 from src.params import Params
 
+from drone_show_src.utils import calculate_ned_origin  # Import the new function
+
+
 from drone_show_src.utils import (
     configure_logging,
     read_hw_id,
@@ -770,6 +773,7 @@ async def initial_setup_and_connection():
         raise
 
 
+
 async def pre_flight_checks(drone: System):
     """
     Perform pre-flight checks to ensure the drone is ready for flight.
@@ -778,7 +782,7 @@ async def pre_flight_checks(drone: System):
         drone (System): MAVSDK drone system instance.
 
     Returns:
-        GlobalPosition: Home position telemetry data if global position check is required.
+        tuple: GPS coordinates of the NED origin (latitude, longitude, altitude).
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
@@ -827,7 +831,13 @@ async def pre_flight_checks(drone: System):
                 led_controller.set_color(255, 0, 0)  # Red
                 raise Exception("Pre-flight checks failed.")
 
-            return home_position
+            # Now calculate the NED origin based on the home position and the NED position
+            current_gps = (home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m)
+            async for ned_position in drone.telemetry.position_velocity_ned():
+                ned_origin = calculate_ned_origin(current_gps, (ned_position.north_m, ned_position.east_m, ned_position.down_m))
+                logger.info(f"NED Origin calculated: Latitude={ned_origin[0]}, Longitude={ned_origin[1]}, Altitude={ned_origin[2]}m")
+                return ned_origin
+
         else:
             # If global position check is not required, log and continue
             logger.info("Skipping global position check as per configuration.")
@@ -838,6 +848,7 @@ async def pre_flight_checks(drone: System):
         logger.exception("Error during pre-flight checks.")
         led_controller.set_color(255, 0, 0)  # Red
         raise
+
 
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
