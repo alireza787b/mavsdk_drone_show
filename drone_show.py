@@ -786,6 +786,7 @@ async def pre_flight_checks(drone: System):
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
     home_position = None
+    current_ned_position = None
     led_controller = LEDController.get_instance()
 
     # Set LED color to yellow to indicate pre-flight checks
@@ -833,9 +834,17 @@ async def pre_flight_checks(drone: System):
             # Now calculate the NED origin based on the home position and the NED position
             current_gps = (home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m)
             async for ned_position in drone.telemetry.position_velocity_ned():
+                current_ned_position = ned_position.position
                 ned_origin = calculate_ned_origin(current_gps, (ned_position.position.north_m, ned_position.position.east_m, ned_position.position.down_m))
-                logger.info(f"NED Origin calculated: Latitude={ned_origin[0]}, Longitude={ned_origin[1]}, Altitude={ned_origin[2]}m")
+                logger.info(f"NED Origin calculated: Latitude={ned_origin[1]}, Longitude={ned_origin[0]}, Altitude={ned_origin[2]}m")
                 return ned_origin
+            
+            # Compute initial position drift in NED coordinates
+            if home_position:
+                initial_position_drift_ned = current_ned_position
+                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
+            else:
+                logger.warning("Cannot compute drift: No home position available.")
 
         else:
             # If global position check is not required, log and continue
@@ -883,12 +892,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
                     raise TimeoutError("Timeout waiting for current global position.")
                 await asyncio.sleep(0.1)
 
-            # Compute initial position drift in NED coordinates
-            if home_position:
-                initial_position_drift_ned = current_ned_position
-                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
-            else:
-                logger.warning("Cannot compute drift: No home position available.")
+            
         else:
             # If global position is not required
             logger.info("Skipping global position drift calculation as per configuration.")
