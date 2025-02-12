@@ -875,15 +875,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
 
             # Compute initial position drift in NED coordinates
             if home_position:
-                async for position in drone.telemetry.position_velocity_ned():
-                        launch_position = position
-                        logger.info(f"Launch Position set to: North={launch_position.north_m}, "
-                                    f"East={launch_position.east_m}, Down={launch_position.down_m}m")
-                        break
-                if launch_position is None:
-                    logger.error("Launch position telemetry data is missing.")
-                                    
-                initial_position_drift_ned = launch_position
+                initial_position_drift_ned = global_to_local(current_global_position, home_position)
                 logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
             else:
                 logger.warning("Cannot compute drift: No home position available.")

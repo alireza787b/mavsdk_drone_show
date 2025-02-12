@@ -12,6 +12,49 @@ from src.params import Params
 
 from mavsdk.offboard import PositionNedYaw
 
+
+import math
+from typing import Tuple
+
+def ned_to_gps(current_lat: float, current_lon: float, current_alt: float,
+               north: float, east: float, down: float) -> Tuple[float, float, float]:
+    """
+    Calculate the GPS coordinates of the NED origin based on the drone's current position
+    and its local NED position using a flat-earth approximation.
+
+    Parameters:
+    - current_lat (float): Current latitude in degrees.
+    - current_lon (float): Current longitude in degrees.
+    - current_alt (float): Current altitude in meters above mean sea level (AMSL).
+    - north (float): North component of the NED position in meters.
+    - east (float): East component of the NED position in meters.
+    - down (float): Down component of the NED position in meters.
+
+    Returns:
+    - Tuple[float, float, float]: Approximate latitude, longitude, and altitude of the NED origin.
+    """
+    # Earth's radius in meters
+    earth_radius = 6371000
+
+    # Convert current latitude and longitude from degrees to radians
+    lat_rad = math.radians(current_lat)
+    lon_rad = math.radians(current_lon)
+
+    # Calculate the change in latitude and longitude based on the NED position
+    delta_lat = (north / earth_radius) * (180 / math.pi)
+    delta_lon = (east / (earth_radius * math.cos(lat_rad))) * (180 / math.pi)
+
+    # Calculate the origin's latitude and longitude
+    origin_lat = current_lat - delta_lat
+    origin_lon = current_lon - delta_lon
+
+    # Calculate the origin's altitude
+    origin_alt = current_alt - down
+
+    return origin_lat, origin_lon, origin_alt
+
+
+
 def configure_logging():
     """
     Configures logging for the script, ensuring logs are written to a per-session file
