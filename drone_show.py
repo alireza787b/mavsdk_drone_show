@@ -79,7 +79,6 @@ from mavsdk.offboard import (
     OffboardError,
 )
 from mavsdk.telemetry import LandedState
-
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -305,11 +304,11 @@ def read_trajectory_file(
     """
     Read and adjust the trajectory waypoints from a CSV file.
 
-    The CSV is assumed to be in a NED coordinate system:
+    The CSV is assumed to be in a Blender-like coordinate system:
       - X = North
-      - Y = East
-      - Z = Down
-    So we optionally shift the initial offsets
+      - Y = West
+      - Z = Up
+    So we transform to real NED (X=north, Y=east, Z=down), then optionally shift
     so that the first point is (0,0,0) if auto_launch_position is True (or if we subtract config initial_x / initial_y).
 
     Args:
@@ -553,7 +552,6 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
-                    pz += initial_position_drift.down_m
 
                 # Send setpoints based on configuration
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
@@ -800,9 +798,11 @@ async def pre_flight_checks(drone: System):
                 if health.is_global_position_ok and health.is_home_position_ok:
                     logger.info("Global position estimate and home position check passed.")
                     # Get home position
-                    await home_position = drone.telemetry.get_gps_global_origin()
-                    logger.info(f"NED Home Position set to: Latitude={home_position.latitude_deg}, "
-                                f"Longitude={home_position.longitude_deg}, Altitude={home_position.altitude_m}m")
+                    async for position in drone.telemetry.gps_global_origin():
+                        home_position = drone.telemetry.get_gps_global_origin()
+                        logger.info(f"Home Position set to: Latitude={home_position.latitude_deg}, "
+                                    f"Longitude={home_position.longitude_deg}, Altitude={home_position.altitude_m}m")
+                        break
 
                     if home_position is None:
                         logger.error("Home position telemetry data is missing.")
