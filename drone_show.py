@@ -304,11 +304,11 @@ def read_trajectory_file(
     """
     Read and adjust the trajectory waypoints from a CSV file.
 
-    The CSV is assumed to be in a Blender-like coordinate system:
+    The CSV is assumed to be in a NED coordinate system:
       - X = North
-      - Y = West
-      - Z = Up
-    So we transform to real NED (X=north, Y=east, Z=down), then optionally shift
+      - Y = East
+      - Z = Down
+    So we optionally shift the initial offsets
     so that the first point is (0,0,0) if auto_launch_position is True (or if we subtract config initial_x / initial_y).
 
     Args:
@@ -404,17 +404,14 @@ def read_trajectory_file(
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        # Positions in Blender -> transform to NED already on that
                         px = float(row["px"])
                         py = float(row["py"])
                         pz = float(row["pz"])
 
-                        # Velocities in Blender -> transform to NED
                         vx = float(row["vx"])
                         vy = float(row["vy"])
                         vz = float(row["vz"])
 
-                        # Accelerations in Blender -> transform to NED
                         ax = float(row["ax"])
                         ay = float(row["ay"])
                         az = float(row["az"])
