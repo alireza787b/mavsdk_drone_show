@@ -305,11 +305,11 @@ def read_trajectory_file(
     """
     Read and adjust the trajectory waypoints from a CSV file.
 
-    The CSV is assumed to be in a Blender-like coordinate system:
+    The CSV is assumed to be in a NED coordinate system:
       - X = North
-      - Y = West
-      - Z = Up
-    So we transform to real NED (X=north, Y=east, Z=down), then optionally shift
+      - Y = East
+      - Z = Down
+    So we optionally shift the initial offsets
     so that the first point is (0,0,0) if auto_launch_position is True (or if we subtract config initial_x / initial_y).
 
     Args:
@@ -553,6 +553,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
+                    pz += initial_position_drift.down_m
 
                 # Send setpoints based on configuration
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
