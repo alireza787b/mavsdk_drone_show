@@ -552,6 +552,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
+                    pz += initial_position_drift.down_m
 
                 # Send setpoints based on configuration
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
