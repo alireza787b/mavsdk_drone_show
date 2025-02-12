@@ -157,7 +157,7 @@ def global_to_local(global_position, home_position):
         lat_ref, lon_ref, alt_ref = home_position  # Now we handle it as a tuple
 
         # Current LLA from global position
-        lat, lon, alt = global_position  # Again, handle as tuple
+        lat, lon, alt = global_position.latitude_deg , global_position.longitude_deg, global_position.absolute_altitude_m   # Again, handle as tuple
 
         ned = navpy.lla2ned(
             lat,
