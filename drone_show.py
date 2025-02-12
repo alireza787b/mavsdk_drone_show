@@ -800,7 +800,7 @@ async def pre_flight_checks(drone: System):
                 if health.is_global_position_ok and health.is_home_position_ok:
                     logger.info("Global position estimate and home position check passed.")
                     # Get home position
-                    home_position = drone.telemetry.get_gps_global_origin()
+                    await home_position = drone.telemetry.get_gps_global_origin()
                     logger.info(f"NED Home Position set to: Latitude={home_position.latitude_deg}, "
                                 f"Longitude={home_position.longitude_deg}, Altitude={home_position.altitude_m}m")
 
