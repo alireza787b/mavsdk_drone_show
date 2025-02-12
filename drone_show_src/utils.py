@@ -13,32 +13,25 @@ from src.params import Params
 from mavsdk.offboard import PositionNedYaw
 
 import numpy as np
+from pyproj import Proj, transform
 
 def calculate_ned_origin(current_gps, ned_position):
-    """
-    Calculate the GPS coordinates of the NED origin based on the current position
-    and local NED position.
-
-    Args:
-        current_gps (tuple): Current GPS position (latitude, longitude, altitude) in degrees and meters.
-        ned_position (tuple): Current NED position (North, East, Down) in meters.
-
-    Returns:
-        tuple: Origin latitude, longitude, and altitude (in meters).
-    """
     lat, lon, alt = current_gps
     north, east, down = ned_position
 
-    # Convert current GPS to ECEF coordinates (Earth Centered, Earth Fixed)
-    ecef_current = navpy.geodetic2ecef(lat, lon, alt)
-    
+    # Convert current GPS to ECEF coordinates using pyproj
+    wgs84 = Proj(init='epsg:4326')
+    ecef = Proj(init='epsg:4978')
+    ecef_current = transform(wgs84, ecef, lon, lat, alt)
+
     # Calculate the ECEF position of the NED origin
     ecef_origin = ecef_current - np.array([north, east, down])
 
     # Convert back to geodetic coordinates (latitude, longitude, altitude)
-    lat_origin, lon_origin, alt_origin = navpy.ecef2geodetic(ecef_origin)
+    lat_origin, lon_origin, alt_origin = transform(ecef, wgs84, ecef_origin[0], ecef_origin[1], ecef_origin[2])
 
     return lat_origin, lon_origin, alt_origin
+
 
 
 
