@@ -87,7 +87,6 @@ from src.params import Params
 
 from drone_show_src.utils import calculate_ned_origin  # Import the new function
 
-
 from drone_show_src.utils import (
     configure_logging,
     read_hw_id,
