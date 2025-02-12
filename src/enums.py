@@ -6,7 +6,7 @@ class Mission(Enum):
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
     CUSTOM_CSV_DRONE_SHOW = 3
-    HOVER_TEST = 4
+    HOVER_TEST = 106
     TAKE_OFF = 10
     LAND = 101
     HOLD = 102
