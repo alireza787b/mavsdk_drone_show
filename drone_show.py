@@ -875,8 +875,8 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
             current_global_position = None
             start_time = time.time()
             while current_global_position is None:
-                async for position in drone.telemetry.position():
-                    current_global_position = position
+                async for position_velocity in drone.telemetry.position_velocity_ned():
+                    current_ned_position = position_velocity.position
                     break
                 if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                     logger.error("Timeout waiting for current global position.")
@@ -885,7 +885,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
 
             # Compute initial position drift in NED coordinates
             if home_position:
-                initial_position_drift_ned = global_to_local(current_global_position, home_position)
+                initial_position_drift_ned = current_ned_position
                 logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
             else:
                 logger.warning("Cannot compute drift: No home position available.")
