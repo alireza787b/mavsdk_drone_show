@@ -79,6 +79,7 @@ from mavsdk.offboard import (
     OffboardError,
 )
 from mavsdk.telemetry import LandedState
+
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -221,7 +222,7 @@ def read_config(filename: str) -> Drone:
 
 def extract_initial_positions(first_waypoint: dict) -> tuple:
     """
-    Extract initial X, Y, Z positions from the first waypoint in Blender-like coords.
+    Extract initial X, Y, Z positions from the first waypoint in NED coords.
 
     Args:
         first_waypoint (dict): Dictionary representing the first waypoint.
@@ -404,17 +405,14 @@ def read_trajectory_file(
                 for idx, row in enumerate(rows):
                     try:
                         t = float(row["t"])
-                        # Positions in Blender -> transform to NED already on that
                         px = float(row["px"])
                         py = float(row["py"])
                         pz = float(row["pz"])
 
-                        # Velocities in Blender -> transform to NED
                         vx = float(row["vx"])
                         vy = float(row["vy"])
                         vz = float(row["vz"])
 
-                        # Accelerations in Blender -> transform to NED
                         ax = float(row["ax"])
                         ay = float(row["ay"])
                         az = float(row["az"])
@@ -801,11 +799,9 @@ async def pre_flight_checks(drone: System):
                 if health.is_global_position_ok and health.is_home_position_ok:
                     logger.info("Global position estimate and home position check passed.")
                     # Get home position
-                    async for position in drone.telemetry.position():
-                        home_position = position
-                        logger.info(f"Home Position set to: Latitude={home_position.latitude_deg}, "
-                                    f"Longitude={home_position.longitude_deg}, Altitude={home_position.absolute_altitude_m}m")
-                        break
+                    home_position = drone.telemetry.get_gps_global_origin()
+                    logger.info(f"NED Home Position set to: Latitude={home_position.latitude_deg}, "
+                                f"Longitude={home_position.longitude_deg}, Altitude={home_position.altitude_m}m")
 
                     if home_position is None:
                         logger.error("Home position telemetry data is missing.")
@@ -878,7 +874,15 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
 
             # Compute initial position drift in NED coordinates
             if home_position:
-                initial_position_drift_ned = global_to_local(current_global_position, home_position)
+                async for position in drone.telemetry.position_velocity_ned():
+                        launch_position = position
+                        logger.info(f"Launch Position set to: North={launch_position.north_m}, "
+                                    f"East={launch_position.east_m}, Down={launch_position.down_m}m")
+                        break
+                if launch_position is None:
+                    logger.error("Launch position telemetry data is missing.")
+                                    
+                initial_position_drift_ned = launch_position
                 logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
             else:
                 logger.warning("Cannot compute drift: No home position available.")

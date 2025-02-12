@@ -188,7 +188,7 @@ class Params:
     INITIAL_CLIMB_TIME_THRESHOLD = 3.0      # Time threshold for initial climb phase
 
     # Feedforward Control Settings
-    FEEDFORWARD_VELOCITY_ENABLED = True        # Enable feedforward velocity setpoints
+    FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
     FEEDFORWARD_ACCELERATION_ENABLED = False   # Enable feedforward acceleration setpoints
 
     # PD Controller Gains
