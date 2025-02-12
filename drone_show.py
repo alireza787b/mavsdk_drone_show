@@ -834,7 +834,7 @@ async def pre_flight_checks(drone: System):
             # Now calculate the NED origin based on the home position and the NED position
             current_gps = (home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m)
             async for ned_position in drone.telemetry.position_velocity_ned():
-                ned_origin = calculate_ned_origin(current_gps, (ned_position.north_m, ned_position.east_m, ned_position.down_m))
+                ned_origin = calculate_ned_origin(current_gps, (ned_position.position.north_m, ned_position.position.east_m, ned_position.position.down_m))
                 logger.info(f"NED Origin calculated: Latitude={ned_origin[0]}, Longitude={ned_origin[1]}, Altitude={ned_origin[2]}m")
                 return ned_origin
 
