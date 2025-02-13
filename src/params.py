@@ -73,6 +73,7 @@ class Params:
     send_drone_command_URI = 'api/send-command'  # Replace with actual URI
 
     get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
+    get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
     flask_telem_socket_port = 5000          # Flask telemetry socket port
 
     get_position_deviation_URI = 'get-position-deviation'
