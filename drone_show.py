@@ -67,6 +67,7 @@ import subprocess
 import logging
 import socket
 import psutil
+import requests
 import argparse
 from collections import namedtuple
 
@@ -84,8 +85,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
 from src.params import Params
-
-from drone_show_src.utils import calculate_ned_origin  # Import the new function
 
 from drone_show_src.utils import (
     configure_logging,
@@ -554,6 +553,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
+                    pz += initial_position_drift.down_m
 
                 # Send setpoints based on configuration
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
@@ -775,41 +775,59 @@ async def initial_setup_and_connection():
 
 async def pre_flight_checks(drone: System):
     """
-    Perform pre-flight checks to ensure the drone is ready for flight.
-
+    Perform pre-flight checks to ensure the drone is ready for flight, including:
+    - Checking the health of the global and home position via MAVSDK.
+    - Fetching the GPS global origin from the Flask API only when MAVSDK health is valid.
+    - Implementing a fallback mechanism if the Flask API cannot be contacted, using MAVSDK home position as GPS origin.
+    
     Args:
         drone (System): MAVSDK drone system instance.
 
     Returns:
-        tuple: GPS coordinates of the NED origin (latitude, longitude, altitude).
+        dict: GPS global origin data containing latitude, longitude, altitude, and the timestamp if global position is valid.
     """
+    # Setting up the logger for pre-flight checks
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
-    home_position = None
-    current_ned_position = None
-    led_controller = LEDController.get_instance()
 
-    # Set LED color to yellow to indicate pre-flight checks
-    led_controller.set_color(255, 255, 0)
-    logger.info("LED set to yellow: Pre-flight checks in progress.")
+    # Initialize the LED controller to indicate the pre-flight check status
+    led_controller = LEDController.get_instance()
+    led_controller.set_color(255, 255, 0)  # Yellow color for "pre-flight checks in progress"
 
     start_time = time.time()
+    gps_origin = None
 
     try:
-        # Check if global position check is required
+        # Step 1: Wait for MAVSDK health check to confirm global and home positions are valid
         if Params.REQUIRE_GLOBAL_POSITION:
             async for health in drone.telemetry.health():
                 if health.is_global_position_ok and health.is_home_position_ok:
                     logger.info("Global position estimate and home position check passed.")
-                    # Get home position
-                    async for position in drone.telemetry.position():
-                        home_position = position
-                        logger.info(f"Home Position set to: Latitude={home_position.latitude_deg}, "
-                                    f"Longitude={home_position.longitude_deg}, Altitude={home_position.absolute_altitude_m}m")
-                        break
 
-                    if home_position is None:
-                        logger.error("Home position telemetry data is missing.")
+                    # Step 2: Now request the GPS global origin from Flask API
+                    gps_origin_url = f'http://localhost:{Params.drones_flask_port}/get-gps-global-origin'
+                    try:
+                        response = requests.get(gps_origin_url, timeout=5)
+                        if response.status_code == 200:
+                            gps_origin = response.json()
+                            logger.info(f"GPS Global Origin retrieved: {gps_origin}")
+                        else:
+                            logger.error(f"Failed to retrieve GPS global origin from Flask, status code: {response.status_code}")
+                    except requests.RequestException as e:
+                        # Log the failure to contact Flask API and continue with fallback
+                        logger.warning(f"Error fetching GPS global origin from Flask endpoint: {e}")
+                        logger.info("Using MAVSDK home position as fallback for GPS origin.")
+
+                    # If Flask API was unreachable, use the MAVSDK home position as the origin
+                    if not gps_origin:
+                        # Use the MAVSDK home position as fallback
+                        async for position in drone.telemetry.position():
+                            gps_origin = {
+                                'latitude': position.latitude_deg,
+                                'longitude': position.longitude_deg,
+                                'altitude': position.absolute_altitude_m
+                            }
+                            logger.info(f"Fallback: Using MAVSDK home position as GPS origin: {gps_origin}")
                     break
                 else:
                     if not health.is_global_position_ok:
@@ -819,58 +837,48 @@ async def pre_flight_checks(drone: System):
 
                 if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                     logger.error("Pre-flight checks timed out.")
-                    led_controller.set_color(255, 0, 0)  # Red
+                    led_controller.set_color(255, 0, 0)  # Red color for timeout
                     raise TimeoutError("Pre-flight checks timed out.")
                 await asyncio.sleep(1)
 
-            if home_position:
+            # Step 3: Handle successful completion of pre-flight checks
+            if gps_origin:
                 logger.info("Pre-flight checks successful.")
-                led_controller.set_color(0, 255, 0)  # Green
+                led_controller.set_color(0, 255, 0)  # Green color for success
             else:
-                logger.error("Pre-flight checks failed.")
-                led_controller.set_color(255, 0, 0)  # Red
+                logger.error("Pre-flight checks failed due to missing GPS origin.")
+                led_controller.set_color(255, 0, 0)  # Red color for failure
                 raise Exception("Pre-flight checks failed.")
 
-            # Now calculate the NED origin based on the home position and the NED position
-            current_gps = (home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m)
-            async for ned_position in drone.telemetry.position_velocity_ned():
-                current_ned_position = ned_position.position
-                ned_origin = calculate_ned_origin(current_gps, (ned_position.position.north_m, ned_position.position.east_m, ned_position.position.down_m))
-                logger.info(f"NED Origin calculated: Latitude={ned_origin[1]}, Longitude={ned_origin[0]}, Altitude={ned_origin[2]}m")
-                return ned_origin
-            
-            # Compute initial position drift in NED coordinates
-            if home_position:
-                initial_position_drift_ned = current_ned_position
-                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
-            else:
-                logger.warning("Cannot compute drift: No home position available.")
-
+            return gps_origin
         else:
-            # If global position check is not required, log and continue
+            # If global position check is not required, log and proceed with normal checks
             logger.info("Skipping global position check as per configuration.")
-            led_controller.set_color(0, 255, 0)  # Green
+            led_controller.set_color(0, 255, 0)  # Green color for success
             return None
 
-    except Exception:
+    except Exception as e:
         logger.exception("Error during pre-flight checks.")
-        led_controller.set_color(255, 0, 0)  # Red
+        led_controller.set_color(255, 0, 0)  # Red color for failure
         raise
-
 
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def arming_and_starting_offboard_mode(drone: System, home_position):
     """
-    Arm the drone and start offboard mode.
+    Arm the drone and start offboard mode, while computing the initial NED position drift.
 
     Args:
         drone (System): MAVSDK drone system instance.
-        home_position: Home position telemetry data.
+        home_position (dict): Home position telemetry data in global coordinates.
+    
+    Returns:
+        None
     """
     logger = logging.getLogger(__name__)
     try:
         led_controller = LEDController.get_instance()
+
         # Set LED color to green to indicate arming
         led_controller.set_color(0, 255, 0)
         logger.info("LED set to green: Arming in progress.")
@@ -878,56 +886,109 @@ async def arming_and_starting_offboard_mode(drone: System, home_position):
         # Compute initial position drift
         initial_position_drift_ned = None
 
-        # Check if global position drift calculation is required
+        # Step 1: Check if global position drift calculation is required
         if Params.REQUIRE_GLOBAL_POSITION:
             # Get current global position
             current_global_position = None
             start_time = time.time()
             while current_global_position is None:
-                async for position_velocity in drone.telemetry.position_velocity_ned():
-                    current_ned_position = position_velocity.position
+                async for position in drone.telemetry.position():
+                    current_global_position = position
                     break
                 if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
                     logger.error("Timeout waiting for current global position.")
                     raise TimeoutError("Timeout waiting for current global position.")
                 await asyncio.sleep(0.1)
 
-            
+            # Step 2: Compute initial position drift in NED coordinates
+            if home_position:
+                logger.info("Computing initial position drift in NED coordinates.")
+                initial_position_drift_ned = await compute_position_drift(drone, home_position)
+                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
+            else:
+                logger.warning("Cannot compute drift: No home position available.")
         else:
-            # If global position is not required
+            # If global position is not required, skip drift calculation
             logger.info("Skipping global position drift calculation as per configuration.")
             if home_position:
                 logger.warning("Home position provided but global position checks are disabled.")
 
-        # Store the drift (even if it's None)
+        # Step 3: Store the drift (even if it's None)
         global initial_position_drift
         initial_position_drift = initial_position_drift_ned
 
-        # Set Drone to Hold flight mode (just in case)
+        # Step 4: Set Drone to Hold flight mode (just in case)
         logger.info("Setting Hold Flight Mode")
         await drone.action.hold()
 
-        # Proceed to arm and start offboard mode
+        # Step 5: Proceed to arm and start offboard mode
         logger.info("Arming drone.")
         await drone.action.arm()
         logger.info("Setting initial setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         logger.info("Starting offboard mode.")
         await drone.offboard.start()
+
         # Set LEDs to solid white to indicate ready to fly
         led_controller.set_color(255, 255, 255)
         logger.info("LED set to white: Ready to fly.")
+    
     except OffboardError as error:
+        # Handle Offboard mode errors
         logger.error(f"Offboard error: {error}")
         await drone.action.disarm()
         led_controller.set_color(255, 0, 0)  # Red
         raise
     except Exception:
+        # Handle other exceptions and disarm the drone
         logger.exception("Error during arming and starting offboard mode.")
         await drone.action.disarm()
         led_controller.set_color(255, 0, 0)  # Red
         raise
 
+
+async def compute_position_drift(drone, home_position):
+    """
+    Compute the initial position drift in NED coordinates (North, East, Down) at the moment of takeoff.
+    This is based on the home position, which is used as the origin for the NED system.
+
+    Args:
+        drone (System): MAVSDK drone system instance to access telemetry data.
+        home_position (dict): Home position coordinates in global (latitude, longitude, altitude).
+
+    Returns:
+        dict: Drift in NED coordinates (North, East, Down), or None if home position is unavailable.
+    """
+    logger = logging.getLogger(__name__)
+
+    if home_position:
+        logger.info("Starting position drift calculation.")
+
+        # Fetch the current NED position relative to home position at the moment of takeoff
+        try:
+            async for position in drone.telemetry.position():
+                # NED coordinates: North, East, Down
+                north_m = position.north_m  # Current NED North component in meters
+                east_m = position.east_m    # Current NED East component in meters
+                down_m = position.down_m    # Current NED Down component in meters
+
+                # Log the NED position at takeoff
+                logger.info(f"Drone Position (NED) at takeoff: North: {north_m:.2f}m, East: {east_m:.2f}m, Down: {down_m:.2f}m")
+
+                # Compute the drift using NED position
+                initial_position_drift_ned = {'north': north_m, 'east': east_m, 'down': down_m}
+
+                # Log the initial drift
+                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
+
+                return initial_position_drift_ned
+
+        except Exception as e:
+            logger.error(f"Error fetching NED position: {e}")
+            return None
+    else:
+        logger.warning("Cannot compute drift: No home position available.")
+        return None
 
 async def perform_landing(drone: System):
     """

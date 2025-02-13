@@ -22,38 +22,41 @@ class DroneConfig:
         and configuration files.
         """
         self.hw_id = self.get_hw_id(hw_id)  # Unique hardware ID for the drone
-        self.config = self.read_config()  # Read configuration settings from CSV or online source
-        self.swarm = self.read_swarm()  # Read swarm configuration
+        self.config = self.read_config()      # Read configuration settings from CSV or online source
+        self.swarm = self.read_swarm()        # Read swarm configuration
         self.pos_id = self.config.get('pos_id', self.hw_id)  # Initialize pos_id from config or hw_id
-        self.detected_pos_id = 0  # Initially, detected pos_id is 0 meaning undetected
-        self.state = 0  # Initial state of the drone
-        self.mission = 0  # Current mission state
+        self.detected_pos_id = 0              # Initially, detected pos_id is 0 meaning undetected
+        self.state = 0                        # Initial state of the drone
+        self.mission = 0                      # Current mission state
         self.last_mission = 0
-        self.trigger_time = 0  # Time of the last trigger event
+        self.trigger_time = 0                 # Time of the last trigger event
         self.drone_setup = None
         self.position = {'lat': 0, 'long': 0, 'alt': 0}  # Initial position (lat, long, alt)
-        self.velocity = {'north': 0, 'east': 0, 'down': 0}  # Initial velocity components
-        self.yaw = 0  # Yaw angle in degrees
+        self.velocity = {'north': 0, 'east': 0, 'down': 0} # Initial velocity components
+        self.yaw = 0                          # Yaw angle in degrees
 
         # Battery voltage and last update timestamp
-        self.battery = 0  # Battery voltage in volts
-        self.last_update_timestamp = 0  # Timestamp of the last telemetry update
+        self.battery = 0                      # Battery voltage in volts
+        self.last_update_timestamp = 0        # Timestamp of the last telemetry update
 
         # Home position (initialized after receiving the first valid HOME_POSITION message)
         self.home_position = None
 
+        # **New Attribute for GPS Global Origin**
+        self.gps_global_origin = None         # Will store GPS global origin data from GPS_GLOBAL_ORIGIN message
+
         # Target drone for swarm operations (if applicable)
         self.target_drone = None
-        self.drones = drones  # List of drones in the swarm
+        self.drones = drones                  # List of drones in the swarm
 
         # Altitude for takeoff (from Params)
         self.takeoff_altitude = Params.default_takeoff_alt
 
         # GPS and MAVLink data
-        self.hdop = 0  # Horizontal dilution of precision
-        self.vdop = 0  # Vertical dilution of precision
-        self.mav_mode = 0  # MAVLink mode
-        self.system_status = 0  # System status from MAVLink HEARTBEAT message
+        self.hdop = 0                         # Horizontal dilution of precision
+        self.vdop = 0                         # Vertical dilution of precision
+        self.mav_mode = 0                     # MAVLink mode
+        self.system_status = 0                # System status from MAVLink HEARTBEAT message
 
         # Sensor calibration statuses
         self.is_gyrometer_calibration_ok = False
@@ -62,6 +65,7 @@ class DroneConfig:
 
         # Load all configurations for auto-detection
         self.all_configs = self.load_all_configs()
+
 
     def get_hw_id(self, hw_id=None):
         """

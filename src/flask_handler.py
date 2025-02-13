@@ -82,7 +82,34 @@ class FlaskHandler:
                 logging.error(f"Error retrieving home position: {e}")
                 return jsonify({"error": "Failed to retrieve home position"}), 500
 
-      
+        @self.app.route('/get-gps-global-origin', methods=['GET'])
+        def get_gps_global_origin():
+            """
+            Endpoint to retrieve the GPS global origin from the drone configuration.
+            Returns:
+                JSON response containing latitude, longitude, altitude, the original timestamp from the message,
+                and a current timestamp.
+            """
+            try:
+                gps_origin = self.drone_config.gps_global_origin
+                if gps_origin:
+                    # Prepare response including the original message timestamp and current timestamp
+                    gps_origin_with_timestamp = {
+                        'latitude': gps_origin.get('lat'),
+                        'longitude': gps_origin.get('lon'),
+                        'altitude': gps_origin.get('alt'),
+                        'origin_time_usec': gps_origin.get('time_usec'),
+                        'timestamp': int(time.time() * 1000)  # Current time in milliseconds
+                    }
+                    logging.debug(f"Retrieved GPS global origin: {gps_origin_with_timestamp}")
+                    return jsonify(gps_origin_with_timestamp), 200
+                else:
+                    logging.warning("GPS global origin requested but not set.")
+                    return jsonify({"error": "GPS global origin not set"}), 404
+            except Exception as e:
+                logging.error(f"Error retrieving GPS global origin: {e}")
+                return jsonify({"error": "Failed to retrieve GPS global origin"}), 500
+
 
         @self.app.route('/get-git-status', methods=['GET'])
         def get_git_status():

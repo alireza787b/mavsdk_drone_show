@@ -22,7 +22,7 @@ class LocalMavlinkController:
         self.debug_enabled = debug_enabled
         # Define which message types to listen for
         self.message_filter = [
-            'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 
+            'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
             'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS'
         ]
         
@@ -74,6 +74,8 @@ class LocalMavlinkController:
             self.process_heartbeat(msg)
         elif msg_type == 'GPS_RAW_INT':
             self.process_gps_raw_int(msg)
+        elif msg_type == 'GPS_GLOBAL_ORIGIN':
+            self.process_gps_global_origin(msg)
         elif msg_type == 'SYS_STATUS':
             self.process_sys_status(msg)
         else:
@@ -134,6 +136,35 @@ class LocalMavlinkController:
                 self.home_position_logged = True
         else:
             logging.error('Received HOME_POSITION message with invalid data')
+            
+    def process_gps_global_origin(self, msg):
+        """
+        Process the GPS_GLOBAL_ORIGIN message and update the drone_config with the vehicle's GPS local origin.
+
+        The message includes:
+            - latitude (int32_t, degE7): Convert to degrees by dividing by 1e7.
+            - longitude (int32_t, degE7): Convert to degrees by dividing by 1e7.
+            - altitude (int32_t, mm): Convert to meters by dividing by 1e3.
+            - time_usec (uint64_t, us): Timestamp indicating when the origin was set.
+
+        The processed data is stored in drone_config.gps_global_origin.
+        """
+        # Validate that all required fields are present and not None
+        if (hasattr(msg, 'latitude') and msg.latitude is not None and
+            hasattr(msg, 'longitude') and msg.longitude is not None and
+            hasattr(msg, 'altitude') and msg.altitude is not None and
+            hasattr(msg, 'time_usec') and msg.time_usec is not None):
+            
+            self.drone_config.gps_global_origin = {
+                'lat': msg.latitude / 1e7,
+                'lon': msg.longitude / 1e7,
+                'alt': msg.altitude / 1e3,
+                'time_usec': msg.time_usec
+            }
+            self.log_debug(f"Updated GPS global origin: {self.drone_config.gps_global_origin}")
+        else:
+            logging.error('Received GPS_GLOBAL_ORIGIN message with invalid data')
+
 
     def process_global_position_int(self, msg):
         """
