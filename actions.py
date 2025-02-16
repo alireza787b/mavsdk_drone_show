@@ -518,7 +518,8 @@ async def apply_common_params(drone, reboot_after=False):
     try:
         common_params = {}
         with open(common_file, newline='') as csvfile:
-            reader = csv.DictReader(csvfile, fieldnames=['param_name', 'param_value'])
+            # Remove the manual fieldnames so that the header is used correctly.
+            reader = csv.DictReader(csvfile)
             for row in reader:
                 param_name = row['param_name'].strip()
                 param_value = row['param_value'].strip()
@@ -548,7 +549,6 @@ async def apply_common_params(drone, reboot_after=False):
         fail()
     finally:
         led_controller.turn_off()
-
 
 # -----------------------
 # Action Implementations
@@ -738,7 +738,7 @@ async def test(drone):
         led_controller.set_color(255, 0, 0)
         await asyncio.sleep(1)
         await drone.action.arm()
-        led_controller.set_color(255, 255, 255)
+        led_controller.set_color(255, 255, white)
         await asyncio.sleep(1)
         led_controller.set_color(0, 0, 255)
         await asyncio.sleep(1)
