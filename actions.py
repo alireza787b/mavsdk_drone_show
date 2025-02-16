@@ -301,44 +301,6 @@ def start_mavsdk_server(grpc_port, udp_port):
         fail()
         sys.exit(1)
 
-def parse_param_value(value_str):
-    """
-    Attempt to parse the string value for a PX4 param as an integer.
-    If that fails, parse as float. Raises ValueError if neither works.
-    Returns: (value, value_type) -> (int or float, 'int' or 'float')
-    """
-    try:
-        val_int = int(value_str)
-        return val_int, 'int'
-    except ValueError:
-        pass
-
-    try:
-        val_float = float(value_str)
-        return val_float, 'float'
-    except ValueError:
-        logger.error(f"Could not parse parameter value '{value_str}' as int or float.")
-        raise ValueError(f"Invalid param value: {value_str}")
-
-async def set_parameters(drone, parameters):
-    """
-    Sets multiple parameters on the drone using MAVSDK's param interface.
-    parameters is a dict {param_name: param_value_str}, where param_value_str can be int or float in string form.
-    """
-    for param_name, raw_value in parameters.items():
-        try:
-            param_value, param_type = parse_param_value(raw_value)
-            logger.info(f"Setting param '{param_name}' to {param_value} (type: {param_type})")
-
-            if param_type == 'int':
-                await drone.param.set_param_int(param_name, param_value)
-            else:
-                await drone.param.set_param_float(param_name, param_value)
-
-            logger.info(f"Param '{param_name}' set successfully.")
-        except Exception:
-            fail()
-            logger.exception(f"Failed to set param '{param_name}'")
 
 # -----------------------
 # Core Action Execution
@@ -483,24 +445,67 @@ async def safe_action(func, *args, **kwargs):
         logger.exception(f"Action {action_name} failed with an unexpected error.")
         return False
 
-# -----------------------
-# New Action: apply_common_params
-# -----------------------
+# Mapping of parameter names to their expected types
+PARAM_TYPES = {
+    "COM_RCL_EXCEPT": "int",
+    "GF_ACTION": "int",
+    "GF_MAX_HOR_DIST": "float",
+    "GF_MAX_VER_DIST": "float",
+}
+
+def parse_param_value(raw_value, param_name):
+    """
+    Parses the raw parameter value string into the correct type based on the
+    expected type for the parameter as defined in PARAM_TYPES.
+    """
+    expected_type = PARAM_TYPES.get(param_name)
+    try:
+        if expected_type == "int":
+            return int(raw_value), "int"
+        elif expected_type == "float":
+            return float(raw_value), "float"
+        else:
+            # Fallback: if no mapping exists, try guessing based on a decimal point.
+            if '.' in raw_value:
+                return float(raw_value), "float"
+            else:
+                return int(raw_value), "int"
+    except ValueError as e:
+        logger.error(f"Failed to parse value '{raw_value}' for parameter '{param_name}' with expected type '{expected_type}'")
+        raise e
+
+async def set_parameters(drone, parameters):
+    """
+    Sets multiple parameters on the drone using MAVSDK's param interface.
+    The `parameters` dict should be {param_name: param_value_str}.
+    """
+    for param_name, raw_value in parameters.items():
+        try:
+            param_value, param_type = parse_param_value(raw_value, param_name)
+            logger.info(f"Setting param '{param_name}' to {param_value} (type: {param_type})")
+            if param_type == "int":
+                await drone.param.set_param_int(param_name, param_value)
+            elif param_type == "float":
+                await drone.param.set_param_float(param_name, param_value)
+            else:
+                raise ValueError(f"Unsupported parameter type for {param_name}")
+            logger.info(f"Param '{param_name}' set successfully.")
+        except Exception as e:
+            logger.exception(f"Failed to set param '{param_name}': {e}")
+            fail()  # Assuming fail() handles the error as per your project's conventions
 
 async def apply_common_params(drone, reboot_after=False):
     """
-    Reads a 'common_params.csv' file in the project root,
-    applies each param to the drone, and optionally reboots the FC.
-
-    The CSV file format is expected to have two columns:
+    Reads a 'common_params.csv' file from the project root, applies each parameter to
+    the drone, and optionally reboots the flight controller.
+    
+    The expected CSV format is:
       param_name,param_value
     Example:
-      MPC_XY_CRUISE,4
-      GF_MAX_HOR_DIST,100
-      GF_MAX_VER_DIST,30
-
-    :param drone: The connected MAVSDK System instance
-    :param reboot_after: Boolean indicating if the flight controller should reboot afterwards
+      COM_RCL_EXCEPT,7
+      GF_ACTION,3
+      GF_MAX_HOR_DIST,3000
+      GF_MAX_VER_DIST,120
     """
     led_controller = LEDController.get_instance()
     common_file = 'common_params.csv'
@@ -518,7 +523,6 @@ async def apply_common_params(drone, reboot_after=False):
     try:
         common_params = {}
         with open(common_file, newline='') as csvfile:
-            # Remove the manual fieldnames so that the header is used correctly.
             reader = csv.DictReader(csvfile)
             for row in reader:
                 param_name = row['param_name'].strip()
@@ -528,7 +532,7 @@ async def apply_common_params(drone, reboot_after=False):
         logger.info(f"Found {len(common_params)} common parameters. Applying now...")
         await set_parameters(drone, common_params)
 
-        # Blink green a few times for success
+        # Blink green a few times for success feedback
         for _ in range(3):
             led_controller.set_color(0, 255, 0)
             await asyncio.sleep(0.2)
@@ -538,12 +542,10 @@ async def apply_common_params(drone, reboot_after=False):
         if reboot_after:
             logger.info("Rebooting flight controller as requested...")
             await drone.action.reboot()
-            # Optional: LED feedback for reboot
             led_controller.set_color(255, 255, 0)
             await asyncio.sleep(1.0)
 
         logger.info("apply_common_params action completed successfully.")
-
     except Exception:
         logger.exception("Error applying common parameters")
         fail()
