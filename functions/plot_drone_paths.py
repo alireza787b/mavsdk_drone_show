@@ -152,7 +152,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         plt.tight_layout()
         single_out = os.path.join(plots_dir, f'drone_{drone_id}_path.jpg')
         # Save as jpg with a lower DPI to optimize file size; note that 'quality' is not supported here.
-        plt.savefig(single_out, dpi=80, format='jpg')
+        plt.savefig(single_out, dpi=60, format='jpg')
 
         if show_plots:
             plt.show()
@@ -208,7 +208,7 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     plt.tight_layout()
     combined_out = os.path.join(plots_dir, 'combined_drone_paths.jpg')
     # Save as jpg with a lower DPI to optimize file size; no 'quality' parameter here.
-    plt.savefig(combined_out, dpi=150, format='jpg')
+    plt.savefig(combined_out, dpi=100, format='jpg')
 
     if show_plots:
         plt.show()
