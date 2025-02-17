@@ -109,7 +109,8 @@ class Params:
     extra_devices = [
         f"127.0.0.1:{local_mavlink_port}",
         f"127.0.0.1:{local_mavlink2rest_port}",
-        "100.93.169.180:14550"
+        "100.93.169.180:14550",
+        "100.93.214.147:14550"
     ]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Allow hard reboot commands (ensure root privileges)
