@@ -10,8 +10,8 @@ set -euo pipefail
 # ----------------------------------
 # Configuration and Default Settings
 # ----------------------------------
-MAX_RETRIES=5
-INITIAL_DELAY=5  # Seconds for initial retry backoff
+MAX_RETRIES=10
+INITIAL_DELAY=1  # Seconds for initial retry backoff
 SITL_BRANCH="docker-sitl-2"
 REAL_BRANCH="main-candidate"
 
@@ -47,7 +47,7 @@ retry() {
         exit_code=$?
         count=$((count + 1))
         if [ $count -lt $retries ]; then
-            local wait=$((delay * 2 ** (count - 1)))
+            local wait=$((delay * 1 ** (count - 1)))
             log "Command failed with exit code $exit_code (attempt $count/$retries). Retrying in $wait seconds..."
             sleep "$wait"
         else
@@ -69,7 +69,7 @@ check_network_connectivity() {
     until ping -c 1 github.com >/dev/null 2>&1; do
         count=$((count + 1))
         if [ $count -lt $retries ]; then
-            local wait=$((delay * 2 ** (count - 1)))
+            local wait=$((delay * 1 ** (count - 1)))
             log "Network check failed (attempt $count/$retries). Retrying in $wait seconds..."
             sleep "$wait"
         else

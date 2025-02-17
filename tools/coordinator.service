@@ -87,9 +87,9 @@ SyslogIdentifier=coordinator
 
 # Watchdog / timeouts
 # Service watchdog to ensure responsiveness
-WatchdogSec=10s
-TimeoutStartSec=60
-TimeoutStopSec=30
+# WatchdogSec=10s
+# TimeoutStartSec=60
+# TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
