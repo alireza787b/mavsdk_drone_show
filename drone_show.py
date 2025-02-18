@@ -110,6 +110,8 @@ HW_ID = None  # Hardware ID of the drone
 position_id = None  # Position ID of the drone
 global_synchronized_start_time = None  # Synchronized start time
 initial_position_drift = None  # Initial position drift in NED coordinates
+drift_delta = 0.0  # Drift delta (to adjust waypoint times)
+
 
 CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
 
@@ -469,101 +471,77 @@ def read_trajectory_file(
 #        Core Functionalities   #
 # ----------------------------- #
 
-
 async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
     """
     Executes the trajectory by sending setpoints to the drone.
-
+    
     Args:
         drone (System): MAVSDK drone system instance.
         waypoints (list): List of trajectory waypoints (in NED).
         home_position: Home position telemetry data.
         start_time (float): Synchronized start time.
     """
+    global drift_delta  # Drift correction variable
     logger = logging.getLogger(__name__)
-    logger.info("Starting trajectory execution with time synchronization.")
+
+    # Initializing variables
     total_waypoints = len(waypoints)
     waypoint_index = 0
     landing_detected = False
-    global initial_position_drift
-    # Initialize LEDController
     led_controller = LEDController.get_instance()
 
-    # final_altitude is the last waypoint's pz in NED, so pz>0 means below the origin
+    # Determine if the trajectory ends high or at ground level
     final_altitude = waypoints[-1][3]
-    if final_altitude > Params.GROUND_ALTITUDE_THRESHOLD:
-        # If pz is > threshold, we interpret as the final waypoint is "high" in NED (less negative)
-        trajectory_ends_high = True
+    trajectory_ends_high = final_altitude > Params.GROUND_ALTITUDE_THRESHOLD
+    if trajectory_ends_high:
         logger.info("Trajectory ends high in the sky. Will perform PX4 native landing.")
     else:
-        trajectory_ends_high = False
         logger.info("Trajectory guides back to ground level. Will perform controlled landing.")
 
     if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
-        logger.debug(
-            f"Applying Drift Correction - North: {initial_position_drift.north_m}, "
-            f"East: {initial_position_drift.east_m}"
-        )
+        logger.debug(f"Applying Drift Correction - North: {initial_position_drift.north_m}, East: {initial_position_drift.east_m}")
 
     # Main trajectory execution loop
     while waypoint_index < total_waypoints:
         try:
             current_time = time.time()
-            elapsed_time = current_time - start_time
+            elapsed_time = current_time - start_time + drift_delta  # Adjusted by drift
 
-            # Get current waypoint
+            # Get current waypoint and its scheduled time
             waypoint = waypoints[waypoint_index]
             t_wp = waypoint[0]
 
+            # Adjust drift if the drone is running ahead or behind schedule
+            if elapsed_time >= t_wp:
+                drift_delta = elapsed_time - t_wp  # Update drift
+                logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
+                t_wp += drift_delta  # Adjust waypoint time based on drift
+
             if elapsed_time >= t_wp:
                 # Extract waypoint data
-                (
-                    _,
-                    px,
-                    py,
-                    pz,
-                    vx,
-                    vy,
-                    vz,
-                    ax,
-                    ay,
-                    az,
-                    yaw,
-                    mode,
-                    ledr,
-                    ledg,
-                    ledb,
-                ) = waypoint
+                (_, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb) = waypoint
 
-                # Log waypoint execution details
-                logger.info(
-                    f"Executing Waypoint {waypoint_index + 1}/{total_waypoints}: "
-                    f"Time={t_wp:.2f}s, Position=({px:.2f}, {py:.2f}, {pz:.2f})m, Yaw={yaw:.2f}°"
-                )
-                logger.debug(
-                    f"Setpoints - Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})m/s, "
-                    f"Acceleration: ({ax:.2f}, {ay:.2f}, {az:.2f})m/s², Mode: {mode}, "
-                    f"LED Color: ({ledr}, {ledg}, {ledb})"
-                )
+                # Log details of waypoint execution
+                logger.info(f"Executing Waypoint {waypoint_index + 1}/{total_waypoints}: Time={t_wp:.2f}s, Position=({px:.2f}, {py:.2f}, {pz:.2f})m, Yaw={yaw:.2f}°")
+                logger.debug(f"Setpoints - Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})m/s, Acceleration: ({ax:.2f}, {ay:.2f}, {az:.2f})m/s², Mode: {mode}, LED Color: ({ledr}, {ledg}, {ledb})")
 
-                # Update LED colors from trajectory
+                # Update LED color
                 led_controller.set_color(ledr, ledg, ledb)
 
-                # Adjust waypoints for initial position drift if enabled
+                # Apply position drift correction if enabled
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
                     pz += initial_position_drift.down_m
 
-                # Send setpoints based on configuration
+                # Create position setpoint
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
 
+                # Send position setpoints with velocity and acceleration (if enabled)
                 if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
                     acceleration_setpoint = AccelerationNed(ax, ay, az)
-                    await drone.offboard.set_position_velocity_acceleration_ned(
-                        position_setpoint, velocity_setpoint, acceleration_setpoint
-                    )
+                    await drone.offboard.set_position_velocity_acceleration_ned(position_setpoint, velocity_setpoint, acceleration_setpoint)
                     logger.debug("Setpoints: Position, Velocity, and Acceleration sent.")
                 elif Params.FEEDFORWARD_VELOCITY_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
@@ -573,34 +551,27 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     await drone.offboard.set_position_ned(position_setpoint)
                     logger.debug("Setpoints: Position-only sent.")
 
-                # Calculate time to end and mission progress
+                # Mission progress and time to end
                 time_to_end = waypoints[-1][0] - t_wp
                 mission_progress = (waypoint_index + 1) / total_waypoints
+                logger.info(f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s")
 
-                logger.info(
-                    f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s"
-                )
-
-                # Check if we should initiate controlled landing
+                # Handle controlled landing based on mission progress
                 if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
-                    # In NED, pz is + downward, so -1*pz is altitude above ground
                     if (time_to_end <= Params.CONTROLLED_LANDING_TIME) or (-1 * pz < Params.CONTROLLED_LANDING_ALTITUDE):
                         logger.info("Mission progress threshold reached. Initiating controlled landing phase.")
                         await controlled_landing(drone)
                         landing_detected = True
-                        break  # Exit the trajectory execution loop
+                        break  # Exit the trajectory loop
 
                 waypoint_index += 1
             else:
-                # Calculate remaining time until the next waypoint
+                # If we are ahead of schedule, wait until the scheduled time
                 sleep_duration = t_wp - elapsed_time
                 if sleep_duration > 0:
                     await asyncio.sleep(sleep_duration)
                 else:
-                    # If sleep_duration is negative, we are behind schedule
-                    logger.warning(
-                        f"Behind schedule by {-sleep_duration:.2f}s. Skipping Waypoint at t={t_wp:.2f}s."
-                    )
+                    logger.warning(f"Behind schedule by {-sleep_duration:.2f}s. Skipping Waypoint at t={t_wp:.2f}s.")
                     waypoint_index += 1
 
         except OffboardError as e:
@@ -612,7 +583,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             led_controller.set_color(255, 0, 0)  # Red
             break
 
-    # After trajectory completion
+    # After trajectory completion, handle landing
     if not landing_detected:
         if trajectory_ends_high:
             logger.info("Trajectory completed. Initiating PX4 native landing.")
@@ -625,6 +596,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     logger.info("Drone mission completed successfully.")
     led_controller.set_color(0, 255, 0)  # Green
+
 
 
 async def controlled_landing(drone: System):
@@ -1280,7 +1252,11 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         # Step 3: Perform Pre-flight Checks
         home_position = await pre_flight_checks(drone)
 
-        # Step 4: Wait until synchronized start time
+        # Step 4: Handle start time, use execution time if not provided
+        if synchronized_start_time is None:
+            synchronized_start_time = time.time()  # Use current time as start time
+            logger.info(f"No synchronized start time provided. Using current time: {time.ctime(synchronized_start_time)}.")
+        
         current_time = time.time()
         if synchronized_start_time > current_time:
             sleep_duration = synchronized_start_time - current_time
@@ -1357,6 +1333,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         # Stop MAVSDK server
         if mavsdk_server:
             stop_mavsdk_server(mavsdk_server)
+
 
 
 # ----------------------------- #
