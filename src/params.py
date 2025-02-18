@@ -139,6 +139,10 @@ class Params:
     main_offboard_executer = "drone_show.py"    # Name of script that executes offboard missions from CSV
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
+    # Drift configuration
+    DRIFT_THRESHOLD = 0.1  # Drift threshold in seconds
+    DRIFT_CHECK_PERIOD = 0.05  # Time between drift checks in seconds (this can match the CSV step size)
+
     
     # Heartbeat interval (in seconds)
     heartbeat_interval = 10  

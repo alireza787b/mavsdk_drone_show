@@ -490,6 +490,9 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     landing_detected = False
     led_controller = LEDController.get_instance()
 
+    # Get the step size from the CSV (e.g., 0.05 as the time difference between waypoints)
+    csv_step = waypoints[1][0] - waypoints[0][0] if total_waypoints > 1 else Params.DRIFT_CHECK_PERIOD
+
     # Determine if the trajectory ends high or at ground level
     final_altitude = waypoints[-1][3]
     trajectory_ends_high = final_altitude > Params.GROUND_ALTITUDE_THRESHOLD
@@ -596,7 +599,6 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     logger.info("Drone mission completed successfully.")
     led_controller.set_color(0, 255, 0)  # Green
-
 
 
 async def controlled_landing(drone: System):
