@@ -493,6 +493,12 @@ setup_python_venv() {
         sudo apt-get update
         sudo apt-get install -y python3-venv
     fi
+    # Check if python3-pip is installed
+    if ! dpkg -s python3-pip &> /dev/null; then
+        echo "python3-pip not installed. Installing it..."
+        sudo apt-get update
+        sudo apt-get install -y python3-pip
+    fi
 
     # Move to repository directory (already cloned by setup_git)
     cd "$REPO_DIR"
