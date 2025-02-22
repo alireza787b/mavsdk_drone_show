@@ -72,6 +72,7 @@ import argparse
 from collections import namedtuple
 
 from mavsdk import System
+import mavsdk
 from mavsdk.offboard import (
     PositionNedYaw,
     VelocityBodyYawspeed,
@@ -778,31 +779,31 @@ async def pre_flight_checks(drone: System):
                 if health.is_global_position_ok and health.is_home_position_ok:
                     logger.info("Global position estimate and home position check passed.")
 
-                    # Step 2: Now request the GPS global origin from Flask API
-                    gps_origin_url = f'http://localhost:{Params.drones_flask_port}/get-gps-global-origin'
+                    # Step 2: Get GPS global origin using MAVSDK
                     try:
-                        response = requests.get(gps_origin_url, timeout=5)
-                        if response.status_code == 200:
-                            gps_origin = response.json()
-                            logger.info(f"GPS Global Origin retrieved: {gps_origin}")
-                        else:
-                            logger.error(f"Failed to retrieve GPS global origin from Flask, status code: {response.status_code}")
-                    except requests.RequestException as e:
-                        # Log the failure to contact Flask API and continue with fallback
-                        logger.warning(f"Error fetching GPS global origin from Flask endpoint: {e}")
-                        logger.info("Using MAVSDK home position as fallback for GPS origin.")
-
-                    # If Flask API was unreachable, use the MAVSDK home position as the origin
-                    if not gps_origin:
-                        # Use the MAVSDK home position as fallback
+                        # Get GPS global origin through MAVSDK
+                        origin = await drone.telemetry.get_gps_global_origin()
+                        gps_origin = {
+                            'latitude': origin.latitude_deg,
+                            'longitude': origin.longitude_deg,
+                            'altitude': origin.altitude_m
+                        }
+                        logger.info(f"GPS Global Origin retrieved: {gps_origin}")
+                        
+                    except mavsdk.telemetry.TelemetryError as e:
+                        # Fallback to current position if origin request fails
+                        logger.warning(f"Failed to get GPS global origin: {e}")
+                        logger.info("Using current position as fallback for GPS origin")
+                        
+                        # Get single position update
                         async for position in drone.telemetry.position():
                             gps_origin = {
                                 'latitude': position.latitude_deg,
                                 'longitude': position.longitude_deg,
                                 'altitude': position.absolute_altitude_m
                             }
-                            logger.info(f"Fallback: Using MAVSDK home position as GPS origin: {gps_origin}")
-                            break
+                            logger.info(f"Fallback GPS origin: {gps_origin}")
+                            break  # Exit after first position update
                 else:
                     if not health.is_global_position_ok:
                         logger.warning("Waiting for global position to be okay.")
