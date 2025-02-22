@@ -751,90 +751,92 @@ async def initial_setup_and_connection():
 async def pre_flight_checks(drone: System):
     """
     Perform pre-flight checks to ensure the drone is ready for flight, including:
-    - Checking the health of the global and home position via MAVSDK.
-    - Fetching the GPS global origin from the Flask API only when MAVSDK health is valid.
-    - Implementing a fallback mechanism if the Flask API cannot be contacted, using MAVSDK home position as GPS origin.
+    - Checking the health of the global and home position via MAVSDK
+    - Fetching the GPS global origin using MAVSDK when health is valid
+    - Implementing a fallback mechanism using current position if origin request fails
     
     Args:
-        drone (System): MAVSDK drone system instance.
+        drone (System): MAVSDK drone system instance
 
     Returns:
-        dict: GPS global origin data containing latitude, longitude, altitude, and the timestamp if global position is valid.
+        dict: GPS global origin data containing latitude, longitude, and altitude
     """
-    # Setting up the logger for pre-flight checks
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
 
-    # Initialize the LED controller to indicate the pre-flight check status
     led_controller = LEDController.get_instance()
-    led_controller.set_color(255, 255, 0)  # Yellow color for "pre-flight checks in progress"
+    led_controller.set_color(255, 255, 0)  # Yellow = in progress
 
     start_time = time.time()
     gps_origin = None
+    health_checks_passed = False
 
     try:
-        # Step 1: Wait for MAVSDK health check to confirm global and home positions are valid
         if Params.REQUIRE_GLOBAL_POSITION:
+            # Phase 1: Wait for health checks to pass with timeout
+            logger.info("Waiting for health checks...")
             async for health in drone.telemetry.health():
-                if health.is_global_position_ok and health.is_home_position_ok:
-                    logger.info("Global position estimate and home position check passed.")
-
-                    # Step 2: Get GPS global origin using MAVSDK
-                    try:
-                        # Get GPS global origin through MAVSDK
-                        origin = await drone.telemetry.get_gps_global_origin()
-                        gps_origin = {
-                            'latitude': origin.latitude_deg,
-                            'longitude': origin.longitude_deg,
-                            'altitude': origin.altitude_m
-                        }
-                        logger.info(f"GPS Global Origin retrieved: {gps_origin}")
-                        
-                    except mavsdk.telemetry.TelemetryError as e:
-                        # Fallback to current position if origin request fails
-                        logger.warning(f"Failed to get GPS global origin: {e}")
-                        logger.info("Using current position as fallback for GPS origin")
-                        
-                        # Get single position update
-                        async for position in drone.telemetry.position():
-                            gps_origin = {
-                                'latitude': position.latitude_deg,
-                                'longitude': position.longitude_deg,
-                                'altitude': position.absolute_altitude_m
-                            }
-                            logger.info(f"Fallback GPS origin: {gps_origin}")
-                            break  # Exit after first position update
-                else:
-                    if not health.is_global_position_ok:
-                        logger.warning("Waiting for global position to be okay.")
-                    if not health.is_home_position_ok:
-                        logger.warning("Waiting for home position to be set.")
-
+                # Check timeout first
                 if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                    logger.error("Pre-flight checks timed out.")
-                    led_controller.set_color(255, 0, 0)  # Red color for timeout
-                    raise TimeoutError("Pre-flight checks timed out.")
+                    logger.error("Pre-flight checks timed out during health verification")
+                    led_controller.set_color(255, 0, 0)
+                    raise TimeoutError("Health check phase timed out")
+
+                if health.is_global_position_ok and health.is_home_position_ok:
+                    logger.info("Global position and home position checks passed")
+                    health_checks_passed = True
+                    break  # Exit health check loop
+
+                # Log missing requirements
+                if not health.is_global_position_ok:
+                    logger.warning("Waiting for global position estimate...")
+                if not health.is_home_position_ok:
+                    logger.warning("Waiting for home position initialization...")
+                
                 await asyncio.sleep(1)
 
-            # Step 3: Handle successful completion of pre-flight checks
-            if gps_origin:
-                logger.info("Pre-flight checks successful.")
-                led_controller.set_color(0, 255, 0)  # Green color for success
-            else:
-                logger.error("Pre-flight checks failed due to missing GPS origin.")
-                led_controller.set_color(255, 0, 0)  # Red color for failure
-                raise Exception("Pre-flight checks failed.")
+            if not health_checks_passed:
+                raise RuntimeError("Failed to pass health checks")
 
+            # Phase 2: Get GPS origin (with fallback)
+            try:
+                origin = await drone.telemetry.get_gps_global_origin()
+                gps_origin = {
+                    'latitude': origin.latitude_deg,
+                    'longitude': origin.longitude_deg,
+                    'altitude': origin.altitude_m
+                }
+                logger.info(f"Retrieved GPS global origin: {gps_origin}")
+            except mavsdk.telemetry.TelemetryError as e:
+                logger.warning(f"GPS origin request failed: {e}, using fallback...")
+                # Get single position update as fallback
+                async for position in drone.telemetry.position():
+                    gps_origin = {
+                        'latitude': position.latitude_deg,
+                        'longitude': position.longitude_deg,
+                        'altitude': position.absolute_altitude_m
+                    }
+                    logger.info(f"Using fallback position: {gps_origin}")
+                    break  # Exit after first position update
+
+            # Final validation
+            if not gps_origin:
+                logger.error("Failed to obtain GPS origin")
+                led_controller.set_color(255, 0, 0)
+                raise ValueError("No GPS origin available")
+
+            logger.info("Pre-flight checks completed successfully")
+            led_controller.set_color(0, 255, 0)  # Green = success
             return gps_origin
+
         else:
-            # If global position check is not required, log and proceed with normal checks
-            logger.info("Skipping global position check as per configuration.")
-            led_controller.set_color(0, 255, 0)  # Green color for success
+            logger.info("Skipping global position check per configuration")
+            led_controller.set_color(0, 255, 0)
             return None
 
     except Exception as e:
-        logger.exception("Error during pre-flight checks.")
-        led_controller.set_color(255, 0, 0)  # Red color for failure
+        logger.exception("Critical error in pre-flight checks")
+        led_controller.set_color(255, 0, 0)
         raise
 
 
