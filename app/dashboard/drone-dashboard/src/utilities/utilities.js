@@ -23,6 +23,9 @@ export function getGitStatusURL() {
     return `${getBackendURL()}/get-gcs-git-status`;
 }
 
+export const getUnifiedGitStatusURL = () => `${process.env.REACT_APP_API_BASE_URL}/git-status`;
+
+
 export function getCustomShowImageURL() {
     return `${getBackendURL()}/get-custom-show-image`;
 }

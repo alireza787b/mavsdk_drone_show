@@ -5,3 +5,6 @@ hw_id,follow,offset_n,offset_e,offset_alt,body_coord
 4,0,0,0,0,1
 5,1,4,4,0.5,0
 6,1,-4,4,0.5,0
+7,0,0,0,0,0
+8,0,0,0,0,0
+9,0,0,0,0,0

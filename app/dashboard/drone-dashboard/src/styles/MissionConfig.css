@@ -1,3 +1,6 @@
+/* src/styles/MissionConfig.css */
+
+
 /* Global Styles */
 
 body {
@@ -10,7 +13,13 @@ body {
 .mission-config-container {
     margin: 0 auto;
     padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 97%;
+    /* Ensure full width */
 }
+
 
 /* Heading Styles */
 
@@ -18,161 +27,26 @@ h2 {
     font-size: 2rem;
     color: #2c3e50;
     margin-bottom: 1rem;
+    text-align: center;
 }
 
-h4 {
-    font-size: 1.5rem;
-    color: #2c3e50;
-    margin-bottom: 0.5rem;
-    border-bottom: 2px solid #222;
-    display: inline-block;
-}
 
-/* Network Info Styles */
-.network-info {
-    margin-top: 10px;
-    background-color: #e8f5e9; /* Light green background for network info */
-    border-left: 4px solid #66bb6a; /* Green border to signify connection status */
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 0.95rem;
-    color: #2e7d32;
-}
+/* Origin Warning */
 
-.network-info p {
-    margin: 4px 0;
-}
-
-.network-info strong {
-    color: #1b5e20;
-}
-
-/* Reference Point Inputs */
-
-.reference-point-inputs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.reference-point-inputs label {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.reference-point-inputs input {
-    margin-top: 0.5rem;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-.origin-info {
-    font-size: 0.9rem;
-    color: #555;
-    margin-bottom: 1.5rem;
-}
-
-/* Button Styles */
-
-button,
-.file-upload-btn {
-    margin: 0.5rem 0.5rem 0.5rem 0;
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-button:hover,
-.file-upload-btn:hover {
-    opacity: 0.9;
-}
-
-button:active {
-    opacity: 0.8;
-}
-
-button.add,
-.file-upload-btn {
-    background-color: #3498db;
-    display: flex;
-    align-items: center;
-}
-
-button.add .icon {
-    margin-right: 5px;
-    color: white;
-}
-
-button.save {
-    background-color: #28a745;
-}
-
-button.save:hover {
-    background-color: #219737;
-}
-
-button.revert {
-    background-color: #e74c3c;
-}
-
-button.revert:hover {
-    background-color: #c0392b;
-}
-
-button.edit {
-    background-color: #f39c12;
-}
-
-button.edit:hover {
-    background-color: #d48806;
-}
-
-button.remove {
-    background-color: #e74c3c;
-}
-
-button.remove:hover {
-    background-color: #c0392b;
-}
-
-/* Input Field Styles */
-
-input[type="text"],
-select {
-    width: 100%;
-    padding: 8px;
-    margin-top: 5px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-/* Drone Config Card Styles */
-
-.drone-config-card {
-    background-color: #ffffff;
-    border: 1px solid #ccc;
-    border-left: 5px solid #3498db;
-    border-radius: 8px;
-    margin-bottom: 20px;
+.origin-warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffeeba;
     padding: 15px;
-    transition: box-shadow 0.3s;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
 }
 
-.drone-config-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.origin-warning p {
+    margin: 0;
+    color: #856404;
+    font-weight: 500;
 }
 
-.drone-config-card h4 {
-    margin-bottom: 1rem;
-}
 
 /* Content Layout */
 
@@ -188,7 +62,7 @@ select {
     flex: 1;
     min-width: 300px;
     padding: 1rem;
-    background-color: white;
+    background-color: #ffffff;
     border: 1px solid #ccc;
     border-radius: 8px;
 }
@@ -201,70 +75,6 @@ select {
     max-width: 60%;
 }
 
-/* Plot Container */
-
-.initial-launch-plot {
-    background-color: #f7f7f7;
-    padding: 15px;
-}
-
-/* Git Status Styling */
-
-.drone-git-status .git-status-summary {
-    margin-top: 10px;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #ecf0f1;
-}
-
-.drone-git-status .error-message {
-    color: red;
-    font-weight: bold;
-    margin-top: 10px;
-}
-
-/* Hover Effects */
-
-button:hover {
-    opacity: 0.9;
-}
-
-/* Print Styles */
-
-@media print {
-    .no-print {
-        display: none;
-    }
-    body {
-        background-color: white;
-        color: black;
-    }
-    .mission-config-container {
-        margin: 0;
-        padding: 0;
-    }
-    .content-flex {
-        flex-direction: column;
-    }
-    .drone-cards,
-    .initial-launch-plot {
-        max-width: 100%;
-        border: none;
-        box-shadow: none;
-    }
-    .drone-config-card {
-        page-break-inside: avoid;
-    }
-    button {
-        display: none;
-    }
-    input[type="text"],
-    select {
-        border: none;
-        padding: 0;
-        margin: 0;
-    }
-}
 
 /* Responsive Design */
 
@@ -276,4 +86,55 @@ button:hover {
     .initial-launch-plot {
         max-width: 100%;
     }
+}
+
+
+/* New Drone Badge */
+
+.new-drone-badge {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background-color: #ff9800;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transform: rotate(5deg);
+}
+
+
+/* Mismatch Drone Styling */
+
+.mismatch-drone {
+    border-left: 5px solid red !important;
+}
+
+
+/* Mismatch Message Styling */
+
+.mismatch-message {
+    margin-top: 5px;
+    background-color: #fff5f5;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.mismatch-message .accept-button {
+    margin-left: 10px;
+    padding: 3px 6px;
+    background-color: #ef4444;
+    border: none;
+    border-radius: 3px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.mismatch-message .accept-button:hover {
+    background-color: #dc2626;
 }

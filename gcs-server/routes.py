@@ -1,6 +1,8 @@
-#gcs-server/routes.py
+# gcs-server/routes.py
+
+import json
 import os
-import subprocess
+import threading  # Import threading for asynchronous execution
 import sys
 import time
 import traceback
@@ -8,9 +10,9 @@ import zipfile
 import requests
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
 import pandas as pd
-from telemetry import telemetry_data_all_drones, start_telemetry_polling , data_lock
-from command import send_commands_to_all, send_command_to_drone
-from config import get_drone_git_status, get_git_status, load_config, save_config, load_swarm, save_swarm
+from telemetry import telemetry_data_all_drones, start_telemetry_polling, data_lock
+from command import send_commands_to_all, send_commands_to_selected
+from config import get_drone_git_status, get_gcs_git_report, load_config, save_config, load_swarm, save_swarm
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 import logging
 from params import Params
@@ -18,62 +20,116 @@ from datetime import datetime
 from get_elevation import get_elevation  # Import the elevation function
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
 from network import get_network_info_for_all_drones
-
+from heartbeat import handle_heartbeat_post, get_all_heartbeats
+from git_status import git_status_data_all_drones, data_lock_git_status
 
 
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if Params.sim_mode:
+    plots_directory = os.path.join(BASE_DIR, 'shapes_sitl/swarm/plots')
+    skybrush_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/skybrush')
+    processed_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/processed')
+    shapes_dir = os.path.join(BASE_DIR, 'shapes_sitl')
+else:
+    plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
+    skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
+    processed_dir = os.path.join(BASE_DIR, 'shapes/swarm/processed')
+    shapes_dir = os.path.join(BASE_DIR, 'shapes')
+
 sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Define colors and symbols
+RESET = "\x1b[0m"
+GREEN = "\x1b[32m"
+RED = "\x1b[31m"
+YELLOW = "\x1b[33m"
+BLUE = "\x1b[34m"
+INFO_SYMBOL = BLUE + "ℹ️" + RESET
+ERROR_SYMBOL = RED + "❌" + RESET
 
 def error_response(message, status_code=500):
     """Generate a consistent error response with logging."""
-    logger.error(message)
+    logger.error(f"{ERROR_SYMBOL} {message}")
     return jsonify({'status': 'error', 'message': message}), status_code
 
 def setup_routes(app):
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
-        logger.info("Telemetry data requested")
+        logger.info(f"{INFO_SYMBOL} Telemetry data requested")
         if not telemetry_data_all_drones:
-            logger.warning("Telemetry data is currently empty")
+            logger.warning(f"{YELLOW}Telemetry data is currently empty{RESET}")
         return jsonify(telemetry_data_all_drones)
 
     @app.route('/submit_command', methods=['POST'])
     def submit_command():
+        """
+        Endpoint to receive commands from the frontend and process them asynchronously.
+        """
         command_data = request.get_json()
         if not command_data:
             return error_response("No command data provided", 400)
 
-        logger.info(f"Received command: {command_data}")
+        # Extract target_drones from command_data if provided
+        target_drones = command_data.pop('target_drones', None)
+
+        logger.info(f"Received command: {command_data} for drones: {target_drones}")
+
         try:
             drones = load_config()
             if not drones:
                 return error_response("No drones found in the configuration", 500)
 
+            # Start processing the command in a new thread
+            if target_drones:
+                thread = threading.Thread(target=process_command_async, args=(drones, command_data, target_drones))
+            else:
+                thread = threading.Thread(target=process_command_async, args=(drones, command_data))
+
+            thread.daemon = True  # Optional: Daemonize thread if appropriate
+            thread.start()
+
+            logger.info("Command processing started asynchronously.")
+            # Return immediate response
+            response_data = {
+                'status': 'success',
+                'message': "Command received and is being processed."
+            }
+            return jsonify(response_data), 200
+        except Exception as e:
+            logger.error(f"Error initiating command processing: {e}", exc_info=True)
+            return error_response(f"Error initiating command processing: {e}")
+
+    def process_command_async(drones, command_data, target_drones=None):
+        """
+        Function to process the command asynchronously.
+        """
+        try:
             start_time = time.time()
-            results = send_commands_to_all(drones, command_data)
+
+            # Choose appropriate sending function based on target_drones
+            if target_drones:
+                results = send_commands_to_selected(drones, command_data, target_drones)
+                total_count = len(target_drones)
+            else:
+                results = send_commands_to_all(drones, command_data)
+                total_count = len(drones)
+
             elapsed_time = time.time() - start_time
 
             success_count = sum(results.values())
-            response_data = {
-                'status': 'success',
-                'message': f"Command sent to {success_count}/{len(drones)} drones",
-                'details': results,
-                'elapsed_time': f"{elapsed_time:.2f} seconds"
-            }
 
-            logger.info(f"Command dispatch completed in {elapsed_time:.2f} seconds")
-            return jsonify(response_data)
+            logger.info(f"Command sent to {success_count}/{total_count} drones in {elapsed_time:.2f} seconds")
         except Exception as e:
-            logger.error(f"Error sending command: {e}", exc_info=True)
-            return error_response(f"Error sending command: {e}")
+            logger.error(f"Error processing command asynchronously: {e}", exc_info=True)
+
+    
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
@@ -82,7 +138,13 @@ def setup_routes(app):
             return error_response("No configuration data provided", 400)
 
         logger.info("Received configuration data for saving")
+        logger.debug(f"Configuration data received: {json.dumps(config_data, indent=2)}")  # Log the received data
+
         try:
+            # Validate config_data
+            if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
+                raise ValueError("Invalid configuration data format")
+
             # Save the configuration data
             save_config(config_data)
             logger.info("Configuration saved successfully")
@@ -112,6 +174,8 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error saving configuration: {e}", exc_info=True)
             return error_response(f"Error saving configuration: {e}")
+
+
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
@@ -178,8 +242,12 @@ def setup_routes(app):
     @app.route('/import-show', methods=['POST'])
     def import_show():
         """
-        Endpoint to handle the uploading and processing of drone show files,
-        saves the uploaded files, processes them, and optionally pushes changes to a Git repository.
+        Endpoint to handle the uploading and processing of drone show files:
+          1) Clears the SITL or real show directories (depending on sim_mode).
+          2) Saves the uploaded zip.
+          3) Extracts it into the correct skybrush_dir.
+          4) Calls run_formation_process.
+          5) Optionally pushes changes to Git.
         """
         logger.info("Show import requested")
         file = request.files.get('file')
@@ -187,20 +255,26 @@ def setup_routes(app):
             logger.warning("No file part or empty filename")
             return error_response('No file part or empty filename', 400)
 
-        skybrush_dir = os.path.join(BASE_DIR, 'shapes/swarm/skybrush')
         try:
+            # 1) Clear the correct SITL/real show directories
             clear_show_directories(BASE_DIR)
+
+            # 2) Save the uploaded zip into a temp folder
             zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
+            os.makedirs(os.path.dirname(zip_path), exist_ok=True)
             file.save(zip_path)
+
+            # 3) Extract the zip into the correct skybrush folder
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
 
-            # Debug log before processing
+            # 4) Process formation
             logger.debug(f"Starting process formation for files in {skybrush_dir}")
             output = run_formation_process(BASE_DIR)
             logger.info(f"Process formation output: {output}")
 
+            # 5) Optionally do Git commit/push
             if Params.GIT_AUTO_PUSH:
                 logger.info("Git auto-push is enabled. Attempting to push show changes to repository.")
                 git_result = git_operations(
@@ -219,10 +293,11 @@ def setup_routes(app):
         except Exception as e:
             return error_response(f"Unexpected error during show import: {traceback.format_exc()}")
 
+
     @app.route('/download-raw-show', methods=['GET'])
     def download_raw_show():
         try:
-            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/skybrush'), os.path.join(BASE_DIR, 'temp/raw_show'))
+            zip_file = zip_directory(skybrush_dir, os.path.join(BASE_DIR, 'temp/raw_show'))
             return send_file(zip_file, as_attachment=True, download_name='raw_show.zip')
         except Exception as e:
             return error_response(f"Error creating raw show zip: {e}")
@@ -230,16 +305,83 @@ def setup_routes(app):
     @app.route('/download-processed-show', methods=['GET'])
     def download_processed_show():
         try:
-            zip_file = zip_directory(os.path.join(BASE_DIR, 'shapes/swarm/processed'), os.path.join(BASE_DIR, 'temp/processed_show'))
+            zip_file = zip_directory(processed_dir, os.path.join(BASE_DIR, 'temp/processed_show'))
             return send_file(zip_file, as_attachment=True, download_name='processed_show.zip')
         except Exception as e:
             return error_response(f"Error creating processed show zip: {e}")
+        
+        
+    @app.route('/get-show-info', methods=['GET'])
+    def get_show_info():
+        try:
+            check_all = True
+
+            # Find all Drone CSV files
+            drone_csv_files = [f for f in os.listdir(skybrush_dir) 
+                            if f.startswith('Drone ') and f.endswith('.csv')]
+            
+            if not drone_csv_files:
+                return error_response("No drone CSV files found")
+
+            # If check_all is False, filter to just "Drone 1.csv" (or first in the list)
+            if not check_all:
+                drone_csv_files = [drone_csv_files[0]]
+
+            drone_count = len(drone_csv_files)
+
+            max_duration_ms = 0.0
+            max_altitude = 0.0
+
+            # Iterate over each CSV to find the maximum duration and altitude
+            for csv_file in drone_csv_files:
+                csv_path = os.path.join(skybrush_dir, csv_file)
+
+                with open(csv_path, 'r') as file:
+                    # Skip the header
+                    next(file)
+
+                    lines = file.readlines()
+                    if not lines:
+                        continue
+
+                    # Last line for time
+                    last_line = lines[-1].strip().split(',')
+                    duration_ms = float(last_line[0])
+                    # Update max duration
+                    if duration_ms > max_duration_ms:
+                        max_duration_ms = duration_ms
+
+                    # Find max altitude in this CSV
+                    for line in lines:
+                        parts = line.strip().split(',')
+                        if len(parts) < 4:
+                            continue
+                        z_val = float(parts[3])  # 'z [m]' is the 4th column
+                        if z_val > max_altitude:
+                            max_altitude = z_val
+
+            # Convert max duration to minutes / seconds
+            duration_minutes = max_duration_ms / 60000
+            duration_seconds = (max_duration_ms % 60000) / 1000
+            
+            return jsonify({
+                'drone_count': drone_count,
+                'duration_ms': max_duration_ms,
+                'duration_minutes': round(duration_minutes, 2),
+                'duration_seconds': round(duration_seconds, 2),
+                'max_altitude': round(max_altitude, 2)
+            })
+
+        except FileNotFoundError:
+            return error_response("Drone CSV files not found in skybrush directory")
+        except Exception as e:
+            return error_response(f"Error reading show info: {e}")
+
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
         logger.info(f"Image requested: {filename}")
         try:
-            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
             return send_from_directory(plots_directory, filename)
         except Exception as e:
             return error_response(f"Error sending image: {e}", 404)
@@ -248,14 +390,13 @@ def setup_routes(app):
     def get_show_plots():
         logger.info("Show plots list requested")
         try:
-            plots_directory = os.path.join(BASE_DIR, 'shapes/swarm/plots')
             if not os.path.exists(plots_directory):
                 os.makedirs(plots_directory)
 
-            filenames = [f for f in os.listdir(plots_directory) if f.endswith('.png')]
+            filenames = [f for f in os.listdir(plots_directory) if f.endswith('.jpg')]
             upload_time = "unknown"
-            if 'all_drones.png' in filenames:
-                upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'all_drones.png')))
+            if 'combined_drone_paths.png' in filenames:
+                upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'combined_drone_paths.jpg')))
 
             return jsonify({'filenames': filenames, 'uploadTime': upload_time})
         except Exception as e:
@@ -286,7 +427,7 @@ def setup_routes(app):
     @app.route('/get-gcs-git-status', methods=['GET'])
     def get_gcs_git_status():
         """Retrieve the Git status of the GCS."""
-        gcs_status = get_git_status()
+        gcs_status = get_gcs_git_report()
         return jsonify(gcs_status)
 
     @app.route('/get-drone-git-status/<int:drone_id>', methods=['GET'])
@@ -330,7 +471,7 @@ def setup_routes(app):
         The image is expected to be located at shapes/active.png.
         """
         try:
-            image_path = os.path.join(BASE_DIR, 'shapes', 'trajectory_plot.png')
+            image_path = os.path.join(shapes_dir, 'trajectory_plot.png')
             print("Debug: Image path being used:", image_path)  # Debug statement
             if os.path.exists(image_path):
                 return send_file(image_path, mimetype='image/png', as_attachment=False)
@@ -338,8 +479,6 @@ def setup_routes(app):
                 return jsonify({'error': f'Custom show image not found at {image_path}'}), 404
         except Exception as e:
             return jsonify({'error': str(e)}), 500
-
-
     @app.route('/set-origin', methods=['POST'])
     def set_origin():
         data = request.get_json()
@@ -360,12 +499,14 @@ def setup_routes(app):
     def get_origin():
         try:
             data = load_origin()
-            return jsonify(data)
+            if data['lat'] and data['lon']:
+                return jsonify(data)
+            else:
+                return jsonify({'lat': None, 'lon': None})
         except Exception as e:
             logger.error(f"Error loading origin: {e}")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
-        
-        
+
     @app.route('/get-position-deviations', methods=['GET'])
     def get_position_deviations():
         """
@@ -374,7 +515,7 @@ def setup_routes(app):
         try:
             # Step 1: Get the origin coordinates
             origin = load_origin()
-            if not origin or 'lat' not in origin or 'lon' not in origin:
+            if not origin or 'lat' not in origin or 'lon' not in origin or not origin['lat'] or not origin['lon']:
                 return jsonify({"error": "Origin coordinates not set on GCS"}), 400
             origin_lat = float(origin['lat'])
             origin_lon = float(origin['lon'])
@@ -399,8 +540,7 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error in get_position_deviations: {e}", exc_info=True)
             return jsonify({"error": str(e)}), 500
-        
-        
+
     @app.route('/compute-origin', methods=['POST'])
     def compute_origin():
         """
@@ -412,10 +552,11 @@ def setup_routes(app):
 
             # Validate input data
             required_fields = ['current_lat', 'current_lon', 'intended_east', 'intended_north']
-            for field in required_fields:
-                if field not in data:
-                    logger.error(f"Missing required field: {field}")
-                    return jsonify({'error': f"Missing required field: {field}"}), 400
+            missing_fields = [field for field in required_fields if field not in data]
+            if missing_fields:
+                error_msg = f"Missing required field(s): {', '.join(missing_fields)}"
+                logger.error(error_msg)
+                return jsonify({'status': 'error', 'message': error_msg}), 400
 
             # Parse and validate numerical inputs
             try:
@@ -424,8 +565,9 @@ def setup_routes(app):
                 intended_east = float(data.get('intended_east'))
                 intended_north = float(data.get('intended_north'))
             except (TypeError, ValueError) as e:
-                logger.error(f"Invalid input data types: {e}")
-                return jsonify({'error': f"Invalid input data types: {e}"}), 400
+                error_msg = f"Invalid input data types: {e}"
+                logger.error(error_msg)
+                return jsonify({'status': 'error', 'message': error_msg}), 400
 
             logger.info(f"Parsed inputs - current_lat: {current_lat}, current_lon: {current_lon}, intended_east: {intended_east}, intended_north: {intended_north}")
 
@@ -435,11 +577,11 @@ def setup_routes(app):
             # Save the origin
             save_origin({'lat': origin_lat, 'lon': origin_lon})
 
-            return jsonify({'lat': origin_lat, 'lon': origin_lon}), 200
+            return jsonify({'status': 'success', 'lat': origin_lat, 'lon': origin_lon}), 200
 
         except Exception as e:
             logger.error(f"Error in compute_origin endpoint: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
     @app.route('/get-network-info', methods=['GET'])
@@ -448,8 +590,22 @@ def setup_routes(app):
         Endpoint to get network information for all drones.
         Each drone is queried individually, and the results are aggregated into a single JSON response.
         """
-        network_info, status_code = get_network_info_for_all_drones()
-        return jsonify(network_info), status_code
+        # network_info, status_code = get_network_info_for_all_drones()
+        # return jsonify(network_info), status_code
+        pass
 
 
+    @app.route('/drone-heartbeat', methods=['POST'])
+    def drone_heartbeat():
+        return handle_heartbeat_post()
 
+    @app.route('/get-heartbeats', methods=['GET'])
+    def get_heartbeats():
+        return get_all_heartbeats()
+    
+    @app.route('/git-status', methods=['GET'])
+    def get_git_status():
+        """Endpoint to retrieve consolidated git status of all drones."""
+        with data_lock_git_status:
+            git_status_copy = git_status_data_all_drones.copy()
+        return jsonify(git_status_copy)

@@ -1,55 +1,78 @@
-/* MissionDetails.css */
+/* src/styles/MissionDetails.css */
 
 .mission-details {
     padding: 20px;
     border-radius: 8px;
-}
-
-.mission-icon {
-    font-size: 2em;
-    margin-bottom: 10px;
-}
-
-.mission-name {
-    font-size: 1.5em;
-    color: #59d0ff;
-}
-
-.mission-description {
-    margin-bottom: 20px;
-}
-
-.mission-image-preview {
-    margin-bottom: 20px;
+  }
+  
+  .selected-mission-card {
     text-align: center;
-}
-
-.mission-image {
+    margin-bottom: 20px;
+  }
+  
+  .mission-icon {
+    font-size: 3em;
+    margin-bottom: 10px;
+  }
+  
+  .mission-name {
+    font-size: 1.8em;
+    color: #00458b;
+    margin-bottom: 10px;
+  }
+  
+  .mission-description {
+    font-size: 1em;
+    color: #555;
+    margin-bottom: 20px;
+  }
+  
+  .mission-preview {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .mission-image {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.time-selection,
-.time-delay-slider,
-.time-picker {
+  }
+  
+  .time-selection {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
     margin-bottom: 20px;
-}
-
-.back-button,
-.mission-button {
-    margin-top: 20px;
+  }
+  
+  .time-delay-slider,
+  .time-picker {
+    margin-bottom: 20px;
+  }
+  
+  .back-button,
+  .mission-button {
+    margin-top: 10px;
     background-color: #00458b;
     color: #fff;
     border: none;
-    padding: 10px;
+    padding: 12px;
     cursor: pointer;
     border-radius: 4px;
     width: 100%;
-}
-
-.back-button:hover,
-.mission-button:hover {
+    font-size: 1em;
+  }
+  
+  .back-button:hover,
+  .mission-button:hover {
     background-color: #59d0ff;
-}
+  }
+  
+  @media (max-width: 768px) {
+    .time-selection {
+      flex-direction: column;
+      align-items: center;
+    }
+  }
+  

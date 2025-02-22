@@ -1,0 +1,5 @@
+param_name,param_value,param_type
+COM_RCL_EXCEPT,7,int
+GF_ACTION,3,int
+GF_MAX_HOR_DIST,3000.0,float
+GF_MAX_VER_DIST,120.0,float

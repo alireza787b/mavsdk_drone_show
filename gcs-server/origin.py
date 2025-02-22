@@ -8,9 +8,8 @@ from params import Params
 from pyproj import Proj, Transformer
 from scipy.optimize import minimize
 
-
-
 # Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Define the path for storing origin data
@@ -52,7 +51,6 @@ def load_origin():
     else:
         logger.warning("Origin file does not exist. Returning default values.")
         return {'lat': '', 'lon': ''}
-
 
 def _latlon_to_ne(lat, lon, origin_lat, origin_lon):
     """Converts lat/lon to north-east coordinates relative to the origin."""
@@ -145,8 +143,6 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
 
     return deviations
 
-
-
 def compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east):
     """
     Computes the origin lat/lon based on the drone's current lat/lon and intended N,E positions.
@@ -211,4 +207,3 @@ def compute_origin_from_drone(current_lat, current_lon, intended_north, intended
     except Exception as e:
         logger.error(f"Error computing origin from drone: {e}", exc_info=True)
         raise
-

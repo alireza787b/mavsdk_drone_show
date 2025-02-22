@@ -5,7 +5,9 @@
     padding: 20px;
 }
 
+
 /* Action Group Styles */
+
 .action-group {
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -70,7 +72,9 @@
     font-size: 20px;
 }
 
+
 /* Specific Button Styles */
+
 .takeoff-button {
     background-color: #4CAF50;
 }
@@ -144,6 +148,41 @@
     background-color: #3949AB;
 }
 
+
+/* Emergency Kill Button - Special Styling */
+
+.kill-button {
+    background-color: #DC3545;
+    color: white;
+    border: 2px solid #BD2130;
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+    animation: pulse 2s infinite;
+}
+
+.kill-button::before {
+    content: '⚠️';
+    margin-right: 8px;
+}
+
+.kill-button:hover {
+    background-color: #BD2130;
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.3);
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+
 /* Modal Styles */
 
 .modal-overlay {
@@ -202,17 +241,16 @@
     background-color: #D32F2F;
 }
 
+
 /* Responsive Design */
 
 @media (max-width: 768px) {
     .action-buttons {
         flex-direction: column;
     }
-
     .action-button {
         width: 100%;
     }
-
     .action-icon {
         font-size: 18px;
     }

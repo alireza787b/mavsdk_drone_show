@@ -1,124 +1,238 @@
-// app/dashboard/drone-dashboard/src/pages/VisualizationSection.js
+// src/components/VisualizationSection.js
 
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
-import Modal from './Modal'; // Import the custom Modal component
+import Modal from './Modal';
+import {
+  Box,
+  Typography,
+  Card,
+  CardHeader,
+  CardContent,
+  Grid,
+  LinearProgress,
+  Button
+} from '@mui/material';
+import {
+  AccessTime as AccessTimeIcon,
+  Theaters as TheatersIcon,
+} from '@mui/icons-material';
+import HeightIcon from '@mui/icons-material/Height'; // For altitude icon
 
 const VisualizationSection = ({ uploadCount }) => {
-    const [plots, setPlots] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [currentIndex, setCurrentIndex] = useState(0);
+  const [plots, setPlots] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-    // Define the backend URL once at the start
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+  const [showDetails, setShowDetails] = useState({
+    droneCount: 0,
+    duration: null,
+    maxAltitude: null, // Initialize
+  });
 
-    useEffect(() => {
-        const fetchPlots = async () => {
-            setLoading(true);
-            setError('');
-            try {
-                console.log(`Fetching plot list from URL: ${backendURL}/get-show-plots`);
-                const response = await fetch(`${backendURL}/get-show-plots`);
-                const data = await response.json();
-                if (response.ok) {
-                    setPlots(data.filenames || []);
-                } else {
-                    throw new Error(data.error || 'Failed to fetch plots');
-                }
-            } catch (err) {
-                setError(err.message);
-                setPlots([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+  const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
-        fetchPlots();
-    }, [uploadCount, backendURL]);
+  useEffect(() => {
+    const fetchShowData = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        // Fetch plots
+        const plotsResponse = await fetch(`${backendURL}/get-show-plots`);
+        const plotsData = await plotsResponse.json();
 
-    const openModal = (index) => {
-        setCurrentIndex(index);
-        setIsModalOpen(true);
+        if (!plotsResponse.ok) {
+          throw new Error(plotsData.error || 'Failed to fetch plots');
+        }
+
+        const filenames = plotsData.filenames || [];
+        setPlots(filenames);
+
+        // Fetch show info
+        const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
+        const showInfoData = await showInfoResponse.json();
+
+        setShowDetails({
+          droneCount: showInfoData.drone_count,
+          duration: {
+            ms: showInfoData.duration_ms,
+            minutes: parseInt(showInfoData.duration_minutes),
+            seconds: parseInt(showInfoData.duration_seconds),
+          },
+          maxAltitude: showInfoData.max_altitude, // Store altitude
+        });
+      } catch (err) {
+        console.error('Error fetching data:', err.message);
+        setError(err.message);
+        setPlots([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const closeModal = () => {
-        setIsModalOpen(false);
-    };
+    fetchShowData();
+  }, [uploadCount, backendURL]);
 
-    const showPrevious = () => {
-        setCurrentIndex((prevIndex) => (prevIndex === 0 ? plots.length - 1 : prevIndex - 1));
-    };
+  // Format duration with no decimal seconds
+  const formatDuration = () => {
+    const { duration } = showDetails;
+    if (!duration) return 'N/A';
+    return `${duration.minutes}m ${duration.seconds}s`; // No decimals
+  };
 
-    const showNext = () => {
-        setCurrentIndex((prevIndex) => (prevIndex === plots.length - 1 ? 0 : prevIndex + 1));
-    };
+  // Format max altitude with rounding up to 1 decimal
+  const formatMaxAltitude = () => {
+    if (showDetails.maxAltitude == null) return 'N/A';
+    return `${Math.ceil(showDetails.maxAltitude * 10) / 10} m`; // Round up to 1 decimal
+  };
 
-    return (
-        <div className="visualization-section">
-            <h2>Visualization of Drone Paths</h2>
-            {loading && <p>Loading plots...</p>}
-            {error && <p className="error">Error: {error}</p>}
-            <div>
-                {plots.length > 0 ? (
-                    <>
-                        {plots
-                            .filter((name) => name === 'all_drones.png')
-                            .map((plot, index) => (
-                                <div
-                                    key={index}
-                                    className="plot-full-width"
-                                    onClick={() => openModal(index)}
-                                >
-                                    <img
-                                        src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                                        alt="All Drones"
-                                    />
-                                </div>
-                            ))}
-                        <div className="plot-grid">
-                            {plots
-                                .filter((name) => name !== 'all_drones.png')
-                                .map((plot, index) => (
-                                    <div
-                                        key={index}
-                                        className="plot"
-                                        onClick={() => openModal(index + 1)} // +1 to account for the first full-width image
-                                    >
-                                        <img
-                                            src={`${backendURL}/get-show-plots/${encodeURIComponent(plot)}`}
-                                            alt={`Plot ${index}`}
-                                        />
-                                    </div>
-                                ))}
-                        </div>
-                    </>
-                ) : (
-                    <p>No plots available to display.</p>
-                )}
-            </div>
+  const openModal = (index) => {
+    setCurrentIndex(index);
+    setIsModalOpen(true);
+  };
 
-            {/* Modal for displaying the selected image */}
-            <Modal isOpen={isModalOpen} onClose={closeModal}>
-                {plots.length > 0 && (
-                    <div className="modal-image-container">
-                        <button className="nav-button prev-button" onClick={showPrevious}>
-                            &#10094; {/* Left Arrow */}
-                        </button>
-                        <img
-                            src={`${backendURL}/get-show-plots/${encodeURIComponent(plots[currentIndex])}`}
-                            alt={`Plot ${currentIndex}`}
-                            className="modal-image"
-                        />
-                        <button className="nav-button next-button" onClick={showNext}>
-                            &#10095; {/* Right Arrow */}
-                        </button>
-                    </div>
-                )}
-            </Modal>
-        </div>
-    );
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const showPrevious = () => {
+    const previousIndex = currentIndex === 0 ? plots.length - 1 : currentIndex - 1;
+    setCurrentIndex(previousIndex);
+  };
+
+  const showNext = () => {
+    const nextIndex = currentIndex === plots.length - 1 ? 0 : currentIndex + 1;
+    setCurrentIndex(nextIndex);
+  };
+
+  return (
+    <Box className="visualization-section">
+      <Typography variant="h5" sx={{ color: '#0056b3', mb: 2 }}>
+        Drone Show Visualization
+      </Typography>
+
+      {/* Show Details (Duration, Drone Count, Max Altitude) */}
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card variant="outlined">
+            <CardHeader 
+              avatar={<AccessTimeIcon color="primary" fontSize="large" />} 
+              title="Show Duration" 
+            />
+            <CardContent>
+              <Typography variant="h6">
+                {formatDuration()}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={4}>
+          <Card variant="outlined">
+            <CardHeader 
+              avatar={<TheatersIcon color="secondary" fontSize="large" />} 
+              title="Drone Count" 
+            />
+            <CardContent>
+              <Typography variant="h6">
+                {showDetails.droneCount || 'N/A'}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* New card for Maximum Altitude */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Card variant="outlined">
+            <CardHeader
+              avatar={<HeightIcon color="success" fontSize="large" />}
+              title="Max Altitude"
+            />
+            <CardContent>
+              <Typography variant="h6">
+                {formatMaxAltitude()}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {error && (
+        <Typography variant="body1" color="error" sx={{ mb: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      {/* Render the Combined Plot (if it exists) */}
+      {plots
+        .filter((name) => name === 'combined_drone_paths.jpg')
+        .map((plot, index) => {
+          const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+          return (
+            <Box
+              key={`combined-${index}`}
+              className="plot-full-width clickable-image"
+              onClick={() => openModal(0)}
+              sx={{ mb: 3 }}
+            >
+              <img src={plotUrl} alt="All Drones" style={{ width: '80%' }} />
+            </Box>
+          );
+        })}
+
+      {/* Individual Plots in a Grid */}
+      <Box className="plot-grid">
+        {plots
+          .filter((name) => name !== 'combined_drone_paths.jpg')
+          .map((plot, index) => {
+            const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+            return (
+              <Box
+                key={`individual-${index}`}
+                className="plot clickable-image"
+                onClick={() => openModal(index + 1)}
+              >
+                <img src={plotUrl} alt={`Plot ${index}`} />
+              </Box>
+            );
+          })}
+      </Box>
+
+      {/* Modal for displaying the selected image */}
+      <Modal isOpen={isModalOpen} onClose={closeModal}>
+        {plots.length > 0 && (
+          <Box className="modal-image-container">
+            <Button
+              className="nav-button prev-button"
+              onClick={showPrevious}
+              aria-label="Previous Image"
+            >
+              &#10094;
+            </Button>
+            <Box className="modal-image-wrapper">
+              <img
+                src={`${backendURL}/get-show-plots/${encodeURIComponent(
+                  plots[currentIndex] || ''
+                )}`}
+                alt={`Plot ${currentIndex}`}
+                className="modal-image"
+              />
+            </Box>
+            <Button
+              className="nav-button next-button"
+              onClick={showNext}
+              aria-label="Next Image"
+            >
+              &#10095;
+            </Button>
+          </Box>
+        )}
+      </Modal>
+    </Box>
+  );
 };
 
 export default VisualizationSection;

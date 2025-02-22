@@ -1,0 +1,49 @@
+/* src/styles/MissionLayout.css */
+
+.mission-layout {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    /* If you want a subtle box: 
+       background-color: #fff; 
+       border: 1px solid #ccc;
+       border-radius: 6px;
+       padding: 1rem;
+    */
+}
+
+.set-origin-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.set-origin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 8px 12px;
+    background-color: #6b7280;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.set-origin-btn:hover {
+    background-color: #4b5563;
+}
+
+.current-origin {
+    background-color: #ecf0f1;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.current-origin p {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #2c3e50;
+}

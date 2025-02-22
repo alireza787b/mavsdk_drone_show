@@ -1,168 +1,222 @@
 // src/components/DroneActions.js
+
 import React, { useState } from 'react';
-import { 
-  FaPlaneDeparture, 
-  FaHandHolding, 
-  FaPlaneArrival, 
-  FaVial, 
-  FaLightbulb, 
-  FaBatteryFull, 
+import PropTypes from 'prop-types';
+import {
+  FaPlaneDeparture,
+  FaHandHolding,
+  FaPlaneArrival,
+  FaVial,
+  FaLightbulb,
+  FaBatteryFull,
   FaSyncAlt,
   FaPowerOff,
   FaCodeBranch,
+  FaHome,
+  FaRocket,
+  FaSkull,
+  FaToolbox,
+  FaWrench
 } from 'react-icons/fa';
+import { DRONE_ACTION_NAMES } from '../constants/droneConstants';
 import '../styles/DroneActions.css';
 
 const DroneActions = ({ actionTypes, onSendCommand }) => {
+  // Altitude input for takeoff
   const [altitude, setAltitude] = useState(10);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [currentAction, setCurrentAction] = useState(null);
 
-  // Function to handle actions with confirmation
-  const handleActionClick = (actionType, confirmationMessage) => {
-    setCurrentAction({ actionType, confirmationMessage });
-    setModalOpen(true);
-  };
+  // Helper to build and send the commandData object
+  const handleActionClick = (actionKey, extraData = {}) => {
+    const actionTypeValue = actionTypes[actionKey];
+    const commandData = {
+      missionType: actionTypeValue,
+      triggerTime: '0', // immediate
+      ...extraData,
+    };
 
-  const handleConfirm = () => {
-    if (currentAction) {
-      const { actionType } = currentAction;
-
-      const commandData = {
-        missionType: actionTypes[actionType],
-        triggerTime: '0' // Immediate action
-      };
-
-      // Additional fields for specific actions
-      if (actionType === 'TAKE_OFF') {
-        commandData.takeoff_altitude = altitude;
-      }
-
-      onSendCommand(commandData);
+    // If user clicks Takeoff, include altitude
+    if (actionKey === 'TAKE_OFF') {
+      commandData.takeoff_altitude = altitude;
     }
-    setModalOpen(false);
-    setCurrentAction(null);
-  };
 
-  const handleCancel = () => {
-    setModalOpen(false);
-    setCurrentAction(null);
+    onSendCommand(commandData);
   };
 
   return (
     <div className="drone-actions-container">
-      {/* Flight Control Actions */}
+      {/* -------------------------
+          Flight Control Actions
+         ------------------------- */}
       <div className="action-group">
         <h2>Flight Control Actions</h2>
         <div className="action-buttons">
-          {/* Takeoff Section */}
+          {/* Takeoff */}
           <div className="takeoff-section">
             <label htmlFor="takeoff-altitude">Takeoff Altitude (m):</label>
-            <input 
-              type="number" 
-              id="takeoff-altitude" 
-              value={altitude} 
-              onChange={(e) => setAltitude(Number(e.target.value))} 
+            <input
+              type="number"
+              id="takeoff-altitude"
+              value={altitude}
+              onChange={(e) => setAltitude(Number(e.target.value))}
               min="1"
               max="1000"
               className="altitude-input"
             />
-            <button 
+            <button
               className="action-button takeoff-button"
-              onClick={() => handleActionClick('TAKE_OFF', `Are you sure you want to send the Takeoff command to all drones? The drones will take off to an altitude of ${altitude}m.`)}
+              onClick={() => handleActionClick('TAKE_OFF')}
             >
               <FaPlaneDeparture className="action-icon" />
-              Takeoff
+              {DRONE_ACTION_NAMES[actionTypes.TAKE_OFF]}
             </button>
           </div>
-          <button 
+
+          {/* Land */}
+          <button
             className="action-button land-button"
-            onClick={() => handleActionClick('LAND', 'Land All: This will land all drones at their current positions. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('LAND')}
           >
             <FaPlaneArrival className="action-icon" />
-            Land All
+            {DRONE_ACTION_NAMES[actionTypes.LAND]}
           </button>
-          <button 
+
+          {/* Hold */}
+          <button
             className="action-button hold-button"
-            onClick={() => handleActionClick('HOLD', 'Hold Position: This will make all drones hold their current positions. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('HOLD')}
           >
             <FaHandHolding className="action-icon" />
-            Hold Position
+            {DRONE_ACTION_NAMES[actionTypes.HOLD]}
           </button>
-          <button 
+
+          {/* Return to Launch */}
+          <button
+            className="action-button rtl-button"
+            onClick={() => handleActionClick('RETURN_RTL')}
+          >
+            <FaHome className="action-icon" />
+            {DRONE_ACTION_NAMES[actionTypes.RETURN_RTL]}
+          </button>
+
+          {/* Disarm */}
+          <button
             className="action-button disarm-button"
-            onClick={() => handleActionClick('DISARM', 'Disarm Drones: This will disarm all drones immediately. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('DISARM')}
           >
             <FaBatteryFull className="action-icon" />
-            Disarm Drones
+            {DRONE_ACTION_NAMES[actionTypes.DISARM] || 'Disarm'}
+          </button>
+
+          {/* Emergency Kill */}
+          <button
+            className="action-button kill-button"
+            onClick={() => handleActionClick('KILL_TERMINATE')}
+          >
+            <FaSkull className="action-icon" />
+            {DRONE_ACTION_NAMES[actionTypes.KILL_TERMINATE]}
           </button>
         </div>
       </div>
 
-      {/* Test Actions */}
-      <div className="action-group">
-        <h2>Test Actions</h2>
-        <div className="action-buttons">
-          <button 
-            className="action-button test-button"
-            onClick={() => handleActionClick('TEST', 'Test Action: Will arm the drones, wait for 3 seconds, then disarm. Are you sure you want to proceed?')}
-          >
-            <FaVial className="action-icon" />
-            Test
-          </button>
-          <button 
-            className="action-button test-led-button"
-            onClick={() => handleActionClick('TEST_LED', 'Test Light Show: Will run the LED controller test script on the ground. Are you sure you want to proceed?')}
-          >
-            <FaLightbulb className="action-icon" />
-            Test Light Show
-          </button>
-        </div>
-      </div>
+      {/* -------------------------
+    Test Actions
+   ------------------------- */}
+<div className="action-group">
+  <h2>Test Actions</h2>
+  <div className="action-buttons">
+    {/* Test */}
+    <button
+      className="action-button test-button"
+      onClick={() => handleActionClick('TEST')}
+    >
+      <FaVial className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.TEST]}
+    </button>
 
-      {/* System Actions */}
+    {/* Test Light Show */}
+    <button
+      className="action-button test-led-button"
+      onClick={() => handleActionClick('TEST_LED')}
+    >
+      <FaLightbulb className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.TEST_LED]}
+    </button>
+
+    {/* Hover Test */}
+    <button
+      className="action-button hover-test-button"
+      onClick={() => handleActionClick('HOVER_TEST')}
+    >
+      <FaRocket className="action-icon" />
+      {DRONE_ACTION_NAMES[actionTypes.HOVER_TEST]}
+    </button>
+  </div>
+</div>
+
+
+      {/* -------------------------
+          System & Maintenance
+         ------------------------- */}
       <div className="action-group">
-        <h2>System Actions</h2>
+        <h2>System & Maintenance</h2>
         <div className="action-buttons">
-          <button 
+          {/* Reboot Flight Controls */}
+          <button
             className="action-button reboot-fc-button"
-            onClick={() => handleActionClick('REBOOT_FC', 'Reboot Flight Controls: This will reboot all Pixhawk Flight controller boards. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('REBOOT_FC')}
           >
             <FaPowerOff className="action-icon" />
-            Reboot Flight Controls
+            {DRONE_ACTION_NAMES[actionTypes.REBOOT_FC]}
           </button>
-          <button 
+
+          {/* Reboot Companion Computer */}
+          <button
             className="action-button reboot-sys-button"
-            onClick={() => handleActionClick('REBOOT_SYS', 'Reboot Companion Computer: This will reboot all Companion Computer boards. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('REBOOT_SYS')}
           >
             <FaSyncAlt className="action-icon" />
-            Reboot Companion Computer
+            {DRONE_ACTION_NAMES[actionTypes.REBOOT_SYS]}
           </button>
-          <button 
+
+          {/* Update Code */}
+          <button
             className="action-button update-code-button"
-            onClick={() => handleActionClick('UPDATE_CODE', 'Update Code: This will update the code on all drones. Are you sure you want to proceed?')}
+            onClick={() => handleActionClick('UPDATE_CODE')}
           >
             <FaCodeBranch className="action-icon" />
-            Update Code
+            {DRONE_ACTION_NAMES[actionTypes.UPDATE_CODE]}
+          </button>
+
+          {/* Init SysID */}
+          <button
+            className="action-button"
+            style={{ backgroundColor: '#6f42c1' }}
+            onClick={() => handleActionClick('INIT_SYSID')}
+          >
+            <FaToolbox className="action-icon" />
+            {DRONE_ACTION_NAMES[actionTypes.INIT_SYSID]}
+          </button>
+
+          {/* Apply Common Params (auto reboot) */}
+          <button
+            className="action-button"
+            style={{ backgroundColor: '#795548' }}
+            onClick={() =>
+              handleActionClick('APPLY_COMMON_PARAMS', { reboot_after: true })
+            }
+          >
+            <FaWrench className="action-icon" />
+            {DRONE_ACTION_NAMES[actionTypes.APPLY_COMMON_PARAMS]}
           </button>
         </div>
       </div>
-
-      {/* Confirmation Modal */}
-      {modalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Confirm Action</h3>
-            <p>{currentAction?.confirmationMessage}</p>
-            <div className="modal-actions">
-              <button className="confirm-button" onClick={handleConfirm}>Yes</button>
-              <button className="cancel-button" onClick={handleCancel}>No</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
+};
+
+DroneActions.propTypes = {
+  actionTypes: PropTypes.object.isRequired,
+  onSendCommand: PropTypes.func.isRequired,
 };
 
 export default DroneActions;

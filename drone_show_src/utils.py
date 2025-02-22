@@ -1,16 +1,41 @@
-# drone_show_src/utils.py
-
 import os
 import sys
 import glob
 import logging
 import logging.handlers
-import navpy
 from datetime import datetime
+import time
+from mavsdk.system import System
 from src.params import Params
 
-
 from mavsdk.offboard import PositionNedYaw
+import numpy as np
+from pyproj import CRS, Transformer
+import navpy
+
+def calculate_ned_origin(current_gps, ned_position):
+    lat, lon, alt = current_gps
+    north, east, down = ned_position
+
+    # Define the CRS (coordinate reference system) using EPSG codes
+    wgs84 = CRS.from_epsg(4326)  # WGS 84
+    ecef = CRS.from_epsg(4978)   # ECEF (Earth-Centered, Earth-Fixed)
+
+    # Create a transformer to convert between WGS84 and ECEF
+    transformer = Transformer.from_crs(wgs84, ecef, always_xy=True)
+
+    # Convert current GPS to ECEF coordinates
+    ecef_current = transformer.transform(lon, lat, alt)
+
+    # Calculate the ECEF position of the NED origin
+    ecef_origin = np.array(ecef_current) - np.array([north, east, down])
+
+    # Inverse transformation to convert back to geodetic coordinates
+    transformer_inv = Transformer.from_crs(ecef, wgs84, always_xy=True)
+    lat_origin, lon_origin, alt_origin = transformer_inv.transform(ecef_origin[0], ecef_origin[1], ecef_origin[2])
+
+    return lat_origin, lon_origin, alt_origin
+
 
 def configure_logging():
     """
@@ -129,26 +154,19 @@ def global_to_local(global_position, home_position):
     """
     logger = logging.getLogger(__name__)
     try:
-        # Reference LLA from home position
-        lla_ref = [
-            home_position.latitude_deg,
-            home_position.longitude_deg,
-            home_position.absolute_altitude_m,
-        ]
+        # Reference LLA from home position (assuming home_position is a tuple)
+        lat_ref, lon_ref, alt_ref = home_position  # Now we handle it as a tuple
+
         # Current LLA from global position
-        lla = [
-            global_position.latitude_deg,
-            global_position.longitude_deg,
-            global_position.absolute_altitude_m,
-        ]
+        lat, lon, alt = global_position.latitude_deg , global_position.longitude_deg, global_position.absolute_altitude_m   # Again, handle as tuple
 
         ned = navpy.lla2ned(
-            lla[0],
-            lla[1],
-            lla[2],
-            lla_ref[0],
-            lla_ref[1],
-            lla_ref[2],
+            lat,
+            lon,
+            alt,
+            lat_ref,
+            lon_ref,
+            alt_ref,
             latlon_unit="deg",
             alt_unit="m",
             model="wgs84",
@@ -159,3 +177,79 @@ def global_to_local(global_position, home_position):
     except Exception:
         logger.exception("Error converting global to local coordinates")
         return PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+
+
+async def pre_flight_checks(drone: System):
+    """
+    Perform pre-flight checks to ensure the drone is ready for flight.
+
+    Args:
+        drone (System): MAVSDK drone system instance.
+
+    Returns:
+        tuple: GPS coordinates of the NED origin (latitude, longitude, altitude).
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Starting pre-flight checks.")
+    home_position = None
+    led_controller = LEDController.get_instance()
+
+    # Set LED color to yellow to indicate pre-flight checks
+    led_controller.set_color(255, 255, 0)
+    logger.info("LED set to yellow: Pre-flight checks in progress.")
+
+    start_time = time.time()
+
+    try:
+        # Check if global position check is required
+        if Params.REQUIRE_GLOBAL_POSITION:
+            async for health in drone.telemetry.health():
+                if health.is_global_position_ok and health.is_home_position_ok:
+                    logger.info("Global position estimate and home position check passed.")
+                    # Get home position
+                    async for position in drone.telemetry.position():
+                        home_position = position
+                        logger.info(f"Home Position set to: Latitude={home_position.latitude_deg}, "
+                                    f"Longitude={home_position.longitude_deg}, Altitude={home_position.absolute_altitude_m}m")
+                        break
+
+                    if home_position is None:
+                        logger.error("Home position telemetry data is missing.")
+                    break
+                else:
+                    if not health.is_global_position_ok:
+                        logger.warning("Waiting for global position to be okay.")
+                    if not health.is_home_position_ok:
+                        logger.warning("Waiting for home position to be set.")
+
+                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
+                    logger.error("Pre-flight checks timed out.")
+                    led_controller.set_color(255, 0, 0)  # Red
+                    raise TimeoutError("Pre-flight checks timed out.")
+                await asyncio.sleep(1)
+
+            if home_position:
+                logger.info("Pre-flight checks successful.")
+                led_controller.set_color(0, 255, 0)  # Green
+            else:
+                logger.error("Pre-flight checks failed.")
+                led_controller.set_color(255, 0, 0)  # Red
+                raise Exception("Pre-flight checks failed.")
+
+            # Now calculate the NED origin based on the home position and the NED position
+            current_gps = (home_position.latitude_deg, home_position.longitude_deg, home_position.absolute_altitude_m)
+            async for ned_position in drone.telemetry.position_velocity_ned():
+                ned_origin = calculate_ned_origin(current_gps, (ned_position.position.north_m, ned_position.position.east_m, ned_position.position.down_m))
+                logger.info(f"NED Origin calculated: Latitude={ned_origin[0]}, Longitude={ned_origin[1]}, Altitude={ned_origin[2]}m")
+                return ned_origin
+
+        else:
+            # If global position check is not required, log and continue
+            logger.info("Skipping global position check as per configuration.")
+            led_controller.set_color(0, 255, 0)  # Green
+            return None
+
+    except Exception:
+        logger.exception("Error during pre-flight checks.")
+        led_controller.set_color(255, 0, 0)  # Red
+        raise

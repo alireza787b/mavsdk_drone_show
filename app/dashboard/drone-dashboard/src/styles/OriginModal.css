@@ -1,15 +1,15 @@
-/* app/dashboard/drone-dashboard/src/styles/OriginModal.css */
+/* src/styles/OriginModal.css */
 
 
-/* Modal Overlay */
+/* Overlay */
 
-.modal-overlay {
+.origin-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(31, 41, 55, 0.75);
+    background-color: rgba(0, 0, 0, 0.6);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -19,187 +19,166 @@
 
 /* Modal Container */
 
-.modal {
-    background-color: #ffffff;
-    padding: 1.5rem;
-    border-radius: 8px;
-    max-width: 600px;
+.origin-modal {
+    background-color: #fff;
     width: 90%;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    padding: 20px;
+    border-radius: 8px;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-
-/* Modal Header */
-
-.modal h3 {
+.origin-modal h3 {
     margin-top: 0;
+    color: #2c3e50;
     margin-bottom: 1rem;
-    font-size: 1.5rem;
-    color: #111827;
     text-align: center;
 }
 
 
-/* Origin Method Selection */
+/* Tab Buttons */
 
 .origin-method-selection {
     display: flex;
-    justify-content: center;
+    gap: 1rem;
     margin-bottom: 1rem;
 }
 
 .method-button {
     flex: 1;
-    padding: 0.75rem;
+    padding: 0.6rem;
+    text-align: center;
     border: 1px solid #d1d5db;
-    background-color: #f3f4f6;
-    color: #111827;
+    border-radius: 4px;
+    background-color: #e5e7eb;
+    color: #374151;
     cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
     font-size: 1rem;
-    transition: background-color 0.3s;
-}
-
-.method-button:first-child {
-    border-radius: 8px 0 0 8px;
-}
-
-.method-button:last-child {
-    border-radius: 0 8px 8px 0;
-    border-left: none;
 }
 
 .method-button.active {
     background-color: #2563eb;
-    color: #ffffff;
+    color: #fff;
+    border-color: #1d4ed8;
 }
 
-.method-button:not(.active):hover {
-    background-color: #e5e7eb;
-}
-
-
-/* Coordinate Input */
-
-.coordinate-input {
-    margin-bottom: 1rem;
-}
-
-.coordinate-input label {
-    display: block;
-    font-weight: 500;
-    color: #374151;
-}
-
-.coordinate-input input {
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-.error-message {
-    color: #ef4444;
-    font-size: 0.875rem;
-    margin-top: 0.5rem;
-}
-
-
-/* 'OR' Text */
-
-.or-text {
-    text-align: center;
-    margin: 1rem 0;
-    color: #6b7280;
-    position: relative;
-}
-
-.or-text::before,
-.or-text::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 40%;
-    height: 1px;
+.method-button:hover:not(.active) {
     background-color: #d1d5db;
 }
 
-.or-text::before {
-    left: 0;
-}
 
-.or-text::after {
-    right: 0;
-}
+/* Form Sections */
 
-
-/* Map Container */
-
-#map {
-    height: 300px;
-    width: 100%;
+.manual-entry,
+.drone-reference {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
     margin-bottom: 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
 }
 
-
-/* Drone Selection */
-
-.drone-selection label {
-    display: block;
-    font-weight: 500;
+.manual-entry label,
+.drone-reference label {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
     color: #374151;
-    margin-bottom: 0.5rem;
 }
 
-.drone-selection select {
-    width: 100%;
+.manual-entry input,
+.drone-reference select {
     padding: 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid #ccc;
     border-radius: 4px;
+    margin-top: 0.3rem;
     font-size: 1rem;
 }
 
 
-/* Computed Origin Display */
+/* Error & Info */
+
+.error-message {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
+}
+
+.or-text {
+    text-align: center;
+    margin: 0.5rem 0;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.loading-text {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+
+/* Computed Origin Box */
 
 .computed-origin {
-    margin-top: 1rem;
-    background-color: #f9fafb;
-    padding: 1rem;
-    border: 1px solid #d1d5db;
+    background-color: #f0fdf4;
+    /* light green */
+    border: 1px solid #10b981;
+    padding: 10px;
     border-radius: 4px;
+    margin-top: 0.5rem;
 }
 
 .computed-origin p {
-    margin: 0.5rem 0;
-    color: #111827;
+    margin: 0.3rem 0;
 }
 
 
-/* Modal Buttons */
+/* Retry Button */
 
-.modal-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 3.5rem;
-}
-
-.modal-buttons button {
-    padding: 0.75rem 1.5rem;
+.retry-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 8px 12px;
+    background-color: #f1c40f;
+    color: #fff;
     border: none;
     border-radius: 4px;
-    font-size: 1rem;
     cursor: pointer;
-    color: #ffffff;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+    margin-top: 0.5rem;
+}
+
+.retry-button:hover {
+    background-color: #d4ac0d;
+}
+
+
+/* Modal Actions */
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.ok-button,
+.cancel-button {
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
     transition: background-color 0.3s;
 }
 
 .ok-button {
     background-color: #10b981;
+    color: #fff;
 }
 
 .ok-button:hover {
@@ -207,9 +186,10 @@
 }
 
 .cancel-button {
-    background-color: #6b7280;
+    background-color: #ef4444;
+    color: #fff;
 }
 
 .cancel-button:hover {
-    background-color: #4b5563;
+    background-color: #dc2626;
 }

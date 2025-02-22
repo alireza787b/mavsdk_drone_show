@@ -1,134 +1,181 @@
 // src/pages/MissionConfig.js
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import '../styles/MissionConfig.css';
+
+// Components
 import InitialLaunchPlot from '../components/InitialLaunchPlot';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
-import BriefingExport from '../components/BriefingExport';
+import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
-import { getBackendURL } from '../utilities/utilities';
 import DronePositionMap from '../components/DronePositionMap';
+import axios from 'axios';
 
+// Hooks
+import useFetch from '../hooks/useFetch';
+
+// Utilities
 import {
   handleSaveChangesToServer,
   handleRevertChanges,
   handleFileChange,
   exportConfig,
 } from '../utilities/missionConfigUtilities';
+import { toast } from 'react-toastify';
+import { getBackendURL } from '../utilities/utilities';
 
 const MissionConfig = () => {
+  // -----------------------------------------------------
+  // Heading slider: single source of truth
+  // -----------------------------------------------------
+  const [forwardHeading, setForwardHeading] = useState(0);
+
+  // -----------------------------------------------------
   // State variables
+  // -----------------------------------------------------
   const [configData, setConfigData] = useState([]);
   const [editingDroneId, setEditingDroneId] = useState(null);
-  const [originLat, setOriginLat] = useState('');
-  const [originLon, setOriginLon] = useState('');
-  const [showOriginModal, setShowOriginModal] = useState(false);
-  const [deviationData, setDeviationData] = useState({});
+
+  // Origin
+  const [origin, setOrigin] = useState({ lat: null, lon: null });
   const [originAvailable, setOriginAvailable] = useState(false);
-  const [telemetryData, setTelemetryData] = useState({});
+  const [showOriginModal, setShowOriginModal] = useState(false);
+
+  // Deviations
+  const [deviationData, setDeviationData] = useState({});
+
+  // Git & Network
   const [networkInfo, setNetworkInfo] = useState([]);
-  const [loading, setLoading] = useState(false); // Add loading state for save operation
+  const [gitStatusData, setGitStatusData] = useState({});
+  const [gcsGitStatus, setGcsGitStatus] = useState(null);
 
-  // Compute available hardware IDs for new drones
-  const allHwIds = new Set(configData.map((drone) => parseInt(drone.hw_id)));
-  const maxHwId = Math.max(0, ...Array.from(allHwIds)) + 1;
-  const availableHwIds = Array.from({ length: maxHwId }, (_, i) => i + 1).filter(
-    (id) => !allHwIds.has(id)
-  );
+  // Heartbeat
+  const [heartbeats, setHeartbeats] = useState({});
 
-  // Fetch configuration data from the backend when the component mounts
+  // UI & Loading
+  const [loading, setLoading] = useState(false);
+
+  // -----------------------------------------------------
+  // Data Fetching using custom hooks
+  // -----------------------------------------------------
+  const { data: configDataFetched } = useFetch('/get-config-data');
+  const { data: originDataFetched } = useFetch('/get-origin');
+  const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
+  const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
+  const { data: gcsGitStatusFetched } = useFetch('/get-gcs-git-status', 30000);
+  const { data: gitStatusDataFetched } = useFetch('/git-status', 20000);
+  const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
+  const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
+
+  // -----------------------------------------------------
+  // Derived Data & Helpers
+  // -----------------------------------------------------
+  const positionIdMapping = configData.reduce((acc, drone) => {
+    if (drone.pos_id) {
+      acc[drone.pos_id] = { x: drone.x, y: drone.y };
+    }
+    return acc;
+  }, {});
+
+  const allHwIds = new Set(configData.map((drone) => drone.hw_id));
+  const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
+  const availableHwIds = Array.from(
+    { length: maxHwId },
+    (_, i) => (i + 1).toString()
+  ).filter((id) => !allHwIds.has(id));
+
+  // -----------------------------------------------------
+  // Effects: Update local state when data is fetched
+  // -----------------------------------------------------
   useEffect(() => {
-    const fetchData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-config-data`);
-        setConfigData(response.data);
-      } catch (error) {
-        console.error('Error fetching config data:', error);
-      }
-    };
-    fetchData();
-  }, []);
+    if (configDataFetched) {
+      setConfigData(configDataFetched);
+    }
+  }, [configDataFetched]);
 
-  // Fetch origin coordinates from the backend when the component mounts
   useEffect(() => {
-    const fetchOrigin = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-origin`);
-        if (response.data.lat && response.data.lon) {
-          setOriginLat(response.data.lat);
-          setOriginLon(response.data.lon);
-          setOriginAvailable(true);
-        } else {
-          setOriginAvailable(false);
-        }
-      } catch (error) {
-        console.error('Error fetching origin data:', error);
-        setOriginAvailable(false);
-      }
-    };
-    fetchOrigin();
-  }, []);
+    if (
+      originDataFetched &&
+      originDataFetched.lat !== undefined &&
+      originDataFetched.lon !== undefined
+    ) {
+      setOrigin({
+        lat: Number(originDataFetched.lat),
+        lon: Number(originDataFetched.lon),
+      });
+      setOriginAvailable(true);
+    } else {
+      setOrigin({ lat: null, lon: null });
+      setOriginAvailable(false);
+    }
+  }, [originDataFetched]);
 
-  // Fetch deviation data periodically (every 2 seconds)
   useEffect(() => {
-    if (!originAvailable) return;
+    if (deviationDataFetched) {
+      setDeviationData(deviationDataFetched);
+    }
+  }, [deviationDataFetched]);
 
-    const fetchDeviationData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-position-deviations`);
-        setDeviationData(response.data);
-      } catch (error) {
-        console.error('Error fetching deviation data:', error);
-      }
-    };
-
-    fetchDeviationData();
-    const interval = setInterval(fetchDeviationData, 2000);
-    return () => clearInterval(interval);
-  }, [originAvailable]);
-
-  // Fetch telemetry data periodically (every 2 seconds)
   useEffect(() => {
-    const fetchTelemetryData = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/telemetry`);
-        setTelemetryData(response.data);
-      } catch (error) {
-        console.error('Error fetching telemetry data:', error);
-      }
-    };
+    if (gcsGitStatusFetched) {
+      setGcsGitStatus(gcsGitStatusFetched);
+    }
+  }, [gcsGitStatusFetched]);
 
-    fetchTelemetryData();
-    const interval = setInterval(fetchTelemetryData, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch network info for all drones
   useEffect(() => {
-    const fetchNetworkInfo = async () => {
-      const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-      try {
-        const response = await axios.get(`${backendURL}/get-network-info`);
-        setNetworkInfo(response.data);
-      } catch (error) {
-        console.error('Error fetching network information:', error);
+    if (gitStatusDataFetched) {
+      setGitStatusData(gitStatusDataFetched);
+    }
+  }, [gitStatusDataFetched]);
+
+  useEffect(() => {
+    if (networkInfoFetched) {
+      setNetworkInfo(networkInfoFetched);
+    }
+  }, [networkInfoFetched]);
+
+  useEffect(() => {
+    if (heartbeatsFetched) {
+      setHeartbeats(heartbeatsFetched);
+    }
+  }, [heartbeatsFetched]);
+
+  // -----------------------------------------------------
+  // Detect & add "new" drones by heartbeat
+  // -----------------------------------------------------
+  useEffect(() => {
+    const heartbeatHwIds = Object.keys(heartbeats);
+
+    const newDrones = [];
+    for (const hbHwId of heartbeatHwIds) {
+      if (!configData.some((d) => d.hw_id === hbHwId)) {
+        const hb = heartbeats[hbHwId];
+        newDrones.push({
+          hw_id: hbHwId,
+          pos_id: hb.pos_id || hbHwId,
+          ip: hb.ip || '',
+          x: '0',
+          y: '0',
+          mavlink_port: (14550 + parseInt(hbHwId, 10)).toString(),
+          debug_port: (13540 + parseInt(hbHwId, 10)).toString(),
+          gcs_ip: configData.length > 0 ? configData[0].gcs_ip : '',
+          isNew: true,
+        });
       }
-    };
+    }
 
-    fetchNetworkInfo();
-    const interval = setInterval(fetchNetworkInfo, 10000); // Fetch network info every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
+    if (newDrones.length > 0) {
+      setConfigData((prev) => [...prev, ...newDrones]);
+      toast.info(`${newDrones.length} new drone(s) detected and added.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heartbeats, configData]);
 
-  // Save changes for a specific drone
+  // -----------------------------------------------------
+  // CRUD operations
+  // -----------------------------------------------------
   const saveChanges = (originalHwId, updatedData) => {
-    // Validation: Check for duplicate hardware ID
     if (
       configData.some((d) => d.hw_id === updatedData.hw_id && d.hw_id !== originalHwId)
     ) {
@@ -136,105 +183,105 @@ const MissionConfig = () => {
       return;
     }
 
-    // Validation: Check for duplicate position ID
-    if (
-      configData.some((d) => d.pos_id === updatedData.pos_id && d.hw_id !== originalHwId)
-    ) {
-      if (
-        !window.confirm(
-          `Position ID ${updatedData.pos_id} is already assigned to another drone. Do you want to proceed?`
-        )
-      ) {
-        return;
-      }
-    }
-
-    // Update the configuration data with the changes
     setConfigData((prevConfig) =>
-      prevConfig.map((drone) => (drone.hw_id === originalHwId ? updatedData : drone))
+      prevConfig.map((drone) =>
+        drone.hw_id === originalHwId ? { ...updatedData, isNew: false } : drone
+      )
     );
     setEditingDroneId(null);
+    toast.success(`Drone ${originalHwId} updated successfully.`);
   };
 
-  // Add a new drone to the configuration
   const addNewDrone = () => {
-    const newHwId = availableHwIds[0].toString();
+    const newHwId = availableHwIds[0]?.toString() || maxHwId.toString();
+    if (!newHwId) return;
+
     const allSameGcsIp = configData.every(
       (drone) => drone.gcs_ip === configData[0]?.gcs_ip
     );
-    const commonSubnet =
-      configData.length > 0
-        ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
-        : '';
+    const commonSubnet = configData.length > 0
+      ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
+      : '';
 
     const newDrone = {
       hw_id: newHwId,
       ip: commonSubnet,
-      mavlink_port: (14550 + parseInt(newHwId)).toString(),
-      debug_port: (13540 + parseInt(newHwId)).toString(),
+      mavlink_port: (14550 + parseInt(newHwId, 10)).toString(),
+      debug_port: (13540 + parseInt(newHwId, 10)).toString(),
       gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
       x: '0',
       y: '0',
       pos_id: newHwId,
+      isNew: true,
     };
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
+    toast.success(`New drone ${newHwId} added.`);
   };
 
-  // Remove a drone from the configuration
   const removeDrone = (hw_id) => {
     if (window.confirm(`Are you sure you want to remove Drone ${hw_id}?`)) {
       setConfigData((prevConfig) => prevConfig.filter((drone) => drone.hw_id !== hw_id));
+      toast.success(`Drone ${hw_id} removed.`);
     }
   };
 
-  // Handle origin submission from the modal
-  const handleOriginSubmit = (lat, lon) => {
-    setOriginLat(lat);
-    setOriginLon(lon);
+  // -----------------------------------------------------
+  // Origin Modal submission
+  // -----------------------------------------------------
+  const handleOriginSubmit = (newOrigin) => {
+    setOrigin(newOrigin);
     setShowOriginModal(false);
+    setOriginAvailable(true);
+    toast.success('Origin set successfully.');
+
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
     axios
-      .post(`${backendURL}/set-origin`, {
-        lat: lat,
-        lon: lon,
-      })
+      .post(`${backendURL}/set-origin`, newOrigin)
       .then(() => {
-        setOriginAvailable(true);
+        toast.success('Origin saved to server.');
       })
       .catch((error) => {
         console.error('Error saving origin to backend:', error);
+        toast.error('Failed to save origin to server.');
       });
   };
 
-  // Handle file change for importing configuration
-  const handleFileChangeWrapper = (event) => {
-    handleFileChange(event, setConfigData);
+  // -----------------------------------------------------
+  // File ops & config save
+  // -----------------------------------------------------
+  const handleFileChangeWrapper = (e) => {
+    handleFileChange(e, setConfigData);
   };
 
-  // Handle revert changes
   const handleRevertChangesWrapper = () => {
     handleRevertChanges(setConfigData);
+    toast.info('All unsaved changes have been reverted.');
   };
 
-  // Handle save changes to server with loading state
   const handleSaveChangesToServerWrapper = () => {
     handleSaveChangesToServer(configData, setConfigData, setLoading);
+    toast.info('Saving changes to server...');
   };
 
-  // Handle export configuration
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
+    toast.success('Configuration exported successfully.');
   };
 
+  // Sort config data
   const sortedConfigData = [...configData].sort(
-    (a, b) => parseInt(a.hw_id) - parseInt(b.hw_id)
+    (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
   );
 
+  // -----------------------------------------------------
+  // Render
+  // -----------------------------------------------------
   return (
     <div className="mission-config-container">
       <h2>Mission Configuration</h2>
 
+      {/* Top Control Buttons */}
       <ControlButtons
         addNewDrone={addNewDrone}
         handleSaveChangesToServer={handleSaveChangesToServerWrapper}
@@ -242,60 +289,115 @@ const MissionConfig = () => {
         handleFileChange={handleFileChangeWrapper}
         exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
-        configData={configData} // Pass configData
-        setConfigData={setConfigData} // Pass setConfigData
-        loading={loading} // Pass loading state
-      />
-
-      <BriefingExport
         configData={configData}
-        originLat={originLat}
-        originLon={originLon}
-        setOriginLat={setOriginLat}
-        setOriginLon={setOriginLon}
+        setConfigData={setConfigData}
+        loading={loading}
       />
 
+      {!originAvailable && (
+        <div className="origin-warning">
+          <p>
+            <strong>Note:</strong> Origin coordinates are not set. Please set the origin
+            to display position deviation data.
+          </p>
+        </div>
+      )}
+
+      {/* Origin Modal */}
       {showOriginModal && (
         <OriginModal
           isOpen={showOriginModal}
           onClose={() => setShowOriginModal(false)}
           onSubmit={handleOriginSubmit}
-          telemetryData={telemetryData}
+          telemetryData={telemetryDataFetched || {}}
           configData={configData}
+          currentOrigin={origin}
         />
       )}
 
-      {!originAvailable && (
-        <div className="origin-warning">
-          <p>
-            Origin coordinates are not set. Please set the origin to display deviation data.
-          </p>
-        </div>
-      )}
+      <MissionLayout
+        configData={configData}
+        origin={origin}
+        openOriginModal={() => setShowOriginModal(true)}
+      />
 
+      {/* 
+        --------------------------------------------------------
+         Heading Slider: Shared for both plots
+        --------------------------------------------------------
+      */}
+      <div style={{ margin: '1rem 0' }}>
+        <label htmlFor="headingSlider" style={{ marginRight: '10px' }}>
+          Forward Heading (°): {forwardHeading}
+        </label>
+        <input
+          id="headingSlider"
+          type="range"
+          min={0}
+          max={359}
+          value={forwardHeading}
+          onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
+          style={{ width: '50%' }}
+        />
+        <button
+          style={{ marginLeft: '20px' }}
+          onClick={() => {
+            // Example placeholder for saving heading to server
+            toast.info(`TODO: Save heading=${forwardHeading} to server (placeholder).`);
+          }}
+        >
+          Save Heading to Server
+        </button>
+      </div>
+
+      {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
         <div className="drone-cards">
-          {sortedConfigData.map((drone) => (
-            <DroneConfigCard
-              key={drone.hw_id}
-              drone={drone}
-              configData={configData}
-              availableHwIds={availableHwIds}
-              editingDroneId={editingDroneId}
-              setEditingDroneId={setEditingDroneId}
-              saveChanges={saveChanges}
-              removeDrone={removeDrone}
-              networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)} // Pass network info for this drone
-            />
-          ))}
+          {sortedConfigData.length > 0 ? (
+            sortedConfigData.map((drone) => (
+              <DroneConfigCard
+                key={drone.hw_id}
+                drone={drone}
+                gitStatus={gitStatusData[drone.hw_id] || null}
+                gcsGitStatus={gcsGitStatus}
+                configData={configData}
+                availableHwIds={availableHwIds}
+                editingDroneId={editingDroneId}
+                setEditingDroneId={setEditingDroneId}
+                saveChanges={saveChanges}
+                removeDrone={removeDrone}
+                networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
+                heartbeatData={heartbeats[drone.hw_id] || null}
+                positionIdMapping={positionIdMapping}
+              />
+            ))
+          ) : (
+            <p>No drones connected. Please add a drone or connect one to proceed.</p>
+          )}
         </div>
+
         <div className="initial-launch-plot">
+          {/* 
+            Plotly-based top-down drone layout 
+            with real-time heading rotation 
+          */}
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}
             deviationData={deviationData}
+            forwardHeading={forwardHeading}  // <-- Pass heading here
           />
-          <DronePositionMap originLat={originLat} originLon={originLon} drones={configData} />
+
+          {/* 
+            Leaflet-based map for real-world lat/lon display 
+            that also uses the heading to adjust bearing 
+          */}
+          <DronePositionMap
+            originLat={origin.lat}
+            originLon={origin.lon}
+            drones={configData}
+            forwardHeading={forwardHeading}  // <-- Pass heading here
+          />
         </div>
       </div>
     </div>

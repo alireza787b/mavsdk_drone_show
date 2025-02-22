@@ -40,6 +40,9 @@ class Params:
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     GIT_BRANCH = 'main-candidate'  # Git branch is 'main-candidate' for both modes
+    
+    connectivity_check_ip = "100.93.208.205"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
+    connectivity_check_interval = 10    # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
     if sim_mode:
@@ -61,12 +64,16 @@ class Params:
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
 
+
+
     # Flask Server Configuration
     drones_flask_port = 7070                # Port for the drone's Flask server
     polling_interval = 1                    # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state' # URI for getting drone state
-    send_drone_command_URI = 'send_drone_command'  # URI for sending drone commands
+    send_drone_command_URI = 'api/send-command'  # Replace with actual URI
+
     get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
+    get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
     flask_telem_socket_port = 5000          # Flask telemetry socket port
 
     get_position_deviation_URI = 'get-position-deviation'
@@ -102,7 +109,8 @@ class Params:
     extra_devices = [
         f"127.0.0.1:{local_mavlink_port}",
         f"127.0.0.1:{local_mavlink2rest_port}",
-        "100.93.169.180:14550"
+        "100.93.169.180:14550",
+        "100.93.214.147:14550"
     ]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Allow hard reboot commands (ensure root privileges)
@@ -127,8 +135,25 @@ class Params:
     led_channel = 0       # GPIO channel
 
     custom_csv_file_name = "active.csv"         # Name of custom CSV execution
+    hover_test_csv_file_name = "hover_test.csv" # Name of hover test CSV execution
     main_offboard_executer = "drone_show.py"    # Name of script that executes offboard missions from CSV
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
+    
+    # Drift configuration
+    DRIFT_THRESHOLD = 0.1  # Drift threshold in seconds
+    DRIFT_CHECK_PERIOD = 0.05  # Time between drift checks in seconds (this can match the CSV step size)
+
+    
+    # Heartbeat interval (in seconds)
+    heartbeat_interval = 10  
+
+    # The Flask endpoint path for receiving drone heartbeats on GCS
+    gcs_heartbeat_endpoint = "/drone-heartbeat"
+
+    netbird_ip_prefix = "100."
+    
+    REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
+    
 
     # Smart Swarm Parameters
     CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz
@@ -151,11 +176,15 @@ class Params:
 
     # Trajectory and Landing Configuration
     GROUND_ALTITUDE_THRESHOLD = 1.0        # Threshold to determine if trajectory ends at ground level
-    CONTROLLED_LANDING_ALTITUDE = 3.0      # Minimum altitude to start controlled landing
-    CONTROLLED_LANDING_TIME = 2.0          # Minimum time before end of trajectory to start controlled landing
+    CONTROLLED_LANDING_ALTITUDE = 2.0      # Minimum altitude to start controlled landing
+    CONTROLLED_LANDING_TIME = 1.0          # Minimum time before end of trajectory to start controlled landing
     MISSION_PROGRESS_THRESHOLD = 0.5       # Minimum mission progress percentage for controlled landing
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
-    CONTROLLED_LANDING_TIMEOUT = 15        # Maximum time to wait during controlled landing
+    CONTROLLED_LANDING_TIMEOUT = 10        # Maximum time to wait during controlled landing
+
+
+    AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
+
 
     # Initial Position Correction
     ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
@@ -165,7 +194,7 @@ class Params:
     INITIAL_CLIMB_TIME_THRESHOLD = 3.0      # Time threshold for initial climb phase
 
     # Feedforward Control Settings
-    FEEDFORWARD_VELOCITY_ENABLED = True        # Enable feedforward velocity setpoints
+    FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
     FEEDFORWARD_ACCELERATION_ENABLED = False   # Enable feedforward acceleration setpoints
 
     # PD Controller Gains
@@ -175,6 +204,12 @@ class Params:
 
     # Low-Pass Filter Parameter
     LOW_PASS_FILTER_ALPHA = 0.2  # Smoothing factor between 0 and 1
+    
+    
+    # New parameters for pos_id auto-detection
+    auto_detection_enabled = True  # Enable or disable auto-detection
+    auto_detection_interval = 15  # Interval in seconds
+    max_deviation = 1.5 # Maximum allowed deviation in meters for pos_id detection
 
     @classmethod
     def get_trajectory_files(cls, position_id, custom_csv):

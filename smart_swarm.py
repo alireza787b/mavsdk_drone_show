@@ -762,7 +762,7 @@ async def run_smart_swarm():
     # Fetch own home position
     own_ip = '127.0.0.1'
     own_home_pos = fetch_home_position(
-        own_ip, Params.drones_flask_port, Params.get_drone_home_URI
+        own_ip, Params.drones_flask_port, Params.get_drone_gps_origin_URI
     )
     if own_home_pos is None:
         logger.error("Failed to fetch own home position.")

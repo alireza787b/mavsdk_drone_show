@@ -1,9 +1,11 @@
 # Drone Swarm System Coordinator Service
-# This systemd service file configures and manages the Drone Swarm System Coordinator,
-# ensuring that it starts after the network is available and keeps running continuously.
-# The service includes pre-start steps to ensure all components are up-to-date by
-# pulling the latest changes from the configured Git repository, synchronizing system time,
-# and verifying if the systemd service file needs to be updated based on the latest repository changes.
+#
+# This systemd service configures and manages the Drone Swarm System Coordinator.
+# It ensures all prerequisites are met before the coordinator starts, including:
+# - Updating the system repository and components.
+# - Automatically initializing MAVLink system ID (`mav_sys_id`) based on drone hardware ID.
+# - Synchronizing system time and checking WiFi configurations.
+# The service is designed to run continuously and restart upon failure.
 
 # ----------------------------
 # How to Activate This Service
@@ -21,19 +23,22 @@
 # ---------------------
 # Monitoring the Service
 # ---------------------
-# View the live logs of the service to monitor its operations and troubleshoot if necessary:
+# To view live logs of the service for monitoring and troubleshooting:
 #    journalctl -fu coordinator.service
-# If you need to restart the service after making changes:
+# To restart the service after making changes:
 #    sudo systemctl restart coordinator.service
-# To stop the service, use:
+# To stop the service:
 #    sudo systemctl stop coordinator.service
 
 # ---------------------
 # Notes
 # ---------------------
-# - Ensure that the 'update_repo_https.sh', 'sync_time_linux.sh', 'check_and_update_wifi-manager.sh' and 'check_and_update_service.sh' scripts in the 'tools' directory are executable.
-# - Verify that the environment variables and paths set in the service file are accurate for your deployment environment.
-# - Adjust the security settings according to your operational security policies before deploying in a production environment.
+# - Ensure the following scripts in the 'tools' directory are executable:
+#   - 'update_repo_ssh.sh'
+#   - 'check_and_update_wifi-manager.sh'
+#   - 'check_and_update_service.sh'
+
+# - Adjust the capabilities and security settings according to your production security policies.
 
 [Unit]
 Description=Drone Swarm System Coordinator
@@ -42,40 +47,49 @@ Wants=network-online.target
 
 [Service]
 # Pre-start steps
+# Update the repository with the latest changes
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh --real
+
+# Check and update WiFi manager configuration
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
+# Verify and update the system service configuration
 ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 
-# Main start command
+
+# Main service start command
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
+
+# Working directory to ensure relative paths are resolved correctly
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
+
+# User and group to run the service under
 User=droneshow
 Group=droneshow
 
 # Environment variables
+# Ensure the virtual environment and MAVSDK server path are properly configured
 Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Restart settings
+# Automatically restart the service upon failure
 Restart=always
 RestartSec=5s
 
 # Capabilities
+# Includes capabilities for network management, GPIO access, and time synchronization
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 
-# Log output settings
-StandardOutput=journal
-StandardError=inherit
-
-# Log output settings
+# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=coordinator
 
-# Service watchdog and timeout settings
-WatchdogSec=10s
-TimeoutStartSec=60
-TimeoutStopSec=30
+# Watchdog / timeouts
+# Service watchdog to ensure responsiveness
+# WatchdogSec=10s
+# TimeoutStartSec=60
+# TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target

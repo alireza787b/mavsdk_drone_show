@@ -1,0 +1,49 @@
+/* src/styles/DroneCriticalCommands.css */
+
+.critical-commands-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    /* or adjust spacing as needed */
+}
+
+.critical-command-button {
+    background-color: #f0f0f0;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 1.2rem;
+    /* icon size */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.critical-command-button:hover {
+    background-color: #e0e0e0;
+}
+
+.critical-command-button.danger {
+    background-color: #ffe0e0;
+}
+
+.critical-command-button.danger:hover {
+    background-color: #ffcccc;
+}
+
+.hold-icon {
+    color: #4caf50; /* or another green */
+  }
+  .land-icon {
+    color: #008cba;
+  }
+  .return-icon {
+    color: #ff9800;
+  }
+  .kill-icon {
+    color: #f44336;
+  }
+  

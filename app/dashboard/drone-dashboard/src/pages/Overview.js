@@ -1,3 +1,4 @@
+// src/pages/Overview.js
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
@@ -23,17 +24,20 @@ const Overview = ({ setSelectedDrone }) => {
           ...response.data[hw_ID],
         }));
 
-        const validDrones = dronesArray.filter(drone => (
-          drone.Position_Lat !== undefined && 
-          drone.Position_Long !== undefined &&
-          drone.Position_Alt !== undefined &&
-          drone.Battery_Voltage !== undefined
-        ));
+        const validDrones = dronesArray.filter(
+          (drone) =>
+            drone.Position_Lat !== undefined &&
+            drone.Position_Long !== undefined &&
+            drone.Position_Alt !== undefined &&
+            drone.Battery_Voltage !== undefined
+        );
 
-        const invalidDrones = dronesArray.filter(drone => !validDrones.includes(drone));
+        const invalidDrones = dronesArray.filter(
+          (drone) => !validDrones.includes(drone)
+        );
 
         setDrones(validDrones);
-        setIncompleteDrones(invalidDrones);  
+        setIncompleteDrones(invalidDrones);
         setError(null);
         setNotification(null);
 
@@ -65,7 +69,7 @@ const Overview = ({ setSelectedDrone }) => {
   return (
     <div className="overview-container">
       <div className="mission-trigger-section">
-        <CommandSender />
+        <CommandSender drones={drones} />
       </div>
 
       <h2 className="connected-drones-header">Connected Drones</h2>

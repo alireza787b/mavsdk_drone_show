@@ -1,39 +1,182 @@
-.drone-git-status {
-    margin-top: 10px;
-}
+/* src/styles/DroneGitStatus.css */
 
-.git-error-message {
-    color: #ef4444;
-    font-size: 0.875rem;
-    margin-bottom: 10px;
-    border-left: 4px solid #ef4444;
-    padding-left: 10px;
-}
-
-.git-status-summary {
-    border: 1px solid #e5e7eb;
-    padding: 10px;
-    border-radius: 5px;
-    background-color: #f9fafb;
+.git-status-card {
+    border: 1px solid #e0e0e0;
+    border-left: 4px solid;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 6px 0;
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     transition: all 0.3s ease;
 }
 
-.git-status-summary.sync {
-    border-left: 5px solid #10b981;
-    background-color: #e6fffa;
+.git-status-card.sync {
+    border-left-color: #4caf50;
+    /* Green */
 }
 
-.git-status-summary.not-sync {
-    border-left: 5px solid #ef4444;
-    background-color: #ffefef;
+.git-status-card.not-sync {
+    border-left-color: #f44336;
+    /* Red */
 }
 
-.warning-text {
-    color: #ef4444;
+.git-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.status-indicator {
+    margin-right: 8px;
+}
+
+.status-icon.online {
+    color: #4caf50;
+    /* Green */
+    font-size: 1.2em;
+}
+
+.status-icon.dirty {
+    color: #f44336;
+    /* Red */
+    font-size: 1.2em;
+}
+
+.git-basic-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.branch-name {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    cursor: default;
+}
+
+.commit-hash {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: #1a73e8;
+    position: relative;
+    font-size: 0.85em;
+}
+
+.copy-icon {
+    margin-left: 4px;
+    font-size: 0.75em;
+    color: #555;
+}
+
+.copy-icon:hover {
+    color: #000;
+}
+
+.copy-tooltip {
+    position: absolute;
+    top: -20px;
+    right: 0;
+    background-color: #333;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    opacity: 0.9;
+    white-space: nowrap;
+}
+
+.details-toggle {
+    margin-left: 8px;
+}
+
+.toggle-button {
+    background: none;
+    border: none;
+    color: #757575;
+    cursor: pointer;
+    font-size: 1em;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-button:hover {
+    color: #424242;
+}
+
+.git-status-details {
+    margin-top: 10px;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 10px;
+}
+
+.detail-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 6px;
+}
+
+.detail-label {
+    font-weight: bold;
+    font-size: 0.8em;
+    color: #424242;
+}
+
+.detail-value {
+    font-size: 0.8em;
+    color: #616161;
+    margin-left: 8px;
+}
+
+.changes-list {
+    list-style-type: disc;
+    margin: 4px 0 0 16px;
+    padding: 0;
+    font-size: 0.8em;
+}
+
+.git-warning {
+    margin-top: 10px;
+    padding: 6px 10px;
+    background-color: #fdecea;
+    color: #d32f2f;
+    border-radius: 4px;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
 }
 
 .git-loading {
-    color: #374151;
-    font-size: 0.875rem;
     font-style: italic;
+    color: #9e9e9e;
+    padding: 10px 14px;
+    font-size: 0.85em;
+}
+
+@media (max-width: 600px) {
+    .git-status-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .git-basic-info {
+        gap: 8px;
+    }
+    .details-toggle {
+        align-self: flex-end;
+        margin-top: 6px;
+    }
+    .git-status-details {
+        padding-top: 8px;
+    }
+    .detail-row {
+        margin-bottom: 4px;
+    }
 }

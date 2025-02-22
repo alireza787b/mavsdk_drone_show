@@ -1,4 +1,4 @@
-#gcs-server/utils.py
+# gcs-server/utils.py
 import os
 import shutil
 import logging
@@ -6,7 +6,6 @@ import subprocess
 
 from flask import current_app
 from git import Repo, GitCommandError
-
 
 from params import Params
 
@@ -20,18 +19,28 @@ def allowed_file(filename):
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def clear_show_directories(BASE_DIR):
+
+def clear_show_directories(base_dir):
     """
-    Clear specific directories used for drone show data.
+    Clear the swarm subdirectories (skybrush, processed, plots)
+    for the current mode (SITL or real).
+    
+    If Params.sim_mode=True => shapes_sitl/swarm/*
+    Else => shapes/swarm/*
     """
+    if Params.sim_mode:
+        shape_folder = 'shapes_sitl'
+    else:
+        shape_folder = 'shapes'
+
     directories = [
-        os.path.join(BASE_DIR, 'shapes', 'swarm', 'skybrush'),
-        os.path.join(BASE_DIR, 'shapes', 'swarm', 'processed'),
-        os.path.join(BASE_DIR, 'shapes', 'swarm', 'plots')
+        os.path.join(base_dir, shape_folder, 'swarm', 'skybrush'),
+        os.path.join(base_dir, shape_folder, 'swarm', 'processed'),
+        os.path.join(base_dir, shape_folder, 'swarm', 'plots')
     ]
     for directory in directories:
         if not os.path.exists(directory):
-            os.makedirs(directory)  # Create the directory if it doesn't exist
+            os.makedirs(directory)  # Create if doesn't exist
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
             try:
@@ -55,31 +64,39 @@ def ensure_directory(directory):
         os.makedirs(directory)
 
 
-# Utility function for Git operations
 def git_operations(base_dir, commit_message):
     """
     Handles Git operations using GitPython for better control and error handling.
+    This version automatically resolves conflicts and maintains an uninterrupted workflow.
     """
+    from git import Repo, GitCommandError
     try:
         repo = Repo(base_dir)
         git = repo.git
 
-        # Check for uncommitted changes
+        # Fetch latest changes
+        logging.info("Fetching latest changes from remote...")
+        git.fetch('origin')
+
+        # Stage + commit if dirty
         if repo.is_dirty(untracked_files=True):
             logging.info("Staging changes...")
             repo.git.add('--all')
-
             logging.info("Committing changes...")
             repo.index.commit(commit_message)
-        else:
-            message = "No changes to commit."
-            logging.info(message)
 
         # Pull latest changes with rebase
         logging.info("Rebasing local changes on top of remote changes...")
-        git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+        try:
+            git.pull('--rebase', 'origin', Params.GIT_BRANCH)
+        except GitCommandError as e:
+            if 'merge conflict' in str(e):
+                logging.error("Merge conflict detected. Attempting to resolve automatically...")
+                git.merge('--abort')  # Abort the merge
+                git.reset('--hard', 'HEAD')
+                git.pull('--rebase', 'origin', Params.GIT_BRANCH)
 
-        # Push changes to remote
+        # Push changes
         logging.info("Pushing changes to remote repository...")
         git.push('origin', Params.GIT_BRANCH)
 

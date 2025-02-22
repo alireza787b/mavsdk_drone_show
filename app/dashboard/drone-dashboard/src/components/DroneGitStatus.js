@@ -1,61 +1,143 @@
-//app/dashboard/drone-dashboard/src/components/DroneGitStatus.js
-import React, { useState, useEffect } from 'react';
-import { getDroneGitStatusURLById, getGitStatusURL } from '../utilities/utilities';
-import '../styles/DroneGitStatus.css'; // Import for consistent styling
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import '../styles/DroneGitStatus.css';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCheckCircle,
+  faExclamationCircle,
+  faChevronDown,
+  faChevronUp,
+  faCopy,
+} from '@fortawesome/free-solid-svg-icons';
 
-const DroneGitStatus = ({ droneID, droneName }) => {
-  const [gitStatus, setGitStatus] = useState(null);
-  const [gcsGitStatus, setGcsGitStatus] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
+const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  useEffect(() => {
-    async function fetchGitStatuses() {
-      try {
-        const [droneResponse, gcsResponse] = await Promise.all([
-          fetch(getDroneGitStatusURLById(droneID)),
-          fetch(getGitStatusURL()),
-        ]);
+  if (!gitStatus) {
+    return <div className="git-status git-loading">Git status not available.</div>;
+  }
 
-        if (droneResponse.ok && gcsResponse.ok) {
-          const droneData = await droneResponse.json();
-          const gcsData = await gcsResponse.json();
+  const isInSync = gcsGitStatus ? gitStatus.commit === gcsGitStatus.commit : false;
 
-          setGitStatus(droneData);
-          setGcsGitStatus(gcsData);
-        } else {
-          setErrorMessage('Failed to load Git statuses.');
-        }
-      } catch (error) {
-        setErrorMessage('An error occurred while loading the Git statuses.');
+  const handleCopyCommit = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(gitStatus.commit);
+        console.log('Copied to clipboard:', gitStatus.commit);
+        setCopySuccess(true);
+      } else {
+        // Fallback for unsupported browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = gitStatus.commit;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        console.log('Copied to clipboard using fallback:', gitStatus.commit);
+        setCopySuccess(true);
       }
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Could not copy text: ', err);
     }
+  };
+  
 
-    fetchGitStatuses();
-  }, [droneID]);
-
-  const isInSync =
-    gitStatus &&
-    gcsGitStatus &&
-    gitStatus.branch === gcsGitStatus.branch &&
-    gitStatus.commit === gcsGitStatus.commit;
+  const toggleDetails = () => {
+    setIsExpanded(!isExpanded);
+  };
 
   return (
-    <div className="drone-git-status">
-      {errorMessage && <div className="git-error-message">{errorMessage}</div>}
-      {gitStatus && gcsGitStatus ? (
-        <div className={`git-status-summary ${isInSync ? 'sync' : 'not-sync'}`}>
-          <p><strong>Git Status</strong></p>
-          <p><strong>Branch:</strong> {gitStatus.branch}</p>
-          <p><strong>Commit:</strong> {gitStatus.commit}</p>
-          {!isInSync && (
-            <p className="warning-text"><strong>Warning:</strong> This drone's Git status differs from the GCS.</p>
+    <div className={`git-status-card ${isInSync ? 'sync' : 'not-sync'}`}>
+      <div className="git-status-header">
+        <div className="status-indicator">
+          {isInSync ? (
+            <FontAwesomeIcon icon={faCheckCircle} className="status-icon online" title="In Sync" aria-label="In Sync" />
+          ) : (
+            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon dirty" title="Not In Sync" aria-label="Not In Sync" />
           )}
         </div>
-      ) : (
-        <div className="git-loading">Loading Git status...</div>
+        <div className="git-basic-info">
+          <span className="branch-name" title={`Branch: ${gitStatus.branch}`}>
+            {gitStatus.branch}
+          </span>
+          <span
+            className="commit-hash"
+            onClick={handleCopyCommit}
+            title="Click to copy full commit hash"
+            aria-label="Commit hash, click to copy"
+          >
+            {gitStatus.commit.slice(0, 7)}
+            <FontAwesomeIcon icon={faCopy} className="copy-icon" />
+            {copySuccess && <span className="copy-tooltip">Copied!</span>}
+          </span>
+        </div>
+        <div className="details-toggle">
+          <button
+            className="toggle-button"
+            onClick={toggleDetails}
+            aria-expanded={isExpanded}
+            aria-controls={`git-details-${droneName}`}
+            title="Toggle Details"
+            aria-label="Toggle Details"
+          >
+            <FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+          </button>
+        </div>
+      </div>
+      {isExpanded && (
+        <div id={`git-details-${droneName}`} className="git-status-details">
+          <div className="detail-row">
+            <span className="detail-label">Full Commit Hash:</span>
+            <span className="detail-value">{gitStatus.commit}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Commit Message:</span>
+            <span className="detail-value">{gitStatus.commit_message}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Commit Date:</span>
+            <span className="detail-value">{new Date(gitStatus.commit_date).toLocaleString()}</span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Author:</span>
+            <span className="detail-value">
+              {gitStatus.author_name} &lt;{gitStatus.author_email}&gt;
+            </span>
+          </div>
+          {gitStatus.uncommitted_changes && gitStatus.uncommitted_changes.length > 0 && (
+            <div className="detail-row">
+              <span className="detail-label">Uncommitted Changes:</span>
+              <ul className="changes-list">
+                {gitStatus.uncommitted_changes.map((change, index) => (
+                  <li key={index}>{change}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
+      {!isInSync && <div className="git-warning">Git status is not in sync with GCS.</div>}
     </div>
   );
+};
+
+DroneGitStatus.propTypes = {
+  gitStatus: PropTypes.shape({
+    branch: PropTypes.string.isRequired,
+    commit: PropTypes.string.isRequired,
+    status: PropTypes.string.isRequired,
+    commit_date: PropTypes.string.isRequired,
+    commit_message: PropTypes.string.isRequired,
+    author_name: PropTypes.string.isRequired,
+    author_email: PropTypes.string.isRequired,
+    uncommitted_changes: PropTypes.arrayOf(PropTypes.string),
+  }),
+  gcsGitStatus: PropTypes.shape({
+    commit: PropTypes.string.isRequired,
+  }),
+  droneName: PropTypes.string.isRequired,
 };
 
 export default DroneGitStatus;

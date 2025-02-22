@@ -1,147 +1,484 @@
-/* Drone Config Card Styles */
+/* Base Card Container */
 
 .drone-config-card {
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  transition: box-shadow 0.3s;
-  position: relative;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s;
 }
+
+
+/* Hover effect for better user feedback */
 
 .drone-config-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.drone-config-card h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #1f2937;
+
+/* Highlight visually if there's any mismatch or newly detected */
+
+.drone-config-card.mismatch-drone {
+    border-left: 4px solid #ef4444;
+    /* red highlight on the left */
+    padding-left: 12px;
 }
 
-/* Labels and Inputs */
+
+/* "New Drone" Badge */
+
+.new-drone-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: #10b981;
+    color: #ffffff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+
+/* Heartbeat Info */
+
+.heartbeat-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+
+/* Icons for heartbeat statuses */
+
+.status-icon {
+    font-size: 1rem;
+    margin-left: 4px;
+}
+
+.status-icon.online {
+    color: #10b981;
+    /* green */
+}
+
+.status-icon.stale {
+    color: #f59e0b;
+    /* amber */
+}
+
+.status-icon.offline {
+    color: #ef4444;
+    /* red */
+}
+
+.status-icon.no-heartbeat {
+    color: #9ca3af;
+    /* gray */
+}
+
+.status-icon.all-good {
+    color: #10b981;
+    /* green check */
+}
+
+
+/* Mismatch text in red */
+
+.mismatch-text {
+    color: #ef4444;
+    font-weight: bold;
+}
+
+
+/* Exclamation circle for mismatch warnings */
+
+.warning-icon {
+    color: #ef4444;
+    margin-left: 6px;
+}
+
+
+/* Accept Button for mismatches */
+
+.accept-button {
+    background-color: #3b82f6;
+    /* blue */
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 8px;
+    margin-right: 8px;
+}
+
+.accept-button:hover {
+    background-color: #2563eb;
+}
+
+
+/* Variation for assigned acceptance button */
+
+.accept-assigned-btn {
+    background-color: #059669;
+    /* greenish */
+}
+
+.accept-assigned-btn:hover {
+    background-color: #047857;
+}
+
+
+/* Position ID blocks */
+
+.position-id-block {
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+
+/* Neutral block: used when we have no heartbeat data */
+
+.neutral-block {
+    background-color: #f9fafb;
+    /* light grey */
+    border: 1px solid #d1d5db;
+    /* grey border */
+    color: #374151;
+    /* normal text color */
+}
+
+.success-block {
+    background-color: #ecfdf5;
+    /* light green background */
+    border: 1px solid #10b981;
+    /* green border */
+    color: #065f46;
+}
+
+.partial-match-block {
+    background-color: #fffbeb;
+    /* amber background */
+    border: 1px solid #f59e0b;
+    /* amber border */
+    color: #92400e;
+}
+
+.mismatch-block {
+    background-color: #fff5f5;
+    /* light red background */
+    border: 1px solid #fca5a5;
+    /* red border */
+    color: #b91c1c;
+}
+
+.mismatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
+
+.no-auto-message {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: #b45309;
+    /* darker amber */
+}
+
+
+/* Info (question) icon, for helpful tooltips */
+
+.info-icon {
+    color: #6b7280;
+    margin-left: 6px;
+    cursor: help;
+}
+
+
+/* Tooltips via .tooltip-text (simple approach; can refine with a library) */
+
+.tooltip-text {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-left: 8px;
+}
+
+
+/* Mismatch message with a light red background */
+
+.mismatch-message {
+    margin-top: 8px;
+    color: #ef4444;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    background-color: #fff5f5;
+    /* light red background */
+    border: 1px solid #fca5a5;
+    /* red border */
+    padding: 8px 10px;
+    border-radius: 4px;
+}
+
+
+/* Form Labels and Inputs */
 
 .drone-config-card label {
-  display: block;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  color: #374151;
+    display: block;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #374151;
 }
 
-.drone-config-card input,
-.drone-config-card select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  margin-top: 0.25rem;
+.drone-config-card select,
+.drone-config-card input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    font-size: 0.95rem;
+    box-sizing: border-box;
 }
 
 .drone-config-card input:focus,
 .drone-config-card select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 1px #2563eb;
 }
 
-/* Error Message Styling */
+
+/* Input with Icon Wrapper */
+
+.input-with-icon {
+    position: relative;
+}
+
+
+/* Validation Error Messages */
 
 .error-message {
-  color: #ef4444;
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
+    color: #ef4444;
+    font-size: 0.875rem;
 }
 
-/* Card Buttons Styling */
 
-.card-buttons {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
+/* Additional Network Info */
 
-.card-buttons button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.2rem;
-  border: none;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
-}
-
-.save-drone {
-  background-color: #10b981;
-}
-
-.save-drone:hover {
-  background-color: #059669;
-}
-
-.cancel-edit {
-  background-color: #6b7280;
-}
-
-.cancel-edit:hover {
-  background-color: #4b5563;
-}
-
-.edit-drone {
-  background-color: #3b82f6;
-}
-
-.edit-drone:hover {
-  background-color: #2563eb;
-}
-
-.remove-drone {
-  background-color: #ef4444;
-}
-
-.remove-drone:hover {
-  background-color: #dc2626;
-}
-
-/* Network Info Styling */
 .network-info {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f5e9; /* Light green background for network info */
-  border-left: 4px solid #66bb6a; /* Green border to indicate network */
-  border-radius: 5px;
-  font-size: 0.95rem;
-  color: #2e7d32;
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #e8f5e9;
+    border-left: 4px solid #66bb6a;
+    border-radius: 5px;
+    font-size: 0.95rem;
+    color: #2e7d32;
 }
 
 .network-info p {
-  margin: 4px 0;
+    margin: 4px 0;
 }
 
-.network-info strong {
-  color: #1b5e20;
+
+/* Wi-Fi Icon Colors */
+
+.wifi-icon.strong {
+    color: #10b981;
 }
 
-/* Paragraph and Strong Tag Styling */
-
-.drone-config-card p {
-  margin: 0.5rem 0;
-  color: #374151;
+.wifi-icon.medium {
+    color: #f59e0b;
 }
 
-.drone-config-card p strong {
-  color: #1f2937;
+.wifi-icon.weak {
+    color: #ef4444;
 }
 
-/* Alternate Background for Odd Cards */
-
-.drone-config-card:nth-child(odd) {
-  background-color: #f9fafb;
+.wifi-icon.none {
+    color: #9ca3af;
 }
 
-/* Hover Effect */
 
-.drone-config-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+/* Toggle Switch for custom vs. dropdown pos_id */
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: '';
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: #2196f3;
+}
+
+input:checked+.slider:before {
+    transform: translateX(14px);
+}
+
+.toggle-label {
+    margin-left: 10px;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+
+/* Confirmation Dialog Backdrop */
+
+.confirmation-dialog-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+
+/* Confirmation Dialog */
+
+.confirmation-dialog {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90%;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.confirmation-dialog h4 {
+    margin-top: 0;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.confirm-button,
+.cancel-button {
+    padding: 8px 16px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.confirm-button {
+    background-color: #4caf50;
+    color: white;
+}
+
+.cancel-button {
+    background-color: #f44336;
+    color: white;
+}
+
+
+/* Card action buttons */
+
+.card-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.card-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+}
+
+
+/* Style each button type */
+
+.edit-drone {
+    background-color: #3b82f6;
+}
+
+.edit-drone:hover {
+    background-color: #2563eb;
+}
+
+.remove-drone {
+    background-color: #ef4444;
+}
+
+.remove-drone:hover {
+    background-color: #dc2626;
+}
+
+.save-drone {
+    background-color: #10b981;
+}
+
+.save-drone:hover {
+    background-color: #059669;
+}
+
+.cancel-edit {
+    background-color: #6b7280;
+}
+
+.cancel-edit:hover {
+    background-color: #4b5563;
 }

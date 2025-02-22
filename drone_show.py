@@ -1,4 +1,62 @@
-# drone_show/drone_show.py
+#!/usr/bin/env python3
+"""
+Drone Show Script (`drone_show.py`)
+
+----------------------------------------
+Author: Alireza Ghaderi
+Date: 2025-1-29
+Version: 2.6.0
+----------------------------------------
+
+**Description:**
+This script controls a drone during a coordinated show, executing predefined trajectories with precise timing.
+It interfaces with the MAVSDK to manage drone operations such as arming, offboard mode control, and landing.
+Additionally, it provides visual feedback through LED indicators to represent various states of the drone.
+
+**Features:**
+- Executes predefined trajectories from CSV files.
+- Supports both auto and manual initial position settings.
+- Allows overriding auto launch position via command-line argument.
+- Provides clear and informative logging for monitoring and debugging.
+- Visual feedback through LEDs to indicate drone states.
+- Robust error handling to ensure safe drone operations.
+
+**Usage:**
+```bash
+python drone_show.py [--start_time START_TIME] [--custom_csv CUSTOM_CSV] [--auto_launch_position {True,False}] [--debug]
+```
+
+**Command-Line Arguments:**
+- `--start_time START_TIME`  
+  Synchronized start time in UNIX timestamp. If not provided, the current time is used.
+
+- `--custom_csv CUSTOM_CSV`  
+  Name of the custom trajectory CSV file (e.g., `active.csv`). If not provided, the drone show mode is used.
+
+- `--auto_launch_position {True,False}`  
+  Explicitly enable (`True`) or disable (`False`) automated initial position extraction from the trajectory CSV.
+  If not provided, the default value from `Params.AUTO_LAUNCH_POSITION` is used.
+
+- `--debug`  
+  Enable debug mode for verbose logging. Useful for troubleshooting.
+
+**Dependencies:**
+- Python 3.7+
+- MAVSDK (`pip install mavsdk`)
+- `psutil` (`pip install psutil`)
+- `tenacity` (`pip install tenacity`)
+- Other dependencies as specified in the script.
+
+**LED Indicators:**
+- **Blue:** Initialization in progress.
+- **Yellow:** Pre-flight checks in progress.
+- **Green:** Ready to fly or mission completed.
+- **White:** Ready to fly.
+- **Red:** Error or disarmed.
+
+**Note:**
+Ensure that the `mavsdk_server` executable is present in the specified directory and has the necessary execution permissions.
+"""
 
 import os
 import sys
@@ -6,13 +64,11 @@ import time
 import asyncio
 import csv
 import subprocess
-import glob
 import logging
-import logging.handlers
 import socket
 import psutil
+import requests
 import argparse
-from datetime import datetime
 from collections import namedtuple
 
 from mavsdk import System
@@ -25,21 +81,25 @@ from mavsdk.offboard import (
 )
 from mavsdk.telemetry import LandedState
 from mavsdk.action import ActionError
-import navpy
 from tenacity import retry, stop_after_attempt, wait_fixed
-
 
 from src.led_controller import LEDController
 from src.params import Params
 
-from drone_show_src.utils import configure_logging, limit_log_files, read_hw_id, clamp_led_value, global_to_local
+from drone_show_src.utils import (
+    configure_logging,
+    read_hw_id,
+    clamp_led_value,
+    global_to_local,
+)
 
 # ----------------------------- #
 #        Data Structures        #
 # ----------------------------- #
 
 Drone = namedtuple(
-    "Drone", "hw_id pos_id initial_x initial_y ip mavlink_port debug_port gcs_ip"
+    "Drone",
+    "hw_id pos_id initial_x initial_y ip mavlink_port debug_port gcs_ip",
 )
 
 # ----------------------------- #
@@ -50,6 +110,8 @@ HW_ID = None  # Hardware ID of the drone
 position_id = None  # Position ID of the drone
 global_synchronized_start_time = None  # Synchronized start time
 initial_position_drift = None  # Initial position drift in NED coordinates
+drift_delta = 0.0  # Drift delta (to adjust waypoint times)
+
 
 CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
 
@@ -57,9 +119,61 @@ CONFIG_CSV_NAME = os.path.join(Params.config_csv_name)
 #         Helper Functions      #
 # ----------------------------- #
 
+
+def str2bool(v):
+    """
+    Convert a string to a boolean.
+
+    Args:
+        v (str): Input string.
+
+    Returns:
+        bool: Converted boolean value.
+
+    Raises:
+        argparse.ArgumentTypeError: If the input is not a valid boolean string.
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def blender_north_west_up_to_ned(x_b, y_b, z_b=0.0):
+    """
+    Convert a 3D vector from a Blender-like system where:
+      - X = North
+      - Y = West
+      - Z = Up
+    into NED coordinates:
+      - X = North
+      - Y = East (so Y_ned = - Y_blender)
+      - Z = Down (so Z_ned = - Z_blender)
+
+    Args:
+        x_b (float): Blender X (north)
+        y_b (float): Blender Y (west)
+        z_b (float): Blender Z (up)
+
+    Returns:
+        (float, float, float): (N, E, D) in NED
+    """
+    n = x_b          # North is unchanged
+    e = -y_b         # West => negative East
+    d = -z_b         # Up => negative Down
+    return (n, e, d)
+
+
 def read_config(filename: str) -> Drone:
     """
     Read the drone configuration from a CSV file.
+    This CSV is assumed to store real NED coordinates directly:
+      - initial_x => North
+      - initial_y => East
 
     Args:
         filename (str): Path to the config CSV file.
@@ -76,14 +190,23 @@ def read_config(filename: str) -> Drone:
                     hw_id = int(row["hw_id"])
                     if hw_id == HW_ID:
                         pos_id = int(row["pos_id"])
-                        initial_x = float(row["x"])
-                        initial_y = float(row["y"])
+                        # For config.csv, we do NOT transform: it is already NED
+                        initial_x = float(row["x"])  # North
+                        initial_y = float(row["y"])  # East
                         ip = row["ip"]
                         mavlink_port = int(row["mavlink_port"])
                         debug_port = int(row["debug_port"])
                         gcs_ip = row["gcs_ip"]
+
                         drone = Drone(
-                            hw_id, pos_id, initial_x, initial_y, ip, mavlink_port, debug_port, gcs_ip
+                            hw_id,
+                            pos_id,
+                            initial_x,
+                            initial_y,
+                            ip,
+                            mavlink_port,
+                            debug_port,
+                            gcs_ip,
                         )
                         logger.info(f"Drone configuration found: {drone}")
                         return drone
@@ -98,125 +221,62 @@ def read_config(filename: str) -> Drone:
         logger.exception(f"Error reading config file {filename}")
         return None
 
-def read_trajectory_file(filename: str, initial_x: float = 0.0, initial_y: float = 0.0) -> list:
+
+def extract_initial_positions(first_waypoint: dict) -> tuple:
     """
-    Read and adjust the trajectory waypoints from a CSV file.
+    Extract initial X, Y, Z positions from the first waypoint in NED coords.
 
     Args:
-        filename (str): Path to the drone-specific trajectory CSV file.
-        initial_x (float): Initial x-coordinate from config.csv.
-        initial_y (float): Initial y-coordinate from config.csv.
+        first_waypoint (dict): Dictionary representing the first waypoint.
 
     Returns:
-        list: List of adjusted waypoints.
+        tuple: (initial_x, initial_y, initial_z)
+
+    Raises:
+        KeyError: If required keys are missing in the waypoint.
+        ValueError: If the values cannot be converted to float.
     """
-    logger = logging.getLogger(__name__)
-    waypoints = []
     try:
-        with open(filename, newline="") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                try:
-                    t = float(row["t"])
-                    px = float(row["px"]) - initial_x
-                    py = float(row["py"]) - initial_y
-                    pz = float(row["pz"])
-                    vx = float(row["vx"])
-                    vy = float(row["vy"])
-                    vz = float(row["vz"])
-                    ax = float(row["ax"])
-                    ay = float(row["ay"])
-                    az = float(row["az"])
-                    yaw = float(row["yaw"])
-                    ledr = clamp_led_value(row.get("ledr", 0))
-                    ledg = clamp_led_value(row.get("ledg", 0))
-                    ledb = clamp_led_value(row.get("ledb", 0))
-                    mode = row.get("mode", "0")
-                    waypoints.append(
-                        (
-                            t,
-                            px,
-                            py,
-                            pz,
-                            vx,
-                            vy,
-                            vz,
-                            ax,
-                            ay,
-                            az,
-                            yaw,
-                            mode,
-                            ledr,
-                            ledg,
-                            ledb,
-                        )
-                    )
-                except ValueError as ve:
-                    logger.error(f"Invalid data type in trajectory file row: {row}. Error: {ve}")
-        if waypoints:
-            logger.info(
-                f"Trajectory file '{filename}' read successfully with {len(waypoints)} waypoints."
-            )
-        else:
-            logger.error(f"No waypoints found in trajectory file '{filename}'.")
-            sys.exit(1)
-    except FileNotFoundError:
-        logger.exception(f"Trajectory file '{filename}' not found.")
-        sys.exit(1)
-    except Exception:
-        logger.exception(f"Error reading trajectory file {filename}")
-        sys.exit(1)
-    return waypoints
+        initial_x = float(first_waypoint["px"])
+        initial_y = float(first_waypoint["py"])
+        initial_z = float(first_waypoint.get("pz", 0.0))  # Default to 0.0 if pz not present
+        return initial_x, initial_y, initial_z
+    except KeyError as ke:
+        raise KeyError(f"Missing key in first waypoint: {ke}")
+    except ValueError as ve:
+        raise ValueError(f"Invalid value in first waypoint: {ve}")
 
-# ----------------------------- #
-#        Core Functionalities   #
-# ----------------------------- #
 
-async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
+def adjust_waypoints(
+    waypoints: list, initial_x: float, initial_y: float, initial_z: float = 0.0
+) -> list:
     """
-    Executes the trajectory by sending setpoints to the drone.
+    Adjust all waypoints by subtracting the initial positions in NED coordinates.
 
     Args:
-        drone (System): MAVSDK drone system instance.
-        waypoints (list): List of trajectory waypoints.
-        home_position: Home position telemetry data.
-        start_time (float): Synchronized start time.
+        waypoints (list): List of waypoints as tuples.
+        initial_x (float): Initial X-coordinate (north).
+        initial_y (float): Initial Y-coordinate (east).
+        initial_z (float): Initial Z-coordinate (down).
+
+    Returns:
+        list: List of adjusted waypoints, such that the first position is (0,0,0).
     """
+    adjusted_waypoints = []
     logger = logging.getLogger(__name__)
-    logger.info("Performing trajectory with time synchronization.")
-    total_waypoints = len(waypoints)
-    waypoint_index = 0
-    landing_detected = False
 
-    # Initialize LEDController
-    led_controller = LEDController.get_instance()
-
-    # Determine if trajectory ends high or at ground level
-    final_altitude = waypoints[-1][3]  # pz of the last waypoint
-    if final_altitude > Params.GROUND_ALTITUDE_THRESHOLD:
-        trajectory_ends_high = True
-        logger.info("Trajectory ends high in the sky. Will perform PX4 native landing.")
-    else:
-        trajectory_ends_high = False
-        logger.info("Trajectory guides back to ground level. Will perform controlled landing.")
-
-    # Main trajectory execution loop
-    while waypoint_index < total_waypoints:
+    for idx, waypoint in enumerate(waypoints):
         try:
-            current_time = time.time()
-            elapsed_time = current_time - start_time
-
-            # Get current waypoint
-            waypoint = waypoints[waypoint_index]
-            t_wp = waypoint[0]
-
-            if elapsed_time >= t_wp:
-                # Extract waypoint data
+            t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb = waypoint
+            adjusted_px = px - initial_x
+            adjusted_py = py - initial_y
+            adjusted_pz = pz - initial_z
+            adjusted_waypoints.append(
                 (
-                    _,
-                    px,
-                    py,
-                    pz,
+                    t,
+                    adjusted_px,
+                    adjusted_py,
+                    adjusted_pz,
                     vx,
                     vy,
                     vz,
@@ -228,79 +288,305 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     ledr,
                     ledg,
                     ledb,
-                ) = waypoint
+                )
+            )
+        except ValueError as ve:
+            logger.error(f"Error adjusting waypoint at index {idx}: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error adjusting waypoint at index {idx}: {e}")
 
-                # Log waypoint details
-                logger.debug(
-                    f"Waypoint {waypoint_index}: t={t_wp}, px={px}, py={py}, pz={pz}, "
-                    f"vx={vx}, vy={vy}, vz={vz}, ax={ax}, ay={ay}, az={az}, "
-                    f"yaw={yaw}, mode={mode}, ledr={ledr}, ledg={ledg}, ledb={ledb}"
+    return adjusted_waypoints
+
+
+def read_trajectory_file(
+    filename: str,
+    auto_launch_position: bool = False,
+    initial_x: float = 0.0,
+    initial_y: float = 0.0
+) -> list:
+    """
+    Read and adjust the trajectory waypoints from a CSV file.
+
+    The CSV is assumed to be in a Blender-like coordinate system:
+      - X = North
+      - Y = West
+      - Z = Up
+    So we transform to real NED (X=north, Y=east, Z=down), then optionally shift
+    so that the first point is (0,0,0) if auto_launch_position is True (or if we subtract config initial_x / initial_y).
+
+    Args:
+        filename (str): Path to the drone-specific trajectory CSV file.
+        auto_launch_position (bool): Flag to determine if initial positions should be auto-extracted from the first waypoint.
+        initial_x (float): Initial X (N) from config (if auto_launch_position=False).
+        initial_y (float): Initial Y (E) from config (if auto_launch_position=False).
+
+    Returns:
+        list: List of adjusted waypoints in NED.
+    """
+    logger = logging.getLogger(__name__)
+    waypoints = []
+
+    try:
+        with open(filename, newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+
+            if not rows:
+                logger.error(f"Trajectory file '{filename}' is empty.")
+                sys.exit(1)
+
+            if auto_launch_position:
+                # Extract initial positions from the first waypoint (in NED coords)
+                try:
+                    init_n, init_e, init_d = extract_initial_positions(rows[0])
+                    logger.info(
+                        f"Auto Launch Position ENABLED. NED for first waypoint: "
+                        f"(N={init_n:.2f}, E={init_e:.2f}, D={init_d:.2f})"
+                    )
+                except (KeyError, ValueError) as e:
+                    logger.error(f"Failed to extract initial positions: {e}")
+                    sys.exit(1)
+
+                # Read and collect all waypoints in NED
+                for idx, row in enumerate(rows):
+                    try:
+                        t = float(row["t"])
+                        # Positions in  NED (already NED)
+                        px = float(row["px"])
+                        py = float(row["py"])
+                        pz = float(row.get("pz", 0.0))
+
+                        # Velocities in NED (already NED)
+                        vx = float(row["vx"])
+                        vy = float(row["vy"])
+                        vz = float(row["vz"])
+
+                        # Accelerations in NED (already NED)
+                        ax = float(row["ax"])
+                        ay = float(row["ay"])
+                        az = float(row["az"])
+
+                        yaw = float(row["yaw"])
+                        ledr = clamp_led_value(row.get("ledr", 0))
+                        ledg = clamp_led_value(row.get("ledg", 0))
+                        ledb = clamp_led_value(row.get("ledb", 0))
+                        mode = row.get("mode", "0")
+
+                        waypoints.append(
+                            (
+                                t,
+                                px,
+                                py,
+                                pz,
+                                vx,
+                                vy,
+                                vz,
+                                ax,
+                                ay,
+                                az,
+                                yaw,
+                                mode,
+                                ledr,
+                                ledg,
+                                ledb,
+                            )
+                        )
+                    except ValueError as ve:
+                        logger.error(f"Invalid data type in row {idx}: {row}. Error: {ve}")
+                    except KeyError as ke:
+                        logger.error(f"Missing key in row {idx}: {row}. Error: {ke}")
+
+                # Adjust waypoints so the first point is (0,0,0) in NED
+                waypoints = adjust_waypoints(waypoints, init_n, init_e, init_d)
+                logger.info(f"Trajectory waypoints adjusted to start from NED (0, 0, 0).")
+
+            else:
+                # We already have initial_x, initial_y in real NED from config.
+                init_d = 0.0  # Typically 0 if we only store 2D offsets
+
+                for idx, row in enumerate(rows):
+                    try:
+                        t = float(row["t"])
+                        px = float(row["px"])
+                        py = float(row["py"])
+                        pz = float(row["pz"])
+
+                        vx = float(row["vx"])
+                        vy = float(row["vy"])
+                        vz = float(row["vz"])
+
+                        ax = float(row["ax"])
+                        ay = float(row["ay"])
+                        az = float(row["az"])
+
+                        yaw = float(row["yaw"])
+                        ledr = clamp_led_value(row.get("ledr", 0))
+                        ledg = clamp_led_value(row.get("ledg", 0))
+                        ledb = clamp_led_value(row.get("ledb", 0))
+                        mode = row.get("mode", "0")
+
+                        waypoints.append(
+                            (
+                                t,
+                                px,
+                                py,
+                                pz,
+                                vx,
+                                vy,
+                                vz,
+                                ax,
+                                ay,
+                                az,
+                                yaw,
+                                mode,
+                                ledr,
+                                ledg,
+                                ledb,
+                            )
+                        )
+                    except ValueError as ve:
+                        logger.error(f"Invalid data type in row {idx}: {row}. Error: {ve}")
+                    except KeyError as ke:
+                        logger.error(f"Missing key in row {idx}: {row}. Error: {ke}")
+
+                logger.info(f"Trajectory file '{filename}' read successfully with {len(waypoints)} waypoints.")
+
+                # Now shift the entire path so that the first point is (0,0,0) in NED by subtracting (initial_x, initial_y, 0).
+                waypoints = adjust_waypoints(waypoints, initial_x, initial_y, init_d)
+                logger.info(
+                    f"Trajectory waypoints adjusted using config initial positions "
+                    f"(N={initial_x}, E={initial_y}, D={init_d})."
                 )
 
-                # Update LED colors from trajectory
+    except FileNotFoundError:
+        logger.exception(f"Trajectory file '{filename}' not found.")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"Error reading trajectory file '{filename}': {e}")
+        sys.exit(1)
+
+    return waypoints
+
+# ----------------------------- #
+#        Core Functionalities   #
+# ----------------------------- #
+
+async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
+    """
+    Executes the trajectory by sending setpoints to the drone.
+    
+    Args:
+        drone (System): MAVSDK drone system instance.
+        waypoints (list): List of trajectory waypoints (in NED).
+        home_position: Home position telemetry data.
+        start_time (float): Synchronized start time.
+    """
+    global drift_delta  # Drift correction variable
+    logger = logging.getLogger(__name__)
+
+    # Initializing variables
+    total_waypoints = len(waypoints)
+    waypoint_index = 0
+    landing_detected = False
+    led_controller = LEDController.get_instance()
+
+    # Get the step size from the CSV (e.g., 0.05 as the time difference between waypoints)
+    csv_step = waypoints[1][0] - waypoints[0][0] if total_waypoints > 1 else Params.DRIFT_CHECK_PERIOD
+
+    # Determine if the trajectory ends high or at ground level
+    final_altitude = waypoints[-1][3]
+    trajectory_ends_high = final_altitude > Params.GROUND_ALTITUDE_THRESHOLD
+    if trajectory_ends_high:
+        logger.info("Trajectory ends high in the sky. Will perform PX4 native landing.")
+    else:
+        logger.info("Trajectory guides back to ground level. Will perform controlled landing.")
+
+    if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
+        logger.debug(f"Applying Drift Correction - North: {initial_position_drift.north_m}, East: {initial_position_drift.east_m}")
+
+    # Main trajectory execution loop
+    while waypoint_index < total_waypoints:
+        try:
+            current_time = time.time()
+            elapsed_time = current_time - start_time + drift_delta  # Adjusted by drift
+
+            # Get current waypoint and its scheduled time
+            waypoint = waypoints[waypoint_index]
+            t_wp = waypoint[0]
+
+            # Adjust drift if the drone is running ahead or behind schedule
+            if elapsed_time >= t_wp:
+                drift_delta = elapsed_time - t_wp  # Update drift
+                logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
+                t_wp += drift_delta  # Adjust waypoint time based on drift
+
+            if elapsed_time >= t_wp:
+                # Extract waypoint data
+                (_, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb) = waypoint
+
+                # Log details of waypoint execution
+                logger.info(f"Executing Waypoint {waypoint_index + 1}/{total_waypoints}: Time={t_wp:.2f}s, Position=({px:.2f}, {py:.2f}, {pz:.2f})m, Yaw={yaw:.2f}°")
+                logger.debug(f"Setpoints - Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})m/s, Acceleration: ({ax:.2f}, {ay:.2f}, {az:.2f})m/s², Mode: {mode}, LED Color: ({ledr}, {ledg}, {ledb})")
+
+                # Update LED color
                 led_controller.set_color(ledr, ledg, ledb)
 
-                # Adjust waypoints for initial position drift if enabled
+                # Apply position drift correction if enabled
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
                     px += initial_position_drift.north_m
                     py += initial_position_drift.east_m
+                    pz += initial_position_drift.down_m
 
-                # Send setpoints based on configuration
+                # Create position setpoint
                 position_setpoint = PositionNedYaw(px, py, pz, yaw)
 
+                # Send position setpoints with velocity and acceleration (if enabled)
                 if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
                     acceleration_setpoint = AccelerationNed(ax, ay, az)
-                    await drone.offboard.set_position_velocity_acceleration_ned(
-                        position_setpoint, velocity_setpoint, acceleration_setpoint
-                    )
-                    logger.debug("Position, velocity, and acceleration mode: Sending full setpoints")
+                    await drone.offboard.set_position_velocity_acceleration_ned(position_setpoint, velocity_setpoint, acceleration_setpoint)
+                    logger.debug("Setpoints: Position, Velocity, and Acceleration sent.")
                 elif Params.FEEDFORWARD_VELOCITY_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, yaw)
                     await drone.offboard.set_position_velocity_ned(position_setpoint, velocity_setpoint)
-                    logger.debug("Position and velocity mode: Sending position and velocity setpoints")
+                    logger.debug("Setpoints: Position and Velocity sent.")
                 else:
                     await drone.offboard.set_position_ned(position_setpoint)
-                    logger.debug("Position-only mode: Sending position setpoints")
+                    logger.debug("Setpoints: Position-only sent.")
 
-                # Calculate time to end and mission progress
+                # Mission progress and time to end
                 time_to_end = waypoints[-1][0] - t_wp
-                mission_progress = waypoint_index / total_waypoints
+                mission_progress = (waypoint_index + 1) / total_waypoints
+                logger.info(f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s")
 
-                logger.debug(
-                    f"At time {elapsed_time:.2f}s, executing waypoint at t={t_wp:.2f}s. "
-                    f"Time to end: {time_to_end:.2f}s, Mission progress: {mission_progress:.2%}"
-                )
-
-                # Check if we should initiate controlled landing
+                # Handle controlled landing based on mission progress
                 if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
                     if (time_to_end <= Params.CONTROLLED_LANDING_TIME) or (-1 * pz < Params.CONTROLLED_LANDING_ALTITUDE):
-                        logger.info("Initiating controlled landing phase.")
+                        logger.info("Mission progress threshold reached. Initiating controlled landing phase.")
                         await controlled_landing(drone)
                         landing_detected = True
-                        break  # Exit the trajectory execution loop
+                        break  # Exit the trajectory loop
 
                 waypoint_index += 1
             else:
-                # Sleep until the time for the next waypoint
+                # If we are ahead of schedule, wait until the scheduled time
                 sleep_duration = t_wp - elapsed_time
                 if sleep_duration > 0:
                     await asyncio.sleep(sleep_duration)
                 else:
-                    # If sleep_duration is negative, we are behind schedule
-                    logger.warning(f"Behind schedule by {-sleep_duration:.2f}s, skipping waypoint at t={t_wp:.2f}s.")
+                    logger.warning(f"Behind schedule by {-sleep_duration:.2f}s. Skipping Waypoint at t={t_wp:.2f}s.")
                     waypoint_index += 1
 
         except OffboardError as e:
-            logger.error(f"Offboard error during trajectory: {e}")
+            logger.error(f"Offboard error during trajectory execution: {e}")
             led_controller.set_color(255, 0, 0)  # Red
             break
         except Exception:
-            logger.exception("Error during trajectory")
+            logger.exception("Unexpected error during trajectory execution.")
             led_controller.set_color(255, 0, 0)  # Red
             break
 
-    # After trajectory completion
+    # After trajectory completion, handle landing
     if not landing_detected:
         if trajectory_ends_high:
             logger.info("Trajectory completed. Initiating PX4 native landing.")
@@ -311,8 +597,9 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             logger.warning("Controlled landing not initiated as expected. Initiating controlled landing now.")
             await controlled_landing(drone)
 
-    logger.info("Drone mission completed.")
+    logger.info("Drone mission completed successfully.")
     led_controller.set_color(0, 255, 0)  # Green
+
 
 async def controlled_landing(drone: System):
     """
@@ -322,17 +609,17 @@ async def controlled_landing(drone: System):
         drone (System): MAVSDK drone system instance.
     """
     logger = logging.getLogger(__name__)
-    logger.info("Starting controlled landing.")
+    logger.info("Initiating controlled landing.")
     led_controller = LEDController.get_instance()
     landing_detected = False
     landing_start_time = time.time()
 
     # Stop sending position setpoints
-    logger.info("Stopping position setpoints and switching to velocity descent.")
+    logger.info("Switching to controlled descent mode.")
     try:
         await drone.offboard.set_position_velocity_ned(
             PositionNedYaw(0.0, 0.0, 0.0, 0.0),
-            VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
+            VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0),
         )
     except OffboardError as e:
         logger.error(f"Offboard error during controlled landing setup: {e}")
@@ -341,10 +628,10 @@ async def controlled_landing(drone: System):
 
     while not landing_detected:
         try:
-            # Send descent command
+            # Send descent command continuously
             velocity_setpoint = VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
             await drone.offboard.set_velocity_ned(velocity_setpoint)
-            logger.debug(f"Controlled landing: Descending at {Params.CONTROLLED_DESCENT_SPEED:.2f} m/s")
+            logger.debug(f"Controlled Landing: Descending at {Params.CONTROLLED_DESCENT_SPEED:.2f} m/s.")
 
             # Check for landing detection
             async for landed_state in drone.telemetry.landed_state():
@@ -356,7 +643,7 @@ async def controlled_landing(drone: System):
 
             # Check for timeout
             if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
-                logger.warning("Controlled landing timeout. Initiating PX4 native landing.")
+                logger.warning("Controlled landing timed out. Initiating PX4 native landing.")
                 await stop_offboard_mode(drone)
                 await perform_landing(drone)
                 break
@@ -367,7 +654,7 @@ async def controlled_landing(drone: System):
             led_controller.set_color(255, 0, 0)  # Red
             break
         except Exception:
-            logger.exception("Error during controlled landing")
+            logger.exception("Unexpected error during controlled landing.")
             led_controller.set_color(255, 0, 0)  # Red
             break
 
@@ -376,12 +663,13 @@ async def controlled_landing(drone: System):
         await disarm_drone(drone)
     else:
         # If timeout and still no landing detected, activate default land command
-        logger.warning("Landing not detected, initiating PX4 native landing.")
+        logger.warning("Landing not detected. Initiating PX4 native landing.")
         await stop_offboard_mode(drone)
         await perform_landing(drone)
 
-    # Turn off LEDs
+    # Turn off LEDs to indicate mission completion
     led_controller.set_color(0, 255, 0)  # Green
+
 
 async def wait_for_landing(drone: System):
     """
@@ -392,16 +680,18 @@ async def wait_for_landing(drone: System):
     """
     logger = logging.getLogger(__name__)
     start_time = time.time()
+    logger.info("Waiting for drone to confirm landing...")
     while True:
         async for landed_state in drone.telemetry.landed_state():
             if landed_state == LandedState.ON_GROUND:
-                logger.info("Drone has landed.")
+                logger.info("Drone has landed successfully.")
                 return
             break
         if time.time() - start_time > Params.LANDING_TIMEOUT:
-            logger.error("Landing timeout.")
+            logger.error("Landing confirmation timed out.")
             break
         await asyncio.sleep(1)
+
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(5))
 async def initial_setup_and_connection():
@@ -415,8 +705,9 @@ async def initial_setup_and_connection():
     try:
         # Initialize LEDController
         led_controller = LEDController.get_instance()
-        # Set color to blue to indicate initialization
+        # Set LED color to blue to indicate initialization
         led_controller.set_color(0, 0, 255)
+        logger.info("LED set to blue: Initialization in progress.")
 
         # Determine the MAVSDK server address and port
         grpc_port = Params.DEFAULT_GRPC_PORT  # Fixed gRPC port
@@ -446,122 +737,232 @@ async def initial_setup_and_connection():
                 raise TimeoutError("Drone connection timeout.")
             await asyncio.sleep(1)
 
+        # Log initial connection success
+        logger.info("Initial setup and connection successful.")
         return drone
     except Exception:
-        logger.exception("Error in initial setup and connection")
+        logger.exception("Error during initial setup and connection.")
         led_controller.set_color(255, 0, 0)  # Red
         raise
 
+
+
 async def pre_flight_checks(drone: System):
     """
-    Perform pre-flight checks to ensure the drone is ready for flight.
-
+    Perform pre-flight checks to ensure the drone is ready for flight, including:
+    - Checking the health of the global and home position via MAVSDK.
+    - Fetching the GPS global origin from the Flask API only when MAVSDK health is valid.
+    - Implementing a fallback mechanism if the Flask API cannot be contacted, using MAVSDK home position as GPS origin.
+    
     Args:
         drone (System): MAVSDK drone system instance.
 
     Returns:
-        GlobalPosition: Home position telemetry data.
+        dict: GPS global origin data containing latitude, longitude, altitude, and the timestamp if global position is valid.
     """
+    # Setting up the logger for pre-flight checks
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
-    home_position = None
+
+    # Initialize the LED controller to indicate the pre-flight check status
     led_controller = LEDController.get_instance()
+    led_controller.set_color(255, 255, 0)  # Yellow color for "pre-flight checks in progress"
 
-    # Set color to yellow to indicate waiting for GPS lock
-    led_controller.set_color(255, 255, 0)
     start_time = time.time()
+    gps_origin = None
+
     try:
-        async for health in drone.telemetry.health():
-            if health.is_global_position_ok and health.is_home_position_ok:
-                logger.info("Global position estimate and home position check passed.")
-                # Get home position
-                async for position in drone.telemetry.position():
-                    home_position = position
-                    logger.info(f"Home Position set to: {home_position}")
+        # Step 1: Wait for MAVSDK health check to confirm global and home positions are valid
+        if Params.REQUIRE_GLOBAL_POSITION:
+            async for health in drone.telemetry.health():
+                if health.is_global_position_ok and health.is_home_position_ok:
+                    logger.info("Global position estimate and home position check passed.")
+
+                    # Step 2: Now request the GPS global origin from Flask API
+                    gps_origin_url = f'http://localhost:{Params.drones_flask_port}/get-gps-global-origin'
+                    try:
+                        response = requests.get(gps_origin_url, timeout=5)
+                        if response.status_code == 200:
+                            gps_origin = response.json()
+                            logger.info(f"GPS Global Origin retrieved: {gps_origin}")
+                        else:
+                            logger.error(f"Failed to retrieve GPS global origin from Flask, status code: {response.status_code}")
+                    except requests.RequestException as e:
+                        # Log the failure to contact Flask API and continue with fallback
+                        logger.warning(f"Error fetching GPS global origin from Flask endpoint: {e}")
+                        logger.info("Using MAVSDK home position as fallback for GPS origin.")
+
+                    # If Flask API was unreachable, use the MAVSDK home position as the origin
+                    if not gps_origin:
+                        # Use the MAVSDK home position as fallback
+                        async for position in drone.telemetry.position():
+                            gps_origin = {
+                                'latitude': position.latitude_deg,
+                                'longitude': position.longitude_deg,
+                                'altitude': position.absolute_altitude_m
+                            }
+                            logger.info(f"Fallback: Using MAVSDK home position as GPS origin: {gps_origin}")
                     break
-                if home_position is None:
-                    logger.error("Home position telemetry data is missing.")
-                break
+                else:
+                    if not health.is_global_position_ok:
+                        logger.warning("Waiting for global position to be okay.")
+                    if not health.is_home_position_ok:
+                        logger.warning("Waiting for home position to be set.")
+
+                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
+                    logger.error("Pre-flight checks timed out.")
+                    led_controller.set_color(255, 0, 0)  # Red color for timeout
+                    raise TimeoutError("Pre-flight checks timed out.")
+                await asyncio.sleep(1)
+
+            # Step 3: Handle successful completion of pre-flight checks
+            if gps_origin:
+                logger.info("Pre-flight checks successful.")
+                led_controller.set_color(0, 255, 0)  # Green color for success
             else:
-                if not health.is_global_position_ok:
-                    logger.warning("Waiting for global position to be okay.")
-                if not health.is_home_position_ok:
-                    logger.warning("Waiting for home position to be set.")
+                logger.error("Pre-flight checks failed due to missing GPS origin.")
+                led_controller.set_color(255, 0, 0)  # Red color for failure
+                raise Exception("Pre-flight checks failed.")
 
-            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                logger.error("Pre-flight checks timed out.")
-                led_controller.set_color(255, 0, 0)  # Red
-                raise TimeoutError("Pre-flight checks timed out.")
-            await asyncio.sleep(1)
-
-        if home_position:
-            logger.info("Pre-flight checks successful.")
-            led_controller.set_color(0, 255, 0)  # Green
+            return gps_origin
         else:
-            logger.error("Pre-flight checks failed.")
-            led_controller.set_color(255, 0, 0)  # Red
-            raise Exception("Pre-flight checks failed.")
+            # If global position check is not required, log and proceed with normal checks
+            logger.info("Skipping global position check as per configuration.")
+            led_controller.set_color(0, 255, 0)  # Green color for success
+            return None
 
-        return home_position
-    except Exception:
-        logger.exception("Error during pre-flight checks")
-        led_controller.set_color(255, 0, 0)  # Red
+    except Exception as e:
+        logger.exception("Error during pre-flight checks.")
+        led_controller.set_color(255, 0, 0)  # Red color for failure
         raise
+
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def arming_and_starting_offboard_mode(drone: System, home_position):
     """
-    Arm the drone and start offboard mode.
+    Arm the drone and start offboard mode, while computing the initial NED position drift.
 
     Args:
         drone (System): MAVSDK drone system instance.
-        home_position: Home position telemetry data.
+        home_position (dict): Home position telemetry data in global coordinates.
+    
+    Returns:
+        None
     """
     logger = logging.getLogger(__name__)
     try:
         led_controller = LEDController.get_instance()
-        # Set color to green to indicate arming
+
+        # Set LED color to green to indicate arming
         led_controller.set_color(0, 255, 0)
+        logger.info("LED set to green: Arming in progress.")
 
-        # Get current global position
-        current_global_position = None
-        start_time = time.time()
-        while current_global_position is None:
-            async for position in drone.telemetry.position():
-                current_global_position = position
-                break
-            if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                logger.error("Timeout waiting for current global position.")
-                raise TimeoutError("Timeout waiting for current global position.")
-            await asyncio.sleep(0.1)
+        # Compute initial position drift
+        initial_position_drift_ned = None
 
-        # Compute initial position drift in NED coordinates
-        initial_position_drift_ned = global_to_local(current_global_position, home_position)
-        logger.info(f"Initial position drift in NED: {initial_position_drift_ned}")
+        # Step 1: Check if global position drift calculation is required
+        if Params.REQUIRE_GLOBAL_POSITION:
+            # Get current global position
+            current_global_position = None
+            start_time = time.time()
+            while current_global_position is None:
+                async for position in drone.telemetry.position():
+                    current_global_position = position
+                    break
+                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
+                    logger.error("Timeout waiting for current global position.")
+                    raise TimeoutError("Timeout waiting for current global position.")
+                await asyncio.sleep(0.1)
 
-        # Store the drift
+            # Step 2: Compute initial position drift in NED coordinates
+            if home_position:
+                logger.info("Computing initial position drift in NED coordinates.")
+                initial_position_drift_ned = await compute_position_drift(drone, home_position)
+                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
+            else:
+                logger.warning("Cannot compute drift: No home position available.")
+        else:
+            # If global position is not required, skip drift calculation
+            logger.info("Skipping global position drift calculation as per configuration.")
+            if home_position:
+                logger.warning("Home position provided but global position checks are disabled.")
+
+        # Step 3: Store the drift (even if it's None)
         global initial_position_drift
         initial_position_drift = initial_position_drift_ned
 
-        # Proceed to arm and start offboard mode
+        # Step 4: Set Drone to Hold flight mode (just in case)
+        logger.info("Setting Hold Flight Mode")
+        await drone.action.hold()
+
+        # Step 5: Proceed to arm and start offboard mode
         logger.info("Arming drone.")
         await drone.action.arm()
         logger.info("Setting initial setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
         logger.info("Starting offboard mode.")
         await drone.offboard.start()
+
         # Set LEDs to solid white to indicate ready to fly
         led_controller.set_color(255, 255, 255)
+        logger.info("LED set to white: Ready to fly.")
+    
     except OffboardError as error:
+        # Handle Offboard mode errors
         logger.error(f"Offboard error: {error}")
         await drone.action.disarm()
         led_controller.set_color(255, 0, 0)  # Red
         raise
     except Exception:
-        logger.exception("Error during arming and starting offboard mode")
+        # Handle other exceptions and disarm the drone
+        logger.exception("Error during arming and starting offboard mode.")
         await drone.action.disarm()
         led_controller.set_color(255, 0, 0)  # Red
         raise
+
+
+async def compute_position_drift(drone, home_position):
+    """
+    Compute the initial position drift in NED coordinates (North, East, Down) at the moment of takeoff.
+    This is based on the home position, which is used as the origin for the NED system.
+
+    Args:
+        drone (System): MAVSDK drone system instance to access telemetry data.
+        home_position (dict): Home position coordinates in global (latitude, longitude, altitude).
+
+    Returns:
+        dict: Drift in NED coordinates (North, East, Down), or None if home position is unavailable.
+    """
+    logger = logging.getLogger(__name__)
+
+    if home_position:
+        logger.info("Starting position drift calculation.")
+
+        # Fetch the current NED position relative to home position at the moment of takeoff
+        try:
+            async for position in drone.telemetry.position():
+                # NED coordinates: North, East, Down
+                north_m = position.north_m  # Current NED North component in meters
+                east_m = position.east_m    # Current NED East component in meters
+                down_m = position.down_m    # Current NED Down component in meters
+
+                # Log the NED position at takeoff
+                logger.info(f"Drone Position (NED) at takeoff: North: {north_m:.2f}m, East: {east_m:.2f}m, Down: {down_m:.2f}m")
+
+                # Compute the drift using NED position
+                initial_position_drift_ned = {'north': north_m, 'east': east_m, 'down': down_m}
+
+                # Log the initial drift
+                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
+
+                return initial_position_drift_ned
+
+        except Exception as e:
+            logger.error(f"Error fetching NED position: {e}")
+            return None
+    else:
+        logger.warning("Cannot compute drift: No home position available.")
+        return None
 
 async def perform_landing(drone: System):
     """
@@ -579,17 +980,18 @@ async def perform_landing(drone: System):
         while True:
             async for landed_state in drone.telemetry.landed_state():
                 if landed_state == LandedState.ON_GROUND:
-                    logger.info("Drone has landed.")
+                    logger.info("Drone has landed successfully.")
                     return
                 break
             if time.time() - start_time > Params.LANDING_TIMEOUT:
-                logger.error("Landing timeout.")
+                logger.error("Landing confirmation timed out.")
                 break
             await asyncio.sleep(1)
     except ActionError as e:
         logger.error(f"Action error during landing: {e}")
     except Exception:
-        logger.exception("Unexpected error during landing")
+        logger.exception("Unexpected error during landing.")
+
 
 async def stop_offboard_mode(drone: System):
     """
@@ -605,7 +1007,8 @@ async def stop_offboard_mode(drone: System):
     except OffboardError as error:
         logger.error(f"Error stopping offboard mode: {error}")
     except Exception:
-        logger.exception("Unexpected error stopping offboard mode")
+        logger.exception("Unexpected error stopping offboard mode.")
+
 
 async def disarm_drone(drone: System):
     """
@@ -621,14 +1024,17 @@ async def disarm_drone(drone: System):
         # Set LEDs to solid red to indicate disarming
         led_controller = LEDController.get_instance()
         led_controller.set_color(255, 0, 0)
+        logger.info("LED set to red: Drone disarmed.")
     except ActionError as e:
         logger.error(f"Error disarming drone: {e}")
     except Exception:
-        logger.exception("Unexpected error disarming drone")
+        logger.exception("Unexpected error disarming drone.")
+
 
 # ----------------------------- #
 #       MAVSDK Server Control   #
 # ----------------------------- #
+
 
 def get_mavsdk_server_path():
     """
@@ -641,6 +1047,7 @@ def get_mavsdk_server_path():
     mavsdk_drone_show_dir = os.path.join(home_dir, "mavsdk_drone_show")
     mavsdk_server_path = os.path.join(mavsdk_drone_show_dir, "mavsdk_server")
     return mavsdk_server_path
+
 
 def start_mavsdk_server(udp_port: int):
     """
@@ -657,18 +1064,18 @@ def start_mavsdk_server(udp_port: int):
         # Check if MAVSDK server is already running
         is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
-            logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating...")
+            logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating existing server (PID: {pid})...")
             try:
                 psutil.Process(pid).terminate()
                 psutil.Process(pid).wait(timeout=5)
-                logger.info(f"Terminated existing MAVSDK server with PID: {pid}")
+                logger.info(f"Terminated existing MAVSDK server with PID: {pid}.")
             except psutil.NoSuchProcess:
                 logger.warning(f"No process found with PID: {pid} to terminate.")
             except psutil.TimeoutExpired:
                 logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
                 psutil.Process(pid).kill()
                 psutil.Process(pid).wait()
-                logger.info(f"Killed MAVSDK server with PID: {pid}")
+                logger.info(f"Killed MAVSDK server with PID: {pid}.")
 
         # Construct the absolute path to mavsdk_server
         mavsdk_server_path = get_mavsdk_server_path()
@@ -687,18 +1094,20 @@ def start_mavsdk_server(udp_port: int):
         mavsdk_server = subprocess.Popen(
             [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
         logger.info(
             f"MAVSDK server started with gRPC port {Params.DEFAULT_GRPC_PORT} and UDP port {udp_port}."
         )
 
-        # Optionally, you can start logging the MAVSDK server output asynchronously
+        # Optionally, start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
         # Wait until the server is listening on the gRPC port
         if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=Params.PRE_FLIGHT_TIMEOUT):
-            logger.error(f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout.")
+            logger.error(
+                f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout."
+            )
             mavsdk_server.terminate()
             return None
 
@@ -709,8 +1118,9 @@ def start_mavsdk_server(udp_port: int):
         logger.error("mavsdk_server executable not found. Ensure it is present in the specified directory.")
         return None
     except Exception:
-        logger.exception("Error starting MAVSDK server")
+        logger.exception("Error starting MAVSDK server.")
         return None
+
 
 def check_mavsdk_server_running(port):
     """
@@ -723,16 +1133,17 @@ def check_mavsdk_server_running(port):
         tuple: (is_running (bool), pid (int or None))
     """
     logger = logging.getLogger(__name__)
-    for proc in psutil.process_iter(['pid', 'name']):
+    for proc in psutil.process_iter(["pid", "name"]):
         try:
-            for conn in proc.connections(kind='inet'):
+            for conn in proc.net_connections(kind="inet"):
                 if conn.laddr.port == port:
-                    return True, proc.info['pid']
+                    return True, proc.info["pid"]
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     return False, None
 
-def wait_for_port(port, host='localhost', timeout=Params.PRE_FLIGHT_TIMEOUT):
+
+def wait_for_port(port, host="localhost", timeout=Params.PRE_FLIGHT_TIMEOUT):
     """
     Wait until a port starts accepting TCP connections.
 
@@ -754,6 +1165,7 @@ def wait_for_port(port, host='localhost', timeout=Params.PRE_FLIGHT_TIMEOUT):
                 return False
             time.sleep(0.1)
 
+
 async def log_mavsdk_output(mavsdk_server):
     """
     Asynchronously logs the stdout and stderr of the MAVSDK server.
@@ -769,7 +1181,7 @@ async def log_mavsdk_output(mavsdk_server):
                 break
             logger.debug(f"MAVSDK Server: {line.decode().strip()}")
     except Exception:
-        logger.exception("Error while reading MAVSDK server stdout")
+        logger.exception("Error while reading MAVSDK server stdout.")
 
     try:
         while True:
@@ -778,7 +1190,8 @@ async def log_mavsdk_output(mavsdk_server):
                 break
             logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
     except Exception:
-        logger.exception("Error while reading MAVSDK server stderr")
+        logger.exception("Error while reading MAVSDK server stderr.")
+
 
 def stop_mavsdk_server(mavsdk_server):
     """
@@ -803,19 +1216,22 @@ def stop_mavsdk_server(mavsdk_server):
         else:
             logger.debug("MAVSDK server has already terminated.")
     except Exception:
-        logger.exception("Error stopping MAVSDK server")
+        logger.exception("Error stopping MAVSDK server.")
+
 
 # ----------------------------- #
 #         Main Drone Runner     #
 # ----------------------------- #
 
-async def run_drone(synchronized_start_time, custom_csv=None):
+
+async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_position=False):
     """
     Run the drone with the provided configurations.
 
     Args:
         synchronized_start_time (float): Synchronized start time (UNIX timestamp).
         custom_csv (str): Name of the custom trajectory CSV file.
+        auto_launch_position (bool): Flag to enable automated initial position extraction.
     """
     logger = logging.getLogger(__name__)
     mavsdk_server = None
@@ -838,7 +1254,11 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         # Step 3: Perform Pre-flight Checks
         home_position = await pre_flight_checks(drone)
 
-        # Wait until synchronized start time
+        # Step 4: Handle start time, use execution time if not provided
+        if synchronized_start_time is None:
+            synchronized_start_time = time.time()  # Use current time as start time
+            logger.info(f"No synchronized start time provided. Using current time: {time.ctime(synchronized_start_time)}.")
+        
         current_time = time.time()
         if synchronized_start_time > current_time:
             sleep_duration = synchronized_start_time - current_time
@@ -850,19 +1270,18 @@ async def run_drone(synchronized_start_time, custom_csv=None):
         else:
             logger.info("Synchronized start time is now.")
 
-        # Step 4: Arm and Start Offboard Mode
+        # Step 5: Arm and Start Offboard Mode
         await arming_and_starting_offboard_mode(drone, home_position)
 
-        # Step 5: Read and Adjust Trajectory Waypoints
+        # Step 6: Read and Adjust Trajectory Waypoints
         if custom_csv:
             # Custom CSV mode
-            
-            if Params.sim_mode:
-                trajectory_filename = os.path.join('shapes_sitl', custom_csv)
-            else:
-                trajectory_filename = os.path.join('shapes', custom_csv)
-            
-            waypoints = read_trajectory_file(trajectory_filename)
+            trajectory_filename = os.path.join('shapes_sitl' if Params.sim_mode else 'shapes', custom_csv)
+            waypoints = read_trajectory_file(
+                filename=trajectory_filename,
+                auto_launch_position=auto_launch_position
+            )
+            logger.info(f"Custom trajectory file '{custom_csv}' loaded successfully.")
         else:
             # Drone show mode
             # Read Hardware ID
@@ -871,39 +1290,58 @@ async def run_drone(synchronized_start_time, custom_csv=None):
                 logger.error("Failed to read HW ID. Exiting program.")
                 sys.exit(1)
 
-            # Read Drone Configuration
+            # Read Drone Configuration (already NED)
             drone_config = read_config(CONFIG_CSV_NAME)
             if drone_config is None:
                 logger.error("Drone configuration not found. Exiting program.")
                 sys.exit(1)
 
             position_id = drone_config.pos_id
-            if Params.sim_mode:
-                trajectory_filename = os.path.join('shapes_sitl', 'swarm', 'processed', f"Drone {position_id}.csv")
-            else:
-                trajectory_filename = os.path.join('shapes', 'swarm', 'processed', f"Drone {position_id}.csv")
-                
+            trajectory_filename = os.path.join(
+                'shapes_sitl' if Params.sim_mode else 'shapes',
+                'swarm',
+                'processed',
+                f"Drone {position_id}.csv"
+            )
             waypoints = read_trajectory_file(
-                trajectory_filename, drone_config.initial_x, drone_config.initial_y
+                filename=trajectory_filename,
+                auto_launch_position=auto_launch_position,
+                initial_x=drone_config.initial_x,  # N
+                initial_y=drone_config.initial_y,  # E
+            )
+            logger.info(f"Drone show trajectory file 'Drone {position_id}.csv' loaded successfully.")
+
+        # Log initial position details
+        if auto_launch_position:
+            logger.info("Auto Launch Position is ENABLED.")
+            logger.info("First waypoint in CSV sets the origin => (0,0,0) after transform to NED.")
+        else:
+            logger.info("Auto Launch Position is DISABLED.")
+            logger.info(
+                f"Initial Position from Config: X={drone_config.initial_x}, "
+                f"Y={drone_config.initial_y}, Z=0.0 (NED)"
             )
 
-        # Step 6: Execute Trajectory
+        # Step 7: Execute Trajectory
         await perform_trajectory(drone, waypoints, home_position, synchronized_start_time)
 
         logger.info("Drone mission completed successfully.")
         sys.exit(0)
 
     except Exception:
-        logger.exception("Error running drone")
+        logger.exception("Error running drone.")
         sys.exit(1)
     finally:
         # Stop MAVSDK server
         if mavsdk_server:
             stop_mavsdk_server(mavsdk_server)
 
+
+
 # ----------------------------- #
 #             Main              #
 # ----------------------------- #
+
 
 def main():
     """
@@ -915,23 +1353,74 @@ def main():
 
     parser = argparse.ArgumentParser(description='Drone Show Script')
     parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
-    parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file eg. active.csv')
+    parser.add_argument('--custom_csv', type=str, help='Name of the custom trajectory CSV file, e.g., active.csv')
+    parser.add_argument(
+        '--auto_launch_position',
+        type=str2bool,
+        nargs='?',
+        const=True,
+        default=None,
+        help='Explicitly enable (True) or disable (False) automated initial position extraction from trajectory CSV.',
+    )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug mode for verbose logging.',
+    )
     args = parser.parse_args()
+
+    # Adjust logging level based on debug flag
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.debug("Debug mode ENABLED: Verbose logging is active.")
+    else:
+        logging.getLogger().setLevel(logging.INFO)
+        logger.info("Debug mode DISABLED: Standard logging level set to INFO.")
 
     # Get the synchronized start time
     if args.start_time:
         synchronized_start_time = args.start_time
+        formatted_time = time.ctime(synchronized_start_time)
+        logger.info(f"Synchronized start time provided: {formatted_time}.")
     else:
         synchronized_start_time = time.time()
+        formatted_time = time.ctime(synchronized_start_time)
+        logger.info(f"No synchronized start time provided. Using current time: {formatted_time}.")
 
     global global_synchronized_start_time
     global_synchronized_start_time = synchronized_start_time
 
+    # Determine if auto launch position is enabled
+    if args.auto_launch_position is not None:
+        auto_launch_position = args.auto_launch_position
+        logger.info(f"Command-line argument '--auto_launch_position' set to {auto_launch_position}.")
+    else:
+        auto_launch_position = Params.AUTO_LAUNCH_POSITION
+        logger.info(
+            f"Using Params.AUTO_LAUNCH_POSITION = {Params.AUTO_LAUNCH_POSITION} "
+            f"as '--auto_launch_position' was not provided."
+        )
+
+    # Display initial position configuration
+    if auto_launch_position:
+        logger.info("Initial Position: Auto Launch Position is ENABLED.")
+        logger.info("Waypoints will be re-centered so the first waypoint becomes (0,0,0) in NED.")
+    else:
+        logger.info("Initial Position: Auto Launch Position is DISABLED.")
+        logger.info("Positions will be shifted by config's initial_x and initial_y in NED.")
+
     try:
-        asyncio.run(run_drone(synchronized_start_time, custom_csv=args.custom_csv))
+        asyncio.run(
+            run_drone(
+                synchronized_start_time,
+                custom_csv=args.custom_csv,
+                auto_launch_position=auto_launch_position,
+            )
+        )
     except Exception:
-        logger.exception("Unhandled exception in main")
+        logger.exception("Unhandled exception in main.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
