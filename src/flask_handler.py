@@ -85,30 +85,62 @@ class FlaskHandler:
         @self.app.route('/get-gps-global-origin', methods=['GET'])
         def get_gps_global_origin():
             """
-            Endpoint to retrieve the GPS global origin from the drone configuration.
-            Returns:
-                JSON response containing latitude, longitude, altitude, the original timestamp from the message,
-                and a current timestamp.
+            Enhanced endpoint with detailed MAVLink data in response
             """
+            current_time = int(time.time() * 1000)  # Milliseconds
+            response_base = {
+                'endpoint': 'get-gps-global-origin',
+                'current_server_time': current_time,
+                'mavlink_status': {}
+            }
+
             try:
                 gps_origin = self.drone_config.gps_global_origin
+                response_base['mavlink_status'].update({
+                    'origin_initialized': self.drone_config.gps_origin_initialized,
+                    'last_received_time': self.drone_config.last_gps_origin_time,
+                    'time_since_last_update': (
+                        current_time - self.drone_config.last_gps_origin_time * 1e-3
+                        if self.drone_config.last_gps_origin_time else None
+                    )
+                })
+
                 if gps_origin:
-                    # Prepare response including the original message timestamp and current timestamp
-                    gps_origin_with_timestamp = {
+                    response_data = {
                         'latitude': gps_origin.get('lat'),
                         'longitude': gps_origin.get('lon'),
                         'altitude': gps_origin.get('alt'),
                         'origin_time_usec': gps_origin.get('time_usec'),
-                        'timestamp': int(time.time() * 1000)  # Current time in milliseconds
+                        'data_status': 'fresh' if (
+                            current_time - (gps_origin.get('time_usec') or 0) * 1e-3 < 5000
+                        ) else 'stale'
                     }
-                    logging.debug(f"Retrieved GPS global origin: {gps_origin_with_timestamp}")
-                    return jsonify(gps_origin_with_timestamp), 200
+                    response_base.update(response_data)
+                    return jsonify(response_base), 200
+
                 else:
-                    logging.warning("GPS global origin requested but not set.")
-                    return jsonify({"error": "GPS global origin not set"}), 404
+                    response_base['error'] = "GPS global origin not available"
+                    response_base['mavlink_status']['possible_reasons'] = [
+                        "MAVLink message not received yet",
+                        "Message stream not enabled",
+                        "Drone not providing GPS_GLOBAL_ORIGIN",
+                        "Connection issues with drone"
+                    ]
+                    
+                    # Differentiate between "never received" and "received but cleared"
+                    if self.drone_config.gps_origin_initialized:
+                        return jsonify(response_base), 404
+                    else:
+                        response_base['error'] += " (never initialized)"
+                        return jsonify(response_base), 503  # Service Unavailable
+
             except Exception as e:
-                logging.error(f"Error retrieving GPS global origin: {e}")
-                return jsonify({"error": "Failed to retrieve GPS global origin"}), 500
+                response_base.update({
+                    'error': "Internal server error",
+                    'exception_details': str(e),
+                    'stack_trace': traceback.format_exc()
+                })
+                return jsonify(response_base), 500
 
 
         @self.app.route('/get-git-status', methods=['GET'])
