@@ -802,7 +802,7 @@ async def pre_flight_checks(drone: System):
                                 'altitude': position.absolute_altitude_m
                             }
                             logger.info(f"Fallback: Using MAVSDK home position as GPS origin: {gps_origin}")
-                    break
+                            break
                 else:
                     if not health.is_global_position_ok:
                         logger.warning("Waiting for global position to be okay.")
