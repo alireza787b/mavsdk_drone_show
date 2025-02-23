@@ -571,35 +571,84 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 led_controller.set_color(ledr, ledg, ledb)
 
                 # --------------------------------------------------
-                # (2) Initial Climb Branch: If still in initial climb, do not apply drift correction.
+                # (2) Initial Climb Branch:
+                #     If still in initial climb, do not apply drift correction.
                 # --------------------------------------------------
                 if in_initial_climb:
-                    # Use vertical body-frame command for a smooth, steady climb.
-                    vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
 
-                    # Capture the initial yaw (once) for a stable heading during climb.
-                    if initial_climb_yaw is None:
-                        initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
+                    # --- Common LED Update ---
+                    led_controller.set_color(ledr, ledg, ledb)
 
-                    velocity_body = VelocityBodyYawspeed(
-                        forward_m_s=0.0,
-                        right_m_s=0.0,
-                        down_m_s=-vz_climb,         # Negative down_m_s gives upward motion.
-                        yawspeed_deg_s=0.0          # Maintain constant heading.
-                    )
-                    await drone.offboard.set_velocity_body(velocity_body)
+                    # Determine the desired climb mode from Params
+                    if Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY":
+                        # ------------------------------------------------------
+                        # BODY-FRAME VELOCITY MODE
+                        # ------------------------------------------------------
 
-                    logger.info(
-                        f"[Initial Climb Phase] TimeInClimb={time_in_climb:.2f}s, "
-                        f"Alt={actual_altitude:.1f}m (<{Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m), "
-                        f"ClimbSpeed={-vz_climb:.2f} m/s upward."
-                    )
-                    logger.debug(
-                        f"Skipping time-drift correction during initial climb. "
-                        f"drift_delta={drift_delta:.2f}s remains unhandled."
-                    )
+                        # Use a vertical body-frame command for a smooth, steady climb.
+                        vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
+
+                        # Capture the initial climb yaw once (if not already captured).
+                        if initial_climb_yaw is None:
+                            initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
+
+                        # Command body-frame velocity: up only, zero yaw rate.
+                        velocity_body = VelocityBodyYawspeed(
+                            forward_m_s=0.0,
+                            right_m_s=0.0,
+                            down_m_s=-vz_climb,        # Negative => upward
+                            yawspeed_deg_s=0.0         # Maintain constant heading
+                        )
+                        await drone.offboard.set_velocity_body(velocity_body)
+
+                        logger.info(
+                            f"[Initial Climb - BODY] TimeInClimb={time_in_climb:.2f}s, "
+                            f"Alt={actual_altitude:.1f}m, ClimbSpeed={-vz_climb:.2f} m/s upward. "
+                            "No drift correction is applied."
+                        )
+
+                    else:
+                        # ------------------------------------------------------
+                        # LOCAL NED MODE USING CURRENT YAW FROM TELEMETRY
+                        # ------------------------------------------------------
+
+                        # 1) Obtain the drone's current yaw from MAVSDK telemetry (Euler angles).
+                        #    We'll do a quick asynchronous grab. We only need it once.
+                        if initial_climb_yaw is None:
+                            yaw_deg = 0.0  # fallback
+                            try:
+                                async for euler in drone.telemetry.attitude_euler():
+                                    # euler.yaw_deg is the current yaw in degrees
+                                    yaw_deg = euler.yaw_deg
+                                    break  # Just grab one reading and break
+                            except Exception as ex:
+                                logger.warning(f"Failed to get current yaw from telemetry, defaulting to 0.0 deg. Error: {ex}")
+
+                            initial_climb_yaw = yaw_deg
+
+                        # 2) Use local NED position for a gentle climb. Example: 
+                        #    - Overwrite yaw with the drone's actual yaw.
+                        #    Here, we can read pz from CSV or define a small climb setpoint, etc.
+
+                        position_setpoint = PositionNedYaw(
+                            px,             # from CSV, or 0 if you want no lateral movement
+                            py,             # from CSV, or 0 if you want no lateral movement
+                            pz,  # a negative value for upward in NED
+                            initial_climb_yaw
+                        )
+
+                        await drone.offboard.set_position_ned(position_setpoint)
+
+                        logger.info(
+                            f"[Initial Climb - LOCAL NED] TimeInClimb={time_in_climb:.2f}s, "
+                            f"Alt={actual_altitude:.1f}m, Using NED setpoint=({px:.2f}, {py:.2f}, {pz:.2f}), "
+                            f"Yaw={initial_climb_yaw:.2f} deg. No drift correction is applied."
+                        )
+
+                    # After setting whichever mode, continue to next waypoint:
                     waypoint_index += 1
-                    continue  # Proceed to next iteration without applying drift correction.
+                    continue  # Skip drift correction entirely in initial climb
+
 
                 # --------------------------------------------------
                 # (3) Normal Flight: Apply drift correction (only when not in climb)
