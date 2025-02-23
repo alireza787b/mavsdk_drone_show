@@ -191,7 +191,7 @@ class Params:
 
     # Initial Climb Phase Settings
     INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Altitude threshold for initial climb phase
-    INITIAL_CLIMB_TIME_THRESHOLD = 3.0      # Time threshold for initial climb phase
+    INITIAL_CLIMB_TIME_THRESHOLD = 4.0      # Time threshold for initial climb phase
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
 
     # Feedforward Control Settings
