@@ -502,7 +502,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
             # Retrieve current waypoint
             waypoint = waypoints[waypoint_index]
-            (wp_idx, t_wp, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb) = waypoint
+            (t_wp, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb) = waypoint
 
             # Handle drift correction (only after initial climb phase)
             drift_delta = elapsed_time - t_wp
