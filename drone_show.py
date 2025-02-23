@@ -532,7 +532,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 # Check initial climb phase conditions
                 current_altitude_setpoint = -pz  # Convert NED down to altitude
                 in_initial_climb = (
-                    (elapsed_time) < Params.INITIAL_CLIMB_TIME_THRESHOLD or 
+                    (elapsed_time - drift_delta) < Params.INITIAL_CLIMB_TIME_THRESHOLD or 
                     current_altitude_setpoint < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                 )
 
@@ -541,8 +541,10 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
                     velocity_body = VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                     await drone.offboard.set_velocity_body(velocity_body)
+                    elapse_minus_delta = elapsed_time - drift_delta
                     logger.info(f"Initial climb: vz={-vz_climb:.2f}m/s (Body frame), Elapsed Time: {elapsed_time}s "
-                                 f"[Alt: {current_altitude_setpoint:.1f}m < {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m]")
+                                 f"[Alt: {current_altitude_setpoint:.1f}m / {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m]"
+                                 f"[Raw Elapsed Time: {elapse_minus_delta:.1f}s / {Params.INITIAL_CLIMB_TIME_THRESHOLD}s]")
                 else:
                     # Normal trajectory execution
                     position_setpoint = PositionNedYaw(px, py, pz, yaw)
