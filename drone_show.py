@@ -576,7 +576,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             else:
                 # If we are ahead of schedule, wait until the scheduled time
                 sleep_duration = t_wp - elapsed_time
-                if sleep_duration > Params.DRIFT_THRESHOLD and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
+                if sleep_duration > 0 and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
                     await asyncio.sleep(min(sleep_duration,0.1)) # to avoid offbaord failure
                 else:
                     logger.warning(f"Behind schedule by {-sleep_duration:.2f}s. Skipping Waypoint at t={t_wp:.2f}s.")
