@@ -511,14 +511,12 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             drift_delta = elapsed_time - t_wp  # Update drift
 
             # Drift correction logic
-            if (elapsed_time - t_wp) >= Params.DRIFT_THRESHOLD and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
+            if (elapsed_time - t_wp) >= 0 and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
                 logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
                 t_wp += drift_delta
                 waypoint_index += int(drift_delta/csv_step)
                 waypoint = waypoints[waypoint_index]
                 t_wp = waypoint[0]
-
-            if elapsed_time >= t_wp:
                 # Extract waypoint data
                 (_, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb) = waypoint
 
@@ -534,7 +532,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 # Check initial climb phase conditions
                 current_altitude_setpoint = -pz  # Convert NED down to altitude
                 in_initial_climb = (
-                    (elapsed_time - drift_delta) < Params.INITIAL_CLIMB_TIME_THRESHOLD or 
+                    (elapsed_time) < Params.INITIAL_CLIMB_TIME_THRESHOLD or 
                     current_altitude_setpoint < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                 )
 
@@ -543,7 +541,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
                     velocity_body = VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                     await drone.offboard.set_velocity_body(velocity_body)
-                    logger.info(f"Initial climb: vz={-vz_climb:.2f}m/s (Body frame) "
+                    logger.info(f"Initial climb: vz={-vz_climb:.2f}m/s (Body frame), Elapsed Time: {elapsed_time}s "
                                  f"[Alt: {current_altitude_setpoint:.1f}m < {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m]")
                 else:
                     # Normal trajectory execution
@@ -568,7 +566,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 # Mission progress tracking
                 time_to_end = waypoints[-1][0] - t_wp
                 mission_progress = (waypoint_index + 1) / total_waypoints
-                logger.debug(f"Progress: {mission_progress:.2%}, ETA: {time_to_end:.2f}s, Drift: {drift_delta:.2f}s")
+                logger.info(f"Progress: {mission_progress:.2%}, ETA: {time_to_end:.2f}s, Drift: {drift_delta:.2f}s")
 
                 # Handle controlled landing
                 if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
