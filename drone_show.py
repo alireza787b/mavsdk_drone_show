@@ -912,10 +912,10 @@ async def compute_position_drift():
     The NED origin is automatically set when the drone arms (matches GPS_GLOBAL_ORIGIN).
     
     Returns:
-        dict: Drift in NED coordinates (north_m, east_m, down_m) or None if unavailable
+        PositionNedYaw: Drift in NED coordinates or None if unavailable
     """
     logger = logging.getLogger(__name__)
-    drift = {'north_m': 0.0, 'east_m': 0.0, 'down_m': 0.0}  # Default to no drift
+    default_drift = PositionNedYaw(0.0, 0.0, 0.0, 0.0)  # Default to no drift
 
     try:
         # Request NED data from local API endpoint
@@ -927,12 +927,13 @@ async def compute_position_drift():
         if response.status_code == 200:
             ned_data = response.json()
             
-            # Direct mapping from API response (x=north, y=east, z=down)
-            drift.update({
-                'north_m': ned_data['x'],
-                'east_m': ned_data['y'],
-                'down_m': ned_data['z']
-            })
+            # Create PositionNedYaw from API response (x=north, y=east, z=down)
+            drift = PositionNedYaw(
+                north_m=ned_data['x'],
+                east_m=ned_data['y'],
+                down_m=ned_data['z'],
+                yaw_deg=0.0  # Adding yaw parameter, set to 0 if not needed
+            )
             
             logger.info(f"Initial NED drift from origin: {drift}")
             return drift
@@ -946,6 +947,7 @@ async def compute_position_drift():
     except KeyError as e:
         logger.error(f"Malformed NED data: Missing field {str(e)}")
         return None
+
 
 async def perform_landing(drone: System):
     """
