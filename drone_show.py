@@ -590,7 +590,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     velocity_body = VelocityBodyYawspeed(
                         forward_m_s=0.0,
                         right_m_s=0.0,
-                        downward_m_s=-vz_climb,       # negative => upward
+                        down_m_s=-vz_climb,       # negative => upward
                         yaw_rate_deg_s=0.0           # keep heading constant in climb
                     )
                     await drone.offboard.set_velocity_body(velocity_body)
