@@ -928,9 +928,9 @@ async def compute_position_drift():
             
             # Direct mapping from API response (x=north, y=east, z=down)
             drift.update({
-                'north': ned_data['x'],
-                'east': ned_data['y'],
-                'down': ned_data['z']
+                'north_m': ned_data['x'],
+                'east_m': ned_data['y'],
+                'down_m': ned_data['z']
             })
             
             logger.info(f"Initial NED drift from origin: {drift}")
