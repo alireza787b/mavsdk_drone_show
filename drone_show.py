@@ -483,6 +483,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
         start_time (float): Synchronized start time.
     """
     global drift_delta  # Drift correction variable
+    global initial_position_drift
     logger = logging.getLogger(__name__)
 
     # Initializing variables
