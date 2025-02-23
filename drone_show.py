@@ -515,10 +515,10 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             # Get current waypoint and its scheduled time
             waypoint = waypoints[waypoint_index]
             t_wp = waypoint[0]
+            drift_delta = elapsed_time - t_wp  # Update drift
 
             # Adjust drift if the drone is running ahead or behind schedule
             if (elapsed_time - t_wp)>= Params.DRIFT_THRESHOLD and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
-                drift_delta = elapsed_time - t_wp  # Update drift
                 logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
                 t_wp += drift_delta  # Adjust waypoint time based on drift
                 waypoint_index += int(drift_delta/csv_step)
