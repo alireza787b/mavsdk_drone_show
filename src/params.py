@@ -190,8 +190,8 @@ class Params:
     ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
 
     # Initial Climb Phase Settings
-    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Altitude threshold for initial climb phase
-    INITIAL_CLIMB_TIME_THRESHOLD = 4.0      # Time threshold for initial climb phase
+    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 5.0  # Altitude threshold for initial climb phase
+    INITIAL_CLIMB_TIME_THRESHOLD = 5.0      # Time threshold for initial climb phase
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
 
     # Feedforward Control Settings
