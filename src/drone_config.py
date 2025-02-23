@@ -57,6 +57,18 @@ class DroneConfig:
         self.vdop = 0                         # Vertical dilution of precision
         self.mav_mode = 0                     # MAVLink mode
         self.system_status = 0                # System status from MAVLink HEARTBEAT message
+        
+        # LOCAL_POSITION_NED (msg #32) data - updated from MAVLink LOCAL_POSITION_NED messages
+        # All values stored in MAVLink-native field names and units
+        self.local_position_ned = {
+            'time_boot_ms': 0,        # uint32_t: Timestamp (ms since system boot)
+            'x': 0.0,                 # float: X Position in meters (NED frame)
+            'y': 0.0,                 # float: Y Position in meters (NED frame)
+            'z': 0.0,                 # float: Z Position in meters (NED frame, positive down)
+            'vx': 0.0,                # float: X Velocity in m/s
+            'vy': 0.0,                # float: Y Velocity in m/s
+            'vz': 0.0                 # float: Z Velocity in m/s
+        }
 
         # Sensor calibration statuses
         self.is_gyrometer_calibration_ok = False
@@ -65,6 +77,8 @@ class DroneConfig:
 
         # Load all configurations for auto-detection
         self.all_configs = self.load_all_configs()
+        
+    
 
 
     def get_hw_id(self, hw_id=None):

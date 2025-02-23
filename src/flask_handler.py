@@ -220,6 +220,43 @@ class FlaskHandler:
             except Exception as e:
                 logging.error(f"Error in network-info endpoint: {e}")
                 return jsonify({"error": str(e)}), 500
+            
+        @self.app.route('/get-local-position-ned', methods=['GET'])
+        def get_local_position_ned():
+            """
+            Endpoint to retrieve the LOCAL_POSITION_NED data from MAVLink.
+            
+            Returns:
+                JSON response containing:
+                - time_boot_ms: Timestamp from autopilot (ms since boot)
+                - x, y, z: Position in meters (NED frame)
+                - vx, vy, vz: Velocity in m/s (NED frame)
+                - timestamp: Current server timestamp (ms)
+            """
+            try:
+                ned_data = self.drone_config.local_position_ned
+                
+                if ned_data['time_boot_ms'] == 0:  # Initial zero value indicates no data yet
+                    logging.warning("LOCAL_POSITION_NED data not yet received")
+                    return jsonify({"error": "NED data not available"}), 404
+
+                response = {
+                    'time_boot_ms': ned_data['time_boot_ms'],
+                    'x': ned_data['x'],
+                    'y': ned_data['y'],
+                    'z': ned_data['z'],
+                    'vx': ned_data['vx'],
+                    'vy': ned_data['vy'],
+                    'vz': ned_data['vz'],
+                    'timestamp': int(time.time() * 1000)  # Current time in milliseconds
+                }
+                
+                logging.debug(f"Returning LOCAL_POSITION_NED: {response}")
+                return jsonify(response), 200
+                
+            except Exception as e:
+                logging.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
+                return jsonify({"error": "Failed to retrieve NED position"}), 500
 
     # Helper method to get origin from GCS
     def _get_origin_from_gcs(self):
