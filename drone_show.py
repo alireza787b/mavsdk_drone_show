@@ -548,7 +548,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     position_setpoint = PositionNedYaw(px, py, pz, yaw)
                     
                     # Log waypoint execution
-                    logger.info(f"Executing WP {waypoint_index + 1}/{total_waypoints}: "
+                    logger.info(f"Executing Normal WP {waypoint_index + 1}/{total_waypoints}: "
                                  f"Time={t_wp:.2f}s, Pos=({px:.2f}, {py:.2f}, {pz:.2f})m, Yaw={yaw:.2f}°")
                     
                     # Send appropriate setpoints
