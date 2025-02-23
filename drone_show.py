@@ -510,7 +510,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     while waypoint_index < total_waypoints:
         try:
             current_time = time.time()
-            elapsed_time = current_time - start_time + drift_delta  # Adjusted by drift
+            elapsed_time = current_time - start_time  # Adjusted by drift
 
             # Get current waypoint and its scheduled time
             waypoint = waypoints[waypoint_index]
@@ -521,6 +521,9 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 drift_delta = elapsed_time - t_wp  # Update drift
                 logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
                 t_wp += drift_delta  # Adjust waypoint time based on drift
+                waypoint_index += int(drift_delta/csv_step)
+                waypoint = waypoints[waypoint_index]
+                t_wp = waypoint[0]
 
             if elapsed_time >= t_wp:
                 # Extract waypoint data
