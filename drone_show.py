@@ -864,7 +864,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
 
         if Params.REQUIRE_GLOBAL_POSITION and home_position:
             logger.info("Computing initial position offset in NED coordinates.")
-            initial_position_drift = await compute_position_drift(drone)
+            initial_position_drift = await compute_position_drift()
             logger.info(f"Initial position drift computed: {initial_position_drift}")
         else:
             logger.info("Skipping position offset computation (global position check disabled or no home position).")
