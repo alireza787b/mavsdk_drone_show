@@ -471,6 +471,7 @@ def read_trajectory_file(
 # ----------------------------- #
 #        Core Functionalities   #
 # ----------------------------- #
+
 async def perform_trajectory(drone: System, waypoints: list, home_position, start_time):
     """
     Executes the trajectory with an initial vertical climb phase to prevent abrupt movements,
@@ -479,6 +480,9 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     Once the initial climb is completed (i.e. both the altitude and time thresholds are met),
     the drone will no longer re-enter the climb phase even if subsequent waypoints indicate a drift.
     Instead, the normal trajectory execution (with drift correction) continues until landing.
+    
+    In all setpoint commands, if initial position correction is enabled, the configured offsets
+    (from initial_position_drift) are applied to the waypoint's coordinates.
     """
     global drift_delta  # Drift correction variable, used externally
     global initial_position_drift
@@ -501,7 +505,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
     # Initial climb phase variables
     in_initial_climb = True
     initial_climb_completed = False   # Once set, we never re-enter the climb phase
-    initial_climb_start_time = time.time()  # Record when we started offboard mode/climb
+    initial_climb_start_time = time.time()  # Record when offboard/climb started
     initial_climb_yaw = None          # Will store the chosen initial yaw
 
     # Determine CSV step (time difference between consecutive waypoints)
@@ -518,8 +522,8 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
 
     if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
         logger.debug(
-            f"Applying Drift Correction - North: {initial_position_drift.north_m}, "
-            f"East: {initial_position_drift.east_m}"
+            f"Initial Position Correction enabled. Offsets - North: {initial_position_drift.north_m}, "
+            f"East: {initial_position_drift.east_m}, Down: {initial_position_drift.down_m}"
         )
 
     # ------------------------------------------------------
@@ -534,7 +538,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             waypoint = waypoints[waypoint_index]
             t_wp = waypoint[0]
 
-            # Compute drift (difference between actual elapsed time and the waypoint's time)
+            # Compute drift: difference between actual elapsed time and the waypoint's nominal time
             drift_delta = elapsed_time - t_wp
 
             # --------------------------------------------------
@@ -542,118 +546,97 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             # --------------------------------------------------
             if drift_delta >= 0:
                 # Destructure the waypoint.
-                # Expected CSV format (ignoring idx): 
+                # CSV format (ignoring idx): 
                 # idx, t, px, py, pz, vx, vy, vz, ax, ay, az, yaw, mode, ledr, ledg, ledb
-                _, px, py, pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb = waypoint
+                _, raw_px, raw_py, raw_pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb = waypoint
+
+                # Apply initial position correction (if enabled) to get corrected coordinates.
+                if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
+                    px = raw_px + initial_position_drift.north_m
+                    py = raw_py + initial_position_drift.east_m
+                    pz = raw_pz + initial_position_drift.down_m
+                else:
+                    px, py, pz = raw_px, raw_py, raw_pz
 
                 # --------------------------------------------------
                 # (1) Determine if we're still in the initial climb phase.
-                #     We only check this if initial climb is not already completed.
+                #     (Only if not already completed.)
                 # --------------------------------------------------
                 time_in_climb = time.time() - initial_climb_start_time
                 if not initial_climb_completed:
-                    if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
-                        actual_altitude = -pz - initial_position_drift.down_m
-                    else:
-                        actual_altitude = -pz  # Convert NED down to altitude
-
+                    actual_altitude = -pz  # Corrected altitude
                     still_under_alt = actual_altitude < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                     still_under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
                     in_initial_climb = still_under_alt or still_under_time
-
-                    # If both thresholds are met, mark the climb as completed.
                     if not in_initial_climb:
                         initial_climb_completed = True
                 else:
-                    in_initial_climb = False  # Once completed, always false
+                    in_initial_climb = False
 
-                # Update LED color for visual feedback.
+                # Update LED color (feedback for current waypoint)
                 led_controller.set_color(ledr, ledg, ledb)
 
                 # --------------------------------------------------
-                # (2) Initial Climb Branch:
-                #     If still in initial climb, do not apply drift correction.
+                # (2) Initial Climb Branch: If still in initial climb, do not apply drift correction.
+                #     Note: The corrected (drift-offset) coordinates are used here.
                 # --------------------------------------------------
                 if in_initial_climb:
+                    # At this point, px, py, pz are already corrected.
+                    actual_altitude = -pz
 
-                    # --- Common LED Update ---
-                    led_controller.set_color(ledr, ledg, ledb)
-
-                    # Determine the desired climb mode from Params
+                    # Determine the desired climb mode from Params.
                     if Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY":
-                        # ------------------------------------------------------
+                        # -----------------------------
                         # BODY-FRAME VELOCITY MODE
-                        # ------------------------------------------------------
-
-                        # Use a vertical body-frame command for a smooth, steady climb.
+                        # -----------------------------
                         vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
-
-                        # Capture the initial climb yaw once (if not already captured).
                         if initial_climb_yaw is None:
                             initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
-
-                        # Command body-frame velocity: up only, zero yaw rate.
                         velocity_body = VelocityBodyYawspeed(
                             forward_m_s=0.0,
                             right_m_s=0.0,
-                            down_m_s=-vz_climb,        # Negative => upward
-                            yawspeed_deg_s=0.0         # Maintain constant heading
+                            down_m_s=-vz_climb,  # Negative => upward
+                            yawspeed_deg_s=0.0   # Maintain constant heading
                         )
                         await drone.offboard.set_velocity_body(velocity_body)
-
                         logger.info(
                             f"[Initial Climb - BODY] TimeInClimb={time_in_climb:.2f}s, "
-                            f"Alt={actual_altitude:.1f}m, ClimbSpeed={-vz_climb:.2f} m/s upward. "
-                            "No drift correction is applied."
+                            f"Alt={actual_altitude:.1f}m (<{Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m), "
+                            f"ClimbSpeed={-vz_climb:.2f} m/s upward. (Drift correction NOT applied)"
                         )
-
                     else:
-                        # ------------------------------------------------------
+                        # -----------------------------
                         # LOCAL NED MODE USING CURRENT YAW FROM TELEMETRY
-                        # ------------------------------------------------------
-
-                        # 1) Obtain the drone's current yaw from MAVSDK telemetry (Euler angles).
-                        #    We'll do a quick asynchronous grab. We only need it once.
+                        # -----------------------------
                         if initial_climb_yaw is None:
-                            yaw_deg = 0.0  # fallback
+                            yaw_deg = 0.0
                             try:
                                 async for euler in drone.telemetry.attitude_euler():
-                                    # euler.yaw_deg is the current yaw in degrees
                                     yaw_deg = euler.yaw_deg
-                                    break  # Just grab one reading and break
+                                    break
                             except Exception as ex:
                                 logger.warning(f"Failed to get current yaw from telemetry, defaulting to 0.0 deg. Error: {ex}")
-
                             initial_climb_yaw = yaw_deg
-
-                        # 2) Use local NED position for a gentle climb. Example: 
-                        #    - Overwrite yaw with the drone's actual yaw.
-                        #    Here, we can read pz from CSV or define a small climb setpoint, etc.
-
                         position_setpoint = PositionNedYaw(
-                            px,             # from CSV, or 0 if you want no lateral movement
-                            py,             # from CSV, or 0 if you want no lateral movement
-                            pz,  # a negative value for upward in NED
+                            px,  # already corrected
+                            py,
+                            pz,  # use the corrected altitude
                             initial_climb_yaw
                         )
-
                         await drone.offboard.set_position_ned(position_setpoint)
-
                         logger.info(
                             f"[Initial Climb - LOCAL NED] TimeInClimb={time_in_climb:.2f}s, "
-                            f"Alt={actual_altitude:.1f}m, Using NED setpoint=({px:.2f}, {py:.2f}, {pz:.2f}), "
-                            f"Yaw={initial_climb_yaw:.2f} deg. No drift correction is applied."
+                            f"Alt={actual_altitude:.1f}m (<{Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m), "
+                            f"Using NED setpoint=({px:.2f}, {py:.2f}, {pz:.2f}), "
+                            f"Yaw={initial_climb_yaw:.2f} deg. (Drift correction NOT applied)"
                         )
-
-                    # After setting whichever mode, continue to next waypoint:
                     waypoint_index += 1
-                    continue  # Skip drift correction entirely in initial climb
-
+                    continue  # Skip drift correction during initial climb
 
                 # --------------------------------------------------
                 # (3) Normal Flight: Apply drift correction (only when not in climb)
                 # --------------------------------------------------
-                # Clamp drift correction to a maximum time window per iteration.
+                # Clamp the drift correction to a maximum time window.
                 safe_drift_delta = min(drift_delta, DRIFT_CATCHUP_MAX_SEC)
                 skip_count = int(safe_drift_delta / csv_step)
                 if skip_count > 0:
@@ -667,32 +650,29 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                         waypoint_index = total_waypoints - 1
                     waypoint = waypoints[waypoint_index]
                     t_wp = waypoint[0]
-                    # Re-destructure the updated waypoint.
-                    _, px, py, pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb = waypoint
+                    # Re-destructure the updated waypoint and apply correction.
+                    _, raw_px, raw_py, raw_pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb = waypoint
+                    if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
+                        px = raw_px + initial_position_drift.north_m
+                        py = raw_py + initial_position_drift.east_m
+                        pz = raw_pz + initial_position_drift.down_m
+                    else:
+                        px, py, pz = raw_px, raw_py, raw_pz
                 else:
                     logger.debug(f"Drift ({drift_delta:.2f}s) below skip threshold; using current waypoint.")
 
-                # --------------------------------------------------
-                # (4) Apply position drift correction if enabled.
-                # --------------------------------------------------
-                if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift is not None:
-                    px += initial_position_drift.north_m
-                    py += initial_position_drift.east_m
-                    pz += initial_position_drift.down_m
-
-                current_altitude_setpoint = -pz  # For logging; already adjusted
+                # Now, for normal flight the corrected values are already in px, py, pz.
+                current_altitude_setpoint = -pz
 
                 # --------------------------------------------------
-                # (5) Issue normal flight setpoints (position, velocity, and optionally acceleration)
+                # (4) Issue Normal Flight Setpoints
                 # --------------------------------------------------
                 position_setpoint = PositionNedYaw(px, py, pz, raw_yaw)
                 logger.info(
                     f"Executing Normal WP {waypoint_index + 1}/{total_waypoints}: "
                     f"t={t_wp:.2f}s, Pos=({px:.2f}, {py:.2f}, {pz:.2f}) NED, Yaw={raw_yaw:.2f}°"
                 )
-                # Ensure LED color is up-to-date.
                 led_controller.set_color(ledr, ledg, ledb)
-
                 if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
                     velocity_setpoint = VelocityNedYaw(vx, vy, vz, raw_yaw)
                     acceleration_setpoint = AccelerationNed(ax, ay, az)
@@ -706,7 +686,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                     await drone.offboard.set_position_ned(position_setpoint)
 
                 # --------------------------------------------------
-                # (6) Mission progress tracking and potential landing trigger.
+                # (5) Mission Progress Tracking & Landing Trigger
                 # --------------------------------------------------
                 time_to_end = waypoints[-1][0] - t_wp
                 mission_progress = (waypoint_index + 1) / total_waypoints
@@ -778,7 +758,6 @@ async def controlled_landing(drone: System):
     landing_detected = False
     landing_start_time = time.time()
 
-    # Switch to controlled descent mode by stopping position setpoints
     logger.info("Switching to controlled descent mode.")
     try:
         await drone.offboard.set_position_velocity_ned(
@@ -787,31 +766,25 @@ async def controlled_landing(drone: System):
         )
     except OffboardError as e:
         logger.error(f"Offboard error during controlled landing setup: {e}")
-        led_controller.set_color(255, 0, 0)  # Red indicates error
+        led_controller.set_color(255, 0, 0)
         return
 
     while not landing_detected:
         try:
-            # Continuously send the descent command
             velocity_setpoint = VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
             await drone.offboard.set_velocity_ned(velocity_setpoint)
             logger.debug(f"Controlled Landing: Descending at {Params.CONTROLLED_DESCENT_SPEED:.2f} m/s.")
-
-            # Check for landing detection via telemetry
             async for landed_state in drone.telemetry.landed_state():
                 if landed_state == LandedState.ON_GROUND:
                     landing_detected = True
                     logger.info("Landing detected during controlled landing.")
                     break
-                break  # Only check the latest state
-
-            # Timeout check: if landing takes too long, fall back to PX4 native landing
+                break
             if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
                 logger.warning("Controlled landing timed out. Initiating PX4 native landing.")
                 await stop_offboard_mode(drone)
                 await perform_landing(drone)
                 break
-
             await asyncio.sleep(0.1)
         except OffboardError as e:
             logger.error(f"Offboard error during controlled landing: {e}")
@@ -830,7 +803,6 @@ async def controlled_landing(drone: System):
         await stop_offboard_mode(drone)
         await perform_landing(drone)
 
-    # Signal mission completion via LEDs.
     led_controller.set_color(0, 255, 0)
 
 
@@ -854,6 +826,7 @@ async def wait_for_landing(drone: System):
             logger.error("Landing confirmation timed out.")
             break
         await asyncio.sleep(1)
+
 
 
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(5))
