@@ -534,7 +534,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 # Check initial climb phase conditions
                 current_altitude_setpoint = -pz  # Convert NED down to altitude
                 in_initial_climb = (
-                    (elapsed_time - drift_delta) < Params.INITIAL_CLIMB_TIME_THRESHOLD and 
+                    (elapsed_time - drift_delta) < Params.INITIAL_CLIMB_TIME_THRESHOLD or 
                     current_altitude_setpoint < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                 )
 
