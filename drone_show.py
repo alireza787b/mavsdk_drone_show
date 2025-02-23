@@ -559,7 +559,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
                 # Mission progress and time to end
                 time_to_end = waypoints[-1][0] - t_wp
                 mission_progress = (waypoint_index + 1) / total_waypoints
-                logger.info(f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s")
+                logger.info(f"Mission Progress: {mission_progress:.2%}, Time to End: {time_to_end:.2f}s, Time Drift: {drift_delta}s")
 
                 # Handle controlled landing based on mission progress
                 if not trajectory_ends_high and mission_progress >= Params.MISSION_PROGRESS_THRESHOLD:
