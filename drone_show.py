@@ -911,10 +911,10 @@ async def compute_position_drift():
     The NED origin is automatically set when the drone arms (matches GPS_GLOBAL_ORIGIN).
     
     Returns:
-        dict: Drift in NED coordinates (north, east, down) or None if unavailable
+        dict: Drift in NED coordinates (north_m, east_m, down_m) or None if unavailable
     """
     logger = logging.getLogger(__name__)
-    drift = {'north': 0.0, 'east': 0.0, 'down': 0.0}  # Default to no drift
+    drift = {'north_m': 0.0, 'east_m': 0.0, 'down_m': 0.0}  # Default to no drift
 
     try:
         # Request NED data from local API endpoint
