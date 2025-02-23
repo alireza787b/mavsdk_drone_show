@@ -511,7 +511,7 @@ async def perform_trajectory(drone: System, waypoints: list, home_position, star
             drift_delta = elapsed_time - t_wp  # Update drift
 
             # Drift correction logic
-            if (elapsed_time - t_wp) >= 0 and t_wp > Params.INITIAL_CLIMB_TIME_THRESHOLD:
+            if (elapsed_time - t_wp) >= 0:
                 logger.debug(f"Drift detected: {drift_delta:.2f}s. Correcting waypoint time.")
                 t_wp += drift_delta
                 waypoint_index += int(drift_delta/csv_step)
