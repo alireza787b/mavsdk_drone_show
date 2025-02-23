@@ -140,8 +140,8 @@ class Params:
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
     # Drift configuration
-    DRIFT_THRESHOLD = 0.1  # Drift threshold in seconds
-    DRIFT_CHECK_PERIOD = 0.05  # Time between drift checks in seconds (this can match the CSV step size)
+    DRIFT_THRESHOLD = 0.5  # Drift threshold in seconds
+    DRIFT_CHECK_PERIOD = 1  # Time between drift checks in seconds (this can match the CSV step size)
 
     
     # Heartbeat interval (in seconds)
@@ -187,7 +187,7 @@ class Params:
 
 
     # Initial Position Correction
-    ENABLE_INITIAL_POSITION_CORRECTION = False  # Enable initial position correction to account for GPS drift
+    ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
 
     # Initial Climb Phase Settings
     INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Altitude threshold for initial climb phase

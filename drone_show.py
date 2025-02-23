@@ -839,132 +839,111 @@ async def pre_flight_checks(drone: System):
         led_controller.set_color(255, 0, 0)
         raise
 
-
 @retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
-async def arming_and_starting_offboard_mode(drone: System, home_position):
+async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
     """
-    Arm the drone and start offboard mode, while computing the initial NED position drift.
+    Arm the drone and start offboard mode, while computing the initial position offset in NED coordinates.
 
     Args:
         drone (System): MAVSDK drone system instance.
         home_position (dict): Home position telemetry data in global coordinates.
-    
+
     Returns:
         None
     """
     logger = logging.getLogger(__name__)
+    
     try:
+        # Initialize LED controller
         led_controller = LEDController.get_instance()
-
-        # Set LED color to green to indicate arming
-        led_controller.set_color(0, 255, 0)
+        led_controller.set_color(0, 255, 0)  # Green: Arming in progress
         logger.info("LED set to green: Arming in progress.")
 
-        # Compute initial position drift
-        initial_position_drift_ned = None
-
-        # Step 1: Check if global position drift calculation is required
-        if Params.REQUIRE_GLOBAL_POSITION:
-            # Get current global position
-            current_global_position = None
-            start_time = time.time()
-            while current_global_position is None:
-                async for position in drone.telemetry.position():
-                    current_global_position = position
-                    break
-                if time.time() - start_time > Params.PRE_FLIGHT_TIMEOUT:
-                    logger.error("Timeout waiting for current global position.")
-                    raise TimeoutError("Timeout waiting for current global position.")
-                await asyncio.sleep(0.1)
-
-            # Step 2: Compute initial position drift in NED coordinates
-            if home_position:
-                logger.info("Computing initial position drift in NED coordinates.")
-                initial_position_drift_ned = await compute_position_drift(drone, home_position)
-                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
-            else:
-                logger.warning("Cannot compute drift: No home position available.")
-        else:
-            # If global position is not required, skip drift calculation
-            logger.info("Skipping global position drift calculation as per configuration.")
-            if home_position:
-                logger.warning("Home position provided but global position checks are disabled.")
-
-        # Step 3: Store the drift (even if it's None)
+        # Step 1: Compute initial position offset if required
         global initial_position_drift
-        initial_position_drift = initial_position_drift_ned
 
-        # Step 4: Set Drone to Hold flight mode (just in case)
-        logger.info("Setting Hold Flight Mode")
+        if Params.REQUIRE_GLOBAL_POSITION and home_position:
+            logger.info("Computing initial position offset in NED coordinates.")
+            initial_position_drift = await compute_position_drift(drone)
+            logger.info(f"Initial position drift computed: {initial_position_drift}")
+        else:
+            logger.info("Skipping position offset computation (global position check disabled or no home position).")
+
+        # Step 2: Set flight mode to Hold as a safety precaution
+        logger.info("Setting Hold flight mode.")
         await drone.action.hold()
 
-        # Step 5: Proceed to arm and start offboard mode
-        logger.info("Arming drone.")
+        # Step 3: Arm the drone
+        logger.info("Arming the drone.")
         await drone.action.arm()
-        logger.info("Setting initial setpoint for offboard mode.")
+
+        # Step 4: Set an initial offboard velocity setpoint
+        logger.info("Setting initial velocity setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+
+        # Step 5: Start offboard mode
         logger.info("Starting offboard mode.")
         await drone.offboard.start()
 
-        # Set LEDs to solid white to indicate ready to fly
-        led_controller.set_color(255, 255, 255)
-        logger.info("LED set to white: Ready to fly.")
-    
+        # Indicate readiness with LED color
+        led_controller.set_color(255, 255, 255)  # White: Ready to fly
+        logger.info("LED set to white: Drone is ready to fly.")
+
     except OffboardError as error:
-        # Handle Offboard mode errors
-        logger.error(f"Offboard error: {error}")
+        # Handle specific Offboard mode errors
+        logger.error(f"Offboard error encountered: {error}")
         await drone.action.disarm()
-        led_controller.set_color(255, 0, 0)  # Red
-        raise
-    except Exception:
-        # Handle other exceptions and disarm the drone
-        logger.exception("Error during arming and starting offboard mode.")
-        await drone.action.disarm()
-        led_controller.set_color(255, 0, 0)  # Red
+        led_controller.set_color(255, 0, 0)  # Red: Error state
         raise
 
+    except Exception as e:
+        # Handle general exceptions and ensure the drone is disarmed
+        logger.exception("Unexpected error during arming and starting offboard mode.")
+        await drone.action.disarm()
+        led_controller.set_color(255, 0, 0)  # Red: Error state
+        raise e
 
-async def compute_position_drift(drone, home_position):
+
+
+async def compute_position_drift():
     """
-    Compute the initial position drift in NED coordinates (North, East, Down) at the moment of takeoff.
-    This is based on the home position, which is used as the origin for the NED system.
-
-    Args:
-        drone (System): MAVSDK drone system instance to access telemetry data.
-        home_position (dict): Home position coordinates in global (latitude, longitude, altitude).
-
+    Compute initial position drift using LOCAL_POSITION_NED from the drone's API.
+    The NED origin is automatically set when the drone arms (matches GPS_GLOBAL_ORIGIN).
+    
     Returns:
-        dict: Drift in NED coordinates (North, East, Down), or None if home position is unavailable.
+        dict: Drift in NED coordinates (north, east, down) or None if unavailable
     """
     logger = logging.getLogger(__name__)
+    drift = {'north': 0.0, 'east': 0.0, 'down': 0.0}  # Default to no drift
 
-    if home_position:
-        logger.info("Starting position drift calculation.")
+    try:
+        # Request NED data from local API endpoint
+        response = requests.get(
+            f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+            timeout=2
+        )
 
-        # Fetch the current NED position relative to home position at the moment of takeoff
-        try:
-            async for position in drone.telemetry.position():
-                # NED coordinates: North, East, Down
-                north_m = position.north_m  # Current NED North component in meters
-                east_m = position.east_m    # Current NED East component in meters
-                down_m = position.down_m    # Current NED Down component in meters
-
-                # Log the NED position at takeoff
-                logger.info(f"Drone Position (NED) at takeoff: North: {north_m:.2f}m, East: {east_m:.2f}m, Down: {down_m:.2f}m")
-
-                # Compute the drift using NED position
-                initial_position_drift_ned = {'north': north_m, 'east': east_m, 'down': down_m}
-
-                # Log the initial drift
-                logger.info(f"Initial position drift in NED coordinates: {initial_position_drift_ned}")
-
-                return initial_position_drift_ned
-
-        except Exception as e:
-            logger.error(f"Error fetching NED position: {e}")
+        if response.status_code == 200:
+            ned_data = response.json()
+            
+            # Direct mapping from API response (x=north, y=east, z=down)
+            drift.update({
+                'north': ned_data['x'],
+                'east': ned_data['y'],
+                'down': ned_data['z']
+            })
+            
+            logger.info(f"Initial NED drift from origin: {drift}")
+            return drift
+        else:
+            logger.warning(f"Failed to get NED data: HTTP {response.status_code}")
             return None
-    else:
-        logger.warning("Cannot compute drift: No home position available.")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API connection failed: {str(e)}")
+        return None
+    except KeyError as e:
+        logger.error(f"Malformed NED data: Missing field {str(e)}")
         return None
 
 async def perform_landing(drone: System):
