@@ -6,8 +6,8 @@ DefaultDependencies=no
 [Service]
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color red
 Restart=no
-User=droneshow
-Group=droneshow
+User=root
+Group=root
 
 [Install]
 WantedBy=multi-user.target
