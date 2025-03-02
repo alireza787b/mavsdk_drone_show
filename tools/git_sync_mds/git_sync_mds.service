@@ -7,7 +7,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/droneshow/mavsdk_drone_show/update_repo_ssh.sh
+ExecStart=/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh
 Restart=no
 User=droneshow
 Group=droneshow
