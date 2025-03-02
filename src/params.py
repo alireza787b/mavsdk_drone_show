@@ -170,8 +170,8 @@ class Params:
     DEFAULT_GRPC_PORT = 50040
 
     # Critical Operation Settings
-    PREFLIGHT_MAX_RETRIES = 3       # Maximum number of retries for pre-flight checks
-    PRE_FLIGHT_TIMEOUT = 5          # Timeout for pre-flight checks in seconds
+    PREFLIGHT_MAX_RETRIES = 15       # Maximum number of retries for pre-flight checks
+    PRE_FLIGHT_TIMEOUT = 30          # Timeout for pre-flight checks in seconds
     LANDING_TIMEOUT = 10            # Timeout during landing phase in seconds
 
     # Trajectory and Landing Configuration
@@ -180,7 +180,7 @@ class Params:
     CONTROLLED_LANDING_TIME = 1.0          # Minimum time before end of trajectory to start controlled landing
     MISSION_PROGRESS_THRESHOLD = 0.5       # Minimum mission progress percentage for controlled landing
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
-    CONTROLLED_LANDING_TIMEOUT = 10        # Maximum time to wait during controlled landing
+    CONTROLLED_LANDING_TIMEOUT = 7        # Maximum time to wait during controlled landing
 
 
     AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
