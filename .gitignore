@@ -21,7 +21,7 @@ develop-eggs/
 MANIFEST
 
 # path images to reduce pull time
-*.jpg
+shapes/plots/*.jpg
 
 
 
