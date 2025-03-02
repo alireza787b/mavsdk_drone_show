@@ -44,7 +44,7 @@ class LEDController:
             )
             self.strip.begin()
             self.logger.info("LEDController initialized with %d LEDs on GPIO pin %d", Params.led_count, Params.led_pin)
-            LEDController.set_color(0,0,0) # Initialize with off LED
+            #LEDController.set_color(0,0,0) # Initialize with off LED
         except Exception as e:
             self.logger.error("Failed to initialize LEDController: %s", e)
             self.strip = None
