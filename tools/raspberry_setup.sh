@@ -405,6 +405,23 @@ configure_gpio() {
     sudo usermod -aG gpio droneshow
 }
 
+
+# =============================================================================
+# Function: Setup led_indicator Service
+# =============================================================================
+setup_led_indicator_service() {
+    echo "Setting up the led_indicator System Coordinator service..."
+    sudo bash "$REPO_DIR/tools/led_indicator/install_led_indicator.sh"
+}
+
+# =============================================================================
+# Function: Setup git_sync_mds Service
+# =============================================================================
+setup_git_sync_mds_service() {
+    echo "Setting up the git_sync_mds System Coordinator service..."
+    sudo bash "$REPO_DIR/tools/git_sync_mds/install_git_sync_mds.sh"
+}
+
 # =============================================================================
 # Function: Setup Wifi-Manager Service
 # =============================================================================
@@ -643,8 +660,14 @@ echo
 # ----------------------------------------------------------------------
 setup_python_venv
 
+# Setup led_indicator Service
+setup_led_indicator_service
+
 # Setup Wifi-Manager Service
 setup_wifi_manager_service
+
+# Setup git_sync_msc Service
+setup_git_sync_mds_service
 
 # Setup Coordinator Service
 setup_coordinator_service
