@@ -44,7 +44,7 @@ class LEDController:
             )
             self.strip.begin()
             self.logger.info("LEDController initialized with %d LEDs on GPIO pin %d", Params.led_count, Params.led_pin)
-            #LEDController.set_color(0,0,0) # Initialize with off LED
+            self.turn_off()  # Turn off the LEDs after initialization
         except Exception as e:
             self.logger.error("Failed to initialize LEDController: %s", e)
             self.strip = None
@@ -65,7 +65,6 @@ class LEDController:
         """
         Sets all LEDs to the specified RGB color.
         """
-        #in sim_mode we have no LED
         if Params.sim_mode:
             return
         with LEDController._lock:
@@ -83,7 +82,6 @@ class LEDController:
         """
         Wipes the specified color across the LED strip one pixel at a time.
         """
-        #in sim_mode we have no LED
         if Params.sim_mode:
             return
         with LEDController._lock:
@@ -102,7 +100,6 @@ class LEDController:
         """
         Creates a theater chase animation with the specified color.
         """
-        #in sim_mode we have no LED
         if Params.sim_mode:
             return
         with LEDController._lock:
@@ -126,7 +123,6 @@ class LEDController:
         """
         Turns off all LEDs.
         """
-        #in sim_mode we have no LED
         if Params.sim_mode:
             return
         with LEDController._lock:
