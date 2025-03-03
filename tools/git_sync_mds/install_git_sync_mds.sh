@@ -51,7 +51,7 @@ systemctl start git_sync_mds.service
 
 # Check the status of the service
 echo "Checking the status of the Git Sync service..."
-systemctl status git_sync_mds.service
+systemctl status git_sync_mds.service --no-pager
 
 echo "-----------------------------------------"
 echo "Git Sync (MDS) Service installation complete!"

@@ -49,7 +49,7 @@ echo "Starting the LED Indicator service..."
 systemctl start led_indicator.service
 
 echo "Checking the status of the LED Indicator service..."
-systemctl status led_indicator.service
+systemctl status led_indicator.service --no-pager
 
 echo "-----------------------------------------"
 echo "LED Indicator Service installation complete!"
