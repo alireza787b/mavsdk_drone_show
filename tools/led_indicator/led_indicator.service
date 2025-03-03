@@ -6,8 +6,8 @@ DefaultDependencies=no
 [Service]
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color red
 Restart=no
-User=root
-Group=root
+User=droneshow
+Group=droneshow
 CapabilityBoundingSet=CAP_SYS_RAWIO
 AmbientCapabilities=CAP_SYS_RAWIO
 
