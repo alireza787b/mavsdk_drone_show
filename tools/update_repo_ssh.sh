@@ -307,6 +307,6 @@ cleanup_lock_file
 log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME."
 
 # Optionally, set LED to indicate success; leave it to coordinator to update later if desired.
-$LED_CMD --color blue || log "Warning: Unable to update LED after Git sync." 
+# $LED_CMD --color blue || log "Warning: Unable to update LED after Git sync." 
 
 exit 0
