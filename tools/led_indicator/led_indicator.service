@@ -8,6 +8,8 @@ ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavs
 Restart=no
 User=root
 Group=root
+CapabilityBoundingSet=CAP_SYS_RAWIO
+AmbientCapabilities=CAP_SYS_RAWIO
 
 [Install]
 WantedBy=multi-user.target
