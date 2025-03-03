@@ -64,7 +64,7 @@ class ConnectivityChecker:
                 if result:
                     # Ping successful, set LED to green
                     self.led_controller.set_color(0, 255, 0)  # Green
-                    logger.debug("Connectivity check successful. LED set to blue.")
+                    logger.debug("Connectivity check successful. LED set to green.")
                 else:
                     # Ping failed, set LED to purple
                     self.led_controller.set_color(255, 0, 255)  # Purple
