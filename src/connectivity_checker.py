@@ -63,11 +63,11 @@ class ConnectivityChecker:
                 result = self.check_connectivity(ip)
                 if result:
                     # Ping successful, set LED to green
-                    #self.led_controller.set_color(0, 255, 0)  # Green
+                    self.led_controller.set_color(0, 255, 0)  # Green
                     logger.debug("Connectivity check successful. LED set to green.")
                 else:
                     # Ping failed, set LED to purple
-                    #self.led_controller.set_color(255, 0, 255)  # Purple
+                    self.led_controller.set_color(255, 0, 255)  # Purple
                     logger.warning("Connectivity check failed. LED set to red.")
             except Exception as e:
                 logger.error(f"Error in connectivity check: {e}")

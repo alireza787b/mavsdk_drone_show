@@ -121,9 +121,9 @@ def set_strip_color(strip: PixelStrip, color: Color):
         strip (PixelStrip): The LED strip object.
         color (Color): The color to set on all LEDs.
     """
-    # for i in range(strip.numPixels()):
-    #     strip.setPixelColor(i, color)
-    # strip.show()
+    for i in range(strip.numPixels()):
+        strip.setPixelColor(i, color)
+    strip.show()
 
 def main():
     """
