@@ -1,5 +1,4 @@
 # src/connectivity_checker.py
-
 import logging
 import threading
 import subprocess
@@ -10,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ConnectivityChecker:
     """
     ConnectivityChecker periodically pings a specified IP address to check internet connectivity.
-    It updates the LED color based on the connectivity status: blue for connected, red for disconnected.
+    It updates the LED color based on the connectivity status: green for connected, red for disconnected.
     """
 
     def __init__(self, params, led_controller):
@@ -66,7 +65,7 @@ class ConnectivityChecker:
                     self.led_controller.set_color(0, 255, 0)  # Green
                     logger.debug("Connectivity check successful. LED set to green.")
                 else:
-                    # Ping failed, set LED to Red
+                    # Ping failed, set LED to red
                     self.led_controller.set_color(255, 0, 0)  # Red
                     logger.warning("Connectivity check failed. LED set to red.")
             except Exception as e:
@@ -74,8 +73,7 @@ class ConnectivityChecker:
             # Wait for the interval or until stop_event is set
             self.stop_event.wait(interval)
 
-    @staticmethod
-    def check_connectivity(ip):
+    def check_connectivity(self, ip):
         """
         Checks connectivity by pinging the specified IP address.
 
@@ -86,12 +84,12 @@ class ConnectivityChecker:
             bool: True if ping is successful, False otherwise.
         """
         try:
-            # Use the 'ping' command to check connectivity
-            if Params.sim_mode:
+            if self.params.sim_mode:
                 return True
-            else:
-                output = subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
-                return True
+
+            # For Linux/Ubuntu: -c for count, -W for timeout (in seconds)
+            subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
+            return True
         except subprocess.CalledProcessError:
             return False
         except Exception as e:
