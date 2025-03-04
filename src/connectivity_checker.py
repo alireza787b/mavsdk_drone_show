@@ -1,18 +1,18 @@
 import logging
-import socket
 import threading
+import requests  # Make sure requests is installed
 from src.params import Params
 
 logger = logging.getLogger(__name__)
 
 class ConnectivityChecker:
     """
-    ConnectivityChecker periodically verifies connectivity to a specified IP address by attempting
-    a TCP connection. It updates the LED color based on the connectivity status: green for connected,
-    red for disconnected.
+    ConnectivityChecker periodically verifies connectivity by making an HTTP GET
+    request to a specified endpoint on the GCS server. It updates the LED color based on
+    the connectivity status: green for connected, red for disconnected.
     """
-    # Class variable for the default connectivity check port (default is 80)
-    DEFAULT_PORT = 80
+    # Class variable for the default HTTP endpoint path (e.g., '/ping')
+    DEFAULT_ENDPOINT = "/ping"
 
     def __init__(self, params, led_controller):
         """
@@ -27,8 +27,10 @@ class ConnectivityChecker:
         self.thread = None
         self.stop_event = threading.Event()
         self.is_running = False  # Flag to prevent multiple threads
-        # Set the port either from params (if defined) or use the default port.
-        self.port = getattr(params, 'connectivity_check_port', ConnectivityChecker.DEFAULT_PORT)
+        # Optionally, you can add a connectivity_check_endpoint in your Params; otherwise use default.
+        self.endpoint = getattr(params, 'connectivity_check_endpoint', ConnectivityChecker.DEFAULT_ENDPOINT)
+        # Use a port from params if available, else fall back to flask_telem_socket_port (or a default value)
+        self.port = getattr(params, 'flask_telem_socket_port', 5000)
 
     def start(self):
         """
@@ -59,45 +61,50 @@ class ConnectivityChecker:
         """
         Thread target function that performs the connectivity check at specified intervals.
         """
+        # Use the connectivity_check_ip from params (should be set to your GCS server IP)
         ip = self.params.connectivity_check_ip
         interval = self.params.connectivity_check_interval
         while not self.stop_event.is_set():
             try:
                 result = self.check_connectivity(ip)
                 if result:
-                    # Connection successful, set LED to green.
+                    # Connection successful, set LED to green
                     self.led_controller.set_color(0, 255, 0)  # Green
                     logger.debug("Connectivity check successful. LED set to green.")
                 else:
-                    # Connection failed, set LED to red.
+                    # Connection failed, set LED to red
                     self.led_controller.set_color(255, 0, 0)  # Red
                     logger.warning("Connectivity check failed. LED set to red.")
             except Exception as e:
                 logger.error(f"Error in connectivity check: {e}")
-            # Wait for the specified interval or until stop_event is set.
+            # Wait for the specified interval or until stop_event is set
             self.stop_event.wait(interval)
 
     def check_connectivity(self, ip):
         """
-        Checks connectivity by attempting a TCP connection to the specified IP address.
-        Uses the port from params if available; otherwise, the default port is used.
+        Checks connectivity by making an HTTP GET request to the GCS server's ping endpoint.
         A 1-second timeout is applied.
 
         Args:
-            ip (str): IP address to check connectivity with.
+            ip (str): IP address of the GCS server.
 
         Returns:
-            bool: True if the connection is successful, False otherwise.
+            bool: True if the HTTP request is successful (status code 200), False otherwise.
         """
         try:
             if self.params.sim_mode:
                 return True
 
-            logger.debug(f"Attempting TCP connection to {ip}:{self.port}")
-            # Attempt a TCP connection with a 1-second timeout.
-            with socket.create_connection((ip, self.port), timeout=1):
-                logger.debug("TCP connection successful.")
+            # Build the URL: e.g., http://<ip>:<port>/ping
+            url = f"http://{ip}:{self.port}{self.endpoint}"
+            logger.debug(f"Attempting HTTP GET to {url}")
+            response = requests.get(url, timeout=1)
+            if response.status_code == 200:
+                logger.debug("HTTP GET successful, connectivity confirmed.")
                 return True
+            else:
+                logger.error(f"HTTP GET returned status code {response.status_code}")
+                return False
         except Exception as e:
             logger.error(f"Exception in check_connectivity: {e}")
             return False

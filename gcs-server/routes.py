@@ -609,3 +609,8 @@ def setup_routes(app):
         with data_lock_git_status:
             git_status_copy = git_status_data_all_drones.copy()
         return jsonify(git_status_copy)
+    
+    @app.route('/ping', methods=['GET'])
+    def ping():
+        """Simple endpoint to confirm connectivity."""
+        return jsonify({"status": "ok"}), 200
