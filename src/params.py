@@ -83,6 +83,8 @@ class Params:
     HTTP_REQUEST_TIMEOUT = 5        # Timeout in seconds for HTTP requests
 
     enable_default_subscriptions = True  # All drones subscribe to each other for continuous polling
+    
+    enable_connectivity_check  = False # Enable Connectivity check Thread to ping GCS
 
     # Environment Mode
     env_mode = 'development'  # Change to 'production' for production mode

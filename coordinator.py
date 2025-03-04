@@ -193,8 +193,9 @@ def main_loop():
                 logger.info(f"Drone state changed to {current_state}")
 
                 if current_state == State.IDLE.value:
-                    # In IDLE state with no mission, start connectivity checking
-                    if current_mission == 0:
+                    # In IDLE state, start connectivity checking only if no mission
+                    # and if connectivity check is enabled via params.
+                    if current_mission == 0 and params.enable_connectivity_check:
                         if not connectivity_checker.is_running:
                             connectivity_checker.start()
                             logger.debug("Connectivity checker started.")
