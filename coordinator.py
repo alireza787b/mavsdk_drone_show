@@ -108,7 +108,7 @@ def main_loop():
     global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, flask_handler
     try:
         logger.info("Starting the main loop...")
-        LEDController.set_color(0, 255, 255)  # Cyan
+        #LEDController.set_color(0, 255, 255)  # Cyan
 
         if params.online_sync_time:
             drone_setup.synchronize_time()
