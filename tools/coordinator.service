@@ -38,7 +38,7 @@ StandardError=journal
 SyslogIdentifier=coordinator
 
 # Once the coordinator starts, set the LED to green to indicate normal operation.
-ExecStartPost=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color green
+# ExecStartPost=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color green
 
 [Install]
 WantedBy=multi-user.target
