@@ -74,18 +74,23 @@ class ConnectivityChecker:
             self.stop_event.wait(interval)
 
     def check_connectivity(self, ip):
+        """
+        Checks connectivity by pinging the specified IP address.
+
+        Args:
+            ip (str): IP address to ping.
+
+        Returns:
+            bool: True if ping is successful, False otherwise.
+        """
         try:
             if self.params.sim_mode:
                 return True
 
-            # Use full path to ping (adjust the path if necessary)
-            ping_command = ['/bin/ping', '-c', '1', '-W', '1', ip]
-            logger.debug(f"Executing ping command: {' '.join(ping_command)}")
-            output = subprocess.check_output(ping_command, stderr=subprocess.STDOUT)
-            logger.debug(f"Ping output: {output.decode('utf-8')}")
+            # For Linux/Ubuntu: -c for count, -W for timeout (in seconds)
+            subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
             return True
-        except subprocess.CalledProcessError as cpe:
-            logger.error(f"Ping failed with error: {cpe.output.decode('utf-8')}")
+        except subprocess.CalledProcessError:
             return False
         except Exception as e:
             logger.error(f"Exception in check_connectivity: {e}")
