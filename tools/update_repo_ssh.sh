@@ -47,7 +47,7 @@ log() {
 log_error_and_exit() {
     log "ERROR: $1"
     # Set LED to yellow to indicate failure
-    # $LED_CMD --color red || true
+    $LED_CMD --color red || true
     exit 1
 }
 
@@ -208,7 +208,7 @@ check_git_repository_integrity() {
 # Main Script Execution
 # -------------------------------------------------
 # Set LED to blue indicating Git sync is starting
-# $LED_CMD --color blue || log "Warning: Unable to set LED to blue."
+$LED_CMD --color blue || log "Warning: Unable to set LED to blue."
 
 log "==========================================="
 log "Starting repository update script for MDS repository."
