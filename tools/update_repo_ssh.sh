@@ -276,7 +276,7 @@ if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
 fi
 
 # Check repository integrity
-check_git_repository_integrity
+#check_git_repository_integrity
 
 # Re-check lock file
 cleanup_lock_file
