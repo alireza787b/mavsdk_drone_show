@@ -151,8 +151,7 @@ def main_loop():
         logger.info("Starting the main loop...")
 
         # Set initial LED color to Cyan to indicate startup
-        if led_controller:
-            led_controller.set_color(0, 255, 255)  # Cyan
+        
 
         # Synchronize time if enabled
         if params.online_sync_time:
@@ -309,6 +308,8 @@ def main():
     else:
         logger.info("PosIDAutoDetector is disabled via parameters.")
 
+    if led_controller:
+            led_controller.set_color(0, 255, 255)  # Cyan
     # Enter the main application loop
     main_loop()
 
