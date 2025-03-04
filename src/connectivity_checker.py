@@ -1,23 +1,25 @@
-# src/connectivity_checker.py
 import logging
+import socket
 import threading
-import subprocess
 from src.params import Params
 
 logger = logging.getLogger(__name__)
 
 class ConnectivityChecker:
     """
-    ConnectivityChecker periodically pings a specified IP address to check internet connectivity.
-    It updates the LED color based on the connectivity status: green for connected, red for disconnected.
+    ConnectivityChecker periodically verifies connectivity to a specified IP address by attempting
+    a TCP connection. It updates the LED color based on the connectivity status: green for connected,
+    red for disconnected.
     """
+    # Class variable for the default connectivity check port (default is 80)
+    DEFAULT_PORT = 80
 
     def __init__(self, params, led_controller):
         """
         Initializes the ConnectivityChecker.
 
         Args:
-            params: Parameters object containing configuration settings.
+            params (Params): Parameters object containing configuration settings.
             led_controller: Instance of LEDController to control the drone's LEDs.
         """
         self.params = params
@@ -25,6 +27,8 @@ class ConnectivityChecker:
         self.thread = None
         self.stop_event = threading.Event()
         self.is_running = False  # Flag to prevent multiple threads
+        # Set the port either from params (if defined) or use the default port.
+        self.port = getattr(params, 'connectivity_check_port', ConnectivityChecker.DEFAULT_PORT)
 
     def start(self):
         """
@@ -61,37 +65,39 @@ class ConnectivityChecker:
             try:
                 result = self.check_connectivity(ip)
                 if result:
-                    # Ping successful, set LED to green
+                    # Connection successful, set LED to green.
                     self.led_controller.set_color(0, 255, 0)  # Green
                     logger.debug("Connectivity check successful. LED set to green.")
                 else:
-                    # Ping failed, set LED to red
+                    # Connection failed, set LED to red.
                     self.led_controller.set_color(255, 0, 0)  # Red
                     logger.warning("Connectivity check failed. LED set to red.")
             except Exception as e:
                 logger.error(f"Error in connectivity check: {e}")
-            # Wait for the interval or until stop_event is set
+            # Wait for the specified interval or until stop_event is set.
             self.stop_event.wait(interval)
 
     def check_connectivity(self, ip):
         """
-        Checks connectivity by pinging the specified IP address.
+        Checks connectivity by attempting a TCP connection to the specified IP address.
+        Uses the port from params if available; otherwise, the default port is used.
+        A 1-second timeout is applied.
 
         Args:
-            ip (str): IP address to ping.
+            ip (str): IP address to check connectivity with.
 
         Returns:
-            bool: True if ping is successful, False otherwise.
+            bool: True if the connection is successful, False otherwise.
         """
         try:
             if self.params.sim_mode:
                 return True
 
-            # For Linux/Ubuntu: -c for count, -W for timeout (in seconds)
-            subprocess.check_output(['ping', '-c', '1', '-W', '1', ip], stderr=subprocess.STDOUT)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+            logger.debug(f"Attempting TCP connection to {ip}:{self.port}")
+            # Attempt a TCP connection with a 1-second timeout.
+            with socket.create_connection((ip, self.port), timeout=1):
+                logger.debug("TCP connection successful.")
+                return True
         except Exception as e:
             logger.error(f"Exception in check_connectivity: {e}")
             return False
