@@ -47,7 +47,7 @@ log() {
 log_error_and_exit() {
     log "ERROR: $1"
     # Set LED to yellow to indicate failure
-    $LED_CMD --color yellow || true
+    $LED_CMD --color red || true
     exit 1
 }
 
