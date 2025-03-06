@@ -7,11 +7,13 @@
 # 2. Creates/overwrites two scripts in the user's home directory:
 #    - backup_msd  : Backs up ~/mavsdk_drone_show to ~/mavsdk_drone_show_backup.
 #    - restore_msd : Restores ~/mavsdk_drone_show from ~/mavsdk_drone_show_backup.
+#       It removes the current repository folder, copies the backup (preserving it),
+#       then changes directory to the restored repository, runs 'git stash' and 'git pull',
+#       and optionally reboots the system.
 # 3. Runs an initial backup automatically.
 #
-# Non-interactive by default (all overwrites occur without prompts).
-# Adjust the Boolean flags in the generated scripts if needed.
-
+# Non-interactive by default.
+#
 set -euo pipefail
 
 ###################################
@@ -39,12 +41,7 @@ check_prerequisite() {
   local pkg="$2"  # package name for installation if needed
   if ! command -v "$cmd" &>/dev/null; then
     gen_log "Prerequisite '$cmd' not found. Installing package '$pkg'..."
-    if command -v apt-get &>/dev/null; then
-      apt-get update && apt-get install -y "$pkg"
-    else
-      gen_log "Error: apt-get not found. Please install '$pkg' manually."
-      exit 1
-    fi
+    apt-get update && apt-get install -y "$pkg"
   else
     gen_log "Prerequisite '$cmd' found."
   fi
@@ -67,7 +64,6 @@ create_backup_script() {
 #
 # Backs up the mavsdk_drone_show repository (SRC_DIR) to mavsdk_drone_show_backup (BAK_DIR).
 # Overwrites any existing backup without prompting.
-#
 # Progress is shown using rsync's progress output.
 #
 set -euo pipefail
@@ -75,7 +71,6 @@ set -euo pipefail
 ###################################
 # Configuration
 ###################################
-PROMPT_USER=false           # Set to true to prompt before overwriting an existing backup.
 SRC_DIR="$HOME/mavsdk_drone_show"
 BAK_DIR="$HOME/mavsdk_drone_show_backup"
 LOG_FILE="/tmp/backup_msd.log"
@@ -99,16 +94,8 @@ if [ ! -d "$SRC_DIR" ]; then
   exit 1
 fi
 
-# 2) Handle existing backup directory.
+# 2) Remove existing backup directory if it exists.
 if [ -d "$BAK_DIR" ]; then
-  if [ "$PROMPT_USER" = true ]; then
-    echo "Backup directory ($BAK_DIR) exists. Overwrite? (y/N)"
-    read -r answer
-    if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
-      log "User aborted overwrite."
-      exit 0
-    fi
-  fi
   log "Removing existing backup directory ${BAK_DIR}..."
   rm -rf "$BAK_DIR"
 fi
@@ -119,7 +106,6 @@ TMP_BAK_DIR="${BAK_DIR}.tmp"
 mkdir -p "$TMP_BAK_DIR"
 
 log "Copying files with progress indicator..."
-# Use rsync with progress information.
 rsync -a --delete --info=progress2 "$SRC_DIR/" "$TMP_BAK_DIR/"
 
 log "Renaming temporary backup directory to final ${BAK_DIR}..."
@@ -144,18 +130,19 @@ create_restore_script() {
 # restore_msd
 #
 # Restores the mavsdk_drone_show repository from mavsdk_drone_show_backup.
-# By default, it moves the backup to the repository location, removing the backup folder.
+# Removes the current repository folder, then copies the backup to the original location
+# (backup folder is preserved). After restoration, it changes directory to the restored
+# repository, runs 'git stash' and 'git pull', and optionally reboots the system.
 #
 set -euo pipefail
 
 ###################################
 # Configuration
 ###################################
-PROMPT_USER=false                  # Set to true to prompt before restoring.
-KEEP_BACKUP_AFTER_RESTORE=false    # Set to true to copy instead of move (to keep backup intact).
 SRC_DIR="$HOME/mavsdk_drone_show"
 BAK_DIR="$HOME/mavsdk_drone_show_backup"
 LOG_FILE="/tmp/restore_msd.log"
+DO_REBOOT=false   # Set to true to enable system reboot after restore
 
 ###################################
 # Logging Function
@@ -176,29 +163,33 @@ if [ ! -d "$BAK_DIR" ]; then
   exit 1
 fi
 
-# 2) If prompting is enabled, ask the user.
-if [ "$PROMPT_USER" = true ]; then
-  echo "Are you sure you want to restore? This will overwrite ${SRC_DIR}. (y/N)"
-  read -r answer
-  if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
-    log "User aborted restore."
-    exit 0
-  fi
-fi
-
-# 3) Remove the current repository directory.
+# 2) Remove the current repository directory.
 if [ -d "$SRC_DIR" ]; then
   log "Removing current repository directory ${SRC_DIR}..."
   rm -rf "$SRC_DIR"
 fi
 
-# 4) Restore the backup.
-if [ "$KEEP_BACKUP_AFTER_RESTORE" = true ]; then
-  log "Copying backup to ${SRC_DIR} (backup preserved)..."
-  rsync -a --delete "$BAK_DIR/" "$SRC_DIR/"
+# 3) Restore the backup by copying it to the original location (backup preserved).
+log "Copying backup to ${SRC_DIR} (backup preserved)..."
+rsync -a --delete "$BAK_DIR/" "$SRC_DIR/"
+
+# 4) Change directory to the restored repository and update it with git.
+log "Changing to restored directory ${SRC_DIR}..."
+cd "$SRC_DIR"
+
+if [ -d ".git" ]; then
+  log "Running 'git stash'..."
+  git stash
+  log "Running 'git pull'..."
+  git pull
 else
-  log "Moving backup to ${SRC_DIR} (backup will be removed)..."
-  mv "$BAK_DIR" "$SRC_DIR"
+  log "Directory ${SRC_DIR} is not a git repository. Skipping git operations."
+fi
+
+# 5) Optionally reboot the system.
+if [ "$DO_REBOOT" = true ]; then
+  log "Rebooting system as per configuration..."
+  reboot
 fi
 
 log "Restore completed successfully."

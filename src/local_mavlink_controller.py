@@ -1,3 +1,4 @@
+#src\local_mavlink_controller.py
 import threading
 import logging
 from pymavlink import mavutil
@@ -23,7 +24,7 @@ class LocalMavlinkController:
         # Define which message types to listen for
         self.message_filter = [
             'GLOBAL_POSITION_INT', 'HOME_POSITION', 'BATTERY_STATUS', 'GPS_GLOBAL_ORIGIN',
-            'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS'
+            'ATTITUDE', 'HEARTBEAT', 'GPS_RAW_INT', 'SYS_STATUS','LOCAL_POSITION_NED'
         ]
         
         # Create a Mavlink connection using the provided local Mavlink port
@@ -74,6 +75,8 @@ class LocalMavlinkController:
             self.process_heartbeat(msg)
         elif msg_type == 'GPS_RAW_INT':
             self.process_gps_raw_int(msg)
+        elif msg_type == 'LOCAL_POSITION_NED':
+            self.process_local_position_ned(msg)
         elif msg_type == 'GPS_GLOBAL_ORIGIN':
             self.process_gps_global_origin(msg)
         elif msg_type == 'SYS_STATUS':
@@ -198,6 +201,31 @@ class LocalMavlinkController:
             self.log_debug(f"Updated battery voltage to: {self.drone_config.battery}V")
         else:
             logging.error('Received BATTERY_STATUS message with invalid data')
+            
+    def process_local_position_ned(self, msg):
+        """
+        Process LOCAL_POSITION_NED (#32) message and update drone_config
+        with MAVLink-native field names and values.
+        """
+        required_fields = ['time_boot_ms', 'x', 'y', 'z', 'vx', 'vy', 'vz']
+        
+        if not all(hasattr(msg, field) for field in required_fields):
+            logging.error('LOCAL_POSITION_NED message missing required fields')
+            return
+
+        # Update all fields in one atomic operation
+        self.drone_config.local_position_ned.update({
+            'time_boot_ms': msg.time_boot_ms,
+            'x': msg.x,
+            'y': msg.y,
+            'z': msg.z,
+            'vx': msg.vx,
+            'vy': msg.vy,
+            'vz': msg.vz
+        })
+        
+        self.log_debug(f"NED Update: X:{msg.x:.2f}m Y:{msg.y:.2f}m Z:{msg.z:.2f}m | "
+                    f"VX:{msg.vx:.2f}m/s VY:{msg.vy:.2f}m/s VZ:{msg.vz:.2f}m/s")
 
     def __del__(self):
         """
@@ -208,3 +236,5 @@ class LocalMavlinkController:
         # Wait for the telemetry thread to stop
         if self.telemetry_thread.is_alive():
             self.telemetry_thread.join()
+
+

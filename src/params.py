@@ -42,6 +42,7 @@ class Params:
     GIT_BRANCH = 'main-candidate'  # Git branch is 'main-candidate' for both modes
     
     connectivity_check_ip = "100.93.208.205"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
+    connectivity_check_port = 5000        # Default port to ping eg. 80 for the gcs backend port
     connectivity_check_interval = 10    # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
@@ -83,6 +84,8 @@ class Params:
     HTTP_REQUEST_TIMEOUT = 5        # Timeout in seconds for HTTP requests
 
     enable_default_subscriptions = True  # All drones subscribe to each other for continuous polling
+    
+    enable_connectivity_check  = True # Enable Connectivity check Thread to ping GCS
 
     # Environment Mode
     env_mode = 'development'  # Change to 'production' for production mode
@@ -140,8 +143,8 @@ class Params:
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
     # Drift configuration
-    DRIFT_THRESHOLD = 0.1  # Drift threshold in seconds
-    DRIFT_CHECK_PERIOD = 0.05  # Time between drift checks in seconds (this can match the CSV step size)
+    DRIFT_THRESHOLD = 0.5  # Drift threshold in seconds
+    DRIFT_CHECK_PERIOD = 1  # Time between drift checks in seconds (this can match the CSV step size)
 
     
     # Heartbeat interval (in seconds)
@@ -170,8 +173,8 @@ class Params:
     DEFAULT_GRPC_PORT = 50040
 
     # Critical Operation Settings
-    PREFLIGHT_MAX_RETRIES = 3       # Maximum number of retries for pre-flight checks
-    PRE_FLIGHT_TIMEOUT = 5          # Timeout for pre-flight checks in seconds
+    PREFLIGHT_MAX_RETRIES = 15       # Maximum number of retries for pre-flight checks
+    PRE_FLIGHT_TIMEOUT = 30          # Timeout for pre-flight checks in seconds
     LANDING_TIMEOUT = 10            # Timeout during landing phase in seconds
 
     # Trajectory and Landing Configuration
@@ -180,7 +183,7 @@ class Params:
     CONTROLLED_LANDING_TIME = 1.0          # Minimum time before end of trajectory to start controlled landing
     MISSION_PROGRESS_THRESHOLD = 0.5       # Minimum mission progress percentage for controlled landing
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
-    CONTROLLED_LANDING_TIMEOUT = 10        # Maximum time to wait during controlled landing
+    CONTROLLED_LANDING_TIMEOUT = 7        # Maximum time to wait during controlled landing
 
 
     AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
@@ -190,8 +193,12 @@ class Params:
     ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
 
     # Initial Climb Phase Settings
-    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 3.0  # Altitude threshold for initial climb phase
-    INITIAL_CLIMB_TIME_THRESHOLD = 3.0      # Time threshold for initial climb phase
+    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 7.0  # Altitude threshold for initial climb phase
+    INITIAL_CLIMB_TIME_THRESHOLD = 7.0      # Time threshold for initial climb phase
+    INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
+    
+    # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
+    INITIAL_CLIMB_MODE = "LOCAL_NED"  
 
     # Feedforward Control Settings
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints

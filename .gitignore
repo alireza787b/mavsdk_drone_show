@@ -20,6 +20,11 @@ develop-eggs/
 .installed.cfg
 MANIFEST
 
+# path images to reduce pull time
+shapes/plots/*.jpg
+
+
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

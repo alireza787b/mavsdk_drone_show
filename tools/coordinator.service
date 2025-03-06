@@ -1,95 +1,44 @@
-# Drone Swarm System Coordinator Service
-#
-# This systemd service configures and manages the Drone Swarm System Coordinator.
-# It ensures all prerequisites are met before the coordinator starts, including:
-# - Updating the system repository and components.
-# - Automatically initializing MAVLink system ID (`mav_sys_id`) based on drone hardware ID.
-# - Synchronizing system time and checking WiFi configurations.
-# The service is designed to run continuously and restart upon failure.
-
-# ----------------------------
-# How to Activate This Service
-# ----------------------------
-# 1. Save this file as 'coordinator.service' in the '/etc/systemd/system/' directory.
-# 2. Reload systemd to recognize the new service:
-#    sudo systemctl daemon-reload
-# 3. Enable the service to start on boot:
-#    sudo systemctl enable coordinator.service
-# 4. Start the service immediately:
-#    sudo systemctl start coordinator.service
-# 5. Check the status of the service to ensure it's running without issues:
-#    sudo systemctl status coordinator.service
-
-# ---------------------
-# Monitoring the Service
-# ---------------------
-# To view live logs of the service for monitoring and troubleshooting:
-#    journalctl -fu coordinator.service
-# To restart the service after making changes:
-#    sudo systemctl restart coordinator.service
-# To stop the service:
-#    sudo systemctl stop coordinator.service
-
-# ---------------------
-# Notes
-# ---------------------
-# - Ensure the following scripts in the 'tools' directory are executable:
-#   - 'update_repo_ssh.sh'
-#   - 'check_and_update_wifi-manager.sh'
-#   - 'check_and_update_service.sh'
-
-# - Adjust the capabilities and security settings according to your production security policies.
-
 [Unit]
 Description=Drone Swarm System Coordinator
-After=network-online.target
+# Ensure network is online and that Git sync (our MDS update) has completed before starting
+After=network-online.target git_sync_mds.service
+Requires=git_sync_mds.service
 Wants=network-online.target
 
 [Service]
-# Pre-start steps
-# Update the repository with the latest changes
-ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh --real
+# Pre-start steps for non-repository tasks:
+# Update WiFi configuration
+# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
+# Update service configuration if needed
+# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 
-# Check and update WiFi manager configuration
-ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
-# Verify and update the system service configuration
-ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
-
-
-# Main service start command
+# Main service: start the Drone Swarm Coordinator Python application
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
 
-# Working directory to ensure relative paths are resolved correctly
+# Set working directory to resolve relative paths correctly
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
 
-# User and group to run the service under
 User=droneshow
 Group=droneshow
 
-# Environment variables
-# Ensure the virtual environment and MAVSDK server path are properly configured
+# Ensure the virtual environment and system binaries are in PATH
 Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Restart settings
-# Automatically restart the service upon failure
+# Restart settings: automatically restart if the coordinator fails
 Restart=always
 RestartSec=5s
 
-# Capabilities
-# Includes capabilities for network management, GPIO access, and time synchronization
+# Capabilities needed by the coordinator for network management, GPIO, etc.
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 
-# Logging
+# Log outputs to journal
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=coordinator
 
-# Watchdog / timeouts
-# Service watchdog to ensure responsiveness
-# WatchdogSec=10s
-# TimeoutStartSec=60
-# TimeoutStopSec=30
+# Once the coordinator starts, set the LED to green to indicate normal operation.
+# ExecStartPost=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color green
 
 [Install]
 WantedBy=multi-user.target
