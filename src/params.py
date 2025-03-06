@@ -173,8 +173,8 @@ class Params:
     DEFAULT_GRPC_PORT = 50040
 
     # Critical Operation Settings
-    PREFLIGHT_MAX_RETRIES = 15       # Maximum number of retries for pre-flight checks
-    PRE_FLIGHT_TIMEOUT = 30          # Timeout for pre-flight checks in seconds
+    PREFLIGHT_MAX_RETRIES = 40       # Maximum number of retries for pre-flight checks
+    PRE_FLIGHT_TIMEOUT = 80          # Timeout for pre-flight checks in seconds
     LANDING_TIMEOUT = 10            # Timeout during landing phase in seconds
 
     # Trajectory and Landing Configuration
