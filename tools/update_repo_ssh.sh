@@ -230,7 +230,8 @@ check_and_repair_git_corruption() {
             if [ -n "$filtered_output_after" ]; then
                 log "Repository still reports issues after clearing stash. Attempting repair..."
                 $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
-                if git-repair >> "$LOG_FILE" 2>&1; then
+                # Hard coded 300s timeout for git repair
+                if timeout 300 git-repair >> "$LOG_FILE" 2>&1; then
                     log "Git repair completed successfully."
                 else
                     log_error_and_exit "Git repair failed. Manual intervention required."
