@@ -9,8 +9,8 @@
 #
 # Additional features:
 #  - If repository integrity errors (other than benign dangling objects)
-#    are detected (e.g. in the stash reflog), the script automatically
-#    clears the stash and, if needed, runs git-repair.
+#    are detected (e.g. corrupt objects causing fetch failures), the script
+#    automatically attempts repair.
 #  - All actions and outputs are logged to /tmp/update_repo.log.
 #  - LED indicators (via led_indicator.py) are used to display status:
 #       Blue: Git sync in progress.
@@ -22,7 +22,7 @@
 #                          [--repo-url <url>] [--repo-dir <dir>]
 #
 # Author: Alireza Ghaderi
-# Date: 2025-03-02 (Revised: 2025-03-13)
+# Date: 2025-03-02 (Revised: 2025-03-13 and updated 2025-03-13 for auto-repair on fetch failure)
 #
 
 set -euo pipefail
@@ -75,7 +75,7 @@ retry() {
             log "Command failed with exit code $exit_code (attempt $count/$retries). Retrying in $delay seconds..."
             sleep "$delay"
         else
-            log "Command failed after $count attempts. Exiting."
+            log "Command failed after $count attempts."
             return $exit_code
         fi
     done
@@ -203,53 +203,27 @@ cleanup_lock_file() {
 }
 
 # -------------------------------------------------
-# Check and Repair Git Repository Integrity (Ignoring dangling commits)
+# Check and Repair Git Repository Integrity (Ignoring benign dangling commits)
 # -------------------------------------------------
 check_and_repair_git_corruption() {
     log "Checking repository integrity..."
-    # Capture fsck output
     fsck_output=$(git fsck --full 2>&1)
-    # Filter out benign "dangling commit" messages
     filtered_output=$(echo "$fsck_output" | grep -v "dangling commit")
     
     if [ -n "$filtered_output" ]; then
         log "Integrity check reported issues:"
         echo "$filtered_output" | tee -a "$LOG_FILE"
-        # If errors are related to stash reflog, clear stash
         if echo "$filtered_output" | grep -q "refs/stash"; then
             log "Stash reflog errors detected. Clearing stash..."
             git stash clear || log "Warning: Failed to clear stash."
-            # Remove the stash reflog file if it exists
             if [ -f ".git/logs/refs/stash" ]; then
                 rm -f ".git/logs/refs/stash"
                 log "Removed corrupted stash reflog."
             fi
-            # Re-run fsck after stash clear
-            fsck_output_after=$(git fsck --full 2>&1)
-            filtered_output_after=$(echo "$fsck_output_after" | grep -v "dangling commit")
-            if [ -n "$filtered_output_after" ]; then
-                log "Repository still reports issues after clearing stash. Attempting repair..."
-                $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
-                # Hard coded 300s timeout for git repair
-                if timeout 300 git-repair >> "$LOG_FILE" 2>&1; then
-                    log "Git repair completed successfully."
-                else
-                    log_error_and_exit "Git repair failed. Manual intervention required."
-                fi
-                if [ -f ".git/gc.log" ]; then
-                    rm -f ".git/gc.log"
-                    log "Removed .git/gc.log after repair."
-                fi
-                log "Repository repair complete. Rebooting system..."
-                sudo reboot || log_error_and_exit "Reboot command failed."
-                exit 0
-            else
-                log "Repository issues resolved by clearing stash."
-            fi
         else
             log "Unexpected integrity issues detected. Attempting repair..."
             $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
-            if git-repair >> "$LOG_FILE" 2>&1; then
+            if timeout 300 git-repair >> "$LOG_FILE" 2>&1; then
                 log "Git repair completed successfully."
             else
                 log_error_and_exit "Git repair failed. Manual intervention required."
@@ -270,7 +244,6 @@ check_and_repair_git_corruption() {
 # -------------------------------------------------
 # Main Script Execution
 # -------------------------------------------------
-# Set LED to blue indicating Git sync is starting
 $LED_CMD --color blue || log "Warning: Unable to set LED to blue."
 
 log "==========================================="
@@ -280,17 +253,14 @@ log "Repo URL: $REPO_URL"
 log "Repo Dir: $REPO_DIR"
 log "==========================================="
 
-# Ensure REPO_DIR exists
 if [ ! -d "$REPO_DIR" ]; then
     log_error_and_exit "Repository directory does not exist: $REPO_DIR"
 fi
 
 cd "$REPO_DIR" || log_error_and_exit "Failed to cd into $REPO_DIR"
 
-# Clean up any existing Git lock files
 cleanup_lock_file
 
-# Determine if SSH or HTTPS is viable
 if [[ "$REPO_URL" == git@* ]]; then
     if git ls-remote "$REPO_URL" -q >/dev/null 2>&1; then
         log "Using SSH for Git operations."
@@ -312,7 +282,6 @@ else
     log_error_and_exit "Invalid REPO_URL: $REPO_URL"
 fi
 
-# Update remote origin if necessary
 current_remote_url=$(git remote get-url origin)
 if [ "$current_remote_url" != "$GIT_URL" ]; then
     log "Setting remote URL to $GIT_URL"
@@ -321,7 +290,6 @@ else
     log "Remote URL is already set to $GIT_URL"
 fi
 
-# Stash any local changes to avoid conflicts
 if git status --porcelain | grep -q .; then
     log "Stashing local changes..."
     git stash --include-untracked || log_error_and_exit "Failed to stash changes."
@@ -329,24 +297,20 @@ else
     log "No local changes to stash."
 fi
 
-# Check network connectivity
 check_network_connectivity
 
-# Fetch all branches with retries
 log "Fetching latest commits from origin..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
-    log_error_and_exit "Failed to fetch from $GIT_URL."
+    log "Fetch failed. Repository may be corrupt. Attempting to repair..."
+    check_and_repair_git_corruption
+    log "Retrying fetch after repair..."
+    if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
+        log_error_and_exit "Failed to fetch from $GIT_URL after repair."
+    fi
 fi
 
-# -------------------------------------------------
-# Check for Repository Corruption and Auto-Repair if Needed
-# -------------------------------------------------
-check_and_repair_git_corruption
-
-# Re-check lock file after fetch/repair step
 cleanup_lock_file
 
-# Switch to the desired branch if not already on it
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
     log "Switching from $CURRENT_BRANCH to $BRANCH_NAME..."
@@ -354,24 +318,17 @@ if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
     log "Switched to branch $BRANCH_NAME"
 fi
 
-# Reset local branch to match origin
 log "Resetting $BRANCH_NAME to origin/$BRANCH_NAME..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git reset --hard "origin/$BRANCH_NAME"; then
     log_error_and_exit "Failed git reset --hard on branch $BRANCH_NAME."
 fi
 
-# Pull latest changes
 log "Pulling latest updates on $BRANCH_NAME..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git pull; then
     log_error_and_exit "Failed git pull on branch $BRANCH_NAME."
 fi
 
-# Final cleanup
 cleanup_lock_file
 
 log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME."
-
-# Optionally, set LED to indicate success (blue); coordinator may update later if desired.
-# $LED_CMD --color blue || log "Warning: Unable to update LED after Git sync."
-
 exit 0
