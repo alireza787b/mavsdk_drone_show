@@ -517,11 +517,11 @@ setup_python_venv() {
         sudo apt-get install -y python3-pip
     fi
 
-    # # Check if git-repair is installed
-    # if ! dpkg -s git-repair &> /dev/null; then
-    #     echo "git-repair not installed. Installing it..."
-    #     sudo apt-get update
-    #     sudo apt-get install -y git-repair
+    # Check if git-repair is installed
+    if ! dpkg -s git-repair &> /dev/null; then
+        echo "git-repair not installed. Installing it..."
+        sudo apt-get update
+        sudo apt-get install -y git-repair
 
     # Move to repository directory (already cloned by setup_git)
     cd "$REPO_DIR"

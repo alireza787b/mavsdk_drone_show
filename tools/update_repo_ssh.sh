@@ -9,7 +9,7 @@
 #
 # LED indicators (via led_indicator.py) are used for visual status:
 #   - Blue: Git sync in progress.
-#   - Yellow: Git sync failed after retries.
+#   - Yellow: Git repair in progress due to repository corruption.
 #
 # Usage:
 #   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real] [--repo-url <url>] [--repo-dir <dir>]
@@ -46,7 +46,7 @@ log() {
 
 log_error_and_exit() {
     log "ERROR: $1"
-    # Set LED to yellow to indicate failure
+    # Set LED to red to indicate failure
     $LED_CMD --color red || true
     exit 1
 }
@@ -195,12 +195,32 @@ cleanup_lock_file() {
 }
 
 # -------------------------------------------------
-# Check Git Repository Integrity
+# Check and Repair Git Repository Integrity
 # -------------------------------------------------
-check_git_repository_integrity() {
+check_and_repair_git_corruption() {
     log "Checking repository integrity..."
-    if ! git fsck --full; then
-        log_error_and_exit "Git repository integrity check failed. Corruption detected."
+    # Run git fsck; if it returns non-zero, corruption is detected.
+    if ! git fsck --full >/dev/null 2>&1; then
+        log "Git repository corruption detected."
+        # Set LED to yellow to indicate repair in progress
+        $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
+        log "Attempting to repair repository with git-repair..."
+        if git-repair; then
+            log "Git repair completed successfully."
+        else
+            log_error_and_exit "Git repair failed. Manual intervention required."
+        fi
+        # Remove the garbage collection log if it exists
+        if [ -f ".git/gc.log" ]; then
+            rm -f ".git/gc.log"
+            log "Removed .git/gc.log after repair."
+        fi
+        log "Repository repair complete. Rebooting system..."
+        # Reboot the system to ensure a clean state
+        sudo reboot || log_error_and_exit "Reboot command failed."
+        exit 0
+    else
+        log "No corruption detected in repository."
     fi
 }
 
@@ -275,10 +295,12 @@ if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
     log_error_and_exit "Failed to fetch from $GIT_URL."
 fi
 
-# Check repository integrity
-#check_git_repository_integrity
+# -------------------------------------------------
+# Check for Repository Corruption and Auto-Repair if Needed
+# -------------------------------------------------
+check_and_repair_git_corruption
 
-# Re-check lock file
+# Re-check lock file after fetch and repair step
 cleanup_lock_file
 
 # Switch to the desired branch if not already on it
