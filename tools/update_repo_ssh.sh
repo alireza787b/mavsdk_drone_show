@@ -200,7 +200,7 @@ cleanup_lock_file() {
 check_and_repair_git_corruption() {
     log "Checking repository integrity..."
     # Run git fsck; if it returns non-zero, corruption is detected.
-    if ! git fsck --full >/dev/null 2>&1; then
+    if ! git fsck >/dev/null 2>&1; then
         log "Git repository corruption detected."
         # Set LED to yellow to indicate repair in progress
         $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
