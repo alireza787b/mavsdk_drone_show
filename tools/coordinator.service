@@ -2,7 +2,7 @@
 Description=Drone Swarm System Coordinator
 # Ensure network is online and that Git sync (our MDS update) has completed before starting
 After=network-online.target git_sync_mds.service
-# Requires=git_sync_mds.service
+Requires=git_sync_mds.service
 Wants=network-online.target
 
 [Service]
