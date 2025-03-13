@@ -517,6 +517,12 @@ setup_python_venv() {
         sudo apt-get install -y python3-pip
     fi
 
+    # # Check if git-repair is installed
+    # if ! dpkg -s git-repair &> /dev/null; then
+    #     echo "git-repair not installed. Installing it..."
+    #     sudo apt-get update
+    #     sudo apt-get install -y git-repair
+
     # Move to repository directory (already cloned by setup_git)
     cd "$REPO_DIR"
 
@@ -535,9 +541,11 @@ setup_python_venv() {
     echo "Upgrading pip and installing required packages..."
     pip install --upgrade pip
 
+    #temporary disable hash check so if restore from backup wont fail...
+
     if [[ -f "requirements.txt" ]]; then
         echo "Installing from requirements.txt..."
-        pip install -r requirements.txt
+        pip install --no-deps -r requirements.txt
     else
         echo "requirements.txt not found. Skipping pip install from file."
     fi

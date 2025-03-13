@@ -186,6 +186,9 @@ else
   log "Directory ${SRC_DIR} is not a git repository. Skipping git operations."
 fi
 
+source venv/bin/activate
+pip install --do-deps -r requirements.txt
+
 # 5) Optionally reboot the system.
 if [ "$DO_REBOOT" = true ]; then
   log "Rebooting system as per configuration..."
