@@ -1,21 +1,29 @@
 #!/bin/bash
 #
-# update_repo_ssh.sh - Git Sync for MDS Repository
+# update_repo_ssh.sh - Git Sync for MDS Repository (Automated Repair Version)
 #
 # This script ensures that the drone's software repository (MDS) is
 # up-to-date before operations start. It checks network connectivity,
 # cleans up any stale Git locks, stashes local changes, and performs
-# a Git fetch, reset, and pull on the desired branch.
+# a Git fetch, integrity check, branch reset, and pull.
 #
-# LED indicators (via led_indicator.py) are used for visual status:
-#   - Blue: Git sync in progress.
-#   - Yellow: Git repair in progress due to repository corruption.
+# Additional features:
+#  - If repository integrity errors (other than benign dangling objects)
+#    are detected (e.g. in the stash reflog), the script automatically
+#    clears the stash and, if needed, runs git-repair.
+#  - All actions and outputs are logged to /tmp/update_repo.log.
+#  - LED indicators (via led_indicator.py) are used to display status:
+#       Blue: Git sync in progress.
+#       Yellow: Git repair in progress.
+#       Red: Failure.
 #
 # Usage:
-#   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real] [--repo-url <url>] [--repo-dir <dir>]
+#   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real]
+#                          [--repo-url <url>] [--repo-dir <dir>]
 #
 # Author: Alireza Ghaderi
-# Date: 2025-03-02
+# Date: 2025-03-02 (Revised: 2025-03-13)
+#
 
 set -euo pipefail
 
@@ -23,7 +31,7 @@ set -euo pipefail
 # Configuration and Default Settings
 # ----------------------------------
 MAX_RETRIES=10
-INITIAL_DELAY=1  # Fixed delay (in seconds) between retries
+INITIAL_DELAY=1  # Delay (in seconds) between retries
 SITL_BRANCH="docker-sitl-2"
 REAL_BRANCH="main-candidate"
 
@@ -195,30 +203,64 @@ cleanup_lock_file() {
 }
 
 # -------------------------------------------------
-# Check and Repair Git Repository Integrity
+# Check and Repair Git Repository Integrity (Ignoring dangling commits)
 # -------------------------------------------------
 check_and_repair_git_corruption() {
     log "Checking repository integrity..."
-    # Run git fsck; if it returns non-zero, corruption is detected.
-    if ! git fsck >/dev/null 2>&1; then
-        log "Git repository corruption detected."
-        # Set LED to yellow to indicate repair in progress
-        $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
-        log "Attempting to repair repository with git-repair..."
-        if git-repair; then
-            log "Git repair completed successfully."
+    # Capture fsck output
+    fsck_output=$(git fsck --full 2>&1)
+    # Filter out benign "dangling commit" messages
+    filtered_output=$(echo "$fsck_output" | grep -v "dangling commit")
+    
+    if [ -n "$filtered_output" ]; then
+        log "Integrity check reported issues:"
+        echo "$filtered_output" | tee -a "$LOG_FILE"
+        # If errors are related to stash reflog, clear stash
+        if echo "$filtered_output" | grep -q "refs/stash"; then
+            log "Stash reflog errors detected. Clearing stash..."
+            git stash clear || log "Warning: Failed to clear stash."
+            # Remove the stash reflog file if it exists
+            if [ -f ".git/logs/refs/stash" ]; then
+                rm -f ".git/logs/refs/stash"
+                log "Removed corrupted stash reflog."
+            fi
+            # Re-run fsck after stash clear
+            fsck_output_after=$(git fsck --full 2>&1)
+            filtered_output_after=$(echo "$fsck_output_after" | grep -v "dangling commit")
+            if [ -n "$filtered_output_after" ]; then
+                log "Repository still reports issues after clearing stash. Attempting repair..."
+                $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
+                if git-repair >> "$LOG_FILE" 2>&1; then
+                    log "Git repair completed successfully."
+                else
+                    log_error_and_exit "Git repair failed. Manual intervention required."
+                fi
+                if [ -f ".git/gc.log" ]; then
+                    rm -f ".git/gc.log"
+                    log "Removed .git/gc.log after repair."
+                fi
+                log "Repository repair complete. Rebooting system..."
+                sudo reboot || log_error_and_exit "Reboot command failed."
+                exit 0
+            else
+                log "Repository issues resolved by clearing stash."
+            fi
         else
-            log_error_and_exit "Git repair failed. Manual intervention required."
+            log "Unexpected integrity issues detected. Attempting repair..."
+            $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
+            if git-repair >> "$LOG_FILE" 2>&1; then
+                log "Git repair completed successfully."
+            else
+                log_error_and_exit "Git repair failed. Manual intervention required."
+            fi
+            if [ -f ".git/gc.log" ]; then
+                rm -f ".git/gc.log"
+                log "Removed .git/gc.log after repair."
+            fi
+            log "Repository repair complete. Rebooting system..."
+            sudo reboot || log_error_and_exit "Reboot command failed."
+            exit 0
         fi
-        # Remove the garbage collection log if it exists
-        if [ -f ".git/gc.log" ]; then
-            rm -f ".git/gc.log"
-            log "Removed .git/gc.log after repair."
-        fi
-        log "Repository repair complete. Rebooting system..."
-        # Reboot the system to ensure a clean state
-        sudo reboot || log_error_and_exit "Reboot command failed."
-        exit 0
     else
         log "No corruption detected in repository."
     fi
@@ -300,7 +342,7 @@ fi
 # -------------------------------------------------
 check_and_repair_git_corruption
 
-# Re-check lock file after fetch and repair step
+# Re-check lock file after fetch/repair step
 cleanup_lock_file
 
 # Switch to the desired branch if not already on it
@@ -328,7 +370,7 @@ cleanup_lock_file
 
 log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME."
 
-# Optionally, set LED to indicate success; leave it to coordinator to update later if desired.
-# $LED_CMD --color blue || log "Warning: Unable to update LED after Git sync." 
+# Optionally, set LED to indicate success (blue); coordinator may update later if desired.
+# $LED_CMD --color blue || log "Warning: Unable to update LED after Git sync."
 
 exit 0
