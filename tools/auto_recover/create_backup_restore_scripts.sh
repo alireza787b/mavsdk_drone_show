@@ -187,7 +187,7 @@ else
 fi
 
 source venv/bin/activate
-pip install --do-deps -r requirements.txt
+pip install --no-deps -r requirements.txt
 
 # 5) Optionally reboot the system.
 if [ "$DO_REBOOT" = true ]; then
