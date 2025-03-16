@@ -554,7 +554,6 @@ setup_python_venv() {
     deactivate
 
     echo "Python virtual environment setup is complete."
-    echo
 }
 
 # =============================================================================
