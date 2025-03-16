@@ -522,6 +522,7 @@ setup_python_venv() {
         echo "git-repair not installed. Installing it..."
         sudo apt-get update
         sudo apt-get install -y git-repair
+    fi
 
     # Move to repository directory (already cloned by setup_git)
     cd "$REPO_DIR"
