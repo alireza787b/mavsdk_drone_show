@@ -64,6 +64,9 @@ class Params:
     offline_swarm = True              # Use offline swarm (not used!)
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
+    
+    
+    csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)
 
 
 

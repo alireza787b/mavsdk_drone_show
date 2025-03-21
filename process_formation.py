@@ -64,7 +64,7 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         logging.debug(f"Config:    {config_file}")
 
         # 1) Process new CSV
-        process_drone_files(skybrush_dir, processed_dir, method='cubic', dt=0.05)
+        process_drone_files(skybrush_dir, processed_dir, method='cubic', dt=Params.csv_dt)
 
         # 2) Update config
         update_config_file(skybrush_dir, config_file)
