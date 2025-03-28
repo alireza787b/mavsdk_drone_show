@@ -695,32 +695,36 @@ async def run_smart_swarm():
     global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
     global LEADER_HOME_POS, OWN_HOME_POS, REFERENCE_POS
 
-    # Read HW_ID
+    # --------------------------- #
+    #      Initialization         #
+    # --------------------------- #
+
+    # Read hardware ID from .hwID file
     HW_ID = read_hw_id()
     if HW_ID is None:
         logger.error("Hardware ID not found.")
         sys.exit(1)
 
-    # Read configurations
+    # Read configuration CSV files (using different files for simulation vs. real mode)
     config_filename = os.path.join('config_sitl.csv' if Params.sim_mode else 'config.csv')
     swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
     read_config_csv(config_filename)
     read_swarm_csv(swarm_filename)
 
-    # Get own configuration
+    # Get own drone configuration
     hw_id_str = str(HW_ID)
     drone_config = DRONE_CONFIG.get(hw_id_str)
     if drone_config is None:
         logger.error(f"Configuration for HW_ID {HW_ID} not found.")
         sys.exit(1)
 
-    # Get swarm configuration
+    # Get swarm configuration for own drone
     swarm_config = SWARM_CONFIG.get(hw_id_str)
     if swarm_config is None:
         logger.error(f"Swarm configuration for HW_ID {HW_ID} not found.")
         sys.exit(1)
 
-    # Determine role
+    # Determine drone role and set formation parameters
     IS_LEADER = swarm_config['follow'] == '0'
     OFFSETS['n'] = swarm_config['offset_n']
     OFFSETS['e'] = swarm_config['offset_e']
@@ -728,7 +732,7 @@ async def run_smart_swarm():
     BODY_COORD = swarm_config['body_coord']
     logger.info(f"Drone HW_ID {HW_ID} - Leader: {IS_LEADER}, Offsets: {OFFSETS}, Body Coord: {BODY_COORD}")
 
-    # If follower, get leader info
+    # If follower, retrieve leader's configuration and initialize Kalman filter
     if not IS_LEADER:
         LEADER_HW_ID = swarm_config['follow']
         leader_config = DRONE_CONFIG.get(LEADER_HW_ID)
@@ -736,48 +740,86 @@ async def run_smart_swarm():
             logger.error(f"Leader configuration for HW_ID {LEADER_HW_ID} not found.")
             sys.exit(1)
         LEADER_IP = leader_config['ip']
-        # Initialize Kalman filter
         LEADER_KALMAN_FILTER = LeaderKalmanFilter()
-        
     else:
-        logger.info("It is a leader drone so no need to command. exiting...")
+        logger.info("This is a leader drone so no command loop is needed. Exiting...")
         sys.exit(1)
 
-    # Start MAVSDK server
+    # --------------------------- #
+    #     Start MAVSDK Server     #
+    # --------------------------- #
+
     mavsdk_server = start_mavsdk_server(Params.mavsdk_port)
     if mavsdk_server is None:
         logger.error("Failed to start MAVSDK server.")
         sys.exit(1)
 
-    # Wait briefly for the MAVSDK server to initialize
+    # Allow MAVSDK server time to initialize
     await asyncio.sleep(2)
 
-    # Initialize drone
+    # --------------------------- #
+    #      Drone Initialization   #
+    # --------------------------- #
+
     try:
         drone = await initialize_drone()
     except Exception:
         logger.error("Failed to initialize drone.")
         sys.exit(1)
 
-    # Fetch own home position
-    own_ip = '127.0.0.1'
-    own_home_pos = fetch_home_position(
-        own_ip, Params.drones_flask_port, Params.get_drone_gps_origin_URI
-    )
-    if own_home_pos is None:
-        logger.error("Failed to fetch own home position.")
-        sys.exit(1)
-    OWN_HOME_POS = own_home_pos
-    logger.info(f"Own home position: {OWN_HOME_POS}")
+    # --------------------------- #
+    #  Fetch Own Home Position    #
+    # --------------------------- #
+    #
+    # Primary source: Telemetry API
+    # Fallback source: HTTP API (fetch_home_position)
+    #
+    telemetry_origin = None
+    fallback_origin = None
 
-    # For reference position, we can use own home position
+    # Attempt to retrieve GPS origin from telemetry (primary source)
+    try:
+        origin = await drone.telemetry.get_gps_global_origin()
+        telemetry_origin = {
+            'latitude': origin.latitude_deg,
+            'longitude': origin.longitude_deg,
+            'altitude': origin.altitude_m
+        }
+        logger.info(f"Retrieved GPS global origin from telemetry: {telemetry_origin}")
+    except Exception as e:
+        logger.warning(f"Telemetry GPS origin request failed: {e}")
+
+    # Retrieve GPS origin from fallback HTTP API (secondary source)
+    own_ip = '127.0.0.1'
+    fallback_origin = fetch_home_position(own_ip, Params.drones_flask_port, Params.get_drone_gps_origin_URI)
+    if fallback_origin is not None:
+        logger.info(f"Retrieved GPS global origin from fallback API: {fallback_origin}")
+    else:
+        logger.warning("Fallback API did not return a valid GPS global origin.")
+
+    # Decide which GPS origin to use as the own home position
+    if telemetry_origin is not None:
+        OWN_HOME_POS = telemetry_origin
+        logger.info(f"Using telemetry GPS origin as primary: {OWN_HOME_POS}")
+    elif fallback_origin is not None:
+        OWN_HOME_POS = fallback_origin
+        logger.info(f"Using fallback API GPS origin: {OWN_HOME_POS}")
+    else:
+        logger.error("Both telemetry and fallback API failed to provide a valid GPS origin. Exiting.")
+        sys.exit(1)
+
+    # Set the reference position for NED conversion using the chosen own home position
     REFERENCE_POS = {
         'latitude': OWN_HOME_POS['latitude'],
         'longitude': OWN_HOME_POS['longitude'],
         'altitude': OWN_HOME_POS['altitude'],
     }
+    logger.info(f"Reference position set to: {REFERENCE_POS}")
 
-    # If follower, fetch leader's home position
+    # --------------------------- #
+    #   Fetch Leader Home Position (for followers)  #
+    # --------------------------- #
+
     if not IS_LEADER:
         leader_home_pos = fetch_home_position(
             LEADER_IP, Params.drones_flask_port, Params.get_drone_home_URI
@@ -788,25 +830,29 @@ async def run_smart_swarm():
         LEADER_HOME_POS = leader_home_pos
         logger.info(f"Leader's home position: {LEADER_HOME_POS}")
 
-    # Start leader state update task
+    # --------------------------- #
+    #      Start Async Tasks      #
+    # --------------------------- #
+
     if not IS_LEADER:
         leader_update_task = asyncio.create_task(update_leader_state())
-        # Start own state update task
         own_state_task = asyncio.create_task(update_own_state(drone))
-        # Start control loop
         control_task = asyncio.create_task(control_loop(drone))
     else:
         logger.info("This drone is a leader. Waiting for termination.")
         await asyncio.Event().wait()  # Keep the leader running indefinitely
 
+    # --------------------------- #
+    #         Main Loop         #
+    # --------------------------- #
+
     try:
-        # Keep the script running
         while True:
             await asyncio.sleep(1)
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received. Shutting down.")
     finally:
-        # Clean up tasks
+        # Clean up tasks for followers
         if not IS_LEADER:
             leader_update_task.cancel()
             try:
@@ -824,7 +870,7 @@ async def run_smart_swarm():
             except asyncio.CancelledError:
                 pass
 
-        # Disarm drone and stop offboard mode
+        # Attempt safe shutdown (disarming and stopping offboard mode)
         try:
             # await drone.offboard.stop()
             # await drone.action.disarm()
@@ -832,7 +878,7 @@ async def run_smart_swarm():
         except Exception:
             logger.exception("Error during drone shutdown.")
 
-        # Stop MAVSDK server
+        # Stop the MAVSDK server
         if mavsdk_server:
             stop_mavsdk_server(mavsdk_server)
 
