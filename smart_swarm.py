@@ -1,5 +1,79 @@
 # smart_swarm/smart_swarm.py
 
+"""
+===========================================================================
+ Project: MavSDK Drone Show (smart_swarm)
+ Repository: https://github.com/alireza787b/mavsdk_drone_show
+ 
+ Description:
+   This project implements a smart swarm control system using MAVSDK, designed
+   to operate drones in a coordinated formation. The system distinguishes
+   between leader and follower drones based on configuration CSV files. Followers
+   receive state updates from the leader, process these with a Kalman filter, and
+   compute velocity commands using a PD controller (with low-pass filtering).
+   The code is built using Python's asyncio framework for concurrent tasks such as
+   state updates, control loops, and dynamic configuration updates.
+
+ Features:
+   - Reads drone and swarm configuration from CSV files.
+   - Dynamically updates swarm configuration (role, formation offsets, etc.) during flight.
+   - Integrates a primary (telemetry API) and a fallback (HTTP API) source for fetching
+     the drone's GPS global origin.
+   - Manages MAVSDK server startup and logs its output asynchronously.
+   - Implements a robust offboard control loop with failsafe mechanisms.
+   - Uses detailed logging for all operations, including error handling and dynamic
+     configuration changes.
+   - Modular design: Separate functions for initialization, state updates, control loop,
+     failsafe procedures, and periodic configuration re-reads.
+
+ Workflow:
+   1. Initialization:
+      - Read the hardware ID from a .hwID file.
+      - Load drone configuration from config.csv and swarm configuration from swarm.csv.
+      - Determine if the drone is operating as a Leader or Follower.
+      - Set formation offsets and body coordinate mode based on the swarm configuration.
+      - For followers, extract leader information and initialize a Kalman filter.
+   
+   2. MAVSDK Server & Drone Connection:
+      - Start the MAVSDK server and ensure it is running.
+      - Initialize the drone and perform pre-flight checks (global position and home position).
+      - Fetch the drone's home position using a primary (telemetry) and a fallback (HTTP) API.
+      - Set the reference position for NED coordinate conversion.
+   
+   3. Dynamic Configuration Update:
+      - A periodic task (update_swarm_config_periodically) re-reads the swarm CSV at a defined
+        interval to detect any configuration changes (role, offsets, etc.).
+      - On detecting changes:
+          * If switching from follower to leader, the follower tasks are cancelled.
+          * If switching from leader to follower, the appropriate follower tasks are started.
+          * Formation offsets and coordinate flags are updated accordingly.
+   
+   4. Control Loop & Failsafe:
+      - For followers, a control loop computes desired velocities based on the predicted leader state
+        and sends commands via offboard control.
+      - If leader data becomes stale or an error occurs, a failsafe procedure is activated.
+   
+   5. Shutdown:
+      - On termination, all periodic tasks and follower tasks are cleanly cancelled.
+      - The MAVSDK server is properly shutdown.
+
+ Developer & Contact Information:
+   - Author: Alireza Ghaderi
+   - GitHub: https://github.com/alireza787b
+   - LinkedIn: https://www.linkedin.com/in/alireza787b
+   - Email: p30planets@gmail.com
+
+ Notes:
+   - The project is part of the "mavsdk_drone_show" repository.
+   - Future improvements may include replacing the CSV-based configuration update with a
+     direct query to a Ground Control Station (GCS) endpoint.
+   - This file serves as the central orchestrator for the swarm behavior and leverages
+     several modules (e.g., Kalman filter, PD controller, LED controller) for a modular
+     and maintainable code base.
+===========================================================================
+"""
+
+
 import os
 import sys
 import time
@@ -65,6 +139,9 @@ LEADER_KALMAN_FILTER = None  # Kalman filter instance for leader state estimatio
 LEADER_HOME_POS = None  # Home position of the leader drone
 OWN_HOME_POS = None  # Home position of own drone
 REFERENCE_POS = None  # Reference position (latitude, longitude, altitude)
+
+FOLLOWER_TASKS = {}  # Dictionary to hold tasks for follower mode (leader update, state update, control loop)
+
 
 # ----------------------------- #
 #         Helper Functions      #
@@ -379,6 +456,82 @@ def stop_mavsdk_server(mavsdk_server):
     except Exception:
         logger.exception("Error stopping MAVSDK server")
 
+
+async def update_swarm_config_periodically(drone):
+    """
+    Periodically re-reads the swarm configuration CSV and updates global parameters
+    such as role, formation offsets, and leader information.
+    
+    If a role change is detected (e.g., switching from follower to leader or vice versa),
+    it starts or cancels follower-specific tasks accordingly.
+    
+    TODO: In the future, consider replacing CSV reads with fetching the latest configuration
+          from a GCS endpoint.
+    """
+    global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
+    logger = logging.getLogger(__name__)
+    # Determine the filename based on simulation mode
+    swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
+    
+    while True:
+        try:
+            # Re-read the swarm configuration
+            read_swarm_csv(swarm_filename)
+            new_swarm_config = SWARM_CONFIG.get(str(HW_ID))
+            if new_swarm_config is None:
+                logger.error(f"[Periodic Update] Swarm configuration for HW_ID {HW_ID} not found.")
+            else:
+                # Determine new role and formation parameters
+                new_is_leader = new_swarm_config['follow'] == '0'
+                new_offsets = {'n': new_swarm_config['offset_n'], 
+                               'e': new_swarm_config['offset_e'], 
+                               'alt': new_swarm_config['offset_alt']}
+                new_body_coord = new_swarm_config['body_coord']
+                
+                # Check for role change
+                if new_is_leader != IS_LEADER:
+                    logger.info(f"[Periodic Update] Role change detected. "
+                                f"Old role: {'Leader' if IS_LEADER else 'Follower'}, "
+                                f"New role: {'Leader' if new_is_leader else 'Follower'}.")
+                    IS_LEADER = new_is_leader
+                    if IS_LEADER:
+                        # Switching to leader: cancel follower tasks if running
+                        if FOLLOWER_TASKS:
+                            logger.info("[Periodic Update] Cancelling follower tasks as role changed to Leader.")
+                            for task in FOLLOWER_TASKS.values():
+                                if task:
+                                    task.cancel()
+                            FOLLOWER_TASKS.clear()
+                    else:
+                        # Switching to follower: update leader info and start follower tasks if not already running
+                        if not FOLLOWER_TASKS:
+                            LEADER_HW_ID = new_swarm_config['follow']
+                            leader_config = DRONE_CONFIG.get(LEADER_HW_ID)
+                            if leader_config is None:
+                                logger.error(f"[Periodic Update] Leader configuration for HW_ID {LEADER_HW_ID} not found.")
+                            else:
+                                LEADER_IP = leader_config['ip']
+                                LEADER_KALMAN_FILTER = LeaderKalmanFilter()
+                                logger.info("[Periodic Update] Starting follower tasks as role changed to Follower.")
+                                FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
+                                FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
+                                FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
+                
+                # Check and update offsets if changed
+                if new_offsets != OFFSETS:
+                    logger.info(f"[Periodic Update] Offset change detected. Old offsets: {OFFSETS}, New offsets: {new_offsets}.")
+                    OFFSETS.update(new_offsets)
+                
+                # Check and update the body coordinate flag if changed
+                if new_body_coord != BODY_COORD:
+                    logger.info(f"[Periodic Update] Body coordinate flag change detected. Old: {BODY_COORD}, New: {new_body_coord}.")
+                    BODY_COORD = new_body_coord
+        except Exception as e:
+            logger.exception(f"[Periodic Update] Error updating swarm configuration: {e}")
+        
+        await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)  # Interval (e.g., 10 seconds) defined in Params
+
+
 # ----------------------------- #
 #    Leader State Update Task   #
 # ----------------------------- #
@@ -689,7 +842,7 @@ async def initialize_drone():
 
 async def run_smart_swarm():
     """
-    Main function to run the smart swarm mode.
+    Main function to run the smart swarm mode with dynamic configuration updates.
     """
     logger = logging.getLogger(__name__)
     global HW_ID, DRONE_CONFIG, SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER
@@ -705,7 +858,7 @@ async def run_smart_swarm():
         logger.error("Hardware ID not found.")
         sys.exit(1)
 
-    # Read configuration CSV files (using different files for simulation vs. real mode)
+    # Read configuration CSV files (choose simulation vs. real mode)
     config_filename = os.path.join('config_sitl.csv' if Params.sim_mode else 'config.csv')
     swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
     read_config_csv(config_filename)
@@ -730,9 +883,9 @@ async def run_smart_swarm():
     OFFSETS['e'] = swarm_config['offset_e']
     OFFSETS['alt'] = swarm_config['offset_alt']
     BODY_COORD = swarm_config['body_coord']
-    logger.info(f"Drone HW_ID {HW_ID} - Leader: {IS_LEADER}, Offsets: {OFFSETS}, Body Coord: {BODY_COORD}")
+    logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Body Coord: {BODY_COORD}")
 
-    # If follower, retrieve leader's configuration and initialize Kalman filter
+    # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
     if not IS_LEADER:
         LEADER_HW_ID = swarm_config['follow']
         leader_config = DRONE_CONFIG.get(LEADER_HW_ID)
@@ -742,8 +895,7 @@ async def run_smart_swarm():
         LEADER_IP = leader_config['ip']
         LEADER_KALMAN_FILTER = LeaderKalmanFilter()
     else:
-        logger.info("This is a leader drone so no command loop is needed. Exiting...")
-        sys.exit(1)
+        logger.info("Operating in Leader mode.")
 
     # --------------------------- #
     #     Start MAVSDK Server     #
@@ -754,8 +906,7 @@ async def run_smart_swarm():
         logger.error("Failed to start MAVSDK server.")
         sys.exit(1)
 
-    # Allow MAVSDK server time to initialize
-    await asyncio.sleep(2)
+    await asyncio.sleep(2)  # Allow server to initialize
 
     # --------------------------- #
     #      Drone Initialization   #
@@ -770,14 +921,10 @@ async def run_smart_swarm():
     # --------------------------- #
     #  Fetch Own Home Position    #
     # --------------------------- #
-    #
-    # Primary source: Telemetry API
-    # Fallback source: HTTP API (fetch_home_position)
-    #
+    # (Existing logic remains unchanged)
     telemetry_origin = None
     fallback_origin = None
 
-    # Attempt to retrieve GPS origin from telemetry (primary source)
     try:
         origin = await drone.telemetry.get_gps_global_origin()
         telemetry_origin = {
@@ -789,7 +936,6 @@ async def run_smart_swarm():
     except Exception as e:
         logger.warning(f"Telemetry GPS origin request failed: {e}")
 
-    # Retrieve GPS origin from fallback HTTP API (secondary source)
     own_ip = '127.0.0.1'
     fallback_origin = fetch_home_position(own_ip, Params.drones_flask_port, Params.get_drone_gps_origin_URI)
     if fallback_origin is not None:
@@ -797,7 +943,6 @@ async def run_smart_swarm():
     else:
         logger.warning("Fallback API did not return a valid GPS global origin.")
 
-    # Decide which GPS origin to use as the own home position
     if telemetry_origin is not None:
         OWN_HOME_POS = telemetry_origin
         logger.info(f"Using telemetry GPS origin as primary: {OWN_HOME_POS}")
@@ -808,7 +953,6 @@ async def run_smart_swarm():
         logger.error("Both telemetry and fallback API failed to provide a valid GPS origin. Exiting.")
         sys.exit(1)
 
-    # Set the reference position for NED conversion using the chosen own home position
     REFERENCE_POS = {
         'latitude': OWN_HOME_POS['latitude'],
         'longitude': OWN_HOME_POS['longitude'],
@@ -816,14 +960,8 @@ async def run_smart_swarm():
     }
     logger.info(f"Reference position set to: {REFERENCE_POS}")
 
-    # --------------------------- #
-    #   Fetch Leader Home Position (for followers)  #
-    # --------------------------- #
-
     if not IS_LEADER:
-        leader_home_pos = fetch_home_position(
-            LEADER_IP, Params.drones_flask_port, Params.get_drone_home_URI
-        )
+        leader_home_pos = fetch_home_position(LEADER_IP, Params.drones_flask_port, Params.get_drone_home_URI)
         if leader_home_pos is None:
             logger.error("Failed to fetch leader's home position.")
             sys.exit(1)
@@ -834,13 +972,16 @@ async def run_smart_swarm():
     #      Start Async Tasks      #
     # --------------------------- #
 
+    # For followers, start the corresponding tasks and store them in FOLLOWER_TASKS
     if not IS_LEADER:
-        leader_update_task = asyncio.create_task(update_leader_state())
-        own_state_task = asyncio.create_task(update_own_state(drone))
-        control_task = asyncio.create_task(control_loop(drone))
+        FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
+        FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
+        FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
     else:
-        logger.info("This drone is a leader. Waiting for termination.")
-        await asyncio.Event().wait()  # Keep the leader running indefinitely
+        logger.info("No follower tasks started as drone is in Leader mode.")
+
+    # Launch the periodic swarm configuration update task (applies to both roles)
+    swarm_update_task = asyncio.create_task(update_swarm_config_periodically(drone))
 
     # --------------------------- #
     #         Main Loop         #
@@ -852,25 +993,22 @@ async def run_smart_swarm():
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received. Shutting down.")
     finally:
-        # Clean up tasks for followers
-        if not IS_LEADER:
-            leader_update_task.cancel()
+        # Cancel periodic update task
+        swarm_update_task.cancel()
+        try:
+            await swarm_update_task
+        except asyncio.CancelledError:
+            pass
+
+        # Cancel follower tasks if any exist
+        for task in FOLLOWER_TASKS.values():
+            task.cancel()
             try:
-                await leader_update_task
-            except asyncio.CancelledError:
-                pass
-            own_state_task.cancel()
-            try:
-                await own_state_task
-            except asyncio.CancelledError:
-                pass
-            control_task.cancel()
-            try:
-                await control_task
+                await task
             except asyncio.CancelledError:
                 pass
 
-        # Attempt safe shutdown (disarming and stopping offboard mode)
+        # Attempt safe shutdown of drone (e.g., stop offboard mode)
         try:
             # await drone.offboard.stop()
             # await drone.action.disarm()
@@ -878,9 +1016,9 @@ async def run_smart_swarm():
         except Exception:
             logger.exception("Error during drone shutdown.")
 
-        # Stop the MAVSDK server
         if mavsdk_server:
             stop_mavsdk_server(mavsdk_server)
+
 
 # ----------------------------- #
 #             Main              #

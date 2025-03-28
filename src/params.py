@@ -168,6 +168,9 @@ class Params:
     DATA_FRESHNESS_THRESHOLD = 3.0    # Data freshness threshold in seconds
     SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
 
+
+    CONFIG_UPDATE_INTERVAL = 5        # Periodic time for re-checking the swarm file (s)
+
     ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
 
     # Logging Configuration
