@@ -1,21 +1,35 @@
 #!/bin/bash
 #
-# update_repo_ssh.sh - Git Sync for MDS Repository
+# update_repo_ssh.sh - Git Sync for MDS Repository (Automated Repair Version)
 #
 # This script ensures that the drone's software repository (MDS) is
-# up-to-date before operations start. It checks network connectivity,
-# cleans up any stale Git locks, stashes local changes, and performs
-# a Git fetch, reset, and pull on the desired branch.
+# up-to-date before operations start. It performs the following steps:
 #
-# LED indicators (via led_indicator.py) are used for visual status:
+# 1. Check network connectivity and GitHub accessibility (SSH/HTTPS).
+# 2. Clean up any stale Git locks and stash local changes.
+# 3. Attempt a normal git fetch (with retries). If it fails, assume there
+#    may be repository corruption and run an integrity check.
+# 4. Run 'git fsck' to identify any integrity issues (ignoring benign dangling
+#    commits). If issues are found:
+#      - If related to stash reflog, clear the stash.
+#      - Otherwise, attempt to repair with git-repair (using a timeout).
+#      - If repair fails (or if no corruption is found but fetch still fails),
+#        reboot the system.
+# 5. If the repository is healthy, switch to the desired branch, reset it to
+#    match origin, and pull the latest changes.
+#
+# LED indicators (via led_indicator.py) are used to signal status:
 #   - Blue: Git sync in progress.
-#   - Yellow: Git sync failed after retries.
+#   - Yellow: Git repair in progress.
+#   - Red: Failure.
 #
 # Usage:
-#   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real] [--repo-url <url>] [--repo-dir <dir>]
+#   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real]
+#                          [--repo-url <url>] [--repo-dir <dir>]
 #
 # Author: Alireza Ghaderi
-# Date: 2025-03-02
+# Date: 2025-03-02 (Revised: 2025-03-13, updated 2025-03-13 for automated repair on fetch failure)
+#
 
 set -euo pipefail
 
@@ -23,7 +37,8 @@ set -euo pipefail
 # Configuration and Default Settings
 # ----------------------------------
 MAX_RETRIES=10
-INITIAL_DELAY=1  # Fixed delay (in seconds) between retries
+INITIAL_DELAY=1               # Delay (in seconds) between retries
+REPAIR_TIMEOUT=120            # Timeout (in seconds) for git-repair (2 minutes)
 SITL_BRANCH="docker-sitl-2"
 REAL_BRANCH="main-candidate"
 
@@ -46,7 +61,7 @@ log() {
 
 log_error_and_exit() {
     log "ERROR: $1"
-    # Set LED to yellow to indicate failure
+    # Set LED to red to indicate failure
     $LED_CMD --color red || true
     exit 1
 }
@@ -59,7 +74,6 @@ retry() {
     local delay="$2"
     shift 2
     local count=0
-
     until "$@"; do
         exit_code=$?
         count=$((count + 1))
@@ -67,7 +81,7 @@ retry() {
             log "Command failed with exit code $exit_code (attempt $count/$retries). Retrying in $delay seconds..."
             sleep "$delay"
         else
-            log "Command failed after $count attempts. Exiting."
+            log "Command failed after $count attempts."
             return $exit_code
         fi
     done
@@ -75,13 +89,12 @@ retry() {
 }
 
 # -------------------------------------------------
-# Network Connectivity Check
+# Check Network Connectivity and GitHub Access
 # -------------------------------------------------
 check_network_connectivity() {
     local retries="$MAX_RETRIES"
     local delay="$INITIAL_DELAY"
     local count=0
-
     until ping -c 1 github.com >/dev/null 2>&1; do
         count=$((count + 1))
         if [ $count -lt $retries ]; then
@@ -170,13 +183,12 @@ parse_arguments() {
 parse_arguments "$@"
 
 # -------------------------------------------------
-# Lock-File Cleanup (Handles .git/index.lock)
+# Clean Up Stale Git Lock Files
 # -------------------------------------------------
 cleanup_lock_file() {
     local lock_file="$REPO_DIR/.git/index.lock"
     local tries=0
     local max_tries=3
-
     while [ -f "$lock_file" ] && [ $tries -lt $max_tries ]; do
         if pgrep -f "git" >/dev/null 2>&1; then
             log "Detected .git/index.lock while another Git process might be running. Waiting 3 seconds..."
@@ -187,7 +199,6 @@ cleanup_lock_file() {
         fi
         tries=$((tries+1))
     done
-
     if [ -f "$lock_file" ]; then
         log "WARNING: .git/index.lock still present after $max_tries tries. Forcibly removing it."
         rm -f "$lock_file"
@@ -195,19 +206,58 @@ cleanup_lock_file() {
 }
 
 # -------------------------------------------------
-# Check Git Repository Integrity
+# Check and Repair Repository Integrity
 # -------------------------------------------------
-check_git_repository_integrity() {
+check_and_repair_git_corruption() {
     log "Checking repository integrity..."
-    if ! git fsck --full; then
-        log_error_and_exit "Git repository integrity check failed. Corruption detected."
+    fsck_output=$(git fsck --full 2>&1)
+    filtered_output=$(echo "$fsck_output" | grep -v "dangling commit")
+    
+    if [ -n "$filtered_output" ]; then
+        log "Integrity check reported issues:"
+        echo "$filtered_output" | tee -a "$LOG_FILE"
+        if echo "$filtered_output" | grep -q "refs/stash"; then
+            log "Stash reflog errors detected. Clearing stash..."
+            git stash clear || log "Warning: Failed to clear stash."
+            if [ -f ".git/logs/refs/stash" ]; then
+                rm -f ".git/logs/refs/stash"
+                log "Removed corrupted stash reflog."
+            fi
+            # Re-run fsck after clearing stash
+            fsck_output_after=$(git fsck --full 2>&1)
+            filtered_output_after=$(echo "$fsck_output_after" | grep -v "dangling commit")
+            if [ -n "$filtered_output_after" ]; then
+                log "Repository still reports issues after clearing stash. Proceeding to repair..."
+            else
+                log "Repository issues resolved by clearing stash."
+                return
+            fi
+        fi
+        log "Attempting repair with git-repair (timeout ${REPAIR_TIMEOUT}s)..."
+        $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
+        if timeout "$REPAIR_TIMEOUT" git-repair >> "$LOG_FILE" 2>&1; then
+            log "Git repair completed successfully."
+        else
+            log "Git repair failed. Rebooting system..."
+            sudo reboot || log_error_and_exit "Reboot command failed."
+            exit 0
+        fi
+        if [ -f ".git/gc.log" ]; then
+            rm -f ".git/gc.log"
+            log "Removed .git/gc.log after repair."
+        fi
+        log "Repository repair complete. Rebooting system to ensure a clean state..."
+        sudo reboot || log_error_and_exit "Reboot command failed."
+        exit 0
+    else
+        log "No corruption detected in repository."
     fi
 }
 
 # -------------------------------------------------
-# Main Script Execution
+# Main Workflow Execution
 # -------------------------------------------------
-# Set LED to blue indicating Git sync is starting
+# Set LED to blue to indicate Git sync is starting
 $LED_CMD --color blue || log "Warning: Unable to set LED to blue."
 
 log "==========================================="
@@ -217,7 +267,7 @@ log "Repo URL: $REPO_URL"
 log "Repo Dir: $REPO_DIR"
 log "==========================================="
 
-# Ensure REPO_DIR exists
+# Ensure repository directory exists
 if [ ! -d "$REPO_DIR" ]; then
     log_error_and_exit "Repository directory does not exist: $REPO_DIR"
 fi
@@ -269,19 +319,21 @@ fi
 # Check network connectivity
 check_network_connectivity
 
-# Fetch all branches with retries
+# Attempt to fetch all branches with retries.
 log "Fetching latest commits from origin..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
-    log_error_and_exit "Failed to fetch from $GIT_URL."
+    log "Fetch failed. This may indicate repository corruption. Initiating repair sequence..."
+    check_and_repair_git_corruption
+    log "Retrying fetch after repair..."
+    if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
+        log_error_and_exit "Failed to fetch from $GIT_URL after repair. Rebooting..."
+    fi
 fi
 
-# Check repository integrity
-#check_git_repository_integrity
-
-# Re-check lock file
+# Clean up any residual lock files.
 cleanup_lock_file
 
-# Switch to the desired branch if not already on it
+# Switch to the desired branch if not already on it.
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
     log "Switching from $CURRENT_BRANCH to $BRANCH_NAME..."
@@ -289,24 +341,20 @@ if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
     log "Switched to branch $BRANCH_NAME"
 fi
 
-# Reset local branch to match origin
+# Reset the branch to match origin.
 log "Resetting $BRANCH_NAME to origin/$BRANCH_NAME..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git reset --hard "origin/$BRANCH_NAME"; then
     log_error_and_exit "Failed git reset --hard on branch $BRANCH_NAME."
 fi
 
-# Pull latest changes
+# Pull the latest updates.
 log "Pulling latest updates on $BRANCH_NAME..."
 if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git pull; then
     log_error_and_exit "Failed git pull on branch $BRANCH_NAME."
 fi
 
-# Final cleanup
+# Final cleanup of lock files.
 cleanup_lock_file
 
 log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME."
-
-# Optionally, set LED to indicate success; leave it to coordinator to update later if desired.
-# $LED_CMD --color blue || log "Warning: Unable to update LED after Git sync." 
-
 exit 0

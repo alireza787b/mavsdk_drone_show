@@ -64,6 +64,9 @@ class Params:
     offline_swarm = True              # Use offline swarm (not used!)
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
+    
+    
+    csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)
 
 
 
@@ -112,6 +115,7 @@ class Params:
     extra_devices = [
         f"127.0.0.1:{local_mavlink_port}",
         f"127.0.0.1:{local_mavlink2rest_port}",
+        "100.93.44.185:14550",
         "100.93.169.180:14550",
         "100.93.214.147:14550"
     ]  # Extra devices for MAVLink routing
@@ -164,6 +168,9 @@ class Params:
     DATA_FRESHNESS_THRESHOLD = 3.0    # Data freshness threshold in seconds
     SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
 
+
+    CONFIG_UPDATE_INTERVAL = 5        # Periodic time for re-checking the swarm file (s)
+
     ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
 
     # Logging Configuration
@@ -173,8 +180,8 @@ class Params:
     DEFAULT_GRPC_PORT = 50040
 
     # Critical Operation Settings
-    PREFLIGHT_MAX_RETRIES = 15       # Maximum number of retries for pre-flight checks
-    PRE_FLIGHT_TIMEOUT = 30          # Timeout for pre-flight checks in seconds
+    PREFLIGHT_MAX_RETRIES = 40       # Maximum number of retries for pre-flight checks
+    PRE_FLIGHT_TIMEOUT = 80          # Timeout for pre-flight checks in seconds
     LANDING_TIMEOUT = 10            # Timeout during landing phase in seconds
 
     # Trajectory and Landing Configuration
