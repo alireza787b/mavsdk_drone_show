@@ -64,6 +64,9 @@ class Params:
     offline_swarm = True              # Use offline swarm (not used!)
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
+    
+    
+    csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)
 
 
 
@@ -164,6 +167,9 @@ class Params:
     LEADER_UPDATE_FREQUENCY = 3       # Leader update frequency in Hz
     DATA_FRESHNESS_THRESHOLD = 3.0    # Data freshness threshold in seconds
     SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
+
+
+    CONFIG_UPDATE_INTERVAL = 5        # Periodic time for re-checking the swarm file (s)
 
     ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
 
