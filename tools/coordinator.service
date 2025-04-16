@@ -1,43 +1,28 @@
 [Unit]
 Description=Drone Swarm System Coordinator
-# Ensure network is online and that Git sync (our MDS update) has completed before starting
 After=network-online.target git_sync_mds.service
-Requires=git_sync_mds.service
-Wants=network-online.target
+Wants=network-online.target git_sync_mds.service
 
 [Service]
-# Pre-start steps for non-repository tasks:
-# Update WiFi configuration
-# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
-# Update service configuration if needed
-# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
-
-# Main service: start the Drone Swarm Coordinator Python application
 ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
-
-# Set working directory to resolve relative paths correctly
 WorkingDirectory=/home/droneshow/mavsdk_drone_show
-
 User=droneshow
 Group=droneshow
-
-# Ensure the virtual environment and system binaries are in PATH
 Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Restart settings: automatically restart if the coordinator fails
 Restart=always
 RestartSec=5s
 
-# Capabilities needed by the coordinator for network management, GPIO, etc.
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT
 
-# Log outputs to journal
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=coordinator
 
-# Once the coordinator starts, set the LED to green to indicate normal operation.
+# Optional pre-start/post-start hooks
+# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/check_and_update_wifi-manager.sh
+# ExecStartPre=-/bin/bash /home/droneshow/mavsdk_drone_show/tools/check_and_update_service.sh
 # ExecStartPost=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --color green
 
 [Install]
