@@ -1,16 +1,19 @@
 [Unit]
-Description=Git Sync Service for MDS Repository
-After=wifi-manager.service
-Requires=wifi-manager.service
-After=network-online.target
+Description=Git Sync Service
+After=wifi-manager.service network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 ExecStart=/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh
 User=droneshow
-Group=droneshow
 Restart=on-failure
+RestartSec=5s
+
+[Unit]
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Install]
 WantedBy=multi-user.target
+
