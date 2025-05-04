@@ -8,7 +8,7 @@ Type=oneshot
 ExecStart=/home/droneshow/mavsdk_drone_show/tools/update_repo_ssh.sh
 User=droneshow
 Restart=on-failure
-RestartSec=5s
+RestartSec=60s
 
 [Unit]
 StartLimitIntervalSec=300
