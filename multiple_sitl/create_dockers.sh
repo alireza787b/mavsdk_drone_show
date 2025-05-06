@@ -110,15 +110,13 @@ validate_input() {
         fi
     fi
 }
-
-# Function: report system resource usage
 report_system_resources() {
     echo "---------------------------------------------------------------"
     echo "System Resource Usage:"
-    
+
     # CPU Usage
-    cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk '{print $8}' | cut -d '.' -f1)
-    cpu_usage=$((100 - cpu_idle))
+    cpu_idle=$(top -bn1 | grep "Cpu(s)" | awk -F'id,' '{split($1, a, ","); print 100 - a[length(a)]}')
+    cpu_usage=$(printf "%.0f" "$cpu_idle")
     echo "CPU Usage      : ${cpu_usage}%"
 
     # Memory Usage
@@ -133,12 +131,20 @@ report_system_resources() {
     disk_available=$(df -h / | awk 'NR==2 {print $4}')
     echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
 
-    # Summary
-    echo "System Status Summary: ${uptime}"
+    # Uptime + Load + Users
+    uptime_raw=$(uptime)
+    uptime_info=$(echo "$uptime_raw" | sed -E 's/.*up (.*), *[0-9]+ user.*/\1/')
+    users=$(echo "$uptime_raw" | awk -F',' '{print $2}' | grep -o '[0-9]\+')
+    load_avg=$(echo "$uptime_raw" | awk -F'load average: ' '{print $2}')
+
+    echo "Uptime         : ${uptime_info}"
+    echo "Logged-in Users: ${users}"
+    echo "Load Averages  : ${load_avg}"
 
     echo "---------------------------------------------------------------"
     echo
 }
+
 
 # Function: create or use a Docker network with a custom subnet
 setup_docker_network() {
