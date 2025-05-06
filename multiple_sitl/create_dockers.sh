@@ -133,6 +133,9 @@ report_system_resources() {
     disk_available=$(df -h / | awk 'NR==2 {print $4}')
     echo "Disk Usage     : Used ${disk_used} / Total ${disk_total} (Available: ${disk_available})"
 
+    # Summary
+    echo "System Status Summary: ${uptime}"
+
     echo "---------------------------------------------------------------"
     echo
 }
