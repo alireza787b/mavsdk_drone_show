@@ -470,6 +470,7 @@ async def update_swarm_config_periodically(drone):
     """
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
+    global HW_ID
 
     logger = logging.getLogger(__name__)
 
