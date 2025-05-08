@@ -1,6 +1,4 @@
-/* SwarmDesign.css */
-
-.swarm-design {
+.swarm-design-container {
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -8,75 +6,78 @@
     font-family: 'Segoe UI', sans-serif;
     background-color: #f9f9f9;
     min-height: 100vh;
-  }
-  
-  .control-bar {
+}
+
+.control-buttons {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     gap: 10px;
-    width: 100%;
-  }
-  
-  .button-group {
+    margin-bottom: 20px;
+}
+
+.notification-container {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  
-  .btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+    justify-content: space-between;
+    padding: 10px;
+    background-color: #fff3e0;
+    color: #e65100;
+    border-left: 4px solid #ff9800;
+    border-radius: 5px;
+    font-size: 0.95em;
+}
+
+.notification-icon {
+    margin-right: 5px;
+}
+
+.notification-text {
+    margin: 0;
+}
+
+.btn {
+    padding: 10px 20px;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
     font-weight: 600;
-    font-size: 0.95em;
-    background-color: #e0e0e0;
-    color: #222;
+    cursor: pointer;
     transition: all 0.3s ease;
-  }
-  
-  .btn svg {
-    font-size: 1em;
-  }
-  
-  .btn.draft {
+}
+
+.btn.draft {
     background-color: #cddc39;
     color: #212121;
-  }
-  
-  .btn.draft:hover {
+}
+
+.btn.draft:hover {
     background-color: #c0cf31;
-  }
-  
-  .btn.commit {
+}
+
+.btn.commit {
     background-color: #4caf50;
     color: #fff;
-  }
-  
-  .btn.commit:hover {
+}
+
+.btn.commit:hover {
     background-color: #43a047;
-  }
-  
-  .btn.revert {
+}
+
+.btn.revert {
     background-color: #f44336;
     color: #fff;
-  }
-  
-  .btn.revert:hover {
+}
+
+.btn.revert:hover {
     background-color: #d32f2f;
-  }
-  
-  .btn.import {
+}
+
+.btn.import {
     background-color: #03a9f4;
     color: #fff;
     position: relative;
     overflow: hidden;
-  }
-  
-  .btn.import input[type="file"] {
+}
+
+.btn.import input[type="file"] {
     opacity: 0;
     position: absolute;
     left: 0;
@@ -84,56 +85,46 @@
     height: 100%;
     width: 100%;
     cursor: pointer;
-  }
-  
-  .btn.import:hover {
+}
+
+.btn.import:hover {
     background-color: #0288d1;
-  }
-  
-  .btn.export {
+}
+
+.btn.export {
     background-color: #9c27b0;
     color: #fff;
-  }
-  
-  .btn.export:hover {
+}
+
+.btn.export:hover {
     background-color: #7b1fa2;
-  }
-  
-  .alert.warning {
-    background-color: #fff3e0;
-    color: #e65100;
-    border-left: 4px solid #ff9800;
-    padding: 10px 12px;
-    border-radius: 4px;
-    font-size: 0.95em;
-  }
-  
-  .swarm-container {
+}
+
+.swarm-container {
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
-  
-  .swarm-graph,
-  .swarm-plots {
+}
+
+.swarm-graph-container,
+.swarm-plots-container {
     background-color: #fff;
     padding: 16px;
     border-radius: 6px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  }
-  
-  .spin {
+}
+
+.spin {
     animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    0%   { transform: rotate(0deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-  }
-  
-  @media screen and (max-width: 768px) {
-    .button-group {
-      flex-direction: column;
+}
+
+@media screen and (max-width: 768px) {
+    .control-buttons {
+        flex-direction: column;
     }
-  }
-  
+}
