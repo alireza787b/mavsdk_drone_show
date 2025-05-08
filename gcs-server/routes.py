@@ -194,42 +194,44 @@ def setup_routes(app):
 
         logger.info("Received swarm data for saving")
         try:
-            # Save the swarm data
             save_swarm(swarm_data)
             logger.info("Swarm data saved successfully")
 
-            git_info = None
+            # Determine Git push behavior
+            commit_override = request.args.get('commit')
+            should_commit = (
+                commit_override.lower() == 'true'
+                if commit_override is not None
+                else Params.GIT_AUTO_PUSH
+            )
 
-            # If auto push to Git is enabled, perform Git operations
-            if Params.GIT_AUTO_PUSH:
-                logger.info("Git auto-push is enabled. Attempting to push swarm changes to repository.")
+            git_info = None
+            if should_commit:
+                logger.info("Git commit & push triggered.")
                 try:
                     git_result = git_operations(
                         BASE_DIR,
                         f"Update swarm data: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                     )
+                    git_info = git_result
                     if git_result.get('success'):
                         logger.info("Git operations successful.")
-                        logger.debug(f"Git output:\n{git_result.get('output')}")
                     else:
                         logger.error(f"Git operations failed: {git_result.get('message')}")
-                        logger.debug(f"Git error output:\n{git_result.get('output')}")
-                    git_info = git_result
                 except Exception as git_exc:
-                    logger.error(f"Exception during Git operations: {git_exc}", exc_info=True)
+                    logger.exception("Exception during Git operations.")
                     git_info = {'success': False, 'message': str(git_exc), 'output': ''}
 
-            # Prepare the response data
-            response_data = {'status': 'success', 'message': 'Swarm data saved successfully'}
+            response = {'status': 'success', 'message': 'Swarm data saved successfully'}
             if git_info:
-                response_data['git_info'] = git_info
+                response['git_info'] = git_info
 
-            return jsonify(response_data)
+            return jsonify(response), 200
+
         except Exception as e:
-            logger.error(f"Error saving swarm data: {e}", exc_info=True)
-            return error_response(f"Error saving swarm data: {e}")
-
-
+            logger.exception("Error saving swarm data")
+            return error_response(str(e), 500)
+    
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm():
         logger.info("Swarm data requested")
