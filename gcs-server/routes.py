@@ -243,28 +243,37 @@ def setup_routes(app):
         
 
 
-    # Function to elect a new leader for a drone that has lost its current leader
     def elect_new_leader(swarm_data, requesting_drone_id):
         """
         Elect a new leader for a drone that has lost its leader.
         The decision is based on the current swarm configuration.
+
+        :param swarm_data: List of drone data (each drone has hw_id, follow, and offsets)
+        :param requesting_drone_id: The ID of the drone requesting a new leader
+        :return: The updated swarm manifest with new leader information
         """
         logger.info(f"Electing new leader for drone {requesting_drone_id}.")
         
-        # Select the next drone in the list as the new leader (this is a dummy logic)
+        # Initialize variables
         new_leader_id = None
         current_index = None
+        
+        # Find the requesting drone in the swarm data
         for index, row in enumerate(swarm_data):
             if int(row['hw_id']) == requesting_drone_id:
                 current_index = index
                 break
         
-        # Assign the next drone in the list as the new leader (circular list logic)
-        if current_index is not None and current_index + 1 < len(swarm_data):
+        if current_index is None:
+            logger.error(f"Drone {requesting_drone_id} not found in swarm data.")
+            raise Exception(f"Drone {requesting_drone_id} not found in swarm data.")
+        
+        # Select the next drone in the list as the new leader (circular list logic)
+        if current_index + 1 < len(swarm_data):
             new_leader_id = int(swarm_data[current_index + 1]['hw_id'])
         else:
             new_leader_id = int(swarm_data[0]['hw_id'])  # Loop back to the first drone if it's the last one
-
+        
         # Dummy offset update: For simplicity, just add +1 to the current offsets
         new_offsets = {
             'offset_n': 1,  # Just incrementing offsets for the demo
@@ -274,25 +283,33 @@ def setup_routes(app):
         }
 
         # Update the swarm data with the new leader information and the new offsets
-        updated = update_leader_in_swarm(swarm_data, requesting_drone_id, new_leader_id, new_offsets)
+        updated_swarm_manifest, updated = update_leader_in_swarm(swarm_data, requesting_drone_id, new_leader_id, new_offsets)
 
         if updated:
             logger.info(f"Drone {requesting_drone_id} now follows new leader {new_leader_id} with updated offsets.")
-            return new_leader_id, new_offsets
+            return updated_swarm_manifest
         else:
             logger.error(f"Failed to update drone {requesting_drone_id}'s leader.")
             raise Exception(f"Failed to update drone {requesting_drone_id}'s leader.")
 
-    # Function to update the leader for the given drone in the swarm data
+
     def update_leader_in_swarm(swarm_data, drone_id, new_leader_id, new_offsets):
         """
         Update the leader for the given drone in the swarm data.
+
+        :param swarm_data: List of drone data (each drone has hw_id, follow, and offsets)
+        :param drone_id: ID of the drone to update
+        :param new_leader_id: The ID of the new leader
+        :param new_offsets: Dictionary with new offsets for the drone
+        :return: Updated swarm data and a boolean indicating success
         """
         updated = False
+        
+        # Iterate through the swarm data and find the drone to update
         for row in swarm_data:
             if row['hw_id'] == str(drone_id):
                 # Update the drone's leader and offsets
-                row['follow'] = str(new_leader_id)
+                row['follow'] = str(new_leader_id)  # Leader is the 'follow' field in the data
                 row['offset_n'] = str(new_offsets['offset_n'])
                 row['offset_e'] = str(new_offsets['offset_e'])
                 row['offset_alt'] = str(new_offsets['offset_alt'])
@@ -300,16 +317,23 @@ def setup_routes(app):
                 updated = True
                 logger.info(f"Updated drone {drone_id} to follow new leader {new_leader_id} with offsets.")
                 break
-        return updated
+        
+        # If no drone was updated, log an error
+        if not updated:
+            logger.error(f"Drone {drone_id} not found in swarm data to update.")
+        
+        return swarm_data, updated
 
-    # API Endpoint to request a new leader
+
     @app.route('/update-leader', methods=['POST'])
     def update_leader():
         """
         Endpoint for a drone to request a new leader when its current leader becomes unavailable.
         It updates the leader and the corresponding swarm data, and saves it locally.
+
+        :return: JSON response with status and message
         """
-        data = request.get_json()
+        data = request.get_json()  # Get the JSON data from the request
         if not data:
             return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
 
@@ -321,25 +345,25 @@ def setup_routes(app):
         if not all([drone_id, leader_id, last_update]):
             return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
 
-        # Step 1: Load the current swarm data
+        # Step 1: Load the current swarm data (this should load a list of drones)
         swarm_data = load_swarm()
 
         # Step 2: Elect a new leader for the drone
         try:
-            new_leader_id, new_offsets = elect_new_leader(swarm_data, drone_id)
+            updated_swarm_manifest = elect_new_leader(swarm_data, drone_id)
             
             # Step 3: Save the updated swarm data (decide to save or not)
-            save_swarm(swarm_data)  # No commit for now, only saving the updated file
+            save_swarm(updated_swarm_manifest)  # Save to file, database, etc.
             
             return jsonify({
                 'status': 'success',
-                'message': f'New leader elected: {new_leader_id}, updated offsets applied',
-                'new_leader_id': new_leader_id,
-                'new_offsets': new_offsets
+                'message': f'New leader elected for drone {drone_id}, updated offsets applied.',
+                'updated_follow_rule': updated_swarm_manifest[drone_id],  # Example of returning the new leader ID
             }), 200
         except Exception as e:
             logger.error(f"Error during leader election process: {e}")
-            return error_response(f"Error during leader election process: {e}")
+            return jsonify({'status': 'error', 'message': f"Error during leader election process: {e}"}), 500
+
 
 
     @app.route('/import-show', methods=['POST'])
