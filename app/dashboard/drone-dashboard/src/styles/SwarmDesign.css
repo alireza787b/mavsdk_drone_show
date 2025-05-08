@@ -1,130 +1,123 @@
+/* SwarmDesign.css */
+
 .swarm-design-container {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 20px;
+    gap: 16px;
+    padding: 16px;
     font-family: 'Segoe UI', sans-serif;
-    background-color: #f9f9f9;
-    min-height: 100vh;
-}
-
-.control-buttons {
+    background: #f5f6fa;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+  
+  .controls {
     display: flex;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.notification-container {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .primary-actions,
+  .secondary-actions {
     display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    background-color: #fff3e0;
-    color: #e65100;
-    border-left: 4px solid #ff9800;
-    border-radius: 5px;
-    font-size: 0.95em;
-}
-
-.notification-icon {
-    margin-right: 5px;
-}
-
-.notification-text {
-    margin: 0;
-}
-
-.btn {
-    padding: 10px 20px;
+    gap: 8px;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
     border: none;
-    border-radius: 6px;
-    font-weight: 600;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.btn.draft {
-    background-color: #cddc39;
-    color: #212121;
-}
-
-.btn.draft:hover {
-    background-color: #c0cf31;
-}
-
-.btn.commit {
-    background-color: #4caf50;
-    color: #fff;
-}
-
-.btn.commit:hover {
-    background-color: #43a047;
-}
-
-.btn.revert {
-    background-color: #f44336;
-    color: #fff;
-}
-
-.btn.revert:hover {
-    background-color: #d32f2f;
-}
-
-.btn.import {
-    background-color: #03a9f4;
-    color: #fff;
+    transition: background-color 0.2s ease;
+  }
+  
+  .btn svg { font-size: 1.1em; }
+  
+  .btn.update {
+    background: #1976d2;
+    color: white;
+  }
+  .btn.update:hover { background: #1565c0; }
+  
+  .btn.commit {
+    background: #388e3c;
+    color: white;
+  }
+  .btn.commit:hover { background: #2e7d32; }
+  
+  .btn.revert {
+    background: #d32f2f;
+    color: white;
+  }
+  .btn.revert:hover { background: #c62828; }
+  
+  .btn.import {
+    background: #0288d1;
+    color: white;
     position: relative;
     overflow: hidden;
-}
-
-.btn.import input[type="file"] {
-    opacity: 0;
+  }
+  .btn.import input[type=file] {
     position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: 100%;
-    cursor: pointer;
-}
-
-.btn.import:hover {
-    background-color: #0288d1;
-}
-
-.btn.export {
-    background-color: #9c27b0;
-    color: #fff;
-}
-
-.btn.export:hover {
-    background-color: #7b1fa2;
-}
-
-.swarm-container {
+    left:0; top:0; width:100%; height:100%;
+    opacity:0; cursor:pointer;
+  }
+  .btn.import:hover { background: #0277bd; }
+  
+  .btn.export {
+    background: #7b1fa2;
+    color: white;
+  }
+  .btn.export:hover { background: #6a1b9a; }
+  
+  .controls + .notification {
+    padding: 8px;
+    background: #fff8e1;
+    border-left: 4px solid #ffb300;
+    color: #5d4037;
+    font-size: 0.9em;
     display: flex;
-    flex-direction: column;
     gap: 12px;
-}
-
-.swarm-graph-container,
-.swarm-plots-container {
-    background-color: #fff;
-    padding: 16px;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-
-.spin {
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-@media screen and (max-width: 768px) {
-    .control-buttons {
-        flex-direction: column;
+  }
+  
+  .main-content {
+    display: flex;
+    flex: 1;
+    gap: 16px;
+    overflow: hidden;
+  }
+  
+  .left-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+  
+  .right-panel {
+    flex: 1;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    padding: 8px;
+  }
+  
+  .plots-section {
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    padding: 12px;
+    overflow-x: auto;
+  }
+  
+  @media (max-width: 768px) {
+    .main-content {
+      flex-direction: column;
     }
-}
+  }
+  

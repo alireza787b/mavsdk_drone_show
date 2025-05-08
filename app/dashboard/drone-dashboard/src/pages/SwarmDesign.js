@@ -1,3 +1,5 @@
+// src/pages/SwarmDesign.js
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Papa from 'papaparse';
@@ -6,198 +8,192 @@ import DroneGraph from '../components/DroneGraph';
 import SwarmPlots from '../components/SwarmPlots';
 import DroneCard from '../components/DroneCard';
 import { getBackendURL } from '../utilities/utilities';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { FaSyncAlt, FaCloudUploadAlt, FaUndo, FaFileImport, FaFileExport } from 'react-icons/fa';
 
 const SwarmDesign = () => {
-    const [swarmData, setSwarmData] = useState([]);
-    const [configData, setConfigData] = useState([]);
-    const [selectedDroneId, setSelectedDroneId] = useState(null);
-    const [changes, setChanges] = useState({ added: [], removed: [] });
-    const [saving, setSaving] = useState(false);
+  const [swarmData, setSwarmData]           = useState([]);
+  const [configData, setConfigData]         = useState([]);
+  const [selectedDroneId, setSelectedDroneId] = useState(null);
+  const [changes, setChanges]               = useState({ added: [], removed: [] });
+  const [saving, setSaving]                 = useState(false);
 
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+  const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
-    useEffect(() => {
-        fetchOriginalSwarmData();
-    }, []);
+  // Initial fetch
+  useEffect(() => {
+    fetchOriginal();
+  }, []);
 
-    useEffect(() => {
-        if (swarmData.length === 0 || configData.length === 0) return;
+  // Track adds/removes
+  useEffect(() => {
+    if (!swarmData.length || !configData.length) return;
+    const added   = configData.filter(c => !swarmData.some(s => s.hw_id===c.hw_id)).map(c=>c.hw_id);
+    const removed = swarmData.filter(s => !configData.some(c => c.hw_id===s.hw_id)).map(s=>s.hw_id);
+    setChanges({ added, removed });
+  }, [swarmData, configData]);
 
-        let updatedSwarmData = [...swarmData];
+  const fetchOriginal = () => {
+    Promise.all([
+      axios.get(`${backendURL}/get-swarm-data`),
+      axios.get(`${backendURL}/get-config-data`)
+    ])
+    .then(([sRes, cRes]) => {
+      setSwarmData(sRes.data);
+      setConfigData(cRes.data);
+    })
+    .catch(err => {
+      console.error(err);
+      toast.error("Failed to load data");
+    });
+  };
 
-        const addedDrones = configData.filter(configDrone =>
-            !swarmData.some(drone => drone.hw_id === configDrone.hw_id)
-        ).map(drone => drone.hw_id);
+  const handleSaveChanges = (hw_id, updated) => {
+    setSwarmData(prev => prev.map(d => d.hw_id===hw_id ? updated : d));
+  };
 
-        const removedDrones = swarmData.filter(swarmDrone =>
-            !configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)
-        ).map(drone => drone.hw_id);
+  const dronesFollowing = id =>
+    swarmData.filter(d => d.follow===id).map(d=>d.hw_id);
 
-        setChanges({ added: addedDrones, removed: removedDrones });
+  const confirmAndSave = withCommit => {
+    const summary = swarmData.map(d => {
+      const role = d.follow==='0'
+        ? 'Top Leader'
+        : dronesFollowing(d.hw_id).length
+          ? 'Intermediate Leader'
+          : 'Follower';
+      return `Drone ${d.hw_id}: ${role}${role!=='Top Leader' ? ` (→ ${d.follow})` : ''}`;
+    }).join('\n');
 
-        configData.forEach(configDrone => {
-            if (!swarmData.some(drone => drone.hw_id === configDrone.hw_id)) {
-                updatedSwarmData.push({
-                    hw_id: configDrone.hw_id,
-                    follow: '0',
-                    offset_n: '0',
-                    offset_e: '0',
-                    offset_alt: '0',
-                    body_coord: '0'
-                });
-            }
-        });
+    if (window.confirm(`Are you sure?\n\n${withCommit? 'Commit changes': 'Update swarm data'}:\n${summary}`)) {
+      saveToServer(withCommit);
+    }
+  };
 
-        updatedSwarmData = updatedSwarmData.filter(swarmDrone =>
-            configData.some(configDrone => configDrone.hw_id === swarmDrone.hw_id)
-        );
+  const saveToServer = async withCommit => {
+    setSaving(true);
+    try {
+      const url = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : ''}`;
+      const res = await axios.post(url, swarmData);
+      toast.success(res.data.message || 'Saved successfully');
+      fetchOriginal();
+    } catch (err) {
+      console.error(err);
+      toast.error('Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-        setSwarmData(updatedSwarmData);
-    }, [configData]);
-
-    const handleSaveChanges = (hw_id, updatedDroneData) => {
-        setSwarmData(prev => prev.map(drone => drone.hw_id === hw_id ? updatedDroneData : drone));
-    };
-
-    const fetchOriginalSwarmData = () => {
-        const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
-        const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
-
-        Promise.all([fetchSwarmData, fetchConfigData])
-            .then(([swarmRes, configRes]) => {
-                setSwarmData(swarmRes.data);
-                setConfigData(configRes.data);
-            })
-            .catch(console.error);
-    };
-
-    const dronesFollowing = (leaderId) =>
-        swarmData.filter(drone => drone.follow === leaderId).map(drone => drone.hw_id);
-
-    const confirmAndSave = (withCommit = false) => {
-        const summary = swarmData.map(drone => {
-            const role = drone.follow === '0'
-                ? 'Top Leader'
-                : dronesFollowing(drone.hw_id).length
-                ? 'Intermediate Leader'
-                : 'Follower';
-            return `Drone ${drone.hw_id}: ${role}${role !== 'Top Leader' ? ` (Follows Drone ${drone.follow})` : ''} with Offsets N:${drone.offset_n} E:${drone.offset_e} Alt:${drone.offset_alt}`;
-        }).join('\n');
-
-        if (window.confirm(`Confirm ${withCommit ? 'permanent' : 'temporary'} save?\n\n${summary}`)) {
-            saveSwarmDataToServer(withCommit);
+  const handleCSVImport = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    Papa.parse(file, {
+      complete: ({ data }) => {
+        const header = data[0].map(h=>h.trim());
+        const expected = ["hw_id","follow","offset_n","offset_e","offset_alt","body_coord"];
+        if (header.toString()!==expected.toString()) {
+          toast.error("CSV header invalid");
+          return;
         }
-    };
+        const parsed = data.slice(1)
+          .map(r => ({ hw_id:r[0], follow:r[1], offset_n:r[2], offset_e:r[3], offset_alt:r[4], body_coord:r[5] }))
+          .filter(d=>d.hw_id);
+        setSwarmData(parsed);
+        toast.success("CSV imported");
+      },
+      header: false
+    });
+  };
 
-    const saveSwarmDataToServer = async (withCommit) => {
-        setSaving(true);
-        try {
-            const endpoint = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : ''}`;
-            const response = await axios.post(endpoint, swarmData);
-            alert(response.data.message || 'Swarm data saved.');
-            fetchOriginalSwarmData();
-        } catch (err) {
-            console.error(err);
-            alert('Save failed.');
-        } finally {
-            setSaving(false);
-        }
-    };
+  const handleCSVExport = () => {
+    const csv = Papa.unparse(swarmData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'swarm_export.csv';
+    link.click();
+    toast.success("CSV exported");
+  };
 
-    const handleCSVImport = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            Papa.parse(file, {
-                complete: (result) => {
-                    const header = result.data[0].map(c => c.trim());
-                    const expected = ["hw_id", "follow", "offset_n", "offset_e", "offset_alt", "body_coord"];
-                    if (header.toString() !== expected.toString()) {
-                        alert("Invalid CSV header format.");
-                        return;
-                    }
-                    const parsedData = result.data.slice(1).map(row => ({
-                        hw_id: row[0],
-                        follow: row[1],
-                        offset_n: row[2],
-                        offset_e: row[3],
-                        offset_alt: row[4],
-                        body_coord: row[5]
-                    })).filter(d => d.hw_id);
-                    setSwarmData(parsedData);
-                },
-                header: false
-            });
-        }
-    };
+  const handleRevert = () => {
+    if (window.confirm("Revert unsaved changes?")) {
+      fetchOriginal();
+    }
+  };
 
-    const handleCSVExport = () => {
-        const csv = Papa.unparse(swarmData);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "swarm_export.csv";
-        link.click();
-    };
-
-    const handleRevert = () => {
-        if (window.confirm("Revert all unsaved changes?")) {
-            fetchOriginalSwarmData();
-        }
-    };
-
-    return (
-        <div className="swarm-design-container">
-            <div className={`control-buttons ${changes.added.length > 0 || changes.removed.length > 0 ? 'show-notification' : ''}`}>
-                {(changes.added.length > 0 || changes.removed.length > 0) && (
-                    <div className="notification-container">
-                        <span className="notification-icon">⚠️</span>
-                        <p className="notification-text">
-                            {changes.added.length > 0 && `Added: ${changes.added.join(', ')}`}
-                            {changes.removed.length > 0 && ` | Removed: ${changes.removed.join(', ')}`}
-                        </p>
-                    </div>
-                )}
-
-                <div className="primary-actions">
-                    <button className="btn-draft" onClick={() => confirmAndSave(false)} disabled={saving}>
-                        Save Draft
-                    </button>
-                    <button className="btn-commit" onClick={() => confirmAndSave(true)} disabled={saving}>
-                        Save & Push
-                    </button>
-                </div>
-
-                <div className="secondary-actions">
-                    <button className="revert" onClick={handleRevert}>Revert</button>
-                    <label className="file-upload-btn">
-                        Import CSV
-                        <input type="file" accept=".csv" onChange={handleCSVImport} />
-                    </label>
-                    <button className="export-config" onClick={handleCSVExport}>Export CSV</button>
-                </div>
-            </div>
-
-            <div className="swarm-container">
-                {swarmData.length ? swarmData.map(drone => (
-                    <DroneCard
-                        key={drone.hw_id}
-                        drone={drone}
-                        allDrones={swarmData}
-                        onSaveChanges={handleSaveChanges}
-                        isSelected={selectedDroneId === drone.hw_id}
-                    />
-                )) : <p>No data available for swarm configuration.</p>}
-            </div>
-
-            <div className="swarm-graph-container">
-                <DroneGraph swarmData={swarmData} onSelectDrone={setSelectedDroneId} />
-            </div>
-
-            <div className="swarm-plots-container">
-                <SwarmPlots swarmData={swarmData} />
-            </div>
+  return (
+    <div className="swarm-design-container">
+      {/* Controls */}
+      <div className="controls">
+        <div className="primary-actions">
+          <button
+            className="btn update"
+            onClick={() => confirmAndSave(false)}
+            disabled={saving}
+          >
+            <FaSyncAlt /> Update Swarm
+          </button>
+          <button
+            className="btn commit"
+            onClick={() => confirmAndSave(true)}
+            disabled={saving}
+          >
+            <FaCloudUploadAlt /> Commit Changes
+          </button>
         </div>
-    );
+        <div className="secondary-actions">
+          <button className="btn revert" onClick={handleRevert} disabled={saving}>
+            <FaUndo /> Revert
+          </button>
+          <label className="btn import">
+            <FaFileImport /> Import CSV
+            <input type="file" accept=".csv" onChange={handleCSVImport} />
+          </label>
+          <button className="btn export" onClick={handleCSVExport} disabled={saving}>
+            <FaFileExport /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Add/Remove Notification */}
+      {(changes.added.length||changes.removed.length) && (
+        <div className="notification">
+          {changes.added.length > 0 && <span>Added: {changes.added.join(', ')}</span>}
+          {changes.removed.length > 0 && <span>Removed: {changes.removed.join(', ')}</span>}
+        </div>
+      )}
+
+      {/* Main Content: Left = List, Right = Graph */}
+      <div className="main-content">
+        <div className="left-panel">
+          {swarmData.map(d => (
+            <DroneCard
+              key={d.hw_id}
+              drone={d}
+              allDrones={swarmData}
+              onSaveChanges={handleSaveChanges}
+              isSelected={selectedDroneId===d.hw_id}
+            />
+          ))}
+        </div>
+        <div className="right-panel">
+          <DroneGraph
+            swarmData={swarmData}
+            onSelectDrone={setSelectedDroneId}
+          />
+        </div>
+      </div>
+
+      {/* Plots Below */}
+      <div className="plots-section">
+        <SwarmPlots swarmData={swarmData} />
+      </div>
+
+      <ToastContainer position="bottom-right" autoClose={3000} />
+    </div>
+  );
 };
 
 export default SwarmDesign;
