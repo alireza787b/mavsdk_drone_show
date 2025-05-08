@@ -587,7 +587,7 @@ async def update_leader_state():
     Periodically fetches the leader's state and updates the Kalman filter.
     """
     logger = logging.getLogger(__name__)
-    global LEADER_STATE, LEADER_KALMAN_FILTER
+    global LEADER_STATE, LEADER_KALMAN_FILTER , LEADER_IP
     update_interval = 1 / Params.LEADER_UPDATE_FREQUENCY
     last_update_time = None
 
