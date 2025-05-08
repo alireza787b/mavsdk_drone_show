@@ -24,6 +24,10 @@ from heartbeat import handle_heartbeat_post, get_all_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
 
+from threading import Lock
+
+# Lock for thread-safe access to swarm data
+swarm_lock = Lock()
 
 # Configure base directory for better path management
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -246,40 +250,44 @@ def setup_routes(app):
     def elect_new_leader(swarm_data, requesting_drone_id):
         """
         Elect a new leader for a drone that has lost its leader.
-        The decision is based on the current swarm configuration.
-
-        :param swarm_data: List of drone data (each drone has hw_id, follow, and offsets)
-        :param requesting_drone_id: The ID of the drone requesting a new leader
-        :return: The updated swarm manifest with new leader information
         """
         logger.info(f"Electing new leader for drone {requesting_drone_id}.")
-        
+
+        # Validate swarm_data is not empty
+        if not swarm_data:
+            logger.error("Swarm data is empty. Cannot elect a new leader.")
+            raise Exception("Swarm data is empty. Cannot elect a new leader.")
+
         # Initialize variables
         new_leader_id = None
         current_index = None
-        
+
         # Find the requesting drone in the swarm data
         for index, row in enumerate(swarm_data):
-            if int(row['hw_id']) == requesting_drone_id:
-                current_index = index
-                break
-        
+            try:
+                if int(row['hw_id']) == requesting_drone_id:
+                    current_index = index
+                    break
+            except ValueError:
+                logger.error(f"Invalid hw_id format in swarm data: {row['hw_id']}")
+                continue
+
         if current_index is None:
             logger.error(f"Drone {requesting_drone_id} not found in swarm data.")
             raise Exception(f"Drone {requesting_drone_id} not found in swarm data.")
-        
+
         # Select the next drone in the list as the new leader (circular list logic)
         if current_index + 1 < len(swarm_data):
             new_leader_id = int(swarm_data[current_index + 1]['hw_id'])
         else:
             new_leader_id = int(swarm_data[0]['hw_id'])  # Loop back to the first drone if it's the last one
-        
+
         # Dummy offset update: For simplicity, just add +1 to the current offsets
         new_offsets = {
-            'offset_n': 1,  # Just incrementing offsets for the demo
+            'offset_n': 1,
             'offset_e': 1,
             'offset_alt': 1,
-            'body_coord': 1  # Assuming the body coordination stays the same for simplicity
+            'body_coord': 1
         }
 
         # Update the swarm data with the new leader information and the new offsets
@@ -296,32 +304,26 @@ def setup_routes(app):
     def update_leader_in_swarm(swarm_data, drone_id, new_leader_id, new_offsets):
         """
         Update the leader for the given drone in the swarm data.
-
-        :param swarm_data: List of drone data (each drone has hw_id, follow, and offsets)
-        :param drone_id: ID of the drone to update
-        :param new_leader_id: The ID of the new leader
-        :param new_offsets: Dictionary with new offsets for the drone
-        :return: Updated swarm data and a boolean indicating success
         """
         updated = False
-        
+
         # Iterate through the swarm data and find the drone to update
         for row in swarm_data:
             if row['hw_id'] == str(drone_id):
                 # Update the drone's leader and offsets
-                row['follow'] = str(new_leader_id)  # Leader is the 'follow' field in the data
-                row['offset_n'] = str(new_offsets['offset_n'])
-                row['offset_e'] = str(new_offsets['offset_e'])
-                row['offset_alt'] = str(new_offsets['offset_alt'])
-                row['body_coord'] = str(new_offsets['body_coord'])
+                row['follow'] = str(new_leader_id)
+                row['offset_n'] = new_offsets['offset_n']  # Keep as integer/float
+                row['offset_e'] = new_offsets['offset_e']
+                row['offset_alt'] = new_offsets['offset_alt']
+                row['body_coord'] = new_offsets['body_coord']
                 updated = True
                 logger.info(f"Updated drone {drone_id} to follow new leader {new_leader_id} with offsets.")
                 break
-        
+
         # If no drone was updated, log an error
         if not updated:
             logger.error(f"Drone {drone_id} not found in swarm data to update.")
-        
+
         return swarm_data, updated
 
 
@@ -329,42 +331,46 @@ def setup_routes(app):
     def update_leader():
         """
         Endpoint for a drone to request a new leader when its current leader becomes unavailable.
-        It updates the leader and the corresponding swarm data, and saves it locally.
-
-        :return: JSON response with status and message
         """
-        data = request.get_json()  # Get the JSON data from the request
+        data = request.get_json()
         if not data:
             return jsonify({'status': 'error', 'message': 'No JSON data provided'}), 400
 
-        # Extract information from the request
-        drone_id = data.get('drone_id')
+        # Extract and validate information from the request
+        try:
+            drone_id = int(data.get('drone_id'))
+        except (TypeError, ValueError):
+            return jsonify({'status': 'error', 'message': 'Invalid drone_id format'}), 400
+
         leader_id = data.get('leader_id')
         last_update = data.get('last_update')
 
         if not all([drone_id, leader_id, last_update]):
             return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
 
-        # Step 1: Load the current swarm data (this should load a list of drones)
-        swarm_data = load_swarm()
+        # Step 1: Load the current swarm data
+        with swarm_lock:
+            swarm_data = load_swarm()
 
         # Step 2: Elect a new leader for the drone
         try:
             updated_swarm_manifest = elect_new_leader(swarm_data, drone_id)
-            
-            # Step 3: Save the updated swarm data (decide to save or not)
-            save_swarm(updated_swarm_manifest)  # Save to file, database, etc.
-            
+
+            # Step 3: Save the updated swarm data
+            with swarm_lock:
+                save_swarm(updated_swarm_manifest)
+
+            # Find the updated drone data
+            updated_drone_data = next((row for row in updated_swarm_manifest if int(row['hw_id']) == drone_id), None)
+
             return jsonify({
                 'status': 'success',
                 'message': f'New leader elected for drone {drone_id}, updated offsets applied.',
-                'updated_follow_rule': updated_swarm_manifest[drone_id],  # Example of returning the new leader ID
+                'updated_follow_rule': updated_drone_data
             }), 200
         except Exception as e:
             logger.error(f"Error during leader election process: {e}")
             return jsonify({'status': 'error', 'message': f"Error during leader election process: {e}"}), 500
-
-
 
     @app.route('/import-show', methods=['POST'])
     def import_show():
