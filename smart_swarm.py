@@ -1026,6 +1026,7 @@ async def run_smart_swarm():
 
     # Launch the periodic swarm configuration update task (applies to both roles)
     swarm_update_task = asyncio.create_task(update_swarm_config_periodically(drone))
+    logger.info(f"[Main] Scheduled swarm_update_task: {swarm_update_task!r}")
 
     # --------------------------- #
     #         Main Loop         #
