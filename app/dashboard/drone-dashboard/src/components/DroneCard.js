@@ -61,7 +61,7 @@ const DroneCard = ({ drone, allDrones, onSaveChanges, isSelected }) => {
 
     return (
         <div className={`drone-card ${isExpanded ? 'selected-drone' : ''} ${isSelected ? 'selected' : ''}`}  >
-            <h3 onClick={() => setIsExpanded(!isExpanded)}>Drone ID: {drone.hw_id}</h3>
+            <h3 onClick={() => setIsExpanded(!isExpanded)}>Drone {drone.hw_id}</h3>
 
             <p>
                 {role === 'Top Leader' ?
