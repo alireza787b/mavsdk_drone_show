@@ -64,6 +64,8 @@ class Params:
     offline_swarm = True              # Use offline swarm (not used!)
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
+    MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
+    MAX_LEADER_UNREACHABLE_ATTEMPTS = 10 # Max retry for follower before selecting new leader
     
     
     csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)
@@ -166,7 +168,6 @@ class Params:
     CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz
     LEADER_UPDATE_FREQUENCY = 3       # Leader update frequency in Hz
     DATA_FRESHNESS_THRESHOLD = 3.0    # Data freshness threshold in seconds
-    SWARM_FEEDFORWARD_VELOCITY_ENABLED = False
 
 
     CONFIG_UPDATE_INTERVAL = 5        # Periodic time for re-checking the swarm file (s)

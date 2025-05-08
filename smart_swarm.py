@@ -143,6 +143,10 @@ REFERENCE_POS = None  # Reference position (latitude, longitude, altitude)
 
 FOLLOWER_TASKS = {}  # Dictionary to hold tasks for follower mode (leader update, state update, control loop)
 
+leader_unreachable_count = 0  # Initialize the counter for failed leader fetch attempts
+max_unreachable_attempts = Params.MAX_LEADER_UNREACHABLE_ATTEMPTS  # Set the max retries before leader election
+
+
 
 # ----------------------------- #
 #         Helper Functions      #
@@ -612,6 +616,7 @@ async def update_leader_state():
             state_url = f"http://{LEADER_IP}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             response = requests.get(state_url, timeout=1)
             if response.status_code == 200:
+                leader_unreachable_count = 0  # Reset the counter when leader is reachable
                 data = response.json()
                 leader_update_time = data.get('update_time', None)
                 if leader_update_time and leader_update_time != last_update_time:
@@ -650,11 +655,78 @@ async def update_leader_state():
                     logger.error("Leader data does not contain 'update_time'.")
             else:
                 logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
-        except requests.RequestException as e:
-            logger.error(f"Exception while fetching leader state: {e}")
-        except Exception:
-            logger.exception("Unexpected error in updating leader state")
+                leader_unreachable_count += 1
+                if leader_unreachable_count >= max_unreachable_attempts:
+                    logger.warning(f"Leader unreachable for {leader_unreachable_count} attempts. Initiating leader election.")
+                    await elect_new_leader()  # Call the leader election function
+        except Exception as e:
+            leader_unreachable_count += 1
+            if leader_unreachable_count >= max_unreachable_attempts:
+                logger.warning(f"Leader unreachable for {leader_unreachable_count} attempts. Initiating leader election.")
+                await elect_new_leader()  # Call the leader election function
         await asyncio.sleep(update_interval)
+        
+        
+async def elect_new_leader():
+    """
+    Elect a new leader when the current leader is unreachable.
+    This is a placeholder function that sets the new leader as the current leader ID + 1.
+    The GCS is notified of the change.
+    """
+    logger = logging.getLogger(__name__)
+
+    # Placeholder logic for leader election
+    new_leader_hw_id = int(LEADER_HW_ID) + 1
+    logger.info(f"Elected new leader: {new_leader_hw_id}")
+
+    # Update SWARM_CONFIG with the new leader info
+    global SWARM_CONFIG
+    for drone_hw_id, config in SWARM_CONFIG.items():
+        if config['follow'] == LEADER_HW_ID:
+            SWARM_CONFIG[drone_hw_id]['follow'] = str(new_leader_hw_id)
+
+    # Notify GCS with the updated swarm configuration
+    logger.info("Notifying GCS about the new leader.")
+    await notify_gcs_of_leader_change(new_leader_hw_id)
+    
+    
+async def notify_gcs_of_leader_change(new_leader_hw_id):
+    """
+    Notify the Ground Control Station (GCS) of the new leader by sending only our drone's data.
+    """
+    logger = logging.getLogger(__name__)
+
+    # GCS endpoint for notifying leader change
+    gcs_ip = DRONE_CONFIG[str(HW_ID)]['gcs_ip']
+    notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/update-swarm-data"
+
+    # Get the current drone's config (this drone is the one making the change)
+    current_drone_config = SWARM_CONFIG.get(str(HW_ID))
+
+    if not current_drone_config:
+        logger.error(f"Config for HW_ID {HW_ID} not found in SWARM_CONFIG.")
+        return
+
+    # Prepare the data for the current drone only
+    updated_drone_data = {
+        'hw_id': HW_ID,
+        'follow': str(new_leader_hw_id),  # Update the follow field with the new leader's HW_ID
+        'offset_n': current_drone_config['offset_n'],
+        'offset_e': current_drone_config['offset_e'],
+        'offset_alt': current_drone_config['offset_alt'],
+        'body_coord': '1' if current_drone_config['body_coord'] else '0'
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(notify_url, json=updated_drone_data) as resp:
+                resp.raise_for_status()
+                logger.info(f"Successfully notified GCS of leader change for HW_ID {HW_ID}.")
+    except Exception as e:
+        logger.error(f"Error notifying GCS of leader change for HW_ID {HW_ID}: {e}")
+
+
+
 
 # ----------------------------- #
 #    Own State Update Task      #
@@ -698,7 +770,7 @@ async def control_loop(drone: System):
     led_controller.set_color(0, 255, 0)  # Green to indicate control loop started
 
     stale_start_time = None
-    stale_duration_threshold = 1.0  # seconds
+    stale_duration_threshold = Params.MAX_STALE_DURATION  # seconds
 
     # Initialize PD controller and low-pass filter
     kp = Params.PD_KP  # Proportional gain
