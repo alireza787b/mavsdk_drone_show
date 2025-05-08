@@ -468,7 +468,6 @@ async def update_swarm_config_periodically(drone):
 
     NOTE: Requires DRONE_CONFIG[HW_ID]['gcs_ip'] and Params.flask_telem_socket_port to be set.
     """
-    print("periodic check")
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
 
@@ -487,6 +486,7 @@ async def update_swarm_config_periodically(drone):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
+                logger.debug("[Periodic Update] Checking swarm configuration")  # ← moved inside loop
                 # Fetch JSON list of swarm entries
                 async with session.get(state_url) as resp:
                     resp.raise_for_status()
