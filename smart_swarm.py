@@ -488,7 +488,7 @@ async def update_swarm_config_periodically(drone):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                logger.debug("[Periodic Update] Checking swarm configuration")  # ← moved inside loop
+                logger.info("[Periodic Update] Checking swarm configuration")  # ← moved inside loop
                 # Fetch JSON list of swarm entries
                 async with session.get(state_url) as resp:
                     resp.raise_for_status()
