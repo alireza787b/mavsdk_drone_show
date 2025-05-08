@@ -467,6 +467,7 @@ async def update_swarm_config_periodically(drone):
 
     NOTE: Requires DRONE_CONFIG[HW_ID]['gcs_ip'] and Params.flask_telem_socket_port to be set.
     """
+    print("periodic check")
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
 
