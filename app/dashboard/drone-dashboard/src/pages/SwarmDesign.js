@@ -219,12 +219,7 @@ const SwarmDesign = () => {
                 </div>
             </div>
 
-            {(changes.added.length || changes.removed.length) && (
-                <div className="notification-container">
-                    {changes.added.length > 0 && <span>Added: {changes.added.join(', ')}</span>}
-                    {changes.removed.length > 0 && <span>Removed: {changes.removed.join(', ')}</span>}
-                </div>
-            )}
+            
 
             <div className="main-content">
                 {/* Drone Cards */}
@@ -252,6 +247,12 @@ const SwarmDesign = () => {
             <div className="swarm-plots-container">
                 <SwarmPlots swarmData={swarmData} />
             </div>
+            {(changes.added.length || changes.removed.length) && (
+                <div className="notification-container">
+                    {changes.added.length > 0 && <span>Added: {changes.added.join(', ')}</span>}
+                    {changes.removed.length > 0 && <span>Removed: {changes.removed.join(', ')}</span>}
+                </div>
+            )}
         </div>
     );
 };
