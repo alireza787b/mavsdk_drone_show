@@ -50,6 +50,8 @@ const SwarmDesign = () => {
       axios.get(`${backendURL}/get-config-data`),
     ])
       .then(([sRes, cRes]) => {
+        console.log('Swarm Data:', sRes.data); // Debug log to inspect
+        console.log('Config Data:', cRes.data); // Debug log to inspect
         setSwarmData(sRes.data);
         setConfigData(cRes.data);
       })
