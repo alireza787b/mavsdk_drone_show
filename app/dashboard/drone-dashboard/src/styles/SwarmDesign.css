@@ -37,25 +37,33 @@
     transition: background-color 0.2s ease;
   }
   
-  .btn svg { font-size: 1.1em; }
+  .btn svg {
+    font-size: 1.1em;
+  }
   
   .btn.update {
     background: #1976d2;
     color: white;
   }
-  .btn.update:hover { background: #1565c0; }
+  .btn.update:hover {
+    background: #1565c0;
+  }
   
   .btn.commit {
     background: #388e3c;
     color: white;
   }
-  .btn.commit:hover { background: #2e7d32; }
+  .btn.commit:hover {
+    background: #2e7d32;
+  }
   
   .btn.revert {
     background: #d32f2f;
     color: white;
   }
-  .btn.revert:hover { background: #c62828; }
+  .btn.revert:hover {
+    background: #c62828;
+  }
   
   .btn.import {
     background: #0288d1;
@@ -63,20 +71,28 @@
     position: relative;
     overflow: hidden;
   }
-  .btn.import input[type=file] {
+  .btn.import input[type='file'] {
     position: absolute;
-    left:0; top:0; width:100%; height:100%;
-    opacity:0; cursor:pointer;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
   }
-  .btn.import:hover { background: #0277bd; }
+  .btn.import:hover {
+    background: #0277bd;
+  }
   
   .btn.export {
     background: #7b1fa2;
     color: white;
   }
-  .btn.export:hover { background: #6a1b9a; }
+  .btn.export:hover {
+    background: #6a1b9a;
+  }
   
-  .controls + .notification {
+  .notification {
     padding: 8px;
     background: #fff8e1;
     border-left: 4px solid #ffb300;
@@ -103,20 +119,29 @@
     flex: 1;
     background: white;
     border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     padding: 8px;
   }
   
   .plots-section {
     background: white;
     border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     padding: 12px;
     overflow-x: auto;
   }
   
+  .empty {
+    color: #777;
+    text-align: center;
+    padding: 20px 0;
+  }
+  
   @media (max-width: 768px) {
     .main-content {
+      flex-direction: column;
+    }
+    .controls {
       flex-direction: column;
     }
   }
