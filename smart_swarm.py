@@ -475,7 +475,8 @@ async def update_swarm_config_periodically(drone):
     logger = logging.getLogger(__name__)
 
     # Resolve the GCS endpoint for this drone
-    drone_cfg = DRONE_CONFIG.get(HW_ID)
+    str_HW_ID = str(HW_ID) 
+    drone_cfg = DRONE_CONFIG.get(str_HW_ID)
     if not drone_cfg or 'gcs_ip' not in drone_cfg:
         logger.error(f"[Periodic Update] Cannot resolve GCS IP for HW_ID={HW_ID}")
         return
