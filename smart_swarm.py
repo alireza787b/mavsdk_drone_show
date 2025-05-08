@@ -676,7 +676,7 @@ async def elect_new_leader():
     logger = logging.getLogger(__name__)
 
     # Placeholder logic for leader election
-    new_leader_hw_id = int(LEADER_HW_ID) + 1
+    new_leader_hw_id = 2
     logger.info(f"Elected new leader: {new_leader_hw_id}")
 
     # Update SWARM_CONFIG with the new leader info
