@@ -475,7 +475,7 @@ async def update_swarm_config_periodically(drone):
     logger = logging.getLogger(__name__)
 
     # Resolve the GCS endpoint for this drone
-    str_HW_ID = str(HW_ID) 
+    str_HW_ID = str(HW_ID)
     drone_cfg = DRONE_CONFIG.get(str_HW_ID)
     if not drone_cfg or 'gcs_ip' not in drone_cfg:
         logger.error(f"[Periodic Update] Cannot resolve GCS IP for HW_ID={HW_ID}")
@@ -488,7 +488,7 @@ async def update_swarm_config_periodically(drone):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                logger.info("[Periodic Update] Checking swarm configuration")  # ← moved inside loop
+                logger.info("[Periodic Update] Checking swarm configuration")
                 # Fetch JSON list of swarm entries
                 async with session.get(state_url) as resp:
                     resp.raise_for_status()
@@ -512,13 +512,14 @@ async def update_swarm_config_periodically(drone):
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
                     # Determine new role/offsets/body_coord
-                    new_is_leader   = (new_cfg['follow'] == '0')
                     new_offsets     = {
                         'n':   new_cfg['offset_n'],
                         'e':   new_cfg['offset_e'],
                         'alt': new_cfg['offset_alt']
                     }
                     new_body_coord  = new_cfg['body_coord']
+                    new_leader      = new_cfg['follow']
+                    new_is_leader   = (new_leader == '0')
 
                     # ROLE CHANGE?
                     if new_is_leader != IS_LEADER:
@@ -555,6 +556,19 @@ async def update_swarm_config_periodically(drone):
                                     FOLLOWER_TASKS['own_state_task']    = asyncio.create_task(update_own_state(drone))
                                     FOLLOWER_TASKS['control_task']      = asyncio.create_task(control_loop(drone))
 
+                    # Handle leader change if drone is a follower
+                    if not new_is_leader:
+                        if new_leader != LEADER_HW_ID:
+                            logger.info(f"[Periodic Update] Leader change detected. Following new leader {new_leader}.")
+                            LEADER_HW_ID = new_leader
+                            leader_cfg = DRONE_CONFIG.get(LEADER_HW_ID)
+                            if not leader_cfg:
+                                logger.error("[Periodic Update] Leader config missing for HW_ID=%s", LEADER_HW_ID)
+                            else:
+                                LEADER_IP = leader_cfg['ip']
+                                logger.info(f"[Periodic Update] Following new leader at {LEADER_IP}")
+                                # You can add any logic to update tasks or behavior based on new leader here.
+
                     # OFFSET CHANGE?
                     if new_offsets != OFFSETS:
                         logger.info(
@@ -576,6 +590,7 @@ async def update_swarm_config_periodically(drone):
 
             # Wait before next poll
             await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)
+
 
 
 # ----------------------------- #
