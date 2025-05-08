@@ -1,139 +1,111 @@
-/* SwarmDesign.css */
+/* === SwarmDesign.css - Updated === */
 
-.swarm-design {
+.control-buttons {
     display: flex;
-    flex-direction: column;
-    gap: 20px;
-    padding: 20px;
-    font-family: 'Segoe UI', sans-serif;
-    background-color: #f9f9f9;
-    min-height: 100vh;
-  }
-  
-  .control-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
   }
   
   .button-group {
     display: flex;
-    flex-wrap: wrap;
     gap: 10px;
+    flex-wrap: wrap;
   }
   
-  .btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .action-button {
     padding: 10px 16px;
-    border: none;
     border-radius: 6px;
-    cursor: pointer;
+    border: none;
     font-weight: 600;
-    font-size: 0.95em;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .save-draft {
     background-color: #e0e0e0;
-    color: #222;
-    transition: all 0.3s ease;
+    color: #333;
   }
   
-  .btn svg {
-    font-size: 1em;
+  .save-draft:hover {
+    background-color: #d0d0d0;
   }
   
-  .btn.draft {
-    background-color: #cddc39;
-    color: #212121;
-  }
-  
-  .btn.draft:hover {
-    background-color: #c0cf31;
-  }
-  
-  .btn.commit {
+  .save-persist {
     background-color: #4caf50;
-    color: #fff;
+    color: white;
   }
   
-  .btn.commit:hover {
-    background-color: #43a047;
+  .save-persist:hover {
+    background-color: #45a049;
   }
   
-  .btn.revert {
+  .revert {
     background-color: #f44336;
-    color: #fff;
+    color: white;
   }
   
-  .btn.revert:hover {
+  .revert:hover {
     background-color: #d32f2f;
   }
   
-  .btn.import {
-    background-color: #03a9f4;
-    color: #fff;
-    position: relative;
-    overflow: hidden;
+  .disabled {
+    opacity: 0.6;
+    pointer-events: none;
   }
   
-  .btn.import input[type="file"] {
-    opacity: 0;
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
+  .notification-container {
     width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background-color: #fffbe6;
+    border: 1px solid #ffd600;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  
+  .notification-icon {
+    font-size: 20px;
+    color: #f57c00;
+  }
+  
+  .notification-text {
+    color: #333;
+    font-size: 14px;
+  }
+  
+  .file-upload-btn {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    background-color: #2196f3;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 600;
     cursor: pointer;
   }
   
-  .btn.import:hover {
-    background-color: #0288d1;
+  .file-upload-btn input[type="file"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    opacity: 0;
+    font-size: 100px;
+    cursor: pointer;
   }
   
-  .btn.export {
-    background-color: #9c27b0;
-    color: #fff;
+  .export-config {
+    background-color: #607d8b;
+    color: white;
   }
   
-  .btn.export:hover {
-    background-color: #7b1fa2;
-  }
-  
-  .alert.warning {
-    background-color: #fff3e0;
-    color: #e65100;
-    border-left: 4px solid #ff9800;
-    padding: 10px 12px;
-    border-radius: 4px;
-    font-size: 0.95em;
-  }
-  
-  .swarm-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .swarm-graph,
-  .swarm-plots {
-    background-color: #fff;
-    padding: 16px;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  }
-  
-  .spin {
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    0%   { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  
-  @media screen and (max-width: 768px) {
-    .button-group {
-      flex-direction: column;
-    }
+  .export-config:hover {
+    background-color: #546e7a;
   }
   
