@@ -1,17 +1,22 @@
-/* Improved button styles for alignment and hover effects */
+/* Ensuring buttons are grouped properly */
 .control-buttons {
     display: flex;
-    justify-content: flex-start;
-    gap: 12px;
+    flex-direction: column;
+    gap: 16px;
     margin-bottom: 16px;
-    flex-wrap: wrap;
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-start; /* Align buttons to the left */
 }
 
 .btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 18px; /* Increased padding for better readability */
+    padding: 10px 18px;
     border: none;
     border-radius: 4px;
     font-size: 1em;
@@ -24,7 +29,7 @@
     font-size: 1.2em;
 }
 
-/* Color and hover effects for each button */
+/* Buttons styling */
 .btn.update {
     background: #1976d2;
     color: white;
@@ -76,19 +81,7 @@
     background: #6a1b9a;
 }
 
-/* Styling for notifications */
-.notification-container {
-    padding: 10px;
-    background: #fff8e1;
-    border-left: 4px solid #ffb300;
-    color: #5d4037;
-    font-size: 1em;
-    display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-/* Ensuring the plots and content layout are responsive and clean */
+/* Ensuring the plots and content layout are responsive */
 .main-content {
     display: flex;
     gap: 20px;
@@ -116,7 +109,7 @@
     border-radius: 4px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     padding: 12px;
-    min-height: 400px; /* Ensures plots are displayed fully */
+    min-height: 400px;
     flex: 1;
     overflow: hidden;
 }

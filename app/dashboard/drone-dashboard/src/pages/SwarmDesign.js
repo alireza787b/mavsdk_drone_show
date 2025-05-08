@@ -176,42 +176,47 @@ const SwarmDesign = () => {
         <div className="swarm-design-container">
             <div className="control-buttons">
                 {/* Update Swarm and Commit Changes Buttons */}
-                <button
-                    className="btn update"
-                    onClick={() => confirmAndSave(false)}
-                    disabled={saving}
-                >
-                    <FaSyncAlt /> Update Swarm
-                </button>
-                <button
-                    className="btn commit"
-                    onClick={() => confirmAndSave(true)}
-                    disabled={saving}
-                >
-                    <FaCloudUploadAlt /> Commit Changes
-                </button>
-                <button
-                    className="btn revert"
-                    onClick={handleRevert}
-                    disabled={saving}
-                >
-                    Revert
-                </button>
-                <label className="btn import">
-                    Import CSV
-                    <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleCSVImport}
-                    />
-                </label>
-                <button
-                    className="btn export"
-                    onClick={handleCSVExport}
-                    disabled={saving}
-                >
-                    Export CSV
-                </button>
+                <div className="button-group">
+                    <button
+                        className="btn update"
+                        onClick={() => confirmAndSave(false)}
+                        disabled={saving}
+                    >
+                        <FaSyncAlt /> Update Swarm
+                    </button>
+                    <button
+                        className="btn commit"
+                        onClick={() => confirmAndSave(true)}
+                        disabled={saving}
+                    >
+                        <FaCloudUploadAlt /> Commit Changes
+                    </button>
+                    <button
+                        className="btn revert"
+                        onClick={handleRevert}
+                        disabled={saving}
+                    >
+                        Revert
+                    </button>
+                </div>
+
+                <div className="button-group">
+                    <label className="btn import">
+                        Import CSV
+                        <input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleCSVImport}
+                        />
+                    </label>
+                    <button
+                        className="btn export"
+                        onClick={handleCSVExport}
+                        disabled={saving}
+                    >
+                        Export CSV
+                    </button>
+                </div>
             </div>
 
             {(changes.added.length || changes.removed.length) && (
