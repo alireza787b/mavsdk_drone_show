@@ -158,6 +158,10 @@ class FlaskHandler:
             except subprocess.CalledProcessError as e:
                 return jsonify({'error': f"Git command failed: {str(e)}"}), 500
             
+        @self.app.route('/ping', methods=['GET'])
+        def ping():
+            """Simple endpoint to confirm connectivity."""
+            return jsonify({"status": "ok"}), 200
             
         @self.app.route(f"/{Params.get_position_deviation_URI}", methods=['GET'])
         def get_position_deviation():
