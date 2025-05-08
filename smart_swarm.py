@@ -503,7 +503,7 @@ async def update_swarm_config_periodically(drone):
                         'offset_n':    float(entry['offset_n']),
                         'offset_e':    float(entry['offset_e']),
                         'offset_alt':  float(entry['offset_alt']),
-                        'body_coord':  entry['body_coord']
+                        'body_coord': entry['body_coord'] == '1',
                     }
 
                 # Grab this drone's new config
