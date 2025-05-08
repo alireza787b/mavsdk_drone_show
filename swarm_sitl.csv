@@ -1,6 +1,6 @@
 hw_id,follow,offset_n,offset_e,offset_alt,body_coord
 1,0,0,0,0,1
-2,1,10,20,5,0
+2,1,5,20,5,0
 3,2,5,-5,0,1
 4,1,10,5,0,1
 5,4,5,-5,0,1
