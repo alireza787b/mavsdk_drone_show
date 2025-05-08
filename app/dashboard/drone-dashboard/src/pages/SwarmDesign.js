@@ -43,7 +43,7 @@ const SwarmDesign = () => {
 
     const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
-    // 1) Initial fetch of both datasets
+    // Initial fetch of both datasets
     useEffect(() => {
         const fetchSwarmData = axios.get(`${backendURL}/get-swarm-data`);
         const fetchConfigData = axios.get(`${backendURL}/get-config-data`);
@@ -58,7 +58,7 @@ const SwarmDesign = () => {
             });
     }, []);
 
-    // 2) Merge config + swarm, detect adds/removes
+    // Merge config + swarm, detect adds/removes
     useEffect(() => {
         if (swarmData.length === 0 || configData.length === 0) return;
 
@@ -106,10 +106,10 @@ const SwarmDesign = () => {
                 : dronesFollowing(d.hw_id).length
                 ? 'Intermediate Leader'
                 : 'Follower';
-            return `Drone ${d.hw_id}: ${role}${role!=='Top Leader'?` (→${d.follow})`:''}`;
+            return `Drone ${d.hw_id}: ${role}${role !== 'Top Leader' ? ` (→${d.follow})` : ''}`;
         }).join('\n');
 
-        if (window.confirm(`Proceed to ${withCommit?'commit':'update'} swarm?\n\n${summary}`)) {
+        if (window.confirm(`Proceed to ${withCommit ? 'commit' : 'update'} swarm?\n\n${summary}`)) {
             saveSwarmData(withCommit);
         }
     };
@@ -117,7 +117,7 @@ const SwarmDesign = () => {
     const saveSwarmData = async withCommit => {
         setSaving(true);
         try {
-            const url = `${backendURL}/save-swarm-data${withCommit?'?commit=true':''}`;
+            const url = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : ''}`;
             const res = await axios.post(url, swarmData);
             alert(res.data.message || 'Saved successfully.');
             // re-fetch
@@ -141,7 +141,7 @@ const SwarmDesign = () => {
         Papa.parse(file, {
             complete: ({ data }) => {
                 const header = data[0].map(h => h.trim());
-                const expected = ["hw_id","follow","offset_n","offset_e","offset_alt","body_coord"];
+                const expected = ["hw_id", "follow", "offset_n", "offset_e", "offset_alt", "body_coord"];
                 if (header.toString() !== expected.toString()) {
                     return alert('CSV header mismatch.');
                 }
@@ -160,7 +160,7 @@ const SwarmDesign = () => {
 
     const handleCSVExport = () => {
         const csv = Papa.unparse(swarmData);
-        const blob = new Blob([csv],{type:'text/csv'});
+        const blob = new Blob([csv], { type: 'text/csv' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = 'swarm_export.csv';
@@ -169,7 +169,6 @@ const SwarmDesign = () => {
 
     const handleRevert = () => {
         if (window.confirm('Revert all changes?')) {
-            // simply reload the page data:
             window.location.reload();
         }
     };
@@ -223,23 +222,27 @@ const SwarmDesign = () => {
                 </div>
             )}
 
-            <div className="swarm-container">
-                {swarmData.length ? swarmData.map(drone => (
-                    <DroneCard
-                        key={drone.hw_id}
-                        drone={drone}
-                        allDrones={swarmData}
-                        onSaveChanges={handleSaveChanges}
-                        isSelected={selectedDroneId === drone.hw_id}
-                    />
-                )) : <p>No data available for swarm configuration.</p>}
-            </div>
+            <div className="main-content">
+                {/* Drone Cards */}
+                <div className="left-panel">
+                    {swarmData.length ? swarmData.map(drone => (
+                        <DroneCard
+                            key={drone.hw_id}
+                            drone={drone}
+                            allDrones={swarmData}
+                            onSaveChanges={handleSaveChanges}
+                            isSelected={selectedDroneId === drone.hw_id}
+                        />
+                    )) : <p>No data available for swarm configuration.</p>}
+                </div>
 
-            <div className="swarm-graph-container">
-                <DroneGraph
-                    swarmData={swarmData}
-                    onSelectDrone={setSelectedDroneId}
-                />
+                {/* Graph */}
+                <div className="right-panel">
+                    <DroneGraph
+                        swarmData={swarmData}
+                        onSelectDrone={setSelectedDroneId}
+                    />
+                </div>
             </div>
 
             <div className="swarm-plots-container">

@@ -1,5 +1,4 @@
 /* SwarmDesign.css */
-
 .swarm-design-container {
     display: flex;
     flex-direction: column;
@@ -9,22 +8,17 @@
     background: #f5f6fa;
     height: 100vh;
     box-sizing: border-box;
-  }
-  
-  .controls {
+}
+
+.control-buttons {
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
-  }
-  
-  .primary-actions,
-  .secondary-actions {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .btn {
+    margin-bottom: 16px;
+}
+
+.btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -35,43 +29,43 @@
     font-weight: 500;
     cursor: pointer;
     transition: background-color 0.2s ease;
-  }
-  
-  .btn svg {
+}
+
+.btn svg {
     font-size: 1.1em;
-  }
-  
-  .btn.update {
+}
+
+.btn.update {
     background: #1976d2;
     color: white;
-  }
-  .btn.update:hover {
+}
+.btn.update:hover {
     background: #1565c0;
-  }
-  
-  .btn.commit {
+}
+
+.btn.commit {
     background: #388e3c;
     color: white;
-  }
-  .btn.commit:hover {
+}
+.btn.commit:hover {
     background: #2e7d32;
-  }
-  
-  .btn.revert {
+}
+
+.btn.revert {
     background: #d32f2f;
     color: white;
-  }
-  .btn.revert:hover {
+}
+.btn.revert:hover {
     background: #c62828;
-  }
-  
-  .btn.import {
+}
+
+.btn.import {
     background: #0288d1;
     color: white;
     position: relative;
     overflow: hidden;
-  }
-  .btn.import input[type='file'] {
+}
+.btn.import input[type='file'] {
     position: absolute;
     left: 0;
     top: 0;
@@ -79,20 +73,20 @@
     height: 100%;
     opacity: 0;
     cursor: pointer;
-  }
-  .btn.import:hover {
+}
+.btn.import:hover {
     background: #0277bd;
-  }
-  
-  .btn.export {
+}
+
+.btn.export {
     background: #7b1fa2;
     color: white;
-  }
-  .btn.export:hover {
+}
+.btn.export:hover {
     background: #6a1b9a;
-  }
-  
-  .notification {
+}
+
+.notification-container {
     padding: 8px;
     background: #fff8e1;
     border-left: 4px solid #ffb300;
@@ -100,49 +94,42 @@
     font-size: 0.9em;
     display: flex;
     gap: 12px;
-  }
-  
-  .main-content {
+}
+
+.main-content {
     display: flex;
-    flex: 1;
     gap: 16px;
-    overflow: hidden;
-  }
-  
-  .left-panel {
+    margin-bottom: 20px;
+}
+
+.left-panel {
     flex: 1;
     overflow-y: auto;
     padding-right: 8px;
-  }
-  
-  .right-panel {
+}
+
+.right-panel {
     flex: 1;
     background: white;
     border-radius: 4px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     padding: 8px;
-  }
-  
-  .plots-section {
+}
+
+.swarm-plots-container {
     background: white;
     border-radius: 4px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     padding: 12px;
     overflow-x: auto;
-  }
-  
-  .empty {
-    color: #777;
-    text-align: center;
-    padding: 20px 0;
-  }
-  
-  @media (max-width: 768px) {
+}
+
+@media (max-width: 768px) {
     .main-content {
-      flex-direction: column;
+        flex-direction: column;
     }
-    .controls {
-      flex-direction: column;
+
+    .control-buttons {
+        flex-direction: column;
     }
-  }
-  
+}
