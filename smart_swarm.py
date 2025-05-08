@@ -459,77 +459,119 @@ def stop_mavsdk_server(mavsdk_server):
 
 async def update_swarm_config_periodically(drone):
     """
-    Periodically re-reads the swarm configuration CSV and updates global parameters
-    such as role, formation offsets, and leader information.
-    
+    Periodically fetches the swarm configuration from the GCS API endpoint and updates
+    global parameters such as role, formation offsets, and leader information.
+
     If a role change is detected (e.g., switching from follower to leader or vice versa),
     it starts or cancels follower-specific tasks accordingly.
-    
-    TODO: In the future, consider replacing CSV reads with fetching the latest configuration
-          from a GCS endpoint.
+
+    NOTE: Requires DRONE_CONFIG[HW_ID]['gcs_ip'] and Params.flask_telem_socket_port to be set.
     """
-    global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD, LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
+    global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
+    global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
+
     logger = logging.getLogger(__name__)
-    # Determine the filename based on simulation mode
-    swarm_filename = os.path.join('swarm_sitl.csv' if Params.sim_mode else 'swarm.csv')
-    
-    while True:
-        try:
-            # Re-read the swarm configuration
-            read_swarm_csv(swarm_filename)
-            new_swarm_config = SWARM_CONFIG.get(str(HW_ID))
-            if new_swarm_config is None:
-                logger.error(f"[Periodic Update] Swarm configuration for HW_ID {HW_ID} not found.")
-            else:
-                # Determine new role and formation parameters
-                new_is_leader = new_swarm_config['follow'] == '0'
-                new_offsets = {'n': new_swarm_config['offset_n'], 
-                               'e': new_swarm_config['offset_e'], 
-                               'alt': new_swarm_config['offset_alt']}
-                new_body_coord = new_swarm_config['body_coord']
-                
-                # Check for role change
-                if new_is_leader != IS_LEADER:
-                    logger.info(f"[Periodic Update] Role change detected. "
-                                f"Old role: {'Leader' if IS_LEADER else 'Follower'}, "
-                                f"New role: {'Leader' if new_is_leader else 'Follower'}.")
-                    IS_LEADER = new_is_leader
-                    if IS_LEADER:
-                        # Switching to leader: cancel follower tasks if running
-                        if FOLLOWER_TASKS:
-                            logger.info("[Periodic Update] Cancelling follower tasks as role changed to Leader.")
-                            for task in FOLLOWER_TASKS.values():
-                                if task:
-                                    task.cancel()
-                            FOLLOWER_TASKS.clear()
-                    else:
-                        # Switching to follower: update leader info and start follower tasks if not already running
-                        if not FOLLOWER_TASKS:
-                            LEADER_HW_ID = new_swarm_config['follow']
-                            leader_config = DRONE_CONFIG.get(LEADER_HW_ID)
-                            if leader_config is None:
-                                logger.error(f"[Periodic Update] Leader configuration for HW_ID {LEADER_HW_ID} not found.")
-                            else:
-                                LEADER_IP = leader_config['ip']
-                                LEADER_KALMAN_FILTER = LeaderKalmanFilter()
-                                logger.info("[Periodic Update] Starting follower tasks as role changed to Follower.")
-                                FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
-                                FOLLOWER_TASKS['own_state_task'] = asyncio.create_task(update_own_state(drone))
-                                FOLLOWER_TASKS['control_task'] = asyncio.create_task(control_loop(drone))
-                
-                # Check and update offsets if changed
-                if new_offsets != OFFSETS:
-                    logger.info(f"[Periodic Update] Offset change detected. Old offsets: {OFFSETS}, New offsets: {new_offsets}.")
-                    OFFSETS.update(new_offsets)
-                
-                # Check and update the body coordinate flag if changed
-                if new_body_coord != BODY_COORD:
-                    logger.info(f"[Periodic Update] Body coordinate flag change detected. Old: {BODY_COORD}, New: {new_body_coord}.")
-                    BODY_COORD = new_body_coord
-        except Exception as e:
-            logger.exception(f"[Periodic Update] Error updating swarm configuration: {e}")
-        
-        await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)  # Interval (e.g., 10 seconds) defined in Params
+
+    # Resolve the GCS endpoint for this drone
+    drone_cfg = DRONE_CONFIG.get(HW_ID)
+    if not drone_cfg or 'gcs_ip' not in drone_cfg:
+        logger.error(f"[Periodic Update] Cannot resolve GCS IP for HW_ID={HW_ID}")
+        return
+
+    gcs_ip = drone_cfg['gcs_ip']
+    state_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/get-swarm-data"
+
+    # Shared session for connection reuse
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                # Fetch JSON list of swarm entries
+                async with session.get(state_url) as resp:
+                    resp.raise_for_status()
+                    api_data = await resp.json()
+
+                # Rebuild our in-memory SWARM_CONFIG
+                SWARM_CONFIG.clear()
+                for entry in api_data:
+                    hw_str = str(entry['hw_id'])
+                    SWARM_CONFIG[hw_str] = {
+                        'follow':      entry['follow'],
+                        'offset_n':    float(entry['offset_n']),
+                        'offset_e':    float(entry['offset_e']),
+                        'offset_alt':  float(entry['offset_alt']),
+                        'body_coord':  entry['body_coord']
+                    }
+
+                # Grab this drone's new config
+                new_cfg = SWARM_CONFIG.get(str(HW_ID))
+                if new_cfg is None:
+                    logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
+                else:
+                    # Determine new role/offsets/body_coord
+                    new_is_leader   = (new_cfg['follow'] == '0')
+                    new_offsets     = {
+                        'n':   new_cfg['offset_n'],
+                        'e':   new_cfg['offset_e'],
+                        'alt': new_cfg['offset_alt']
+                    }
+                    new_body_coord  = new_cfg['body_coord']
+
+                    # ROLE CHANGE?
+                    if new_is_leader != IS_LEADER:
+                        logger.info(
+                            "[Periodic Update] Role change: %s → %s",
+                            "Leader" if IS_LEADER else "Follower",
+                            "Leader" if new_is_leader else "Follower"
+                        )
+                        IS_LEADER = new_is_leader
+
+                        if IS_LEADER:
+                            # Cancel any running follower tasks
+                            if FOLLOWER_TASKS:
+                                logger.info("[Periodic Update] Cancelling follower tasks.")
+                                for task in FOLLOWER_TASKS.values():
+                                    if not task.done():
+                                        task.cancel()
+                                FOLLOWER_TASKS.clear()
+                        else:
+                            # Start follower tasks under new leader
+                            if not FOLLOWER_TASKS:
+                                LEADER_HW_ID = new_cfg['follow']
+                                leader_cfg = DRONE_CONFIG.get(LEADER_HW_ID)
+                                if not leader_cfg:
+                                    logger.error(
+                                        "[Periodic Update] Leader config missing for HW_ID=%s",
+                                        LEADER_HW_ID
+                                    )
+                                else:
+                                    LEADER_IP             = leader_cfg['ip']
+                                    LEADER_KALMAN_FILTER  = LeaderKalmanFilter()
+                                    logger.info("[Periodic Update] Launching follower tasks.")
+                                    FOLLOWER_TASKS['leader_update_task'] = asyncio.create_task(update_leader_state())
+                                    FOLLOWER_TASKS['own_state_task']    = asyncio.create_task(update_own_state(drone))
+                                    FOLLOWER_TASKS['control_task']      = asyncio.create_task(control_loop(drone))
+
+                    # OFFSET CHANGE?
+                    if new_offsets != OFFSETS:
+                        logger.info(
+                            "[Periodic Update] Offsets changed: %s → %s",
+                            OFFSETS, new_offsets
+                        )
+                        OFFSETS.update(new_offsets)
+
+                    # BODY_COORD CHANGE?
+                    if new_body_coord != BODY_COORD:
+                        logger.info(
+                            "[Periodic Update] Body coord flag: %s → %s",
+                            BODY_COORD, new_body_coord
+                        )
+                        BODY_COORD = new_body_coord
+
+            except Exception as e:
+                logger.exception(f"[Periodic Update] Error fetching/updating swarm config: {e}")
+
+            # Wait before next poll
+            await asyncio.sleep(Params.CONFIG_UPDATE_INTERVAL)
 
 
 # ----------------------------- #
