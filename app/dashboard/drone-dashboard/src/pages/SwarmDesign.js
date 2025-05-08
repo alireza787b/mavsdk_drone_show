@@ -116,7 +116,7 @@ const SwarmDesign = () => {
     const saveSwarmData = async withCommit => {
         setSaving(true);
         try {
-            const url = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : ''}`;
+            const url = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : '?commit=false'}`;
             const res = await axios.post(url, swarmData);
             toast.success(res.data.message || 'Saved successfully.');
             // re-fetch
