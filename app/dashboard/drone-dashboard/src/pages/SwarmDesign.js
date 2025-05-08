@@ -7,6 +7,7 @@ import SwarmPlots from '../components/SwarmPlots';
 import DroneCard from '../components/DroneCard';
 import { getBackendURL } from '../utilities/utilities';
 import { FaSyncAlt, FaCloudUploadAlt } from 'react-icons/fa';  // For icons
+import { toast } from 'react-toastify';  // For toast notifications
 
 const categorizeDrones = (swarmData) => {
     const topLeaders = swarmData.filter(drone => drone.follow === '0');
@@ -52,7 +53,7 @@ const SwarmDesign = () => {
             })
             .catch(err => {
                 console.error('Error fetching data:', err);
-                alert('Failed to fetch swarm or config data.');
+                toast.error('Failed to fetch swarm or config data.');
             });
     }, []);
 
@@ -117,7 +118,7 @@ const SwarmDesign = () => {
         try {
             const url = `${backendURL}/save-swarm-data${withCommit ? '?commit=true' : ''}`;
             const res = await axios.post(url, swarmData);
-            alert(res.data.message || 'Saved successfully.');
+            toast.success(res.data.message || 'Saved successfully.');
             // re-fetch
             const [swRes, cfgRes] = await Promise.all([
                 axios.get(`${backendURL}/get-swarm-data`),
@@ -127,7 +128,7 @@ const SwarmDesign = () => {
             setConfigData(cfgRes.data);
         } catch (err) {
             console.error('Save failed:', err);
-            alert('Save failed.');
+            toast.error('Save failed.');
         } finally {
             setSaving(false);
         }
@@ -141,7 +142,7 @@ const SwarmDesign = () => {
                 const header = data[0].map(h => h.trim());
                 const expected = ["hw_id", "follow", "offset_n", "offset_e", "offset_alt", "body_coord"];
                 if (header.toString() !== expected.toString()) {
-                    return alert('CSV header mismatch.');
+                    return toast.error('CSV header mismatch.');
                 }
                 const parsed = data.slice(1)
                     .map(r => ({
@@ -251,4 +252,3 @@ const SwarmDesign = () => {
 };
 
 export default SwarmDesign;
-
