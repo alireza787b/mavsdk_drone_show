@@ -295,26 +295,28 @@ class FlaskHandler:
         
         
     def load_csv(self,file_path):
-            """General function to load data from a CSV file."""
-            data = []
-            if not os.path.exists(file_path):
-                logging.error(f"File not found: {file_path}")
-                return data
+        """General function to load data from a CSV file."""
+        data = []
+        if not os.path.exists(file_path):
+            logging.error(f"File not found: {file_path}")
+            return data
 
-            try:
-                with open(file_path, mode='r') as file:
-                    reader = csv.DictReader(file)
-                    for row in reader:
-                        data.append(row)
+        try:
+            with open(file_path, mode='r') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    data.append(row)
 
-                if not data:
-                    logging.warning(f"File is empty: {file_path}")
-            except FileNotFoundError:
-                logging.error(f"File not found: {file_path}")
-            except csv.Error as e:
-                logging.error(f"Error reading CSV file {file_path}: {e}")
-            except Exception as e:
-                logging.error(f"Unexpected error loading file {file_path}: {e}")
+            if not data:
+                logging.warning(f"File is empty: {file_path}")
+        except FileNotFoundError:
+            logging.error(f"File not found: {file_path}")
+        except csv.Error as e:
+            logging.error(f"Error reading CSV file {file_path}: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error loading file {file_path}: {e}")
+        return data
+
 
     # Helper method to get origin from GCS
     def _get_origin_from_gcs(self):
