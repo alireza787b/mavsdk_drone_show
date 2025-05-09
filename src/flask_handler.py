@@ -1,5 +1,7 @@
 #src/flask_handler.py
+import csv
 import math
+import os
 import time
 import subprocess
 from flask import Flask, jsonify, request
@@ -11,7 +13,17 @@ from src.params import Params
 import logging
 from pyproj import Proj, Transformer
 
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
+SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
+# Define colors and symbols
+RESET = "\x1b[0m"
+GREEN = "\x1b[32m"
+RED = "\x1b[31m"
+YELLOW = "\x1b[33m"
+BLUE = "\x1b[34m"
+INFO_SYMBOL = BLUE + "ℹ️" + RESET
+ERROR_SYMBOL = RED + "❌" + RESET
 
 class FlaskHandler:
     def __init__(self, params: Params, drone_config: DroneConfig):
@@ -225,6 +237,16 @@ class FlaskHandler:
                 logging.error(f"Error in network-info endpoint: {e}")
                 return jsonify({"error": str(e)}), 500
             
+        @self.app.route('/get-swarm-data', methods=['GET'])
+        def get_swarm():
+            logging.info("Swarm data requested")
+            try:
+                swarm = self.load_swarm()
+                return jsonify(swarm)
+            except Exception as e:
+                return self.error_response(f"Error loading swarm data: {e}")
+            
+            
         @self.app.route('/get-local-position-ned', methods=['GET'])
         def get_local_position_ned():
             """
@@ -261,6 +283,38 @@ class FlaskHandler:
             except Exception as e:
                 logging.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
                 return jsonify({"error": "Failed to retrieve NED position"}), 500
+                
+                
+    def load_swarm(self,file_path):
+        return self.load_csv(file_path)
+    
+    def error_response(self,message, status_code=500):
+        """Generate a consistent error response with logging."""
+        logging.error(f"{ERROR_SYMBOL} {message}")
+        return jsonify({'status': 'error', 'message': message}), status_code
+        
+        
+    def load_csv(self,file_path):
+            """General function to load data from a CSV file."""
+            data = []
+            if not os.path.exists(file_path):
+                logging.error(f"File not found: {file_path}")
+                return data
+
+            try:
+                with open(file_path, mode='r') as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        data.append(row)
+
+                if not data:
+                    logging.warning(f"File is empty: {file_path}")
+            except FileNotFoundError:
+                logging.error(f"File not found: {file_path}")
+            except csv.Error as e:
+                logging.error(f"Error reading CSV file {file_path}: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error loading file {file_path}: {e}")
 
     # Helper method to get origin from GCS
     def _get_origin_from_gcs(self):
