@@ -241,7 +241,7 @@ class FlaskHandler:
         def get_swarm():
             logging.info("Swarm data requested")
             try:
-                swarm = self.load_swarm()
+                swarm = self.load_swarm(SWARM_FILE_PATH)
                 return jsonify(swarm)
             except Exception as e:
                 return self.error_response(f"Error loading swarm data: {e}")
