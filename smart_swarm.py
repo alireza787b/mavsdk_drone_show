@@ -670,59 +670,75 @@ async def update_leader_state():
 async def elect_new_leader():
     """
     Elect a new leader when the current leader is unreachable.
-    This is a placeholder function that sets the new leader as the current leader ID + 1.
-    The GCS is notified of the change.
+    Placeholder: new leader = old LEADER_HW_ID + 1.
+    We ask GCS; only if they accept do we update our local state.
+    """
+    logger = logging.getLogger(__name__)
+    global SWARM_CONFIG, LEADER_HW_ID
+
+    old_leader = LEADER_HW_ID
+    old_follow  = SWARM_CONFIG[str(HW_ID)]['follow']
+
+    # Compute new leader
+    new_leader = str(int(old_leader) + 1)
+    logger.info(f"Proposed new leader: {new_leader}")
+
+    # Stage the change locally (but don’t overwrite globals yet)
+    SWARM_CONFIG[str(HW_ID)]['follow'] = new_leader
+
+    # Ask GCS for permission
+    accepted = await notify_gcs_of_leader_change(new_leader)
+    if accepted:
+        # commit
+        LEADER_HW_ID = new_leader
+        logger.info(f"Leader election committed: now following {new_leader}")
+    else:
+        # revert
+        SWARM_CONFIG[str(HW_ID)]['follow'] = old_follow
+        logger.warning(f"Leader election aborted: staying with {old_leader}")
+
+
+    
+    
+async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
+    """
+    Notify the GCS of our updated leader by sending only our own swarm entry.
+    Returns True if the GCS accepted the change, False otherwise.
     """
     logger = logging.getLogger(__name__)
 
-    # Placeholder logic for leader election
-    new_leader_hw_id = 2 # Hard Coded!!!!
-    logger.info(f"Elected new leader: {new_leader_hw_id}")
-
-    # Update SWARM_CONFIG with the new leader info
-    global SWARM_CONFIG
-    for drone_hw_id, config in SWARM_CONFIG.items():
-        if config['follow'] == LEADER_HW_ID:
-            SWARM_CONFIG[drone_hw_id]['follow'] = str(new_leader_hw_id)
-
-    # Notify GCS with the updated swarm configuration
-    logger.info("Notifying GCS about the new leader.")
-    await notify_gcs_of_leader_change(new_leader_hw_id)
-    
-    
-async def notify_gcs_of_leader_change(new_leader_hw_id):
-    """
-    Notify the Ground Control Station (GCS) of the new leader by sending only our drone's data.
-    """
-    logger = logging.getLogger(__name__)
-
-    # GCS endpoint for notifying leader change
     gcs_ip = DRONE_CONFIG[str(HW_ID)]['gcs_ip']
-    notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/update-swarm-data"
+    notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/request-new-leader"
 
-    # Get the current drone's config (this drone is the one making the change)
-    current_drone_config = SWARM_CONFIG.get(str(HW_ID))
+    current = SWARM_CONFIG.get(str(HW_ID))
+    if not current:
+        logger.error(f"No SWARM_CONFIG entry for HW_ID={HW_ID}")
+        return False
 
-    if not current_drone_config:
-        logger.error(f"Config for HW_ID {HW_ID} not found in SWARM_CONFIG.")
-        return
-
-    # Prepare the data for the current drone only
-    updated_drone_data = {
-        'hw_id': HW_ID,
-        'follow': str(new_leader_hw_id),  # Update the follow field with the new leader's HW_ID
-        'offset_n': current_drone_config['offset_n'],
-        'offset_e': current_drone_config['offset_e'],
-        'offset_alt': current_drone_config['offset_alt'],
-        'body_coord': '1' if current_drone_config['body_coord'] else '0'
+    payload = {
+        'hw_id':       str(HW_ID),
+        'follow':      new_leader_hw_id,
+        'offset_n':    current['offset_n'],
+        'offset_e':    current['offset_e'],
+        'offset_alt':  current['offset_alt'],
+        'body_coord':  '1' if current['body_coord'] else '0'
     }
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(notify_url, json=updated_drone_data) as resp:
+            async with session.post(notify_url, json=payload) as resp:
                 resp.raise_for_status()
-                logger.info(f"Successfully notified GCS of leader change for HW_ID {HW_ID}.")
+                data = await resp.json()
+                if data.get('status') == 'success':
+                    logger.info(f"GCS accepted leader change for HW_ID={HW_ID}")
+                    return True
+                else:
+                    logger.warning(f"GCS rejected leader change: {data}")
+                    return False
     except Exception as e:
+        logger.error(f"Error notifying GCS of leader change for HW_ID={HW_ID}: {e}")
+        return False
+
         logger.error(f"Error notifying GCS of leader change for HW_ID {HW_ID}: {e}")
 
 

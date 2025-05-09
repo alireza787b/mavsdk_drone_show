@@ -620,46 +620,39 @@ def setup_routes(app):
         """Simple endpoint to confirm connectivity."""
         return jsonify({"status": "ok"}), 200
     
-    @app.route('/update-swarm-data', methods=['POST'])
-    def update_swarm_data():
+    @app.route('/request-new-leader', methods=['POST'])
+    def request_new_leader():
         """
-        Update the swarm data on the GCS when a drone notifies the GCS of a leader change.
-        Only the data for the specific drone making the update is sent.
+        Called by a drone proposing a new leader.
+        For now we auto-accept and update our local swarm.csv.
         """
         data = request.get_json()
         if not data or "hw_id" not in data:
             return error_response("Missing or invalid data: 'hw_id' is required", 400)
 
         hw_id = str(data["hw_id"])
-
-        logger.info(f"Received leader change notification for HW_ID: {hw_id}")
+        logger.info(f"Received new‐leader request from HW_ID={hw_id}")
 
         try:
-            # Load the current swarm data
             swarm_data = load_swarm()
+            if hw_id not in swarm_data:
+                return error_response(f"HW_ID {hw_id} not found", 404)
 
-            # Find the corresponding drone in the swarm data and update its 'follow' field
-            if hw_id in swarm_data:
-                # Update only the relevant fields, e.g., follow, offsets, and body_coord
-                drone_config = swarm_data[hw_id]
-                drone_config['follow'] = data['follow']
-                drone_config['offset_n'] = data['offset_n']
-                drone_config['offset_e'] = data['offset_e']
-                drone_config['offset_alt'] = data['offset_alt']
-                drone_config['body_coord'] = True if data['body_coord'] == '1' else False
+            # update only this entry
+            entry = swarm_data[hw_id]
+            entry['follow']     = data['follow']
+            entry['offset_n']   = data['offset_n']
+            entry['offset_e']   = data['offset_e']
+            entry['offset_alt'] = data['offset_alt']
+            entry['body_coord'] = True if data['body_coord']=='1' else False
 
-                # Save the updated swarm data
-                save_swarm(swarm_data)
+            save_swarm(swarm_data)
 
-                # Respond with success
-                response_data = {
-                    'status': 'success',
-                    'message': f"Swarm data updated for HW_ID {hw_id}. Leader change processed."
-                }
-                return jsonify(response_data), 200
-            else:
-                return error_response(f"Drone with HW_ID {hw_id} not found in swarm data.", 404)
-
+            # always accept for now
+            # TODO: Add more logics and checks before accept!
+            return jsonify({'status':'success',
+                            'message':f'Leader updated for HW_ID {hw_id}'})
         except Exception as e:
-            logger.error(f"Error processing swarm data update for HW_ID {hw_id}: {e}", exc_info=True)
-            return error_response(f"Error processing leader change: {e}", 500)
+            logger.exception(f"Error in request-new-leader: {e}")
+            return error_response(f"Error processing request-new-leader: {e}", 500)
+
