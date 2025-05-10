@@ -679,8 +679,8 @@ async def elect_new_leader():
     old_leader = LEADER_HW_ID
     old_follow  = SWARM_CONFIG[str(HW_ID)]['follow']
 
-    # Compute new leader
-    new_leader = str(int(old_leader) + 1)
+    # Compute new leader //override for now 2
+    new_leader = str(int(2))
     logger.info(f"Proposed new leader: {new_leader}")
 
     # Stage the change locally (but don’t overwrite globals yet)
