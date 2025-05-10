@@ -626,33 +626,46 @@ def setup_routes(app):
         Called by a drone proposing a new leader.
         For now we auto-accept and update our local swarm.csv.
         """
+        # 1. Parse and validate input JSON
         data = request.get_json()
         if not data or "hw_id" not in data:
             return error_response("Missing or invalid data: 'hw_id' is required", 400)
 
         hw_id = str(data["hw_id"])
-        logger.info(f"Received new‐leader request from HW_ID={hw_id}")
+        logger.info(f"Received new-leader request from HW_ID={hw_id}")
 
         try:
-            swarm_data = load_swarm()
-            if hw_id not in swarm_data:
+            # 2. Load the entire swarm table as a list of dicts
+            swarm_data = load_swarm()  # returns List[Dict[str,str]]
+
+            # 3. Locate the row matching our hw_id
+            #    Using Python's next() with a generator to avoid a manual loop.
+            entry = next((row for row in swarm_data if row.get('hw_id') == hw_id), None)
+            if entry is None:
+                # No match → return 404
                 return error_response(f"HW_ID {hw_id} not found", 404)
 
-            # update only this entry
-            entry = swarm_data[hw_id]
-            entry['follow']     = data['follow']
-            entry['offset_n']   = data['offset_n']
-            entry['offset_e']   = data['offset_e']
-            entry['offset_alt'] = data['offset_alt']
-            entry['body_coord'] = True if data['body_coord']=='1' else False
+            # 4. Update only the fields we care about.
+            #    Use data.get(..., entry[field]) to preserve existing values if missing.
+            entry['follow']     = data.get('follow',     entry['follow'])
+            entry['offset_n']   = data.get('offset_n',   entry['offset_n'])
+            entry['offset_e']   = data.get('offset_e',   entry['offset_e'])
+            entry['offset_alt'] = data.get('offset_alt', entry['offset_alt'])
+            # Convert the 'body_coord' flag from string to boolean
+            entry['body_coord'] = (data.get('body_coord') == '1')
 
+            # 5. Persist the updated list back to CSV
+            #    → Ensure save_swarm() takes a List[Dict] and overwrites the file.
             save_swarm(swarm_data)
 
-            # always accept for now
-            # TODO: Add more logics and checks before accept!
-            return jsonify({'status':'success',
-                            'message':f'Leader updated for HW_ID {hw_id}'})
+            # 6. Respond success
+            return jsonify({
+                'status':  'success',
+                'message': f'Leader updated for HW_ID {hw_id}'
+            })
+
         except Exception as e:
+            # 7. On unexpected errors, log full traceback for debugging
             logger.exception(f"Error in request-new-leader: {e}")
             return error_response(f"Error processing request-new-leader: {e}", 500)
 
