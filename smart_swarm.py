@@ -684,35 +684,57 @@ async def update_leader_state():
 async def elect_new_leader():
     """
     Elect a new leader when the current leader is unreachable.
-    Enforces a cooldown, notifies GCS, then switches IP and resets counters.
+    Enforces a cooldown, then picks “next” HW_ID in numeric order (wrapping around),
+    skipping self. Notifies GCS, then switches IP & resets counters/filters.
+
+    TODO: Later, detect and prevent cycles of intermediate leaders (clusters following themselves).
     """
     global last_election_time
     global SWARM_CONFIG, LEADER_HW_ID, LEADER_IP, leader_unreachable_count, LEADER_KALMAN_FILTER
 
     now = time.time()
-    # Cooldown: avoid rapid repeat elections
+    # 1) Cooldown: skip if we’ve just run an election
     if now - last_election_time < Params.LEADER_ELECTION_COOLDOWN:
         logging.getLogger(__name__).debug(
-            f"Election skipped; only {now-last_election_time:.1f}s since last (need ≥{Params.LEADER_ELECTION_COOLDOWN}s)."
+            f"Election skipped; only {now-last_election_time:.1f}s since last"
+            f" (<{Params.LEADER_ELECTION_COOLDOWN}s cooldown)."
         )
         return
     last_election_time = now
 
     logger = logging.getLogger(__name__)
     old_leader = LEADER_HW_ID
-    old_follow  = SWARM_CONFIG[str(HW_ID)]['follow']
+    old_follow = SWARM_CONFIG[str(HW_ID)]['follow']
 
-    # TODO: Replace this with your real election logic
-    new_leader = str(2)
+    # 2) Build sorted list of all drone HW_IDs
+    all_ids = sorted(int(k) for k in SWARM_CONFIG.keys())
+    # Find index of current leader; if missing, start at –1 so offset=1 picks first element
+    if old_leader is None or int(old_leader) not in all_ids:
+        current_idx = -1
+        logger.warning(f"Current leader {old_leader} not in swarm list; defaulting to first candidate.")
+    else:
+        current_idx = all_ids.index(int(old_leader))
+
+    # 3) Pick the next ID, skipping self
+    new_leader_int = None
+    for offset in range(1, len(all_ids)):
+        candidate = all_ids[(current_idx + offset) % len(all_ids)]
+        if candidate != HW_ID:
+            new_leader_int = candidate
+            break
+
+    if new_leader_int is None:
+        logger.error("No valid new leader found during election; aborting.")
+        return
+    new_leader = str(new_leader_int)
     logger.info(f"Proposed new leader: {new_leader}")
 
-    # Stage locally
+    # 4) Stage locally and notify GCS
     SWARM_CONFIG[str(HW_ID)]['follow'] = new_leader
-
-    # Ask GCS
     accepted = await notify_gcs_of_leader_change(new_leader)
+
     if accepted:
-        # Commit: switch to the new leader’s IP, reset Kalman & counters
+        # Commit: switch IP, reset Kalman & counters
         LEADER_HW_ID = new_leader
         LEADER_IP = DRONE_CONFIG[new_leader]['ip']
         leader_unreachable_count = 0
