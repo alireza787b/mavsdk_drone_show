@@ -141,15 +141,11 @@ LEADER_HOME_POS = None  # Home position of the leader drone
 OWN_HOME_POS = None  # Home position of own drone
 REFERENCE_POS = None  # Reference position (latitude, longitude, altitude)
 
-
-DRONE_INSTANCE = None  # MAVSDK drone instance
 FOLLOWER_TASKS = {}  # Dictionary to hold tasks for follower mode (leader update, state update, control loop)
 
 leader_unreachable_count = 0  # Initialize the counter for failed leader fetch attempts
 max_unreachable_attempts = Params.MAX_LEADER_UNREACHABLE_ATTEMPTS  # Set the max retries before leader election
 
-# for leader-election cooldown
-last_election_time = 0.0
 
 
 # ----------------------------- #
@@ -610,44 +606,37 @@ async def update_leader_state():
     Periodically fetches the leader's state and updates the Kalman filter.
     """
     logger = logging.getLogger(__name__)
-    global LEADER_STATE, LEADER_KALMAN_FILTER, LEADER_IP
-    global leader_unreachable_count, max_unreachable_attempts
-
-    update_interval = 1.0 / Params.LEADER_UPDATE_FREQUENCY
+    global LEADER_STATE, LEADER_KALMAN_FILTER , LEADER_IP
+    update_interval = 1 / Params.LEADER_UPDATE_FREQUENCY
     last_update_time = None
 
     while True:
         try:
+            # Fetch leader's state
             state_url = f"http://{LEADER_IP}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
             response = requests.get(state_url, timeout=1)
             if response.status_code == 200:
-                # reset on success
-                leader_unreachable_count = 0
-
+                leader_unreachable_count = 0  # Reset the counter when leader is reachable
                 data = response.json()
                 leader_update_time = data.get('update_time', None)
                 if leader_update_time and leader_update_time != last_update_time:
                     last_update_time = leader_update_time
-
-                    # Convert lat/lon/alt to NED
+                    # Convert lat, lon, alt to NED
                     leader_n, leader_e, leader_d = lla_to_ned(
                         data['position_lat'], data['position_long'], data['position_alt'],
                         REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
                     )
+                    # Update LEADER_STATE
+                    LEADER_STATE['pos_n'] = leader_n
+                    LEADER_STATE['pos_e'] = leader_e
+                    LEADER_STATE['pos_d'] = leader_d
+                    LEADER_STATE['vel_n'] = data['velocity_north']
+                    LEADER_STATE['vel_e'] = data['velocity_east']
+                    LEADER_STATE['vel_d'] = data['velocity_down']
+                    LEADER_STATE['yaw'] = data['yaw']
+                    LEADER_STATE['update_time'] = leader_update_time
 
-                    # Update raw LEADER_STATE
-                    LEADER_STATE.update({
-                        'pos_n': leader_n,
-                        'pos_e': leader_e,
-                        'pos_d': leader_d,
-                        'vel_n': data['velocity_north'],
-                        'vel_e': data['velocity_east'],
-                        'vel_d': data['velocity_down'],
-                        'yaw':   data.get('yaw', 0.0),
-                        'update_time': leader_update_time
-                    })
-
-                    # Kalman filter update
+                    # Prepare measurement for Kalman filter
                     measurement = {
                         'pos_n': leader_n,
                         'pos_e': leader_e,
@@ -656,121 +645,57 @@ async def update_leader_state():
                         'vel_e': data['velocity_east'],
                         'vel_d': data['velocity_down'],
                     }
-                    LEADER_KALMAN_FILTER.update(measurement, leader_update_time)
-
-                    logger.debug(f"Leader @ {leader_update_time:.3f}s: {measurement}")
-                    logger.debug(f"Kalman state: {LEADER_KALMAN_FILTER.get_state()}")
+                    measurement_time = leader_update_time  # Already in seconds
+                    # Update Kalman filter
+                    LEADER_KALMAN_FILTER.update(measurement, measurement_time)
+                    logger.debug(f"Leader measurement at time {measurement_time:.3f}s: {measurement}")
+                    logger.debug(f"Kalman filter updated. Current state: {LEADER_KALMAN_FILTER.get_state()}")
+                    logger.debug("Leader state updated and Kalman filter updated.")
                 else:
-                    logger.error("Leader response missing or unchanged 'update_time'.")
+                    logger.error("Leader data does not contain 'update_time'.")
             else:
                 logger.error(f"Failed to fetch leader state: HTTP {response.status_code}")
                 leader_unreachable_count += 1
                 if leader_unreachable_count >= max_unreachable_attempts:
-                    logger.warning(
-                        f"Leader unreachable for {leader_unreachable_count} attempts. Electing new leader."
-                    )
-                    await elect_new_leader()
-
+                    logger.warning(f"Leader unreachable for {leader_unreachable_count} attempts. Initiating leader election.")
+                    await elect_new_leader()  # Call the leader election function
         except Exception as e:
             leader_unreachable_count += 1
             if leader_unreachable_count >= max_unreachable_attempts:
-                logger.warning(
-                    f"Leader unreachable for {leader_unreachable_count} attempts. Electing new leader."
-                )
-                await elect_new_leader()
-
+                logger.warning(f"Leader unreachable for {leader_unreachable_count} attempts. Initiating leader election.")
+                await elect_new_leader()  # Call the leader election function
         await asyncio.sleep(update_interval)
-
+        
         
 async def elect_new_leader():
     """
     Elect a new leader when the current leader is unreachable.
-    - Enforces a cooldown.
-    - Picks the very next HW_ID (wrapping) in numeric order.
-    - If that ID == self, self-promote: set role=0, cancel followers, stop offboard & HOLD.
-    - Otherwise, notify GCS; if accepted, commit new leader IP & reset counters/filters.
-
-    TODO: Later detect/prevent cycles of intermediate leaders.
+    Placeholder: new leader = old LEADER_HW_ID + 1.
+    We ask GCS; only if they accept do we update our local state.
     """
-    global last_election_time
-    global SWARM_CONFIG, LEADER_HW_ID, LEADER_IP
-    global leader_unreachable_count, LEADER_KALMAN_FILTER
-    global IS_LEADER, FOLLOWER_TASKS, DRONE_INSTANCE
-
-    now = time.time()
-    # Cooldown guard
-    if now - last_election_time < Params.LEADER_ELECTION_COOLDOWN:
-        logging.getLogger(__name__).debug(
-            f"Election skipped; only {now-last_election_time:.1f}s since last "
-            f"(<{Params.LEADER_ELECTION_COOLDOWN}s cooldown)."
-        )
-        return
-    last_election_time = now
-
     logger = logging.getLogger(__name__)
+    global SWARM_CONFIG, LEADER_HW_ID
+
     old_leader = LEADER_HW_ID
     old_follow  = SWARM_CONFIG[str(HW_ID)]['follow']
 
-    # Build sorted list of all drone IDs
-    all_ids = sorted(int(k) for k in SWARM_CONFIG.keys())
-    # Find index of current leader (or -1 if unknown)
-    current_idx = all_ids.index(int(old_leader)) if old_leader and int(old_leader) in all_ids else -1
-
-    # Compute the next candidate (wrap-around)
-    next_idx = (current_idx + 1) % len(all_ids)
-    candidate = all_ids[next_idx]
-    logger.info(f"Election candidate based on offset: {candidate}")
-
-    # Self-promotion if candidate == self
-    if candidate == HW_ID:
-        logger.info("Candidate is self → self-promoting to leader and entering HOLD mode.")
-        # Update manifest
-        SWARM_CONFIG[str(HW_ID)]['follow'] = '0'
-        # Notify GCS (best-effort)
-        try:
-            await notify_gcs_of_leader_change('0')
-        except Exception:
-            logger.warning("GCS notify failed for self-promotion.")
-        # Flip role
-        IS_LEADER = True
-        LEADER_HW_ID = None
-        LEADER_IP     = None
-        leader_unreachable_count = 0
-        # Cancel follower tasks
-        for task in FOLLOWER_TASKS.values():
-            if not task.done():
-                task.cancel()
-        FOLLOWER_TASKS.clear()
-        # Stop offboard and HOLD
-        try:
-            await DRONE_INSTANCE.offboard.stop()
-            await DRONE_INSTANCE.action.hold()
-            logger.info("Offboard stopped; drone set to HOLD.")
-        except Exception as e:
-            logger.error(f"Error during HOLD mode: {e}")
-        return
-
-    # Otherwise, propose this candidate as new leader
-    new_leader = str(candidate)
+    # Compute new leader //override for now 2
+    new_leader = str(int(2))
     logger.info(f"Proposed new leader: {new_leader}")
 
-    # Stage locally
+    # Stage the change locally (but don’t overwrite globals yet)
     SWARM_CONFIG[str(HW_ID)]['follow'] = new_leader
 
-    # Notify GCS
+    # Ask GCS for permission
     accepted = await notify_gcs_of_leader_change(new_leader)
     if accepted:
-        # Commit: switch IP, reset Kalman filter & counter
+        # commit
         LEADER_HW_ID = new_leader
-        LEADER_IP     = DRONE_CONFIG[new_leader]['ip']
-        leader_unreachable_count = 0
-        LEADER_KALMAN_FILTER     = LeaderKalmanFilter()
-        logger.info(f"Leader election committed: now following {new_leader} @ {LEADER_IP}")
+        logger.info(f"Leader election committed: now following {new_leader}")
     else:
-        # Revert on rejection
+        # revert
         SWARM_CONFIG[str(HW_ID)]['follow'] = old_follow
-        logger.warning(f"Leader election aborted; staying with {old_leader}")
-
+        logger.warning(f"Leader election aborted: staying with {old_leader}")
 
 
     
@@ -1138,8 +1063,6 @@ async def run_smart_swarm():
 
     try:
         drone = await initialize_drone()
-        global DRONE_INSTANCE
-        DRONE_INSTANCE = drone
     except Exception:
         logger.error("Failed to initialize drone.")
         sys.exit(1)

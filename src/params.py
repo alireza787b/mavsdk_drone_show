@@ -65,8 +65,14 @@ class Params:
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
     MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
-    MAX_LEADER_UNREACHABLE_ATTEMPTS = 10 # Max retry for follower before selecting new leader
     
+
+    # how many failed polls before we elect
+    MAX_LEADER_UNREACHABLE_ATTEMPTS = 15
+
+    # minimum seconds between successive elections
+    LEADER_ELECTION_COOLDOWN = 30
+
     
     csv_dt = 0.05                     # default step time of the processed CSV file to generate (s)
 
