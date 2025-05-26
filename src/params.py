@@ -204,7 +204,7 @@ class Params:
 
 
     # Initial Position Correction
-    ENABLE_INITIAL_POSITION_CORRECTION = True  # Enable initial position correction to account for GPS drift
+    ENABLE_INITIAL_POSITION_CORRECTION = False  # Enable initial position correction to account for GPS drift
 
     # Initial Climb Phase Settings
     INITIAL_CLIMB_ALTITUDE_THRESHOLD = 7.0  # Altitude threshold for initial climb phase
@@ -212,7 +212,7 @@ class Params:
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
     
     # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
-    INITIAL_CLIMB_MODE = "LOCAL_NED"  
+    INITIAL_CLIMB_MODE = "BODY_VELOCITY"  
 
     # Feedforward Control Settings
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
