@@ -614,17 +614,33 @@ async def perform_trajectory(
                 if Params.USE_GLOBAL_SETPOINTS:
                     # Global mode
                     gp = PositionGlobalYaw(lla_lat, lla_lon, lla_alt, raw_yaw)
-                    logger.debug(f"GLOBAL setpoint → lat:{lla_lat:.6f}, lon:{lla_lon:.6f}, alt:{lla_alt:.2f}")
                     await drone.offboard.set_position_global(gp)
                 else:
-                    # Local NED mode
-                    ln = PositionNedYaw(px, py, pz, raw_yaw)
-                    logger.debug(f"LOCAL setpoint → N:{px:.2f}, E:{py:.2f}, D:{pz:.2f}")
-                    await drone.offboard.set_position_ned(ln)
+                    # Local NED mode with feed-forward support
+                    ln_sp = PositionNedYaw(px, py, pz, raw_yaw)
+
+                    if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
+                        # Position + Velocity + Acceleration
+                        vel_sp = VelocityNedYaw(vx, vy, vz, raw_yaw)
+                        acc_sp = AccelerationNed(ax, ay, az)
+                        await drone.offboard.set_position_velocity_acceleration_ned(
+                            ln_sp, vel_sp, acc_sp
+                        )
+
+                    elif Params.FEEDFORWARD_VELOCITY_ENABLED:
+                        # Position + Velocity
+                        vel_sp = VelocityNedYaw(vx, vy, vz, raw_yaw)
+                        await drone.offboard.set_position_velocity_ned(
+                            ln_sp, vel_sp
+                        )
+
+                    else:
+                        # Position only
+                        await drone.offboard.set_position_ned(ln_sp)
+
 
                 led_controller.set_color(ledr, ledg, ledb)
 
-                # Note: feed-forward velocity/accel in NED mode is unchanged; skip in global mode.
 
                 # --- Progress & landing trigger (unchanged) ---
                 time_to_end    = waypoints[-1][0] - t_wp
