@@ -154,6 +154,11 @@ class Params:
     main_offboard_executer = "drone_show.py"    # Name of script that executes offboard missions from CSV
     smart_swarm_executer = "smart_swarm.py"     # Name of the smart swarm executor script
     
+
+    # at the end of your Params class or module
+    USE_GLOBAL_SETPOINTS: bool = True   # if True, send PositionGlobalYaw instead of PositionNedYaw
+
+
     # Drift configuration
     DRIFT_THRESHOLD = 0.5  # Drift threshold in seconds
     DRIFT_CHECK_PERIOD = 1  # Time between drift checks in seconds (this can match the CSV step size)
@@ -207,8 +212,8 @@ class Params:
     ENABLE_INITIAL_POSITION_CORRECTION = False  # Enable initial position correction to account for GPS drift
 
     # Initial Climb Phase Settings
-    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 7.0  # Altitude threshold for initial climb phase
-    INITIAL_CLIMB_TIME_THRESHOLD = 7.0      # Time threshold for initial climb phase
+    INITIAL_CLIMB_ALTITUDE_THRESHOLD = 5.0  # Altitude threshold for initial climb phase
+    INITIAL_CLIMB_TIME_THRESHOLD = 5.0      # Time threshold for initial climb phase
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
     
     # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
