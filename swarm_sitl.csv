@@ -9,3 +9,4 @@ hw_id,follow,offset_n,offset_e,offset_alt,body_coord
 8,0,0,0,0,1
 9,8,-5,-5,1,1
 10,8,-5,+5,1,0
+11,8,-10,0,1,0
