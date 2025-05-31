@@ -624,10 +624,17 @@ async def perform_trajectory(
                 # --- (4) Global vs. Local Branching ---
                 if Params.USE_GLOBAL_SETPOINTS:
                     # Send GLOBAL setpoint (lat, lon, alt, yaw)
-                    gp = PositionGlobalYaw(lla_lat, lla_lon, lla_alt, raw_yaw)
+                    gp = PositionGlobalYaw(
+                    lla_lat,
+                    lla_lon,
+                    lla_alt,
+                    raw_yaw,
+                    PositionGlobalYaw.AltitudeType.Amsl
+                    )
+                    #Other Options: RelHome , Amsl , Agl
                     logger.debug(
-                        f"GLOBAL setpoint → lat:{lla_lat:.6f}, "
-                        f"lon:{lla_lon:.6f}, alt:{lla_alt:.2f}"
+                        f"GLOBAL setpoint → lat:{lla_lat:.6f}, lon:{lla_lon:.6f}, "
+                        f"alt (AMSL):{lla_alt:.2f}, yaw:{raw_yaw:.1f}"
                     )
                     await drone.offboard.set_position_global(gp)
                 else:
