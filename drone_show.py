@@ -78,7 +78,7 @@ import socket
 import psutil
 import requests
 import argparse
-from pymap3d import ned2geodetic
+import pymap3d as pm
 
 from collections import namedtuple
 
@@ -496,7 +496,7 @@ async def perform_trajectory(
     Executes the trajectory with an initial vertical climb phase to prevent abrupt movements,
     and handles time-drift corrections after the initial climb is complete.
 
-    Now supports both local NED and global LLH setpoints, chosen by Params.USE_GLOBAL_SETPOINTS.
+    Now supports both local NED and global LLA setpoints, chosen by Params.USE_GLOBAL_SETPOINTS.
     """
     global drift_delta, initial_position_drift
     logger = logging.getLogger(__name__)
@@ -505,10 +505,10 @@ async def perform_trajectory(
     DRIFT_CATCHUP_MAX_SEC = 0.5
     AHEAD_SLEEP_STEP_SEC   = 0.1
 
-    total_waypoints   = len(waypoints)
-    waypoint_index    = 0
-    landing_detected  = False
-    led_controller    = LEDController.get_instance()
+    total_waypoints = len(waypoints)
+    waypoint_index  = 0
+    landing_detected = False
+    led_controller  = LEDController.get_instance()
 
     # Initial climb bookkeeping
     in_initial_climb         = True
@@ -516,38 +516,39 @@ async def perform_trajectory(
     initial_climb_start_time = time.time()
     initial_climb_yaw        = None
 
-    # Time step between CSV rows
-    if total_waypoints > 1:
-        csv_step = waypoints[1][0] - waypoints[0][0]
-    else:
-        csv_step = Params.DRIFT_CHECK_PERIOD
+    # Time step between CSV rows (for drift‐skip calculations)
+    csv_step = (waypoints[1][0] - waypoints[0][0]) \
+        if total_waypoints > 1 else Params.DRIFT_CHECK_PERIOD
 
-    # Decide landing style based on final altitude
-    final_altitude      = -waypoints[-1][3]  # down is positive → altitude = -down
+    # Determine final altitude to choose landing method
+    final_altitude       = -waypoints[-1][3]  # Convert NED down to altitude
     trajectory_ends_high = final_altitude > Params.GROUND_ALTITUDE_THRESHOLD
     logger.info(
         f"Trajectory ends {'high' if trajectory_ends_high else 'low'}; "
         f"{'PX4 native landing' if trajectory_ends_high else 'controlled landing'}."
     )
 
-    # -------------------------------
+    # -----------------------------------
     # Main Trajectory Execution Loop
-    # -------------------------------
+    # -----------------------------------
     while waypoint_index < total_waypoints:
         try:
-            now         = time.time()
-            elapsed     = now - start_time
-            waypoint    = waypoints[waypoint_index]
-            t_wp        = waypoint[0]
+            now     = time.time()
+            elapsed = now - start_time
+            waypoint = waypoints[waypoint_index]
+            t_wp    = waypoint[0]
             drift_delta = elapsed - t_wp
 
-            # ----- Case A: On time or behind schedule (drift_delta >= 0) -----
+            # --- Case A: On time or behind schedule ---
             if drift_delta >= 0:
-                # Unpack the CSV row
-                #   (_, raw_px, raw_py, raw_pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb)
-                _, raw_px, raw_py, raw_pz, vx, vy, vz, ax, ay, az, raw_yaw, mode, ledr, ledg, ledb = waypoint
+                # Unpack CSV row
+                (_, raw_px, raw_py, raw_pz,
+                 vx, vy, vz,
+                 ax, ay, az,
+                 raw_yaw, mode,
+                 ledr, ledg, ledb) = waypoint
 
-                # Apply initial-position drift if enabled
+                # --- Apply initial-position correction if enabled ---
                 if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift:
                     px = raw_px + initial_position_drift.north_m
                     py = raw_py + initial_position_drift.east_m
@@ -555,10 +556,10 @@ async def perform_trajectory(
                 else:
                     px, py, pz = raw_px, raw_py, raw_pz
 
-                # --- (1) Initial Climb Logic ---
+                # --- (1) Initial Climb Phase ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    actual_alt = -pz  # convert NED-down → altitude
+                    actual_alt = -pz
                     under_alt  = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                     under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
                     in_initial_climb = under_alt or under_time
@@ -567,15 +568,16 @@ async def perform_trajectory(
                 else:
                     in_initial_climb = False
 
-                # Set LEDs based on CSV row’s LED values
+                # Update LED color for feedback
                 led_controller.set_color(ledr, ledg, ledb)
 
                 if in_initial_climb:
-                    # Body-frame‐velocity climb or local‐NED climb
+                    # BODY-frame climb or LOCAL-NED climb
                     if Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY":
                         vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
                         if initial_climb_yaw is None:
                             initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
+                        # Send body‐frame velocity setpoint
                         await drone.offboard.set_velocity_body(
                             VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                         )
@@ -590,20 +592,19 @@ async def perform_trajectory(
                     waypoint_index += 1
                     continue
 
-                # --- (2) Drift‐correction Skip Logic ---
+                # --- (2) Drift Correction (Skipping) ---
                 safe_drift = min(drift_delta, DRIFT_CATCHUP_MAX_SEC)
-                skip = int(safe_drift / csv_step)
-                if skip > 0:
-                    # Skip ahead in the waypoint list
-                    waypoint_index = min(waypoint_index + skip, total_waypoints - 1)
+                skip_count = int(safe_drift / csv_step)
+                if skip_count > 0:
+                    waypoint_index = min(waypoint_index + skip_count,
+                                         total_waypoints - 1)
                     waypoint = waypoints[waypoint_index]
-                    (
-                        t_wp,
-                        raw_px, raw_py, raw_pz,
-                        vx, vy, vz,
-                        ax, ay, az,
-                        raw_yaw, mode, ledr, ledg, ledb
-                    ) = waypoint
+                    # Re-unpack after skip
+                    (t_wp, raw_px, raw_py, raw_pz,
+                     vx, vy, vz,
+                     ax, ay, az,
+                     raw_yaw, mode,
+                     ledr, ledg, ledb) = waypoint
 
                     if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift:
                         px = raw_px + initial_position_drift.north_m
@@ -612,65 +613,60 @@ async def perform_trajectory(
                     else:
                         px, py, pz = raw_px, raw_py, raw_pz
 
-                # Compute current altitude setpoint for landing logic
+                # --- (3) Compute Altitude & Convert NED → LLA ---
                 current_alt_sp = -pz
+                # Use PyMap3D’s ned2geodetic (positional args):
+                lla_lat, lla_lon, lla_alt = pm.ned2geodetic(
+                    px, py, pz,
+                    launch_lat, launch_lon, launch_alt
+                )  # :contentReference[oaicite:15]{index=15}
 
-                # ----- (3) Local NED → Global LLA Conversion -----
-                # We now call pymap3d.ned2geodetic instead of navpy.ned2geodetic:
-                lla_lat, lla_lon, lla_alt = ned2geodetic(
-                    north=px,
-                    east=py,
-                    down=pz,
-                    lat0=launch_lat,
-                    lon0=launch_lon,
-                    h0=launch_alt
-                )
-
-                # ----- (4) Choose Between Local NED vs. Global LLH Setpoints -----
+                # --- (4) Global vs. Local Branching ---
                 if Params.USE_GLOBAL_SETPOINTS:
+                    # Send GLOBAL setpoint (lat, lon, alt, yaw)
                     gp = PositionGlobalYaw(lla_lat, lla_lon, lla_alt, raw_yaw)
                     logger.debug(
                         f"GLOBAL setpoint → lat:{lla_lat:.6f}, "
-                        f"lon:{lla_lon:.6f}, alt:{lla_alt:.2f} (yaw={raw_yaw:.1f}°)"
+                        f"lon:{lla_lon:.6f}, alt:{lla_alt:.2f}"
                     )
                     await drone.offboard.set_position_global(gp)
-
                 else:
-                    # Local NED mode.  If feed‐forward velocity/acceleration is enabled,
-                    # use set_position_velocity_ned or set_position_velocity_acceleration_ned.
+                    # Local NED setpoint
                     ln = PositionNedYaw(px, py, pz, raw_yaw)
                     logger.debug(
-                        f"LOCAL setpoint → N:{px:.2f}, E:{py:.2f}, D:{pz:.2f} (yaw={raw_yaw:.1f}°)"
+                        f"LOCAL NED setpoint → N:{px:.2f}, E:{py:.2f}, D:{pz:.2f}"
                     )
 
-                    # (a) Both velocity & acceleration feedforward enabled
+                    # Decide feedforward mode
                     if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:
-                        vel_sp  = VelocityNedYaw(vx, vy, vz, raw_yaw)
-                        acc_sp  = AccelerationNed(ax, ay, az)
+                        # Position+Velocity+Acceleration
+                        velocity_setpoint     = VelocityNedYaw(vx, vy, vz, raw_yaw)
+                        acceleration_setpoint = AccelerationNed(ax, ay, az)
                         await drone.offboard.set_position_velocity_acceleration_ned(
-                            ln, vel_sp, acc_sp
+                            ln, velocity_setpoint, acceleration_setpoint
                         )
-                    # (b) Only velocity feedforward enabled
                     elif Params.FEEDFORWARD_VELOCITY_ENABLED:
-                        vel_sp = VelocityNedYaw(vx, vy, vz, raw_yaw)
-                        await drone.offboard.set_position_velocity_ned(ln, vel_sp)
-                    # (c) No feedforward → purely position setpoint
+                        # Position+Velocity only
+                        velocity_setpoint = VelocityNedYaw(vx, vy, vz, raw_yaw)
+                        await drone.offboard.set_position_velocity_ned(ln, velocity_setpoint)
                     else:
+                        # Position‐only
                         await drone.offboard.set_position_ned(ln)
 
-                    # Update LED color for every NED waypoint
-                    led_controller.set_color(ledr, ledg, ledb)
+                led_controller.set_color(ledr, ledg, ledb)
 
-                # ----- (5) Progress & Landing Trigger Logic -----
+                # --- (5) Progress & Landing Trigger ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
                 logger.info(
                     f"WP {waypoint_index+1}/{total_waypoints}, "
-                    f"progress {prog:.2%}, ETA {time_to_end:.2f}s, drift {drift_delta:.2f}s"
+                    f"progress {prog:.2%}, ETA {time_to_end:.2f}s, "
+                    f"drift {drift_delta:.2f}s"
                 )
 
                 if (not trajectory_ends_high) and (prog >= Params.MISSION_PROGRESS_THRESHOLD):
-                    if (time_to_end <= Params.CONTROLLED_LANDING_TIME) or (current_alt_sp < Params.CONTROLLED_LANDING_ALTITUDE):
+                    if time_to_end <= Params.CONTROLLED_LANDING_TIME \
+                       or current_alt_sp < Params.CONTROLLED_LANDING_ALTITUDE:
                         logger.info("Triggering controlled landing.")
                         await controlled_landing(drone)
                         landing_detected = True
@@ -678,11 +674,11 @@ async def perform_trajectory(
 
                 waypoint_index += 1
 
-            # ----- Case B: Ahead of schedule (drift_delta < 0) -----
+            # --- Case B: Ahead of schedule (drift_delta < 0) ---
             else:
-                to_sleep = t_wp - elapsed
-                if to_sleep > 0:
-                    await asyncio.sleep(min(to_sleep, AHEAD_SLEEP_STEP_SEC))
+                sleep_duration = t_wp - elapsed
+                if sleep_duration > 0:
+                    await asyncio.sleep(min(sleep_duration, AHEAD_SLEEP_STEP_SEC))
                 else:
                     waypoint_index += 1
 
@@ -690,27 +686,23 @@ async def perform_trajectory(
             logger.error(f"Offboard error: {err}")
             led_controller.set_color(255, 0, 0)
             break
-
         except Exception:
             logger.exception("Error in trajectory loop.")
             led_controller.set_color(255, 0, 0)
             break
 
-    # ---------------------------
-    # Post‐Trajectory Landing
-    # ---------------------------
+    # --- Post-trajectory Landing Handling ---
     if not landing_detected:
         if trajectory_ends_high:
-            # PX4‐native landing
             await stop_offboard_mode(drone)
             await perform_landing(drone)
             await wait_for_landing(drone)
         else:
-            # Controlled landing fallback
             await controlled_landing(drone)
 
     logger.info("Mission complete.")
     led_controller.set_color(0, 255, 0)
+
 
 
 
