@@ -632,7 +632,7 @@ async def perform_trajectory(
                     PositionGlobalYaw.AltitudeType.AMSL
                     )
                     #Other Options: RELATIVE , AMSL , TAKEOFF
-                    logger.debug(
+                    logger.info(
                         f"GLOBAL setpoint → lat:{lla_lat:.6f}, lon:{lla_lon:.6f}, "
                         f"alt (AMSL):{lla_alt:.2f}, yaw:{raw_yaw:.1f}"
                     )
