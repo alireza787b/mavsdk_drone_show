@@ -156,6 +156,18 @@ last_election_time = 0.0
 #         Helper Functions      #
 # ----------------------------- #
 
+
+def parse_float(field_value, default=0.0):
+    """
+    Safely convert a field value to float. If it's missing or invalid, log a warning and return default.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        return float(field_value)
+    except (TypeError, ValueError):
+        logger.warning(f"parse_float: Invalid or missing value '{field_value}', using default={default}")
+        return default
+
 def configure_logging():
     """
     Configures logging for the script, ensuring logs are written to a per-session file
@@ -506,12 +518,18 @@ async def update_swarm_config_periodically(drone):
                 SWARM_CONFIG.clear()
                 for entry in api_data:
                     hw_str = str(entry['hw_id'])
+
+                    # Safely parse each offset
+                    offset_n_val   = parse_float(entry.get('offset_n', None), default=0.0)
+                    offset_e_val   = parse_float(entry.get('offset_e', None), default=0.0)
+                    offset_alt_val = parse_float(entry.get('offset_alt', None), default=0.0)
+
                     SWARM_CONFIG[hw_str] = {
-                        'follow':      entry['follow'],
-                        'offset_n':    float(entry['offset_n']),
-                        'offset_e':    float(entry['offset_e']),
-                        'offset_alt':  float(entry['offset_alt']),
-                        'body_coord': entry['body_coord'] == '1',
+                        'follow':     entry.get('follow', '0'),
+                        'offset_n':   offset_n_val,
+                        'offset_e':   offset_e_val,
+                        'offset_alt': offset_alt_val,
+                        'body_coord': entry.get('body_coord', '0') == '1',
                     }
 
                 # Grab this drone's new config
