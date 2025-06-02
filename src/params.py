@@ -41,7 +41,7 @@ class Params:
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     GIT_BRANCH = 'main-candidate'  # Git branch is 'main-candidate' for both modes
     
-    connectivity_check_ip = "100.93.208.205"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
+    connectivity_check_ip = "100.74.203.89"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
     connectivity_check_port = 5000        # Default port to ping eg. 80 for the gcs backend port
     connectivity_check_interval = 10    # Interval in seconds between connectivity checks
 
