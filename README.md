@@ -32,8 +32,9 @@ In short, MDS 3 is **one package** that can be used for:
   100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2  
   [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
-- **Coming Soon: Smart Swarm Mode Demo**  
-  *(Video link to be added once available.)*
+- **Smart Swarm Mode Demo**  
+  [![Smart Swarm Mode Demo](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
+
 
 ---
 
@@ -115,7 +116,6 @@ In short, MDS 3 is **one package** that can be used for:
 - **Version 2.0 (Nov 2024)**  
   - Enhanced React GUI, Flask backend, robust drone-show scripts, Docker SITL.  
   - [100-Drone SITL Test Video](https://www.youtube.com/watch?v=VsNs3kFKEvU)  
-  > *Leader/follower mode under development.*
 
 - **Version 3.0 (Jun 2025)**  
   - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).  
@@ -124,7 +124,8 @@ In short, MDS 3 is **one package** that can be used for:
   - **Stable Startup Sequence** (three-way handshake, “OK-to-Start”).  
   - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).  
   - **Unified All-in-One System** for both drone shows and live swarm.  
-  - **Placeholder:** *Coming Soon: Smart Swarm Mode Demo Video*
+  - **Smart Swarm Clustered Leader–Follower Video**  
+  [![Smart Swarm Clustered Leader–Follower](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
 
 ---
 

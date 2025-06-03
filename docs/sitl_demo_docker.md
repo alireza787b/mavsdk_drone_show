@@ -23,9 +23,11 @@ Check out our detailed **100-Drone SITL Test in Clustered Cloud Servers | MDS Ma
 [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
 
-## Smart Swarm Clustered Leader-Follower Video
-If you are insterested in how cooperative missions and "Smart Swarm" mode works, check this video: 
-TBD
+## Smart Swarm Clustered Leader–Follower Video
+
+If you are interested in how cooperative missions and “Smart Swarm” mode works, check this video:  
+[![Smart Swarm Clustered Leader–Follower](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
+
 
 ## Resource Allocation
 
