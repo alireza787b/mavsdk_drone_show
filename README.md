@@ -1,107 +1,196 @@
+# MAVSDK Drone Show (MDS) – All-in-One Drone-Show & Smart Swarm Framework
 
-# MAVSDK Drone Show (MDS) - PX4-Based Drone Show and Smart Swarm Cooperative Missions
+MDS is a unified platform for PX4-based drone performances and intelligent swarm missions. Whether you want to run a pre-planned, decentralized drone show using SkyBrush outputs or orchestrate a live, collaborative swarm with leader–follower clustering (Kalman-filter enhanced, dynamic role changes, leader failover), MDS has you covered.
 
-Welcome to the MAVSDK Drone Show (MDS) project—a cutting-edge platform for orchestrating PX4-based drone shows and intelligent swarm missions using MAVSDK. Our journey has taken us from simple offboard trajectory following to creating dynamic drone formations and advanced swarm behaviors. With every version, we're pushing the boundaries of drone programming and swarm control, aiming to make a significant impact in the drone programming universe.
+## Overview
 
-## Introduction
+MDS 3 combines three core components into a single, cohesive package:
 
-The MDS project is an open-source initiative focused on enabling breathtaking drone shows and intelligent swarm missions. By leveraging the power of PX4, MAVSDK, and modern web technologies, we aim to provide a robust platform for drone enthusiasts, researchers, and industry professionals to explore, innovate, and contribute to the future of drone swarms.
+1. **Drone Side**  
+   - Runs on any Linux-based autopilot platform (e.g., Raspberry Pi, NVIDIA Jetson, or similar).  
+   - Handles MAVSDK integration, local trajectory execution, failsafe monitoring, and dynamic formation logic.
 
-## Project History
+2. **Cloud Side (Optional Backend)**  
+   - Hosts the formation-planning engine, mission dispatcher, and WebSocket/MAVLink router.  
+   - Provides global setpoint management, three-way startup handshake, and health-check services.  
+   - Can be deployed on any cloud VM (Ubuntu 22.04 / 23.04 recommended) or on-premises server.
 
-Our project has evolved significantly over time. Here's a brief overview of our journey:
+3. **Frontend (React Dashboard)**  
+   - Full-featured React GUI for real-time monitoring and control.  
+   - Upload offline “ShowMode” trajectories (CSV/JSON from SkyBrush), visualize live positions, assign leaders/followers, and trigger mission modes.  
+   - Supports both Drone-Show mode (offline choreography) and Smart-Swarm mode (live clustering with Kalman filters, dynamic formation reshaping, and leader-failover).
 
-- **Version 0.1:** Introduced project implementation. Single drone csv trajectory following script.
-- **Version 0.2:** Introduced multiple drones executing offset and delayed csv trajectory following.
-- **Version 0.3:** Introduced enhanced drone show control and optimizations, including SkyBrush CSV processing and code optimizations.
-- **Version 0.4:** Implemented advanced swarm control with the addition of `Coordinator.py` and improved telemetry and command handling.
-- **Version 0.5:** Stepped into real drone swarm capabilities with leader/follower missions and improved ground station data handling.
-- **Version 0.6:** Enhanced complex leader/follower swarm control and introduced Docker-based SITL for efficient simulations.
-- **Version 0.7:** Developed a React GUI for real-time swarm monitoring and automated the PX4 Docker environment startup and configuration.
-- **Version 0.8:** Major GUI improvements, smarter drone swarm behaviors using Kalman Filter implementation, and Docker optimization for running SITLs in the cloud.
+In short, MDS 3 is **one package** that can be used for:
+- **Offline Drone Shows**: Pre-planned, synchronized formations based on SkyBrush CSV outputs.
+- **Smart Swarm Missions**: Cluster-based, fully decentralized leader–follower missions with robust failsafe handling, automatic leader re-election, and dynamic reconfiguration.
 
-Each version has built upon the last, incorporating feedback, real-world testing, and technological advancements to push the project forward.
+---
 
-## What's New in Version 2.0
+## Demo Videos
 
-**Release Date:** November 2024
+- **V2 Drone Show & SITL Setup**  
+  100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2  
+  [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
-Version 2.0 marks a significant milestone in our project, incorporating extensive real-world testing and numerous enhancements to deliver a more robust and feature-rich platform.
+- **Coming Soon: Smart Swarm Mode Demo**  
+  *(Video link to be added once available.)*
 
-### Major Updates
+---
 
-- **Enhanced React GUI:** Our web-based dashboard has been significantly improved for better user experience and real-time swarm monitoring.
-- **Integrated Web Server:** Transitioned to a Flask-based web server for more efficient communication.
-- **Eliminated UDP Dependencies:** Streamlined network communication by removing UDP, enhancing reliability.
-- **Robust Drone Show Execution Script:** Improved scripts for executing drone shows, ensuring smoother operations.
-- **Improved Command Handling:** Enhanced mechanisms to handle commands, especially when previous commands are still in execution.
-- **Extensive Real-World Testing:** The platform has undergone rigorous testing in real-world scenarios to validate performance and reliability.
-- **Docker-Based SITL Testing:** Simplified the process of setting up Software-In-The-Loop (SITL) simulations using Docker.
+## Key Features
 
-> **Note:** The swarm leader/follower functionality is currently under development and will be reintroduced in a future release.
+- **All-in-One Architecture**  
+  - Shared Docker image and codebase for both offline shows and live swarm missions.  
+  - Single command-line interface and unified React dashboard.
 
-Check out our detailed **100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2** video for a visual guide on setting up and running the simulation.
+- **Offline Drone-Show Mode**  
+  - Converts SkyBrush CSV/JSON into MAVSDK-compatible “ShowMode” files.  
+  - Global setpoint propagation ensures perfect synchronization across 10–100+ SITL instances or real drones.  
+  - Preflight sanity checks (battery, GPS lock, ESC health) before arming.
 
-[![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
+- **Smart Swarm Mode (Live, Decentralized)**  
+  - Clustered leader–follower architecture with Kalman-filter–enhanced state estimation.  
+  - Automatic leader failure detection and re-election based on configurable metrics (battery level, signal strength, drone ID).  
+  - Dynamic formation reshaping and per-drone role changes on-the-fly.  
+  - In-flight failsafe monitors communication timeouts, altimeter discrepancies, ESC reboots → automatic Return-to-Home or Loiter.
 
-## Features and Capabilities
+- **Stable Startup Handshake**  
+  - Three-way acknowledgement chain (Drone ⇄ PX4, PX4 ⇄ MAVSDK, MAVSDK ⇄ GCS) to guarantee all SITL instances or hardware drones are ready before takeoff.  
+  - “OK-to-Start” broadcast from the cloud backend prevents premature launches.
 
-- **Dynamic Drone Formations:** Create and manage multiple dynamic shapes and orchestrate impressive drone shows.
-- **Advanced Swarm Intelligence:** Develop intelligent swarm behaviors with multi-level leader/follower models.
-- **Web-Based Dashboard:** Monitor and control your drone swarm in real-time through an intuitive React GUI.
-- **Automated Docker Environment:** Quickly set up your SITL environment using Docker for efficient testing and development.
-- **Mission Configuration Tools:** Visually create, manage, import, and export mission configurations and swarm files.
-- **SkyBrush Integration:** Seamlessly convert SkyBrush CSV files into the MAVSDK Drone Show template.
-- **Robust Telemetry and Command Handling:** Improved mechanisms to ensure each drone receives commands reliably.
+- **Robustness & Performance**  
+  - Race-condition fixes under high CPU load (ensures correct GUIDED → AUTO transitions).  
+  - Emergency-land command reliability during mode transitions.  
+  - Network buffer tuning for large-scale simulations (100+ drones) using MAVLink Router.  
+
+- **React Dashboard (Frontend)**  
+  - Live position, battery, mode, and failsafe status for each drone.  
+  - Mission upload interface for offline trajectories or real-time swarm commands.  
+  - Formation editor (drag-and-drop) for offline shows (coming soon).  
+  - REST API endpoints via MAVLink2REST for external integrations.
+
+- **Automated Docker Environment**  
+  - Prebuilt Docker image includes PX4 1.16, MAVSDK Drone Show, MAVLink Router, MAVLink2REST, Gazebo, and all SITL dependencies.  
+  - Auto hardware-ID detection and dynamic container creation scripts.
+
+- **Mission Configuration Tools**  
+  - SkyBrush CSV → MDS template converter script.  
+  - JSON-based mission/formation files with built-in validators.  
+  - Parameter‐tuning utilities for leader election thresholds, Kalman filter gains, and failsafe timeouts.
+
+---
+
+## Brief History & Changelog
+
+- **Version 0.1 (Mar 2020)**  
+  - Single-drone CSV trajectory following.
+
+- **Version 0.2 (Jun 2020)**  
+  - Multi-drone offset/delayed CSV trajectories.
+
+- **Version 0.3 (Oct 2020)**  
+  - SkyBrush CSV processing; code optimizations for drone shows.
+
+- **Version 0.4 (Feb 2021)**  
+  - Introduced `Coordinator.py` for advanced swarm; improved telemetry/commands.
+
+- **Version 0.5 (Jul 2021)**  
+  - Basic leader/follower missions on hardware; enhanced GCS data handling.
+
+- **Version 0.6 (Dec 2021)**  
+  - Complex leader/follower swarm control; Docker-based SITL environment.
+
+- **Version 0.7 (Apr 2022)**  
+  - React GUI for real-time swarm monitoring; Docker automation for PX4 SITL.
+
+- **Version 0.8 (Sep 2022)**  
+  - Major GUI enhancements; Kalman-filter–based swarm behaviors; optimized cloud SITL.
+
+- **Version 1.0 (Mar 2023)**  
+  - Stable release; Flask web server; removed UDP dependencies.
+
+- **Version 1.5 (Aug 2023)**  
+  - Mission config tools; SkyBrush converter; expanded MAVLink2REST.
+
+- **Version 2.0 (Nov 2024)**  
+  - Enhanced React GUI, Flask backend, robust drone-show scripts, Docker SITL.  
+  - [100-Drone SITL Test Video](https://www.youtube.com/watch?v=VsNs3kFKEvU)  
+  > *Leader/follower mode under development.*
+
+- **Version 3.0 (Jun 2025)**  
+  - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).  
+  - **Global Mode Setpoints** for unified offline & live missions.  
+  - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).  
+  - **Stable Startup Sequence** (three-way handshake, “OK-to-Start”).  
+  - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).  
+  - **Unified All-in-One System** for both drone shows and live swarm.  
+  - **Placeholder:** *Coming Soon: Smart Swarm Mode Demo Video*
+
+---
 
 ## Getting Started
 
-
-### SITL Demo Installation Guide
-To get started with the MAVSDK Drone Show project, please follow our comprehensive [SITL demo with Docker Guide](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/v2.0_doc_sitl_demo.md).
+All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/sitl_demo_docker.md):
 
 
-### Real-World Installation Guide
-*Documentation will be released...*
-Implementing this project in the real world requires extensive knowledge and experience with drones, networking, and safety protocols. If you need assistance, please feel free to reach out.
+
+> **Note:** That document covers:  
+> - Docker image pull/load commands  
+> - `setup_environment.sh` and `create_dockers.sh` usage  
+> - Network, MAVLink Router, Netbird VPN setup  
+> - React dashboard startup (`linux_dashboard_start.sh --sitl`)  
+> - How to upload offline trajectories or launch live swarm missions  
 
 
-## Roadmap and Future Work
 
-We are committed to continuously improving the MAVSDK Drone Show project. Our roadmap includes:
+---
 
-- **Reintroducing Swarm Leader/Follower Functionality:** Enhancing swarm intelligence with improved leader/follower dynamics.
-- **Advanced Command Handling:** Developing more robust command mechanisms to handle concurrent commands effectively.
-- **Performance Optimizations:** Ongoing efforts to optimize performance, reliability, and security.
-- **Community Contributions:** We welcome collaboration, suggestions, and contributions from the community to help drive this project forward.
+## Contact & Contributions
 
-## Contact and Contributions
+If you run into issues, have suggestions, want to contribute new features or need help with your custom business requirements:
 
-We appreciate your interest in the MAVSDK Drone Show project. If you have any questions, suggestions, or need assistance, please feel free to contact us:
+* **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
+* **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
 
-- **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
-- **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
+We welcome code, documentation improvements, Docker recipes, CVs, and new swarm algorithms. Please fork the repo, branch from `v3.0`, and submit pull requests with detailed descriptions.
 
-We encourage contributions to the project. Please feel free to submit pull requests, report issues, or collaborate on new features.
+---
 
 ## Disclaimer
 
-**Using offboard mode with real drones involves risks and should be approached with caution.** Ensure you have the necessary expertise, understand safety implications, and consider failsafe scenarios before attempting to implement this project in real-world settings. Always prioritize safety and regulatory compliance.
+**Using offboard mode or live swarm control on real drones carries risk.** Ensure you have the necessary expertise, understand safety implications, and implement robust failsafe procedures before attempting any real-world flights. Always prioritize regulatory compliance and flight safety.
+
+---
 
 ## Additional Resources
 
-- **GitHub Repository:** [MAVSDK Drone Show](https://github.com/alireza787b/mavsdk_drone_show)
-- **SITL Test with Docker Guide:** [Setup Instructions](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/v2.0_doc_sitl_demo.md)
-- **YouTube Tutorials:**
-  - [Project History and Tutorials](https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk)
-  - [IoT-Based Telemetry and Video Drone Concepts](https://www.youtube.com/playlist?list=PLVZvZdBQdm_7E_wxfXWKyZoaK7yucl6w4)
-- **MAVSDK Documentation:** [Official Docs](https://mavsdk.mavlink.io/main/en/)
-- **PX4 Autopilot:** [Official Site](https://px4.io/)
+* **GitHub Repository (v3.0):**
+  [https://github.com/alireza787b/mavsdk\_drone\_show](https://github.com/alireza787b/mavsdk_drone_show)
+
+* **SITL Demo with Docker Guide:**
+   * [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/sitl_demo_docker.md)
+
+* **YouTube Tutorials:**
+
+  * [Project History & Tutorials](https://www.youtube.com/playlist?list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk)
+  * [IoT-Based Telemetry & Video Drone Concepts](https://www.youtube.com/playlist?list=PLVZvZdBQdm_7E_wxfXWKyZoaK7yucl6w4)
+
+* **MAVSDK Documentation:**
+  [https://mavsdk.mavlink.io/](https://mavsdk.mavlink.io/)
+
+* **PX4 Autopilot:**
+  [https://px4.io/](https://px4.io/)
+
+* **Netbird VPN Docs:**
+  [https://docs.netbird.io/](https://docs.netbird.io/)
+
+* **MAVLink2REST Documentation:**
+  [https://github.com/mavlink/mavlink2rest](https://github.com/mavlink/mavlink2rest)
+
+* **SkyBrush Drone Show Tool:**
+  [https://skybrush.io/](https://skybrush.io/)
 
 ---
 
-© 2024 Alireza Ghaderi
-
-This documentation is licensed under **CC BY-SA 4.0**. Feel free to reuse or modify according to the terms. Please attribute and link back to the original repository.
-
----
+© 2025 Alireza Ghaderi
+Licensed under **CC BY-SA 4.0**. Feel free to reuse or modify under the terms; please attribute and link back to the original repository.
