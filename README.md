@@ -131,7 +131,7 @@ In short, MDS 3 is **one package** that can be used for:
 
 ## Getting Started
 
-All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/sitl_demo_docker.md):
+All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/sitl_demo_docker.md):
 
 
 
@@ -169,7 +169,7 @@ We welcome code, documentation improvements, Docker recipes, CVs, and new swarm 
   [https://github.com/alireza787b/mavsdk\_drone\_show](https://github.com/alireza787b/mavsdk_drone_show)
 
 * **SITL Demo with Docker Guide:**
-   * [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/sitl_demo_docker.md)
+   * [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/sitl_demo_docker.md)
 
 * **YouTube Tutorials:**
 
