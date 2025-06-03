@@ -102,11 +102,11 @@ In your home directory, download the latest image:
 mediafire-dl 
 ```
 
-If the script failed to download automatically from Mediafire (Mediafire Limitation), open [this link](https://www.mediafire.com/file/dw3kp5oxswr2c9g/drone-template_v2.tar/file) in your browser, start downloading the file. Then pause the download and copy the download link. Now you can use `wget` to download the file as a workaround.
+If the script failed to download automatically from Mediafire (Mediafire Limitation), open [this link](http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar) in your browser, start downloading the file. Then pause the download and copy the download link. Now you can use `wget` to download the file as a workaround.
 
 ```bash
 cd ~
-wget https://www.mediafire.com/file/dw3kp5oxswr2c9g/drone-template_v3.tar/file
+http://www.mediafire.com/file/b44u4fs1rytjfoh/drone-template_v3.tar
 ```
 
 ### Docker Installation
