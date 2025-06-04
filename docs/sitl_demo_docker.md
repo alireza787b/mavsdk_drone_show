@@ -157,7 +157,7 @@ docker tag drone-template:v3.1 drone-template:latest
 ```
 If you also want to export the image to a file run:
  ```bash
-docker save -o ~/drone-template_v3.1.tar drone-template:v3 
+docker save -o ~/drone-template_v3.tar drone-template:v3.1 
 ```
 
 This will save your customizations into the Docker image. You can now proceed to use this customized image for your drone instances.
