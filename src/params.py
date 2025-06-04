@@ -66,6 +66,8 @@ class Params:
     online_sync_time = True           # Sync time from Internet Time Servers
     MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
     
+    reboot_after_params = True
+    
 
     # how many failed polls before we elect
     MAX_LEADER_UNREACHABLE_ATTEMPTS = 15
