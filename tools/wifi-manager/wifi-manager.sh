@@ -6,7 +6,7 @@ IFS=$'\n\t'
 # =======================
 # Configuration Parameters
 # =======================
-CONFIG_FILE="/etc/wifi-manager/known_networks.conf"
+CONFIG_FILE="$(dirname "$0")/known_networks.conf"
 LOG_FILE="/var/log/wifi-manager.log"
 SCAN_INTERVAL=10             # seconds between scans
 SIGNAL_THRESHOLD=30          # minimum % improvement to switch
