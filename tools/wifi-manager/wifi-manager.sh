@@ -1,199 +1,302 @@
-#!/usr/bin/env bash
-# Wi-Fi Manager for Drone Show — robust, self-healing, connectivity-aware
-set -euo pipefail
-IFS=$'\n\t'
+#!/bin/bash
+
+# Wi-Fi Manager Script for Raspberry Pi
+# Ensures drones are always connected to the strongest known Wi-Fi network.
+# Includes detailed logging, log rotation, and robust handling of field scenarios.
 
 # =======================
 # Configuration Parameters
 # =======================
-CONFIG_FILE="$(dirname "$0")/known_networks.conf"
-LOG_FILE="/var/log/wifi-manager.log"
-SCAN_INTERVAL=10             # seconds between scans
-SIGNAL_THRESHOLD=30          # minimum % improvement to switch
-MAX_LOG_SIZE=5242880         # 5 MiB
-BACKUP_COUNT=3
-LOCK_FILE="/var/run/wifi-manager.lock"
 
-# Connectivity check settings
-# Set CONNECTIVITY_CHECK_ENABLED to "true" or "false" to enable/disable ping-based validation
-CONNECTIVITY_CHECK_ENABLED=false
-PING_TARGET="8.8.8.8"
-PING_COUNT=2
-PING_TIMEOUT=1               # seconds per ping
-
-# Required commands
-REQUIRED_CMDS=(nmcli flock timeout stat ping awk)
-for cmd in "${REQUIRED_CMDS[@]}"; do
-  command -v "$cmd" >/dev/null || { echo "ERROR: '$cmd' not found"; exit 1; }
-done
+CONFIG_FILE="$(dirname "$0")/known_networks.conf"  # Path to known networks configuration file
+LOG_FILE="/var/log/wifi-manager.log"               # Log file to record all activities
+SCAN_INTERVAL=10                                   # Time (in seconds) between Wi-Fi scans
+SIGNAL_THRESHOLD=30                                # Minimum signal strength improvement to trigger a switch
+MAX_LOG_SIZE=5242880                               # Maximum log file size (5 MB)
+BACKUP_COUNT=3                                     # Number of rotated log files to keep
+LOCK_FILE="/var/run/wifi-manager.lock"             # Lock file to prevent multiple instances
 
 # =======================
-# Logging
+# Logging Function
 # =======================
+
 log() {
-  local level="$1"; shift
-  local ts; ts=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "$ts [$level] $*" | tee -a "$LOG_FILE"
+    local level="$1"
+    shift
+    local message="$@"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "$timestamp [$level] $message" | tee -a "$LOG_FILE"
 }
 
 # =======================
-# Lockfile (prevent multiple instances)
+# Initial Setup and Checks
 # =======================
-exec 200>"$LOCK_FILE"
-flock -n 200 || { log ERROR "Another instance is running."; exit 1; }
-echo $$ >&200
-trap 'rm -f "$LOCK_FILE"' EXIT
 
-# Ensure log file exists
-mkdir -p "$(dirname "$LOG_FILE")"
+# Ensure the script runs with root privileges
+if [ "$EUID" -ne 0 ]; then
+  log "ERROR" "Please run as root."
+  exit 1
+fi
+
+# Create and acquire a lock to prevent multiple instances
+exec 200>"$LOCK_FILE"
+flock -n 200 || { log "ERROR" "Another instance of the script is running."; exit 1; }
+
+# Ensure the lock file is removed on script exit (graceful or forced)
+trap 'rm -f "$LOCK_FILE"; exit' INT TERM HUP QUIT EXIT
+
+# Ensure log file exists and set appropriate permissions
 touch "$LOG_FILE"
 chmod 600 "$LOG_FILE"
 
 # =======================
-# Log Rotation
+# Log Rotation Function
 # =======================
+
 rotate_logs() {
-  [ -f "$LOG_FILE" ] || { : > "$LOG_FILE"; return; }
-  local size; size=$(stat -c%s "$LOG_FILE")
-  if (( size >= MAX_LOG_SIZE )); then
-    for ((i=BACKUP_COUNT; i>0; i--)); do
-      [ -f "$LOG_FILE.$i" ] && mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
-    done
-    mv "$LOG_FILE" "$LOG_FILE.1"
-    : > "$LOG_FILE"
-    log INFO "Rotated logs."
-  fi
-}
-
-# =======================
-# Load Known Networks
-# =======================
-declare -A KNOWN_NETWORKS
-load_known_networks() {
-  [ -f "$CONFIG_FILE" ] || { log ERROR "Missing $CONFIG_FILE"; exit 1; }
-  KNOWN_NETWORKS=()
-  while IFS='=' read -r key val; do
-    key=${key//[[:space:]]/}
-    val=${val//[[:space:]]/}
-    case "$key" in
-      ssid)  ssid="$val" ;;
-      password)
-        KNOWN_NETWORKS[$ssid]="$val"
-        log INFO "Loaded SSID='$ssid'"
-        ;;
-      *) [[ "$key" =~ ^# ]] || log WARNING "Unknown key '$key'" ;;
-    esac
-  done < "$CONFIG_FILE"
-  (( ${#KNOWN_NETWORKS[@]} )) || { log ERROR "No networks loaded"; exit 1; }
-}
-
-# =======================
-# Interface Detection
-# =======================
-get_interface() {
-  nmcli -t -f DEVICE,TYPE dev status | awk -F: '$2=="wifi"{print $1; exit}' || echo wlan0
-}
-INTERFACE=$(get_interface)
-log INFO "Using interface: $INTERFACE"
-
-# =======================
-# Scan Wi-Fi
-# =======================
-scan_wifi_networks() {
-  available_networks=()
-  local out
-  out=$(nmcli -t -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes 2>&1) || {
-    log WARNING "Scan failed: $out"; return
-  }
-  while IFS=: read -r ss sig; do
-    ss=${ss// /}
-    sig=${sig// /}
-    [[ -z "$ss" ]] && continue
-    available_networks+=("$ss;$sig")
-  done <<< "$out"
-}
-
-# =======================
-# Current Connection
-# =======================
-get_current_connection_info() {
-  current_ssid=$(nmcli -t -f ACTIVE,SSID dev wifi | awk -F: '$1=="yes"{print $2}')
-  if [[ -n "$current_ssid" ]]; then
-    current_signal=$(nmcli -t -f ACTIVE,SIGNAL dev wifi | awk -F: '$1=="yes"{print $2}')
-    log INFO "Connected: '$current_ssid' ($current_signal%)"
-  else
-    current_ssid=""; current_signal=0
-    log INFO "Not connected to any network."
-  fi
-}
-
-# =======================
-# Connectivity Check (optional)
-# =======================
-check_connectivity() {
-  if ! ping -c"$PING_COUNT" -W"$PING_TIMEOUT" "$PING_TARGET" >/dev/null 2>&1; then
-    log WARNING "Ping to $PING_TARGET failed."
-    return 1
-  fi
-  return 0
-}
-
-# =======================
-# Connect
-# =======================
-connect_to_network() {
-  local ssid="$1" pwd="$2"
-  log INFO "Connecting to '$ssid'..."
-  nmcli_output=$(timeout 15 nmcli dev wifi connect "$ssid" password "$pwd" ifname "$INTERFACE" 2>&1) || true
-  if [[ "$CONNECTIVITY_CHECK_ENABLED" == "true" ]]; then
-    if check_connectivity; then
-      log INFO "Online on '$ssid'."
-      return 0
-    else
-      log ERROR "No Internet; disconnecting."
-      nmcli con down id "$ssid" || true
-      return 1
+  if [ -f "$LOG_FILE" ]; then
+    local log_size
+    log_size=$(stat -c%s "$LOG_FILE")
+    if [ "$log_size" -ge "$MAX_LOG_SIZE" ]; then
+      # Rotate logs and keep backups
+      for ((i=BACKUP_COUNT; i>=1; i--)); do
+        if [ -f "$LOG_FILE.$i" ]; then
+          if [ "$i" -eq "$BACKUP_COUNT" ]; then
+            rm -f "$LOG_FILE.$i"
+            log "INFO" "Removed oldest log file: $LOG_FILE.$i"
+          else
+            mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
+            log "INFO" "Rotated log file: $LOG_FILE.$i to $LOG_FILE.$((i+1))"
+          fi
+        fi
+      done
+      mv "$LOG_FILE" "$LOG_FILE.1"
+      : > "$LOG_FILE"  # Truncate current log file
+      log "INFO" "Log rotated. Created $LOG_FILE.1"
     fi
   else
-    log INFO "Skipping connectivity check (disabled)."
-    return 0
+    : > "$LOG_FILE"  # Create log file if it doesn't exist
+    log "INFO" "Log file created: $LOG_FILE"
   fi
-  log ERROR "Cannot join '$ssid': $nmcli_output"
+}
+
+# =======================
+# Load Known Networks Function
+# =======================
+
+load_known_networks() {
+  if [ ! -f "$CONFIG_FILE" ]; then
+    log "ERROR" "Configuration file $CONFIG_FILE not found."
+    exit 1
+  fi
+
+  declare -gA KNOWN_NETWORKS  # Declare global associative array for SSIDs and passwords
+  local ssid=""
+  local password=""
+
+  log "INFO" "Loading known networks from configuration file..."
+
+  while IFS='=' read -r key value || [ -n "$key" ]; do
+    key=$(echo "$key" | xargs)    # Trim leading/trailing whitespace
+    value=$(echo "$value" | xargs)
+
+    # Skip empty lines or comments
+    if [[ -z "$key" ]] || [[ "$key" == \#* ]]; then
+      continue
+    fi
+
+    # Parse SSID and password pairs from the configuration file
+    case "$key" in
+      ssid)
+        ssid="$value"
+        ;;
+      password)
+        password="$value"
+        if [ -n "$ssid" ] && [ -n "$password" ]; then
+          KNOWN_NETWORKS["$ssid"]="$password"
+          log "INFO" "Loaded network: SSID='$ssid'"
+          ssid=""
+          password=""
+        else
+          log "WARNING" "Incomplete network configuration for SSID='$ssid'"
+        fi
+        ;;
+      *)
+        log "WARNING" "Unknown key '$key' in configuration file."
+        ;;
+    esac
+  done < "$CONFIG_FILE"
+
+  if [ ${#KNOWN_NETWORKS[@]} -eq 0 ]; then
+    log "ERROR" "No known networks loaded from $CONFIG_FILE."
+    exit 1
+  fi
+}
+
+# =======================
+# Get Wi-Fi Interface Function
+# =======================
+
+get_wifi_interface() {
+  local interfaces
+  interfaces=$(nmcli device status | awk '$2 == "wifi" {print $1}' | head -n1)
+  printf "%s" "${interfaces:-wlan0}"  # Default to wlan0 if no interface is found
+}
+
+# Get the wireless interface for later use
+INTERFACE=$(get_wifi_interface)
+log "INFO" "Using Wi-Fi interface: $INTERFACE"
+
+# =======================
+# Scan Wi-Fi Networks Function
+# =======================
+
+scan_wifi_networks() {
+    available_networks=()
+    local scan_output
+    log "INFO" "Scanning for available Wi-Fi networks..."
+
+    # Use terse output with colon as delimiter
+    scan_output=$(nmcli -t -f SSID,SIGNAL dev wifi list ifname "$INTERFACE" --rescan yes 2>&1)
+
+    if [ $? -ne 0 ] || [ -z "$scan_output" ]; then
+        log "WARNING" "Failed to scan Wi-Fi networks on interface '$INTERFACE'. Output: $scan_output"
+        sleep "$SCAN_INTERVAL"
+        return
+    fi
+
+    log "INFO" "Available networks:"
+
+    # Parse SSID and signal strength using colon as delimiter
+    while IFS=: read -r ssid signal; do
+        # Trim any leading/trailing whitespace
+        ssid=$(echo "$ssid" | xargs)
+        signal=$(echo "$signal" | xargs)
+        
+        # Handle empty SSIDs (hidden networks)
+        if [ -z "$ssid" ]; then
+            ssid="<Hidden SSID>"
+            continue  # Skip hidden SSIDs
+        fi
+
+        available_networks+=("$ssid;$signal")
+        log "DEBUG" "Found network: SSID='$ssid', Signal='$signal%'"
+    done <<< "$scan_output"
+}
+
+# =======================
+# Get Current Connection Info Function
+# =======================
+
+get_current_connection_info() {
+  current_ssid=$(nmcli -t -f ACTIVE,SSID dev wifi | grep '^yes:' | cut -d':' -f2-)
+  if [ -n "$current_ssid" ]; then
+    current_signal=$(nmcli -t -f ACTIVE,SIGNAL dev wifi | grep '^yes:' | cut -d':' -f2)
+    log "INFO" "Currently connected to '$current_ssid' with signal strength $current_signal%."
+  else
+    current_ssid=""
+    current_signal=0
+    log "INFO" "Not connected to any network."
+  fi
+}
+
+# =======================
+# Connect to Network Function Using nmcli
+# =======================
+
+connect_to_network() {
+  local ssid="$1"
+  local password="$2"
+  local timeout=15  # Set a timeout of 15 seconds for the connection attempt
+
+  log "INFO" "Attempting to connect to network: SSID='$ssid'"
+
+  # Avoid logging passwords
+  nmcli_output=$(timeout "$timeout" nmcli dev wifi connect "$ssid" password "$password" ifname "$INTERFACE" 2>&1)
+  nmcli_exit_status=$?
+
+  if [ "$nmcli_exit_status" -eq 0 ]; then
+    log "INFO" "Successfully connected to '$ssid'."
+    return 0
+  elif [ "$nmcli_exit_status" -eq 124 ]; then  # 124 is the exit code when timeout is reached
+    log "ERROR" "Connection attempt to '$ssid' timed out after $timeout seconds."
+  else
+    log "ERROR" "Failed to connect to '$ssid'. Output: $nmcli_output"
+  fi
   return 1
 }
 
 # =======================
-# Main Loop
+# Main Logic Loop
 # =======================
+
 main_loop() {
   while true; do
-    {
-      rotate_logs
-      load_known_networks
-      scan_wifi_networks
-      get_current_connection_info
+    rotate_logs
+    load_known_networks
+    scan_wifi_networks
+    get_current_connection_info
 
-      best_ssid=""; best_signal=-999
-      for entry in "${available_networks[@]}"; do
-        IFS=';' read -r ss sig <<< "$entry"
-        (( sig > best_signal )) && [[ -v KNOWN_NETWORKS["$ss"] ]] && {
-          best_signal=$sig; best_ssid=$ss
-        }
-      done
+    local best_ssid=""
+    local best_signal=-100
 
-      if [[ "$current_ssid" != "$best_ssid" && -n "$best_ssid" ]]; then
-        diff=$(( best_signal - current_signal ))
-        if (( diff >= SIGNAL_THRESHOLD || current_ssid=="" )); then
-          connect_to_network "$best_ssid" "${KNOWN_NETWORKS[$best_ssid]}"
-        else
-          log INFO "Better SSID '$best_ssid' ($best_signal%), but Δ=$diff% < threshold."
+    # Find the best available network based on signal strength
+    log "INFO" "Evaluating networks for best connection..."
+    for entry in "${available_networks[@]}"; do
+      local ssid
+      local signal
+      ssid=$(echo "$entry" | cut -d';' -f1)
+      signal=$(echo "$entry" | cut -d';' -f2)
+
+      # Ensure signal is a valid number (handle negative signal values like -70 dBm)
+      if ! [[ "$signal" =~ ^-?[0-9]+$ ]]; then
+        log "WARNING" "Invalid signal strength for SSID='$ssid'. Skipping..."
+        continue
+      fi
+
+      log "DEBUG" "Checking network: SSID='$ssid', Signal='$signal%'"
+
+      # Check if this SSID is a known network and has a stronger signal
+      if [[ -v "KNOWN_NETWORKS[$ssid]" ]]; then
+        log "DEBUG" "SSID='$ssid' is a known network."
+        if [ "$signal" -gt "$best_signal" ]; then
+          log "DEBUG" "SSID='$ssid' has a better signal ($signal%) compared to current best ($best_signal%)."
+          best_signal="$signal"
+          best_ssid="$ssid"
+          best_password="${KNOWN_NETWORKS[$ssid]}"
         fi
       else
-        log DEBUG "Staying on '$current_ssid'."
+        log "DEBUG" "SSID='$ssid' is not in the list of known networks. Skipping..."
       fi
-    } || log ERROR "Iteration error—retrying in $SCAN_INTERVAL s"
-    sleep "$SCAN_INTERVAL"
+    done
+
+    # Decision-making based on the best available network
+    if [ "$current_ssid" != "$best_ssid" ] && [ -n "$best_ssid" ]; then
+      signal_diff=$((best_signal - current_signal))
+      if [ "$signal_diff" -ge "$SIGNAL_THRESHOLD" ] || [ -z "$current_ssid" ]; then
+        log "INFO" "Decided to switch to better network '$best_ssid' (Signal: $best_signal%, Improvement: $signal_diff%)."
+        if ! connect_to_network "$best_ssid" "$best_password"; then
+          log "WARNING" "Failed to switch to network '$best_ssid'. Retrying in next cycle."
+        fi
+      else
+        log "INFO" "Signal improvement ($signal_diff%) is less than the threshold ($SIGNAL_THRESHOLD%). Not switching."
+      fi
+    elif [ -z "$current_ssid" ] && [ -n "$best_ssid" ]; then
+      log "INFO" "Currently disconnected. Attempting to connect to best network '$best_ssid' (Signal: $best_signal%)."
+      if ! connect_to_network "$best_ssid" "$best_password"; then
+        log "WARNING" "Failed to connect to network '$best_ssid'. Retrying in next cycle."
+      fi
+    else
+      log "INFO" "No better network found or already connected to the best network '$current_ssid'."
+    fi
+
+    sleep "$SCAN_INTERVAL"  # Wait before next scan
   done
 }
 
-main_loop
+# =======================
+# Start the Script
+# =======================
+
+main_loop  # Start the main loop for continuously checking Wi-Fi status and switching networks
