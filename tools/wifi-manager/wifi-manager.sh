@@ -14,8 +14,10 @@ MAX_LOG_SIZE=5242880         # 5 MiB
 BACKUP_COUNT=3
 LOCK_FILE="/var/run/wifi-manager.lock"
 
-# Connectivity check (you can override later)
-PING_TARGET="${PING_TARGET:-8.8.8.8}"
+# Connectivity check settings
+# Set CONNECTIVITY_CHECK_ENABLED to "true" or "false" to enable/disable ping-based validation
+CONNECTIVITY_CHECK_ENABLED=false
+PING_TARGET="8.8.8.8"
 PING_COUNT=2
 PING_TIMEOUT=1               # seconds per ping
 
@@ -55,8 +57,7 @@ rotate_logs() {
   local size; size=$(stat -c%s "$LOG_FILE")
   if (( size >= MAX_LOG_SIZE )); then
     for ((i=BACKUP_COUNT; i>0; i--)); do
-      [ -f "$LOG_FILE.$i" ] \
-        && mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
+      [ -f "$LOG_FILE.$i" ] && mv "$LOG_FILE.$i" "$LOG_FILE.$((i+1))"
     done
     mv "$LOG_FILE" "$LOG_FILE.1"
     : > "$LOG_FILE"
@@ -80,8 +81,7 @@ load_known_networks() {
         KNOWN_NETWORKS[$ssid]="$val"
         log INFO "Loaded SSID='$ssid'"
         ;;
-      *) [[ "$key" =~ ^# ]] || log WARNING "Unknown key '$key'"
-        ;;
+      *) [[ "$key" =~ ^# ]] || log WARNING "Unknown key '$key'" ;;
     esac
   done < "$CONFIG_FILE"
   (( ${#KNOWN_NETWORKS[@]} )) || { log ERROR "No networks loaded"; exit 1; }
@@ -91,9 +91,7 @@ load_known_networks() {
 # Interface Detection
 # =======================
 get_interface() {
-  nmcli -t -f DEVICE,TYPE dev status \
-    | awk -F: '$2=="wifi"{print $1; exit}' \
-    || echo wlan0
+  nmcli -t -f DEVICE,TYPE dev status | awk -F: '$2=="wifi"{print $1; exit}' || echo wlan0
 }
 INTERFACE=$(get_interface)
 log INFO "Using interface: $INTERFACE"
@@ -119,11 +117,9 @@ scan_wifi_networks() {
 # Current Connection
 # =======================
 get_current_connection_info() {
-  current_ssid=$(nmcli -t -f ACTIVE,SSID dev wifi \
-    | awk -F: '$1=="yes"{print $2}')
+  current_ssid=$(nmcli -t -f ACTIVE,SSID dev wifi | awk -F: '$1=="yes"{print $2}')
   if [[ -n "$current_ssid" ]]; then
-    current_signal=$(nmcli -t -f ACTIVE,SIGNAL dev wifi \
-      | awk -F: '$1=="yes"{print $2}')
+    current_signal=$(nmcli -t -f ACTIVE,SIGNAL dev wifi | awk -F: '$1=="yes"{print $2}')
     log INFO "Connected: '$current_ssid' ($current_signal%)"
   else
     current_ssid=""; current_signal=0
@@ -132,11 +128,10 @@ get_current_connection_info() {
 }
 
 # =======================
-# Connectivity Check
+# Connectivity Check (optional)
 # =======================
 check_connectivity() {
-  if ! ping -c"$PING_COUNT" -W"$PING_TIMEOUT" "$PING_TARGET" \
-       >/dev/null 2>&1; then
+  if ! ping -c"$PING_COUNT" -W"$PING_TIMEOUT" "$PING_TARGET" >/dev/null 2>&1; then
     log WARNING "Ping to $PING_TARGET failed."
     return 1
   fi
@@ -149,17 +144,20 @@ check_connectivity() {
 connect_to_network() {
   local ssid="$1" pwd="$2"
   log INFO "Connecting to '$ssid'..."
-  nmcli_output=$(timeout 15 nmcli dev wifi connect "$ssid" \
-                  password "$pwd" ifname "$INTERFACE" 2>&1) \
-    && {
-      if check_connectivity; then
-        log INFO "Online on '$ssid'."
-        return 0
-      else
-        log ERROR "No Internet; disconnecting."
-        nmcli con down id "$ssid" || true
-      fi
-    }
+  nmcli_output=$(timeout 15 nmcli dev wifi connect "$ssid" password "$pwd" ifname "$INTERFACE" 2>&1) || true
+  if [[ "$CONNECTIVITY_CHECK_ENABLED" == "true" ]]; then
+    if check_connectivity; then
+      log INFO "Online on '$ssid'."
+      return 0
+    else
+      log ERROR "No Internet; disconnecting."
+      nmcli con down id "$ssid" || true
+      return 1
+    fi
+  else
+    log INFO "Skipping connectivity check (disabled)."
+    return 0
+  fi
   log ERROR "Cannot join '$ssid': $nmcli_output"
   return 1
 }
@@ -178,9 +176,8 @@ main_loop() {
       best_ssid=""; best_signal=-999
       for entry in "${available_networks[@]}"; do
         IFS=';' read -r ss sig <<< "$entry"
-        (( sig > best_signal )) && {
-          [[ -v KNOWN_NETWORKS["$ss"] ]] \
-            && { best_signal=$sig; best_ssid=$ss; }
+        (( sig > best_signal )) && [[ -v KNOWN_NETWORKS["$ss"] ]] && {
+          best_signal=$sig; best_ssid=$ss
         }
       done
 
