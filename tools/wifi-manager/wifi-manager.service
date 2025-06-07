@@ -1,14 +1,17 @@
 [Unit]
-Description=Wi-Fi Manager for Drones
+Description=Robust Wi-Fi Manager for Drone Show
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/wifi-manager.sh
-WorkingDirectory=/home/droneshow/mavsdk_drone_show/tools/wifi-manager
+ExecStart=/usr/local/bin/wifi-manager.sh
+WorkingDirectory=/usr/local/bin
 User=root
-Restart=on-failure
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=wifi-manager
