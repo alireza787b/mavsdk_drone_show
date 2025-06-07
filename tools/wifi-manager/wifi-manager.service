@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/wifi-manager.sh
+ExecStart=/bin/bash /home/droneshow/mavsdk_drone_show/tools/wifi-manager/wifi-manager.sh
 WorkingDirectory=/usr/local/bin
 User=root
 Restart=always
