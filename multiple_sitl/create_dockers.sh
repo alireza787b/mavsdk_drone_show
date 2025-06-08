@@ -45,9 +45,9 @@ echo "==============================================================="
 echo
 
 # Global variables
-STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template:latest"
+STARTUP_SCRIPT_HOST="$HOME/UAV_sepehr/multiple_sitl/startup_sitl.sh"
+STARTUP_SCRIPT_CONTAINER="/root/UAV_sepehr/multiple_sitl/startup_sitl.sh"
+TEMPLATE_IMAGE="uav-sepehr-template_v1.0.tar:latest"
 VERBOSE=false
 
 # Variables for custom network, starting drone ID, and starting IP
@@ -339,14 +339,13 @@ main() {
 
     # Introductory banner
     cat << "EOF"
-    ___  ___  ___  _   _ ___________ _   __ ____________ _____ _   _  _____   _____ _   _ _____  _    _    ____  ________  _______  
-    |  \/  | / _ \| | | /  ___|  _  \ | / / |  _  \ ___ \  _  | \ | ||  ___| /  ___| | | |  _  || |  | |  / /  \/  |  _  \/  ___\ \ 
-    | .  . |/ /_\ \ | | \ `--.| | | | |/ /  | | | | |_/ / | | |  \| || |__   \ `--.| |_| | | | || |  | | | || .  . | | | |\ `--. | |
-    | |\/| ||  _  | | | |`--. \ | | |    \  | | | |    /| | | | . ` ||  __|   `--. \  _  | | | || |/\| | | || |\/| | | | | `--. \| |
-    | |  | || | | \ \_/ /\__/ / |/ /| |\  \ | |/ /| |\ \\ \_/ / |\  || |___  /\__/ / | | \ \_/ /\  /\  / | || |  | | |/ / /\__/ /| |
-    \_|  |_/\_| |_/\___/\____/|___/ \_| \_/ |___/ \_| \_|\___/\_| \_/\____/  \____/\_| |_/\___/  \/  \/  | |\_|  |_/___/  \____/ | |
-                                                                                                          \_\                   /_/                                                                                                                                                                                                                                                
-EOF
+     _   _   ___       ____                  _         
+    | | | | / \ \   / / / ___|  ___ _    ___| |  _
+    | | | |/ _ \ \ / /  \___ \ / _ \ '_ \ / _ \ '_ \| '|
+    | |_| / ___ \ V /    ___) |  / |_) |  / | | | |  
+     \___/_/   \_\_/    |____/ \___| ./ \___|_| |_|_|  
+                                   |_|
+  EOF
 
     echo
     printf "All %d instance(s) created and configured successfully.\n" "$num_instances"

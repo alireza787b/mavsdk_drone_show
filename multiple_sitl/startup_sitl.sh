@@ -23,8 +23,8 @@ set -euo pipefail
 
 # GitHub Repository Details
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="main-candidate"
-GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
+DEFAULT_GIT_BRANCH="aerohive-devv"
+GITHUB_REPO_URL="https://github.com/AeroHive-community/UAV_sepehr.git"
 
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
@@ -35,7 +35,7 @@ DEFAULT_LON=51.275581311948706
 DEFAULT_ALT=1278
 
 # Directory Paths
-BASE_DIR="$HOME/mavsdk_drone_show"
+BASE_DIR="$HOME/UAV_sepehr"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.csv"
 PX4_DIR="$HOME/PX4-Autopilot"

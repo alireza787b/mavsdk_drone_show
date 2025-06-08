@@ -2,7 +2,7 @@ import os
 import re
 
 # Directory where the .hwID files are
-hwid_dir = os.path.expanduser('~/mavsdk_drone_show')
+hwid_dir = os.path.expanduser('~/UAV_sepehr')
 
 # The rcS file path
 rcs_file_path = os.path.expanduser('~/PX4-Autopilot/build/px4_sitl_default/etc/init.d-posix/rcS')
