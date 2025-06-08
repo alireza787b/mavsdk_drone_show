@@ -83,7 +83,7 @@ First, ensure that your system package list and Python3 pip package are up-to-da
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip tmux lsof
+sudo apt install -y python3 python3-venv python3-pip tmux lsof git
 ```
 
 #### Installing Mediafire Downloader
