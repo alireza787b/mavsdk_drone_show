@@ -40,14 +40,14 @@ MAX_RETRIES=10
 INITIAL_DELAY=1               # Delay (in seconds) between retries
 REPAIR_TIMEOUT=120            # Timeout (in seconds) for git-repair (2 minutes)
 SITL_BRANCH="docker-sitl-2"
-REAL_BRANCH="main-candidate"
+REAL_BRANCH="aerohive-devv"
 
-DEFAULT_REPO_DIR="${HOME}/mavsdk_drone_show"
-DEFAULT_SSH_GIT_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
-DEFAULT_HTTPS_GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
+DEFAULT_REPO_DIR="${HOME}/UAV_sepehr"
+DEFAULT_SSH_GIT_URL="git@github.com:AeroHive-community/UAV_sepehr"
+DEFAULT_HTTPS_GIT_URL="https://github.com/AeroHive-community/UAV_sepehr.git"
 
 # LED control command (assumes virtualenv Python path)
-LED_CMD="/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py"
+LED_CMD="/home/UAV_sepehr/venv/bin/python /home/UAV_sepehr/led_indicator.py"
 
 # -------------------------------------------------
 # Logging Setup - logs are written to /tmp/update_repo.log

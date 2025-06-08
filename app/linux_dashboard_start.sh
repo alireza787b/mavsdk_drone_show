@@ -55,8 +55,8 @@ ENABLE_AUTO_PULL=true  # Enable or disable the automatic pulling and syncing of 
 SESSION_NAME="DroneServices"
 GCS_PORT=5000
 GUI_PORT=3000
-VENV_PATH="$HOME/mavsdk_drone_show/venv"
-UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
+VENV_PATH="$HOME/UAV_sepehr/venv"
+UPDATE_SCRIPT_PATH="$HOME/UAV_sepehr/tools/update_repo_ssh.sh"  # Path to the repo update script
 BRANCH_NAME="main-candidate"  # Set default branch to main-candidate
 
 # Get the script directory

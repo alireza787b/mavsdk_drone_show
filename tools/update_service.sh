@@ -27,10 +27,10 @@
 # - In case of failure, appropriate error messages are displayed to help diagnose issues.
 
 # Assume the user is 'droneshow' for the script execution context; modify as needed for other users.
-REPO_USER="droneshow"
+REPO_USER="AeroHive"
 
 # Define the base directory for the repository.
-REPO_DIR="/home/${REPO_USER}/mavsdk_drone_show"
+REPO_DIR="/home/${REPO_USER}/UAV_sepehr"
 
 # Path to the service file in the repository
 SERVICE_FILE_PATH="${REPO_DIR}/tools/coordinator.service"
