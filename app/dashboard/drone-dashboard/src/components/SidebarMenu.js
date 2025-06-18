@@ -1,7 +1,8 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
 import { Sidebar, Menu, MenuItem } from 'react-pro-sidebar';
-import { FaGlobe, FaHome, FaChartBar, FaCog, FaTachometerAlt, FaGem, FaList, FaGithub, FaBars } from 'react-icons/fa';
+import { FaGlobe, FaHome, FaChartBar, FaCog, FaTachometerAlt, FaGem, FaList, FaGithub, FaBars, FaRoute } from 'react-icons/fa';
+
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
@@ -100,7 +101,11 @@ const SidebarMenu = () => {
                   Drone 3D View
                 </MenuItem>
               </Link>
-            
+             <Link to="/trajectory-planning">
+                <MenuItem icon={<FaRoute />}>
+                  Trajectory Planning
+                </MenuItem>
+             </Link>            
             </Menu>
           </div>
 

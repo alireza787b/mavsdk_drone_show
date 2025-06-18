@@ -9,6 +9,7 @@ import MissionConfig from './pages/MissionConfig'; // Fixed duplicate import
 import DroneShowDesign from './pages/DroneShowDesign';
 import CustomShowPage from './pages/CustomShowPage'; // Import the new page
 import GlobeView from './pages/GlobeView';
+import TrajectoryPlanning from './pages/TrajectoryPlanning';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'leaflet/dist/leaflet.css';
@@ -32,6 +33,7 @@ const App = () => {
             <Route path="/manage-drone-show" element={<ManageDroneShow />} />
             <Route path="/custom-show" element={<CustomShowPage />}  /> {/* New route */}
             <Route path="/globe-view" element={<GlobeView />} />
+	    <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
 
 
             <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />

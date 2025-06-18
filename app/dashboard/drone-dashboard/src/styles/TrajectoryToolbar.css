@@ -1,0 +1,149 @@
+/* src/styles/TrajectoryToolbar.css */
+.trajectory-toolbar {
+  background-color: #1f2128;
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  position: relative;
+  border-bottom: 1px solid #2a2d3a;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar-label {
+  color: #6c757d;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
+.toolbar-btn {
+  background-color: #2a2d3a;
+  border: 1px solid #3a3f4b;
+  color: #a2a5b9;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background-color: #3a3f4b;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.toolbar-btn:active {
+  transform: translateY(0);
+}
+
+.toolbar-btn.active {
+  background-color: #00458b;
+  color: #fff;
+  border-color: #0056b3;
+  box-shadow: 0 0 0 2px rgba(0, 213, 255, 0.2);
+}
+
+.toolbar-btn.icon-only {
+  padding: 0.5rem 0.75rem;
+}
+
+.toolbar-btn.primary-btn {
+  background-color: #00d4ff;
+  color: #000;
+  border-color: #00d4ff;
+  font-weight: 600;
+}
+
+.toolbar-btn.primary-btn:hover {
+  background-color: #00a8cc;
+  border-color: #00a8cc;
+}
+
+.toolbar-btn.danger-btn {
+  background-color: transparent;
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.toolbar-btn.danger-btn:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+.toolbar-select {
+  background-color: #2a2d3a;
+  border: 1px solid #3a3f4b;
+  color: #a2a5b9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.toolbar-select:focus {
+  outline: none;
+  border-color: #00d4ff;
+}
+
+.toolbar-select option {
+  background-color: #2a2d3a;
+  color: #a2a5b9;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .toolbar-btn span {
+    display: none;
+  }
+
+  .toolbar-btn.primary-btn span,
+  .toolbar-btn.danger-btn span {
+    display: inline;
+  }
+
+  .toolbar-btn {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .trajectory-toolbar {
+    padding: 0.5rem;
+  }
+
+  .toolbar-section {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .toolbar-label {
+    display: none;
+  }
+
+  .toolbar-select {
+    min-width: 100px;
+  }
+}
