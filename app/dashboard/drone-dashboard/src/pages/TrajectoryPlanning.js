@@ -1,34 +1,22 @@
 // src/pages/TrajectoryPlanning.js
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Viewer,
-  Entity,
-  PointGraphics,
-  PolylineGraphics,
-  LabelGraphics,
-  CameraFlyTo,
-  PolygonGraphics,
-  Cartesian2
-} from 'resium';
-import {
-  Cartesian3,
-  Color,
-  Ion,
-  createWorldTerrain,
+import React, { useState, useRef, useEffect } from 'react';
+import { Viewer, Entity, PolylineGraphics, PointGraphics, Cesium3DTileset, CameraFlyTo } from 'resium';
+import { 
+  Cartesian3, 
+  Color, 
+  ScreenSpaceEventType, 
+  createWorldTerrain, 
+  IonResource,
+  ScreenSpaceEventHandler,
+  defined,
+  Cartesian2,
   VerticalOrigin,
   HorizontalOrigin,
-  Cartographic,
-  Math as CesiumMath,
-  ScreenSpaceEventType,
-  defined,
-  ScreenSpaceEventHandler,
-  JulianDate,
-  SampledPositionProperty,
-  PathGraphics,
-  ConstantProperty
+  Viewer as CesiumViewer
 } from 'cesium';
-import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
+import "cesium/Build/Cesium/Widgets/widgets.css";
 import WaypointPanel from '../components/trajectory/WaypointPanel';
+import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
 import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
 import '../styles/TrajectoryPlanning.css';
