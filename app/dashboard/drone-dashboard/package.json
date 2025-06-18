@@ -3,7 +3,6 @@
     "version": "0.1.0",
     "private": true,
     "dependencies": {
-        "@craco/craco": "^7.1.0",
         "@emotion/react": "^11.14.0",
         "@emotion/styled": "^11.14.0",
         "@fortawesome/free-solid-svg-icons": "^6.6.0",
@@ -17,7 +16,7 @@
         "@turf/turf": "^7.2.0",
         "axios": "^1.4.0",
         "browserify-zlib": "^0.2.0",
-        "cesium": "^1.130.0",
+        "cesium": "^1.95.0",
         "classnames": "^2.3.2",
         "coordinate-parser": "^1.0.7",
         "csv-parser": "^3.0.0",
@@ -46,7 +45,7 @@
         "react-toastify": "^10.0.6",
         "react-tooltip": "^5.28.0",
         "react-transition-group": "^4.4.5",
-        "resium": "^1.18.3",
+        "resium": "^1.14.3",
         "stream-http": "^3.2.0",
         "three": "^0.166.1",
         "url": "^0.11.1",
@@ -77,6 +76,7 @@
         ]
     },
     "devDependencies": {
+        "@craco/craco": "^7.1.0",
         "@types/cesium": "^1.67.14",
         "copy-webpack-plugin": "^11.0.0",
         "eslint-plugin-jest": "^27.2.3"
