@@ -12,7 +12,9 @@ import {
   Cartesian2,
   VerticalOrigin,
   HorizontalOrigin,
-  Viewer as CesiumViewer
+  Math as CesiumMath,
+  sampleTerrainMostDetailed,
+  Cartographic
 } from 'cesium';
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -21,24 +23,25 @@ import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
 import '../styles/TrajectoryPlanning.css';
 
-// Set Cesium Ion token
-Ion.defaultAccessToken = process.env.REACT_APP_CESIUM_ION_TOKEN;
-
 const TrajectoryPlanning = () => {
   const viewerRef = useRef(null);
   const [waypoints, setWaypoints] = useState([]);
   const [selectedWaypointId, setSelectedWaypointId] = useState(null);
   const [isAddingWaypoint, setIsAddingWaypoint] = useState(false);
-  const [showPath, setShowPath] = useState(true);
   const [showTerrain, setShowTerrain] = useState(true);
-  const [pathInterpolation, setPathInterpolation] = useState('linear');
-  const [viewMode, setViewMode] = useState('3D'); // 2D, 3D, CV (Columbus View)
+  const [sceneMode, setSceneMode] = useState('3D');
   const [trajectoryStats, setTrajectoryStats] = useState({
     totalDistance: 0,
     totalTime: 0,
     maxAltitude: 0,
-    minAltitude: 0
+    minAltitude: 0,
   });
+
+  // Cesium Ion access token (you should move this to environment variable)
+  const cesiumIonToken = process.env.REACT_APP_CESIUM_ION_TOKEN || 'your-cesium-ion-token';
+
+  // Set up terrain provider
+  const terrainProvider = showTerrain ? createWorldTerrain() : null;
 
   // Calculate trajectory statistics
   useEffect(() => {
@@ -46,50 +49,50 @@ const TrajectoryPlanning = () => {
       setTrajectoryStats({
         totalDistance: 0,
         totalTime: 0,
-        maxAltitude: 0,
-        minAltitude: 0
+        maxAltitude: waypoints[0]?.altitude || 0,
+        minAltitude: waypoints[0]?.altitude || 0,
       });
       return;
     }
 
     let totalDistance = 0;
+    let totalTime = 0;
     let maxAlt = waypoints[0].altitude;
     let minAlt = waypoints[0].altitude;
 
     for (let i = 1; i < waypoints.length; i++) {
       const prev = waypoints[i - 1];
       const curr = waypoints[i];
-      
+
       // Calculate distance using Cartesian3
       const prevPos = Cartesian3.fromDegrees(prev.longitude, prev.latitude, prev.altitude);
       const currPos = Cartesian3.fromDegrees(curr.longitude, curr.latitude, curr.altitude);
       const distance = Cartesian3.distance(prevPos, currPos);
       
       totalDistance += distance;
+      totalTime = Math.max(totalTime, curr.time);
       maxAlt = Math.max(maxAlt, curr.altitude);
       minAlt = Math.min(minAlt, curr.altitude);
     }
 
-    const totalTime = waypoints[waypoints.length - 1].time || 0;
-
     setTrajectoryStats({
-      totalDistance: totalDistance,
-      totalTime: totalTime,
+      totalDistance,
+      totalTime,
       maxAltitude: maxAlt,
-      minAltitude: minAlt
+      minAltitude: minAlt,
     });
   }, [waypoints]);
 
-  // Mouse click handler for adding waypoints
+  // Set up click handler for adding waypoints
   useEffect(() => {
-    if (!viewerRef.current || !viewerRef.current.cesiumElement) return;
+    if (!viewerRef.current || !isAddingWaypoint) return;
 
     const viewer = viewerRef.current.cesiumElement;
+    if (!viewer || !viewer.scene) return;
+
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
 
     handler.setInputAction((click) => {
-      if (!isAddingWaypoint) return;
-
       const cartesian = viewer.camera.pickEllipsoid(
         click.position,
         viewer.scene.globe.ellipsoid
@@ -99,40 +102,39 @@ const TrajectoryPlanning = () => {
         const cartographic = Cartographic.fromCartesian(cartesian);
         const longitude = CesiumMath.toDegrees(cartographic.longitude);
         const latitude = CesiumMath.toDegrees(cartographic.latitude);
-        
-        // Get terrain height at this position
-        const terrainProvider = viewer.terrainProvider;
-        const positions = [Cartographic.fromDegrees(longitude, latitude)];
-        
-        Cesium.sampleTerrainMostDetailed(terrainProvider, positions).then((updatedPositions) => {
-          const terrainHeight = updatedPositions[0].height || 0;
-          
-          addWaypoint({
-            longitude,
-            latitude,
-            altitude: terrainHeight + 100, // Default 100m AGL
-            terrainHeight: terrainHeight,
-          });
-        });
+
+        // Sample terrain height at this position
+        if (viewer.terrainProvider) {
+          sampleTerrainMostDetailed(viewer.terrainProvider, [cartographic])
+            .then((updatedPositions) => {
+              const terrainHeight = updatedPositions[0].height || 0;
+              addWaypoint(longitude, latitude, terrainHeight);
+            })
+            .catch(() => {
+              // If terrain sampling fails, use 0
+              addWaypoint(longitude, latitude, 0);
+            });
+        } else {
+          addWaypoint(longitude, latitude, 0);
+        }
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => {
       handler.destroy();
     };
-  }, [isAddingWaypoint]);
+  }, [isAddingWaypoint, viewerRef.current]);
 
-  const addWaypoint = (waypointData) => {
+  const addWaypoint = (longitude, latitude, terrainHeight) => {
     const newWaypoint = {
       id: Date.now(),
-      name: `WP${waypoints.length + 1}`,
-      latitude: waypointData.latitude,
-      longitude: waypointData.longitude,
-      altitude: waypointData.altitude,
-      terrainHeight: waypointData.terrainHeight || 0,
+      name: `Waypoint ${waypoints.length + 1}`,
+      latitude,
+      longitude,
+      altitude: terrainHeight + 100, // Default 100m AGL
+      terrainHeight,
       time: waypoints.length * 10, // Default 10 seconds between waypoints
-      speed: 10, // m/s
-      ...waypointData,
+      speed: 10, // Default 10 m/s
     };
 
     setWaypoints([...waypoints, newWaypoint]);
@@ -156,39 +158,13 @@ const TrajectoryPlanning = () => {
     const newWaypoints = [...waypoints];
     const [movedWaypoint] = newWaypoints.splice(fromIndex, 1);
     newWaypoints.splice(toIndex, 0, movedWaypoint);
-    
-    // Recalculate times based on order
-    let cumulativeTime = 0;
-    newWaypoints.forEach((wp, index) => {
-      if (index === 0) {
-        wp.time = 0;
-      } else {
-        const prevWp = newWaypoints[index - 1];
-        const distance = Cartesian3.distance(
-          Cartesian3.fromDegrees(prevWp.longitude, prevWp.latitude, prevWp.altitude),
-          Cartesian3.fromDegrees(wp.longitude, wp.latitude, wp.altitude)
-        );
-        const timeToNext = distance / (wp.speed || 10);
-        cumulativeTime += timeToNext;
-        wp.time = cumulativeTime;
-      }
-    });
-    
     setWaypoints(newWaypoints);
   };
 
-  const flyToLocation = (lon, lat, alt = 5000) => {
-    if (viewerRef.current && viewerRef.current.cesiumElement) {
-      const viewer = viewerRef.current.cesiumElement;
-      viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(lon, lat, alt),
-        duration: 2,
-        orientation: {
-          heading: 0,
-          pitch: CesiumMath.toRadians(-45),
-          roll: 0
-        }
-      });
+  const clearTrajectory = () => {
+    if (window.confirm('Are you sure you want to clear all waypoints?')) {
+      setWaypoints([]);
+      setSelectedWaypointId(null);
     }
   };
 
@@ -198,88 +174,108 @@ const TrajectoryPlanning = () => {
       return;
     }
 
-    // Create CSV content
-    const headers = ['Name', 'Latitude', 'Longitude', 'Altitude (m)', 'Time (s)', 'Speed (m/s)', 'Terrain Height (m)', 'AGL (m)'];
-    const rows = waypoints.map(wp => [
-      wp.name,
-      wp.latitude.toFixed(6),
-      wp.longitude.toFixed(6),
-      wp.altitude.toFixed(1),
-      wp.time.toFixed(1),
-      wp.speed.toFixed(1),
-      wp.terrainHeight.toFixed(1),
-      (wp.altitude - wp.terrainHeight).toFixed(1)
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
+    const csv = [
+      'Name,Latitude,Longitude,Altitude (m),Time (s),Speed (m/s)',
+      ...waypoints.map(wp => 
+        `${wp.name},${wp.latitude},${wp.longitude},${wp.altitude},${wp.time},${wp.speed || 10}`
+      )
     ].join('\n');
 
-    // Download file
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `trajectory_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
+    a.download = `trajectory_${new Date().toISOString()}.csv`;
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
+  const handleLocationSelect = (longitude, latitude, altitude) => {
+    if (viewerRef.current) {
+      const viewer = viewerRef.current.cesiumElement;
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(longitude, latitude, altitude),
+        duration: 2,
+      });
+    }
+  };
+
+  const flyToWaypoint = (waypoint) => {
+    if (viewerRef.current) {
+      const viewer = viewerRef.current.cesiumElement;
+      viewer.camera.flyTo({
+        destination: Cartesian3.fromDegrees(
+          waypoint.longitude,
+          waypoint.latitude,
+          waypoint.altitude + 500
+        ),
+        duration: 1.5,
+      });
+    }
+  };
+
+  // Create trajectory line positions
+  const trajectoryPositions = waypoints.map(wp =>
+    Cartesian3.fromDegrees(wp.longitude, wp.latitude, wp.altitude)
+  );
 
   return (
     <div className="trajectory-planning">
       <div className="trajectory-header">
         <div className="header-left">
           <h1>Trajectory Planning</h1>
-          <TrajectoryStats stats={trajectoryStats} />
+          <SearchBar onLocationSelect={handleLocationSelect} />
         </div>
-        <SearchBar onLocationSelect={flyToLocation} />
+        <TrajectoryStats stats={trajectoryStats} />
       </div>
 
       <div className="trajectory-container">
         <div className="trajectory-main">
           <TrajectoryToolbar
             isAddingWaypoint={isAddingWaypoint}
-            setIsAddingWaypoint={setIsAddingWaypoint}
-            showPath={showPath}
-            setShowPath={setShowPath}
+            onToggleAddWaypoint={() => setIsAddingWaypoint(!isAddingWaypoint)}
+            onClearTrajectory={clearTrajectory}
+            onExportTrajectory={exportTrajectory}
             showTerrain={showTerrain}
-            setShowTerrain={setShowTerrain}
-            pathInterpolation={pathInterpolation}
-            setPathInterpolation={setPathInterpolation}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            onExport={exportTrajectory}
-            onClear={() => {
-              if (window.confirm('Clear all waypoints?')) {
-                setWaypoints([]);
-                setSelectedWaypointId(null);
-              }
-            }}
+            onToggleTerrain={() => setShowTerrain(!showTerrain)}
+            sceneMode={sceneMode}
+            onSceneModeChange={setSceneMode}
+            waypointCount={waypoints.length}
           />
 
           <div className="cesium-container">
             <Viewer
               ref={viewerRef}
               full
-              terrainProvider={showTerrain ? createWorldTerrain() : null}
+              terrainProvider={terrainProvider}
+              sceneMode={
+                sceneMode === '2D' ? 0 : 
+                sceneMode === '3D' ? 3 : 
+                1 // Columbus view
+              }
+              creditContainer={document.createElement("div")}
               homeButton={false}
-              sceneModePicker={true}
-              baseLayerPicker={true}
+              sceneModePicker={false}
+              baseLayerPicker={false}
               navigationHelpButton={false}
               animation={false}
               timeline={false}
-              fullscreenButton={true}
+              fullscreenButton={false}
               vrButton={false}
-              geocoder={false}
-              selectionIndicator={false}
-              infoBox={false}
-              scene3DOnly={false}
-              shouldAnimate={true}
             >
-              {/* Render waypoints */}
+              {/* Trajectory line */}
+              {trajectoryPositions.length > 1 && (
+                <Entity>
+                  <PolylineGraphics
+                    positions={trajectoryPositions}
+                    width={3}
+                    material={Color.fromCssColorString('#00d4ff')}
+                    clampToGround={false}
+                  />
+                </Entity>
+              )}
+
+              {/* Waypoint markers */}
               {waypoints.map((waypoint, index) => (
                 <Entity
                   key={waypoint.id}
@@ -291,67 +287,29 @@ const TrajectoryPlanning = () => {
                   onClick={() => setSelectedWaypointId(waypoint.id)}
                 >
                   <PointGraphics
-                    pixelSize={selectedWaypointId === waypoint.id ? 20 : 15}
+                    pixelSize={selectedWaypointId === waypoint.id ? 15 : 10}
                     color={
-                      selectedWaypointId === waypoint.id
-                        ? Color.YELLOW
-                        : index === 0 
-                          ? Color.LIME
-                          : index === waypoints.length - 1
-                            ? Color.RED
-                            : Color.CYAN
+                      index === 0 ? Color.GREEN :
+                      index === waypoints.length - 1 ? Color.RED :
+                      selectedWaypointId === waypoint.id ? Color.YELLOW :
+                      Color.WHITE
                     }
                     outlineColor={Color.BLACK}
                     outlineWidth={2}
-                    heightReference={0}
-                  />
-                  <LabelGraphics
-                    text={waypoint.name}
-                    font="14pt sans-serif"
-                    fillColor={Color.WHITE}
-                    outlineColor={Color.BLACK}
-                    outlineWidth={2}
-                    pixelOffset={new Cartesian2(0, -25)}
-                    verticalOrigin={VerticalOrigin.BOTTOM}
-                    horizontalOrigin={HorizontalOrigin.CENTER}
                   />
                 </Entity>
               ))}
 
-              {/* Render flight path */}
-              {showPath && waypoints.length > 1 && (
-                <Entity>
-                  <PolylineGraphics
-                    positions={waypoints.map(wp =>
-                      Cartesian3.fromDegrees(
-                        wp.longitude,
-                        wp.latitude,
-                        wp.altitude
-                      )
-                    )}
-                    width={4}
-                    material={Color.LIME.withAlpha(0.8)}
-                    clampToGround={false}
-                  />
-                </Entity>
-              )}
-
-              {/* Render ground projection */}
-              {showPath && waypoints.length > 1 && (
-                <Entity>
-                  <PolylineGraphics
-                    positions={waypoints.map(wp =>
-                      Cartesian3.fromDegrees(
-                        wp.longitude,
-                        wp.latitude,
-                        0
-                      )
-                    )}
-                    width={2}
-                    material={Color.YELLOW.withAlpha(0.5)}
-                    clampToGround={true}
-                  />
-                </Entity>
+              {/* 3D Buildings (optional) */}
+              {showTerrain && (
+                <Cesium3DTileset
+                  url={IonResource.fromAssetId(96188)}
+                  onReady={(tileset) => {
+                    if (viewerRef.current) {
+                      viewerRef.current.cesiumElement.zoomTo(tileset);
+                    }
+                  }}
+                />
               )}
             </Viewer>
           </div>
@@ -364,7 +322,7 @@ const TrajectoryPlanning = () => {
           onUpdateWaypoint={updateWaypoint}
           onDeleteWaypoint={deleteWaypoint}
           onMoveWaypoint={moveWaypoint}
-          onFlyTo={(wp) => flyToLocation(wp.longitude, wp.latitude, wp.altitude + 500)}
+          onFlyTo={flyToWaypoint}
         />
       </div>
     </div>
