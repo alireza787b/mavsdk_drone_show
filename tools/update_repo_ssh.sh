@@ -1,37 +1,29 @@
 #!/bin/bash
 #
-# update_repo_ssh.sh - Enhanced Git Sync for MDS Repository (Swarm-Optimized)
+# update_repo_ssh.sh - Enhanced Git Sync for MDS Repository (FIXED VERSION)
 #
 # This script ensures that the drone's software repository (MDS) is
 # up-to-date before operations start. Enhanced for production swarm deployments.
 #
-# Key Improvements:
-# - Integrated logging with centralized system
-# - Configurable recovery strategies (graceful vs aggressive)
-# - Swarm-aware operations (jitter, rate limiting)
-# - Better integration with service management
-# - Enhanced error reporting and status notifications
-# - Configurable timeouts and retry strategies
-# - Lock contention handling for concurrent operations
+# FIXED: Removed variable corruption issues and simplified configuration
 #
 # Author: Enhanced for Drone Swarm Project
-# Date: 2025-07-14 (Based on original by Alireza Ghaderi)
+# Date: 2025-07-14 (Fixed logging and variable handling)
 #
 
 set -euo pipefail
 
 # ----------------------------------
-# Configuration and Default Settings
+# Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-readonly SCRIPT_VERSION="2.0.0-swarm"
+readonly SCRIPT_VERSION="2.0.1-fixed"
 readonly SCRIPT_NAME="git-sync"
 
-# Load configuration from environment or config file
+# Basic Configuration - No external config file required
 REPO_USER="${REPO_USER:-droneshow}"
 REPO_DIR="${REPO_DIR:-/home/${REPO_USER}/mavsdk_drone_show}"
-CONFIG_FILE="${REPO_DIR}/config/drone_config.env"
 
-# Default values (can be overridden by config)
+# Default values - can be overridden by environment variables
 MAX_RETRIES="${MAX_RETRIES:-10}"
 INITIAL_DELAY="${INITIAL_DELAY:-1}"
 MAX_DELAY="${MAX_DELAY:-60}"
@@ -56,55 +48,35 @@ ENABLE_JITTER="${ENABLE_JITTER:-true}"
 MAX_JITTER_SECONDS="${MAX_JITTER_SECONDS:-30}"
 SWARM_OPERATION="${SWARM_OPERATION:-true}"
 
+# Drone identification
+DRONE_ID="${DRONE_ID:-$(hostname)}"
+ENVIRONMENT="${ENVIRONMENT:-production}"
+
 # Paths and commands
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
 LOG_FILE="${LOG_FILE:-/var/log/drone_git_sync.log}"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
 
 # ----------------------------------
-# Load Configuration
-# ----------------------------------
-load_configuration() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        log_info "INIT" "Loading configuration from $CONFIG_FILE"
-        # shellcheck source=/dev/null
-        source "$CONFIG_FILE" || log_warn "INIT" "Failed to source config file"
-        
-        # Override defaults with config values
-        DRONE_ID="${DRONE_ID:-$(hostname)}"
-        ENVIRONMENT="${ENVIRONMENT:-production}"
-        DRONE_BRANCH="${DRONE_BRANCH:-$DEFAULT_BRANCH}"
-        
-        # Update derived values
-        if [[ "$ENVIRONMENT" == "sitl" ]]; then
-            DEFAULT_BRANCH="$SITL_BRANCH"
-        fi
-    else
-        log_warn "INIT" "Config file not found: $CONFIG_FILE"
-        DRONE_ID="$(hostname)"
-        ENVIRONMENT="production"
-        DRONE_BRANCH="$DEFAULT_BRANCH"
-    fi
-}
-
-# ----------------------------------
-# Enhanced Logging System
+# Enhanced Logging System (FIXED - No variable corruption)
 # ----------------------------------
 log() {
     local level="$1"
     local component="$2"
     local message="$3"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local drone_id="${DRONE_ID:-unknown}"
     
-    # Structured logging format
-    local log_entry="[$timestamp] [$level] [$SCRIPT_NAME] [$component] [drone:$drone_id] $message"
+    # Structured logging format - write to stderr to avoid variable corruption
+    local log_entry="[$timestamp] [$level] [$SCRIPT_NAME] [$component] [drone:$DRONE_ID] $message"
     
-    # Write to log file and console
-    echo "$log_entry" | tee -a "$LOG_FILE"
+    # Write to log file if possible, suppress errors to avoid corruption
+    echo "$log_entry" >> "$LOG_FILE" 2>/dev/null || true
     
-    # Send to syslog for centralized collection
-    logger -t "$SCRIPT_NAME" -p "user.$level" "$component: $message" || true
+    # Write to stderr (not stdout) to avoid variable corruption
+    echo "$log_entry" >&2
+    
+    # Send to syslog for centralized collection, suppress errors
+    logger -t "$SCRIPT_NAME" -p "user.$level" "$component: $message" 2>/dev/null || true
 }
 
 log_info() { log "info" "$@"; }
@@ -119,7 +91,6 @@ log_error_and_exit() {
     
     log_error "$component" "$message"
     set_led_status "red"
-    send_status_notification "ERROR" "$component: $message"
     cleanup_on_exit
     exit "$exit_code"
 }
@@ -130,23 +101,7 @@ log_error_and_exit() {
 set_led_status() {
     local color="$1"
     if [[ "${LED_ENABLED:-true}" == "true" ]]; then
-        $LED_CMD --color "$color" 2>/dev/null || log_debug "LED" "Failed to set LED to $color"
-    fi
-}
-
-send_status_notification() {
-    local status="$1"
-    local message="$2"
-    local drone_id="${DRONE_ID:-unknown}"
-    
-    log_info "STATUS" "Drone $drone_id: $status - $message"
-    
-    # Integration point for central monitoring system
-    if [[ -n "${COORDINATOR_ENDPOINT:-}" ]] && command -v curl >/dev/null; then
-        local payload="{\"drone_id\":\"$drone_id\",\"service\":\"git-sync\",\"status\":\"$status\",\"message\":\"$message\",\"timestamp\":\"$(date -Iseconds)\"}"
-        curl -s -m 5 -X POST "${COORDINATOR_ENDPOINT}/drone-status" \
-             -H "Content-Type: application/json" \
-             -d "$payload" || log_debug "STATUS" "Failed to send status notification"
+        $LED_CMD --color "$color" 2>/dev/null || true
     fi
 }
 
@@ -381,19 +336,55 @@ handle_repository_corruption() {
     case "$RECOVERY_STRATEGY" in
         "aggressive")
             log_warn "$component" "Aggressive recovery: rebooting system..."
-            send_status_notification "CRITICAL" "Repository corruption detected, system rebooting"
             sudo reboot || log_error_and_exit "$component" "Reboot command failed"
             exit 0
             ;;
         "graceful")
             log_error "$component" "Repository corruption could not be repaired"
-            send_status_notification "DEGRADED" "Repository corruption detected, continuing with existing code"
             return 1
             ;;
         *)
             log_error_and_exit "$component" "Unknown recovery strategy: $RECOVERY_STRATEGY"
             ;;
     esac
+}
+
+# ----------------------------------
+# FIXED: Git URL Determination (No variable corruption)
+# ----------------------------------
+determine_git_url() {
+    local repo_url="$1"
+    local git_url=""
+    
+    # FIXED: Capture output properly without mixing with logs
+    if [[ "$repo_url" == git@* ]]; then
+        # Try SSH first - capture result in variable without logging interference
+        if git ls-remote "$repo_url" -q >/dev/null 2>&1; then
+            log_info "GIT-URL" "SSH connection successful"
+            git_url="$repo_url"
+        else
+            log_warn "GIT-URL" "SSH connection failed, falling back to HTTPS"
+            git_url="https://github.com/${repo_url#git@github.com:}"
+            git_url="${git_url%.git}.git"
+        fi
+    elif [[ "$repo_url" == https://* ]]; then
+        # Try SSH first if available
+        local ssh_url="git@github.com:${repo_url#https://github.com/}"
+        ssh_url="${ssh_url%.git}.git"
+        
+        if git ls-remote "$ssh_url" -q >/dev/null 2>&1; then
+            log_info "GIT-URL" "SSH connection available, using SSH"
+            git_url="$ssh_url"
+        else
+            log_info "GIT-URL" "Using HTTPS connection"
+            git_url="$repo_url"
+        fi
+    else
+        log_error_and_exit "GIT-URL" "Invalid repository URL format: $repo_url"
+    fi
+    
+    # FIXED: Return the URL cleanly without any logging interference
+    echo "$git_url"
 }
 
 # ----------------------------------
@@ -487,7 +478,7 @@ parse_arguments() {
         esac
     done
     
-    # Set values with precedence: CLI args > config > defaults
+    # Set values with precedence: CLI args > environment > defaults
     BRANCH_NAME="${branch_name:-${DRONE_BRANCH:-$DEFAULT_BRANCH}}"
     REPO_URL="${repo_url:-$DEFAULT_SSH_GIT_URL}"
     REPO_DIR="${repo_dir:-$REPO_DIR}"
@@ -515,55 +506,15 @@ ENVIRONMENT VARIABLES:
     RECOVERY_STRATEGY       'graceful' or 'aggressive' (default: graceful)
     ENABLE_JITTER          Add random delays for swarm operations (default: true)
     MAX_RETRIES            Maximum retry attempts (default: 10)
-    DRONE_ID               Unique drone identifier
-    
-CONFIGURATION:
-    Configuration is loaded from: $CONFIG_FILE
+    DRONE_ID               Unique drone identifier (default: hostname)
     
 EXAMPLES:
-    $0                      # Use default branch from config
+    $0                      # Use default branch
     $0 --sitl               # Use SITL branch
     $0 --branch develop     # Use specific branch
     $0 --debug              # Enable debug output
 
 EOF
-}
-
-# ----------------------------------
-# URL Construction and Detection
-# ----------------------------------
-determine_git_url() {
-    local component="GIT-URL"
-    local repo_url="$1"
-    local git_url=""
-    
-    if [[ "$repo_url" == git@* ]]; then
-        # Try SSH first
-        if git ls-remote "$repo_url" -q >/dev/null 2>&1; then
-            log_info "$component" "SSH connection successful"
-            git_url="$repo_url"
-        else
-            log_warn "$component" "SSH connection failed, falling back to HTTPS"
-            git_url="https://github.com/${repo_url#git@github.com:}"
-            git_url="${git_url%.git}.git"
-        fi
-    elif [[ "$repo_url" == https://* ]]; then
-        # Try SSH first if available
-        local ssh_url="git@github.com:${repo_url#https://github.com/}"
-        ssh_url="${ssh_url%.git}.git"
-        
-        if git ls-remote "$ssh_url" -q >/dev/null 2>&1; then
-            log_info "$component" "SSH connection available, using SSH"
-            git_url="$ssh_url"
-        else
-            log_info "$component" "Using HTTPS connection"
-            git_url="$repo_url"
-        fi
-    else
-        log_error_and_exit "$component" "Invalid repository URL format: $repo_url"
-    fi
-    
-    echo "$git_url"
 }
 
 # ----------------------------------
@@ -573,9 +524,8 @@ main() {
     local start_time=$(date +%s)
     
     # Initialize logging
-    sudo mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
-    sudo touch "$LOG_FILE" 2>/dev/null || true
-    sudo chown "${REPO_USER}:${REPO_USER}" "$LOG_FILE" 2>/dev/null || true
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    touch "$LOG_FILE" 2>/dev/null || true
     
     log_info "INIT" "=========================================="
     log_info "INIT" "Git Sync Script Starting (v$SCRIPT_VERSION)"
@@ -584,8 +534,7 @@ main() {
     log_info "INIT" "PID: $$"
     log_info "INIT" "=========================================="
     
-    # Load configuration and parse arguments
-    load_configuration
+    # Parse arguments
     parse_arguments "$@"
     
     log_info "CONFIG" "Branch: $BRANCH_NAME"
@@ -599,7 +548,6 @@ main() {
     
     # Set initial status
     set_led_status "blue"
-    send_status_notification "SYNCING" "Git synchronization started"
     
     # Validate repository directory
     if [[ ! -d "$REPO_DIR" ]]; then
@@ -618,7 +566,7 @@ main() {
     # Check network connectivity
     check_network_connectivity
     
-    # Determine optimal git URL
+    # FIXED: Determine optimal git URL without variable corruption
     local git_url
     git_url=$(determine_git_url "$REPO_URL")
     
@@ -641,7 +589,6 @@ main() {
     if ! perform_git_fetch "$git_url"; then
         if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
-            send_status_notification "DEGRADED" "Git fetch failed, using existing code"
             set_led_status "yellow"
             exit 0
         else
@@ -696,7 +643,6 @@ main() {
     log_info "SUCCESS" "=========================================="
     
     set_led_status "green"
-    send_status_notification "SYNCED" "Git sync completed: $commit_hash on $BRANCH_NAME"
     
     exit 0
 }
