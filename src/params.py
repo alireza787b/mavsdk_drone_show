@@ -33,7 +33,7 @@ class Params:
     print(f"[DEBUG] Simulation Mode: {sim_mode}")
 
     # URLs for configuration files (not used in current implementation)
-    config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # URL for the configuration file
+    config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # Ugit addRL for the configuration file
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'    # URL for the swarm file
 
     # Git Configuration
