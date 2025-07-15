@@ -24,7 +24,7 @@ set -euo pipefail
 # GitHub Repository Details
 DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="main-candidate"
-GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
+GITHUB_REPO_URL="https://github.com/AeroHive-community/mavsdk_drone_show"
 
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
