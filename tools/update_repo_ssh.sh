@@ -55,7 +55,7 @@ ENVIRONMENT="${ENVIRONMENT:-production}"
 
 # Paths and commands
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
-LOG_FILE="${LOG_FILE:-/var/log/drone_git_sync.log}"
+LOG_FILE="$HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
 
 # ----------------------------------
