@@ -52,14 +52,9 @@
         "web-vitals": "^2.1.4"
     },
     "scripts": {
-        "start": "PORT=3030 react-scripts start",
-        "start:craco": "PORT=3030 craco start",
-        "build": "react-scripts build",
-        "build:craco": "craco build",
-        "test": "react-scripts test",
-        "eject": "react-scripts eject",
-        "lint": "eslint src --ext .js,.jsx --fix --quiet || true",
-        "analyze": "npm run build && npx source-map-explorer 'build/static/js/*.js'"
+    "start": "PORT=3030 craco start",
+    "build": "craco build",
+    "test": "craco test"
     },
     "eslintConfig": {
         "extends": [
@@ -84,6 +79,7 @@
         ]
     },
     "devDependencies": {
+        "@craco/craco": "^7.1.0",
         "ajv": "^8.12.0",
         "ajv-keywords": "^5.1.0",
         "copy-webpack-plugin": "^11.0.0",

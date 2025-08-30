@@ -4,14 +4,18 @@ const webpack = require('webpack');
 const path = require('path');
 
 module.exports = {
+  devServer: {
+    allowedHosts: 'all',
+    client: {
+      overlay: false
+    }
+  },
   webpack: {
     alias: {
-      // Point cesium to the correct directory
       cesium: path.resolve(__dirname, 'node_modules/cesium')
     },
     plugins: {
       add: [
-        // Copy Cesium Assets, Widgets, and Workers to a static directory
         new CopyWebpackPlugin({
           patterns: [
             {
@@ -32,21 +36,17 @@ module.exports = {
             }
           ]
         }),
-        // Define Cesium base URL
         new webpack.DefinePlugin({
           CESIUM_BASE_URL: JSON.stringify('/static/cesium')
         })
       ]
     },
     configure: (webpackConfig) => {
-      // Add Cesium to externals to avoid bundling it
       webpackConfig.output = {
         ...webpackConfig.output,
-        // Needed for Cesium workers
         globalObject: 'this'
       };
 
-      // Handle .js files in cesium with source maps
       webpackConfig.module.rules.push({
         test: /\.(js|mjs|jsx)$/,
         enforce: 'pre',
@@ -56,7 +56,6 @@ module.exports = {
         }
       });
 
-      // Ignore source map warnings from Cesium
       webpackConfig.ignoreWarnings = [
         ...(webpackConfig.ignoreWarnings || []),
         /Failed to parse source map/
