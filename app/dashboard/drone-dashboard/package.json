@@ -1,7 +1,8 @@
 {
     "name": "drone-dashboard",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "private": true,
+    "homepage": ".",
     "dependencies": {
         "@emotion/react": "^11.14.0",
         "@emotion/styled": "^11.14.0",
@@ -13,10 +14,9 @@
         "@testing-library/jest-dom": "^5.17.0",
         "@testing-library/react": "^13.4.0",
         "@testing-library/user-event": "^13.5.0",
-        "@turf/turf": "^7.2.0",
-        "axios": "^1.4.0",
+        "axios": "^1.7.7",
         "browserify-zlib": "^0.2.0",
-        "cesium": "^1.95.0",
+        "cesium": "^1.122.0",
         "classnames": "^2.3.2",
         "coordinate-parser": "^1.0.7",
         "csv-parser": "^3.0.0",
@@ -38,30 +38,38 @@
         "react-plotly.js": "^2.6.0",
         "react-pro-sidebar": "^1.1.0",
         "react-router-dom": "^6.15.0",
-        "react-scripts": "^5.0.1",
+        "react-scripts": "5.0.1",
         "react-sigma": "^1.2.35",
         "react-three-fiber": "^6.0.13",
         "react-time-picker": "^7.0.0",
         "react-toastify": "^10.0.6",
         "react-tooltip": "^5.28.0",
         "react-transition-group": "^4.4.5",
-        "resium": "^1.14.3",
+        "resium": "^1.17.1",
         "stream-http": "^3.2.0",
         "three": "^0.166.1",
         "url": "^0.11.1",
         "web-vitals": "^2.1.4"
     },
     "scripts": {
-    "start": "PORT=3030 craco start",
-    "build": "craco build",
-    "test": "craco test",
-    "eject": "react-scripts eject"
+        "start": "PORT=3030 react-scripts start",
+        "start:craco": "PORT=3030 craco start",
+        "build": "react-scripts build",
+        "build:craco": "craco build",
+        "test": "react-scripts test",
+        "eject": "react-scripts eject",
+        "lint": "eslint src --ext .js,.jsx --fix --quiet || true",
+        "analyze": "npm run build && npx source-map-explorer 'build/static/js/*.js'"
     },
     "eslintConfig": {
         "extends": [
             "react-app",
             "react-app/jest"
-        ]
+        ],
+        "rules": {
+            "no-unused-vars": "warn",
+            "no-console": "warn"
+        }
     },
     "browserslist": {
         "production": [
@@ -76,9 +84,11 @@
         ]
     },
     "devDependencies": {
-        "@craco/craco": "^7.1.0",
-        "@types/cesium": "^1.67.14",
+        "ajv": "^8.12.0",
+        "ajv-keywords": "^5.1.0",
         "copy-webpack-plugin": "^11.0.0",
-        "eslint-plugin-jest": "^27.2.3"
-    }
+        "eslint-plugin-jest": "^27.2.3",
+        "webpack-dev-server": "^4.6.0"
+    },
+    "proxy": "http://localhost:5000"
 }

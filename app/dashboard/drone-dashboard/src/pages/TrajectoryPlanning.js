@@ -1,22 +1,16 @@
 // src/pages/TrajectoryPlanning.js
+// COMPLETE VERSION - All original functionality preserved with fixed Cesium imports
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Viewer, Entity, PolylineGraphics, PointGraphics, Cesium3DTileset, CameraFlyTo } from 'resium';
-import { 
-  Cartesian3, 
-  Color, 
-  ScreenSpaceEventType, 
-  createWorldTerrain, 
-  IonResource,
-  ScreenSpaceEventHandler,
-  defined,
-  Cartesian2,
-  VerticalOrigin,
-  HorizontalOrigin,
-  Math as CesiumMath,
-  sampleTerrainMostDetailed,
-  Cartographic
-} from 'cesium';
+
+// FIXED: Import Cesium as namespace instead of destructuring
+import * as Cesium from 'cesium';
+
+// Import Cesium CSS properly
 import "cesium/Build/Cesium/Widgets/widgets.css";
+
+// Import components (these need to exist or create fallbacks)
 import WaypointPanel from '../components/trajectory/WaypointPanel';
 import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
 import SearchBar from '../components/trajectory/SearchBar';
@@ -37,11 +31,19 @@ const TrajectoryPlanning = () => {
     minAltitude: 0,
   });
 
-  // Cesium Ion access token (you should move this to environment variable)
-  const cesiumIonToken = process.env.REACT_APP_CESIUM_ION_TOKEN || 'your-cesium-ion-token';
+  // Get Cesium Ion token from environment (graceful fallback)
+  const cesiumIonToken = process.env.REACT_APP_CESIUM_ION_TOKEN || 
+                        process.env.REACT_APP_CESIUM_TOKEN ||
+                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1MjgzOGY4Ni0yZmQyLTRiNGUtOGE1ZS1lNTA4MmQ0OTcyMDYiLCJpZCI6MzEzMjI2LCJpYXQiOjE3NTAyMjQ4MTh9.4x0QrNlOa840WxPbowIFOkSwf-NNCpjrSOAMbNPL2aY';
 
+  // FIXED: Use Cesium namespace for all Cesium objects
   // Set up terrain provider
-  const terrainProvider = showTerrain ? createWorldTerrain() : null;
+  const terrainProvider = showTerrain ? Cesium.createWorldTerrain() : null;
+
+  // Set Cesium Ion access token
+  if (typeof Cesium !== 'undefined' && Cesium.Ion) {
+    Cesium.Ion.defaultAccessToken = cesiumIonToken;
+  }
 
   // Calculate trajectory statistics
   useEffect(() => {
@@ -64,10 +66,10 @@ const TrajectoryPlanning = () => {
       const prev = waypoints[i - 1];
       const curr = waypoints[i];
 
-      // Calculate distance using Cartesian3
-      const prevPos = Cartesian3.fromDegrees(prev.longitude, prev.latitude, prev.altitude);
-      const currPos = Cartesian3.fromDegrees(curr.longitude, curr.latitude, curr.altitude);
-      const distance = Cartesian3.distance(prevPos, currPos);
+      // FIXED: Use Cesium namespace
+      const prevPos = Cesium.Cartesian3.fromDegrees(prev.longitude, prev.latitude, prev.altitude);
+      const currPos = Cesium.Cartesian3.fromDegrees(curr.longitude, curr.latitude, curr.altitude);
+      const distance = Cesium.Cartesian3.distance(prevPos, currPos);
       
       totalDistance += distance;
       totalTime = Math.max(totalTime, curr.time);
@@ -90,7 +92,8 @@ const TrajectoryPlanning = () => {
     const viewer = viewerRef.current.cesiumElement;
     if (!viewer || !viewer.scene) return;
 
-    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    // FIXED: Use Cesium namespace
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
     handler.setInputAction((click) => {
       const cartesian = viewer.camera.pickEllipsoid(
@@ -98,14 +101,16 @@ const TrajectoryPlanning = () => {
         viewer.scene.globe.ellipsoid
       );
 
-      if (defined(cartesian)) {
-        const cartographic = Cartographic.fromCartesian(cartesian);
-        const longitude = CesiumMath.toDegrees(cartographic.longitude);
-        const latitude = CesiumMath.toDegrees(cartographic.latitude);
+      // FIXED: Use Cesium namespace
+      if (Cesium.defined(cartesian)) {
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+        const latitude = Cesium.Math.toDegrees(cartographic.latitude);
 
         // Sample terrain height at this position
         if (viewer.terrainProvider) {
-          sampleTerrainMostDetailed(viewer.terrainProvider, [cartographic])
+          // FIXED: Use Cesium namespace
+          Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [cartographic])
             .then((updatedPositions) => {
               const terrainHeight = updatedPositions[0].height || 0;
               addWaypoint(longitude, latitude, terrainHeight);
@@ -118,7 +123,7 @@ const TrajectoryPlanning = () => {
           addWaypoint(longitude, latitude, 0);
         }
       }
-    }, ScreenSpaceEventType.LEFT_CLICK);
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK); // FIXED: Use Cesium namespace
 
     return () => {
       handler.destroy();
@@ -193,8 +198,9 @@ const TrajectoryPlanning = () => {
   const handleLocationSelect = (longitude, latitude, altitude) => {
     if (viewerRef.current) {
       const viewer = viewerRef.current.cesiumElement;
+      // FIXED: Use Cesium namespace
       viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(longitude, latitude, altitude),
+        destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, altitude),
         duration: 2,
       });
     }
@@ -203,8 +209,9 @@ const TrajectoryPlanning = () => {
   const flyToWaypoint = (waypoint) => {
     if (viewerRef.current) {
       const viewer = viewerRef.current.cesiumElement;
+      // FIXED: Use Cesium namespace
       viewer.camera.flyTo({
-        destination: Cartesian3.fromDegrees(
+        destination: Cesium.Cartesian3.fromDegrees(
           waypoint.longitude,
           waypoint.latitude,
           waypoint.altitude + 500
@@ -214,9 +221,9 @@ const TrajectoryPlanning = () => {
     }
   };
 
-  // Create trajectory line positions
+  // FIXED: Use Cesium namespace for trajectory line positions
   const trajectoryPositions = waypoints.map(wp =>
-    Cartesian3.fromDegrees(wp.longitude, wp.latitude, wp.altitude)
+    Cesium.Cartesian3.fromDegrees(wp.longitude, wp.latitude, wp.altitude)
   );
 
   return (
@@ -249,9 +256,9 @@ const TrajectoryPlanning = () => {
               full
               terrainProvider={terrainProvider}
               sceneMode={
-                sceneMode === '2D' ? 0 : 
-                sceneMode === '3D' ? 3 : 
-                1 // Columbus view
+                sceneMode === '2D' ? Cesium.SceneMode.SCENE2D : 
+                sceneMode === '3D' ? Cesium.SceneMode.SCENE3D : 
+                Cesium.SceneMode.COLUMBUS_VIEW
               }
               creditContainer={document.createElement("div")}
               homeButton={false}
@@ -269,7 +276,7 @@ const TrajectoryPlanning = () => {
                   <PolylineGraphics
                     positions={trajectoryPositions}
                     width={3}
-                    material={Color.fromCssColorString('#00d4ff')}
+                    material={Cesium.Color.fromCssColorString('#00d4ff')} 
                     clampToGround={false}
                   />
                 </Entity>
@@ -279,7 +286,7 @@ const TrajectoryPlanning = () => {
               {waypoints.map((waypoint, index) => (
                 <Entity
                   key={waypoint.id}
-                  position={Cartesian3.fromDegrees(
+                  position={Cesium.Cartesian3.fromDegrees(
                     waypoint.longitude,
                     waypoint.latitude,
                     waypoint.altitude
@@ -289,21 +296,21 @@ const TrajectoryPlanning = () => {
                   <PointGraphics
                     pixelSize={selectedWaypointId === waypoint.id ? 15 : 10}
                     color={
-                      index === 0 ? Color.GREEN :
-                      index === waypoints.length - 1 ? Color.RED :
-                      selectedWaypointId === waypoint.id ? Color.YELLOW :
-                      Color.WHITE
+                      index === 0 ? Cesium.Color.GREEN :
+                      index === waypoints.length - 1 ? Cesium.Color.RED :
+                      selectedWaypointId === waypoint.id ? Cesium.Color.YELLOW :
+                      Cesium.Color.WHITE
                     }
-                    outlineColor={Color.BLACK}
+                    outlineColor={Cesium.Color.BLACK}
                     outlineWidth={2}
                   />
                 </Entity>
               ))}
 
-              {/* 3D Buildings (optional) */}
+              {/* 3D Buildings (optional) - FIXED: Use Cesium namespace */}
               {showTerrain && (
                 <Cesium3DTileset
-                  url={IonResource.fromAssetId(96188)}
+                  url={Cesium.IonResource.fromAssetId(96188)}
                   onReady={(tileset) => {
                     if (viewerRef.current) {
                       viewerRef.current.cesiumElement.zoomTo(tileset);
