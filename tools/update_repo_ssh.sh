@@ -19,9 +19,9 @@ set -euo pipefail
 readonly SCRIPT_VERSION="2.0.1-fixed"
 readonly SCRIPT_NAME="git-sync"
 
-# Basic Configuration - No external config file required
-REPO_USER="${REPO_USER:-droneshow}"
-REPO_DIR="${REPO_DIR:-/home/${REPO_USER}/mavsdk_drone_show}"
+# Use dynamic variables for user and home directory
+REPO_USER="${REPO_USER:-$USER}"
+REPO_DIR="${REPO_DIR:-$HOME/mavsdk_drone_show}"
 
 # Default values - can be overridden by environment variables
 MAX_RETRIES="${MAX_RETRIES:-10}"
@@ -30,6 +30,7 @@ MAX_DELAY="${MAX_DELAY:-60}"
 REPAIR_TIMEOUT="${REPAIR_TIMEOUT:-120}"
 FETCH_TIMEOUT="${FETCH_TIMEOUT:-300}"
 NETWORK_TIMEOUT="${NETWORK_TIMEOUT:-30}"
+
 
 # Branch configuration
 SITL_BRANCH="${SITL_BRANCH:-docker-sitl-2}"
