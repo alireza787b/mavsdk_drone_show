@@ -1,13 +1,11 @@
 // src/components/ExportSection.js
 import React from 'react';
 import { getBackendURL } from '../utilities/utilities';
-import { API_CONFIG } from '../config/api';
-
 import { Box, Typography, Button, Paper } from '@mui/material';
 
 const ExportSection = () => {
   const handleDownload = (type) => {
-    const downloadUrl = `${API_CONFIG.baseURL}/download-${type}-show`;
+    const downloadUrl = `${getBackendURL()}/download-${type}-show`;
     window.open(downloadUrl, '_blank');
   };
 

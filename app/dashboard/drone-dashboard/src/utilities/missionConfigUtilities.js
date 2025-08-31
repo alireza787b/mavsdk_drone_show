@@ -34,7 +34,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         toast.warn(`Missing Drone IDs: ${missingIds.join(', ')}. Please check before saving.`);
     }
 
-    const backendURL = API_CONFIG.baseURL;
+    const backendURL = getBackendURL();
 
     try {
         setLoading(true); // Set loading state to true
@@ -56,7 +56,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
 export const handleRevertChanges = async(setConfigData) => {
     if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
-        const backendURL = API_CONFIG.baseURL;
+        const backendURL = getBackendURL();
         try {
             const response = await axios.get(`${backendURL}/get-config-data`);
             setConfigData(response.data);

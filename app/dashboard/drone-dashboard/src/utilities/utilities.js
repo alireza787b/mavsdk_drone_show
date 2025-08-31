@@ -1,6 +1,4 @@
 // utilities.js
-import { API_CONFIG } from '../config/api';
-
 
 // Get the base server URL from environment variables
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
@@ -13,26 +11,26 @@ export function getBackendURL(servicePort = process.env.REACT_APP_FLASK_PORT || 
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    return `${API_CONFIG.baseURL}/telemetry`;
+    return `${getBackendURL()}/telemetry`;
 }
 
 export function getElevationURL(lat, lon) {
-    return `${API_CONFIG.baseURL}/elevation?lat=${lat}&lon=${lon}`;
+    return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
 }
 
 // New function to get the GCS Git status URL
 export function getGitStatusURL() {
-    return `${API_CONFIG.baseURL}/get-gcs-git-status`;
+    return `${getBackendURL()}/get-gcs-git-status`;
 }
 
 export const getUnifiedGitStatusURL = () => `${process.env.REACT_APP_API_BASE_URL}/git-status`;
 
 
 export function getCustomShowImageURL() {
-    return `${API_CONFIG.baseURL}/get-custom-show-image`;
+    return `${getBackendURL()}/get-custom-show-image`;
 }
 export function getDroneGitStatusURLById(droneID) {
-    return `${API_CONFIG.baseURL}/get-drone-git-status/${droneID}`;
+    return `${getBackendURL()}/get-drone-git-status/${droneID}`;
 }
 
 // Constants for conversions and world setup

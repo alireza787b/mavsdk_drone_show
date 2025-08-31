@@ -1,7 +1,7 @@
 // app/dashboard/drone-dashboard/src/services/droneApiService.js
 
 import axios from 'axios';
-import { API_CONFIG } from '../config/api';
+import { getBackendURL } from '../utilities/utilities';
 
 /**
  * Builds a standardized command object for an action mission.
@@ -15,18 +15,18 @@ export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) =
   return {
     missionType: actionType,
     target_drones: droneIds,
-    triggerTime: String(triggerTime), // ensure it's a string
+    triggerTime: String(triggerTime), // ensure it’s a string
   };
 };
 
 export const sendDroneCommand = async (commandData) => {
-  const requestURI = `${API_CONFIG.baseURL}/submit_command`;
+  const requestURI = `${getBackendURL()}/submit_command`;
 
   try {
     console.log('Sending command:', JSON.stringify(commandData));
     console.log('Request URI:', requestURI);
-    console.log('API Mode:', API_CONFIG.mode);
-    console.log('API Description:', API_CONFIG.description);
+    console.log('Base Server URL:', process.env.REACT_APP_SERVER_URL);
+    console.log('Service Port:', process.env.REACT_APP_FLASK_PORT);
 
     const response = await axios.post(requestURI, commandData);
     console.log('Response received from server:', response.data);
@@ -47,39 +47,3 @@ export const sendDroneCommand = async (commandData) => {
     throw error;
   }
 };
-
-/**
- * Generic API call helper using the new config system
- * @param {string} endpoint - API endpoint (without base URL)
- * @param {object} options - Axios options (method, data, etc.)
- */
-export const apiCall = async (endpoint, options = {}) => {
-  const url = `${API_CONFIG.baseURL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  
-  try {
-    const response = await axios({
-      url,
-      ...options
-    });
-    return response.data;
-  } catch (error) {
-    console.error(`API call failed for ${endpoint}:`, error);
-    throw error;
-  }
-};
-
-// Common API calls using the new system
-export const fetchTelemetry = () => apiCall('/telemetry');
-export const fetchSwarmData = () => apiCall('/get-swarm-data');
-export const saveConfigData = (data) => apiCall('/save-config-data', { method: 'POST', data });
-export const saveSwarmData = (data) => apiCall('/save-swarm-data', { method: 'POST', data });
-export const fetchHeartbeats = () => apiCall('/get-heartbeats');
-export const fetchGcsGitStatus = () => apiCall('/get-gcs-git-status');
-export const fetchDroneGitStatus = (droneId) => apiCall(`/get-drone-git-status/${droneId}`);
-export const importShow = (formData) => apiCall('/import-show', { 
-  method: 'POST', 
-  data: formData,
-  headers: { 'Content-Type': 'multipart/form-data' }
-});
-export const fetchShowPlots = () => apiCall('/get-show-plots');
-export const fetchElevation = (lat, lon) => apiCall(`/elevation?lat=${lat}&lon=${lon}`);
