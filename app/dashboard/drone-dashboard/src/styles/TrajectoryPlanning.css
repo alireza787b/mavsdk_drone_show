@@ -1,71 +1,81 @@
 /* src/styles/TrajectoryPlanning.css */
-/* Production-ready CSS with complete fallback support */
+/* Updated with unified design system and color consistency */
 
+@import './DesignTokens.css';
+
+/* === MAIN LAYOUT === */
 .trajectory-planning {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f5f5f5;
+  background: var(--color-bg-light);
+  font-family: var(--font-family-primary);
 }
 
-/* Header Section */
+/* === HEADER SECTION === */
 .trajectory-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
-  background: white;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  z-index: 1000;
+  padding: var(--spacing-base) var(--spacing-lg);
+  background: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-base);
+  z-index: var(--z-sticky);
+  position: relative;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--spacing-base);
 }
 
 .header-left h1 {
   margin: 0;
-  color: #333;
-  font-size: 1.5rem;
-  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
 }
 
-/* Search Bar */
+/* === SEARCH BAR INTEGRATION === */
 .search-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-sm);
 }
 
 .search-bar input {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-sm);
   min-width: 300px;
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
+  transition: var(--transition-all);
 }
 
 .search-bar input:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
 .search-bar button {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 4px;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-text-primary);
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
+  font-size: var(--font-size-base);
+  transition: var(--transition-all);
+  color: var(--color-text-secondary);
 }
 
 .search-bar button:hover {
-  background: #f8f9fa;
+  background: var(--color-bg-light);
+  color: var(--color-text-muted);
 }
 
 .search-bar button:disabled {
@@ -73,35 +83,41 @@
   cursor: not-allowed;
 }
 
-/* Stats Section */
+/* === STATS SECTION === */
 .trajectory-stats {
   display: flex;
   align-items: center;
+  gap: var(--spacing-lg);
 }
 
 .trajectory-stats .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0 1rem;
   text-align: center;
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: var(--color-bg-light);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-light);
 }
 
 .trajectory-stats .stat-label {
-  font-size: 0.75rem;
-  color: #666;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.5px;
 }
 
 .trajectory-stats .stat-value {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #333;
-  margin-top: 0.25rem;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  font-family: var(--font-family-mono);
 }
 
-/* Main Container */
+/* === MAIN CONTAINER === */
 .trajectory-container {
   display: flex;
   flex: 1;
@@ -112,207 +128,276 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--color-text-primary);
 }
 
-/* Toolbar */
+/* === TOOLBAR INTEGRATION === */
 .trajectory-toolbar {
+  background-color: var(--color-bg-primary);
+  padding: var(--spacing-md) var(--spacing-base);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
+  box-shadow: var(--shadow-dark-sm);
+  z-index: var(--z-fixed);
+  position: relative;
+  border-bottom: 1px solid var(--color-border-primary);
+  flex-wrap: wrap;
+  gap: var(--spacing-base);
+  min-height: var(--toolbar-height);
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
 }
 
 .trajectory-toolbar button {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 4px;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  border-radius: var(--border-radius-base);
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-all);
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--spacing-xs);
+  white-space: nowrap;
 }
 
 .trajectory-toolbar button:hover {
-  background: #f8f9fa;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
 }
 
 .trajectory-toolbar button.active {
-  background: #007bff;
-  color: white;
-  border-color: #007bff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
 .trajectory-toolbar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .trajectory-toolbar select {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
-  font-size: 0.875rem;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.trajectory-toolbar select:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+}
+
+.trajectory-toolbar select option {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
 }
 
 .toolbar-info {
-  font-size: 0.875rem;
-  color: #666;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-mono);
 }
 
-/* Map Container */
+/* === MAP CONTAINER === */
 .map-container {
   flex: 1;
   position: relative;
   overflow: hidden;
+  background: var(--color-bg-light);
 }
 
 /* Map instruction overlay */
 .map-instruction-overlay {
   position: absolute;
-  top: 1rem;
+  top: var(--spacing-base);
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  z-index: 1000;
+  background: var(--map-instruction-bg);
+  color: var(--color-text-primary);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  font-size: var(--font-size-base);
+  z-index: var(--z-popover);
   pointer-events: none;
-  animation: pulse 2s infinite;
+  animation: instructionPulse 2s infinite;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: var(--font-weight-medium);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+@keyframes instructionPulse {
+  0%, 100% { 
+    opacity: 0.9; 
+    transform: translateX(-50%) scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: translateX(-50%) scale(1.02);
+  }
 }
 
-/* Waypoint Markers */
+/* === WAYPOINT MARKERS === */
 .waypoint-marker {
-  transition: all 0.2s ease;
+  transition: var(--transition-all);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  user-select: none;
 }
 
 .waypoint-marker:hover {
   transform: scale(1.2);
+  z-index: var(--z-tooltip);
 }
 
-/* FALLBACK STATES - Critical for graceful degradation */
+.waypoint-marker.selected {
+  z-index: var(--z-popover);
+  animation: selectedPulse 1.5s infinite;
+}
 
-/* Fallback Container */
+@keyframes selectedPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* === FALLBACK STATES === */
 .trajectory-fallback-container {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8f9fa;
-  padding: 2rem;
+  background: var(--color-bg-light);
+  padding: var(--spacing-xl);
 }
 
 .trajectory-fallback-content {
   max-width: 800px;
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background: var(--color-text-primary);
+  padding: var(--spacing-2xl);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
 }
 
 .trajectory-fallback-content h2 {
-  color: #333;
-  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-base);
   text-align: center;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
 }
 
 .trajectory-fallback-content p {
-  color: #666;
-  margin-bottom: 1.5rem;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--spacing-lg);
   text-align: center;
-  font-size: 1.1rem;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-relaxed);
 }
 
 /* Fallback Features List */
 .fallback-features {
-  background: #e7f3ff;
-  padding: 1.5rem;
-  border-radius: 6px;
-  margin-bottom: 2rem;
-  border-left: 4px solid #007bff;
+  background: var(--color-info-light);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  margin-bottom: var(--spacing-xl);
+  border-left: 4px solid var(--color-info);
 }
 
 .fallback-features h3 {
-  color: #007bff;
-  margin-bottom: 1rem;
+  color: var(--color-info);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .fallback-features ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 .fallback-features li {
-  padding: 0.5rem 0;
+  padding: var(--spacing-sm) 0;
   position: relative;
-  padding-left: 1.5rem;
+  padding-left: var(--spacing-lg);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
 }
 
-.fallback-features li:before {
+.fallback-features li::before {
   content: "✓";
   position: absolute;
   left: 0;
-  color: #28a745;
-  font-weight: bold;
+  top: var(--spacing-sm);
+  color: var(--color-success);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
 }
 
 /* Setup Instructions */
 .setup-instructions {
-  background: #fff3cd;
-  padding: 1.5rem;
-  border-radius: 6px;
-  margin-bottom: 2rem;
-  border-left: 4px solid #ffc107;
+  background: var(--color-warning-light);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  margin-bottom: var(--spacing-xl);
+  border-left: 4px solid var(--color-warning);
 }
 
 .setup-instructions h3 {
-  color: #856404;
-  margin-bottom: 1rem;
+  color: var(--color-warning-text);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .setup-instructions ol {
-  padding-left: 1.5rem;
-  color: #856404;
+  padding-left: var(--spacing-lg);
+  color: var(--color-warning-text);
+  margin: 0;
 }
 
 .setup-instructions li {
-  margin-bottom: 0.5rem;
-  line-height: 1.5;
+  margin-bottom: var(--spacing-sm);
+  line-height: var(--line-height-relaxed);
 }
 
 .setup-instructions code {
-  background: #f8f9fa;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
-  font-family: 'Monaco', 'Courier New', monospace;
-  border: 1px solid #e9ecef;
-  color: #e83e8c;
-  font-size: 0.9rem;
+  background: var(--color-bg-light);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-family: var(--font-family-mono);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 
 .setup-instructions a {
-  color: #007bff;
+  color: var(--color-info);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .setup-instructions a:hover {
@@ -321,222 +406,444 @@
 
 /* Alternative Tools */
 .alternative-tools {
-  background: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 6px;
-  margin-bottom: 2rem;
-  border-left: 4px solid #6c757d;
+  background: var(--color-bg-light);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  margin-bottom: var(--spacing-xl);
+  border-left: 4px solid var(--color-text-tertiary);
 }
 
 .alternative-tools h3 {
-  color: #495057;
-  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .alternative-tools p {
-  color: #6c757d;
+  color: var(--color-text-tertiary);
   margin: 0;
   text-align: left;
+  line-height: var(--line-height-normal);
 }
 
 /* Manual Waypoint Entry Form */
 .manual-waypoint-entry {
-  background: #d4edda;
-  padding: 1.5rem;
-  border-radius: 6px;
-  border-left: 4px solid #28a745;
+  background: var(--color-success-light);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  border-left: 4px solid var(--color-success);
 }
 
 .manual-waypoint-entry h3 {
-  color: #155724;
-  margin-bottom: 1rem;
+  color: var(--color-success);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .form-row {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
   align-items: center;
   flex-wrap: wrap;
 }
 
 .form-row input {
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-sm);
   flex: 1;
   min-width: 120px;
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
 }
 
 .form-row input:focus {
   outline: none;
-  border-color: #28a745;
-  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success-light);
 }
 
 .form-row button {
-  padding: 0.5rem 1rem;
-  background: #28a745;
-  color: white;
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: var(--color-success);
+  color: var(--color-text-primary);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-base);
+  white-space: nowrap;
 }
 
 .form-row button:hover {
   background: #218838;
+  transform: translateY(-1px);
 }
 
-/* Waypoint Panel */
+/* === WAYPOINT PANEL === */
 .waypoint-panel {
-  width: 300px;
-  background: white;
-  border-left: 1px solid #e0e0e0;
+  width: var(--panel-width-base);
+  background: var(--color-text-primary);
+  border-left: 1px solid var(--color-border-light);
   display: flex;
   flex-direction: column;
   max-height: 100%;
+  box-shadow: var(--shadow-md);
 }
 
-.waypoint-panel h3 {
+.waypoint-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin: 0;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  font-size: 1.1rem;
-  color: #333;
+  padding: var(--spacing-base);
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.waypoint-panel-header h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.speed-warning-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-danger-border);
 }
 
 .waypoint-panel p {
-  padding: 1rem;
-  color: #666;
+  padding: var(--spacing-base);
+  color: var(--color-text-tertiary);
   text-align: center;
   font-style: italic;
   margin: 0;
+  line-height: var(--line-height-relaxed);
 }
 
 .waypoint-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem 0;
+  padding: var(--spacing-sm) 0;
 }
 
 .waypoint-item {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #f0f0f0;
+  padding: var(--spacing-md) var(--spacing-base);
+  border-bottom: 1px solid var(--color-bg-light);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: var(--transition-base);
+  position: relative;
 }
 
 .waypoint-item:hover {
-  background: #f8f9fa;
+  background: var(--color-bg-light);
 }
 
 .waypoint-item.selected {
-  background: #e3f2fd;
-  border-left: 3px solid #2196f3;
+  background: var(--color-primary-light);
+  border-left: 3px solid var(--color-primary);
+}
+
+.waypoint-item.speed-warning {
+  border-left: 4px solid var(--color-danger);
+  background: linear-gradient(to right, var(--color-danger-light), transparent);
 }
 
 .waypoint-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.waypoint-name-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .waypoint-header strong {
-  color: #333;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
 }
 
 .waypoint-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: var(--spacing-xs);
 }
 
-.waypoint-actions button {
-  padding: 0.25rem 0.5rem;
+.waypoint-actions .action-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
   border: none;
   background: none;
-  border-radius: 3px;
-  font-size: 0.875rem;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  color: var(--color-text-tertiary);
 }
 
-.waypoint-actions button:hover {
-  background: rgba(0, 0, 0, 0.1);
+.action-btn.fly-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.action-btn.delete-btn:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
 }
 
 .waypoint-details {
-  font-size: 0.8rem;
-  color: #666;
-  line-height: 1.3;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
 }
 
-.waypoint-details div {
-  margin-bottom: 0.15rem;
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
 }
 
-/* Error States */
+.detail-label {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  min-width: 60px;
+}
+
+.detail-value {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+  text-align: right;
+  font-family: var(--font-family-mono);
+}
+
+/* Speed-specific styling */
+.speed-row {
+  border-top: 1px solid var(--color-bg-light);
+  padding-top: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.speed-display {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-xs);
+}
+
+.speed-value.speed-feasible {
+  color: var(--color-success);
+}
+
+.speed-value.speed-marginal {
+  color: var(--color-warning);
+}
+
+.speed-value.speed-impossible {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+.speed-warning-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* Speed Indicators */
+.speed-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.speed-feasible {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.speed-marginal {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+}
+
+.speed-impossible {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+/* Start/End Point Indicators */
+.start-indicator {
+  color: var(--color-success) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.start-indicator::before {
+  content: "🟢 ";
+  margin-right: var(--spacing-xs);
+}
+
+.end-indicator {
+  color: var(--color-danger) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.end-indicator::before {
+  content: "🔴 ";
+  margin-right: var(--spacing-xs);
+}
+
+/* Speed Warnings */
+.waypoint-speed-warning {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--color-warning-light);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--border-radius-sm);
+  text-align: center;
+}
+
+.waypoint-speed-warning small {
+  color: var(--color-warning-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Summary Section */
+.waypoint-summary {
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, var(--color-bg-light), var(--color-border-light));
+  border-top: 1px solid var(--color-border-light);
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.summary-label {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.summary-value {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+}
+
+/* === ERROR STATES === */
 .trajectory-error {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: #f8f9fa;
+  background: var(--color-bg-light);
+  padding: var(--spacing-xl);
 }
 
 .error-content {
   text-align: center;
   max-width: 600px;
-  padding: 2rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: var(--spacing-2xl);
+  background: var(--color-text-primary);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
 }
 
 .error-content h2 {
-  color: #333;
-  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
 }
 
 .error-content p {
-  color: #666;
-  margin-bottom: 1.5rem;
-  font-size: 1.1rem;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-relaxed);
 }
 
-/* Mapbox GL JS Overrides */
+/* === MAPBOX OVERRIDES === */
 .mapboxgl-popup {
-  font-family: inherit;
+  font-family: var(--font-family-primary);
 }
 
 .mapboxgl-popup-content {
-  padding: 0.75rem;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-lg);
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
 }
 
 .mapboxgl-ctrl-attrib {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   background: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-muted);
 }
 
-/* Responsive Design */
+/* === RESPONSIVE DESIGN === */
 @media (max-width: 768px) {
   .trajectory-header {
     flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
+    gap: var(--spacing-base);
+    padding: var(--spacing-base);
   }
 
   .search-bar input {
     min-width: 250px;
   }
 
+  .trajectory-stats {
+    gap: var(--spacing-sm);
+    overflow-x: auto;
+    padding-bottom: var(--spacing-xs);
+  }
+
   .trajectory-stats .stat-item {
-    margin: 0 0.5rem;
+    min-width: 80px;
+    padding: var(--spacing-xs) var(--spacing-sm);
   }
 
   .waypoint-panel {
@@ -554,6 +861,32 @@
 
   .form-row input {
     min-width: auto;
+  }
+
+  .waypoint-panel-header {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+  }
+
+  .speed-warning-summary {
+    align-self: stretch;
+    justify-content: center;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .detail-value {
+    text-align: left;
+  }
+
+  .speed-display {
+    align-items: flex-start;
+    width: 100%;
   }
 }
 
@@ -573,14 +906,62 @@
   }
 
   .trajectory-fallback-content {
-    padding: 1rem;
-    margin: 1rem;
+    padding: var(--spacing-base);
+    margin: var(--spacing-base);
   }
 
   .fallback-features,
   .setup-instructions,
   .alternative-tools,
   .manual-waypoint-entry {
-    padding: 1rem;
+    padding: var(--spacing-base);
+  }
+}
+
+/* === ACCESSIBILITY === */
+.waypoint-item:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.action-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* === ANIMATIONS === */
+@keyframes speedUpdate {
+  0% {
+    background-color: var(--color-primary-light);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.speed-value {
+  transition: var(--transition-base);
+}
+
+.speed-value.updated {
+  animation: speedUpdate 1s ease-out;
+}
+
+/* Accessibility: Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .waypoint-marker,
+  .map-instruction-overlay,
+  .waypoint-item,
+  .speed-value {
+    animation: none;
+    transition: none;
+  }
+  
+  .waypoint-marker:hover {
+    transform: none;
+  }
+  
+  .trajectory-toolbar button:hover {
+    transform: none;
   }
 }

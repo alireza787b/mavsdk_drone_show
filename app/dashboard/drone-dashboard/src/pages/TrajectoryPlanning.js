@@ -9,8 +9,14 @@ import WaypointPanel from '../components/trajectory/WaypointPanel';
 import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
 import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
+import WaypointModal from '../components/trajectory/WaypointModal';
+
+// Import utilities
+import { calculateSpeed, calculateTrajectoryStats, suggestOptimalTime } from '../utilities/SpeedCalculator';
+
 // Import styles
 import '../styles/TrajectoryPlanning.css';
+
 // Conditional Mapbox imports with error handling
 let Map, Source, Layer, Marker;
 let mapboxAvailable = false;
@@ -30,16 +36,14 @@ try {
   mapboxAvailable = false;
 }
 
-
-
 /**
- * TrajectoryPlanning Component - Production Ready
+ * TrajectoryPlanning Component - Production Ready with Interactive Waypoint Creation
  * Features:
+ * - Interactive modal for waypoint creation with altitude/time inputs
+ * - Real-time speed calculation and validation
+ * - Professional UI with speed indicators
  * - Fully integrated with existing drone dashboard
  * - Graceful degradation when Mapbox unavailable
- * - Works with your existing trajectory components
- * - Optional feature - rest of app works without it
- * - Professional error handling and user guidance
  */
 const TrajectoryPlanning = () => {
   // State management
@@ -51,6 +55,10 @@ const TrajectoryPlanning = () => {
   const [sceneMode, setSceneMode] = useState('3D');
   const [error, setError] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingWaypointPosition, setPendingWaypointPosition] = useState(null);
 
   // Mapbox token management with multiple environment variable options
   const mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN || 
@@ -66,73 +74,104 @@ const TrajectoryPlanning = () => {
     bearing: 0
   });
 
-  // Calculate trajectory statistics using Turf.js (compatible with existing TrajectoryStats component)
+  // Calculate trajectory statistics using enhanced speed calculation
   const trajectoryStats = useMemo(() => {
-    if (waypoints.length < 2) {
-      return {
-        totalDistance: 0,
-        totalTime: 0,
-        maxAltitude: waypoints[0]?.altitude || 0,
-        minAltitude: waypoints[0]?.altitude || 0,
-      };
-    }
-
-    let totalDistance = 0;
-    let totalTime = 0;
-    let maxAlt = waypoints[0].altitude;
-    let minAlt = waypoints[0].altitude;
-
-    for (let i = 1; i < waypoints.length; i++) {
-      const prev = waypoints[i - 1];
-      const curr = waypoints[i];
-
-      try {
-        // Use Turf.js for accurate distance calculation
-        const point1 = [prev.longitude, prev.latitude];
-        const point2 = [curr.longitude, curr.latitude];
-        const segmentDistance = distance(point1, point2, { units: 'meters' });
-        
-        totalDistance += segmentDistance;
-        totalTime = Math.max(totalTime, curr.time || 0);
-        maxAlt = Math.max(maxAlt, curr.altitude);
-        minAlt = Math.min(minAlt, curr.altitude);
-      } catch (err) {
-        console.warn('Distance calculation error:', err);
-      }
-    }
-
-    return {
-      totalDistance,
-      totalTime,
-      maxAltitude: maxAlt,
-      minAltitude: minAlt,
-    };
+    return calculateTrajectoryStats(waypoints);
   }, [waypoints]);
 
-  // Waypoint management functions (compatible with existing WaypointPanel component)
-  const addWaypoint = useCallback((longitude, latitude, altitude = 100) => {
+  // Get previous waypoint for speed calculation
+  const getPreviousWaypoint = useCallback(() => {
+    return waypoints.length > 0 ? waypoints[waypoints.length - 1] : null;
+  }, [waypoints]);
+
+  // Enhanced waypoint management with speed calculation
+  const addWaypointWithData = useCallback((position, waypointData) => {
+    const previousWaypoint = getPreviousWaypoint();
+    
+    // Calculate speed if there's a previous waypoint
+    let estimatedSpeed = 0;
+    if (previousWaypoint) {
+      const tempWaypoint = {
+        ...position,
+        altitude: waypointData.altitude,
+        timeFromStart: waypointData.timeFromStart
+      };
+      estimatedSpeed = calculateSpeed(previousWaypoint, tempWaypoint);
+    }
+
     const newWaypoint = {
       id: `waypoint-${Date.now()}`,
       name: `Waypoint ${waypoints.length + 1}`,
-      latitude,
-      longitude,
-      altitude,
-      time: waypoints.length * 10, // 10 seconds between waypoints
-      speed: 15, // 15 m/s default speed
+      latitude: position.latitude,
+      longitude: position.longitude,
+      altitude: waypointData.altitude,
+      timeFromStart: waypointData.timeFromStart,
+      estimatedSpeed: waypointData.estimatedSpeed || estimatedSpeed,
+      speedFeasible: waypointData.speedFeasible,
+      // Keep legacy fields for compatibility
+      time: waypointData.timeFromStart,
+      speed: waypointData.estimatedSpeed || estimatedSpeed,
     };
 
     setWaypoints(prev => [...prev, newWaypoint]);
     setIsAddingWaypoint(false);
-  }, [waypoints.length]);
+  }, [waypoints.length, getPreviousWaypoint]);
+
+  // Legacy addWaypoint function for backward compatibility
+  const addWaypoint = useCallback((longitude, latitude, altitude = 100, timeFromStart = null) => {
+    const previousWaypoint = getPreviousWaypoint();
+    const calculatedTime = timeFromStart || (previousWaypoint ? previousWaypoint.timeFromStart + 10 : 10);
+    
+    const waypointData = {
+      altitude,
+      timeFromStart: calculatedTime,
+      estimatedSpeed: 0,
+      speedFeasible: true
+    };
+
+    addWaypointWithData({ latitude, longitude }, waypointData);
+  }, [addWaypointWithData, getPreviousWaypoint]);
 
   const updateWaypoint = useCallback((id, updates) => {
-    setWaypoints(prev => prev.map(wp => 
-      wp.id === id ? { ...wp, ...updates } : wp
-    ));
+    setWaypoints(prev => prev.map(wp => {
+      if (wp.id === id) {
+        const updatedWaypoint = { ...wp, ...updates };
+        
+        // Recalculate speed if position or time changed
+        if (updates.latitude || updates.longitude || updates.altitude || updates.timeFromStart) {
+          const waypointIndex = prev.findIndex(w => w.id === id);
+          if (waypointIndex > 0) {
+            const previousWaypoint = prev[waypointIndex - 1];
+            updatedWaypoint.estimatedSpeed = calculateSpeed(previousWaypoint, updatedWaypoint);
+            updatedWaypoint.speed = updatedWaypoint.estimatedSpeed; // Legacy compatibility
+          }
+        }
+        
+        return updatedWaypoint;
+      }
+      return wp;
+    }));
   }, []);
 
   const deleteWaypoint = useCallback((id) => {
-    setWaypoints(prev => prev.filter(wp => wp.id !== id));
+    setWaypoints(prev => {
+      const newWaypoints = prev.filter(wp => wp.id !== id);
+      
+      // Recalculate speeds for all waypoints after deletion
+      return newWaypoints.map((wp, index) => {
+        if (index === 0) return wp;
+        
+        const previousWaypoint = newWaypoints[index - 1];
+        const recalculatedSpeed = calculateSpeed(previousWaypoint, wp);
+        
+        return {
+          ...wp,
+          estimatedSpeed: recalculatedSpeed,
+          speed: recalculatedSpeed // Legacy compatibility
+        };
+      });
+    });
+    
     if (selectedWaypointId === id) {
       setSelectedWaypointId(null);
     }
@@ -145,13 +184,47 @@ const TrajectoryPlanning = () => {
     }
   }, []);
 
-  // Map interaction handlers (only used if Mapbox available)
+  // Enhanced map interaction handlers with modal integration
   const handleMapClick = useCallback((event) => {
-    if (!isAddingWaypoint || !mapboxAvailable) return;
+    if (!isAddingWaypoint) return;
 
-    const { lng, lat } = event.lngLat;
-    addWaypoint(lng, lat, 100); // Default 100m altitude
-  }, [isAddingWaypoint, addWaypoint]);
+    const { lng, lat } = event.lngLat || { lng: event.longitude, lat: event.latitude };
+    
+    // Open modal with position data
+    setPendingWaypointPosition({ latitude: lat, longitude: lng });
+    setModalOpen(true);
+  }, [isAddingWaypoint]);
+
+  // Handle manual coordinate entry (fallback mode)
+  const handleManualWaypointAdd = useCallback((lat, lng, alt) => {
+    const previousWaypoint = getPreviousWaypoint();
+    const suggestedTime = previousWaypoint 
+      ? suggestOptimalTime(previousWaypoint, { latitude: lat, longitude: lng }, 8, alt)
+      : 10;
+
+    const waypointData = {
+      altitude: alt,
+      timeFromStart: suggestedTime,
+      estimatedSpeed: 0,
+      speedFeasible: true
+    };
+
+    addWaypointWithData({ latitude: lat, longitude: lng }, waypointData);
+  }, [addWaypointWithData, getPreviousWaypoint]);
+
+  // Modal handlers
+  const handleModalConfirm = useCallback((waypointData) => {
+    if (pendingWaypointPosition) {
+      addWaypointWithData(pendingWaypointPosition, waypointData);
+    }
+    setModalOpen(false);
+    setPendingWaypointPosition(null);
+  }, [pendingWaypointPosition, addWaypointWithData]);
+
+  const handleModalClose = useCallback(() => {
+    setModalOpen(false);
+    setPendingWaypointPosition(null);
+  }, []);
 
   // Navigation functions (compatible with existing SearchBar component)
   const flyToWaypoint = useCallback((waypoint) => {
@@ -183,7 +256,7 @@ const TrajectoryPlanning = () => {
     }
   }, []);
 
-  // Export functionality (compatible with existing TrajectoryToolbar component)
+  // Enhanced export functionality with speed data
   const exportTrajectory = useCallback(() => {
     if (waypoints.length === 0) {
       alert('No waypoints to export');
@@ -191,7 +264,7 @@ const TrajectoryPlanning = () => {
     }
 
     try {
-      const headers = ['Name', 'Latitude', 'Longitude', 'Altitude_m', 'Time_s', 'Speed_ms'];
+      const headers = ['Name', 'Latitude', 'Longitude', 'Altitude_m', 'TimeFromStart_s', 'EstimatedSpeed_ms', 'SpeedFeasible'];
       const csvContent = [
         headers.join(','),
         ...waypoints.map(wp => [
@@ -199,8 +272,9 @@ const TrajectoryPlanning = () => {
           wp.latitude.toFixed(8),
           wp.longitude.toFixed(8),
           wp.altitude.toFixed(2),
-          (wp.time || 0).toFixed(1),
-          (wp.speed || 15).toFixed(1)
+          (wp.timeFromStart || 0).toFixed(1),
+          (wp.estimatedSpeed || 0).toFixed(1),
+          wp.speedFeasible ? 'TRUE' : 'FALSE'
         ].join(','))
       ].join('\n');
 
@@ -300,6 +374,7 @@ const TrajectoryPlanning = () => {
                   <h3>Available Now:</h3>
                   <ul>
                     <li>Manual waypoint entry via coordinates</li>
+                    <li>Real-time speed calculation and validation</li>
                     <li>Trajectory statistics and calculations</li>
                     <li>CSV export and import functionality</li>
                     <li>All drone mission planning features</li>
@@ -321,7 +396,7 @@ const TrajectoryPlanning = () => {
                   <p>Use <strong>Globe View</strong> for 3D visualization or <strong>Mission Config</strong> for detailed waypoint management.</p>
                 </div>
 
-                {/* Manual waypoint entry form */}
+                {/* Enhanced manual waypoint entry form */}
                 <div className="manual-waypoint-entry">
                   <h3>Add Waypoint Manually:</h3>
                   <form onSubmit={(e) => {
@@ -332,7 +407,7 @@ const TrajectoryPlanning = () => {
                     const alt = parseFloat(formData.get('altitude'));
                     
                     if (!isNaN(lat) && !isNaN(lng) && !isNaN(alt)) {
-                      addWaypoint(lng, lat, alt);
+                      handleManualWaypointAdd(lat, lng, alt);
                       e.target.reset();
                     } else {
                       alert('Please enter valid coordinates');
@@ -360,6 +435,16 @@ const TrajectoryPlanning = () => {
             onFlyTo={flyToWaypoint}
           />
         </div>
+
+        {/* Modal for fallback mode */}
+        <WaypointModal
+          isOpen={modalOpen}
+          onClose={handleModalClose}
+          onConfirm={handleModalConfirm}
+          position={pendingWaypointPosition}
+          previousWaypoint={getPreviousWaypoint()}
+          waypointIndex={waypoints.length}
+        />
       </div>
     );
   }
@@ -385,7 +470,7 @@ const TrajectoryPlanning = () => {
     );
   }
 
-  // Full Mapbox implementation
+  // Full Mapbox implementation with modal
   return (
     <div className="trajectory-planning">
       <div className="trajectory-header">
@@ -433,7 +518,7 @@ const TrajectoryPlanning = () => {
                 />
               )}
 
-              {/* Trajectory line */}
+              {/* Enhanced trajectory line with speed-based coloring */}
               {trajectoryLineData && (
                 <Source id="trajectory-line" type="geojson" data={trajectoryLineData}>
                   <Layer
@@ -452,7 +537,7 @@ const TrajectoryPlanning = () => {
                 </Source>
               )}
 
-              {/* Waypoint markers */}
+              {/* Enhanced waypoint markers with speed indicators */}
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
@@ -466,28 +551,32 @@ const TrajectoryPlanning = () => {
                   <div 
                     className={`waypoint-marker ${selectedWaypointId === waypoint.id ? 'selected' : ''}`}
                     style={{
-                      width: selectedWaypointId === waypoint.id ? '20px' : '15px',
-                      height: selectedWaypointId === waypoint.id ? '20px' : '15px',
+                      width: selectedWaypointId === waypoint.id ? '24px' : '18px',
+                      height: selectedWaypointId === waypoint.id ? '24px' : '18px',
                       backgroundColor: 
                         index === 0 ? '#28a745' : // Green for start
                         index === waypoints.length - 1 ? '#dc3545' : // Red for end
                         selectedWaypointId === waypoint.id ? '#ffc107' : // Yellow for selected
+                        !waypoint.speedFeasible ? '#ff6b6b' : // Light red for speed issues
                         '#007bff', // Blue for others
-                      border: '2px solid white',
+                      border: `3px solid ${!waypoint.speedFeasible ? '#dc3545' : 'white'}`,
                       borderRadius: '50%',
                       cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                      boxShadow: selectedWaypointId === waypoint.id 
+                        ? '0 4px 12px rgba(0,123,255,0.4)' 
+                        : '0 2px 4px rgba(0,0,0,0.3)',
+                      transition: 'all 0.2s ease'
                     }}
-                    title={`${waypoint.name} - Alt: ${waypoint.altitude}m`}
+                    title={`${waypoint.name} - Alt: ${waypoint.altitude}m - Speed: ${waypoint.estimatedSpeed?.toFixed(1) || 0} m/s`}
                   />
                 </Marker>
               ))}
             </Map>
 
-            {/* Click instruction overlay */}
+            {/* Enhanced click instruction overlay */}
             {isAddingWaypoint && (
               <div className="map-instruction-overlay">
-                Click on the map to add waypoint
+                Click on the map to add waypoint with custom altitude & timing
               </div>
             )}
           </div>
@@ -499,10 +588,20 @@ const TrajectoryPlanning = () => {
           onSelectWaypoint={setSelectedWaypointId}
           onUpdateWaypoint={updateWaypoint}
           onDeleteWaypoint={deleteWaypoint}
-          onMoveWaypoint={() => {}} // Implement if needed
+          onMoveWaypoint={() => {}} // Implement drag-drop in next phase
           onFlyTo={flyToWaypoint}
         />
       </div>
+
+      {/* Interactive Waypoint Modal */}
+      <WaypointModal
+        isOpen={modalOpen}
+        onClose={handleModalClose}
+        onConfirm={handleModalConfirm}
+        position={pendingWaypointPosition}
+        previousWaypoint={getPreviousWaypoint()}
+        waypointIndex={waypoints.length}
+      />
     </div>
   );
 };

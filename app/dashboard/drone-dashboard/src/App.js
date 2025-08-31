@@ -1,6 +1,11 @@
 //app/dashboard/drone-dashboard/src/App.js
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// Import design tokens first
+import './styles/DesignTokens.css';
+
+// Import pages and components
 import Overview from './pages/Overview';
 import Detail from './components/DroneDetail';
 import SidebarMenu from './components/SidebarMenu';
@@ -14,16 +19,18 @@ import ManageDroneShow from './pages/ManageDroneShow';
 // Clean import - no error boundary needed with Mapbox
 import TrajectoryPlanning from './pages/TrajectoryPlanning';
 
+// Import external styles
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import 'leaflet/dist/leaflet.css';
 
+// Import main app styles (should come after design tokens)
 import './App.css';
 
 /**
  * Main Application Component
  * Clean routing with Mapbox-based trajectory planning
- * No webpack complexity, no error boundaries needed
+ * Now includes unified design system
  */
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
@@ -43,7 +50,7 @@ const App = () => {
             <Route path="/custom-show" element={<CustomShowPage />} />
             <Route path="/globe-view" element={<GlobeView />} />
             
-            {/* Clean Trajectory Planning Route - No error boundary needed */}
+            {/* Enhanced Trajectory Planning Route with unified design system */}
             <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
             
             {/* Default route */}
@@ -61,6 +68,11 @@ const App = () => {
         pauseOnFocusLoss
         draggable
         pauseOnHover
+        // Enhanced styling to match design system
+        className="toast-container"
+        toastClassName="toast-item"
+        bodyClassName="toast-body"
+        progressClassName="toast-progress"
       />
     </Router>
   );

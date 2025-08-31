@@ -1,0 +1,380 @@
+/* src/styles/WaypointModal.css */
+
+/* Modal Overlay */
+.waypoint-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+    animation: modalOverlayFadeIn 0.2s ease-out;
+  }
+  
+  @keyframes modalOverlayFadeIn {
+    from {
+      opacity: 0;
+      backdrop-filter: blur(0px);
+    }
+    to {
+      opacity: 1;
+      backdrop-filter: blur(4px);
+    }
+  }
+  
+  /* Modal Container */
+  .waypoint-modal {
+    background: #1f2128;
+    border-radius: 12px;
+    box-shadow: 
+      0 20px 25px -5px rgba(0, 0, 0, 0.4),
+      0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 1px solid #3a3f4b;
+  }
+  
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9) translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  
+  /* Modal Header */
+  .waypoint-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #3a3f4b;
+    background: linear-gradient(135deg, #2a2d3a, #1f2128);
+  }
+  
+  .waypoint-modal-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  
+  .waypoint-modal-close {
+    background: none;
+    border: none;
+    color: #a2a5b9;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+  }
+  
+  .waypoint-modal-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Modal Body */
+  .waypoint-modal-body {
+    padding: 1.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  
+  /* Location Info */
+  .waypoint-location-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(0, 212, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+  
+  .location-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .location-item label {
+    font-size: 0.75rem;
+    color: #a2a5b9;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .location-item span {
+    font-size: 0.9rem;
+    color: #00d4ff;
+    font-weight: 600;
+    font-family: 'Monaco', 'Courier New', monospace;
+  }
+  
+  /* Input Groups */
+  .waypoint-input-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  .waypoint-input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #ffffff;
+  }
+  
+  .time-constraint {
+    font-size: 0.75rem;
+    color: #a2a5b9;
+    font-weight: 400;
+    margin-left: 0.5rem;
+  }
+  
+  .waypoint-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: #2a2d3a;
+    border: 2px solid #3a3f4b;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+  }
+  
+  .waypoint-input:focus {
+    outline: none;
+    border-color: #00d4ff;
+    background: #1a1c23;
+    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  }
+  
+  .waypoint-input::placeholder {
+    color: #6c757d;
+  }
+  
+  .waypoint-input:invalid {
+    border-color: #dc3545;
+  }
+  
+  .input-hint {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #a2a5b9;
+  }
+  
+  /* Speed Calculation Display */
+  .speed-calculation {
+    padding: 1rem;
+    background: #2a2d3a;
+    border-radius: 8px;
+    border-left: 4px solid #00d4ff;
+    margin-top: 1rem;
+  }
+  
+  .speed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  
+  .speed-header label {
+    font-size: 0.9rem;
+    color: #ffffff;
+    font-weight: 500;
+  }
+  
+  .speed-indicator {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .speed-indicator-green {
+    background: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+  }
+  
+  .speed-indicator-green::before {
+    content: "✓";
+  }
+  
+  .speed-indicator-yellow {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+  }
+  
+  .speed-indicator-yellow::before {
+    content: "⚠";
+  }
+  
+  .speed-indicator-red {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+  }
+  
+  .speed-indicator-red::before {
+    content: "⚠";
+  }
+  
+  .speed-indicator-gray {
+    background: rgba(108, 117, 125, 0.2);
+    color: #6c757d;
+    border: 1px solid rgba(108, 117, 125, 0.3);
+  }
+  
+  .speed-status {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .speed-status.feasible {
+    color: #28a745;
+  }
+  
+  .speed-status.marginal {
+    color: #ffc107;
+  }
+  
+  .speed-status.impossible {
+    color: #dc3545;
+  }
+  
+  .speed-warning {
+    font-size: 0.75rem;
+    color: #dc3545;
+    background: rgba(220, 53, 69, 0.1);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    border-left: 3px solid #dc3545;
+  }
+  
+  /* Modal Footer */
+  .waypoint-modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-top: 1px solid #3a3f4b;
+    background: rgba(0, 0, 0, 0.1);
+  }
+  
+  .modal-btn {
+    flex: 1;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .modal-btn-cancel {
+    background: #3a3f4b;
+    color: #a2a5b9;
+    border: 1px solid #4a4f5b;
+  }
+  
+  .modal-btn-cancel:hover {
+    background: #4a4f5b;
+    color: #ffffff;
+  }
+  
+  .modal-btn-confirm {
+    background: #00d4ff;
+    color: #000000;
+    border: 1px solid #00d4ff;
+  }
+  
+  .modal-btn-confirm:hover:not(:disabled) {
+    background: #00a8cc;
+    border-color: #00a8cc;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
+  }
+  
+  .modal-btn-confirm:disabled {
+    background: #6c757d;
+    color: #ffffff;
+    border-color: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .waypoint-modal {
+      width: 95%;
+      margin: 1rem;
+    }
+    
+    .waypoint-modal-header,
+    .waypoint-modal-body,
+    .waypoint-modal-footer {
+      padding: 1rem;
+    }
+    
+    .waypoint-location-info {
+      grid-template-columns: 1fr;
+    }
+    
+    .speed-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    
+    .waypoint-modal-footer {
+      flex-direction: column;
+    }
+  }
+  
+  /* Accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    .waypoint-modal-overlay,
+    .waypoint-modal {
+      animation: none;
+    }
+  }
+  
+  /* Focus management */
+  .waypoint-input:focus-visible,
+  .modal-btn:focus-visible,
+  .waypoint-modal-close:focus-visible {
+    outline: 2px solid #00d4ff;
+    outline-offset: 2px;
+  }
