@@ -7,24 +7,20 @@ from flask_cors import CORS
 from routes import setup_routes
 from telemetry import start_telemetry_polling
 from git_status import start_git_status_polling
-#from network import start_network_status_polling
 from config import load_config
 
-# Configure logging at the entry point of the application
 def configure_logging():
     log_level = logging.DEBUG if os.getenv('FLASK_DEBUG', 'false').lower() == 'true' else logging.INFO
     logger = logging.getLogger()
     logger.setLevel(log_level)
 
-    # Define colors and symbols
     RESET = "\x1b[0m"
     GREEN = "\x1b[32m"
     RED = "\x1b[31m"
     YELLOW = "\x1b[33m"
     BLUE = "\x1b[34m"
-    INFO_SYMBOL = BLUE + "ℹ️" + RESET
+    INFO_SYMBOL = BLUE + "[INFO]" + RESET
 
-    # Custom formatter with colors
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             levelno = record.levelno
@@ -43,7 +39,7 @@ def configure_logging():
 
     handler = logging.StreamHandler()
     handler.setFormatter(CustomFormatter())
-    logger.handlers = [handler]  # Replace existing handlers
+    logger.handlers = [handler]
 
     logging.info(f"{INFO_SYMBOL} Logging is configured.")
 
@@ -62,25 +58,29 @@ def create_app():
 
     return app
 
-if __name__ == "__main__":
-    configure_logging()
-
+def initialize_services():
+    """Initialize background services for production and development"""
     from params import Params
-
+    
     drones = load_config()
     if drones:
         logging.info(f"Starting telemetry polling for {len(drones)} drones.")
         start_telemetry_polling(drones)
         logging.info(f"Starting git status polling for {len(drones)} drones.")
         start_git_status_polling(drones)
-        # logging.info(f"Starting network status polling for {len(drones)} drones.")
-        # start_network_status_polling(drones)
     else:
         logging.error("No drones found in configuration. Telemetry polling will not be started.")
 
+# CRITICAL FIX: Create module-level app object for gunicorn
+configure_logging()
+initialize_services()
+app = create_app()
+
+if __name__ == "__main__":
+    from params import Params
+    
     ENV_MODE = os.getenv('FLASK_ENV', 'development')
     FLASK_PORT = int(os.getenv('FLASK_PORT', Params.flask_telem_socket_port))
     DEBUG_MODE = ENV_MODE == 'development'
 
-    app = create_app()
     app.run(host='0.0.0.0', port=FLASK_PORT, debug=DEBUG_MODE)
