@@ -61,7 +61,7 @@ fi
 
 ENV_FILE_PATH="$REACT_APP_DIR/.env"
 BUILD_DIR="$REACT_APP_DIR/build"
-REAL_MODE_FILE="$PARENT_DIR/real.mode"
+REAL_MODE_FILE="$GCS_SERVER_DIR/real.mode"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 
 # ===========================================

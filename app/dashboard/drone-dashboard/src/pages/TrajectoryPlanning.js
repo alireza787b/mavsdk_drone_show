@@ -59,8 +59,8 @@ const TrajectoryPlanning = () => {
 
   // Default viewport settings optimized for drone operations
   const [viewState, setViewState] = useState({
-    longitude: -122.4194, // San Francisco Bay Area (good for drone testing)
-    latitude: 37.7749,
+    longitude: 51.2721, // Azadi Stadium, Tehran, Iran
+    latitude: 35.7262,
     zoom: 12,
     pitch: showTerrain ? 60 : 0,
     bearing: 0
