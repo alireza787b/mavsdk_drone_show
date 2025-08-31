@@ -11,26 +11,26 @@ export function getBackendURL(servicePort = process.env.REACT_APP_FLASK_PORT || 
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    return `${getBackendURL()}/telemetry`;
+    return `${API_CONFIG.baseURL}/telemetry`;
 }
 
 export function getElevationURL(lat, lon) {
-    return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
+    return `${API_CONFIG.baseURL}/elevation?lat=${lat}&lon=${lon}`;
 }
 
 // New function to get the GCS Git status URL
 export function getGitStatusURL() {
-    return `${getBackendURL()}/get-gcs-git-status`;
+    return `${API_CONFIG.baseURL}/get-gcs-git-status`;
 }
 
 export const getUnifiedGitStatusURL = () => `${process.env.REACT_APP_API_BASE_URL}/git-status`;
 
 
 export function getCustomShowImageURL() {
-    return `${getBackendURL()}/get-custom-show-image`;
+    return `${API_CONFIG.baseURL}/get-custom-show-image`;
 }
 export function getDroneGitStatusURLById(droneID) {
-    return `${getBackendURL()}/get-drone-git-status/${droneID}`;
+    return `${API_CONFIG.baseURL}/get-drone-git-status/${droneID}`;
 }
 
 // Constants for conversions and world setup

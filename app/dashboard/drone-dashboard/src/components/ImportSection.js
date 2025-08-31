@@ -4,6 +4,8 @@ import { getBackendURL } from '../utilities/utilities';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import '../styles/ImportSection.css';
+import { API_CONFIG } from '../config/api';
+
 import { 
   Button, 
   CircularProgress, 
@@ -43,7 +45,7 @@ const ImportSection = ({ setUploadCount }) => {
     formData.append('file', selectedFile);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${getBackendURL()}/import-show`);
+    xhr.open('POST', `${API_CONFIG.baseURL}/import-show`);
 
     xhr.onload = () => {
       setIsUploading(false);

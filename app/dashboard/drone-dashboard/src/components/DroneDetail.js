@@ -22,7 +22,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const [currentTileLayer, setCurrentTileLayer] = useState('OSM');
 
   useEffect(() => {
-    const backendURL = getBackendURL();
+    const backendURL = API_CONFIG.baseURL;
     const url = `${backendURL}/telemetry`;
     const fetchData = () => {
       axios.get(url).then((response) => {
