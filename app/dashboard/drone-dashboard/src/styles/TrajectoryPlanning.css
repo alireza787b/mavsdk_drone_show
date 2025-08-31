@@ -1,36 +1,110 @@
 /* src/styles/TrajectoryPlanning.css */
+/* Production-ready CSS with complete fallback support */
 
 .trajectory-planning {
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
+  height: 100vh;
+  background: #f5f5f5;
 }
 
+/* Header Section */
 .trajectory-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 1rem 1.5rem;
   background: white;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 1000;
 }
 
 .header-left {
   display: flex;
   align-items: center;
+  gap: 1rem;
 }
 
 .header-left h1 {
   margin: 0;
   color: #333;
-  font-size: 24px;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
-.trajectory-container {
-  flex: 1;
+/* Search Bar */
+.search-bar {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-bar input {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-width: 300px;
+  font-size: 0.9rem;
+}
+
+.search-bar input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.search-bar button {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.search-bar button:hover {
+  background: #f8f9fa;
+}
+
+.search-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Stats Section */
+.trajectory-stats {
+  display: flex;
+  align-items: center;
+}
+
+.trajectory-stats .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 1rem;
+  text-align: center;
+}
+
+.trajectory-stats .stat-label {
+  font-size: 0.75rem;
+  color: #666;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.trajectory-stats .stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin-top: 0.25rem;
+}
+
+/* Main Container */
+.trajectory-container {
+  display: flex;
+  flex: 1;
   overflow: hidden;
 }
 
@@ -40,167 +114,37 @@
   flex-direction: column;
 }
 
-.cesium-container {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Cesium Viewer Customizations */
-.cesium-viewer {
-  width: 100% !important;
-  height: 100% !important;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-.cesium-viewer-cesiumWidgetContainer {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.cesium-widget {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.cesium-widget canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Hide Cesium attribution */
-.cesium-viewer .cesium-widget-credits {
-  display: none !important;
-}
-
-/* Waypoint Panel Styles */
-.waypoint-panel {
-  width: 300px;
-  min-width: 300px;
-  background: white;
-  border-left: 1px solid #ddd;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.waypoint-panel h3 {
-  margin: 0;
-  padding: 20px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #ddd;
-  font-size: 18px;
-  color: #333;
-}
-
-.waypoint-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-}
-
-.waypoint-item {
-  border: 1px solid #ddd;
-  margin-bottom: 10px;
-  padding: 15px;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  background: white;
-}
-
-.waypoint-item:hover {
-  border-color: #007bff;
-  box-shadow: 0 2px 8px rgba(0,123,255,0.1);
-}
-
-.waypoint-item.selected {
-  border-color: #007bff;
-  background: #f0f8ff;
-  box-shadow: 0 2px 8px rgba(0,123,255,0.2);
-}
-
-.waypoint-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.waypoint-header strong {
-  color: #333;
-  font-size: 14px;
-}
-
-.waypoint-actions {
-  display: flex;
-  gap: 5px;
-}
-
-.waypoint-actions button {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s ease;
-}
-
-.waypoint-actions button:hover {
-  background: rgba(0,0,0,0.1);
-}
-
-.waypoint-details {
-  font-size: 12px;
-  color: #666;
-  line-height: 1.4;
-}
-
-.waypoint-details div {
-  margin: 2px 0;
-  display: flex;
-  justify-content: space-between;
-}
-
-/* Toolbar Styles */
+/* Toolbar */
 .trajectory-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  background: white;
-  border-bottom: 1px solid #ddd;
-  flex-wrap: wrap;
-  gap: 15px;
-  min-height: 60px;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .toolbar-group {
   display: flex;
-  gap: 10px;
   align-items: center;
+  gap: 0.75rem;
 }
 
 .trajectory-toolbar button {
-  padding: 10px 16px;
+  padding: 0.5rem 1rem;
   border: 1px solid #ddd;
   background: white;
+  border-radius: 4px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.25rem;
 }
 
 .trajectory-toolbar button:hover {
   background: #f8f9fa;
-  border-color: #007bff;
 }
 
 .trajectory-toolbar button.active {
@@ -212,224 +156,431 @@
 .trajectory-toolbar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f8f9fa;
-}
-
-.trajectory-toolbar button:disabled:hover {
-  background: #f8f9fa;
-  border-color: #ddd;
 }
 
 .trajectory-toolbar select {
-  padding: 10px 12px;
+  padding: 0.375rem 0.75rem;
   border: 1px solid #ddd;
-  border-radius: 6px;
+  border-radius: 4px;
   background: white;
-  cursor: pointer;
-  font-size: 14px;
-  min-width: 100px;
-}
-
-.trajectory-toolbar select:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+  font-size: 0.875rem;
 }
 
 .toolbar-info {
-  font-weight: 600;
-  color: #495057;
-  background: #e9ecef;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
+  color: #666;
+  font-weight: 500;
 }
 
-/* Search Bar Styles */
-.search-bar {
-  display: flex;
-  gap: 8px;
-  margin-left: 20px;
-  align-items: center;
+/* Map Container */
+.map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 
-.search-bar input {
-  padding: 10px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  min-width: 300px;
-  font-size: 14px;
-  transition: border-color 0.2s ease;
+/* Map instruction overlay */
+.map-instruction-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  z-index: 1000;
+  pointer-events: none;
+  animation: pulse 2s infinite;
 }
 
-.search-bar input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+@keyframes pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
-.search-bar button {
-  padding: 10px 16px;
-  border: 1px solid #ddd;
-  background: white;
-  cursor: pointer;
-  border-radius: 6px;
-  font-size: 16px;
+/* Waypoint Markers */
+.waypoint-marker {
   transition: all 0.2s ease;
-  min-width: 50px;
 }
 
-.search-bar button:hover {
+.waypoint-marker:hover {
+  transform: scale(1.2);
+}
+
+/* FALLBACK STATES - Critical for graceful degradation */
+
+/* Fallback Container */
+.trajectory-fallback-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #f8f9fa;
-  border-color: #007bff;
+  padding: 2rem;
 }
 
-.search-bar button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Stats Styles */
-.trajectory-stats {
-  display: flex;
-  gap: 20px;
+.trajectory-fallback-content {
+  max-width: 800px;
   background: white;
-  padding: 20px;
+  padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  align-items: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 90px;
+.trajectory-fallback-content h2 {
+  color: #333;
+  margin-bottom: 1rem;
   text-align: center;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: #6c757d;
-  margin-bottom: 4px;
+.trajectory-fallback-content p {
+  color: #666;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+/* Fallback Features List */
+.fallback-features {
+  background: #e7f3ff;
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+  border-left: 4px solid #007bff;
+}
+
+.fallback-features h3 {
+  color: #007bff;
+  margin-bottom: 1rem;
+}
+
+.fallback-features ul {
+  list-style: none;
+  padding: 0;
+}
+
+.fallback-features li {
+  padding: 0.5rem 0;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.fallback-features li:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #28a745;
+  font-weight: bold;
+}
+
+/* Setup Instructions */
+.setup-instructions {
+  background: #fff3cd;
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+  border-left: 4px solid #ffc107;
+}
+
+.setup-instructions h3 {
+  color: #856404;
+  margin-bottom: 1rem;
+}
+
+.setup-instructions ol {
+  padding-left: 1.5rem;
+  color: #856404;
+}
+
+.setup-instructions li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.setup-instructions code {
+  background: #f8f9fa;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  border: 1px solid #e9ecef;
+  color: #e83e8c;
+  font-size: 0.9rem;
+}
+
+.setup-instructions a {
+  color: #007bff;
+  text-decoration: none;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
-.stat-value {
-  font-size: 16px;
-  font-weight: 700;
+.setup-instructions a:hover {
+  text-decoration: underline;
+}
+
+/* Alternative Tools */
+.alternative-tools {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+  border-left: 4px solid #6c757d;
+}
+
+.alternative-tools h3 {
   color: #495057;
+  margin-bottom: 1rem;
 }
 
-/* Loading States */
-.trajectory-loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  font-size: 16px;
+.alternative-tools p {
   color: #6c757d;
+  margin: 0;
+  text-align: left;
+}
+
+/* Manual Waypoint Entry Form */
+.manual-waypoint-entry {
+  background: #d4edda;
+  padding: 1.5rem;
+  border-radius: 6px;
+  border-left: 4px solid #28a745;
+}
+
+.manual-waypoint-entry h3 {
+  color: #155724;
+  margin-bottom: 1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-row input {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.form-row input:focus {
+  outline: none;
+  border-color: #28a745;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+}
+
+.form-row button {
+  padding: 0.5rem 1rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.form-row button:hover {
+  background: #218838;
+}
+
+/* Waypoint Panel */
+.waypoint-panel {
+  width: 300px;
+  background: white;
+  border-left: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.waypoint-panel h3 {
+  margin: 0;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.waypoint-panel p {
+  padding: 1rem;
+  color: #666;
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+}
+
+.waypoint-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.waypoint-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.waypoint-item:hover {
+  background: #f8f9fa;
+}
+
+.waypoint-item.selected {
+  background: #e3f2fd;
+  border-left: 3px solid #2196f3;
+}
+
+.waypoint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.waypoint-header strong {
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.waypoint-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.waypoint-actions button {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: none;
+  border-radius: 3px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.waypoint-actions button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.waypoint-details {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1.3;
+}
+
+.waypoint-details div {
+  margin-bottom: 0.15rem;
 }
 
 /* Error States */
 .trajectory-error {
-  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #f8f9fa;
+}
+
+.error-content {
   text-align: center;
-  color: #dc3545;
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 6px;
-  margin: 20px;
+  max-width: 600px;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.error-content h2 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.error-content p {
+  color: #666;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+/* Mapbox GL JS Overrides */
+.mapboxgl-popup {
+  font-family: inherit;
+}
+
+.mapboxgl-popup-content {
+  padding: 0.75rem;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.mapboxgl-ctrl-attrib {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 /* Responsive Design */
-@media (max-width: 1200px) {
+@media (max-width: 768px) {
+  .trajectory-header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .search-bar input {
+    min-width: 250px;
+  }
+
+  .trajectory-stats .stat-item {
+    margin: 0 0.5rem;
+  }
+
+  .waypoint-panel {
+    width: 250px;
+  }
+
+  .toolbar-group {
+    flex-wrap: wrap;
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row input {
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
   .trajectory-container {
     flex-direction: column;
   }
   
   .waypoint-panel {
     width: 100%;
-    height: 300px;
-    border-left: none;
-    border-top: 1px solid #ddd;
+    max-height: 200px;
+    order: -1;
   }
-  
-  .search-bar input {
-    min-width: 200px;
-  }
-}
 
-@media (max-width: 768px) {
-  .trajectory-header {
-    flex-direction: column;
-    gap: 15px;
-    align-items: flex-start;
+  .map-container {
+    min-height: 400px;
   }
-  
-  .header-left {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  
-  .trajectory-stats {
-    flex-wrap: wrap;
-    gap: 15px;
-  }
-  
-  .stat-item {
-    min-width: 70px;
-  }
-  
-  .trajectory-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  
-  .toolbar-group {
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  
-  .search-bar {
-    margin-left: 0;
-    width: 100%;
-  }
-  
-  .search-bar input {
-    flex: 1;
-    min-width: 0;
-  }
-}
 
-@media (max-width: 480px) {
-  .trajectory-header {
-    padding: 15px;
+  .trajectory-fallback-content {
+    padding: 1rem;
+    margin: 1rem;
   }
-  
-  .header-left h1 {
-    font-size: 20px;
-  }
-  
-  .waypoint-panel {
-    height: 250px;
-  }
-  
-  .trajectory-toolbar {
-    padding: 10px 15px;
-  }
-  
-  .trajectory-toolbar button {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-  
-  .search-bar input {
-    font-size: 14px;
-    padding: 8px 12px;
+
+  .fallback-features,
+  .setup-instructions,
+  .alternative-tools,
+  .manual-waypoint-entry {
+    padding: 1rem;
   }
 }
