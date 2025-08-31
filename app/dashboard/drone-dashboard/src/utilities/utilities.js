@@ -1,4 +1,6 @@
 // utilities.js
+import { API_CONFIG } from '../config/api';
+
 
 // Get the base server URL from environment variables
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
