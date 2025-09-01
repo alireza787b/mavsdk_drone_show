@@ -1,1061 +1,469 @@
 /* src/styles/WaypointModal.css */
-
-/* Modal Overlay */
-.waypoint-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    backdrop-filter: blur(4px);
-    animation: modalOverlayFadeIn 0.2s ease-out;
-  }
-  
-  @keyframes modalOverlayFadeIn {
-    from {
-      opacity: 0;
-      backdrop-filter: blur(0px);
-    }
-    to {
-      opacity: 1;
-      backdrop-filter: blur(4px);
-    }
-  }
-  
-  /* Modal Container */
-  .waypoint-modal {
-    background: #1f2128;
-    border-radius: 12px;
-    box-shadow: 
-      0 20px 25px -5px rgba(0, 0, 0, 0.4),
-      0 10px 10px -5px rgba(0, 0, 0, 0.2);
-    width: 90%;
-    max-width: 500px;
-    max-height: 90vh;
-    overflow: hidden;
-    animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    border: 1px solid #3a3f4b;
-  }
-  
-  @keyframes modalSlideIn {
-    from {
-      opacity: 0;
-      transform: scale(0.9) translateY(-20px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
-  }
-  
-  /* Modal Header */
-  .waypoint-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    border-bottom: 1px solid #3a3f4b;
-    background: linear-gradient(135deg, #2a2d3a, #1f2128);
-  }
-  
-  .waypoint-modal-header h3 {
-    margin: 0;
-    color: #ffffff;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-  
-  .waypoint-modal-close {
-    background: none;
-    border: none;
-    color: #a2a5b9;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-  }
-  
-  .waypoint-modal-close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.1);
-  }
-  
-  /* Modal Body */
-  .waypoint-modal-body {
-    padding: 1.5rem;
-    max-height: 60vh;
-    overflow-y: auto;
-  }
-  
-  /* Location Info */
-  .waypoint-location-info {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: rgba(0, 212, 255, 0.05);
-    border-radius: 8px;
-    border: 1px solid rgba(0, 212, 255, 0.2);
-  }
-  
-  .location-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  
-  .location-item label {
-    font-size: 0.75rem;
-    color: #a2a5b9;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .location-item span {
-    font-size: 0.9rem;
-    color: #00d4ff;
-    font-weight: 600;
-    font-family: 'Monaco', 'Courier New', monospace;
-  }
-  
-  /* Input Groups */
-  .waypoint-input-group {
-    margin-bottom: 1.5rem;
-  }
-  
-  .waypoint-input-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #ffffff;
-  }
-  
-  .time-constraint {
-    font-size: 0.75rem;
-    color: #a2a5b9;
-    font-weight: 400;
-    margin-left: 0.5rem;
-  }
-  
-  .waypoint-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: #2a2d3a;
-    border: 2px solid #3a3f4b;
-    border-radius: 8px;
-    color: #ffffff;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-  }
-  
-  .waypoint-input:focus {
-    outline: none;
-    border-color: #00d4ff;
-    background: #1a1c23;
-    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
-  }
-  
-  .waypoint-input::placeholder {
-    color: #6c757d;
-  }
-  
-  .waypoint-input:invalid {
-    border-color: #dc3545;
-  }
-  
-  .input-hint {
-    margin-top: 0.25rem;
-    font-size: 0.75rem;
-    color: #a2a5b9;
-  }
-  
-  /* Speed Calculation Display */
-  .speed-calculation {
-    padding: 1rem;
-    background: #2a2d3a;
-    border-radius: 8px;
-    border-left: 4px solid #00d4ff;
-    margin-top: 1rem;
-  }
-  
-  .speed-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
-  
-  .speed-header label {
-    font-size: 0.9rem;
-    color: #ffffff;
-    font-weight: 500;
-  }
-  
-  .speed-indicator {
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-  
-  .speed-indicator-green {
-    background: rgba(40, 167, 69, 0.2);
-    color: #28a745;
-    border: 1px solid rgba(40, 167, 69, 0.3);
-  }
-  
-  .speed-indicator-green::before {
-    content: "✓";
-  }
-  
-  .speed-indicator-yellow {
-    background: rgba(255, 193, 7, 0.2);
-    color: #ffc107;
-    border: 1px solid rgba(255, 193, 7, 0.3);
-  }
-  
-  .speed-indicator-yellow::before {
-    content: "⚠";
-  }
-  
-  .speed-indicator-red {
-    background: rgba(220, 53, 69, 0.2);
-    color: #dc3545;
-    border: 1px solid rgba(220, 53, 69, 0.3);
-  }
-  
-  .speed-indicator-red::before {
-    content: "⚠";
-  }
-  
-  .speed-indicator-gray {
-    background: rgba(108, 117, 125, 0.2);
-    color: #6c757d;
-    border: 1px solid rgba(108, 117, 125, 0.3);
-  }
-  
-  .speed-status {
-    font-size: 0.8rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .speed-status.feasible {
-    color: #28a745;
-  }
-  
-  .speed-status.marginal {
-    color: #ffc107;
-  }
-  
-  .speed-status.impossible {
-    color: #dc3545;
-  }
-  
-  .speed-warning {
-    font-size: 0.75rem;
-    color: #dc3545;
-    background: rgba(220, 53, 69, 0.1);
-    padding: 0.5rem;
-    border-radius: 4px;
-    margin-top: 0.5rem;
-    border-left: 3px solid #dc3545;
-  }
-  
-  /* Modal Footer */
-  .waypoint-modal-footer {
-    display: flex;
-    gap: 0.75rem;
-    padding: 1.5rem;
-    border-top: 1px solid #3a3f4b;
-    background: rgba(0, 0, 0, 0.1);
-  }
-  
-  .modal-btn {
-    flex: 1;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-  }
-  
-  .modal-btn-cancel {
-    background: #3a3f4b;
-    color: #a2a5b9;
-    border: 1px solid #4a4f5b;
-  }
-  
-  .modal-btn-cancel:hover {
-    background: #4a4f5b;
-    color: #ffffff;
-  }
-  
-  .modal-btn-confirm {
-    background: #00d4ff;
-    color: #000000;
-    border: 1px solid #00d4ff;
-  }
-  
-  .modal-btn-confirm:hover:not(:disabled) {
-    background: #00a8cc;
-    border-color: #00a8cc;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
-  }
-  
-  .modal-btn-confirm:disabled {
-    background: #6c757d;
-    color: #ffffff;
-    border-color: #6c757d;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-  
-  /* Responsive Design */
-  @media (max-width: 768px) {
-    .waypoint-modal {
-      width: 95%;
-      margin: 1rem;
-    }
-    
-    .waypoint-modal-header,
-    .waypoint-modal-body,
-    .waypoint-modal-footer {
-      padding: 1rem;
-    }
-    
-    .waypoint-location-info {
-      grid-template-columns: 1fr;
-    }
-    
-    .speed-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
-    
-    .waypoint-modal-footer {
-      flex-direction: column;
-    }
-  }
-  
-  /* Accessibility */
-  @media (prefers-reduced-motion: reduce) {
-    .waypoint-modal-overlay,
-    .waypoint-modal {
-      animation: none;
-    }
-  }
-  
-  /* Focus management */
-  .waypoint-input:focus-visible,
-  .modal-btn:focus-visible,
-  .waypoint-modal-close:focus-visible {
-    outline: 2px solid #00d4ff;
-    outline-offset: 2px;
-  }
-
-  /* === ENHANCED MODAL STYLES === */
-
-/* Terrain information section */
-.terrain-info-section {
-  margin: var(--spacing-lg) 0;
-  border: 2px solid var(--color-info-border);
-  border-radius: var(--border-radius-md);
-  background: linear-gradient(135deg, var(--color-info-light), transparent);
-}
-
-.terrain-info-toggle {
-  width: 100%;
-  padding: var(--spacing-base);
-  background: none;
-  border: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  font-weight: var(--font-weight-medium);
-  color: var(--color-info);
-  transition: var(--transition-base);
-}
-
-.terrain-info-toggle:hover {
-  background: rgba(23, 162, 184, 0.05);
-}
-
-.toggle-icon {
-  transition: transform 0.3s ease;
-}
-
-.toggle-icon.expanded {
-  transform: rotate(180deg);
-}
-
-.terrain-info-content {
-  padding: 0 var(--spacing-base) var(--spacing-base);
-  border-top: 1px solid var(--color-info-border);
-}
-
-.terrain-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid rgba(23, 162, 184, 0.1);
-}
-
-.terrain-item:last-child {
-  border-bottom: none;
-}
-
-.terrain-item label {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-info);
-  font-size: var(--font-size-sm);
-}
-
-.terrain-item span {
-  font-family: var(--font-family-mono);
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-semibold);
-}
-
-.estimate-badge {
-  background: var(--color-warning-light);
-  color: var(--color-warning-text);
-  padding: var(--spacing-xs);
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-xs);
-  margin-left: var(--spacing-sm);
-}
-
-.apply-suggestion-btn {
-  background: var(--color-success);
-  color: var(--color-text-primary);
-  border: none;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  margin-left: var(--spacing-sm);
-  transition: var(--transition-base);
-}
-
-.apply-suggestion-btn:hover {
-  background: #218838;
-  transform: scale(1.05);
-}
-
-/* Coming soon section */
-.terrain-coming-soon {
-  margin-top: var(--spacing-base);
-  padding: var(--spacing-base);
-  background: linear-gradient(135deg, var(--color-warning-light), var(--color-info-light));
-  border-radius: var(--border-radius-base);
-  border: 1px solid var(--color-warning-border);
-}
-
-.coming-soon-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  background: var(--color-warning);
-  color: var(--color-warning-text);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-sm);
-}
-
-.terrain-coming-soon p {
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-}
-
-.terrain-coming-soon ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.terrain-coming-soon li {
-  padding: var(--spacing-xs) 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  position: relative;
-  padding-left: var(--spacing-lg);
-}
-
-.terrain-coming-soon li::before {
-  content: "🚧";
-  position: absolute;
-  left: 0;
-  top: var(--spacing-xs);
-}
-
-/* Altitude guidance section */
-.altitude-guidance {
-  margin-top: var(--spacing-lg);
-  padding: var(--spacing-base);
-  background: linear-gradient(135deg, var(--color-primary-light), var(--color-success-light));
-  border-radius: var(--border-radius-md);
-  border: 2px solid var(--color-primary-border);
-}
-
-.altitude-guidance h4 {
-  margin: 0 0 var(--spacing-base) 0;
-  color: var(--color-primary);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-}
-
-.guidance-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.guidance-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-}
-
-.guidance-icon {
-  font-size: var(--font-size-base);
-  line-height: 1;
-  margin-top: 2px;
-}
-
-.guidance-text {
-  flex: 1;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-  color: var(--color-text-muted);
-}
-
-.guidance-text strong {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-/* Validation feedback */
-.validation-errors,
-.validation-warnings {
-  margin-top: var(--spacing-sm);
-}
-
-.validation-error,
-.validation-warning {
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  margin-bottom: var(--spacing-xs);
-}
-
-.validation-error {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger-border);
-}
-
-.validation-warning {
-  background: var(--color-warning-light);
-  color: var(--color-warning-text);
-  border: 1px solid var(--color-warning-border);
-}
-
-.waypoint-input.error {
-  border-color: var(--color-danger);
-  background: var(--color-danger-light);
-}
-
-.waypoint-input.warning {
-  border-color: var(--color-warning);
-  background: var(--color-warning-light);
-}
-
-/* Terrain loading overlay */
-.terrain-loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-  backdrop-filter: blur(2px);
-  border-radius: var(--border-radius-lg);
-}
-
-.terrain-loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-sm);
-  background: var(--color-text-primary);
-  padding: var(--spacing-lg);
-  border-radius: var(--border-radius-base);
-  box-shadow: var(--shadow-lg);
-}
-
-.loading-spinner {
-  font-size: var(--font-size-xl);
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-
-@media (max-width: 768px) {
-  .waypoint-marker-container {
-    transform: scale(1.2);
-  }
-
-  .speed-warning-badge {
-    width: 20px;
-    height: 20px;
-    font-size: var(--font-size-sm);
-  }
-
-  .elevation-info {
-    padding: var(--spacing-sm);
-  }
-
-  .elevation-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs);
-  }
-
-  .guidance-list li {
-    padding-left: var(--spacing-base);
-    font-size: var(--font-size-xs);
-  }
-
-  .altitude-guidance h4 {
-    font-size: var(--font-size-base);
-  }
-}
-
-@media (max-width: 480px) {
-  .waypoint-marker {
-    font-size: 10px;
-  }
-
-  .speed-warning-badge {
-    top: -6px;
-    right: -6px;
-    width: 16px;
-    height: 16px;
-    font-size: 10px;
-  }
-
-  .map-instruction-overlay {
-    font-size: var(--font-size-sm);
-    padding: var(--spacing-sm);
-  }
-
-  .elevation-info,
-  .speed-guidance {
-    margin: var(--spacing-sm) 0;
-    padding: var(--spacing-sm);
-  }
-}
-
-/* =============================================== */
-/* ACCESSIBILITY IMPROVEMENTS */
-/* =============================================== */
-
-/* Add to both files */
-
-.waypoint-marker:focus-visible,
-.info-toggle:focus-visible {
-  outline: 3px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.speed-warning-badge {
-  pointer-events: none; /* Prevent interference with marker clicks */
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .waypoint-marker {
-    border-width: 4px;
-  }
-
-  .speed-warning-badge {
-    border-width: 3px;
-  }
-
-  .elevation-info,
-  .speed-guidance {
-    border-width: 3px;
-  }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  .waypoint-marker:hover,
-  .info-toggle:hover,
-  .warningPulse,
-  .slideIn {
-    animation: none;
-    transition: none;
-    transform: none;
-  }
-}
-/* src/styles/WaypointModal.css */
-/* FIXED: Simplified modal styling with real terrain integration */
-/* REMOVED: Complex terrain sections, confusing UI elements */
-/* ADDED: Clean altitude input with ground level context */
-
 @import './DesignTokens.css';
 
-/* Modal Backdrop */
+/* =============================================== */
+/* MODAL OVERLAY & CONTAINER */
+/* =============================================== */
+
 .waypoint-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--modal-backdrop-color);
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-modal-backdrop);
+  z-index: 10000;
+  backdrop-filter: blur(4px);
   animation: backdropFadeIn 0.3s ease;
 }
 
 .waypoint-modal {
-  background: var(--color-bg-primary);
-  border-radius: var(--modal-border-radius);
-  box-shadow: var(--shadow-2xl);
-  max-width: var(--modal-max-width);
+  background: #1f2128;
+  border-radius: 12px;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.4),
+    0 10px 10px -5px rgba(0, 0, 0, 0.2);
   width: 90%;
+  max-width: 500px;
   max-height: 85vh;
   overflow: hidden;
-  animation: modalSlideIn 0.3s ease;
-  border: 2px solid var(--color-border-primary);
+  animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 2px solid #3a3f4b;
 }
 
-/* Modal Header */
+/* =============================================== */
+/* MODAL HEADER */
+/* =============================================== */
+
 .waypoint-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-base);
-  border-bottom: 1px solid var(--color-border-light);
-  background: var(--color-bg-secondary);
+  padding: 1.5rem;
+  border-bottom: 1px solid #3a3f4b;
+  background: linear-gradient(135deg, #2a2d3a, #1f2128);
 }
 
 .waypoint-modal-header h3 {
   margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .waypoint-modal-close {
   background: none;
   border: none;
-  font-size: var(--font-size-xl);
-  color: var(--color-text-tertiary);
+  color: #a2a5b9;
+  font-size: 1.5rem;
   cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  transition: var(--transition-base);
-  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .waypoint-modal-close:hover {
-  color: var(--color-danger);
-  background: var(--color-danger-light);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
-/* Modal Body */
+/* =============================================== */
+/* MODAL BODY */
+/* =============================================== */
+
 .waypoint-modal-body {
-  padding: var(--spacing-lg);
+  padding: 1.5rem;
   max-height: 60vh;
   overflow-y: auto;
 }
 
-/* SIMPLIFIED: Location Information */
+/* =============================================== */
+/* LOCATION INFORMATION */
+/* =============================================== */
+
 .waypoint-location-info {
-  background: var(--color-info-light);
-  border: 1px solid var(--color-info-border);
-  border-radius: var(--border-radius-md);
-  padding: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(0, 212, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
 }
 
 .location-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--font-size-sm);
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .location-item label {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-info);
-  margin-right: var(--spacing-md);
+  font-size: 0.75rem;
+  color: #a2a5b9;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .location-item span {
-  font-family: var(--font-family-mono);
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-medium);
+  font-size: 0.9rem;
+  color: #00d4ff;
+  font-weight: 600;
+  font-family: 'Monaco', 'Courier New', monospace;
 }
 
-/* SIMPLIFIED: Altitude Section with Real Terrain Context */
-.altitude-section {
-  margin-bottom: var(--spacing-lg);
+/* =============================================== */
+/* INPUT GROUPS */
+/* =============================================== */
+
+.waypoint-input-group,
+.altitude-section,
+.time-input-group {
+  margin-bottom: 1.5rem;
 }
 
-.altitude-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
+.waypoint-input-group label,
 .input-label {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #ffffff;
 }
 
-.loading-indicator {
-  color: var(--color-primary);
-  animation: spin 1s linear infinite;
+.time-constraint {
+  font-size: 0.75rem;
+  color: #a2a5b9;
+  font-weight: 400;
+  margin-left: 0.5rem;
 }
 
 .waypoint-input {
-  padding: var(--spacing-md);
-  border: 2px solid var(--color-border-primary);
-  border-radius: var(--border-radius-md);
-  background: var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
-  transition: var(--transition-base);
-  font-family: var(--font-family-mono);
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #2a2d3a;
+  border: 2px solid #3a3f4b;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .waypoint-input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
+  border-color: #00d4ff;
+  background: #1a1c23;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
 }
 
-.waypoint-input.validation-error {
-  border-color: var(--color-danger);
-  background: var(--color-danger-light);
+.waypoint-input::placeholder {
+  color: #6c757d;
 }
 
-.waypoint-input.validation-error:focus {
-  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+.waypoint-input.validation-error,
+.waypoint-input:invalid,
+.waypoint-input.error {
+  border-color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
 }
 
-/* ADDED: Altitude Context Information */
+.waypoint-input.warning {
+  border-color: #ffc107;
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.input-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #a2a5b9;
+}
+
+/* =============================================== */
+/* ALTITUDE CONTEXT */
+/* =============================================== */
+
 .altitude-context {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm);
-  background: var(--color-bg-tertiary);
-  border-radius: var(--border-radius-sm);
-  border-left: 4px solid var(--color-info);
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: #2a2d3a;
+  border-radius: 6px;
+  border-left: 4px solid #00d4ff;
+  margin-top: 0.5rem;
 }
 
 .terrain-note,
 .agl-note {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
-  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  color: #a2a5b9;
+  font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .terrain-note strong,
 .agl-note strong {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-semibold);
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .terrain-warning {
-  color: var(--color-warning);
-  font-weight: var(--font-weight-medium);
+  color: #ffc107;
+  font-weight: 500;
 }
 
-/* Time Input */
-.time-input-group {
-  margin-bottom: var(--spacing-lg);
+.loading-indicator {
+  color: #00d4ff;
+  animation: spin 1s linear infinite;
 }
 
-/* SIMPLIFIED: Speed Display */
-.speed-section {
-  margin-bottom: var(--spacing-lg);
-}
+/* =============================================== */
+/* SPEED DISPLAY */
+/* =============================================== */
 
-.speed-display {
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius-md);
-  border: 2px solid currentColor;
+.speed-section,
+.speed-calculation {
+  padding: 1rem;
+  background: #2a2d3a;
+  border-radius: 8px;
+  border-left: 4px solid #00d4ff;
+  margin-bottom: 1.5rem;
 }
 
 .speed-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 0.5rem;
 }
 
+.speed-header label,
 .speed-label {
-  font-weight: var(--font-weight-medium);
-  font-size: var(--font-size-sm);
+  font-size: 0.9rem;
+  color: #ffffff;
+  font-weight: 500;
 }
 
 .speed-value {
-  font-family: var(--font-family-mono);
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-md);
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-weight: 600;
+  font-size: 1rem;
 }
 
-.speed-warning {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  margin-top: var(--spacing-xs);
-  padding: var(--spacing-xs);
-  border-radius: var(--border-radius-sm);
+.speed-indicator {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.speed-indicator-green {
+  background: rgba(40, 167, 69, 0.2);
+  color: #28a745;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.speed-indicator-green::before {
+  content: "✓";
+}
+
+.speed-indicator-yellow {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.speed-indicator-yellow::before {
+  content: "⚠";
+}
+
+.speed-indicator-red {
+  background: rgba(220, 53, 69, 0.2);
+  color: #dc3545;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.speed-indicator-red::before {
+  content: "⚠";
+}
+
+.speed-indicator-gray {
+  background: rgba(108, 117, 125, 0.2);
+  color: #6c757d;
+  border: 1px solid rgba(108, 117, 125, 0.3);
+}
+
+.speed-status {
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.speed-status.feasible {
+  color: #28a745;
+}
+
+.speed-status.marginal {
+  color: #ffc107;
+}
+
+.speed-status.impossible {
+  color: #dc3545;
+}
+
+.speed-warning,
+.speed-warning-badge {
+  font-size: 0.75rem;
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  border-left: 3px solid #dc3545;
+}
+
+/* =============================================== */
+/* VALIDATION MESSAGES */
+/* =============================================== */
+
+.validation-message,
+.validation-error,
+.validation-warning {
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+}
+
+.validation-message.error,
+.validation-error {
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+  border-left: 4px solid #dc3545;
+}
+
+.validation-message.warning,
+.validation-warning {
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffc107;
+  border-left: 4px solid #ffc107;
+}
+
+/* =============================================== */
+/* MODAL FOOTER */
+/* =============================================== */
+
+.waypoint-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid #3a3f4b;
   background: rgba(0, 0, 0, 0.1);
 }
 
-/* Validation Messages */
-.validation-message {
-  padding: var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  margin-top: var(--spacing-xs);
-}
-
-.validation-message.error {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
-  border-left: 4px solid var(--color-danger);
-}
-
-/* Modal Footer */
-.waypoint-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-md);
-  padding: var(--spacing-base) var(--spacing-lg) var(--spacing-lg);
-  background: var(--color-bg-secondary);
-  border-top: 1px solid var(--color-border-light);
-}
-
 .modal-btn {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--border-radius-md);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: var(--transition-base);
-  min-width: 100px;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  min-width: 100px;
 }
 
+.modal-btn-cancel,
 .modal-btn.secondary {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border-primary);
+  background: #3a3f4b;
+  color: #a2a5b9;
+  border: 1px solid #4a4f5b;
 }
 
+.modal-btn-cancel:hover,
 .modal-btn.secondary:hover {
-  background: var(--color-bg-quaternary);
-  color: var(--color-text-primary);
+  background: #4a4f5b;
+  color: #ffffff;
 }
 
+.modal-btn-confirm,
 .modal-btn.primary {
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  border: 1px solid var(--color-primary);
+  background: #00d4ff;
+  color: #000000;
+  border: 1px solid #00d4ff;
 }
 
-.modal-btn.primary:hover {
-  background: var(--color-primary-dark);
+.modal-btn-confirm:hover:not(:disabled),
+.modal-btn.primary:hover:not(:disabled) {
+  background: #00a8cc;
+  border-color: #00a8cc;
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
 }
 
+.modal-btn-confirm:disabled,
 .modal-btn:disabled {
-  opacity: 0.5;
+  background: #6c757d;
+  color: #ffffff;
+  border-color: #6c757d;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+  opacity: 0.5;
 }
 
-/* Animations */
+/* =============================================== */
+/* ANIMATIONS */
+/* =============================================== */
+
 @keyframes backdropFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
 }
 
 @keyframes modalSlideIn {
   from {
     opacity: 0;
-    transform: translateY(-20px) scale(0.95);
+    transform: scale(0.9) translateY(-20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to { 
+    transform: rotate(360deg); 
+  }
 }
 
-/* Responsive Design */
+/* =============================================== */
+/* RESPONSIVE DESIGN */
+/* =============================================== */
+
 @media (max-width: 768px) {
   .waypoint-modal {
     width: 95%;
@@ -1065,23 +473,17 @@
   .waypoint-modal-header,
   .waypoint-modal-body,
   .waypoint-modal-footer {
-    padding: var(--spacing-base);
+    padding: 1rem;
   }
   
   .waypoint-location-info {
-    padding: var(--spacing-sm);
-  }
-  
-  .location-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs);
+    grid-template-columns: 1fr;
   }
   
   .speed-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-xs);
+    gap: 0.5rem;
   }
   
   .waypoint-modal-footer {
@@ -1089,7 +491,23 @@
   }
 }
 
-/* Accessibility */
+@media (max-width: 480px) {
+  .waypoint-modal {
+    width: 98%;
+    margin: 0.5rem;
+  }
+  
+  .location-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+}
+
+/* =============================================== */
+/* ACCESSIBILITY */
+/* =============================================== */
+
 @media (prefers-reduced-motion: reduce) {
   .waypoint-modal-overlay,
   .waypoint-modal,
@@ -1102,25 +520,25 @@
   }
 }
 
-/* Focus management */
-.waypoint-input:focus-visible,
-.modal-btn:focus-visible,
-.waypoint-modal-close:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* High contrast mode support */
 @media (prefers-contrast: high) {
   .waypoint-modal {
     border-width: 3px;
   }
   
-  .validation-message.error {
+  .validation-message.error,
+  .validation-error {
     border-left-width: 6px;
   }
   
   .modal-btn {
     border-width: 2px;
   }
+}
+
+/* Focus management */
+.waypoint-input:focus-visible,
+.modal-btn:focus-visible,
+.waypoint-modal-close:focus-visible {
+  outline: 2px solid #00d4ff;
+  outline-offset: 2px;
 }
