@@ -3,6 +3,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import '../../styles/SearchBar.css';
+
+
 
 const SearchBar = ({ onLocationSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');

@@ -3,6 +3,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import '../../styles/TrajectoryToolbar.css';
 
 const TrajectoryToolbar = ({
   isAddingWaypoint,
