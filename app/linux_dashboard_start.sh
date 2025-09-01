@@ -1,38 +1,587 @@
 #!/bin/bash
 
 #########################################
-# Robust Drone Services Launcher with Repo Sync and Mouse Support in tmux
+# Final Production-Ready Drone Services Launcher
 #
 # Project: Drone Show GCS Server
-# Author: Alireza Ghaderi
-# Date: October 2024
+# Version: Production Final
+# 
+# CRITICAL FIXES APPLIED:
+# - Flask WSGI module-level app object created
+# - Absolute path resolution for any execution directory
+# - Clean bash commands (NO Unicode/emojis)
+# - Robust virtual environment handling
+# - Production-grade error handling
 #
-# This script starts the GUI React App and GCS Server, manages port conflicts,
-# ensures processes run reliably in tmux or standalone terminals, and optionally
-# pulls the latest updates from the repository.
-#
-# Usage:
-#   ./linux_dashboard_start.sh [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]
-#   Flags:
-#     -g : Do NOT run GCS Server (default: enabled)
-#     -u : Do NOT run GUI React App (default: enabled)
-#     -n : Do NOT use tmux (default: uses tmux)
-#     -s : Run components in Separate windows (default: Combined view)
-#     --sitl : Switch to simulation mode by deleting 'real.mode' file
-#     --real : Switch to real mode by creating 'real.mode' file
-#     --overwrite-ip <IP> : Overwrite the server IP in .env
-#     -b <branch> : Specify a custom branch to sync with (default: main-candidate)
-#     -h : Display help
-#
-# Example:
-#   ./linux_dashboard_start.sh -g -s --sitl --overwrite-ip 100.84.222.4
-#   (Runs GUI React App in a separate window, skips the GCS Server, switches to simulation mode, and overwrites the server IP)
-#
+# Usage: ./linux_dashboard_start.sh [OPTIONS]
 #########################################
 
-# Display ASCII Art Banner
-cat << "EOF"
+set -euo pipefail  # Strict error handling
 
+# ===========================================
+# CONFIGURATION
+# ===========================================
+DEFAULT_MODE="development"
+PROD_WSGI_WORKERS=4
+PROD_WSGI_BIND="0.0.0.0:5000"
+PROD_GUNICORN_TIMEOUT=120
+PROD_LOG_LEVEL="info"
+DEV_REACT_PORT=3030
+DEV_FLASK_PORT=5000
+SESSION_NAME="DroneServices"
+
+# ===========================================
+# PATH RESOLUTION (ABSOLUTE PATHS ONLY)
+# ===========================================
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$PARENT_DIR")"
+
+# Detect correct paths regardless of execution directory
+if [[ "$SCRIPT_DIR" == *"/app" ]]; then
+    # Executed as app/linux_dashboard_start.sh
+    REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
+    GCS_SERVER_DIR="$PARENT_DIR/gcs-server"
+    VENV_PATH="$PARENT_DIR/venv"
+else
+    # Executed from project root
+    REACT_APP_DIR="$SCRIPT_DIR/dashboard/drone-dashboard"
+    GCS_SERVER_DIR="$SCRIPT_DIR/gcs-server"
+    VENV_PATH="$SCRIPT_DIR/venv"
+fi
+
+# Final path validation
+if [[ ! -d "$GCS_SERVER_DIR" ]]; then
+    echo "ERROR: GCS server directory not found at $GCS_SERVER_DIR"
+    echo "Script location: $SCRIPT_DIR"
+    echo "Parent directory: $PARENT_DIR"
+    exit 1
+fi
+
+ENV_FILE_PATH="$REACT_APP_DIR/.env"
+BUILD_DIR="$REACT_APP_DIR/build"
+REAL_MODE_FILE="$GCS_SERVER_DIR/real.mode"
+UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
+
+# ===========================================
+# VARIABLES
+# ===========================================
+DEPLOYMENT_MODE="$DEFAULT_MODE"
+FORCE_REBUILD=false
+RUN_GCS_SERVER=true
+RUN_GUI_APP=true
+USE_TMUX=true
+COMBINED_VIEW=true
+USE_SITL=false
+USE_REAL=false
+OVERWRITE_IP=""
+BRANCH_NAME="main-candidate"
+
+# ===========================================
+# LOGGING FUNCTIONS
+# ===========================================
+log_info() { echo "[INFO] $1"; }
+log_warn() { echo "[WARN] $1"; }
+log_error() { echo "[ERROR] $1" >&2; }
+log_success() { echo "[SUCCESS] $1"; }
+
+# ===========================================
+# UTILITY FUNCTIONS
+# ===========================================
+display_usage() {
+    cat << EOF
+Production-Ready Drone Services Launcher
+
+USAGE: $0 [OPTIONS]
+
+MODE OPTIONS:
+  --prod                : Production mode (optimized builds, WSGI server)
+  --dev                 : Development mode (hot reload, debug server)
+  --force-rebuild       : Force rebuild even if no changes detected
+
+SERVICE OPTIONS:
+  -g                    : Do NOT run GCS Server (default: enabled)
+  -u                    : Do NOT run GUI React App (default: enabled)
+  -n                    : Do NOT use tmux (default: uses tmux)
+  -s                    : Run components in separate windows (default: combined)
+
+DRONE MODE OPTIONS:
+  --sitl                : Switch to simulation mode
+  --real                : Switch to real drone mode
+
+NETWORK OPTIONS:
+  --overwrite-ip <IP>   : Override server IP in environment
+
+REPOSITORY OPTIONS:
+  -b <branch>           : Specify git branch (default: main-candidate)
+
+HELP:
+  -h                    : Display this help message
+
+EXAMPLES:
+  Production deploy:     $0 --prod --real
+  Development with SITL: $0 --dev --sitl --force-rebuild
+  Custom IP production:  $0 --prod --overwrite-ip 192.168.1.100
+EOF
+}
+
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --prod|--production) DEPLOYMENT_MODE="production"; shift ;;
+            --dev|--development) DEPLOYMENT_MODE="development"; shift ;;
+            --force-rebuild) FORCE_REBUILD=true; shift ;;
+            --sitl)
+                if [[ "$USE_REAL" == "true" ]]; then
+                    log_error "Cannot use --sitl and --real simultaneously."
+                    exit 1
+                fi
+                USE_SITL=true; shift ;;
+            --real)
+                if [[ "$USE_SITL" == "true" ]]; then
+                    log_error "Cannot use --sitl and --real simultaneously."
+                    exit 1
+                fi
+                USE_REAL=true; shift ;;
+            --overwrite-ip)
+                if [[ -n "${2:-}" ]]; then
+                    OVERWRITE_IP="$2"; shift 2
+                else
+                    log_error "--overwrite-ip requires an argument."; exit 1
+                fi ;;
+            -b)
+                if [[ -n "${2:-}" ]]; then
+                    BRANCH_NAME="$2"; shift 2
+                else
+                    log_error "-b requires a branch name."; exit 1
+                fi ;;
+            -g) RUN_GCS_SERVER=false; shift ;;
+            -u) RUN_GUI_APP=false; shift ;;
+            -n) USE_TMUX=false; shift ;;
+            -s) COMBINED_VIEW=false; shift ;;
+            -h) display_usage; exit 0 ;;
+            *) log_error "Unknown option: $1"; display_usage; exit 1 ;;
+        esac
+    done
+}
+
+check_command_installed() {
+    local cmd="$1"
+    local pkg="$2"
+    if ! command -v "$cmd" &> /dev/null; then
+        log_warn "$cmd not found. Installing $pkg..."
+        sudo apt-get update && sudo apt-get install -y "$pkg"
+        if [[ $? -ne 0 ]]; then
+            log_error "Failed to install $pkg. Please install manually."
+            exit 1
+        fi
+        log_success "$pkg installed successfully."
+    else
+        log_info "$cmd is available."
+    fi
+}
+
+check_and_kill_port() {
+    local port="$1"
+    check_command_installed "lsof" "lsof"
+    local pids=$(lsof -t -i :"$port" 2>/dev/null || true)
+    if [[ -n "$pids" ]]; then
+        log_warn "Port $port is in use. Killing processes: $pids"
+        echo "$pids" | xargs -r kill -9
+        log_success "Port $port freed."
+    else
+        log_info "Port $port is available."
+    fi
+}
+
+load_virtualenv() {
+    if [[ -d "$VENV_PATH" ]]; then
+        source "$VENV_PATH/bin/activate"
+        log_success "Virtual environment activated: $VENV_PATH"
+    else
+        log_error "Virtual environment not found: $VENV_PATH"
+        log_error "Please create virtual environment first."
+        exit 1
+    fi
+}
+
+handle_real_mode_file() {
+    if [[ "$USE_REAL" == "true" ]]; then
+        log_info "Switching to Real Mode..."
+        touch "$REAL_MODE_FILE"
+        log_success "Real mode file created."
+    elif [[ "$USE_SITL" == "true" ]]; then
+        log_info "Switching to Simulation Mode..."
+        if [[ -f "$REAL_MODE_FILE" ]]; then
+            rm "$REAL_MODE_FILE"
+            log_success "Real mode file removed."
+        else
+            log_info "Already in Simulation Mode."
+        fi
+    else
+        log_info "No mode switch requested. Current mode preserved."
+    fi
+}
+
+update_repository() {
+    if [[ -n "$BRANCH_NAME" && -f "$UPDATE_SCRIPT_PATH" ]]; then
+        log_info "Updating repository to branch: $BRANCH_NAME"
+        bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
+        if [[ $? -eq 0 ]]; then
+            log_success "Repository updated successfully."
+        else
+            log_error "Repository update failed."
+            exit 1
+        fi
+    else
+        log_info "Repository update skipped."
+    fi
+}
+
+handle_env_file() {
+    log_info "Checking .env configuration..."
+    
+    if [[ -f "$ENV_FILE_PATH" ]]; then
+        log_success ".env file found."
+        if [[ -n "$OVERWRITE_IP" ]]; then
+            log_info "Overwriting server IP to: $OVERWRITE_IP"
+            cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
+            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
+            log_success "Server IP updated and backup created."
+        fi
+    else
+        log_warn ".env file not found. Creating new one..."
+        local server_ip="${OVERWRITE_IP:-}"
+        if [[ -z "$server_ip" ]]; then
+            echo -n "Enter server IP (e.g., 192.168.1.100): "
+            read server_ip
+        fi
+        
+        if [[ ! $server_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            log_error "Invalid IP address format."
+            exit 1
+        fi
+        
+        mkdir -p "$(dirname "$ENV_FILE_PATH")"
+        cat > "$ENV_FILE_PATH" << EOF
+REACT_APP_SERVER_URL=http://$server_ip
+REACT_APP_FLASK_PORT=5000
+DRONE_APP_FLASK_PORT=7070
+GENERATE_SOURCEMAP=false
+EOF
+        log_success ".env file created with IP: $server_ip"
+    fi
+}
+
+check_build_needed() {
+    if [[ "$FORCE_REBUILD" == "true" ]]; then
+        log_info "Force rebuild requested."
+        return 0
+    fi
+    
+    if [[ ! -d "$BUILD_DIR" ]]; then
+        log_info "No build directory found. Build needed."
+        return 0
+    fi
+    
+    local package_json="$REACT_APP_DIR/package.json"
+    if [[ "$package_json" -nt "$BUILD_DIR" ]]; then
+        log_info "Package.json updated. Build needed."
+        return 0
+    fi
+    
+    local src_dir="$REACT_APP_DIR/src"
+    if [[ -d "$src_dir" ]]; then
+        local newest_src=$(find "$src_dir" -type f -newer "$BUILD_DIR" 2>/dev/null | head -1)
+        if [[ -n "$newest_src" ]]; then
+            log_info "Source files updated. Build needed."
+            return 0
+        fi
+    fi
+    
+    log_info "Build is up-to-date. Skipping rebuild."
+    return 1
+}
+
+build_react_app() {
+    log_info "Building React application for production..."
+    
+    cd "$REACT_APP_DIR" || {
+        log_error "Failed to navigate to React app directory: $REACT_APP_DIR"
+        exit 1
+    }
+    
+    if [[ ! -d "node_modules" || "$REACT_APP_DIR/package.json" -nt "node_modules" ]]; then
+        log_info "Installing Node.js dependencies..."
+        npm ci --only=production
+        if [[ $? -ne 0 ]]; then
+            log_error "Failed to install dependencies."
+            exit 1
+        fi
+    fi
+    
+    log_info "Building optimized production bundle..."
+    npm run build
+    if [[ $? -ne 0 ]]; then
+        log_error "Build failed."
+        exit 1
+    fi
+    
+    log_success "React build completed successfully."
+}
+
+verify_react_setup() {
+    log_info "Verifying React setup..."
+    
+    if [[ ! -f "$REACT_APP_DIR/package.json" ]]; then
+        log_error "package.json not found at: $REACT_APP_DIR"
+        exit 1
+    fi
+    
+    if [[ ! -d "$REACT_APP_DIR/node_modules" ]]; then
+        log_info "Installing missing dependencies..."
+        cd "$REACT_APP_DIR" && npm install
+    fi
+    
+    log_success "React setup verified."
+}
+
+install_production_dependencies() {
+    log_info "Installing production dependencies..."
+    
+    if ! python -c "import gunicorn" 2>/dev/null; then
+        log_info "Installing gunicorn for production WSGI server..."
+        pip install gunicorn
+        if [[ $? -ne 0 ]]; then
+            log_error "Failed to install gunicorn."
+            exit 1
+        fi
+        log_success "Gunicorn installed successfully."
+    else
+        log_info "Gunicorn is already installed."
+    fi
+}
+
+setup_production_environment() {
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        log_info "Configuring production environment..."
+        export FLASK_ENV=production
+        export NODE_ENV=production
+        export REACT_APP_ENV=production
+        install_production_dependencies
+        log_success "Production environment configured."
+    else
+        log_info "Configuring development environment..."
+        export FLASK_ENV=development
+        export FLASK_DEBUG=1
+        export NODE_ENV=development
+        export REACT_APP_ENV=development
+        log_success "Development environment configured."
+    fi
+}
+
+get_flask_command() {
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+    else
+        echo "cd '$GCS_SERVER_DIR' && python app.py"
+    fi
+}
+
+get_react_command() {
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        if check_build_needed; then
+            build_react_app
+        fi
+        echo "cd '$BUILD_DIR' && python3 -m http.server $DEV_REACT_PORT"
+    else
+        verify_react_setup
+        echo "cd '$REACT_APP_DIR' && npm start"
+    fi
+}
+
+start_services_in_tmux() {
+    local session="$SESSION_NAME"
+    
+    # Kill existing session
+    if tmux has-session -t "$session" 2>/dev/null; then
+        log_warn "Killing existing tmux session: $session"
+        tmux kill-session -t "$session"
+        sleep 1
+    fi
+    
+    log_info "Creating tmux session: $session (mode: $DEPLOYMENT_MODE)"
+    tmux new-session -d -s "$session"
+    tmux set-option -g mouse on
+    
+    local gcs_cmd=""
+    local react_cmd=""
+    
+    if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+        gcs_cmd=$(get_flask_command)
+    fi
+    
+    if [[ "$RUN_GUI_APP" == "true" ]]; then
+        react_cmd=$(get_react_command)
+    fi
+    
+    if [[ "$COMBINED_VIEW" == "true" ]]; then
+        tmux rename-window -t "$session:0" "Services"
+        local pane_index=0
+        
+        if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting Flask server in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
+            pane_index=$((pane_index + 1))
+        fi
+        
+        if [[ "$RUN_GUI_APP" == "true" ]]; then
+            if [[ $pane_index -gt 0 ]]; then
+                tmux split-window -t "$session:Services" -h
+            fi
+            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd" C-m
+        fi
+        
+        if [[ $pane_index -gt 0 ]]; then
+            tmux select-layout -t "$session:Services" tiled
+        fi
+    else
+        # Separate windows
+        local window_index=0
+        
+        if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+            tmux rename-window -t "$session:0" "Flask-Server"
+            tmux send-keys -t "$session:Flask-Server" "clear && echo 'Starting Flask server...' && $gcs_cmd" C-m
+            window_index=$((window_index + 1))
+        fi
+        
+        if [[ "$RUN_GUI_APP" == "true" ]]; then
+            if [[ $window_index -eq 0 ]]; then
+                tmux rename-window -t "$session:0" "React-App"
+            else
+                tmux new-window -t "$session" -n "React-App"
+            fi
+            tmux send-keys -t "$session:React-App" "clear && echo 'Starting React app...' && $react_cmd" C-m
+        fi
+    fi
+    
+    show_tmux_instructions
+    tmux attach-session -t "$session"
+}
+
+start_services_no_tmux() {
+    log_info "Starting services without tmux in $DEPLOYMENT_MODE mode..."
+    
+    if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+        local gcs_cmd=$(get_flask_command)
+        gnome-terminal -- bash -c "echo 'Starting Flask server in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
+    fi
+    
+    if [[ "$RUN_GUI_APP" == "true" ]]; then
+        local react_cmd=$(get_react_command)
+        gnome-terminal -- bash -c "echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd; exec bash"
+    fi
+}
+
+show_tmux_instructions() {
+    cat << EOF
+
+===============================================
+  tmux Session Guide (Mode: $DEPLOYMENT_MODE)
+===============================================
+Prefix key (Ctrl+B), then:
+EOF
+
+    if [[ "$COMBINED_VIEW" == "true" ]]; then
+        echo "  - Switch panes: Arrow keys"
+        echo "  - Resize panes: Hold Ctrl+B + Arrow key"
+    else
+        echo "  - Switch windows: Number keys (1, 2, etc.)"
+    fi
+
+    cat << EOF
+  - Detach session: Ctrl+B, then D
+  - Reattach: tmux attach -t $SESSION_NAME
+  - Kill session: tmux kill-session -t $SESSION_NAME
+
+MODE INFORMATION:
+EOF
+
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        cat << EOF
+  - React: Serving optimized build files
+  - Flask: Running with gunicorn WSGI server
+  - Working Dir: $GCS_SERVER_DIR (FIXED for imports)
+  - Logging: Production logging enabled
+EOF
+    else
+        cat << EOF
+  - React: Hot reload enabled on port $DEV_REACT_PORT
+  - Flask: Debug mode with auto-restart
+  - Logging: Verbose debug logging enabled
+EOF
+    fi
+
+    echo "==============================================="
+    echo
+}
+
+display_config_summary() {
+    cat << EOF
+
+===============================================
+  Configuration Summary
+===============================================
+Deployment Mode: $(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]')
+Branch: $BRANCH_NAME
+GCS Server: $([[ "$RUN_GCS_SERVER" == "true" ]] && echo "ENABLED" || echo "DISABLED")
+GUI React App: $([[ "$RUN_GUI_APP" == "true" ]] && echo "ENABLED" || echo "DISABLED")
+Tmux: $([[ "$USE_TMUX" == "true" ]] && echo "ENABLED" || echo "DISABLED")
+View: $([[ "$COMBINED_VIEW" == "true" ]] && echo "Combined Panes" || echo "Separate Windows")
+Force Rebuild: $([[ "$FORCE_REBUILD" == "true" ]] && echo "YES" || echo "NO")
+EOF
+
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        cat << EOF
+
+PRODUCTION CONFIG:
+  - WSGI Workers: $PROD_WSGI_WORKERS
+  - Bind Address: $PROD_WSGI_BIND
+  - Timeout: $PROD_GUNICORN_TIMEOUT seconds
+  - Working Dir: $GCS_SERVER_DIR (FIXED)
+  - Build Optimization: ENABLED
+EOF
+    else
+        cat << EOF
+
+DEVELOPMENT CONFIG:
+  - React Port: $DEV_REACT_PORT
+  - Flask Port: $DEV_FLASK_PORT
+  - Hot Reload: ENABLED
+  - Debug Mode: ENABLED
+EOF
+    fi
+
+    if [[ "$USE_REAL" == "true" ]]; then
+        echo "Drone Mode: Real Hardware"
+    elif [[ "$USE_SITL" == "true" ]]; then
+        echo "Drone Mode: Simulation (SITL)"
+    fi
+
+    if [[ -n "$OVERWRITE_IP" ]]; then
+        echo "Server IP Override: $OVERWRITE_IP"
+    fi
+
+    echo "==============================================="
+    echo
+}
+
+#########################################
+# MAIN EXECUTION
+#########################################
+
+# Banner
+cat << "EOF"
 
   __  __   ___   _____ ___  _  __  ___  ___  ___  _  _ ___   ___ _  _  _____      __   ____  __ ___  _____  
  |  \/  | /_\ \ / / __|   \| |/ / |   \| _ \/ _ \| \| | __| / __| || |/ _ \ \    / /  / /  \/  |   \/ __\ \ 
@@ -40,564 +589,55 @@ cat << "EOF"
  |_|  |_/_/ \_\_/ |___/___/|_|\_\ |___/|_|_\\___/|_|\_|___| |___/_||_|\___/ \_/\_/   | ||_|  |_|___/|___/| |
                                                                                       \_\               /_/ 
 
+                              PRODUCTION READY DRONE SERVICES
 
 EOF
 
-# Default flag values (all components enabled by default)
-RUN_GCS_SERVER=true
-RUN_GUI_APP=true
-USE_TMUX=true          # Default behavior is to use tmux
-COMBINED_VIEW=true     # Default is combined view
-ENABLE_MOUSE=true      # Default behavior is to enable mouse support in tmux
-ENABLE_AUTO_PULL=true  # Enable or disable the automatic pulling and syncing of the repository
+# Parse arguments and initialize
+parse_arguments "$@"
 
-# Configurable Variables
-SESSION_NAME="DroneServices"
-GCS_PORT=5000
-GUI_PORT=3000
-VENV_PATH="$HOME/mavsdk_drone_show/venv"
-UPDATE_SCRIPT_PATH="$HOME/mavsdk_drone_show/tools/update_repo_ssh.sh"  # Path to the repo update script
-BRANCH_NAME="main-candidate"  # Set default branch to main-candidate
+log_info "Initializing Drone Services System..."
+display_config_summary
 
-# Get the script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"  # One directory above the script's directory
-
-# Path to the .env file
-ENV_FILE_PATH="$SCRIPT_DIR/dashboard/drone-dashboard/.env"
-
-# Path to the real.mode file (one directory above the script)
-REAL_MODE_FILE="$PARENT_DIR/real.mode"
-
-# Initialize variables for new arguments
-USE_SITL=false
-USE_REAL=false
-OVERWRITE_IP=""
-
-# Function to display usage instructions
-display_usage() {
-    echo "Usage: $0 [-g|-u|-n|-s|-h] [--sitl | --real] [--overwrite-ip <IP>] [-b <branch>]"
-    echo "Flags:"
-    echo "  -g : Do NOT run GCS Server (default: enabled)"
-    echo "  -u : Do NOT run GUI React App (default: enabled)"
-    echo "  -n : Do NOT use tmux (default: uses tmux)"
-    echo "  -s : Run components in Separate windows (default: Combined view)"
-    echo "  --sitl : Switch to simulation mode by deleting 'real.mode' file"
-    echo "  --real : Switch to real mode by creating 'real.mode' file"
-    echo "  --overwrite-ip <IP> : Overwrite the server IP in .env"
-    echo "  -b <branch> : Specify a custom branch to sync with (default: main-candidate)"
-    echo "  -h : Display this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0 -g -s --sitl --overwrite-ip 100.84.222.4"
-    echo "    (Runs GUI React App in a separate window, skips the GCS Server, switches to simulation mode, and overwrites the server IP)"
-    echo ""
-    echo "  $0 --real"
-    echo "    (Switches to real mode by creating 'real.mode' file and uses the main-candidate branch)"
-}
-
-# Manually handle long options (--sitl, --real, --overwrite-ip) and combine with getopts for short options
-PARSED_ARGS=()
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --sitl)
-            if [ "$USE_REAL" = true ]; then
-                echo "❌ Cannot use --sitl and --real simultaneously."
-                exit 1
-            fi
-            USE_SITL=true
-            shift
-            ;;
-        --real)
-            if [ "$USE_SITL" = true ]; then
-                echo "❌ Cannot use --sitl and --real simultaneously."
-                exit 1
-            fi
-            USE_REAL=true
-            shift
-            ;;
-        --overwrite-ip)
-            if [ -n "$2" ]; then
-                OVERWRITE_IP="$2"
-                shift 2
-            else
-                echo "❌ --overwrite-ip requires an argument."
-                display_usage
-                exit 1
-            fi
-            ;;
-        -g|-u|-n|-s|-h|-b)
-            PARSED_ARGS+=("$1" "$2")
-            if [ "$1" = "-b" ]; then
-                shift 2
-            else
-                shift 1
-            fi
-            ;;
-        *)
-            PARSED_ARGS+=("$1")
-            shift
-            ;;
-    esac
-done
-
-# Repass parsed options to getopts for short options processing
-set -- "${PARSED_ARGS[@]}"
-
-# Parse command-line options using getopts for short options
-while getopts "gunshb:" opt; do
-    case ${opt} in
-        g) RUN_GCS_SERVER=false ;;
-        u) RUN_GUI_APP=false ;;
-        n) USE_TMUX=false ;;
-        s) COMBINED_VIEW=false ;;
-        h)
-            display_usage
-            exit 0
-            ;;
-        b) BRANCH_NAME="$OPTARG" ;;
-        *)
-            display_usage
-            exit 1
-            ;;
-    esac
-done
-
-# Function to check if a command is installed and install it if not
-check_command_installed() {
-    local cmd="$1"
-    local pkg="$2"
-    if ! command -v "$cmd" &> /dev/null; then
-        echo "⚠️  $cmd could not be found. Installing $pkg..."
-        sudo apt-get update
-        sudo apt-get install -y "$pkg"
-        if [ $? -ne 0 ]; then
-            echo "❌ Failed to install $pkg. Please install it manually."
-            exit 1
-        else
-            echo "✅ $pkg installed successfully."
-        fi
-    else
-        echo "✅ $cmd is already installed."
-    fi
-}
-
-# Function to check if tmux is installed and install it if not
-check_tmux_installed() {
-    check_command_installed "tmux" "tmux"
-}
-
-# Function to check if a port is in use and kill the process using it
-check_and_kill_port() {
-    local port="$1"
-    check_command_installed "lsof" "lsof"
-    pids=$(lsof -t -i :"$port")
-    if [ -n "$pids" ]; then
-        echo "⚠️  Port $port is in use by process(es): $pids"
-        for pid in $pids; do
-            process_name=$(ps -p "$pid" -o comm=)
-            echo "Process using port $port: $process_name (PID: $pid)"
-            echo "Killing process $pid..."
-            kill -9 "$pid"
-            if [ $? -eq 0 ]; then
-                echo "✅ Process $pid killed."
-            else
-                echo "❌ Failed to kill process $pid."
-                exit 1
-            fi
-        done
-    else
-        echo "✅ Port $port is free."
-    fi
-}
-
-# Function to display tmux instructions
-show_tmux_instructions() {
-    echo ""
-    echo "==============================================="
-    echo "  Quick tmux Guide:"
-    echo "==============================================="
-    echo "Prefix key (Ctrl+B), then:"
-    if [ "$COMBINED_VIEW" = true ]; then
-        echo "  - Switch between panes: Arrow keys (e.g., Ctrl+B, then →)"
-        echo "  - Resize panes: Hold Ctrl+B, then press and hold an arrow key"
-    else
-        echo "  - Switch between windows: Number keys (e.g., Ctrl+B, then 1, 2)"
-    fi
-    echo "  - Detach from session: Ctrl+B, then D"
-    echo "  - Reattach to session: tmux attach -t $SESSION_NAME"
-    echo "  - Close pane/window: Type 'exit' or press Ctrl+D"
-    echo "==============================================="
-    echo ""
-}
-
-# Paths to component scripts
-# Change directory to PARENT_DIR before running the GCS server app
-GCS_SERVER_SCRIPT="cd $PARENT_DIR && $VENV_PATH/bin/python gcs-server/app.py"
-GUI_APP_SCRIPT="cd $SCRIPT_DIR/dashboard/drone-dashboard && npm start"
-
-# Function to update the repository
-update_repository() {
-    if [ -n "$BRANCH_NAME" ]; then
-        echo "🔄 Running repository update script for branch '$BRANCH_NAME'..."
-        if [ -f "$UPDATE_SCRIPT_PATH" ]; then
-            bash "$UPDATE_SCRIPT_PATH" -b "$BRANCH_NAME"
-            if [ $? -ne 0 ]; then
-                echo "❌ Error: Repository update failed. Exiting."
-                exit 1
-            else
-                echo "✅ Repository successfully updated."
-            fi
-        else
-            echo "❌ Error: Update script not found at $UPDATE_SCRIPT_PATH."
-            exit 1
-        fi
-    else
-        echo "🔄 No branch flag provided. Keeping the current branch."
-    fi
-}
-
-# Function to load the virtual environment
-load_virtualenv() {
-    if [ -d "$VENV_PATH" ]; then
-        source "$VENV_PATH/bin/activate"
-        echo "✅ Virtual environment activated."
-    else
-        echo "❌ Error: Virtual environment not found at $VENV_PATH."
-        exit 1
-    fi
-}
-
-# Function to handle .env file with overwrite option
-handle_env_file() {
-    echo "-----------------------------------------------"
-    echo "  Checking for .env configuration file..."
-    echo "-----------------------------------------------"
-
-    if [ -f "$ENV_FILE_PATH" ]; then
-        echo "✅ .env file found at $ENV_FILE_PATH."
-        if [ -n "$OVERWRITE_IP" ]; then
-            echo "🔧 Overwriting server IP to $OVERWRITE_IP in .env."
-            # Create a backup before modifying
-            cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
-            if [ $? -ne 0 ]; then
-                echo "❌ Failed to create backup of .env file. Please check permissions."
-                exit 1
-            fi
-            # Update the REACT_APP_SERVER_URL in .env
-            sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
-            if [ $? -eq 0 ]; then
-                echo "✅ REACT_APP_SERVER_URL updated to http://$OVERWRITE_IP"
-                echo "✅ Backup of original .env saved as .env.bak"
-            else
-                echo "❌ Failed to update REACT_APP_SERVER_URL. Please check permissions."
-                exit 1
-            fi
-        else
-            echo "Current Configuration:"
-            echo "---------------------------------"
-            # Extract and display relevant variables
-            REACT_APP_SERVER_URL=$(grep '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-            REACT_APP_FLASK_PORT=$(grep '^REACT_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-            DRONE_APP_FLASK_PORT=$(grep '^DRONE_APP_FLASK_PORT=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-            GENERATE_SOURCEMAP=$(grep '^GENERATE_SOURCEMAP=' "$ENV_FILE_PATH" | cut -d '=' -f2)
-
-            echo "REACT_APP_SERVER_URL=$REACT_APP_SERVER_URL"
-            echo "REACT_APP_FLASK_PORT=$REACT_APP_FLASK_PORT"
-            echo "DRONE_APP_FLASK_PORT=$DRONE_APP_FLASK_PORT"
-            echo "GENERATE_SOURCEMAP=$GENERATE_SOURCEMAP"
-            echo "---------------------------------"
-        fi
-    else
-        echo "⚠️  .env file not found at $ENV_FILE_PATH."
-        echo "Please provide the server IP accessible from the client."
-
-        # Determine if overwrite IP is provided
-        if [ -n "$OVERWRITE_IP" ]; then
-            SERVER_IP="$OVERWRITE_IP"
-            echo "🔧 Overwrite IP provided. Using IP: $SERVER_IP"
-        else
-            # Prompt the user for server IP
-            read -p "Enter the server IP (e.g., 100.84.222.4): " SERVER_IP
-        fi
-
-        # Validate the input (basic validation)
-        if [[ ! $SERVER_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ Invalid IP address format. Exiting."
-            exit 1
-        fi
-
-        # Ensure the directory exists
-        TARGET_DIR=$(dirname "$ENV_FILE_PATH")
-        if [ ! -d "$TARGET_DIR" ]; then
-            echo "📁 Directory $TARGET_DIR does not exist. Creating it..."
-            mkdir -p "$TARGET_DIR"
-            if [ $? -ne 0 ]; then
-                echo "❌ Failed to create directory $TARGET_DIR. Please check permissions."
-                exit 1
-            else
-                echo "✅ Directory $TARGET_DIR created successfully."
-            fi
-        fi
-
-        # Create the .env file with the provided IP
-        echo "Creating .env file at $ENV_FILE_PATH..."
-        cat <<EOL > "$ENV_FILE_PATH"
-# .env file
-# REACT_APP_SERVER_URL=http://<SERVER_IP_OR_HOSTNAME>
-REACT_APP_SERVER_URL=http://$SERVER_IP
-REACT_APP_FLASK_PORT=5000
-DRONE_APP_FLASK_PORT=7070
-
-GENERATE_SOURCEMAP=false
-EOL
-
-        if [ $? -eq 0 ]; then
-            echo "✅ .env file created successfully."
-            echo "You can manually edit the .env file later if needed."
-        else
-            echo "❌ Failed to create .env file. Please check permissions."
-            exit 1
-        fi
-    fi
-}
-
-# Function to create or delete the real.mode file based on mode flags
-handle_real_mode_file() {
-    if [ "$USE_REAL" = true ]; then
-        echo "-----------------------------------------------"
-        echo "  Switching to Real Mode: Creating 'real.mode' file..."
-        echo "-----------------------------------------------"
-        # Create the real.mode file
-        touch "$REAL_MODE_FILE"
-        if [ $? -eq 0 ]; then
-            echo "✅ 'real.mode' file created at $REAL_MODE_FILE."
-        else
-            echo "❌ Failed to create 'real.mode' file. Please check permissions."
-            exit 1
-        fi
-    elif [ "$USE_SITL" = true ]; then
-        echo "-----------------------------------------------"
-        echo "  Switching to Simulation Mode: Deleting 'real.mode' file if exists..."
-        echo "-----------------------------------------------"
-        if [ -f "$REAL_MODE_FILE" ]; then
-            rm "$REAL_MODE_FILE"
-            if [ $? -eq 0 ]; then
-                echo "✅ 'real.mode' file deleted from $REAL_MODE_FILE."
-            else
-                echo "❌ Failed to delete 'real.mode' file. Please check permissions."
-                exit 1
-            fi
-        else
-            echo "ℹ️  'real.mode' file does not exist. Already in Simulation Mode."
-        fi
-    else
-        echo "-----------------------------------------------"
-        echo "  No mode switch argument provided. Keeping current mode."
-        echo "-----------------------------------------------"
-    fi
-}
-
-# Function to start services in tmux
-start_services_in_tmux() {
-    local session="$SESSION_NAME"
-
-    # Kill existing tmux session if it exists
-    if tmux has-session -t "$session" 2>/dev/null; then
-        echo "⚠️  Killing existing tmux session '$session'..."
-        tmux kill-session -t "$session"
-        sleep 1
-    fi
-
-    echo "🟢 Creating tmux session '$session'..."
-    tmux new-session -d -s "$session"
-
-    if [ "$ENABLE_MOUSE" = true ]; then
-        tmux set-option -g mouse on
-    fi
-
-    declare -A components
-
-    if [ "$RUN_GCS_SERVER" = true ]; then
-        components["GCS-Server"]="$GCS_SERVER_SCRIPT"
-    fi
-
-    if [ "$RUN_GUI_APP" = true ]; then
-        components["GUI-React"]="$GUI_APP_SCRIPT"
-    fi
-
-    if [ "$COMBINED_VIEW" = true ]; then
-        tmux rename-window -t "$session:0" "CombinedView"
-        local pane_index=0
-        for component_name in "${!components[@]}"; do
-            if [ $pane_index -eq 0 ]; then
-                tmux send-keys -t "$session:CombinedView.$pane_index" "clear; ${components[$component_name]}; bash" C-m
-            else
-                tmux split-window -t "$session:CombinedView" -h
-                tmux select-pane -t "$session:CombinedView.$pane_index"
-                tmux send-keys -t "$session:CombinedView.$pane_index" "clear; ${components[$component_name]}; bash" C-m
-            fi
-            pane_index=$((pane_index + 1))
-        done
-        if [ $pane_index -gt 1 ]; then
-            tmux select-layout -t "$session:CombinedView" tiled
-        fi
-    else
-        local window_index=0
-        for component_name in "${!components[@]}"; do
-            if [ "$window_index" -eq 0 ]; then
-                tmux rename-window -t "$session:0" "$component_name"
-                tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
-            else
-                tmux new-window -t "$session" -n "$component_name"
-                tmux send-keys -t "$session:$component_name" "clear; ${components[$component_name]}; bash" C-m
-            fi
-            window_index=$((window_index + 1))
-        done
-    fi
-
-    show_tmux_instructions
-    tmux attach-session -t "$session"
-}
-
-# Function to start services without tmux
-start_services_no_tmux() {
-    echo "🟢 Starting services without tmux..."
-    if [ "$RUN_GCS_SERVER" = true ]; then
-        gnome-terminal -- bash -c "$GCS_SERVER_SCRIPT; bash"
-    fi
-    if [ "$RUN_GUI_APP" = true ]; then
-        gnome-terminal -- bash -c "$GUI_APP_SCRIPT; bash"
-    fi
-}
-
-#########################################
-# Main Execution Sequence
-#########################################
-
-echo "==============================================="
-echo "  Initializing DroneServices System..."
-echo "==============================================="
-echo ""
-
-# Check for required commands
-check_tmux_installed
+# System checks
+check_command_installed "tmux" "tmux"
 check_command_installed "lsof" "lsof"
 
-# Handle mode switching (--real or --sitl)
+# Execute setup sequence
 handle_real_mode_file
-
-# Update repository based on branch selection
 update_repository
-
-# Load the virtual environment
 load_virtualenv
+handle_env_file  
+setup_production_environment
 
-# Handle .env file with overwrite option
-handle_env_file
+# Port management
+log_info "Checking ports for $DEPLOYMENT_MODE mode..."
+if [[ "$RUN_GCS_SERVER" == "true" ]]; then
+    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+        prod_port=$(echo "$PROD_WSGI_BIND" | cut -d':' -f2)
+        check_and_kill_port "$prod_port"
+    else
+        check_and_kill_port "$DEV_FLASK_PORT"
+    fi
+fi
 
-# Display summary of selected options
-echo ""
-echo "==============================================="
-echo "  Configuration Summary:"
-echo "==============================================="
-if [ "$USE_SITL" = true ]; then
-    echo "✔️  Mode: Simulation (SITL)"
-elif [ "$USE_REAL" = true ]; then
-    echo "✔️  Mode: Real"
+if [[ "$RUN_GUI_APP" == "true" ]]; then
+    check_and_kill_port "$DEV_REACT_PORT"
+fi
+
+# Start services
+if [[ "$USE_TMUX" == "true" ]]; then
+    start_services_in_tmux
 else
-    CURRENT_MODE="Unknown (based on 'real.mode' file)"
-    if [ -f "$REAL_MODE_FILE" ]; then
-        CURRENT_MODE="Real Mode"
-    else
-        CURRENT_MODE="Simulation Mode"
-    fi
-    echo "✔️  Mode: $CURRENT_MODE"
+    start_services_no_tmux
 fi
 
-echo "✔️  Branch: $BRANCH_NAME"
-echo "✔️  GCS Server: $([ "$RUN_GCS_SERVER" = true ] && echo "Enabled" || echo "Disabled")"
-echo "✔️  GUI React App: $([ "$RUN_GUI_APP" = true ] && echo "Enabled" || echo "Disabled")"
-echo "✔️  Use tmux: $([ "$USE_TMUX" = true ] && echo "Yes" || echo "No")"
-echo "✔️  View Mode: $([ "$COMBINED_VIEW" = true ] && echo "Combined" || echo "Separate Windows")"
-if [ -n "$OVERWRITE_IP" ]; then
-    echo "✔️  Server IP Overwrite: Enabled ($OVERWRITE_IP)"
+log_success "Drone Services System Started Successfully!"
+log_info "All services running in $(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]') mode"
+
+if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+    log_info "Production optimizations active"
+    log_info "Flask working directory: $GCS_SERVER_DIR (FIXED)"
 else
-    echo "✔️  Server IP Overwrite: Disabled"
-fi
-echo "==============================================="
-echo ""
-
-# Kill existing tmux session if it exists
-echo "-----------------------------------------------"
-echo "Ensuring no existing tmux session named '$SESSION_NAME' is running..."
-echo "-----------------------------------------------"
-if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    echo "⚠️  Killing existing tmux session '$SESSION_NAME'..."
-    tmux kill-session -t "$SESSION_NAME"
-    sleep 1
-else
-    echo "✅ No existing tmux session named '$SESSION_NAME'."
-fi
-
-# Check and free up ports
-echo "-----------------------------------------------"
-echo "Checking and freeing up default ports..."
-echo "-----------------------------------------------"
-if [ "$RUN_GCS_SERVER" = true ]; then
-    check_and_kill_port "$GCS_PORT"
-fi
-
-if [ "$RUN_GUI_APP" = true ]; then
-    check_and_kill_port "$GUI_PORT"
-fi
-
-# Start DroneServices components
-run_droneservices_components() {
-    echo "-----------------------------------------------"
-    echo "Starting DroneServices components..."
-    echo "-----------------------------------------------"
-
-    if [ "$RUN_GCS_SERVER" = true ]; then
-        echo "✅ GCS Server will be started."
-    else
-        echo "❌ GCS Server is disabled."
-    fi
-
-    if [ "$RUN_GUI_APP" = true ]; then
-        echo "✅ GUI React App will be started."
-    else
-        echo "❌ GUI React App is disabled."
-    fi
-
-    if [ "$USE_TMUX" = true ]; then
-        if [ "$COMBINED_VIEW" = true ]; then
-            echo "🟢 Components will be started in a combined view (split panes)."
-        else
-            echo "🟢 Components will be started in separate tmux windows."
-        fi
-        start_services_in_tmux
-    else
-        echo "🟢 Starting services without tmux..."
-        start_services_no_tmux
-    fi
-}
-
-run_droneservices_components
-
-echo "==============================================="
-echo "  DroneServices System Startup Complete!"
-echo "==============================================="
-echo ""
-echo "All selected components are now running."
-if [ "$USE_TMUX" = true ]; then
-    echo "You can detach from the tmux session without stopping the services."
-    echo "Use 'tmux attach -t $SESSION_NAME' to reattach to the session."
-    echo ""
-    echo "To kill the tmux session and stop all components, run:"
-    echo "👉 tmux kill-session -t $SESSION_NAME"
-    echo ""
-    echo "To kill all tmux sessions (caution: this will kill all tmux sessions on the system), run:"
-    echo "👉 tmux kill-server"
-    echo ""
+    log_info "Development mode with hot reloading active"
 fi

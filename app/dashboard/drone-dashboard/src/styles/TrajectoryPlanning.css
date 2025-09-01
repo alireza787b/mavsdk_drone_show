@@ -1,0 +1,1574 @@
+/* src/styles/TrajectoryPlanning.css */
+@import './DesignTokens.css';
+
+/* =============================================== */
+/* MAIN LAYOUT */
+/* =============================================== */
+
+.trajectory-planning {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-bg-light);
+  font-family: var(--font-family-primary);
+}
+
+/* =============================================== */
+/* HEADER SECTION */
+/* =============================================== */
+
+.trajectory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-base) var(--spacing-lg);
+  background: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-light);
+  box-shadow: var(--shadow-base);
+  z-index: var(--z-sticky);
+  position: relative;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-base);
+}
+
+.header-left h1 {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.trajectory-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.trajectory-stats .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: var(--color-bg-light);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.trajectory-stats .stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.5px;
+}
+
+.trajectory-stats .stat-value {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  font-family: var(--font-family-mono);
+}
+
+/* =============================================== */
+/* MAIN CONTAINER */
+/* =============================================== */
+
+.trajectory-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.trajectory-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-text-primary);
+}
+
+/* =============================================== */
+/* TOOLBAR SECTION */
+/* =============================================== */
+
+.trajectory-toolbar {
+  background-color: var(--color-bg-primary);
+  padding: var(--spacing-md) var(--spacing-base);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-dark-sm);
+  /* z-index: var(--z-fixed); */
+  position: relative;
+  border-bottom: 1px solid var(--color-border-primary);
+  flex-wrap: wrap;
+  gap: var(--spacing-base);
+  min-height: var(--toolbar-height);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.trajectory-toolbar button,
+.toolbar-btn {
+  padding: var(--spacing-sm) var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  border-radius: var(--border-radius-base);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-all);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  white-space: nowrap;
+}
+
+.trajectory-toolbar button:hover,
+.toolbar-btn:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  transform: translateY(-1px);
+}
+
+.trajectory-toolbar button.active,
+.toolbar-btn.active {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.trajectory-toolbar button:disabled,
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.trajectory-toolbar select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.trajectory-toolbar select:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+}
+
+.trajectory-toolbar select option {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+
+.toolbar-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family-mono);
+}
+
+/* =============================================== */
+/* MAP CONTAINER */
+/* =============================================== */
+
+.map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg-light);
+}
+
+.map-instruction-overlay {
+  position: absolute;
+  top: var(--spacing-base);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--color-text-primary);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  font-size: var(--font-size-base);
+  z-index: var(--z-popover);
+  pointer-events: none;
+  animation: instructionPulse 2s infinite;
+  backdrop-filter: blur(8px);
+  border: 2px solid var(--color-primary);
+  font-weight: var(--font-weight-medium);
+  box-shadow: 0 4px 16px rgba(0, 212, 255, 0.3);
+}
+
+.map-instruction-overlay.drag-mode {
+  background: rgba(255, 193, 7, 0.9);
+  color: var(--color-warning-text);
+  border-color: var(--color-warning);
+  box-shadow: 0 4px 16px rgba(255, 193, 7, 0.3);
+}
+
+/* =============================================== */
+/* WAYPOINT MARKERS */
+/* =============================================== */
+
+.waypoint-marker-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.waypoint-marker-container.selected {
+  z-index: var(--z-popover);
+}
+
+.waypoint-marker-container.dragging {
+  z-index: var(--z-tooltip);
+}
+
+.waypoint-marker {
+  transition: var(--transition-all);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  user-select: none;
+  font-family: var(--font-family-primary);
+  position: relative;
+}
+
+.waypoint-marker:hover {
+  transform: scale(1.15);
+  z-index: var(--z-tooltip);
+  box-shadow: 0 4px 16px rgba(0, 123, 255, 0.6);
+}
+
+.waypoint-marker.selected {
+  z-index: var(--z-popover);
+  animation: selectedPulse 1.5s infinite;
+}
+
+.waypoint-marker.dragging {
+  cursor: grabbing !important;
+  transform: scale(1.2);
+  z-index: var(--z-tooltip);
+  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.6);
+  transition: none;
+}
+
+.speed-warning-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--color-danger);
+  color: var(--color-text-primary);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  animation: warningPulse 2s infinite;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.4);
+  border: 2px solid white;
+  pointer-events: none;
+}
+
+/* =============================================== */
+/* WAYPOINT PANEL */
+/* =============================================== */
+
+.waypoint-panel {
+  width: var(--panel-width-base);
+  background: var(--color-text-primary);
+  border-left: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  box-shadow: var(--shadow-md);
+}
+
+.waypoint-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+  padding: var(--spacing-base);
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.waypoint-panel-header h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.speed-warning-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-danger-border);
+}
+
+.waypoint-panel p {
+  padding: var(--spacing-base);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.waypoint-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm) 0;
+}
+
+/* =============================================== */
+/* WAYPOINT ITEMS */
+/* =============================================== */
+
+.waypoint-item {
+  padding: var(--spacing-md) var(--spacing-base);
+  border-bottom: 1px solid var(--color-bg-light);
+  cursor: pointer;
+  transition: var(--transition-base);
+  position: relative;
+}
+
+.waypoint-item:hover {
+  background: var(--color-bg-light);
+}
+
+.waypoint-item.selected {
+  background: var(--color-primary-light);
+  border-left: 3px solid var(--color-primary);
+}
+
+.waypoint-item.speed-warning {
+  border-left: 4px solid var(--color-danger);
+  background: linear-gradient(to right, var(--color-danger-light), transparent);
+}
+
+.waypoint-item.editing {
+  background: var(--color-primary-light);
+  border-left: 4px solid var(--color-primary);
+  box-shadow: 0 2px 8px var(--color-primary-light);
+}
+
+.waypoint-item.validation-error {
+  border-left: 4px solid var(--color-danger);
+  background: linear-gradient(to right, var(--color-danger-light), transparent);
+  animation: validationError 1s ease-out;
+}
+
+.waypoint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.waypoint-name-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.waypoint-header strong {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.waypoint-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.waypoint-actions .action-btn,
+.edit-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: none;
+  background: none;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  color: var(--color-text-tertiary);
+}
+
+.action-btn.fly-btn:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.action-btn.delete-btn:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.edit-btn.save-btn {
+  background: var(--color-success);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.edit-btn.save-btn:hover {
+  background: #218838;
+  transform: scale(1.1);
+}
+
+.edit-btn.cancel-btn {
+  background: var(--color-text-tertiary);
+  color: var(--color-text-primary);
+}
+
+.edit-btn.cancel-btn:hover {
+  background: var(--color-danger);
+  transform: scale(1.1);
+}
+
+.waypoint-details {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.detail-label {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  min-width: 60px;
+}
+
+.detail-value {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+  text-align: right;
+  font-family: var(--font-family-mono);
+}
+
+.detail-value.editable {
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-base);
+  border: 1px solid transparent;
+}
+
+.detail-value.editable:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-border);
+}
+
+/* =============================================== */
+/* EDIT CONTROLS */
+/* =============================================== */
+
+.edit-single,
+.edit-coordinates {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+}
+
+.edit-coordinates {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-xs);
+}
+
+.edit-input {
+  padding: var(--spacing-xs);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  transition: var(--transition-base);
+  flex: 1;
+}
+
+.edit-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.edit-input-small {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.edit-help {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs);
+  background: var(--color-info-light);
+  border-radius: var(--border-radius-sm);
+  text-align: center;
+  border: 1px solid var(--color-info-border);
+}
+
+.edit-help small {
+  color: var(--color-info);
+  font-size: var(--font-size-xs);
+  font-style: italic;
+}
+
+/* =============================================== */
+/* SPEED DISPLAYS */
+/* =============================================== */
+
+.speed-row {
+  border-top: 1px solid var(--color-bg-light);
+  padding-top: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.speed-display {
+  display: flex;
+  flex-direction: column;
+  /* align-items: flex-end; */
+  gap: var(--spacing-xs);
+}
+
+.speed-value {
+  transition: var(--transition-base);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+}
+
+.speed-value.speed-feasible {
+  color: var(--color-success);
+}
+
+.speed-value.speed-marginal {
+  color: var(--color-warning);
+}
+
+.speed-value.speed-impossible {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+.speed-value.updating {
+  animation: speedRecalculate 0.8s ease-out;
+}
+
+.speed-warning-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.speed-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.speed-feasible {
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.speed-marginal {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+}
+
+.speed-impossible {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+/* =============================================== */
+/* ELEVATION & INFO DISPLAYS */
+/* =============================================== */
+
+.info-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: var(--spacing-sm);
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-base);
+  color: var(--color-info);
+}
+
+.info-toggle:hover {
+  background: var(--color-info-light);
+  transform: scale(1.1);
+}
+
+.elevation-info {
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-base);
+  background: linear-gradient(135deg, var(--color-info-light), transparent);
+  border: 2px solid var(--color-info-border);
+  border-radius: var(--border-radius-md);
+  animation: slideIn 0.3s ease-out;
+}
+
+.elevation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-info-border);
+}
+
+.elevation-item:last-child {
+  border-bottom: none;
+}
+
+.elevation-item label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  font-size: var(--font-size-sm);
+}
+
+.elevation-item span {
+  font-family: var(--font-family-mono);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+}
+
+.estimate-badge {
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  margin-left: var(--spacing-sm);
+  border: 1px solid var(--color-warning-border);
+}
+
+/* =============================================== */
+/* START/END INDICATORS */
+/* =============================================== */
+
+.start-indicator {
+  color: var(--color-success) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.start-indicator::before {
+  content: "🟢 ";
+  margin-right: var(--spacing-xs);
+}
+
+.end-indicator {
+  color: var(--color-danger) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.end-indicator::before {
+  content: "🔴 ";
+  margin-right: var(--spacing-xs);
+}
+
+/* =============================================== */
+/* SUMMARY SECTION */
+/* =============================================== */
+
+.waypoint-summary {
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-md);
+  background: linear-gradient(135deg, var(--color-bg-light), var(--color-border-light));
+  border-top: 1px solid var(--color-border-light);
+  border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.summary-label {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.summary-value {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+}
+
+/* =============================================== */
+/* FALLBACK STATES */
+/* =============================================== */
+
+.trajectory-fallback-container,
+.trajectory-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-light);
+  padding: var(--spacing-xl);
+}
+
+.trajectory-fallback-content,
+.error-content {
+  max-width: 800px;
+  background: var(--color-text-primary);
+  padding: var(--spacing-2xl);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border-light);
+  text-align: center;
+}
+
+.trajectory-fallback-content h2,
+.error-content h2 {
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.trajectory-fallback-content p,
+.error-content p {
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-relaxed);
+}
+
+/* Fallback feature sections */
+.fallback-features,
+.setup-instructions,
+.alternative-tools,
+.manual-waypoint-entry {
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  margin-bottom: var(--spacing-xl);
+  text-align: left;
+}
+
+.fallback-features {
+  background: var(--color-info-light);
+  border-left: 4px solid var(--color-info);
+}
+
+.setup-instructions {
+  background: var(--color-warning-light);
+  border-left: 4px solid var(--color-warning);
+}
+
+.alternative-tools {
+  background: var(--color-bg-light);
+  border-left: 4px solid var(--color-text-tertiary);
+}
+
+.manual-waypoint-entry {
+  background: var(--color-success-light);
+  border-left: 4px solid var(--color-success);
+}
+
+.fallback-features h3,
+.setup-instructions h3,
+.alternative-tools h3,
+.manual-waypoint-entry h3 {
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.fallback-features h3 { color: var(--color-info); }
+.setup-instructions h3 { color: var(--color-warning-text); }
+.alternative-tools h3 { color: var(--color-text-muted); }
+.manual-waypoint-entry h3 { color: var(--color-success); }
+
+.fallback-features ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fallback-features li {
+  padding: var(--spacing-sm) 0;
+  position: relative;
+  padding-left: var(--spacing-lg);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.fallback-features li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: var(--spacing-sm);
+  color: var(--color-success);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+}
+
+.setup-instructions ol {
+  padding-left: var(--spacing-lg);
+  color: var(--color-warning-text);
+  margin: 0;
+}
+
+.setup-instructions li {
+  margin-bottom: var(--spacing-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.setup-instructions code {
+  background: var(--color-bg-light);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-family: var(--font-family-mono);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.setup-instructions a {
+  color: var(--color-info);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+}
+
+.setup-instructions a:hover {
+  text-decoration: underline;
+}
+
+.form-row {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.form-row input {
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-sm);
+  flex: 1;
+  min-width: 120px;
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+.form-row input:focus {
+  outline: none;
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success-light);
+}
+
+.form-row button {
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: var(--color-success);
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-base);
+  white-space: nowrap;
+}
+
+.form-row button:hover {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+/* =============================================== */
+/* TRAJECTORY LINES */
+/* =============================================== */
+
+.trajectory-line.dragging {
+  opacity: 0.6;
+  stroke-dasharray: 5, 5;
+  animation: dashMove 1s linear infinite;
+}
+
+.trajectory-line.fading {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.trajectory-line-dynamic {
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+.trajectory-line-speed-high {
+  stroke: var(--color-danger);
+  stroke-width: 5;
+  stroke-dasharray: 10, 5;
+  animation: dashMove 2s linear infinite;
+}
+
+.trajectory-line-speed-medium {
+  stroke: var(--color-warning);
+  stroke-width: 4;
+}
+
+.trajectory-line-speed-normal {
+  stroke: var(--color-primary);
+  stroke-width: 4;
+}
+
+/* =============================================== */
+/* MAPBOX OVERRIDES */
+/* =============================================== */
+
+.mapboxgl-popup {
+  font-family: var(--font-family-primary);
+}
+
+.mapboxgl-popup-content {
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-lg);
+  background: var(--color-text-primary);
+  color: var(--color-text-muted);
+}
+
+.mapboxgl-ctrl-attrib {
+  font-size: var(--font-size-xs);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-muted);
+}
+
+/* =============================================== */
+/* ANIMATIONS */
+/* =============================================== */
+
+@keyframes instructionPulse {
+  0%, 100% { 
+    opacity: 0.9; 
+    transform: translateX(-50%) scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: translateX(-50%) scale(1.02);
+  }
+}
+
+@keyframes selectedPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes warningPulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-10px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}
+
+@keyframes speedRecalculate {
+  0% {
+    background-color: var(--color-warning-light);
+    transform: scale(1);
+  }
+  50% {
+    background-color: var(--color-primary-light);
+    transform: scale(1.05);
+  }
+  100% {
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes validationError {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.8; }
+}
+
+@keyframes dashMove {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 15; }
+}
+
+/* =============================================== */
+/* DIALOG STYLES - SAVE, LOAD, EXPORT */
+/* =============================================== */
+
+.dialog-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: var(--z-modal) !important;
+  backdrop-filter: blur(2px);
+}
+
+.dialog-content {
+  background-color: var(--color-bg-primary) !important;
+  padding: var(--spacing-xl) !important;
+  border-radius: var(--border-radius-lg) !important;
+  width: 450px !important;
+  max-width: 90% !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--color-border-light) !important;
+  animation: slideIn 0.2s ease-out;
+  position: relative !important;
+  z-index: calc(var(--z-modal) + 1) !important;
+  /* Debug styles to ensure visibility */
+  min-height: 200px !important;
+  overflow: visible !important;
+}
+
+.dialog-content h3 {
+  margin: 0 0 var(--spacing-lg) 0 !important;
+  color: var(--color-text-primary) !important;
+  font-size: var(--font-size-lg) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-align: center !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+}
+
+.dialog-content input[type="text"] {
+  width: 100% !important;
+  padding: var(--spacing-base) !important;
+  border: 2px solid var(--color-border-light) !important;
+  border-radius: var(--border-radius-md) !important;
+  font-size: var(--font-size-base) !important;
+  font-family: var(--font-family-primary) !important;
+  background: var(--color-bg-light) !important;
+  color: var(--color-text-primary) !important;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-content input[type="text"]:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.dialog-content input[type="text"]::placeholder {
+  color: var(--color-text-tertiary) !important;
+}
+
+.dialog-buttons {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: var(--spacing-base) !important;
+  margin-top: var(--spacing-xl) !important;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-buttons button {
+  padding: var(--spacing-base) var(--spacing-lg) !important;
+  border: none !important;
+  border-radius: var(--border-radius-md) !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: var(--font-weight-medium) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease;
+  min-width: 80px !important;
+  /* Debug styles */
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-buttons button:first-child {
+  background-color: var(--color-bg-light) !important;
+  color: var(--color-text-secondary) !important;
+  border: 1px solid var(--color-border-light) !important;
+}
+
+.dialog-buttons button:first-child:hover {
+  background-color: var(--color-bg-secondary) !important;
+  border-color: var(--color-border-secondary) !important;
+}
+
+.dialog-buttons button:last-child {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+.dialog-buttons button:last-child:hover {
+  background-color: var(--color-primary-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Trajectory list in load dialog */
+.trajectory-list {
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  margin: var(--spacing-lg) 0 !important;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: var(--border-radius-md) !important;
+  background: var(--color-bg-light) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: var(--spacing-base) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  transition: background-color 0.2s ease;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item:last-child {
+  border-bottom: none !important;
+}
+
+.trajectory-item:hover {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.trajectory-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--spacing-xs) !important;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-info strong {
+  color: var(--color-text-primary) !important;
+  font-size: var(--font-size-base) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-info small {
+  color: var(--color-text-tertiary) !important;
+  font-size: var(--font-size-sm) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item button {
+  padding: var(--spacing-sm) var(--spacing-base) !important;
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--border-radius-sm) !important;
+  font-size: var(--font-size-sm) !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease;
+  /* Debug styles */
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item button:hover {
+  background-color: var(--color-primary-hover) !important;
+}
+
+/* Animation for dialog appearance */
+@keyframes slideIn {
+  from {
+    opacity: 0 !important;
+    transform: translateY(-20px) scale(0.95) !important;
+  }
+  to {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+  }
+}
+
+/* =============================================== */
+/* RESPONSIVE DESIGN */
+/* =============================================== */
+
+@media (max-width: 1024px) {
+  .trajectory-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-base);
+  }
+
+  .toolbar-group {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-text {
+    display: none;
+  }
+
+  .toolbar-btn {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .trajectory-header {
+    flex-direction: column;
+    gap: var(--spacing-base);
+    padding: var(--spacing-base);
+  }
+
+  .trajectory-stats {
+    gap: var(--spacing-sm);
+    overflow-x: auto;
+    padding-bottom: var(--spacing-xs);
+  }
+
+  .trajectory-stats .stat-item {
+    min-width: 80px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .waypoint-panel {
+    width: 250px;
+  }
+
+  .waypoint-marker-container {
+    transform: scale(1.2);
+  }
+
+  .speed-warning-badge {
+    width: 20px;
+    height: 20px;
+    font-size: var(--font-size-sm);
+  }
+
+  .elevation-info {
+    padding: var(--spacing-sm);
+  }
+
+  .elevation-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row input {
+    min-width: auto;
+  }
+
+  .waypoint-panel-header {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    align-items: flex-start;
+  }
+
+  .speed-warning-summary {
+    align-self: stretch;
+    justify-content: center;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .detail-value {
+    text-align: left;
+  }
+
+  .speed-display {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .edit-coordinates {
+    gap: var(--spacing-sm);
+  }
+  
+  .edit-input {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm);
+  }
+  
+  .edit-buttons {
+    margin-top: var(--spacing-xs);
+    justify-content: center;
+  }
+  
+  .waypoint-marker.dragging {
+    transform: scale(1.3);
+  }
+}
+
+@media (max-width: 480px) {
+  .trajectory-container {
+    flex-direction: column;
+  }
+  
+  .waypoint-panel {
+    width: 100%;
+    max-height: 200px;
+    order: -1;
+  }
+
+  .map-container {
+    min-height: 400px;
+  }
+
+  .trajectory-fallback-content {
+    padding: var(--spacing-base);
+    margin: var(--spacing-base);
+  }
+
+  .fallback-features,
+  .setup-instructions,
+  .alternative-tools,
+  .manual-waypoint-entry {
+    padding: var(--spacing-base);
+  }
+
+  .waypoint-marker {
+    font-size: 10px;
+  }
+
+  .speed-warning-badge {
+    top: -6px;
+    right: -6px;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+
+  .map-instruction-overlay {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm);
+  }
+
+  .edit-coordinates {
+    align-items: stretch;
+  }
+  
+  .edit-single {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .edit-buttons {
+    margin-top: var(--spacing-sm);
+    justify-content: stretch;
+  }
+  
+  .edit-btn {
+    flex: 1;
+    min-height: 32px;
+  }
+}
+
+/* =============================================== */
+/* ACCESSIBILITY */
+/* =============================================== */
+
+.waypoint-item:focus,
+.waypoint-item:focus-within {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+.action-btn:focus-visible,
+.toolbar-btn:focus-visible,
+.waypoint-marker:focus-visible,
+.info-toggle:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.detail-value.editable:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+  .waypoint-marker {
+    border-width: 4px;
+  }
+
+  .speed-warning-badge {
+    border-width: 3px;
+  }
+
+  .elevation-info {
+    border-width: 3px;
+  }
+
+  .toolbar-btn {
+    border-width: 3px;
+  }
+
+  .edit-input {
+    border-width: 3px;
+  }
+  
+  .waypoint-marker.dragging {
+    border-width: 4px;
+  }
+  
+  .detail-value.editable:hover {
+    border-width: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waypoint-marker,
+  .map-instruction-overlay,
+  .waypoint-item,
+  .speed-value,
+  .waypoint-marker:hover,
+  .info-toggle:hover,
+  .warningPulse,
+  .slideIn,
+  .trajectory-toolbar button:hover,
+  .toolbar-btn:hover {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+  
+  .waypoint-item.editing,
+  .waypoint-marker.dragging,
+  .trajectory-line.dragging {
+    will-change: auto;
+  }
+}
+
+@media print {
+  .edit-buttons,
+  .edit-help,
+  .waypoint-marker.dragging,
+  .speed-warning-badge,
+  .map-instruction-overlay {
+    display: none;
+  }
+  
+  .detail-value.editable {
+    cursor: default;
+    border: none;
+  }
+  
+  .detail-value.editable:hover {
+    background: transparent;
+  }
+
+  .waypoint-marker-container {
+    position: static;
+  }
+
+  .waypoint-marker {
+    border: 2px solid black;
+    background: white !important;
+    color: black !important;
+  }
+}

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Global variables
-VERSION="v2.12.12"
+VERSION="v3.5.0"
 ARM64_URL="https://github.com/mavlink/MAVSDK/releases/download/$VERSION/mavsdk_server_linux-arm64-musl"
 X86_64_URL="https://github.com/mavlink/MAVSDK/releases/download/$VERSION/mavsdk_server_musl_x86_64"
 FILENAME="mavsdk_server"

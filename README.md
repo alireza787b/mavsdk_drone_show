@@ -67,6 +67,7 @@ In short, MDS 3 is **one package** that can be used for:
 - **React Dashboard (Frontend)**  
   - Live position, battery, mode, and failsafe status for each drone.  
   - Mission upload interface for offline trajectories or real-time swarm commands.  
+  - **3D Trajectory Planning** - Interactive waypoint creation with real terrain elevation, speed optimization, and professional trajectory management (requires Mapbox access token for full functionality).  
   - Formation editor (drag-and-drop) for offline shows (coming soon).  
   - REST API endpoints via MAVLink2REST for external integrations.
 
@@ -141,6 +142,7 @@ All the detailed setup instructions—downloading the Docker image, creating SIT
 > - Network, MAVLink Router, Netbird VPN setup  
 > - React dashboard startup (`linux_dashboard_start.sh --sitl`)  
 > - How to upload offline trajectories or launch live swarm missions  
+> - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)  
 
 
 

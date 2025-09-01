@@ -1,7 +1,8 @@
 {
     "name": "drone-dashboard",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "private": true,
+    "homepage": ".",
     "dependencies": {
         "@emotion/react": "^11.14.0",
         "@emotion/styled": "^11.14.0",
@@ -13,9 +14,10 @@
         "@testing-library/jest-dom": "^5.17.0",
         "@testing-library/react": "^13.4.0",
         "@testing-library/user-event": "^13.5.0",
-        "axios": "^1.4.0",
+        "@turf/distance": "^7.2.0",
+        "@turf/turf": "^7.2.0",
+        "axios": "^1.7.7",
         "browserify-zlib": "^0.2.0",
-        "cesium": "^1.108.0",
         "classnames": "^2.3.2",
         "coordinate-parser": "^1.0.7",
         "csv-parser": "^3.0.0",
@@ -24,6 +26,7 @@
         "https-browserify": "^1.0.0",
         "leaflet": "^1.9.4",
         "lodash": "^4.17.21",
+        "mapbox-gl": "^2.15.0",
         "papaparse": "^5.4.1",
         "plotly.js-dist": "^2.25.2",
         "postcss": "^8.4.39",
@@ -34,6 +37,7 @@
         "react-icons": "^4.12.0",
         "react-leaflet": "^4.2.1",
         "react-leaflet-fullscreen": "^4.1.0",
+        "react-map-gl": "^7.1.9",
         "react-plotly.js": "^2.6.0",
         "react-pro-sidebar": "^1.1.0",
         "react-router-dom": "^6.15.0",
@@ -44,14 +48,13 @@
         "react-toastify": "^10.0.6",
         "react-tooltip": "^5.28.0",
         "react-transition-group": "^4.4.5",
-        "resium": "^1.17.1",
         "stream-http": "^3.2.0",
         "three": "^0.166.1",
         "url": "^0.11.1",
         "web-vitals": "^2.1.4"
     },
     "scripts": {
-        "start": "react-scripts start",
+        "start": "PORT=3030 react-scripts start",
         "build": "react-scripts build",
         "test": "react-scripts test",
         "eject": "react-scripts eject"
@@ -60,7 +63,11 @@
         "extends": [
             "react-app",
             "react-app/jest"
-        ]
+        ],
+        "rules": {
+            "no-unused-vars": "warn",
+            "no-console": "warn"
+        }
     },
     "browserslist": {
         "production": [
@@ -75,7 +82,9 @@
         ]
     },
     "devDependencies": {
-        "copy-webpack-plugin": "^11.0.0",
+        "ajv": "^8.12.0",
+        "ajv-keywords": "^5.1.0",
         "eslint-plugin-jest": "^27.2.3"
-    }
+    },
+    "proxy": "http://localhost:5000"
 }

@@ -1,0 +1,262 @@
+/* src/styles/DesignTokens.css */
+/* Unified Design System for Drone Dashboard */
+
+:root {
+    /* === COLOR PALETTE === */
+    
+    /* Primary Colors - Based on your existing theme */
+    --color-primary: #00d4ff;
+    --color-primary-hover: #00a8cc;
+    --color-primary-light: rgba(0, 212, 255, 0.1);
+    --color-primary-border: rgba(0, 212, 255, 0.2);
+    --color-primary-text: #000000;
+    
+    /* Background Colors - Your established dark theme */
+    --color-bg-primary: #1f2128;
+    --color-bg-secondary: #2a2d3a;
+    --color-bg-tertiary: #3a3f4b;
+    --color-bg-quaternary: #4a4f5b;
+    --color-bg-light: #f8f9fa;
+    --color-bg-overlay: rgba(0, 0, 0, 0.75);
+    
+    /* Text Colors */
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #a2a5b9;
+    --color-text-tertiary: #6c757d;
+    --color-text-muted: #495057;
+    --color-text-inverse: #000000;
+    
+    /* Status Colors */
+    --color-success: #28a745;
+    --color-success-light: rgba(40, 167, 69, 0.1);
+    --color-success-border: rgba(40, 167, 69, 0.2);
+    
+    --color-warning: #ffc107;
+    --color-warning-light: rgba(255, 193, 7, 0.1);
+    --color-warning-border: rgba(255, 193, 7, 0.2);
+    --color-warning-text: #856404;
+    
+    --color-danger: #dc3545;
+    --color-danger-light: rgba(220, 53, 69, 0.1);
+    --color-danger-border: rgba(220, 53, 69, 0.2);
+    
+    --color-info: #17a2b8;
+    --color-info-light: rgba(23, 162, 184, 0.1);
+    --color-info-border: rgba(23, 162, 184, 0.2);
+    
+    /* Border Colors */
+    --color-border-primary: #3a3f4b;
+    --color-border-secondary: #4a4f5b;
+    --color-border-light: #e0e0e0;
+    --color-border-focus: #00d4ff;
+    
+    /* === TYPOGRAPHY === */
+    
+    /* Font Families */
+    --font-family-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    --font-family-mono: 'Monaco', 'Courier New', 'Consolas', monospace;
+    
+    /* Font Sizes */
+    --font-size-xs: 0.75rem;    /* 12px */
+    --font-size-sm: 0.875rem;   /* 14px */
+    --font-size-base: 0.9rem;   /* 14.4px */
+    --font-size-md: 1rem;       /* 16px */
+    --font-size-lg: 1.125rem;   /* 18px */
+    --font-size-xl: 1.25rem;    /* 20px */
+    --font-size-2xl: 1.5rem;    /* 24px */
+    --font-size-3xl: 1.875rem;  /* 30px */
+    
+    /* Font Weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    
+    /* Line Heights */
+    --line-height-tight: 1.2;
+    --line-height-normal: 1.4;
+    --line-height-relaxed: 1.6;
+    
+    /* === SPACING === */
+    
+    --spacing-xs: 0.25rem;   /* 4px */
+    --spacing-sm: 0.5rem;    /* 8px */
+    --spacing-md: 0.75rem;   /* 12px */
+    --spacing-base: 1rem;    /* 16px */
+    --spacing-lg: 1.5rem;    /* 24px */
+    --spacing-xl: 2rem;      /* 32px */
+    --spacing-2xl: 3rem;     /* 48px */
+    --spacing-3xl: 4rem;     /* 64px */
+    
+    /* === BORDER RADIUS === */
+    
+    --border-radius-sm: 4px;
+    --border-radius-base: 6px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --border-radius-xl: 16px;
+    --border-radius-full: 9999px;
+    
+    /* === SHADOWS === */
+    
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-base: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
+    --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+    
+    /* Dark theme specific shadows */
+    --shadow-dark-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-dark-base: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-dark-md: 0 8px 12px rgba(0, 0, 0, 0.3);
+    --shadow-dark-lg: 0 16px 24px rgba(0, 0, 0, 0.4);
+    
+    /* === TRANSITIONS === */
+    
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --transition-all: all 0.2s ease;
+    
+    /* === Z-INDEX === */
+    
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    
+    /* === COMPONENT SPECIFIC === */
+    
+    /* Button Heights */
+    --button-height-sm: 32px;
+    --button-height-base: 40px;
+    --button-height-lg: 48px;
+    
+    /* Input Heights */
+    --input-height-sm: 32px;
+    --input-height-base: 40px;
+    --input-height-lg: 48px;
+    
+    /* Panel Widths */
+    --panel-width-sm: 250px;
+    --panel-width-base: 300px;
+    --panel-width-lg: 400px;
+    
+    /* === BREAKPOINTS === */
+    
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1200px;
+    --breakpoint-2xl: 1400px;
+    
+    /* === ANIMATION EASINGS === */
+    
+    --ease-in-out-cubic: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-out-cubic: cubic-bezier(0.33, 1, 0.68, 1);
+    --ease-in-cubic: cubic-bezier(0.32, 0, 0.67, 0);
+    --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+    /* === SPECIFIC COMPONENT TOKENS === */
+    
+    /* Modal */
+    --modal-backdrop-color: rgba(0, 0, 0, 0.75);
+    --modal-max-width: 500px;
+    --modal-border-radius: var(--border-radius-lg);
+    
+    /* Waypoint Colors */
+    --waypoint-start-color: var(--color-success);
+    --waypoint-end-color: var(--color-danger);
+    --waypoint-default-color: var(--color-primary);
+    --waypoint-selected-color: var(--color-warning);
+    --waypoint-warning-color: #ff6b6b;
+    
+    /* Speed Status Colors */
+    --speed-feasible-color: var(--color-success);
+    --speed-marginal-color: var(--color-warning);
+    --speed-impossible-color: var(--color-danger);
+    
+    /* Toolbar */
+    --toolbar-height: 60px;
+    --toolbar-bg: var(--color-bg-primary);
+    --toolbar-border: var(--color-bg-secondary);
+    
+    /* Map */
+    --map-instruction-bg: rgba(0, 0, 0, 0.8);
+    --trajectory-line-color: var(--color-primary);
+    --trajectory-line-width: 4px;
+  }
+  
+  /* === UTILITY CLASSES === */
+  
+  /* Text Colors */
+  .text-primary { color: var(--color-text-primary); }
+  .text-secondary { color: var(--color-text-secondary); }
+  .text-tertiary { color: var(--color-text-tertiary); }
+  .text-muted { color: var(--color-text-muted); }
+  .text-success { color: var(--color-success); }
+  .text-warning { color: var(--color-warning); }
+  .text-danger { color: var(--color-danger); }
+  .text-info { color: var(--color-info); }
+  
+  /* Background Colors */
+  .bg-primary { background-color: var(--color-bg-primary); }
+  .bg-secondary { background-color: var(--color-bg-secondary); }
+  .bg-tertiary { background-color: var(--color-bg-tertiary); }
+  
+  /* Font Weights */
+  .font-light { font-weight: var(--font-weight-light); }
+  .font-normal { font-weight: var(--font-weight-normal); }
+  .font-medium { font-weight: var(--font-weight-medium); }
+  .font-semibold { font-weight: var(--font-weight-semibold); }
+  .font-bold { font-weight: var(--font-weight-bold); }
+  
+  /* Font Families */
+  .font-mono { font-family: var(--font-family-mono); }
+  
+  /* Transitions */
+  .transition-fast { transition: var(--transition-fast); }
+  .transition-base { transition: var(--transition-base); }
+  .transition-slow { transition: var(--transition-slow); }
+  .transition-all { transition: var(--transition-all); }
+  
+  /* === FOCUS STATES === */
+  .focus-primary:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  
+  .focus-visible:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  
+  /* === RESPONSIVE UTILITIES === */
+  @media (max-width: 768px) {
+    :root {
+      --font-size-base: 0.875rem;
+      --spacing-base: 0.875rem;
+      --panel-width-base: 100%;
+    }
+  }
+  
+  /* === ACCESSIBILITY === */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --transition-fast: 0s;
+      --transition-base: 0s;
+      --transition-slow: 0s;
+      --transition-all: none;
+    }
+    
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }

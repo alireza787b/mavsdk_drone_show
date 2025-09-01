@@ -1,360 +1,654 @@
 #!/bin/bash
 #
-# update_repo_ssh.sh - Git Sync for MDS Repository (Automated Repair Version)
+# update_repo_ssh.sh - Enhanced Git Sync for MDS Repository (FIXED VERSION)
 #
 # This script ensures that the drone's software repository (MDS) is
-# up-to-date before operations start. It performs the following steps:
+# up-to-date before operations start. Enhanced for production swarm deployments.
 #
-# 1. Check network connectivity and GitHub accessibility (SSH/HTTPS).
-# 2. Clean up any stale Git locks and stash local changes.
-# 3. Attempt a normal git fetch (with retries). If it fails, assume there
-#    may be repository corruption and run an integrity check.
-# 4. Run 'git fsck' to identify any integrity issues (ignoring benign dangling
-#    commits). If issues are found:
-#      - If related to stash reflog, clear the stash.
-#      - Otherwise, attempt to repair with git-repair (using a timeout).
-#      - If repair fails (or if no corruption is found but fetch still fails),
-#        reboot the system.
-# 5. If the repository is healthy, switch to the desired branch, reset it to
-#    match origin, and pull the latest changes.
+# FIXED: Removed variable corruption issues and simplified configuration
 #
-# LED indicators (via led_indicator.py) are used to signal status:
-#   - Blue: Git sync in progress.
-#   - Yellow: Git repair in progress.
-#   - Red: Failure.
-#
-# Usage:
-#   ./update_repo_ssh.sh [--branch <branch>] [--sitl] [--real]
-#                          [--repo-url <url>] [--repo-dir <dir>]
-#
-# Author: Alireza Ghaderi
-# Date: 2025-03-02 (Revised: 2025-03-13, updated 2025-03-13 for automated repair on fetch failure)
+# Author: Enhanced for Drone Swarm Project
+# Date: 2025-07-14 (Fixed logging and variable handling)
 #
 
 set -euo pipefail
 
 # ----------------------------------
-# Configuration and Default Settings
+# Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-MAX_RETRIES=10
-INITIAL_DELAY=1               # Delay (in seconds) between retries
-REPAIR_TIMEOUT=120            # Timeout (in seconds) for git-repair (2 minutes)
-SITL_BRANCH="docker-sitl-2"
-REAL_BRANCH="main-candidate"
+readonly SCRIPT_VERSION="2.0.1-fixed"
+readonly SCRIPT_NAME="git-sync"
 
-DEFAULT_REPO_DIR="${HOME}/mavsdk_drone_show"
-DEFAULT_SSH_GIT_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
-DEFAULT_HTTPS_GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
+# Use dynamic variables for user and home directory
+REPO_USER="${REPO_USER:-$USER}"
+REPO_DIR="${REPO_DIR:-$HOME/mavsdk_drone_show}"
 
-# LED control command (assumes virtualenv Python path)
-LED_CMD="/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py"
+# Default values - can be overridden by environment variables
+MAX_RETRIES="${MAX_RETRIES:-10}"
+INITIAL_DELAY="${INITIAL_DELAY:-1}"
+MAX_DELAY="${MAX_DELAY:-60}"
+REPAIR_TIMEOUT="${REPAIR_TIMEOUT:-120}"
+FETCH_TIMEOUT="${FETCH_TIMEOUT:-300}"
+NETWORK_TIMEOUT="${NETWORK_TIMEOUT:-30}"
 
-# -------------------------------------------------
-# Logging Setup - logs are written to /tmp/update_repo.log
-# -------------------------------------------------
-LOG_FILE="/tmp/update_repo.log"
 
+# Branch configuration
+SITL_BRANCH="${SITL_BRANCH:-docker-sitl-2}"
+REAL_BRANCH="${REAL_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main-candidate}"
+
+# Repository URLs
+DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
+DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+
+# Recovery strategy: "graceful" or "aggressive"
+RECOVERY_STRATEGY="${RECOVERY_STRATEGY:-graceful}"
+
+# Swarm behavior settings
+ENABLE_JITTER="${ENABLE_JITTER:-true}"
+MAX_JITTER_SECONDS="${MAX_JITTER_SECONDS:-30}"
+SWARM_OPERATION="${SWARM_OPERATION:-true}"
+
+# Drone identification
+DRONE_ID="${DRONE_ID:-$(hostname)}"
+ENVIRONMENT="${ENVIRONMENT:-production}"
+
+# Paths and commands
+LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
+LOG_FILE="$HOME/logs/drone_git_sync.log"
+LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+
+# ----------------------------------
+# Enhanced Logging System (FIXED - No variable corruption)
+# ----------------------------------
 log() {
-    local message="$1"
-    printf "%s: %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$message" | tee -a "$LOG_FILE"
+    local level="$1"
+    local component="$2"
+    local message="$3"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Structured logging format - write to stderr to avoid variable corruption
+    local log_entry="[$timestamp] [$level] [$SCRIPT_NAME] [$component] [drone:$DRONE_ID] $message"
+    
+    # Write to log file if possible, suppress errors to avoid corruption
+    echo "$log_entry" >> "$LOG_FILE" 2>/dev/null || true
+    
+    # Write to stderr (not stdout) to avoid variable corruption
+    echo "$log_entry" >&2
+    
+    # Send to syslog for centralized collection, suppress errors
+    logger -t "$SCRIPT_NAME" -p "user.$level" "$component: $message" 2>/dev/null || true
 }
+
+log_info() { log "info" "$@"; }
+log_warn() { log "warn" "$@"; }
+log_error() { log "error" "$@"; }
+log_debug() { [[ "${DEBUG:-0}" == "1" ]] && log "debug" "$@" || true; }
 
 log_error_and_exit() {
-    log "ERROR: $1"
-    # Set LED to red to indicate failure
-    $LED_CMD --color red || true
-    exit 1
+    local component="$1"
+    local message="$2"
+    local exit_code="${3:-1}"
+    
+    log_error "$component" "$message"
+    set_led_status "red"
+    cleanup_on_exit
+    exit "$exit_code"
 }
 
-# -------------------------------------------------
-# Retry Function with Fixed Delay
-# -------------------------------------------------
-retry() {
+# ----------------------------------
+# Status and Notification Functions
+# ----------------------------------
+set_led_status() {
+    local color="$1"
+    if [[ "${LED_ENABLED:-true}" == "true" ]]; then
+        $LED_CMD --color "$color" 2>/dev/null || true
+    fi
+}
+
+# ----------------------------------
+# Lock Management for Concurrent Operations
+# ----------------------------------
+acquire_lock() {
+    local timeout="${1:-60}"
+    local count=0
+    
+    while ! (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; do
+        if [[ -f "$LOCK_FILE" ]]; then
+            local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "unknown")
+            if ! kill -0 "$lock_pid" 2>/dev/null; then
+                log_warn "LOCK" "Removing stale lock file (PID $lock_pid no longer exists)"
+                rm -f "$LOCK_FILE"
+                continue
+            fi
+        fi
+        
+        count=$((count + 1))
+        if [[ $count -ge $timeout ]]; then
+            log_error_and_exit "LOCK" "Failed to acquire lock after ${timeout}s"
+        fi
+        
+        log_info "LOCK" "Waiting for lock... (attempt $count/$timeout)"
+        sleep 1
+    done
+    
+    log_debug "LOCK" "Lock acquired (PID $$)"
+}
+
+release_lock() {
+    if [[ -f "$LOCK_FILE" ]]; then
+        rm -f "$LOCK_FILE"
+        log_debug "LOCK" "Lock released"
+    fi
+}
+
+# ----------------------------------
+# Cleanup and Signal Handling
+# ----------------------------------
+cleanup_on_exit() {
+    local exit_code=$?
+    release_lock
+    
+    if [[ $exit_code -ne 0 ]]; then
+        log_error "CLEANUP" "Script exiting with code $exit_code"
+    fi
+    
+    return $exit_code
+}
+
+# Set up signal handlers
+trap cleanup_on_exit EXIT
+trap 'log_warn "SIGNAL" "Received interrupt signal"; exit 130' INT TERM
+
+# ----------------------------------
+# Enhanced Retry Function with Exponential Backoff
+# ----------------------------------
+retry_with_backoff() {
     local retries="$1"
-    local delay="$2"
+    local component="$2"
     shift 2
     local count=0
+    local delay="$INITIAL_DELAY"
+    
     until "$@"; do
-        exit_code=$?
+        local exit_code=$?
         count=$((count + 1))
-        if [ $count -lt $retries ]; then
-            log "Command failed with exit code $exit_code (attempt $count/$retries). Retrying in $delay seconds..."
+        
+        if [[ $count -lt $retries ]]; then
+            log_warn "$component" "Command failed with exit code $exit_code (attempt $count/$retries). Retrying in ${delay}s..."
             sleep "$delay"
+            
+            # Exponential backoff with jitter
+            delay=$((delay * 2))
+            if [[ $delay -gt $MAX_DELAY ]]; then
+                delay=$MAX_DELAY
+            fi
+            
+            # Add jitter to prevent thundering herd in swarm operations
+            if [[ "$ENABLE_JITTER" == "true" ]]; then
+                local jitter=$((RANDOM % 5))
+                delay=$((delay + jitter))
+            fi
         else
-            log "Command failed after $count attempts."
+            log_error "$component" "Command failed after $count attempts"
             return $exit_code
         fi
     done
+    
+    if [[ $count -gt 1 ]]; then
+        log_info "$component" "Command succeeded after $count attempts"
+    fi
     return 0
 }
 
-# -------------------------------------------------
-# Check Network Connectivity and GitHub Access
-# -------------------------------------------------
+# ----------------------------------
+# Network Connectivity Check with Swarm Awareness
+# ----------------------------------
 check_network_connectivity() {
-    local retries="$MAX_RETRIES"
-    local delay="$INITIAL_DELAY"
-    local count=0
-    until ping -c 1 github.com >/dev/null 2>&1; do
-        count=$((count + 1))
-        if [ $count -lt $retries ]; then
-            log "Network check failed (attempt $count/$retries). Retrying in $delay seconds..."
-            sleep "$delay"
-        else
-            log_error_and_exit "No network connectivity after multiple attempts."
+    local component="NETWORK"
+    log_info "$component" "Checking network connectivity..."
+    
+    # Add jitter for swarm operations to prevent simultaneous network tests
+    if [[ "$SWARM_OPERATION" == "true" && "$ENABLE_JITTER" == "true" ]]; then
+        local jitter=$((RANDOM % MAX_JITTER_SECONDS))
+        log_debug "$component" "Adding ${jitter}s jitter for swarm operation"
+        sleep "$jitter"
+    fi
+    
+    # Test multiple endpoints for redundancy
+    local endpoints=("github.com" "8.8.8.8" "1.1.1.1")
+    local success=false
+    
+    for endpoint in "${endpoints[@]}"; do
+        if ping -c 1 -W "$NETWORK_TIMEOUT" "$endpoint" >/dev/null 2>&1; then
+            log_info "$component" "Network connectivity confirmed via $endpoint"
+            success=true
+            break
         fi
     done
-    log "Network connectivity confirmed."
+    
+    if [[ "$success" != "true" ]]; then
+        log_error_and_exit "$component" "No network connectivity to any endpoint after testing: ${endpoints[*]}"
+    fi
 }
 
-# -------------------------------------------------
-# URL Construction Helpers
-# -------------------------------------------------
-construct_ssh_url() {
-    local https_url="$1"
-    local ssh_url="git@github.com:${https_url#https://github.com/}"
-    ssh_url="${ssh_url%.git}.git"
-    echo "$ssh_url"
+# ----------------------------------
+# Git Repository Operations
+# ----------------------------------
+cleanup_git_locks() {
+    local component="GIT-LOCK"
+    local repo_dir="$1"
+    local lock_files=(".git/index.lock" ".git/refs/heads/*.lock" ".git/packed-refs.lock")
+    
+    for pattern in "${lock_files[@]}"; do
+        for lock_file in $repo_dir/$pattern; do
+            if [[ -f "$lock_file" ]]; then
+                # Check if any git processes are running
+                if pgrep -f "git" >/dev/null 2>&1; then
+                    log_warn "$component" "Git process detected, waiting 5s before removing lock: $lock_file"
+                    sleep 5
+                fi
+                
+                if [[ -f "$lock_file" ]]; then
+                    log_info "$component" "Removing stale git lock: $lock_file"
+                    rm -f "$lock_file"
+                fi
+            fi
+        done
+    done
 }
 
-construct_https_url() {
-    local ssh_url="$1"
-    local https_url="https://github.com/${ssh_url#git@github.com:}"
-    https_url="${https_url%.git}.git"
-    echo "$https_url"
+check_git_integrity() {
+    local component="GIT-INTEGRITY"
+    log_info "$component" "Performing repository integrity check..."
+    
+    local fsck_output
+    if ! fsck_output=$(timeout 60 git fsck --full 2>&1); then
+        log_error "$component" "Git fsck command failed or timed out"
+        return 1
+    fi
+    
+    # Filter out benign warnings
+    local filtered_output
+    filtered_output=$(echo "$fsck_output" | grep -v -E "(dangling commit|dangling blob|dangling tree)" || true)
+    
+    if [[ -n "$filtered_output" ]]; then
+        log_warn "$component" "Repository integrity issues detected:"
+        echo "$filtered_output" | while read -r line; do
+            log_warn "$component" "  $line"
+        done
+        return 1
+    fi
+    
+    log_info "$component" "Repository integrity check passed"
+    return 0
 }
 
-# -------------------------------------------------
-# Parse Command-Line Arguments
-# -------------------------------------------------
+repair_git_repository() {
+    local component="GIT-REPAIR"
+    log_warn "$component" "Attempting repository repair..."
+    set_led_status "yellow"
+    
+    # First, try to fix common issues
+    if git stash clear 2>/dev/null; then
+        log_info "$component" "Cleared git stash"
+    fi
+    
+    if [[ -f ".git/logs/refs/stash" ]]; then
+        rm -f ".git/logs/refs/stash"
+        log_info "$component" "Removed corrupted stash reflog"
+    fi
+    
+    # Run git-repair if available
+    if command -v git-repair >/dev/null; then
+        log_info "$component" "Running git-repair (timeout: ${REPAIR_TIMEOUT}s)..."
+        if timeout "$REPAIR_TIMEOUT" git-repair >> "$LOG_FILE" 2>&1; then
+            log_info "$component" "Git repair completed successfully"
+            
+            # Clean up repair artifacts
+            [[ -f ".git/gc.log" ]] && rm -f ".git/gc.log"
+            
+            return 0
+        else
+            log_error "$component" "Git repair failed or timed out"
+        fi
+    else
+        log_warn "$component" "git-repair not available, trying alternative repair..."
+        
+        # Alternative repair approach
+        if git reflog expire --expire=now --all && git gc --prune=now; then
+            log_info "$component" "Alternative repair completed"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+handle_repository_corruption() {
+    local component="GIT-CORRUPTION"
+    
+    if repair_git_repository; then
+        log_info "$component" "Repository repair successful"
+        return 0
+    fi
+    
+    # Apply recovery strategy
+    case "$RECOVERY_STRATEGY" in
+        "aggressive")
+            log_warn "$component" "Aggressive recovery: rebooting system..."
+            sudo reboot || log_error_and_exit "$component" "Reboot command failed"
+            exit 0
+            ;;
+        "graceful")
+            log_error "$component" "Repository corruption could not be repaired"
+            return 1
+            ;;
+        *)
+            log_error_and_exit "$component" "Unknown recovery strategy: $RECOVERY_STRATEGY"
+            ;;
+    esac
+}
+
+# ----------------------------------
+# FIXED: Git URL Determination (No variable corruption)
+# ----------------------------------
+determine_git_url() {
+    local repo_url="$1"
+    local git_url=""
+    
+    # FIXED: Capture output properly without mixing with logs
+    if [[ "$repo_url" == git@* ]]; then
+        # Try SSH first - capture result in variable without logging interference
+        if git ls-remote "$repo_url" -q >/dev/null 2>&1; then
+            log_info "GIT-URL" "SSH connection successful"
+            git_url="$repo_url"
+        else
+            log_warn "GIT-URL" "SSH connection failed, falling back to HTTPS"
+            git_url="https://github.com/${repo_url#git@github.com:}"
+            git_url="${git_url%.git}.git"
+        fi
+    elif [[ "$repo_url" == https://* ]]; then
+        # Try SSH first if available
+        local ssh_url="git@github.com:${repo_url#https://github.com/}"
+        ssh_url="${ssh_url%.git}.git"
+        
+        if git ls-remote "$ssh_url" -q >/dev/null 2>&1; then
+            log_info "GIT-URL" "SSH connection available, using SSH"
+            git_url="$ssh_url"
+        else
+            log_info "GIT-URL" "Using HTTPS connection"
+            git_url="$repo_url"
+        fi
+    else
+        log_error_and_exit "GIT-URL" "Invalid repository URL format: $repo_url"
+    fi
+    
+    # FIXED: Return the URL cleanly without any logging interference
+    echo "$git_url"
+}
+
+# ----------------------------------
+# Git Operations with Enhanced Error Handling
+# ----------------------------------
+perform_git_fetch() {
+    local component="GIT-FETCH"
+    local git_url="$1"
+    
+    log_info "$component" "Fetching updates from $git_url..."
+    
+    # Set git configuration for better network handling
+    git config http.timeout "$FETCH_TIMEOUT"
+    git config http.lowSpeedLimit 1000
+    git config http.lowSpeedTime 30
+    
+    if retry_with_backoff "$MAX_RETRIES" "$component" timeout "$FETCH_TIMEOUT" git fetch --all --prune; then
+        log_info "$component" "Fetch completed successfully"
+        return 0
+    else
+        log_error "$component" "Fetch failed after retries"
+        
+        # Check for repository corruption
+        if ! check_git_integrity; then
+            log_warn "$component" "Repository corruption detected during fetch failure"
+            handle_repository_corruption
+            return $?
+        fi
+        
+        return 1
+    fi
+}
+
+# ----------------------------------
+# Argument Parsing
+# ----------------------------------
 parse_arguments() {
-    BRANCH_NAME=""
-    REPO_URL=""
-    REPO_DIR=""
-
-    PARSED_OPTIONS=$(getopt -n "$0" -o b: --long branch:,sitl,real,repo-url:,repo-dir: -- "$@")
-    if [ $? -ne 0 ]; then
-        echo "Error parsing options."
+    local branch_name=""
+    local repo_url=""
+    local repo_dir=""
+    
+    local parsed_options
+    if ! parsed_options=$(getopt -n "$0" -o b:hvd --long branch:,sitl,real,repo-url:,repo-dir:,help,version,debug -- "$@"); then
+        echo "Error parsing options." >&2
         exit 1
     fi
-
-    eval set -- "$PARSED_OPTIONS"
+    
+    eval set -- "$parsed_options"
     while true; do
         case "$1" in
             -b|--branch)
-                BRANCH_NAME="$2"
+                branch_name="$2"
                 shift 2
                 ;;
             --sitl)
-                BRANCH_NAME="$SITL_BRANCH"
+                branch_name="$SITL_BRANCH"
                 shift
                 ;;
             --real)
-                BRANCH_NAME="$REAL_BRANCH"
+                branch_name="$REAL_BRANCH"
                 shift
                 ;;
             --repo-url)
-                REPO_URL="$2"
+                repo_url="$2"
                 shift 2
                 ;;
             --repo-dir)
-                REPO_DIR="$2"
+                repo_dir="$2"
                 shift 2
+                ;;
+            -d|--debug)
+                DEBUG=1
+                shift
+                ;;
+            -v|--version)
+                echo "Git Sync Script version $SCRIPT_VERSION"
+                exit 0
+                ;;
+            -h|--help)
+                show_help
+                exit 0
                 ;;
             --)
                 shift
                 break
                 ;;
             *)
-                echo "Unknown option: $1"
+                echo "Unknown option: $1" >&2
                 exit 1
                 ;;
         esac
     done
-
-    # Set defaults if not specified
-    [ -z "$BRANCH_NAME" ] && BRANCH_NAME="$REAL_BRANCH"
-    [ -z "$REPO_DIR" ] && REPO_DIR="$DEFAULT_REPO_DIR"
-    [ -z "$REPO_URL" ] && REPO_URL="$DEFAULT_SSH_GIT_URL"
-
+    
+    # Set values with precedence: CLI args > environment > defaults
+    BRANCH_NAME="${branch_name:-${DRONE_BRANCH:-$DEFAULT_BRANCH}}"
+    REPO_URL="${repo_url:-$DEFAULT_SSH_GIT_URL}"
+    REPO_DIR="${repo_dir:-$REPO_DIR}"
+    
     export BRANCH_NAME REPO_URL REPO_DIR
 }
 
-parse_arguments "$@"
+show_help() {
+    cat << EOF
+Git Sync Script for Drone Swarm - Version $SCRIPT_VERSION
 
-# -------------------------------------------------
-# Clean Up Stale Git Lock Files
-# -------------------------------------------------
-cleanup_lock_file() {
-    local lock_file="$REPO_DIR/.git/index.lock"
-    local tries=0
-    local max_tries=3
-    while [ -f "$lock_file" ] && [ $tries -lt $max_tries ]; do
-        if pgrep -f "git" >/dev/null 2>&1; then
-            log "Detected .git/index.lock while another Git process might be running. Waiting 3 seconds..."
-            sleep 3
-        else
-            log "Stale .git/index.lock found. Attempting removal..."
-            rm -f "$lock_file"
-        fi
-        tries=$((tries+1))
-    done
-    if [ -f "$lock_file" ]; then
-        log "WARNING: .git/index.lock still present after $max_tries tries. Forcibly removing it."
-        rm -f "$lock_file"
-    fi
-}
+Usage: $0 [OPTIONS]
 
-# -------------------------------------------------
-# Check and Repair Repository Integrity
-# -------------------------------------------------
-check_and_repair_git_corruption() {
-    log "Checking repository integrity..."
-    fsck_output=$(git fsck --full 2>&1)
-    filtered_output=$(echo "$fsck_output" | grep -v "dangling commit")
+OPTIONS:
+    -b, --branch BRANCH     Use specific branch
+    --sitl                  Use SITL branch ($SITL_BRANCH)
+    --real                  Use production branch ($REAL_BRANCH)
+    --repo-url URL          Override repository URL
+    --repo-dir DIR          Override repository directory
+    -d, --debug             Enable debug logging
+    -v, --version           Show version information
+    -h, --help              Show this help message
+
+ENVIRONMENT VARIABLES:
+    RECOVERY_STRATEGY       'graceful' or 'aggressive' (default: graceful)
+    ENABLE_JITTER          Add random delays for swarm operations (default: true)
+    MAX_RETRIES            Maximum retry attempts (default: 10)
+    DRONE_ID               Unique drone identifier (default: hostname)
     
-    if [ -n "$filtered_output" ]; then
-        log "Integrity check reported issues:"
-        echo "$filtered_output" | tee -a "$LOG_FILE"
-        if echo "$filtered_output" | grep -q "refs/stash"; then
-            log "Stash reflog errors detected. Clearing stash..."
-            git stash clear || log "Warning: Failed to clear stash."
-            if [ -f ".git/logs/refs/stash" ]; then
-                rm -f ".git/logs/refs/stash"
-                log "Removed corrupted stash reflog."
-            fi
-            # Re-run fsck after clearing stash
-            fsck_output_after=$(git fsck --full 2>&1)
-            filtered_output_after=$(echo "$fsck_output_after" | grep -v "dangling commit")
-            if [ -n "$filtered_output_after" ]; then
-                log "Repository still reports issues after clearing stash. Proceeding to repair..."
-            else
-                log "Repository issues resolved by clearing stash."
-                return
-            fi
-        fi
-        log "Attempting repair with git-repair (timeout ${REPAIR_TIMEOUT}s)..."
-        $LED_CMD --color yellow || log "Warning: Unable to set LED to yellow."
-        if timeout "$REPAIR_TIMEOUT" git-repair >> "$LOG_FILE" 2>&1; then
-            log "Git repair completed successfully."
-        else
-            log "Git repair failed. Rebooting system..."
-            sudo reboot || log_error_and_exit "Reboot command failed."
-            exit 0
-        fi
-        if [ -f ".git/gc.log" ]; then
-            rm -f ".git/gc.log"
-            log "Removed .git/gc.log after repair."
-        fi
-        log "Repository repair complete. Rebooting system to ensure a clean state..."
-        sudo reboot || log_error_and_exit "Reboot command failed."
-        exit 0
-    else
-        log "No corruption detected in repository."
-    fi
+EXAMPLES:
+    $0                      # Use default branch
+    $0 --sitl               # Use SITL branch
+    $0 --branch develop     # Use specific branch
+    $0 --debug              # Enable debug output
+
+EOF
 }
 
-# -------------------------------------------------
-# Main Workflow Execution
-# -------------------------------------------------
-# Set LED to blue to indicate Git sync is starting
-$LED_CMD --color blue || log "Warning: Unable to set LED to blue."
-
-log "==========================================="
-log "Starting repository update script for MDS repository."
-log "Branch: $BRANCH_NAME"
-log "Repo URL: $REPO_URL"
-log "Repo Dir: $REPO_DIR"
-log "==========================================="
-
-# Ensure repository directory exists
-if [ ! -d "$REPO_DIR" ]; then
-    log_error_and_exit "Repository directory does not exist: $REPO_DIR"
-fi
-
-cd "$REPO_DIR" || log_error_and_exit "Failed to cd into $REPO_DIR"
-
-# Clean up any existing Git lock files
-cleanup_lock_file
-
-# Determine if SSH or HTTPS is viable
-if [[ "$REPO_URL" == git@* ]]; then
-    if git ls-remote "$REPO_URL" -q >/dev/null 2>&1; then
-        log "Using SSH for Git operations."
-        GIT_URL="$REPO_URL"
-    else
-        log "SSH connection failed. Falling back to HTTPS."
-        GIT_URL="$(construct_https_url "$REPO_URL")"
+# ----------------------------------
+# Main Execution Function
+# ----------------------------------
+main() {
+    local start_time=$(date +%s)
+    
+    # Initialize logging
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    touch "$LOG_FILE" 2>/dev/null || true
+    
+    log_info "INIT" "=========================================="
+    log_info "INIT" "Git Sync Script Starting (v$SCRIPT_VERSION)"
+    log_info "INIT" "Hostname: $(hostname)"
+    log_info "INIT" "User: $(whoami)"
+    log_info "INIT" "PID: $$"
+    log_info "INIT" "=========================================="
+    
+    # Parse arguments
+    parse_arguments "$@"
+    
+    log_info "CONFIG" "Branch: $BRANCH_NAME"
+    log_info "CONFIG" "Repository: $REPO_URL"
+    log_info "CONFIG" "Directory: $REPO_DIR"
+    log_info "CONFIG" "Recovery Strategy: $RECOVERY_STRATEGY"
+    log_info "CONFIG" "Environment: $ENVIRONMENT"
+    
+    # Acquire exclusive lock
+    acquire_lock 60
+    
+    # Set initial status
+    set_led_status "blue"
+    
+    # Validate repository directory
+    if [[ ! -d "$REPO_DIR" ]]; then
+        log_error_and_exit "VALIDATION" "Repository directory does not exist: $REPO_DIR"
     fi
-elif [[ "$REPO_URL" == https://* ]]; then
-    local_ssh_url="$(construct_ssh_url "$REPO_URL")"
-    if git ls-remote "$local_ssh_url" -q >/dev/null 2>&1; then
-        log "SSH connection successful. Using SSH URL: $local_ssh_url"
-        GIT_URL="$local_ssh_url"
-    else
-        log "SSH connection failed. Using HTTPS URL: $REPO_URL"
-        GIT_URL="$REPO_URL"
+    
+    if [[ ! -d "$REPO_DIR/.git" ]]; then
+        log_error_and_exit "VALIDATION" "Not a git repository: $REPO_DIR"
     fi
-else
-    log_error_and_exit "Invalid REPO_URL: $REPO_URL"
-fi
-
-# Update remote origin if necessary
-current_remote_url=$(git remote get-url origin)
-if [ "$current_remote_url" != "$GIT_URL" ]; then
-    log "Setting remote URL to $GIT_URL"
-    git remote set-url origin "$GIT_URL" || log_error_and_exit "Failed to set remote URL."
-else
-    log "Remote URL is already set to $GIT_URL"
-fi
-
-# Stash any local changes to avoid conflicts
-if git status --porcelain | grep -q .; then
-    log "Stashing local changes..."
-    git stash --include-untracked || log_error_and_exit "Failed to stash changes."
-else
-    log "No local changes to stash."
-fi
-
-# Check network connectivity
-check_network_connectivity
-
-# Attempt to fetch all branches with retries.
-log "Fetching latest commits from origin..."
-if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
-    log "Fetch failed. This may indicate repository corruption. Initiating repair sequence..."
-    check_and_repair_git_corruption
-    log "Retrying fetch after repair..."
-    if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git fetch --all; then
-        log_error_and_exit "Failed to fetch from $GIT_URL after repair. Rebooting..."
+    
+    cd "$REPO_DIR" || log_error_and_exit "VALIDATION" "Failed to cd into $REPO_DIR"
+    
+    # Clean up any stale git locks
+    cleanup_git_locks "$REPO_DIR"
+    
+    # Check network connectivity
+    check_network_connectivity
+    
+    # FIXED: Determine optimal git URL without variable corruption
+    local git_url
+    git_url=$(determine_git_url "$REPO_URL")
+    
+    # Update remote origin if necessary
+    local current_remote_url
+    current_remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$current_remote_url" != "$git_url" ]]; then
+        log_info "GIT-REMOTE" "Updating remote URL from '$current_remote_url' to '$git_url'"
+        git remote set-url origin "$git_url" || log_error_and_exit "GIT-REMOTE" "Failed to set remote URL"
     fi
+    
+    # Stash local changes
+    if git status --porcelain | grep -q .; then
+        log_info "GIT-STASH" "Stashing local changes..."
+        git stash push --include-untracked -m "Auto-stash before sync at $(date)" || \
+            log_error_and_exit "GIT-STASH" "Failed to stash local changes"
+    fi
+    
+    # Perform git fetch with retry logic
+    if ! perform_git_fetch "$git_url"; then
+        if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
+            log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
+            set_led_status "yellow"
+            exit 0
+        else
+            log_error_and_exit "GIT-FETCH" "Git fetch failed and recovery strategy is aggressive"
+        fi
+    fi
+    
+    # Clean up any locks that might have been created during fetch
+    cleanup_git_locks "$REPO_DIR"
+    
+    # Switch to target branch
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    if [[ "$current_branch" != "$BRANCH_NAME" ]]; then
+        log_info "GIT-BRANCH" "Switching from '$current_branch' to '$BRANCH_NAME'"
+        if ! git checkout "$BRANCH_NAME"; then
+            log_error_and_exit "GIT-BRANCH" "Failed to checkout branch '$BRANCH_NAME'"
+        fi
+    fi
+    
+    # Reset to match origin
+    log_info "GIT-RESET" "Resetting $BRANCH_NAME to origin/$BRANCH_NAME"
+    if ! retry_with_backoff "$MAX_RETRIES" "GIT-RESET" git reset --hard "origin/$BRANCH_NAME"; then
+        log_error_and_exit "GIT-RESET" "Failed to reset branch $BRANCH_NAME"
+    fi
+    
+    # Final pull to ensure we're up to date
+    log_info "GIT-PULL" "Performing final pull on $BRANCH_NAME"
+    if ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
+        log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
+    fi
+    
+    # Get commit information for logging
+    local commit_hash
+    local commit_message
+    commit_hash=$(git rev-parse --short HEAD)
+    commit_message=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "unknown")
+    
+    # Calculate execution time
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    # Final cleanup
+    cleanup_git_locks "$REPO_DIR"
+    
+    log_info "SUCCESS" "=========================================="
+    log_info "SUCCESS" "Git synchronization completed successfully"
+    log_info "SUCCESS" "Repository: $git_url"
+    log_info "SUCCESS" "Branch: $BRANCH_NAME"
+    log_info "SUCCESS" "Commit: $commit_hash - $commit_message"
+    log_info "SUCCESS" "Duration: ${duration}s"
+    log_info "SUCCESS" "=========================================="
+    
+    set_led_status "green"
+    
+    exit 0
+}
+
+# Execute main function if script is run directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
 fi
-
-# Clean up any residual lock files.
-cleanup_lock_file
-
-# Switch to the desired branch if not already on it.
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
-    log "Switching from $CURRENT_BRANCH to $BRANCH_NAME..."
-    git checkout "$BRANCH_NAME" || log_error_and_exit "Failed to checkout branch $BRANCH_NAME."
-    log "Switched to branch $BRANCH_NAME"
-fi
-
-# Reset the branch to match origin.
-log "Resetting $BRANCH_NAME to origin/$BRANCH_NAME..."
-if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git reset --hard "origin/$BRANCH_NAME"; then
-    log_error_and_exit "Failed git reset --hard on branch $BRANCH_NAME."
-fi
-
-# Pull the latest updates.
-log "Pulling latest updates on $BRANCH_NAME..."
-if ! retry "$MAX_RETRIES" "$INITIAL_DELAY" git pull; then
-    log_error_and_exit "Failed git pull on branch $BRANCH_NAME."
-fi
-
-# Final cleanup of lock files.
-cleanup_lock_file
-
-log "Successfully updated code from $GIT_URL on branch $BRANCH_NAME."
-exit 0

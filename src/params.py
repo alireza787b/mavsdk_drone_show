@@ -33,7 +33,7 @@ class Params:
     print(f"[DEBUG] Simulation Mode: {sim_mode}")
 
     # URLs for configuration files (not used in current implementation)
-    config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # URL for the configuration file
+    config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # Ugit addRL for the configuration file
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'    # URL for the swarm file
 
     # Git Configuration
@@ -41,7 +41,7 @@ class Params:
     GIT_REPO_URL = 'git@github.com:alireza787b/mavsdk_drone_show.git'
     GIT_BRANCH = 'main-candidate'  # Git branch is 'main-candidate' for both modes
     
-    connectivity_check_ip = "100.74.203.89"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
+    connectivity_check_ip = "100.96.32.75"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
     connectivity_check_port = 5000        # Default port to ping eg. 80 for the gcs backend port
     connectivity_check_interval = 10    # Interval in seconds between connectivity checks
 
@@ -65,6 +65,8 @@ class Params:
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
     MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
+    
+    reboot_after_params = True
     
 
     # how many failed polls before we elect
