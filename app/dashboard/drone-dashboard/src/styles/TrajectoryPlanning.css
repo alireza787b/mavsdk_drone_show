@@ -103,7 +103,7 @@
   justify-content: space-between;
   align-items: center;
   box-shadow: var(--shadow-dark-sm);
-  z-index: var(--z-fixed);
+  /* z-index: var(--z-fixed); */
   position: relative;
   border-bottom: 1px solid var(--color-border-primary);
   flex-wrap: wrap;
@@ -1069,6 +1069,217 @@
 @keyframes dashMove {
   0% { stroke-dashoffset: 0; }
   100% { stroke-dashoffset: 15; }
+}
+
+/* =============================================== */
+/* DIALOG STYLES - SAVE, LOAD, EXPORT */
+/* =============================================== */
+
+.dialog-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: var(--z-modal) !important;
+  backdrop-filter: blur(2px);
+}
+
+.dialog-content {
+  background-color: var(--color-bg-primary) !important;
+  padding: var(--spacing-xl) !important;
+  border-radius: var(--border-radius-lg) !important;
+  width: 450px !important;
+  max-width: 90% !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid var(--color-border-light) !important;
+  animation: slideIn 0.2s ease-out;
+  position: relative !important;
+  z-index: calc(var(--z-modal) + 1) !important;
+  /* Debug styles to ensure visibility */
+  min-height: 200px !important;
+  overflow: visible !important;
+}
+
+.dialog-content h3 {
+  margin: 0 0 var(--spacing-lg) 0 !important;
+  color: var(--color-text-primary) !important;
+  font-size: var(--font-size-lg) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-align: center !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+}
+
+.dialog-content input[type="text"] {
+  width: 100% !important;
+  padding: var(--spacing-base) !important;
+  border: 2px solid var(--color-border-light) !important;
+  border-radius: var(--border-radius-md) !important;
+  font-size: var(--font-size-base) !important;
+  font-family: var(--font-family-primary) !important;
+  background: var(--color-bg-light) !important;
+  color: var(--color-text-primary) !important;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-content input[type="text"]:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.dialog-content input[type="text"]::placeholder {
+  color: var(--color-text-tertiary) !important;
+}
+
+.dialog-buttons {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: var(--spacing-base) !important;
+  margin-top: var(--spacing-xl) !important;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-buttons button {
+  padding: var(--spacing-base) var(--spacing-lg) !important;
+  border: none !important;
+  border-radius: var(--border-radius-md) !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: var(--font-weight-medium) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease;
+  min-width: 80px !important;
+  /* Debug styles */
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.dialog-buttons button:first-child {
+  background-color: var(--color-bg-light) !important;
+  color: var(--color-text-secondary) !important;
+  border: 1px solid var(--color-border-light) !important;
+}
+
+.dialog-buttons button:first-child:hover {
+  background-color: var(--color-bg-secondary) !important;
+  border-color: var(--color-border-secondary) !important;
+}
+
+.dialog-buttons button:last-child {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+.dialog-buttons button:last-child:hover {
+  background-color: var(--color-primary-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Trajectory list in load dialog */
+.trajectory-list {
+  max-height: 300px !important;
+  overflow-y: auto !important;
+  margin: var(--spacing-lg) 0 !important;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: var(--border-radius-md) !important;
+  background: var(--color-bg-light) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: var(--spacing-base) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  transition: background-color 0.2s ease;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item:last-child {
+  border-bottom: none !important;
+}
+
+.trajectory-item:hover {
+  background-color: var(--color-bg-secondary) !important;
+}
+
+.trajectory-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: var(--spacing-xs) !important;
+  /* Debug styles */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-info strong {
+  color: var(--color-text-primary) !important;
+  font-size: var(--font-size-base) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-info small {
+  color: var(--color-text-tertiary) !important;
+  font-size: var(--font-size-sm) !important;
+  /* Debug styles */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item button {
+  padding: var(--spacing-sm) var(--spacing-base) !important;
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--border-radius-sm) !important;
+  font-size: var(--font-size-sm) !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease;
+  /* Debug styles */
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.trajectory-item button:hover {
+  background-color: var(--color-primary-hover) !important;
+}
+
+/* Animation for dialog appearance */
+@keyframes slideIn {
+  from {
+    opacity: 0 !important;
+    transform: translateY(-20px) scale(0.95) !important;
+  }
+  to {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+  }
 }
 
 /* =============================================== */
