@@ -249,7 +249,7 @@
 .speed-header label,
 .speed-label {
   font-size: 0.9rem;
-  color: #ffffff;
+  /* color: #ffffff; */
   font-weight: 500;
 }
 
