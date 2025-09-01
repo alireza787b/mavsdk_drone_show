@@ -42,11 +42,13 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
       console.error('Could not copy text: ', err);
     }
   };
-  
 
   const toggleDetails = () => {
     setIsExpanded(!isExpanded);
   };
+
+  // Add null checks for gitStatus.commit
+  const shortCommitHash = gitStatus.commit ? gitStatus.commit.slice(0, 7) : 'N/A';
 
   return (
     <div className={`git-status-card ${isInSync ? 'sync' : 'not-sync'}`}>
@@ -68,7 +70,8 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
             title="Click to copy full commit hash"
             aria-label="Commit hash, click to copy"
           >
-            {gitStatus.commit.slice(0, 7)}
+            {/* Use the new shortCommitHash variable */}
+            {shortCommitHash}
             <FontAwesomeIcon icon={faCopy} className="copy-icon" />
             {copySuccess && <span className="copy-tooltip">Copied!</span>}
           </span>

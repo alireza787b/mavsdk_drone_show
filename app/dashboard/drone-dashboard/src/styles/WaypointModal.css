@@ -378,3 +378,365 @@
     outline: 2px solid #00d4ff;
     outline-offset: 2px;
   }
+
+  /* === ENHANCED MODAL STYLES === */
+
+/* Terrain information section */
+.terrain-info-section {
+  margin: var(--spacing-lg) 0;
+  border: 2px solid var(--color-info-border);
+  border-radius: var(--border-radius-md);
+  background: linear-gradient(135deg, var(--color-info-light), transparent);
+}
+
+.terrain-info-toggle {
+  width: 100%;
+  padding: var(--spacing-base);
+  background: none;
+  border: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  transition: var(--transition-base);
+}
+
+.terrain-info-toggle:hover {
+  background: rgba(23, 162, 184, 0.05);
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.terrain-info-content {
+  padding: 0 var(--spacing-base) var(--spacing-base);
+  border-top: 1px solid var(--color-info-border);
+}
+
+.terrain-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid rgba(23, 162, 184, 0.1);
+}
+
+.terrain-item:last-child {
+  border-bottom: none;
+}
+
+.terrain-item label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  font-size: var(--font-size-sm);
+}
+
+.terrain-item span {
+  font-family: var(--font-family-mono);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.estimate-badge {
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  margin-left: var(--spacing-sm);
+}
+
+.apply-suggestion-btn {
+  background: var(--color-success);
+  color: var(--color-text-primary);
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  margin-left: var(--spacing-sm);
+  transition: var(--transition-base);
+}
+
+.apply-suggestion-btn:hover {
+  background: #218838;
+  transform: scale(1.05);
+}
+
+/* Coming soon section */
+.terrain-coming-soon {
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-base);
+  background: linear-gradient(135deg, var(--color-warning-light), var(--color-info-light));
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--color-warning-border);
+}
+
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--color-warning);
+  color: var(--color-warning-text);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-sm);
+}
+
+.terrain-coming-soon p {
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.terrain-coming-soon ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.terrain-coming-soon li {
+  padding: var(--spacing-xs) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  position: relative;
+  padding-left: var(--spacing-lg);
+}
+
+.terrain-coming-soon li::before {
+  content: "🚧";
+  position: absolute;
+  left: 0;
+  top: var(--spacing-xs);
+}
+
+/* Altitude guidance section */
+.altitude-guidance {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-base);
+  background: linear-gradient(135deg, var(--color-primary-light), var(--color-success-light));
+  border-radius: var(--border-radius-md);
+  border: 2px solid var(--color-primary-border);
+}
+
+.altitude-guidance h4 {
+  margin: 0 0 var(--spacing-base) 0;
+  color: var(--color-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.guidance-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.guidance-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.guidance-icon {
+  font-size: var(--font-size-base);
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.guidance-text {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-muted);
+}
+
+.guidance-text strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Validation feedback */
+.validation-errors,
+.validation-warnings {
+  margin-top: var(--spacing-sm);
+}
+
+.validation-error,
+.validation-warning {
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-xs);
+}
+
+.validation-error {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+.validation-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
+}
+
+.waypoint-input.error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+.waypoint-input.warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-light);
+}
+
+/* Terrain loading overlay */
+.terrain-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  backdrop-filter: blur(2px);
+  border-radius: var(--border-radius-lg);
+}
+
+.terrain-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: var(--color-text-primary);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-lg);
+}
+
+.loading-spinner {
+  font-size: var(--font-size-xl);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
+@media (max-width: 768px) {
+  .waypoint-marker-container {
+    transform: scale(1.2);
+  }
+
+  .speed-warning-badge {
+    width: 20px;
+    height: 20px;
+    font-size: var(--font-size-sm);
+  }
+
+  .elevation-info {
+    padding: var(--spacing-sm);
+  }
+
+  .elevation-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .guidance-list li {
+    padding-left: var(--spacing-base);
+    font-size: var(--font-size-xs);
+  }
+
+  .altitude-guidance h4 {
+    font-size: var(--font-size-base);
+  }
+}
+
+@media (max-width: 480px) {
+  .waypoint-marker {
+    font-size: 10px;
+  }
+
+  .speed-warning-badge {
+    top: -6px;
+    right: -6px;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+  }
+
+  .map-instruction-overlay {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm);
+  }
+
+  .elevation-info,
+  .speed-guidance {
+    margin: var(--spacing-sm) 0;
+    padding: var(--spacing-sm);
+  }
+}
+
+/* =============================================== */
+/* ACCESSIBILITY IMPROVEMENTS */
+/* =============================================== */
+
+/* Add to both files */
+
+.waypoint-marker:focus-visible,
+.info-toggle:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.speed-warning-badge {
+  pointer-events: none; /* Prevent interference with marker clicks */
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .waypoint-marker {
+    border-width: 4px;
+  }
+
+  .speed-warning-badge {
+    border-width: 3px;
+  }
+
+  .elevation-info,
+  .speed-guidance {
+    border-width: 3px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .waypoint-marker:hover,
+  .info-toggle:hover,
+  .warningPulse,
+  .slideIn {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}

@@ -1,4 +1,6 @@
 // src/utilities/SpeedCalculator.js
+// PHASE 1 ENHANCEMENTS: Drag-drop recalculation utilities
+
 import { distance } from '@turf/turf';
 
 /**
@@ -102,6 +104,118 @@ export const getSpeedDescription = (speed) => {
     default:
       return `Speed: ${speed} m/s`;
   }
+};
+
+/**
+ * PHASE 1: Recalculate speeds after waypoint drag-drop operation
+ * This function updates speeds for the moved waypoint and any affected segments
+ * @param {Array} waypoints - Array of all waypoints
+ * @param {string} movedWaypointId - ID of the waypoint that was moved
+ * @returns {Array} Updated waypoints with recalculated speeds
+ */
+export const recalculateAfterDrag = (waypoints, movedWaypointId) => {
+  if (!waypoints || waypoints.length < 2) return waypoints;
+
+  const movedIndex = waypoints.findIndex(wp => wp.id === movedWaypointId);
+  if (movedIndex === -1) return waypoints;
+
+  return waypoints.map((waypoint, index) => {
+    // Skip first waypoint (no speed calculation needed)
+    if (index === 0) return waypoint;
+
+    // Recalculate speed for moved waypoint and next waypoint after moved one
+    if (index === movedIndex || index === movedIndex + 1) {
+      const previousWaypoint = waypoints[index - 1];
+      const recalculatedSpeed = calculateSpeed(previousWaypoint, waypoint);
+      const speedStatus = validateSpeed(recalculatedSpeed);
+
+      return {
+        ...waypoint,
+        estimatedSpeed: recalculatedSpeed,
+        speed: recalculatedSpeed, // Legacy compatibility
+        speedFeasible: speedStatus === 'feasible'
+      };
+    }
+
+    return waypoint;
+  });
+};
+
+/**
+ * PHASE 1: Batch recalculate all waypoint speeds in trajectory
+ * Useful after multiple edits or complex operations
+ * @param {Array} waypoints - Array of waypoints to recalculate
+ * @returns {Array} Updated waypoints with all speeds recalculated
+ */
+export const recalculateAllSpeeds = (waypoints) => {
+  if (!waypoints || waypoints.length < 2) return waypoints;
+
+  return waypoints.map((waypoint, index) => {
+    if (index === 0) {
+      // First waypoint has no speed requirement
+      return {
+        ...waypoint,
+        estimatedSpeed: 0,
+        speed: 0,
+        speedFeasible: true
+      };
+    }
+
+    const previousWaypoint = waypoints[index - 1];
+    const recalculatedSpeed = calculateSpeed(previousWaypoint, waypoint);
+    const speedStatus = validateSpeed(recalculatedSpeed);
+
+    return {
+      ...waypoint,
+      estimatedSpeed: recalculatedSpeed,
+      speed: recalculatedSpeed, // Legacy compatibility
+      speedFeasible: speedStatus === 'feasible'
+    };
+  });
+};
+
+/**
+ * PHASE 1: Validate waypoint sequence for time conflicts
+ * Ensures all waypoints have incrementing time values
+ * @param {Array} waypoints - Array of waypoints to validate
+ * @returns {Object} Validation result with issues array
+ */
+export const validateWaypointSequence = (waypoints) => {
+  const issues = [];
+  
+  if (!waypoints || waypoints.length < 2) {
+    return { valid: true, issues: [] };
+  }
+
+  for (let i = 1; i < waypoints.length; i++) {
+    const current = waypoints[i];
+    const previous = waypoints[i - 1];
+    
+    const currentTime = current.timeFromStart || current.time || 0;
+    const previousTime = previous.timeFromStart || previous.time || 0;
+    
+    if (currentTime <= previousTime) {
+      issues.push({
+        waypoint: current.name,
+        issue: 'time_conflict',
+        message: `Time (${currentTime}s) must be greater than previous waypoint time (${previousTime}s)`
+      });
+    }
+
+    // Check for impossible speeds
+    if (current.estimatedSpeed > SPEED_THRESHOLDS.ABSOLUTE_MAX) {
+      issues.push({
+        waypoint: current.name,
+        issue: 'impossible_speed',
+        message: `Speed (${current.estimatedSpeed.toFixed(1)} m/s) exceeds safe operational limits`
+      });
+    }
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues
+  };
 };
 
 /**

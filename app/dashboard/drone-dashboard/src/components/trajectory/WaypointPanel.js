@@ -1,7 +1,9 @@
 // src/components/trajectory/WaypointPanel.js
-import React from 'react';
+// PHASE 1 ENHANCEMENTS: Inline waypoint editing + MSL labeling
+
+import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { getSpeedStatus } from '../../utilities/SpeedCalculator';
+import { getSpeedStatus, validateSpeed } from '../../utilities/SpeedCalculator';
 
 const WaypointPanel = ({
   waypoints,
@@ -12,14 +14,114 @@ const WaypointPanel = ({
   onMoveWaypoint,
   onFlyTo
 }) => {
+  // PHASE 1: Inline editing state management
+  const [editingWaypointId, setEditingWaypointId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const editInputRef = useRef(null);
+
+  // Auto-focus when entering edit mode
+  useEffect(() => {
+    if (editingWaypointId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingWaypointId]);
+
   if (!waypoints || waypoints.length === 0) {
     return (
       <div className="waypoint-panel">
-        <h3>Waypoints</h3>
+        <div className="waypoint-panel-header">
+          <h3>Waypoints</h3>
+        </div>
         <p>No waypoints yet. Click on the map to add waypoints with custom altitude and timing.</p>
       </div>
     );
   }
+
+  // PHASE 1: Inline editing handlers
+  const handleEditStart = (waypoint, field) => {
+    setEditingWaypointId(waypoint.id);
+    setEditValues({
+      field,
+      latitude: waypoint.latitude,
+      longitude: waypoint.longitude,
+      altitude: waypoint.altitude,
+      timeFromStart: waypoint.timeFromStart || waypoint.time || 0
+    });
+  };
+
+  const handleEditSave = () => {
+    if (!editingWaypointId) return;
+
+    const updates = {};
+    const { field } = editValues;
+
+    // Validate and apply changes based on field type
+    switch (field) {
+      case 'coordinates':
+        const lat = parseFloat(editValues.latitude);
+        const lng = parseFloat(editValues.longitude);
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          updates.latitude = lat;
+          updates.longitude = lng;
+        } else {
+          alert('Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180');
+          return;
+        }
+        break;
+      
+      case 'altitude':
+        const alt = parseFloat(editValues.altitude);
+        if (!isNaN(alt) && alt >= 1 && alt <= 1000) {
+          updates.altitude = alt;
+        } else {
+          alert('Altitude must be between 1 and 1000 meters MSL');
+          return;
+        }
+        break;
+      
+      case 'time':
+        const time = parseFloat(editValues.timeFromStart);
+        const waypoint = waypoints.find(wp => wp.id === editingWaypointId);
+        const waypointIndex = waypoints.findIndex(wp => wp.id === editingWaypointId);
+        const prevWaypoint = waypointIndex > 0 ? waypoints[waypointIndex - 1] : null;
+        const nextWaypoint = waypointIndex < waypoints.length - 1 ? waypoints[waypointIndex + 1] : null;
+        
+        if (!isNaN(time) && time >= 0) {
+          // Validate time constraints
+          if (prevWaypoint && time <= (prevWaypoint.timeFromStart || 0)) {
+            alert(`Time must be greater than previous waypoint time (${(prevWaypoint.timeFromStart || 0)}s)`);
+            return;
+          }
+          if (nextWaypoint && time >= (nextWaypoint.timeFromStart || 0)) {
+            alert(`Time must be less than next waypoint time (${(nextWaypoint.timeFromStart || 0)}s)`);
+            return;
+          }
+          updates.timeFromStart = time;
+          updates.time = time; // Legacy compatibility
+        } else {
+          alert('Time must be a positive number');
+          return;
+        }
+        break;
+    }
+
+    onUpdateWaypoint(editingWaypointId, updates);
+    handleEditCancel();
+  };
+
+  const handleEditCancel = () => {
+    setEditingWaypointId(null);
+    setEditValues({});
+  };
+
+  const handleEditKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleEditSave();
+    } else if (e.key === 'Escape') {
+      handleEditCancel();
+    }
+  };
 
   // Get speed status indicator
   const getSpeedIndicator = (waypoint, index) => {
@@ -56,6 +158,75 @@ const WaypointPanel = ({
     return `${minutes}m ${seconds}s`;
   };
 
+  // PHASE 1: Render editable field
+  const renderEditableField = (waypoint, field, value, displayValue) => {
+    const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
+    
+    if (isEditing) {
+      if (field === 'coordinates') {
+        return (
+          <div className="edit-coordinates">
+            <input
+              ref={editInputRef}
+              type="number"
+              step="any"
+              value={editValues.latitude}
+              onChange={(e) => setEditValues(prev => ({ ...prev, latitude: e.target.value }))}
+              onKeyDown={handleEditKeyPress}
+              className="edit-input edit-input-small"
+              placeholder="Latitude"
+            />
+            <input
+              type="number"
+              step="any"
+              value={editValues.longitude}
+              onChange={(e) => setEditValues(prev => ({ ...prev, longitude: e.target.value }))}
+              onKeyDown={handleEditKeyPress}
+              className="edit-input edit-input-small"
+              placeholder="Longitude"
+            />
+            <div className="edit-buttons">
+              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+            </div>
+          </div>
+        );
+      } else {
+        return (
+          <div className="edit-single">
+            <input
+              ref={editInputRef}
+              type="number"
+              step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : 'any'}
+              value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']}
+              onChange={(e) => setEditValues(prev => ({ 
+                ...prev, 
+                [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']: e.target.value 
+              }))}
+              onKeyDown={handleEditKeyPress}
+              className="edit-input"
+              placeholder={field === 'altitude' ? 'Altitude MSL (m)' : field === 'time' ? 'Time (s)' : ''}
+            />
+            <div className="edit-buttons">
+              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    return (
+      <span 
+        className="detail-value editable" 
+        onClick={() => handleEditStart(waypoint, field)}
+        title="Click to edit"
+      >
+        {displayValue}
+      </span>
+    );
+  };
+
   return (
     <div className="waypoint-panel">
       <div className="waypoint-panel-header">
@@ -74,8 +245,8 @@ const WaypointPanel = ({
             key={waypoint.id}
             className={`waypoint-item ${selectedWaypointId === waypoint.id ? 'selected' : ''} ${
               index > 0 && !waypoint.speedFeasible ? 'speed-warning' : ''
-            }`}
-            onClick={() => onSelectWaypoint(waypoint.id)}
+            } ${editingWaypointId === waypoint.id ? 'editing' : ''}`}
+            onClick={() => editingWaypointId !== waypoint.id && onSelectWaypoint(waypoint.id)}
           >
             <div className="waypoint-header">
               <div className="waypoint-name-section">
@@ -87,15 +258,23 @@ const WaypointPanel = ({
                   onClick={(e) => { e.stopPropagation(); onFlyTo(waypoint); }}
                   title="Fly to waypoint"
                   className="action-btn fly-btn"
+                  disabled={editingWaypointId === waypoint.id}
                 >
                   📍
                 </button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onDeleteWaypoint(waypoint.id); }}
-                  title="Delete waypoint"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (editingWaypointId === waypoint.id) {
+                      handleEditCancel();
+                    } else {
+                      onDeleteWaypoint(waypoint.id); 
+                    }
+                  }}
+                  title={editingWaypointId === waypoint.id ? "Cancel edit" : "Delete waypoint"}
                   className="action-btn delete-btn"
                 >
-                  🗑️
+                  {editingWaypointId === waypoint.id ? '✕' : '🗑️'}
                 </button>
               </div>
             </div>
@@ -103,19 +282,32 @@ const WaypointPanel = ({
             <div className="waypoint-details">
               <div className="detail-row">
                 <span className="detail-label">Position:</span>
-                <span className="detail-value">
-                  {waypoint.latitude.toFixed(6)}, {waypoint.longitude.toFixed(6)}
-                </span>
+                {renderEditableField(
+                  waypoint, 
+                  'coordinates', 
+                  { lat: waypoint.latitude, lng: waypoint.longitude },
+                  `${waypoint.latitude.toFixed(6)}, ${waypoint.longitude.toFixed(6)}`
+                )}
               </div>
               
               <div className="detail-row">
-                <span className="detail-label">Altitude:</span>
-                <span className="detail-value">{waypoint.altitude.toFixed(1)}m</span>
+                <span className="detail-label">Altitude MSL:</span>
+                {renderEditableField(
+                  waypoint, 
+                  'altitude', 
+                  waypoint.altitude,
+                  `${waypoint.altitude.toFixed(1)}m`
+                )}
               </div>
               
               <div className="detail-row">
                 <span className="detail-label">Time:</span>
-                <span className="detail-value">{formatTime(waypoint.timeFromStart || waypoint.time || 0)}</span>
+                {renderEditableField(
+                  waypoint, 
+                  'time', 
+                  waypoint.timeFromStart || waypoint.time || 0,
+                  formatTime(waypoint.timeFromStart || waypoint.time || 0)
+                )}
               </div>
               
               {index > 0 && (
@@ -155,6 +347,13 @@ const WaypointPanel = ({
                 <small>⚠ High speed segment - verify drone capabilities</small>
               </div>
             )}
+
+            {/* PHASE 1: Edit mode help text */}
+            {editingWaypointId === waypoint.id && (
+              <div className="edit-help">
+                <small>Press Enter to save, Escape to cancel</small>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -180,6 +379,20 @@ const WaypointPanel = ({
               {Math.max(...waypoints.slice(1).map(wp => wp.estimatedSpeed || 0)).toFixed(1)}m/s
             </span>
           </div>
+          
+          <div className="summary-item">
+            <span className="summary-label">Max Alt MSL:</span>
+            <span className="summary-value">
+              {Math.max(...waypoints.map(wp => wp.altitude)).toFixed(1)}m
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* PHASE 1: Quick edit instructions */}
+      {waypoints.length > 0 && !editingWaypointId && (
+        <div className="edit-instructions">
+          <small>💡 Click any value to edit inline. Drag waypoints on map to reposition.</small>
         </div>
       )}
     </div>
