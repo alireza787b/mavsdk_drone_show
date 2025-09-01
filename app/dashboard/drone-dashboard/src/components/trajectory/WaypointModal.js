@@ -1,23 +1,24 @@
 // src/components/trajectory/WaypointModal.js
-// FIXED: Simplified altitude dialog with real MapGL terrain data
-// REMOVED: Confusing terrain sections, estimation functions
-// ADDED: Real map.queryTerrainElevation() integration
+// UPDATED: Use Mapbox Tilequery API for terrain elevation fetching
+// REMOVED: queryTerrainElevation usage and mapRef dependency for terrain queries
+// ADDED: Fetch elevation via HTTP with error handling and fallback
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { calculateSpeed, getSpeedStatus } from '../../utilities/SpeedCalculator';
 import '../../styles/WaypointModal.css';
 
-const WaypointModal = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
+const MAPBOX_ACCESS_TOKEN = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
+
+const WaypointModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
   position,
   previousWaypoint,
   waypointIndex,
-  mapRef // ADDED: Map reference for real terrain queries
+  // mapRef // no longer needed for elevation queries, keep if used elsewhere
 }) => {
-  // SIMPLIFIED: Core state only - removed complex terrain state
   const [altitude, setAltitude] = useState(100);
   const [timeFromStart, setTimeFromStart] = useState(0);
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
@@ -25,10 +26,9 @@ const WaypointModal = ({
   const [groundElevation, setGroundElevation] = useState(0);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
-  
+
   const altitudeRef = useRef(null);
 
-  // Auto-focus altitude input when modal opens
   useEffect(() => {
     if (isOpen && altitudeRef.current) {
       altitudeRef.current.focus();
@@ -36,61 +36,71 @@ const WaypointModal = ({
     }
   }, [isOpen]);
 
-  // Calculate default time from previous waypoint
   useEffect(() => {
     if (isOpen) {
       const defaultTime = previousWaypoint
-        ? (previousWaypoint.timeFromStart || 0) + 10 
+        ? (previousWaypoint.timeFromStart || 0) + 10
         : 10;
       setTimeFromStart(defaultTime);
     }
   }, [isOpen, previousWaypoint]);
 
-  // FIXED: Real terrain elevation using MapGL API
   useEffect(() => {
-    if (isOpen && position && mapRef?.current) {
-      setIsLoadingTerrain(true);
-      setTerrainError(null);
-      
-      try {
-        // CRITICAL: Use real MapGL queryTerrainElevation API
-        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
-        
-        if (map && typeof map.queryTerrainElevation === 'function') {
-          const coordinate = [position.longitude, position.latitude];
-          const elevation = map.queryTerrainElevation(coordinate);
-          
-          if (elevation !== null && elevation !== undefined) {
-            const realGroundElevation = Math.max(0, elevation);
-            setGroundElevation(realGroundElevation);
-            
-            // SIMPLIFIED: Auto-fill elevation + 100m MSL
-            const suggestedAltitude = realGroundElevation + 100;
-            setAltitude(suggestedAltitude);
-            
-            console.info(`Real terrain: Ground ${realGroundElevation.toFixed(1)}m MSL, Suggested ${suggestedAltitude.toFixed(1)}m MSL`);
-          } else {
-            // Fallback to basic estimation if terrain not loaded
-            throw new Error('Terrain data not loaded');
-          }
-        } else {
-          throw new Error('MapGL terrain API not available');
-        }
-      } catch (error) {
-        console.warn('Real terrain query failed, using fallback:', error);
-        setTerrainError('Using estimated terrain data');
-        
-        // FALLBACK: Simple geographic estimation
-        const estimatedGround = estimateBasicElevation(position.latitude, position.longitude);
+    const fetchElevationFromTilequery = async (latitude, longitude) => {
+      if (!MAPBOX_ACCESS_TOKEN) {
+        console.error('Mapbox access token is missing.');
+        setTerrainError('Missing Mapbox access token');
+        const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
         setAltitude(estimatedGround + 100);
+        setIsLoadingTerrain(false);
+        return;
       }
-      
-      setIsLoadingTerrain(false);
-    }
-  }, [isOpen, position, mapRef]);
 
-  // Real-time speed calculation and validation
+      try {
+        setIsLoadingTerrain(true);
+        setTerrainError(null);
+
+        const url = `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${longitude},${latitude}.json?layers=contour&limit=50&access_token=${MAPBOX_ACCESS_TOKEN}`;
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Tilequery API error: ${response.status}`);
+
+        const data = await response.json();
+
+        if (!data.features || data.features.length === 0) {
+          throw new Error('No elevation data found');
+        }
+
+        const elevations = data.features
+          .map(f => f.properties.ele)
+          .filter(ele => typeof ele === 'number');
+
+        if (elevations.length === 0) {
+          throw new Error('Elevation property missing in features');
+        }
+
+        const maxElevation = Math.max(...elevations);
+        setGroundElevation(maxElevation);
+        setAltitude(maxElevation + 100);
+
+        console.info(`✅ Tilequery terrain: Ground ${maxElevation.toFixed(1)}m MSL, Suggested ${maxElevation + 100}m MSL`);
+      } catch (error) {
+        console.error('❌ Elevation fetch failed:', error);
+        setTerrainError('Query failed, using estimated data');
+        const estimatedGround = estimateBasicElevation(latitude, longitude);
+        setGroundElevation(estimatedGround);
+        setAltitude(estimatedGround + 100);
+      } finally {
+        setIsLoadingTerrain(false);
+      }
+    };
+
+    if (isOpen && position) {
+      fetchElevationFromTilequery(position.latitude, position.longitude);
+    }
+  }, [isOpen, position]);
+
   useEffect(() => {
     if (previousWaypoint && position && timeFromStart > (previousWaypoint.timeFromStart || 0)) {
       const speed = calculateSpeed(
@@ -106,11 +116,10 @@ const WaypointModal = ({
     }
   }, [position, previousWaypoint, timeFromStart, altitude]);
 
-  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
-      
+
       if (e.key === 'Escape') {
         handleCancel();
       } else if (e.key === 'Enter' && e.ctrlKey) {
@@ -122,23 +131,19 @@ const WaypointModal = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, altitude, timeFromStart]);
 
-  // SIMPLIFIED: Basic elevation estimation fallback
   const estimateBasicElevation = (latitude, longitude) => {
-    // Simple geographic-based estimation
     if (Math.abs(latitude) > 60) return 300; // Polar regions
     if (Math.abs(latitude) < 30) return 50;  // Tropical regions
-    
-    // Check for major mountain ranges (very basic)
+
     if (latitude > 25 && latitude < 50 && longitude > -125 && longitude < -100) return 1500; // Rocky Mountains
-    if (latitude > 25 && latitude < 45 && longitude > 65 && longitude < 105) return 2000;    // Himalayas
-    
+    if (latitude > 25 && latitude < 45 && longitude > 65 && longitude < 105) return 2000;   // Himalayas
+
     return 150; // Default continental
   };
 
   const handleConfirm = () => {
-    // SIMPLIFIED: Direct altitude validation
     const isUnderground = altitude < groundElevation;
-    
+
     if (isUnderground) {
       alert(`⚠️ Altitude ${altitude}m is below ground level (${groundElevation.toFixed(1)}m MSL). Please adjust altitude above ground level.`);
       return;
@@ -148,7 +153,7 @@ const WaypointModal = ({
       altitude: parseFloat(altitude),
       timeFromStart: parseFloat(timeFromStart),
       estimatedSpeed,
-      speedFeasible: true, // Always allow creation per Phase 3 requirements
+      speedFeasible: true,
       groundElevation,
       terrainAccurate: !terrainError
     };
@@ -170,7 +175,6 @@ const WaypointModal = ({
     setTimeFromStart(Math.max(0, newTime));
   };
 
-  // Speed status styling
   const getSpeedStatusStyle = (status) => {
     switch (status) {
       case 'feasible': return { color: '#28a745', backgroundColor: '#d4edda' };
@@ -190,8 +194,8 @@ const WaypointModal = ({
       <div className="waypoint-modal" onClick={(e) => e.stopPropagation()}>
         <div className="waypoint-modal-header">
           <h3>Add Waypoint {waypointIndex}</h3>
-          <button 
-            className="waypoint-modal-close" 
+          <button
+            className="waypoint-modal-close"
             onClick={handleCancel}
             title="Close (Esc)"
           >
@@ -200,7 +204,6 @@ const WaypointModal = ({
         </div>
 
         <div className="waypoint-modal-body">
-          {/* SIMPLIFIED: Location display only */}
           <div className="waypoint-location-info">
             <div className="location-item">
               <label>📍 Coordinates</label>
@@ -208,7 +211,6 @@ const WaypointModal = ({
             </div>
           </div>
 
-          {/* SIMPLIFIED: Altitude input with real terrain context */}
           <div className="altitude-section">
             <div className="altitude-input-group">
               <label htmlFor="altitude" className="input-label">
@@ -244,7 +246,6 @@ const WaypointModal = ({
             </div>
           </div>
 
-          {/* Time input */}
           <div className="time-input-group">
             <label htmlFor="timeFromStart" className="input-label">⏱️ Time from Start</label>
             <input
@@ -259,7 +260,6 @@ const WaypointModal = ({
             />
           </div>
 
-          {/* SIMPLIFIED: Speed display */}
           {previousWaypoint && (
             <div className="speed-section">
               <div className="speed-display" style={getSpeedStatusStyle(speedStatus)}>
@@ -278,13 +278,13 @@ const WaypointModal = ({
         </div>
 
         <div className="waypoint-modal-footer">
-          <button 
+          <button
             onClick={handleCancel}
             className="modal-btn secondary"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleConfirm}
             className="modal-btn primary"
             title="Add waypoint (Ctrl+Enter)"
@@ -307,7 +307,7 @@ WaypointModal.propTypes = {
   }),
   previousWaypoint: PropTypes.object,
   waypointIndex: PropTypes.number,
-  mapRef: PropTypes.object.isRequired, // ADDED: Required map reference
+  // mapRef: PropTypes.object.isRequired, // Remove if not used elsewhere
 };
 
 WaypointModal.defaultProps = {

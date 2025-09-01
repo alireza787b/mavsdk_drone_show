@@ -72,10 +72,10 @@ const WaypointPanel = ({
       
       case 'altitude':
         const alt = parseFloat(editValues.altitude);
-        if (!isNaN(alt) && alt >= 1 && alt <= 1000) {
+        if (!isNaN(alt) && alt >= 1 && alt <= 10000) {
           updates.altitude = alt;
         } else {
-          alert('Altitude must be between 1 and 1000 meters MSL');
+          alert('Altitude must be between 1 and 10000 meters MSL');
           return;
         }
         break;
