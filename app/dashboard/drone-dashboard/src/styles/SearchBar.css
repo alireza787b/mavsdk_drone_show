@@ -1,4 +1,6 @@
 /* src/styles/SearchBar.css */
+/* FIXED: Search suggestions z-index issue - ensuring they appear above toolbar */
+
 .search-bar-container {
   position: relative;
   width: 100%;
@@ -121,96 +123,7 @@
   z-index: 1000;
 }
 
-.search-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background-color: #2a2d3a;
-  border: 1px solid #3a3f4b;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  max-height: 300px;
-  overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-}
-
-.suggestion-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  border-bottom: 1px solid #3a3f4b;
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.suggestion-item:hover {
-  background-color: #3a3f4b;
-}
-
-.suggestion-icon {
-  color: #00d4ff;
-  margin-right: 0.75rem;
-  margin-top: 0.25rem;
-  flex-shrink: 0;
-}
-
-.suggestion-text {
-  flex: 1;
-  overflow: hidden;
-}
-
-.suggestion-main {
-  color: #fff;
-  font-weight: 500;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
-}
-
-.suggestion-sub {
-  color: #6c757d;
-  font-size: 0.75rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .search-bar-container {
-    max-width: 100%;
-  }
-
-  .search-input {
-    font-size: 0.875rem;
-    padding: 0.6rem 2.5rem;
-  }
-
-  .search-suggestions {
-    max-height: 200px;
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-/* === ENHANCED SEARCH BAR STYLES === */
-
-/* Search container updates */
-.search-bar-container {
-  position: relative;
-  width: 100%;
-  max-width: 500px;
-}
-
-/* Enhanced search suggestions */
+/* FIXED: Enhanced search suggestions with proper z-index hierarchy */
 .search-suggestions {
   position: absolute;
   top: 100%;
@@ -223,8 +136,13 @@
   max-height: 400px;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  z-index: var(--z-popover);
+  /* CRITICAL FIX: Use highest z-index to ensure above toolbar */
+  z-index: var(--z-tooltip);
   backdrop-filter: blur(8px);
+  /* ADDED: Force new stacking context */
+  isolation: isolate;
+  /* ADDED: Ensure suggestions container is above everything */
+  transform: translateZ(0);
 }
 
 .search-suggestions.loading {
@@ -239,6 +157,9 @@
   transition: var(--transition-base);
   border-bottom: 1px solid var(--color-border-light);
   gap: var(--spacing-md);
+  /* ADDED: Ensure individual items maintain z-index */
+  position: relative;
+  z-index: inherit;
 }
 
 .suggestion-item:last-child {
@@ -249,6 +170,8 @@
 .suggestion-item.selected {
   background: var(--color-primary-light);
   border-left: 4px solid var(--color-primary);
+  /* ADDED: Higher z-index for hovered/selected items */
+  z-index: calc(var(--z-tooltip) + 1);
 }
 
 .suggestion-icon {
@@ -294,4 +217,87 @@
   color: var(--color-text-tertiary);
 }
 
+/* Responsive */
+@media (max-width: 768px) {
+  .search-bar-container {
+    max-width: 100%;
+  }
 
+  .search-input {
+    font-size: 0.875rem;
+    padding: 0.6rem 2.5rem;
+  }
+
+  .search-suggestions {
+    max-height: 200px;
+    /* MOBILE FIX: Even higher z-index on mobile */
+    z-index: calc(var(--z-tooltip) + 10);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* LEGACY COMPATIBILITY: Fallback search suggestions styling */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #2a2d3a;
+  border: 1px solid #3a3f4b;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  /* CRITICAL LEGACY FIX: Explicit high z-index */
+  z-index: 1070;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #3a3f4b;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background-color: #3a3f4b;
+}
+
+.suggestion-icon {
+  color: #00d4ff;
+  margin-right: 0.75rem;
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+.suggestion-text {
+  flex: 1;
+  overflow: hidden;
+}
+
+.suggestion-main {
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.suggestion-sub {
+  color: #6c757d;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

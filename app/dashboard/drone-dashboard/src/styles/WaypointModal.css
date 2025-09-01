@@ -740,3 +740,387 @@
     transform: none;
   }
 }
+/* src/styles/WaypointModal.css */
+/* FIXED: Simplified modal styling with real terrain integration */
+/* REMOVED: Complex terrain sections, confusing UI elements */
+/* ADDED: Clean altitude input with ground level context */
+
+@import './DesignTokens.css';
+
+/* Modal Backdrop */
+.waypoint-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--modal-backdrop-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+  animation: backdropFadeIn 0.3s ease;
+}
+
+.waypoint-modal {
+  background: var(--color-bg-primary);
+  border-radius: var(--modal-border-radius);
+  box-shadow: var(--shadow-2xl);
+  max-width: var(--modal-max-width);
+  width: 90%;
+  max-height: 85vh;
+  overflow: hidden;
+  animation: modalSlideIn 0.3s ease;
+  border: 2px solid var(--color-border-primary);
+}
+
+/* Modal Header */
+.waypoint-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-base);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-bg-secondary);
+}
+
+.waypoint-modal-header h3 {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.waypoint-modal-close {
+  background: none;
+  border: none;
+  font-size: var(--font-size-xl);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-base);
+  line-height: 1;
+}
+
+.waypoint-modal-close:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+/* Modal Body */
+.waypoint-modal-body {
+  padding: var(--spacing-lg);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* SIMPLIFIED: Location Information */
+.waypoint-location-info {
+  background: var(--color-info-light);
+  border: 1px solid var(--color-info-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.location-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-sm);
+}
+
+.location-item label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  margin-right: var(--spacing-md);
+}
+
+.location-item span {
+  font-family: var(--font-family-mono);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* SIMPLIFIED: Altitude Section with Real Terrain Context */
+.altitude-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.altitude-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.input-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.loading-indicator {
+  color: var(--color-primary);
+  animation: spin 1s linear infinite;
+}
+
+.waypoint-input {
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  transition: var(--transition-base);
+  font-family: var(--font-family-mono);
+}
+
+.waypoint-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.waypoint-input.validation-error {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+.waypoint-input.validation-error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+}
+
+/* ADDED: Altitude Context Information */
+.altitude-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--border-radius-sm);
+  border-left: 4px solid var(--color-info);
+}
+
+.terrain-note,
+.agl-note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+}
+
+.terrain-note strong,
+.agl-note strong {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.terrain-warning {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Time Input */
+.time-input-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* SIMPLIFIED: Speed Display */
+.speed-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.speed-display {
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  border: 2px solid currentColor;
+}
+
+.speed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.speed-label {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+}
+
+.speed-value {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+}
+
+.speed-warning {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Validation Messages */
+.validation-message {
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--spacing-xs);
+}
+
+.validation-message.error {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border-left: 4px solid var(--color-danger);
+}
+
+/* Modal Footer */
+.waypoint-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  padding: var(--spacing-base) var(--spacing-lg) var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.modal-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-base);
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-btn.secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
+}
+
+.modal-btn.secondary:hover {
+  background: var(--color-bg-quaternary);
+  color: var(--color-text-primary);
+}
+
+.modal-btn.primary {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border: 1px solid var(--color-primary);
+}
+
+.modal-btn.primary:hover {
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Animations */
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .waypoint-modal {
+    width: 95%;
+    margin: 1rem;
+  }
+  
+  .waypoint-modal-header,
+  .waypoint-modal-body,
+  .waypoint-modal-footer {
+    padding: var(--spacing-base);
+  }
+  
+  .waypoint-location-info {
+    padding: var(--spacing-sm);
+  }
+  
+  .location-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .speed-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .waypoint-modal-footer {
+    flex-direction: column;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .waypoint-modal-overlay,
+  .waypoint-modal,
+  .loading-indicator {
+    animation: none;
+  }
+  
+  .modal-btn:hover {
+    transform: none;
+  }
+}
+
+/* Focus management */
+.waypoint-input:focus-visible,
+.modal-btn:focus-visible,
+.waypoint-modal-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .waypoint-modal {
+    border-width: 3px;
+  }
+  
+  .validation-message.error {
+    border-left-width: 6px;
+  }
+  
+  .modal-btn {
+    border-width: 2px;
+  }
+}

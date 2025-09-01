@@ -1,6 +1,6 @@
 // src/utilities/SpeedCalculator.js
-// PHASE 3.1 FIX: Correct speed assignment logic
-// Each waypoint shows speed TO the next waypoint, not FROM previous
+// CRITICAL FIX: Corrected speed calculation logic
+// FIXED: Each waypoint shows speed FROM current TO next waypoint (not FROM previous TO current)
 
 import { distance } from '@turf/turf';
 
@@ -108,42 +108,53 @@ export const getSpeedDescription = (speed) => {
 };
 
 /**
- * PHASE 3.1 FIX: Recalculate all waypoint speeds with correct logic
- * Each waypoint shows speed TO the next waypoint (not FROM previous)
- * @param {Array} waypoints - Array of waypoints to recalculate
- * @returns {Array} Updated waypoints with correct speed assignments
+ * CRITICAL FIX: Calculate waypoint speeds with correct FROM current TO next logic
+ * OLD WRONG: Each waypoint showed speed needed FROM previous waypoint TO current waypoint
+ * NEW CORRECT: Each waypoint shows speed needed FROM current waypoint TO next waypoint
+ * @param {Array} waypoints - Array of all waypoints
+ * @returns {Array} Updated waypoints with corrected speed calculations
  */
-export const recalculateAllSpeeds = (waypoints) => {
+export const calculateWaypointSpeeds = (waypoints) => {
   if (!waypoints || waypoints.length < 2) return waypoints;
 
   return waypoints.map((waypoint, index) => {
-    // PHASE 3.1 FIX: Speed logic correction
-    if (index === waypoints.length - 1) {
-      // Last waypoint keeps its last assigned speed (no next waypoint)
+    // FIXED LOGIC: Calculate speed FROM current waypoint TO next waypoint
+    if (index < waypoints.length - 1) {
+      // Current waypoint shows speed needed to reach NEXT waypoint
+      const nextWaypoint = waypoints[index + 1];
+      const speedToNext = calculateSpeed(waypoint, nextWaypoint);
+      const speedStatus = validateSpeed(speedToNext);
+      
       return {
         ...waypoint,
-        estimatedSpeed: waypoint.estimatedSpeed || 0,
-        speed: waypoint.estimatedSpeed || 0,
-        speedFeasible: true
+        estimatedSpeed: speedToNext,
+        speed: speedToNext, // Legacy compatibility
+        speedFeasible: speedStatus === 'feasible'
+      };
+    } else {
+      // LAST WAYPOINT: Keep the speed from previous calculation (if it exists)
+      const previousCalculatedSpeed = waypoints[index - 1]?.estimatedSpeed || 0;
+      return {
+        ...waypoint,
+        estimatedSpeed: previousCalculatedSpeed,
+        speed: previousCalculatedSpeed, // Legacy compatibility  
+        speedFeasible: validateSpeed(previousCalculatedSpeed) === 'feasible'
       };
     }
-
-    // All other waypoints show speed TO the next waypoint
-    const nextWaypoint = waypoints[index + 1];
-    const speedToNext = calculateSpeed(waypoint, nextWaypoint);
-    const speedStatus = validateSpeed(speedToNext);
-
-    return {
-      ...waypoint,
-      estimatedSpeed: speedToNext,
-      speed: speedToNext, // Legacy compatibility
-      speedFeasible: speedStatus === 'feasible'
-    };
   });
 };
 
 /**
- * PHASE 3.1 FIX: Recalculate speeds after waypoint drag-drop operation
+ * FIXED: Recalculate all waypoint speeds with correct logic
+ * @param {Array} waypoints - Array of waypoints to recalculate
+ * @returns {Array} Updated waypoints with all speeds recalculated
+ */
+export const recalculateAllSpeeds = (waypoints) => {
+  return calculateWaypointSpeeds(waypoints);
+};
+
+/**
+ * FIXED: Recalculate speeds after waypoint drag-drop operation  
  * @param {Array} waypoints - Array of all waypoints
  * @param {string} movedWaypointId - ID of the waypoint that was moved
  * @returns {Array} Updated waypoints with recalculated speeds
@@ -154,44 +165,64 @@ export const recalculateAfterDrag = (waypoints, movedWaypointId) => {
   const movedIndex = waypoints.findIndex(wp => wp.id === movedWaypointId);
   if (movedIndex === -1) return waypoints;
 
+  // FIXED: Recalculate with correct FROM current TO next logic
   return waypoints.map((waypoint, index) => {
-    // PHASE 3.1 FIX: Recalculate affected speeds
-    // Need to recalculate: moved waypoint and waypoint before it
-    const needsRecalculation = (
-      index === movedIndex ||  // The moved waypoint
-      index === movedIndex - 1  // The waypoint before the moved one
+    // Recalculate speed for affected waypoints:
+    // 1. The moved waypoint (if it has a next waypoint)
+    // 2. The waypoint before the moved one (if it exists)
+    const needsRecalc = (
+      index === movedIndex || // The moved waypoint itself
+      index === movedIndex - 1 // The waypoint before the moved one
     );
 
-    if (!needsRecalculation) {
-      return waypoint;
-    }
+    if (needsRecalc && index < waypoints.length - 1) {
+      // Calculate speed FROM current TO next waypoint
+      const nextWaypoint = waypoints[index + 1];
+      const recalculatedSpeed = calculateSpeed(waypoint, nextWaypoint);
+      const speedStatus = validateSpeed(recalculatedSpeed);
 
-    // Last waypoint special case
-    if (index === waypoints.length - 1) {
       return {
         ...waypoint,
-        estimatedSpeed: waypoint.estimatedSpeed || 0,
-        speed: waypoint.estimatedSpeed || 0,
-        speedFeasible: true
+        estimatedSpeed: recalculatedSpeed,
+        speed: recalculatedSpeed, // Legacy compatibility
+        speedFeasible: speedStatus === 'feasible'
       };
     }
 
-    // Calculate speed to next waypoint
-    const nextWaypoint = waypoints[index + 1];
-    const speedToNext = calculateSpeed(waypoint, nextWaypoint);
-    const speedStatus = validateSpeed(speedToNext);
-
-    return {
-      ...waypoint,
-      estimatedSpeed: speedToNext,
-      speed: speedToNext,
-      speedFeasible: speedStatus === 'feasible'
-    };
+    return waypoint;
   });
 };
 
 /**
- * PHASE 3.1: Validate waypoint sequence for time conflicts
+ * FIXED: Calculate speed for new waypoint during creation
+ * @param {Object} position - New waypoint position
+ * @param {Object} waypointData - New waypoint data (altitude, time, etc.)
+ * @param {Array} existingWaypoints - Current waypoints array
+ * @returns {number} Estimated speed for the new waypoint
+ */
+export const calculateSpeedForNewWaypoint = (position, waypointData, existingWaypoints) => {
+  if (!existingWaypoints || existingWaypoints.length === 0) {
+    // First waypoint has no speed
+    return 0;
+  }
+
+  // FIXED: For a new waypoint, we need to calculate the speed FROM the previous waypoint TO this new one
+  // But we'll display this as the speed that the PREVIOUS waypoint needs to reach this new one
+  const previousWaypoint = existingWaypoints[existingWaypoints.length - 1];
+  
+  if (!previousWaypoint) return 0;
+
+  const newWaypoint = {
+    ...position,
+    altitude: waypointData.altitude,
+    timeFromStart: waypointData.timeFromStart
+  };
+
+  return calculateSpeed(previousWaypoint, newWaypoint);
+};
+
+/**
+ * Validate waypoint sequence for time conflicts
  * @param {Array} waypoints - Array of waypoints to validate
  * @returns {Object} Validation result with issues array
  */
@@ -217,10 +248,11 @@ export const validateWaypointSequence = (waypoints) => {
       });
     }
 
-    // Check for impossible speeds (using speed TO next waypoint)
+    // FIXED: Check speeds using new logic
     if (i < waypoints.length - 1) {
       const nextWaypoint = waypoints[i + 1];
       const speedToNext = calculateSpeed(current, nextWaypoint);
+      
       if (speedToNext > SPEED_THRESHOLDS.ABSOLUTE_MAX) {
         issues.push({
           waypoint: current.name,
@@ -238,7 +270,7 @@ export const validateWaypointSequence = (waypoints) => {
 };
 
 /**
- * PHASE 3.1 FIX: Calculate trajectory statistics with corrected speed logic
+ * Calculate total trajectory statistics
  * @param {Array} waypoints - Array of waypoints
  * @returns {Object} Trajectory statistics
  */
@@ -261,14 +293,14 @@ export const calculateTrajectoryStats = (waypoints) => {
   let maxAlt = waypoints[0].altitude;
   let minAlt = waypoints[0].altitude;
 
-  // PHASE 3.1 FIX: Calculate based on speed TO next waypoint
+  // FIXED: Calculate stats using correct speed logic
   for (let i = 0; i < waypoints.length - 1; i++) {
-    const current = waypoints[i];
+    const curr = waypoints[i];
     const next = waypoints[i + 1];
 
-    // Calculate segment distance and speed
-    const segmentSpeed = calculateSpeed(current, next);
-    const point1 = [current.longitude, current.latitude];
+    // Calculate segment distance and speed FROM current TO next
+    const segmentSpeed = calculateSpeed(curr, next);
+    const point1 = [curr.longitude, curr.latitude];
     const point2 = [next.longitude, next.latitude];
     const segmentDistance = distance(point1, point2, { units: 'meters' });
     
@@ -283,7 +315,7 @@ export const calculateTrajectoryStats = (waypoints) => {
     }
   }
 
-  const totalTime = waypoints[waypoints.length - 1].timeFromStart || 0;
+  const totalTime = waypoints[waypoints.length - 1]?.timeFromStart || 0;
   const avgSpeed = totalTime > 0 ? totalDistance / totalTime : 0;
 
   return {

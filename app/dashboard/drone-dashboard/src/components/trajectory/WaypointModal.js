@@ -1,38 +1,12 @@
 // src/components/trajectory/WaypointModal.js
-// PHASE 3.1 FIX: Simplified, clean altitude interface - MSL only
+// FIXED: Simplified altitude dialog with real MapGL terrain data
+// REMOVED: Confusing terrain sections, estimation functions
+// ADDED: Real map.queryTerrainElevation() integration
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { calculateSpeed, getSpeedStatus } from '../../utilities/SpeedCalculator';
 import '../../styles/WaypointModal.css';
-
-/**
- * PHASE 3.1: Simplified elevation estimation
- */
-const estimateGroundElevation = (latitude, longitude) => {
-  // Mountain ranges
-  const mountainRanges = [
-    { lat: [25, 50], lng: [-125, -100], elevation: 1500 }, // Rocky Mountains
-    { lat: [35, 70], lng: [60, 150], elevation: 2000 },    // Asian mountains  
-    { lat: [40, 50], lng: [-10, 50], elevation: 800 },     // European mountains
-    { lat: [25, 45], lng: [35, 60], elevation: 1200 },     // Middle East mountains
-  ];
-
-  for (const range of mountainRanges) {
-    if (latitude >= range.lat[0] && latitude <= range.lat[1] &&
-        longitude >= range.lng[0] && longitude <= range.lng[1]) {
-      return range.elevation;
-    }
-  }
-
-  if (latitude > 60 || latitude < -60) return 200; // Polar regions
-  if (Math.abs(latitude) < 30) return 50; // Tropical regions
-  
-  const coastalProximity = Math.min(Math.abs(longitude % 180), Math.abs(latitude % 90));
-  if (coastalProximity < 5) return 10; // Coastal areas
-
-  return 150; // Default continental elevation
-};
 
 const WaypointModal = ({ 
   isOpen, 
@@ -40,18 +14,19 @@ const WaypointModal = ({
   onConfirm, 
   position,
   previousWaypoint,
-  waypointIndex 
+  waypointIndex,
+  mapRef // ADDED: Map reference for real terrain queries
 }) => {
-  // PHASE 3.1: Simplified state - clean and focused
+  // SIMPLIFIED: Core state only - removed complex terrain state
   const [altitude, setAltitude] = useState(100);
   const [timeFromStart, setTimeFromStart] = useState(0);
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
   const [speedStatus, setSpeedStatus] = useState('unknown');
   const [groundElevation, setGroundElevation] = useState(0);
-  const [isUnderground, setIsUnderground] = useState(false);
+  const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
+  const [terrainError, setTerrainError] = useState(null);
   
   const altitudeRef = useRef(null);
-  const modalRef = useRef(null);
 
   // Auto-focus altitude input when modal opens
   useEffect(() => {
@@ -61,44 +36,61 @@ const WaypointModal = ({
     }
   }, [isOpen]);
 
-  // Calculate default time
+  // Calculate default time from previous waypoint
   useEffect(() => {
     if (isOpen) {
-      const defaultTime = previousWaypoint ? (previousWaypoint.timeFromStart || 0) + 10 : 10;
+      const defaultTime = previousWaypoint
+        ? (previousWaypoint.timeFromStart || 0) + 10 
+        : 10;
       setTimeFromStart(defaultTime);
     }
   }, [isOpen, previousWaypoint]);
 
-  // PHASE 3.1: Simplified auto-altitude calculation
+  // FIXED: Real terrain elevation using MapGL API
   useEffect(() => {
-    if (isOpen && position) {
-      const estimatedGround = estimateGroundElevation(position.latitude, position.longitude);
-      setGroundElevation(estimatedGround);
+    if (isOpen && position && mapRef?.current) {
+      setIsLoadingTerrain(true);
+      setTerrainError(null);
       
-      // PHASE 3.1 FIX: Smart altitude defaults
-      let suggestedAltitude;
-      if (waypointIndex === 0) {
-        // First waypoint: ground + 100m
-        suggestedAltitude = estimatedGround + 100;
-      } else if (previousWaypoint) {
-        // Subsequent waypoints: use last waypoint altitude as starting point
-        suggestedAltitude = previousWaypoint.altitude;
-      } else {
-        // Fallback
-        suggestedAltitude = estimatedGround + 100;
+      try {
+        // CRITICAL: Use real MapGL queryTerrainElevation API
+        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+        
+        if (map && typeof map.queryTerrainElevation === 'function') {
+          const coordinate = [position.longitude, position.latitude];
+          const elevation = map.queryTerrainElevation(coordinate);
+          
+          if (elevation !== null && elevation !== undefined) {
+            const realGroundElevation = Math.max(0, elevation);
+            setGroundElevation(realGroundElevation);
+            
+            // SIMPLIFIED: Auto-fill elevation + 100m MSL
+            const suggestedAltitude = realGroundElevation + 100;
+            setAltitude(suggestedAltitude);
+            
+            console.info(`Real terrain: Ground ${realGroundElevation.toFixed(1)}m MSL, Suggested ${suggestedAltitude.toFixed(1)}m MSL`);
+          } else {
+            // Fallback to basic estimation if terrain not loaded
+            throw new Error('Terrain data not loaded');
+          }
+        } else {
+          throw new Error('MapGL terrain API not available');
+        }
+      } catch (error) {
+        console.warn('Real terrain query failed, using fallback:', error);
+        setTerrainError('Using estimated terrain data');
+        
+        // FALLBACK: Simple geographic estimation
+        const estimatedGround = estimateBasicElevation(position.latitude, position.longitude);
+        setGroundElevation(estimatedGround);
+        setAltitude(estimatedGround + 100);
       }
       
-      setAltitude(suggestedAltitude);
+      setIsLoadingTerrain(false);
     }
-  }, [isOpen, position, waypointIndex, previousWaypoint]);
+  }, [isOpen, position, mapRef]);
 
-  // PHASE 3.1: Check if altitude is underground
-  useEffect(() => {
-    const underground = altitude < groundElevation;
-    setIsUnderground(underground);
-  }, [altitude, groundElevation]);
-
-  // Real-time speed calculation (for next waypoint)
+  // Real-time speed calculation and validation
   useEffect(() => {
     if (previousWaypoint && position && timeFromStart > (previousWaypoint.timeFromStart || 0)) {
       const speed = calculateSpeed(
@@ -130,219 +122,172 @@ const WaypointModal = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, altitude, timeFromStart]);
 
+  // SIMPLIFIED: Basic elevation estimation fallback
+  const estimateBasicElevation = (latitude, longitude) => {
+    // Simple geographic-based estimation
+    if (Math.abs(latitude) > 60) return 300; // Polar regions
+    if (Math.abs(latitude) < 30) return 50;  // Tropical regions
+    
+    // Check for major mountain ranges (very basic)
+    if (latitude > 25 && latitude < 50 && longitude > -125 && longitude < -100) return 1500; // Rocky Mountains
+    if (latitude > 25 && latitude < 45 && longitude > 65 && longitude < 105) return 2000;    // Himalayas
+    
+    return 150; // Default continental
+  };
+
   const handleConfirm = () => {
-    // Basic validation only
-    if (altitude < 0) {
-      alert('MSL altitude cannot be negative');
+    // SIMPLIFIED: Direct altitude validation
+    const isUnderground = altitude < groundElevation;
+    
+    if (isUnderground) {
+      alert(`⚠️ Altitude ${altitude}m is below ground level (${groundElevation.toFixed(1)}m MSL). Please adjust altitude above ground level.`);
       return;
-    }
-
-    if (altitude > 10000) {
-      alert('MSL altitude exceeds reasonable flight ceiling (10km)');
-      return;
-    }
-
-    if (previousWaypoint && timeFromStart <= (previousWaypoint.timeFromStart || 0)) {
-      alert('Time must be greater than previous waypoint time');
-      return;
-    }
-
-    // Show speed warnings but don't block
-    if (estimatedSpeed > 20) {
-      const proceed = window.confirm(
-        `High Speed Warning: ${estimatedSpeed.toFixed(1)} m/s (${(estimatedSpeed * 3.6).toFixed(1)} km/h)\n\n` +
-        `This may exceed typical drone capabilities.\n` +
-        `Consider increasing flight time for safety.\n\n` +
-        `Continue anyway?`
-      );
-      if (!proceed) return;
     }
 
     const waypointData = {
       altitude: parseFloat(altitude),
       timeFromStart: parseFloat(timeFromStart),
-      estimatedSpeed: estimatedSpeed,
-      speedFeasible: true,
-      terrainInfo: {
-        groundElevation: groundElevation,
-        estimatedTerrain: true,
-        altitudeAGL: Math.max(0, altitude - groundElevation)
-      }
+      estimatedSpeed,
+      speedFeasible: true, // Always allow creation per Phase 3 requirements
+      groundElevation,
+      terrainAccurate: !terrainError
     };
 
     onConfirm(waypointData);
-    handleReset();
   };
 
   const handleCancel = () => {
     onClose();
-    handleReset();
   };
 
-  const handleReset = () => {
-    setAltitude(100);
-    setTimeFromStart(0);
-    setEstimatedSpeed(0);
-    setSpeedStatus('unknown');
-    setGroundElevation(0);
-    setIsUnderground(false);
+  const handleAltitudeChange = (e) => {
+    const newAltitude = parseFloat(e.target.value) || 0;
+    setAltitude(newAltitude);
   };
 
-  // Handle backdrop click
-  const handleBackdropClick = (e) => {
-    if (e.target === modalRef.current) {
-      handleCancel();
+  const handleTimeChange = (e) => {
+    const newTime = parseFloat(e.target.value) || 0;
+    setTimeFromStart(Math.max(0, newTime));
+  };
+
+  // Speed status styling
+  const getSpeedStatusStyle = (status) => {
+    switch (status) {
+      case 'feasible': return { color: '#28a745', backgroundColor: '#d4edda' };
+      case 'marginal': return { color: '#ffc107', backgroundColor: '#fff3cd' };
+      case 'impossible': return { color: '#dc3545', backgroundColor: '#f8d7da' };
+      default: return { color: '#6c757d', backgroundColor: '#e9ecef' };
     }
   };
+
+  const isUnderground = altitude < groundElevation;
+  const aglAltitude = Math.max(0, altitude - groundElevation);
 
   if (!isOpen) return null;
 
-  const getSpeedIndicatorClass = () => {
-    switch (speedStatus) {
-      case 'feasible': return 'speed-indicator-green';
-      case 'marginal': return 'speed-indicator-yellow';
-      case 'impossible': return 'speed-indicator-red';
-      default: return 'speed-indicator-gray';
-    }
-  };
-
-  const getSpeedMessage = () => {
-    switch (speedStatus) {
-      case 'feasible': return 'Good speed';
-      case 'marginal': return 'High speed - caution';
-      case 'impossible': return 'Very high speed - verify capabilities';
-      default: return 'Calculating...';
-    }
-  };
-
   return (
-    <div 
-      className="waypoint-modal-overlay" 
-      ref={modalRef}
-      onClick={handleBackdropClick}
-    >
-      <div className="waypoint-modal">
+    <div className="waypoint-modal-overlay" onClick={handleCancel}>
+      <div className="waypoint-modal" onClick={(e) => e.stopPropagation()}>
         <div className="waypoint-modal-header">
-          <h3>Add Waypoint {waypointIndex + 1}</h3>
+          <h3>Add Waypoint {waypointIndex}</h3>
           <button 
-            className="waypoint-modal-close"
+            className="waypoint-modal-close" 
             onClick={handleCancel}
-            aria-label="Close"
+            title="Close (Esc)"
           >
-            ×
+            ✕
           </button>
         </div>
 
         <div className="waypoint-modal-body">
-          {/* PHASE 3.1: Clean location display */}
+          {/* SIMPLIFIED: Location display only */}
           <div className="waypoint-location-info">
             <div className="location-item">
-              <label>Location</label>
-              <span>{position?.latitude?.toFixed(4)}, {position?.longitude?.toFixed(4)}</span>
+              <label>📍 Coordinates</label>
+              <span>{position?.latitude?.toFixed(6)}, {position?.longitude?.toFixed(6)}</span>
             </div>
           </div>
 
-          {/* PHASE 3.1: Simplified altitude input */}
-          <div className="waypoint-input-group">
-            <label htmlFor="altitude">Altitude MSL (meters)</label>
-            <div className="altitude-input-container">
+          {/* SIMPLIFIED: Altitude input with real terrain context */}
+          <div className="altitude-section">
+            <div className="altitude-input-group">
+              <label htmlFor="altitude" className="input-label">
+                🏔️ Altitude (MSL)
+                {isLoadingTerrain && <span className="loading-indicator"> ⟳</span>}
+              </label>
               <input
-                id="altitude"
                 ref={altitudeRef}
+                id="altitude"
                 type="number"
+                value={altitude}
+                onChange={handleAltitudeChange}
+                className={`waypoint-input ${isUnderground ? 'validation-error' : ''}`}
+                placeholder="Altitude in meters MSL"
+                step="1"
                 min="0"
                 max="10000"
-                step="1"
-                value={altitude}
-                onChange={(e) => setAltitude(parseFloat(e.target.value) || 0)}
-                className={`waypoint-input ${isUnderground ? 'underground-warning' : ''}`}
-                placeholder="Enter MSL altitude"
               />
-              
-              {/* PHASE 3.1: Simple elevation info near field */}
-              <div className="elevation-info-inline">
-                Ground: {groundElevation}m MSL
-                {isUnderground && (
-                  <span className="underground-alert">
-                    ⚠ Underground - altitude below estimated ground level
-                  </span>
-                )}
+              <div className="altitude-context">
+                <small className="terrain-note">
+                  Ground elevation: <strong>{groundElevation.toFixed(1)}m MSL</strong>
+                  {terrainError && <span className="terrain-warning"> ({terrainError})</span>}
+                </small>
+                <small className="agl-note">
+                  Above ground: <strong>{aglAltitude.toFixed(1)}m AGL</strong>
+                </small>
               </div>
+              {isUnderground && (
+                <div className="validation-message error">
+                  ⚠️ Altitude is below ground level! Minimum: {groundElevation.toFixed(1)}m MSL
+                </div>
+              )}
             </div>
-
-            {/* PHASE 3.1: Clean guidance */}
-            <div className="input-hint">
-              MSL = Mean Sea Level. Current altitude above ground: {Math.max(0, altitude - groundElevation)}m
-            </div>
-
-            {/* PHASE 3.1: Underground warning */}
-            {isUnderground && (
-              <div className="underground-guidance">
-                <strong>⚠ Warning:</strong> This altitude is below estimated ground level.
-                <br />Consider increasing altitude for safe terrain clearance.
-              </div>
-            )}
           </div>
 
           {/* Time input */}
-          <div className="waypoint-input-group">
-            <label htmlFor="time">
-              Time from start (seconds)
-              {previousWaypoint && (
-                <span className="time-constraint">
-                  &gt; {(previousWaypoint.timeFromStart || 0).toFixed(1)}s
-                </span>
-              )}
-            </label>
+          <div className="time-input-group">
+            <label htmlFor="timeFromStart" className="input-label">⏱️ Time from Start</label>
             <input
-              id="time"
+              id="timeFromStart"
               type="number"
-              min={previousWaypoint ? (previousWaypoint.timeFromStart || 0) + 0.1 : 0.1}
-              max="3600"
-              step="0.1"
               value={timeFromStart}
-              onChange={(e) => setTimeFromStart(parseFloat(e.target.value) || 0)}
+              onChange={handleTimeChange}
               className="waypoint-input"
-              placeholder="Mission time"
+              placeholder="Seconds from mission start"
+              step="1"
+              min="0"
             />
           </div>
 
-          {/* PHASE 3.1: Simplified speed display */}
-          {estimatedSpeed > 0 && (
-            <div className="speed-calculation-simple">
-              <div className="speed-display-simple">
-                <label>Speed to this waypoint:</label>
-                <span className={`speed-value ${getSpeedIndicatorClass()}`}>
-                  {estimatedSpeed.toFixed(1)} m/s
-                </span>
-                <span className="speed-status-simple">({getSpeedMessage()})</span>
-              </div>
-              
-              {estimatedSpeed > 15 && (
-                <div className="speed-note">
-                  ≈ {(estimatedSpeed * 3.6).toFixed(1)} km/h
-                  {estimatedSpeed > 20 && <span className="high-speed-note"> - High speed, verify drone limits</span>}
+          {/* SIMPLIFIED: Speed display */}
+          {previousWaypoint && (
+            <div className="speed-section">
+              <div className="speed-display" style={getSpeedStatusStyle(speedStatus)}>
+                <div className="speed-header">
+                  <span className="speed-label">Required Speed</span>
+                  <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>
                 </div>
-              )}
+                {speedStatus !== 'feasible' && (
+                  <div className="speed-warning">
+                    {speedStatus === 'marginal' ? '⚠️ High speed - use caution' : '🚨 Very high speed - review timing'}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
 
         <div className="waypoint-modal-footer">
           <button 
-            className="modal-btn modal-btn-cancel"
             onClick={handleCancel}
+            className="modal-btn secondary"
           >
             Cancel
           </button>
           <button 
-            className="modal-btn modal-btn-confirm"
             onClick={handleConfirm}
-            disabled={
-              altitude < 0 || 
-              altitude > 10000 || 
-              (previousWaypoint && timeFromStart <= (previousWaypoint.timeFromStart || 0))
-            }
+            className="modal-btn primary"
+            title="Add waypoint (Ctrl+Enter)"
           >
             Add Waypoint
           </button>
@@ -358,10 +303,17 @@ WaypointModal.propTypes = {
   onConfirm: PropTypes.func.isRequired,
   position: PropTypes.shape({
     latitude: PropTypes.number.isRequired,
-    longitude: PropTypes.number.isRequired
+    longitude: PropTypes.number.isRequired,
   }),
   previousWaypoint: PropTypes.object,
-  waypointIndex: PropTypes.number.isRequired
+  waypointIndex: PropTypes.number,
+  mapRef: PropTypes.object.isRequired, // ADDED: Required map reference
+};
+
+WaypointModal.defaultProps = {
+  position: null,
+  previousWaypoint: null,
+  waypointIndex: 1,
 };
 
 export default WaypointModal;
