@@ -1,6 +1,8 @@
 /* src/styles/TrajectoryPlanning.css */
 @import './DesignTokens.css';
 
+/* Enhanced UI/UX styles for professional appearance */
+
 /* =============================================== */
 /* MAIN LAYOUT */
 /* =============================================== */
@@ -11,6 +13,232 @@
   height: 100vh;
   background: var(--color-bg-light);
   font-family: var(--font-family-primary);
+}
+
+/* =============================================== */
+/* MAP INSTRUCTIONS OVERLAY */
+/* =============================================== */
+
+.map-instruction-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 1000;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: fadeInSlideDown 0.3s ease;
+}
+
+.map-instruction-overlay.drag-mode {
+  background: rgba(0, 212, 255, 0.9);
+  color: #000;
+}
+
+.instruction-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.instruction-icon {
+  font-size: 1rem;
+}
+
+.instruction-text {
+  font-size: 0.875rem;
+}
+
+@keyframes fadeInSlideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* =============================================== */
+/* FALLBACK UI ENHANCEMENTS */
+/* =============================================== */
+
+.fallback-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.fallback-icon {
+  font-size: 2rem;
+}
+
+.fallback-description {
+  font-size: 1.1rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 2rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(0, 212, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.feature-item:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+/* =============================================== */
+/* ERROR PAGE ENHANCEMENTS */
+/* =============================================== */
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.error-icon {
+  font-size: 2rem;
+}
+
+.setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.setup-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 212, 255, 0.05);
+  border-radius: 8px;
+  border-left: 4px solid #00d4ff;
+}
+
+.step-number {
+  background: #00d4ff;
+  color: #000;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.step-content {
+  flex: 1;
+  padding-top: 0.125rem;
+}
+
+.pricing-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(40, 167, 69, 0.1);
+  border-radius: 8px;
+  color: #28a745;
+}
+
+.pricing-icon {
+  font-size: 1.25rem;
+}
+
+/* =============================================== */
+/* MANUAL WAYPOINT ENTRY ENHANCEMENTS */
+/* =============================================== */
+
+.manual-icon {
+  margin-right: 0.5rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.coord-input,
+.alt-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.75rem;
+  border: 2px solid #3a3f4b;
+  border-radius: 8px;
+  background: #2a2d3a;
+  color: white;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.coord-input:focus,
+.alt-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+
+.add-waypoint-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: #00d4ff;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 140px;
+  justify-content: center;
+}
+
+.add-waypoint-btn:hover {
+  background: #00a8cc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
 }
 
 /* =============================================== */
@@ -46,6 +274,58 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-lg);
+}
+
+/* =============================================== */
+/* RESPONSIVE IMPROVEMENTS */
+/* =============================================== */
+
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .coord-input,
+  .alt-input {
+    min-width: auto;
+  }
+  
+  .map-instruction-overlay {
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+    padding: 0.5rem 1rem;
+  }
+  
+  .setup-step {
+    padding: 0.75rem;
+  }
+  
+  .step-number {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .fallback-header,
+  .error-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .instruction-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.25rem;
+  }
 }
 
 .trajectory-stats .stat-item {

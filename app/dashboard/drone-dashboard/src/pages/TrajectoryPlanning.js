@@ -172,9 +172,9 @@ const TrajectoryPlanning = () => {
     setSaveStatus(prev => ({ ...prev, saved: false }));
   }, [waypoints]);
 
-  // ADDED: Debug speed calculation verification
+  // Optional: Debug speed calculation (can be removed in production)
   useEffect(() => {
-    if (waypoints.length > 0) {
+    if (process.env.NODE_ENV === 'development' && waypoints.length > 0) {
       console.group('🎯 Speed Calculation Debug - FIXED LOGIC');
       waypoints.forEach((wp, index) => {
         if (index < waypoints.length - 1) {
@@ -690,22 +690,40 @@ const TrajectoryPlanning = () => {
 
             <div className="trajectory-fallback-container">
               <div className="trajectory-fallback-content">
-                <h2>3D Trajectory Planning</h2>
-                <p>Enhanced trajectory planning with 3D terrain visualization requires a free Mapbox token.</p>
+                <div className="fallback-header">
+                  <span className="fallback-icon">🎯</span>
+                  <h2>3D Trajectory Planning</h2>
+                </div>
+                <p className="fallback-description">Enhanced trajectory planning with 3D terrain visualization requires a free Mapbox token.</p>
                 
                 <div className="fallback-features">
-                  <h3>ALL FIXES Applied:</h3>
-                  <ul>
-                    <li><strong>FIXED:</strong> Search suggestions appear above toolbar</li>
-                    <li><strong>FIXED:</strong> Real terrain elevation in altitude dialog</li>
-                    <li><strong>FIXED:</strong> Speed logic - waypoints show speed TO next (not FROM previous)</li>
-                    <li>Numbered waypoint system with clear ordering</li>
-                    <li>Speed violations treated as cautions only</li>
-                    <li>Basic elevation estimation (ground + 100m MSL)</li>
-                    <li>Dynamic color updates when speeds improve</li>
-                    <li>Professional undo/redo system</li>
-                    <li>Save/load with validation and backup</li>
-                  </ul>
+                  <h3>✨ Enhanced Features:</h3>
+                  <div className="features-grid">
+                    <div className="feature-item">
+                      <span className="feature-icon">🗺️</span>
+                      <span>Real terrain elevation</span>
+                    </div>
+                    <div className="feature-item">
+                      <span className="feature-icon">⚡</span>
+                      <span>Smart speed calculations</span>
+                    </div>
+                    <div className="feature-item">
+                      <span className="feature-icon">📱</span>
+                      <span>Responsive design</span>
+                    </div>
+                    <div className="feature-item">
+                      <span className="feature-icon">🔄</span>
+                      <span>Undo/redo system</span>
+                    </div>
+                    <div className="feature-item">
+                      <span className="feature-icon">💾</span>
+                      <span>Save/load trajectories</span>
+                    </div>
+                    <div className="feature-item">
+                      <span className="feature-icon">🎨</span>
+                      <span>Professional UI</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="manual-waypoint-entry">
@@ -951,13 +969,19 @@ const TrajectoryPlanning = () => {
             {/* Instruction overlays */}
             {isAddingWaypoint && !isDragging && (
               <div className="map-instruction-overlay">
-                Click on the map to add waypoint with real terrain elevation
+                <div className="instruction-content">
+                  <span className="instruction-icon">📍</span>
+                  <span className="instruction-text">Click on the map to add waypoint with real terrain elevation</span>
+                </div>
               </div>
             )}
 
             {isDragging && (
               <div className="map-instruction-overlay drag-mode">
-                Dragging waypoint - speeds will recalculate automatically
+                <div className="instruction-content">
+                  <span className="instruction-icon">✋</span>
+                  <span className="instruction-text">Dragging waypoint - speeds will recalculate automatically</span>
+                </div>
               </div>
             )}
           </div>

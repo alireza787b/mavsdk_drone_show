@@ -36,14 +36,47 @@ const WaypointModal = ({
     }
   }, [isOpen]);
 
+  // Enhanced pre-population logic based on waypoint index and previous waypoint data
   useEffect(() => {
-    if (isOpen) {
-      const defaultTime = previousWaypoint
-        ? (previousWaypoint.timeFromStart || 0) + 10
-        : 10;
+    if (isOpen && position) {
+      // Initialize altitude based on previous waypoint or intelligent defaults
+      let defaultAltitude = 100; // Base default
+      
+      if (previousWaypoint) {
+        // Use previous waypoint's altitude as starting point
+        defaultAltitude = previousWaypoint.altitude;
+      }
+      
+      // Initialize time based on distance and speed logic
+      let defaultTime = 10; // Base default for first waypoint
+      
+      if (previousWaypoint) {
+        // Calculate distance to this new position
+        const distanceToNew = Math.sqrt(
+          Math.pow((position.latitude - previousWaypoint.latitude) * 111000, 2) + // Rough lat to meters
+          Math.pow((position.longitude - previousWaypoint.longitude) * 111000 * Math.cos(position.latitude * Math.PI / 180), 2) // Rough lng to meters
+        );
+        
+        // Determine recommended speed based on waypoint sequence
+        let recommendedSpeed = 8; // Default moderate speed
+        
+        if (waypointIndex === 2) {
+          // Second waypoint: use default moderate speed
+          recommendedSpeed = 8;
+        } else if (waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0) {
+          // Third waypoint onwards: use speed from previous leg
+          recommendedSpeed = Math.min(previousWaypoint.estimatedSpeed, 15); // Cap at 15 m/s for safety
+        }
+        
+        // Calculate recommended time based on distance and speed
+        const recommendedTimeIncrement = Math.max(3, distanceToNew / recommendedSpeed);
+        defaultTime = (previousWaypoint.timeFromStart || 0) + Math.ceil(recommendedTimeIncrement);
+      }
+      
+      setAltitude(defaultAltitude);
       setTimeFromStart(defaultTime);
     }
-  }, [isOpen, previousWaypoint]);
+  }, [isOpen, previousWaypoint, position, waypointIndex]);
 
   useEffect(() => {
     const fetchElevationFromTilequery = async (latitude, longitude) => {
@@ -52,7 +85,14 @@ const WaypointModal = ({
         setTerrainError('Missing Mapbox access token');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        setAltitude(estimatedGround + 100);
+        
+        // Only override altitude if it would be below estimated ground level
+        setAltitude(prev => {
+          if (prev < estimatedGround + 50) {
+            return estimatedGround + 100;
+          }
+          return prev;
+        });
         setIsLoadingTerrain(false);
         return;
       }
@@ -82,7 +122,14 @@ const WaypointModal = ({
 
         const maxElevation = Math.max(...elevations);
         setGroundElevation(maxElevation);
-        setAltitude(maxElevation + 100);
+        
+        // Only override altitude if it would be below ground level
+        setAltitude(prev => {
+          if (prev < maxElevation + 50) { // Ensure at least 50m above ground
+            return maxElevation + 100;
+          }
+          return prev; // Keep the pre-populated altitude from previous waypoint
+        });
 
         console.info(`✅ Tilequery terrain: Ground ${maxElevation.toFixed(1)}m MSL, Suggested ${maxElevation + 100}m MSL`);
       } catch (error) {
@@ -90,7 +137,14 @@ const WaypointModal = ({
         setTerrainError('Query failed, using estimated data');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        setAltitude(estimatedGround + 100);
+        
+        // Only override altitude if it would be below estimated ground level
+        setAltitude(prev => {
+          if (prev < estimatedGround + 50) { // Ensure at least 50m above estimated ground
+            return estimatedGround + 100;
+          }
+          return prev; // Keep the pre-populated altitude
+        });
       } finally {
         setIsLoadingTerrain(false);
       }
@@ -209,6 +263,17 @@ const WaypointModal = ({
               <label>📍 Coordinates</label>
               <span>{position?.latitude?.toFixed(6)}, {position?.longitude?.toFixed(6)}</span>
             </div>
+            
+            {/* Smart defaults info */}
+            {previousWaypoint && (
+              <div className="smart-defaults-info">
+                <small className="defaults-note">
+                  💡 Smart defaults: Altitude from previous waypoint
+                  {waypointIndex === 2 && ', moderate speed (8 m/s)'}
+                  {waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0 && `, continuing at ${Math.min(previousWaypoint.estimatedSpeed, 15).toFixed(1)} m/s`}
+                </small>
+              </div>
+            )}
           </div>
 
           <div className="altitude-section">
@@ -237,6 +302,11 @@ const WaypointModal = ({
                 <small className="agl-note">
                   Above ground: <strong>{aglAltitude.toFixed(1)}m AGL</strong>
                 </small>
+                {previousWaypoint && (
+                  <small className="altitude-source">
+                    Pre-filled from previous waypoint ({previousWaypoint.altitude.toFixed(1)}m MSL)
+                  </small>
+                )}
               </div>
               {isUnderground && (
                 <div className="validation-message error">
@@ -258,6 +328,11 @@ const WaypointModal = ({
               step="1"
               min="0"
             />
+            {previousWaypoint && (
+              <small className="time-calculation">
+                Calculated based on distance and {waypointIndex === 2 ? 'moderate speed (8 m/s)' : 'previous leg speed'}
+              </small>
+            )}
           </div>
 
           {previousWaypoint && (
@@ -266,12 +341,16 @@ const WaypointModal = ({
                 <div className="speed-header">
                   <span className="speed-label">Required Speed</span>
                   <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>
+                  <span className="speed-kmh">({(estimatedSpeed * 3.6).toFixed(1)} km/h)</span>
                 </div>
                 {speedStatus !== 'feasible' && (
                   <div className="speed-warning">
                     {speedStatus === 'marginal' ? '⚠️ High speed - use caution' : '🚨 Very high speed - review timing'}
                   </div>
                 )}
+                <small className="speed-note">
+                  From waypoint {waypointIndex - 1} to waypoint {waypointIndex}
+                </small>
               </div>
             </div>
           )}
@@ -314,6 +393,12 @@ WaypointModal.defaultProps = {
   position: null,
   previousWaypoint: null,
   waypointIndex: 1,
+};
+
+// Add PropTypes for waypointIndex
+WaypointModal.propTypes = {
+  ...WaypointModal.propTypes,
+  waypointIndex: PropTypes.number,
 };
 
 export default WaypointModal;

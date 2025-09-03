@@ -14,9 +14,11 @@ const WaypointPanel = ({
   onMoveWaypoint,
   onFlyTo
 }) => {
-  // PHASE 1: Inline editing state management
+  // ENHANCED: Inline editing + panel collapse state management
   const [editingWaypointId, setEditingWaypointId] = useState(null);
   const [editValues, setEditValues] = useState({});
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const editInputRef = useRef(null);
 
   // Auto-focus when entering edit mode
@@ -26,6 +28,29 @@ const WaypointPanel = ({
       editInputRef.current.select();
     }
   }, [editingWaypointId]);
+
+  // Handle window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const newIsMobile = window.innerWidth <= 768;
+      setIsMobile(newIsMobile);
+      
+      // Auto-collapse on mobile if there are many waypoints
+      if (newIsMobile && waypoints.length > 3) {
+        setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [waypoints.length]);
+
+  // Auto-collapse on mobile when waypoints increase
+  useEffect(() => {
+    if (isMobile && waypoints.length > 5) {
+      setIsCollapsed(true);
+    }
+  }, [waypoints.length, isMobile]);
 
   if (!waypoints || waypoints.length === 0) {
     return (
@@ -228,19 +253,32 @@ const WaypointPanel = ({
   };
 
   return (
-    <div className="waypoint-panel">
+    <div className={`waypoint-panel ${isCollapsed ? 'collapsed' : 'expanded'} ${isMobile ? 'mobile' : 'desktop'}`}>
       <div className="waypoint-panel-header">
-        <h3>Waypoints ({waypoints.length})</h3>
-        {waypoints.some(wp => wp.estimatedSpeed > 20) && (
-          <div className="speed-warning-summary">
-            <span className="speed-indicator speed-impossible">⚠</span>
-            High speed detected
-          </div>
-        )}
+        <div className="header-title-section">
+          <h3>Waypoints ({waypoints.length})</h3>
+          {waypoints.some(wp => wp.estimatedSpeed > 20) && (
+            <div className="speed-warning-summary">
+              <span className="speed-indicator speed-impossible">⚠</span>
+              {!isCollapsed && <span className="warning-text">High speed detected</span>}
+            </div>
+          )}
+        </div>
+        <div className="panel-controls">
+          <button
+            className={`collapse-toggle ${isCollapsed ? 'collapsed' : 'expanded'}`}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
+            aria-label={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
+          >
+            {isCollapsed ? '📋' : '▼'}
+          </button>
+        </div>
       </div>
       
-      <div className="waypoint-list">
-        {waypoints.map((waypoint, index) => (
+      {!isCollapsed && (
+        <div className="waypoint-list">
+          {waypoints.map((waypoint, index) => (
           <div 
             key={waypoint.id}
             className={`waypoint-item ${selectedWaypointId === waypoint.id ? 'selected' : ''} ${
@@ -355,44 +393,52 @@ const WaypointPanel = ({
               </div>
             )}
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       
-      {/* Summary statistics */}
+      {/* Summary statistics - always show for quick reference */}
       {waypoints.length > 1 && (
-        <div className="waypoint-summary">
+        <div className={`waypoint-summary ${isCollapsed ? 'collapsed' : 'expanded'}`}>
           <div className="summary-item">
-            <span className="summary-label">Total Points:</span>
+            <span className="summary-label">{isCollapsed ? 'Pts:' : 'Total Points:'}</span>
             <span className="summary-value">{waypoints.length}</span>
           </div>
           
           <div className="summary-item">
-            <span className="summary-label">Duration:</span>
+            <span className="summary-label">{isCollapsed ? 'Time:' : 'Duration:'}</span>
             <span className="summary-value">
               {formatTime(waypoints[waypoints.length - 1]?.timeFromStart || 0)}
             </span>
           </div>
           
-          <div className="summary-item">
-            <span className="summary-label">Max Speed:</span>
-            <span className="summary-value">
-              {Math.max(...waypoints.slice(1).map(wp => wp.estimatedSpeed || 0)).toFixed(1)}m/s
-            </span>
-          </div>
-          
-          <div className="summary-item">
-            <span className="summary-label">Max Alt MSL:</span>
-            <span className="summary-value">
-              {Math.max(...waypoints.map(wp => wp.altitude)).toFixed(1)}m
-            </span>
-          </div>
+          {!isCollapsed && (
+            <>
+              <div className="summary-item">
+                <span className="summary-label">Max Speed:</span>
+                <span className="summary-value">
+                  {Math.max(...waypoints.slice(1).map(wp => wp.estimatedSpeed || 0)).toFixed(1)}m/s
+                </span>
+              </div>
+              
+              <div className="summary-item">
+                <span className="summary-label">Max Alt MSL:</span>
+                <span className="summary-value">
+                  {Math.max(...waypoints.map(wp => wp.altitude)).toFixed(1)}m
+                </span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* PHASE 1: Quick edit instructions */}
-      {waypoints.length > 0 && !editingWaypointId && (
+      {/* Enhanced instructions - responsive */}
+      {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
         <div className="edit-instructions">
-          <small>💡 Click any value to edit inline. Drag waypoints on map to reposition.</small>
+          <small>
+            💡 {isMobile ? 'Tap to edit values' : 'Click any value to edit inline'}. 
+            {!isMobile && 'Drag waypoints on map to reposition.'}
+          </small>
         </div>
       )}
     </div>

@@ -90,14 +90,28 @@
 /* =============================================== */
 
 .waypoint-location-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
   background: rgba(0, 212, 255, 0.05);
   border-radius: 8px;
   border: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.smart-defaults-info {
+  padding: 0.75rem;
+  background: rgba(0, 212, 255, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid #00d4ff;
+}
+
+.defaults-note {
+  font-size: 0.75rem;
+  color: #00d4ff;
+  font-weight: 500;
+  margin: 0;
 }
 
 .location-item {
@@ -221,6 +235,20 @@
   font-weight: 500;
 }
 
+.altitude-source {
+  font-size: 0.75rem;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+.time-calculation {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
 .loading-indicator {
   color: #00d4ff;
   animation: spin 1s linear infinite;
@@ -257,6 +285,20 @@
   font-family: 'Monaco', 'Courier New', monospace;
   font-weight: 600;
   font-size: 1rem;
+}
+
+.speed-kmh {
+  font-size: 0.8rem;
+  color: #a2a5b9;
+  font-weight: normal;
+  margin-left: 0.5rem;
+}
+
+.speed-note {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+  font-style: italic;
 }
 
 .speed-indicator {
@@ -477,7 +519,11 @@
   }
   
   .waypoint-location-info {
-    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .smart-defaults-info {
+    padding: 0.5rem;
   }
   
   .speed-header {
