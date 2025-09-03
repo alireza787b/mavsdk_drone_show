@@ -379,10 +379,22 @@ export class TrajectoryStorage {
   }
 
   /**
-   * Sanitize waypoints data (aviation standard)
+   * SANITIZE WAYPOINTS DATA (Aviation Standard)
+   * 
+   * Clean, professional waypoint data structure:
+   * 
+   * CORE FLIGHT DATA:
+   * - heading: 0-360° aviation standard (000° = North)
+   * - headingMode: 'auto' or 'manual' (single source of truth)
+   * - calculatedHeading: what auto heading would be (for UI display)
+   * 
+   * BACKWARDS COMPATIBILITY:
+   * - Automatically converts old 'yaw'/'yawMode' fields
+   * - Maintains seamless upgrade path for existing trajectories
    */
   sanitizeWaypoints(waypoints) {
     return waypoints.map((wp, index) => ({
+      // Standard waypoint data
       id: wp.id || `waypoint-${Date.now()}-${index}`,
       name: wp.name || `Waypoint ${index + 1}`,
       latitude: Number(wp.latitude),
@@ -391,18 +403,30 @@ export class TrajectoryStorage {
       timeFromStart: Number(wp.timeFromStart || wp.time || 0),
       estimatedSpeed: Number(wp.estimatedSpeed || 0),
       speedFeasible: Boolean(wp.speedFeasible),
-      // Aviation standard heading data (backwards compatibility with old yaw fields)
+      
+      // AVIATION STANDARD HEADING DATA (clean, single source of truth)
       heading: wp.heading !== undefined ? Number(wp.heading) : (wp.yaw !== undefined ? Number(wp.yaw) : 0),
-      headingMode: wp.headingMode || wp.yawMode || 'auto',
+      headingMode: wp.headingMode || wp.yawMode || 'auto',  // 'auto' or 'manual' - determines all behavior
       calculatedHeading: wp.calculatedHeading !== undefined ? Number(wp.calculatedHeading) : (wp.calculatedYaw !== undefined ? Number(wp.calculatedYaw) : 0)
     }));
   }
 
   /**
    * Convert waypoints to CSV format (aviation standard)
+   * Clean, single-source-of-truth approach: HeadingMode contains all needed info
    */
   convertToCSV(waypoints) {
-    const headers = ['Name', 'Latitude', 'Longitude', 'Altitude_MSL_m', 'TimeFromStart_s', 'EstimatedSpeed_ms', 'Heading_deg', 'HeadingMode', 'IsAutoHeading'];
+    const headers = [
+      'Name', 
+      'Latitude', 
+      'Longitude', 
+      'Altitude_MSL_m', 
+      'TimeFromStart_s', 
+      'EstimatedSpeed_ms', 
+      'Heading_deg',        // Aviation standard: 0-360°
+      'HeadingMode'         // 'auto' or 'manual' - single source of truth
+    ];
+    
     const rows = waypoints.map(wp => [
       wp.name,
       wp.latitude.toFixed(8),
@@ -410,9 +434,8 @@ export class TrajectoryStorage {
       wp.altitude.toFixed(2),
       (wp.timeFromStart || 0).toFixed(1),
       (wp.estimatedSpeed || 0).toFixed(1),
-      (wp.heading || wp.yaw || 0).toFixed(1), // backwards compatibility
-      wp.headingMode || wp.yawMode || 'auto',
-      wp.headingMode === 'auto' || wp.yawMode === 'auto' ? 'true' : 'false'
+      (wp.heading || wp.yaw || 0).toFixed(1), // Backwards compatibility with old 'yaw' field
+      wp.headingMode || wp.yawMode || 'auto'  // Backwards compatibility with old 'yawMode' field
     ]);
 
     return [headers, ...rows].map(row => row.join(',')).join('\n');

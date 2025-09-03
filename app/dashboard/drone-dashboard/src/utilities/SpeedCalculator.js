@@ -16,13 +16,17 @@ export const SPEED_THRESHOLDS = {
 };
 
 /**
- * Yaw (heading) constants - Aviation Standard
- * Aviation heading: 0° = North, 90° = East, 180° = South, 270° = West
+ * AVIATION STANDARD HEADING CONSTANTS
+ * 
+ * Following professional aviation standards:
+ * - 000° = North, 090° = East, 180° = South, 270° = West
+ * - Single source of truth: HeadingMode determines behavior
+ * - Clean data structure without redundant flags
  */
 export const YAW_CONSTANTS = {
-  AUTO: 'auto',         // Automatic: heading to next waypoint
-  MANUAL: 'manual',     // Manual: user-specified heading
-  DEFAULT_HEADING: 0,   // Default heading (000° - North)
+  AUTO: 'auto',           // Automatic: calculate heading to next waypoint
+  MANUAL: 'manual',       // Manual: user-specified fixed heading
+  DEFAULT_HEADING: 0      // Default heading: 000° (North)
 };
 
 /**
@@ -363,41 +367,44 @@ export const calculateSpeedForNewWaypoint = (position, waypointData, existingWay
 };
 
 /**
- * Calculate default heading data for new waypoint (aviation standard)
- * @param {Object} position - New waypoint position
- * @param {Object} waypointData - New waypoint data
- * @param {Array} existingWaypoints - Current waypoints array
- * @returns {Object} Heading data object with heading, headingMode, calculatedHeading
+ * CALCULATE HEADING FOR NEW WAYPOINT (Aviation Standard)
+ * 
+ * Clean, professional implementation:
+ * - Single source of truth: headingMode determines all behavior
+ * - Auto mode: points to next waypoint
+ * - Manual mode: user-specified fixed heading
+ * - First waypoint: defaults to manual (user sets initial drone orientation)
+ * 
+ * @param {Object} position - New waypoint lat/lng position
+ * @param {Object} waypointData - Waypoint config (headingMode, heading if manual)
+ * @param {Array} existingWaypoints - Current trajectory waypoints
+ * @returns {Object} Clean heading data: {heading, headingMode, calculatedHeading}
  */
 export const calculateHeadingForNewWaypoint = (position, waypointData, existingWaypoints) => {
-  // Default heading mode and values
   let headingMode = waypointData.headingMode || YAW_CONSTANTS.AUTO;
   let calculatedHeading = YAW_CONSTANTS.DEFAULT_HEADING;
   let actualHeading = YAW_CONSTANTS.DEFAULT_HEADING;
 
   if (existingWaypoints && existingWaypoints.length > 0) {
+    // Not first waypoint: calculate heading from previous waypoint
     const previousWaypoint = existingWaypoints[existingWaypoints.length - 1];
-    
-    // Calculate heading from previous waypoint to this new position
     calculatedHeading = calculateHeading(previousWaypoint, position);
     
-    // Determine actual heading based on mode
-    if (headingMode === YAW_CONSTANTS.AUTO) {
-      actualHeading = calculatedHeading;
-    } else {
-      // Manual mode: use provided heading or default to calculated
-      actualHeading = waypointData.heading !== undefined ? normalizeHeading(waypointData.heading) : calculatedHeading;
-    }
+    // Apply heading mode logic
+    actualHeading = headingMode === YAW_CONSTANTS.AUTO 
+      ? calculatedHeading 
+      : normalizeHeading(waypointData.heading || calculatedHeading);
   } else {
-    // First waypoint: use provided heading or default
-    actualHeading = waypointData.heading !== undefined ? normalizeHeading(waypointData.heading) : YAW_CONSTANTS.DEFAULT_HEADING;
-    headingMode = waypointData.headingMode || YAW_CONSTANTS.MANUAL; // First waypoint defaults to manual
+    // First waypoint: user sets initial drone orientation (defaults to manual)
+    actualHeading = normalizeHeading(waypointData.heading || YAW_CONSTANTS.DEFAULT_HEADING);
+    headingMode = waypointData.headingMode || YAW_CONSTANTS.MANUAL;
   }
 
+  // Clean return - single source of truth
   return {
-    heading: actualHeading,
-    headingMode: headingMode,
-    calculatedHeading: calculatedHeading
+    heading: actualHeading,         // The actual heading value (0-360°)
+    headingMode: headingMode,       // 'auto' or 'manual' - determines behavior
+    calculatedHeading: calculatedHeading  // What auto heading would be (for UI display)
   };
 };
 
