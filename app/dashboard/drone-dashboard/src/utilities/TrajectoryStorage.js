@@ -379,7 +379,7 @@ export class TrajectoryStorage {
   }
 
   /**
-   * Sanitize waypoints data
+   * Sanitize waypoints data (aviation standard)
    */
   sanitizeWaypoints(waypoints) {
     return waypoints.map((wp, index) => ({
@@ -390,22 +390,29 @@ export class TrajectoryStorage {
       altitude: Number(wp.altitude),
       timeFromStart: Number(wp.timeFromStart || wp.time || 0),
       estimatedSpeed: Number(wp.estimatedSpeed || 0),
-      speedFeasible: Boolean(wp.speedFeasible)
+      speedFeasible: Boolean(wp.speedFeasible),
+      // Aviation standard heading data (backwards compatibility with old yaw fields)
+      heading: wp.heading !== undefined ? Number(wp.heading) : (wp.yaw !== undefined ? Number(wp.yaw) : 0),
+      headingMode: wp.headingMode || wp.yawMode || 'auto',
+      calculatedHeading: wp.calculatedHeading !== undefined ? Number(wp.calculatedHeading) : (wp.calculatedYaw !== undefined ? Number(wp.calculatedYaw) : 0)
     }));
   }
 
   /**
-   * Convert waypoints to CSV format
+   * Convert waypoints to CSV format (aviation standard)
    */
   convertToCSV(waypoints) {
-    const headers = ['Name', 'Latitude', 'Longitude', 'Altitude_MSL_m', 'TimeFromStart_s', 'EstimatedSpeed_ms'];
+    const headers = ['Name', 'Latitude', 'Longitude', 'Altitude_MSL_m', 'TimeFromStart_s', 'EstimatedSpeed_ms', 'Heading_deg', 'HeadingMode', 'IsAutoHeading'];
     const rows = waypoints.map(wp => [
       wp.name,
       wp.latitude.toFixed(8),
       wp.longitude.toFixed(8),
       wp.altitude.toFixed(2),
       (wp.timeFromStart || 0).toFixed(1),
-      (wp.estimatedSpeed || 0).toFixed(1)
+      (wp.estimatedSpeed || 0).toFixed(1),
+      (wp.heading || wp.yaw || 0).toFixed(1), // backwards compatibility
+      wp.headingMode || wp.yawMode || 'auto',
+      wp.headingMode === 'auto' || wp.yawMode === 'auto' ? 'true' : 'false'
     ]);
 
     return [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -433,7 +440,7 @@ export class TrajectoryStorage {
     ${trajectory.waypoints.map((wp, index) => `
     <Placemark>
       <name>${wp.name}</name>
-      <description>Altitude: ${wp.altitude}m MSL, Time: ${wp.timeFromStart}s</description>
+      <description>Altitude: ${wp.altitude}m MSL, Time: ${wp.timeFromStart}s, Heading: ${(wp.heading || wp.yaw || 0).toFixed(0).padStart(3, '0')}° (${(wp.headingMode || wp.yawMode) === 'auto' ? 'Auto' : 'Manual'})</description>
       <Point>
         <coordinates>${wp.longitude},${wp.latitude},${wp.altitude}</coordinates>
       </Point>
@@ -459,7 +466,11 @@ export class TrajectoryStorage {
         altitude: parseFloat(values[3]) || 100,
         timeFromStart: parseFloat(values[4]) || 0,
         estimatedSpeed: parseFloat(values[5]) || 0,
-        speedFeasible: true
+        speedFeasible: true,
+        // Aviation standard heading data with backwards compatibility
+        heading: values[6] !== undefined ? parseFloat(values[6]) || 0 : 0,
+        headingMode: values[7] || 'auto',
+        calculatedHeading: 0 // Will be recalculated
       };
     });
 

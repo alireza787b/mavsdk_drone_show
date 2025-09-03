@@ -13,14 +13,16 @@ import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
 import WaypointModal from '../components/trajectory/WaypointModal';
 
-// FIXED IMPORTS: Add new speed calculation functions
+// FIXED IMPORTS: Add new speed calculation functions and yaw utilities
 import { 
   calculateSpeed, 
   calculateTrajectoryStats, 
   suggestOptimalTime, 
   recalculateAfterDrag,
   calculateWaypointSpeeds, // ADDED: New correct speed calculation
-  calculateSpeedForNewWaypoint // ADDED: For waypoint creation
+  calculateSpeedForNewWaypoint, // ADDED: For waypoint creation
+  calculateHeadingForNewWaypoint, // ADDED: For heading calculation
+  YAW_CONSTANTS // ADDED: Yaw constants
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
@@ -244,7 +246,11 @@ const TrajectoryPlanning = () => {
       terrainInfo: waypointData.terrainInfo,
       time: waypointData.timeFromStart,
       speed: 0, // Legacy compatibility
-      index: waypoints.length + 1
+      index: waypoints.length + 1,
+      // Aviation standard heading data
+      heading: waypointData.heading || 0,
+      headingMode: waypointData.headingMode || YAW_CONSTANTS.AUTO,
+      calculatedHeading: waypointData.calculatedHeading || 0
     };
 
     // Create new waypoints array with the added waypoint
@@ -277,11 +283,20 @@ const TrajectoryPlanning = () => {
       finalAltitude = groundElevation + 100; // 100m above estimated ground
     }
     
+    // Calculate heading data for the new waypoint (aviation standard)
+    const headingData = calculateHeadingForNewWaypoint(
+      { latitude, longitude }, 
+      { headingMode: YAW_CONSTANTS.AUTO }, 
+      waypoints
+    );
+    
     const waypointData = {
       altitude: finalAltitude,
       timeFromStart: calculatedTime,
       estimatedSpeed: 0,
-      speedFeasible: true
+      speedFeasible: true,
+      // Include heading data
+      ...headingData
     };
 
     addWaypointWithData({ latitude, longitude }, waypointData);
@@ -521,11 +536,20 @@ const TrajectoryPlanning = () => {
       ? suggestOptimalTime(previousWaypoint, { latitude: lat, longitude: lng }, 8, alt)
       : 10;
 
+    // Calculate heading data for manual waypoint (aviation standard)
+    const headingData = calculateHeadingForNewWaypoint(
+      { latitude: lat, longitude: lng }, 
+      { headingMode: YAW_CONSTANTS.AUTO }, 
+      waypoints
+    );
+
     const waypointData = {
       altitude: alt,
       timeFromStart: suggestedTime,
       estimatedSpeed: 0,
-      speedFeasible: true
+      speedFeasible: true,
+      // Include heading data
+      ...headingData
     };
 
     addWaypointWithData({ latitude: lat, longitude: lng }, waypointData);

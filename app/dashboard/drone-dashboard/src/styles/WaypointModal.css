@@ -5,6 +5,90 @@
 /* MODAL OVERLAY & CONTAINER */
 /* =============================================== */
 
+/* Heading section styling (aviation standard) */
+.heading-section {
+  margin-top: 1.5rem;
+}
+
+.heading-input-group {
+  position: relative;
+}
+
+.heading-display {
+  color: #00d4ff;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.heading-mode-selector {
+  margin-bottom: 1rem;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #3a3f4b;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #00d4ff;
+}
+
+.radio-option input[type="radio"] {
+  margin-right: 0.5rem;
+  accent-color: #00d4ff;
+}
+
+.radio-label {
+  color: #e0e4e7;
+  font-size: 0.875rem;
+}
+
+.auto-heading-value {
+  color: #00d4ff;
+  font-weight: 500;
+}
+
+.disabled-input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #888 !important;
+  cursor: not-allowed !important;
+}
+
+.heading-context {
+  margin-top: 0.5rem;
+}
+
+.heading-note,
+.auto-heading-note,
+.manual-heading-note,
+.first-waypoint-note {
+  display: block;
+  color: #888;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.auto-heading-note {
+  color: #00d4ff;
+}
+
+.manual-heading-note {
+  color: #ffc107;
+}
+
 .waypoint-modal-overlay {
   position: fixed;
   top: 0;

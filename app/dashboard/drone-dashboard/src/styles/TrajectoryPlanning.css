@@ -1404,7 +1404,7 @@
   font-size: var(--font-size-base) !important;
   font-family: var(--font-family-primary) !important;
   background: var(--color-bg-light) !important;
-  color: var(--color-text-primary) !important;
+  /* color: var(--color-text-primary) !important; */
   transition: border-color 0.2s ease;
   box-sizing: border-box !important;
   /* Debug styles */

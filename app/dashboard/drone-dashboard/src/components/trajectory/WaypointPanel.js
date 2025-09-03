@@ -3,7 +3,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { getSpeedStatus, validateSpeed } from '../../utilities/SpeedCalculator';
+import { 
+  getSpeedStatus, 
+  validateSpeed, 
+  YAW_CONSTANTS,
+  normalizeHeading,
+  formatHeading 
+} from '../../utilities/SpeedCalculator';
 
 const WaypointPanel = ({
   waypoints,
@@ -71,7 +77,9 @@ const WaypointPanel = ({
       latitude: waypoint.latitude,
       longitude: waypoint.longitude,
       altitude: waypoint.altitude,
-      timeFromStart: waypoint.timeFromStart || waypoint.time || 0
+      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      heading: waypoint.heading || waypoint.yaw || 0,
+      headingMode: waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO
     });
   };
 
@@ -127,6 +135,29 @@ const WaypointPanel = ({
         } else {
           alert('Time must be a positive number');
           return;
+        }
+        break;
+      
+      case 'heading':
+        const heading = parseFloat(editValues.heading);
+        if (!isNaN(heading)) {
+          const normalizedHeading = normalizeHeading(heading);
+          updates.heading = normalizedHeading;
+          // Switch to manual mode when heading is manually edited
+          updates.headingMode = YAW_CONSTANTS.MANUAL;
+        } else {
+          alert('Heading must be a valid number (0-360 degrees)');
+          return;
+        }
+        break;
+      
+      case 'headingMode':
+        const newHeadingMode = editValues.headingMode;
+        updates.headingMode = newHeadingMode;
+        
+        if (newHeadingMode === YAW_CONSTANTS.AUTO) {
+          // When switching to auto, recalculate heading based on trajectory
+          // This will be handled by the speed recalculation in the parent component
         }
         break;
     }
@@ -217,27 +248,54 @@ const WaypointPanel = ({
           </div>
         );
       } else {
-        return (
-          <div className="edit-single">
-            <input
-              ref={editInputRef}
-              type="number"
-              step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : 'any'}
-              value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']}
-              onChange={(e) => setEditValues(prev => ({ 
-                ...prev, 
-                [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']: e.target.value 
-              }))}
-              onKeyDown={handleEditKeyPress}
-              className="edit-input"
-              placeholder={field === 'altitude' ? 'Altitude MSL (m)' : field === 'time' ? 'Time (s)' : ''}
-            />
-            <div className="edit-buttons">
-              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
-              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+        if (field === 'headingMode') {
+          return (
+            <div className="edit-heading-mode">
+              <select
+                ref={editInputRef}
+                value={editValues.headingMode}
+                onChange={(e) => setEditValues(prev => ({ ...prev, headingMode: e.target.value }))}
+                onKeyDown={handleEditKeyPress}
+                className="edit-input edit-select"
+              >
+                <option value={YAW_CONSTANTS.AUTO}>Auto (to next waypoint)</option>
+                <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
+              </select>
+              <div className="edit-buttons">
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+              </div>
             </div>
-          </div>
-        );
+          );
+        } else {
+          return (
+            <div className="edit-single">
+              <input
+                ref={editInputRef}
+                type="number"
+                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : 'any'}
+                min={field === 'heading' ? '0' : undefined}
+                max={field === 'heading' ? '360' : undefined}
+                value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']}
+                onChange={(e) => setEditValues(prev => ({ 
+                  ...prev, 
+                  [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']: e.target.value 
+                }))}
+                onKeyDown={handleEditKeyPress}
+                className="edit-input"
+                placeholder={
+                  field === 'altitude' ? 'Altitude MSL (m)' : 
+                  field === 'time' ? 'Time (s)' : 
+                  field === 'heading' ? 'Heading (0-360°)' : ''
+                }
+              />
+              <div className="edit-buttons">
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+              </div>
+            </div>
+          );
+        }
       }
     }
 
@@ -363,6 +421,26 @@ const WaypointPanel = ({
                   </div>
                 </div>
               )}
+              
+              <div className="detail-row heading-row">
+                <span className="detail-label">Heading:</span>
+                <div className="heading-display">
+                  {renderEditableField(
+                    waypoint, 
+                    'heading', 
+                    waypoint.heading || waypoint.yaw || 0,
+                    formatHeading(waypoint.heading || waypoint.yaw || 0)
+                  )}
+                  <span className="heading-mode-indicator">
+                    ({renderEditableField(
+                      waypoint,
+                      'headingMode',
+                      waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                      (waypoint.headingMode || waypoint.yawMode) === YAW_CONSTANTS.AUTO ? 'Auto' : 'Manual'
+                    )})
+                  </span>
+                </div>
+              </div>
               
               {index === 0 && (
                 <div className="detail-row start-point">

@@ -1,4 +1,45 @@
 /* src/styles/WaypointPanel.css */
+
+/* Heading display styling (aviation standard) */
+.heading-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.heading-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.heading-mode-indicator {
+  color: #888;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.edit-heading-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-select {
+  padding: 0.4rem 0.6rem;
+  background: #2a2d3a;
+  border: 1px solid #3a3f4b;
+  color: #e0e4e7;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.edit-select:focus {
+  border-color: #00d4ff;
+  outline: none;
+}
+
 .waypoint-panel {
   width: 380px;
   background-color: #1f2128;

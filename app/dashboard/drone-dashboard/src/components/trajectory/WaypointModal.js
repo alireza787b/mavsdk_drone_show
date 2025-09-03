@@ -5,7 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { calculateSpeed, getSpeedStatus } from '../../utilities/SpeedCalculator';
+import { 
+  calculateSpeed, 
+  getSpeedStatus, 
+  calculateHeadingForNewWaypoint, 
+  YAW_CONSTANTS,
+  normalizeHeading,
+  formatHeading
+} from '../../utilities/SpeedCalculator';
 import '../../styles/WaypointModal.css';
 
 const MAPBOX_ACCESS_TOKEN = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
@@ -26,6 +33,11 @@ const WaypointModal = ({
   const [groundElevation, setGroundElevation] = useState(0);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
+  
+  // Heading state (aviation standard)
+  const [heading, setHeading] = useState(0);
+  const [headingMode, setHeadingMode] = useState(YAW_CONSTANTS.AUTO);
+  const [calculatedHeading, setCalculatedHeading] = useState(0);
 
   const altitudeRef = useRef(null);
 
@@ -75,6 +87,12 @@ const WaypointModal = ({
       
       setAltitude(defaultAltitude);
       setTimeFromStart(defaultTime);
+      
+      // Initialize heading data - calculate default heading to next waypoint (aviation standard)
+      const headingData = calculateHeadingForNewWaypoint(position, { headingMode: YAW_CONSTANTS.AUTO }, previousWaypoint ? [previousWaypoint] : []);
+      setHeading(headingData.heading);
+      setHeadingMode(headingData.headingMode);
+      setCalculatedHeading(headingData.calculatedHeading);
     }
   }, [isOpen, previousWaypoint, position, waypointIndex]);
 
@@ -209,7 +227,11 @@ const WaypointModal = ({
       estimatedSpeed,
       speedFeasible: true,
       groundElevation,
-      terrainAccurate: !terrainError
+      terrainAccurate: !terrainError,
+      // Aviation standard heading data
+      heading: parseFloat(heading),
+      headingMode,
+      calculatedHeading
     };
 
     onConfirm(waypointData);
@@ -227,6 +249,27 @@ const WaypointModal = ({
   const handleTimeChange = (e) => {
     const newTime = parseFloat(e.target.value) || 0;
     setTimeFromStart(Math.max(0, newTime));
+  };
+
+  const handleHeadingModeChange = (newMode) => {
+    setHeadingMode(newMode);
+    
+    if (newMode === YAW_CONSTANTS.AUTO) {
+      // Switch to auto mode: use calculated heading
+      setHeading(calculatedHeading);
+    }
+    // Manual mode: keep current heading value
+  };
+
+  const handleHeadingChange = (e) => {
+    const newHeading = parseFloat(e.target.value) || 0;
+    const normalizedHeading = normalizeHeading(newHeading);
+    setHeading(normalizedHeading);
+    
+    // Switch to manual mode when user enters custom heading
+    if (headingMode === YAW_CONSTANTS.AUTO) {
+      setHeadingMode(YAW_CONSTANTS.MANUAL);
+    }
   };
 
   const getSpeedStatusStyle = (status) => {
@@ -333,6 +376,75 @@ const WaypointModal = ({
                 Calculated based on distance and {waypointIndex === 2 ? 'moderate speed (8 m/s)' : 'previous leg speed'}
               </small>
             )}
+          </div>
+
+          <div className="heading-section">
+            <div className="heading-input-group">
+              <label htmlFor="heading" className="input-label">
+                🧭 Heading
+                <span className="heading-display">({formatHeading(heading)})</span>
+              </label>
+              
+              <div className="heading-mode-selector">
+                <div className="radio-group">
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="headingMode"
+                      checked={headingMode === YAW_CONSTANTS.AUTO}
+                      onChange={() => handleHeadingModeChange(YAW_CONSTANTS.AUTO)}
+                    />
+                    <span className="radio-label">
+                      Auto (to next waypoint)
+                      {previousWaypoint && <span className="auto-heading-value"> - {formatHeading(calculatedHeading)}</span>}
+                    </span>
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="headingMode"
+                      checked={headingMode === YAW_CONSTANTS.MANUAL}
+                      onChange={() => handleHeadingModeChange(YAW_CONSTANTS.MANUAL)}
+                    />
+                    <span className="radio-label">Manual</span>
+                  </label>
+                </div>
+              </div>
+
+              <input
+                id="heading"
+                type="number"
+                value={heading}
+                onChange={handleHeadingChange}
+                className={`waypoint-input ${headingMode === YAW_CONSTANTS.AUTO ? 'disabled-input' : ''}`}
+                placeholder="Heading in degrees (0-360)"
+                step="0.1"
+                min="0"
+                max="360"
+                disabled={headingMode === YAW_CONSTANTS.AUTO}
+              />
+              
+              <div className="heading-context">
+                <small className="heading-note">
+                  Aviation Standard: 000° = North, 090° = East, 180° = South, 270° = West
+                </small>
+                {headingMode === YAW_CONSTANTS.AUTO && previousWaypoint && (
+                  <small className="auto-heading-note">
+                    Auto mode: Points toward next waypoint ({formatHeading(calculatedHeading)})
+                  </small>
+                )}
+                {headingMode === YAW_CONSTANTS.MANUAL && (
+                  <small className="manual-heading-note">
+                    Manual mode: Custom heading ({formatHeading(heading)})
+                  </small>
+                )}
+                {!previousWaypoint && (
+                  <small className="first-waypoint-note">
+                    First waypoint: Set initial drone heading
+                  </small>
+                )}
+              </div>
+            </div>
           </div>
 
           {previousWaypoint && (
