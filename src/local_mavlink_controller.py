@@ -100,8 +100,10 @@ class LocalMavlinkController:
         # Update pre-arm readiness based on system status and sensor health
         self._update_pre_arm_status()
         
+        # Log with flight mode interpretation for debugging
+        mode_name = self._get_flight_mode_name(self.drone_config.custom_mode)
         self.log_debug(f"HEARTBEAT: base_mode={self.drone_config.base_mode}, "
-                      f"custom_mode={self.drone_config.custom_mode}, "
+                      f"custom_mode={self.drone_config.custom_mode} ({mode_name}), "
                       f"system_status={self.drone_config.system_status}, "
                       f"armed={self.drone_config.is_armed}, "
                       f"ready_to_arm={self.drone_config.is_ready_to_arm}")
@@ -112,27 +114,78 @@ class LocalMavlinkController:
         A drone is ready to arm if:
         1. System status indicates readiness (STANDBY or better)
         2. Essential sensors are healthy and calibrated
-        3. GPS has sufficient accuracy
+        3. Flight mode requirements are met (GPS required only for GPS-dependent modes)
         4. No critical system failures
         """
-        # Check system status - must be STANDBY (4) or ACTIVE (5) to be ready
+        # Check system status - must be STANDBY (3) or ACTIVE (4) to be ready
         system_ready = self.drone_config.system_status >= mavutil.mavlink.MAV_STATE_STANDBY
         
-        # Check sensor calibrations
-        sensors_ready = (
+        # Check sensor calibrations (IMU sensors always required)
+        imu_sensors_ready = (
             self.drone_config.is_gyrometer_calibration_ok and
-            self.drone_config.is_accelerometer_calibration_ok and
-            self.drone_config.is_magnetometer_calibration_ok
+            self.drone_config.is_accelerometer_calibration_ok
         )
         
-        # Check GPS accuracy (HDOP should be reasonable, e.g., < 2.0)
-        gps_ready = self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
+        # Magnetometer is required but less critical
+        mag_ready = self.drone_config.is_magnetometer_calibration_ok
+        
+        # GPS requirements depend on flight mode
+        gps_dependent_modes = [
+            196608,  # Position mode (POSCTL)
+            262147,  # Hold mode (AUTO_LOITER) - requires GPS for position hold
+            262148,  # Mission mode (AUTO_MISSION)  
+            262149,  # Return mode (AUTO_RTL)
+            196609,  # Orbit mode (POSCTL_ORBIT)
+            262152,  # Follow mode (AUTO_FOLLOW)
+        ]
+        
+        # Check if current mode requires GPS
+        mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
+        
+        if mode_requires_gps:
+            # GPS-dependent mode: require good GPS
+            gps_ready = self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
+        else:
+            # Non-GPS mode (Manual, Stabilized, Altitude, Acro): GPS not required
+            gps_ready = True
         
         # Overall readiness assessment
+        sensors_ready = imu_sensors_ready and mag_ready
         self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready
         
-        self.log_debug(f"Pre-arm checks: system={system_ready}, sensors={sensors_ready}, "
-                      f"gps={gps_ready} (hdop={self.drone_config.hdop}) -> ready={self.drone_config.is_ready_to_arm}")
+        self.log_debug(f"Pre-arm checks: system={system_ready}, imu={imu_sensors_ready}, "
+                      f"mag={mag_ready}, gps_required={mode_requires_gps}, "
+                      f"gps_ready={gps_ready} (hdop={self.drone_config.hdop}) -> ready={self.drone_config.is_ready_to_arm}")
+
+    def _get_flight_mode_name(self, custom_mode):
+        """
+        Helper function to decode PX4 custom_mode to human-readable name for debugging.
+        This matches the frontend mapping in px4FlightModes.js
+        """
+        flight_modes = {
+            0: 'Unknown/Uninit',
+            65536: 'Manual',
+            131072: 'Altitude',
+            196608: 'Position',
+            327680: 'Acro',
+            393216: 'Offboard',
+            458752: 'Stabilized',
+            524288: 'Rattitude',
+            655360: 'Termination',
+            262144: 'Auto',
+            262145: 'Ready',
+            262146: 'Takeoff',
+            262147: 'Hold',
+            262148: 'Mission',
+            262149: 'Return',
+            262150: 'Land',
+            262152: 'Follow',
+            262153: 'Precision Land',
+            262154: 'VTOL Takeoff',
+            196609: 'Orbit',
+            196610: 'Position Slow'
+        }
+        return flight_modes.get(custom_mode, f'Unknown({custom_mode})')
 
     def process_sys_status(self, msg):
         """

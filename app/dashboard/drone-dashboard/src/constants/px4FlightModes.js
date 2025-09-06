@@ -37,18 +37,24 @@ export const PX4_AUTO_SUB_MODES = {
 /**
  * Complete PX4 custom_mode to flight mode name mapping
  * Format: custom_mode = (main_mode << 16) | sub_mode
+ * Updated with comprehensive mode support including GPS-less scenarios
  */
 export const PX4_FLIGHT_MODES = {
-  // Manual modes
+  // Special case: Unknown/Uninitialized
+  0: 'Unknown',            // Uninitialized or invalid mode
+  
+  // Manual modes (no GPS required)
   65536: 'Manual',         // MANUAL (1 << 16)
-  131072: 'Altitude',      // ALTCTL (2 << 16)
-  196608: 'Position',      // POSCTL (3 << 16)
-  327680: 'Acro',         // ACRO (5 << 16)
+  131072: 'Altitude',      // ALTCTL (2 << 16) - Works without GPS
+  196608: 'Position',      // POSCTL (3 << 16) - Requires GPS
+  327680: 'Acro',         // ACRO (5 << 16) - No GPS required
   393216: 'Offboard',     // OFFBOARD (6 << 16)
-  458752: 'Stabilized',   // STABILIZED (7 << 16)
+  458752: 'Stabilized',   // STABILIZED (7 << 16) - No GPS required
   524288: 'Rattitude',    // RATTITUDE (8 << 16)
+  655360: 'Termination',  // TERMINATION (10 << 16)
 
   // Auto modes (AUTO main mode with sub modes)
+  262144: 'Auto',          // AUTO (4 << 16) - Base auto mode
   262145: 'Ready',         // AUTO_READY (4 << 16 | 1)
   262146: 'Takeoff',       // AUTO_TAKEOFF (4 << 16 | 2)
   262147: 'Hold',          // AUTO_LOITER (4 << 16 | 3) - Hold/Loiter
@@ -56,7 +62,15 @@ export const PX4_FLIGHT_MODES = {
   262149: 'Return',        // AUTO_RTL (4 << 16 | 5) - Return to Launch
   262150: 'Land',          // AUTO_LAND (4 << 16 | 6)
   262152: 'Follow',        // AUTO_FOLLOW (4 << 16 | 8)
-  262153: 'Precision Land' // AUTO_PRECLAND (4 << 16 | 9)
+  262153: 'Precision Land', // AUTO_PRECLAND (4 << 16 | 9)
+  262154: 'VTOL Takeoff',  // AUTO_VTOL_TAKEOFF (4 << 16 | 10)
+  
+  // Position Control sub-modes
+  196609: 'Orbit',         // POSCTL_ORBIT (3 << 16 | 1)
+  196610: 'Position Slow', // POSCTL_SLOW (3 << 16 | 2)
+
+  // Common fallback modes when GPS is not available
+  // Note: PX4 typically falls back to Stabilized or Altitude mode without GPS
 };
 
 /**

@@ -12,7 +12,14 @@ import {
  * @returns {string} Human-readable flight mode name
  */
 export const getFlightModeTitle = (customMode) => {
-  return getFlightModeName(customMode);
+  const modeName = getFlightModeName(customMode);
+  
+  // Add debug logging for unmapped modes
+  if (modeName.includes('Unknown') && customMode !== 0) {
+    console.warn(`Unknown flight mode detected: ${customMode}. This should be added to PX4_FLIGHT_MODES mapping.`);
+  }
+  
+  return modeName;
 };
 
 /**
