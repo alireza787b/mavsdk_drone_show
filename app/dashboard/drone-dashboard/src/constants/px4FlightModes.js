@@ -69,6 +69,9 @@ export const PX4_FLIGHT_MODES = {
   196609: 'Orbit',         // POSCTL_ORBIT (3 << 16 | 1)
   196610: 'Position Slow', // POSCTL_SLOW (3 << 16 | 2)
 
+  // Special PX4 Hold mode (observed in field - GPS-independent Hold)
+  50593792: 'Hold',        // Special Hold mode variant (772 << 16) - No GPS required
+
   // Common fallback modes when GPS is not available
   // Note: PX4 typically falls back to Stabilized or Altitude mode without GPS
 };
@@ -78,15 +81,15 @@ export const PX4_FLIGHT_MODES = {
  * Used for overall system health assessment
  */
 export const MAV_STATE = {
-  0: 'Uninit',      // MAV_STATE_UNINIT
-  1: 'Boot',        // MAV_STATE_BOOT
-  2: 'Calibrating', // MAV_STATE_CALIBRATING
-  3: 'Standby',     // MAV_STATE_STANDBY
-  4: 'Active',      // MAV_STATE_ACTIVE
-  5: 'Critical',    // MAV_STATE_CRITICAL
-  6: 'Emergency',   // MAV_STATE_EMERGENCY
-  7: 'Poweroff',    // MAV_STATE_POWEROFF
-  8: 'Flight Termination' // MAV_STATE_FLIGHT_TERMINATION
+  0: 'Initializing',        // MAV_STATE_UNINIT - System is initializing
+  1: 'Booting',            // MAV_STATE_BOOT - System is booting up
+  2: 'Calibrating',        // MAV_STATE_CALIBRATING - Sensors are calibrating
+  3: 'Standby',            // MAV_STATE_STANDBY - System is ready to arm
+  4: 'Active',             // MAV_STATE_ACTIVE - System is active/armed
+  5: 'Critical',           // MAV_STATE_CRITICAL - System has critical error
+  6: 'Emergency',          // MAV_STATE_EMERGENCY - Emergency state
+  7: 'Poweroff',          // MAV_STATE_POWEROFF - System is powering off
+  8: 'Flight Termination'  // MAV_STATE_FLIGHT_TERMINATION - Flight terminated
 };
 
 /**
@@ -113,8 +116,13 @@ export const getSystemStatusName = (systemStatus) => {
  * @returns {boolean} True if in safe mode (Position, Hold, etc.)
  */
 export const isSafeFlightMode = (customMode) => {
-  const safeMode = [196608, 262147, 262149]; // Position, Hold, Return
-  return safeMode.includes(customMode);
+  const safeModes = [
+    196608,   // Position
+    262147,   // Hold (GPS)
+    262149,   // Return
+    50593792  // Hold (GPS-less)
+  ];
+  return safeModes.includes(customMode);
 };
 
 /**

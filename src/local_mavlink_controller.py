@@ -139,6 +139,16 @@ class LocalMavlinkController:
             262152,  # Follow mode (AUTO_FOLLOW)
         ]
         
+        # GPS-independent modes (including special Hold mode 50593792)
+        gps_independent_modes = [
+            65536,    # Manual
+            131072,   # Altitude
+            327680,   # Acro
+            458752,   # Stabilized
+            524288,   # Rattitude
+            50593792, # Hold (GPS-less variant)
+        ]
+        
         # Check if current mode requires GPS
         mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
         
@@ -183,7 +193,8 @@ class LocalMavlinkController:
             262153: 'Precision Land',
             262154: 'VTOL Takeoff',
             196609: 'Orbit',
-            196610: 'Position Slow'
+            196610: 'Position Slow',
+            50593792: 'Hold (GPS-less)'  # Special Hold mode variant
         }
         return flight_modes.get(custom_mode, f'Unknown({custom_mode})')
 
