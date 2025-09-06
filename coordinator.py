@@ -199,7 +199,7 @@ def main_loop():
                             connectivity_checker.start()
                             logger.debug("Connectivity checker started.")
                     logger.debug("Drone is idle on ground (state == IDLE).")
-                elif current_state == State.ARMED.value:
+                elif current_state == State.MISSION_READY.value:
                     # Stop connectivity checking and set LED to Orange when armed
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()
@@ -207,7 +207,7 @@ def main_loop():
                     if led_controller:
                         led_controller.set_color(255, 165, 0)  # Orange
                     logger.debug(f"Trigger time received ({drone_config.trigger_time}).")
-                elif current_state == State.TRIGGERED.value:
+                elif current_state == State.MISSION_EXECUTING.value:
                     # Stop connectivity checking when mission is triggered
                     if connectivity_checker.is_running:
                         connectivity_checker.stop()

@@ -25,6 +25,6 @@ class Mission(Enum):
 
 class State(Enum):
     IDLE = 0
-    ARMED = 1
-    TRIGGERED = 2
+    MISSION_READY = 1  # Mission loaded, waiting for trigger time (was ARMED)
+    MISSION_EXECUTING = 2  # Mission is executing (was TRIGGERED)
     UNKNOWN = 999

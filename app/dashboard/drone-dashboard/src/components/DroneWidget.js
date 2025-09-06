@@ -4,6 +4,7 @@ import { Tooltip } from 'react-tooltip'; // For hover tooltips
 import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
 import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady } from '../utilities/flightModeUtils';
+import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import '../styles/DroneWidget.css';
 
 /**
@@ -36,6 +37,11 @@ const DroneWidget = ({
   const isReadyToArm = drone.Is_Ready_To_Arm || false;
   const isInSafeMode = isSafeMode(drone.Flight_Mode || 0);
   const isSystemReady = isReady(drone.System_Status || 0);
+
+  // Mission state info (separate from PX4 arming)
+  const missionReady = isMissionReady(drone.State);
+  const missionExecuting = isMissionExecuting(drone.State);
+  const missionStateName = getDroneShowStateName(drone.State);
 
   // Example utility to assign color class for HDOP/VDOP
   const getHdopVdopClass = (hdop, vdop) => {
@@ -81,6 +87,8 @@ const DroneWidget = ({
     <div
       className={`drone-widget ${isReadyToArm ? 'ready-to-arm' : 'not-ready-to-arm'} ${
         isArmed ? 'armed' : 'disarmed'
+      } ${missionReady ? 'mission-ready' : ''} ${
+        missionExecuting ? 'mission-executing' : ''
       } ${isExpanded ? 'expanded' : ''}`}
     >
       {/* Header with stale vs. active indicator */}
@@ -184,7 +192,12 @@ const DroneWidget = ({
           <strong>System Status:</strong> {systemStatusName}
         </p>
         <p>
-          <strong>State:</strong> {drone.State || 'Unknown'}
+          <strong>Mission State:</strong> 
+          <span className={`mission-state-badge ${
+            missionExecuting ? 'executing' : missionReady ? 'ready' : 'idle'
+          }`}>
+            {missionStateName}
+          </span>
         </p>
         <p>
           <strong>Server Time:</strong>{' '}

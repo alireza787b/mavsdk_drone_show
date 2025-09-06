@@ -6,6 +6,7 @@ import L from 'leaflet';
 import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle } from '../utilities/flightModeUtils';
+import { getDroneShowStateName } from '../constants/droneStates';
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -111,7 +112,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
         <p><strong>Flight Mode:</strong> {flightModeName}</p>
         <p><strong>System Status:</strong> {systemStatusName}</p>
-        <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
+        <p><strong>Mission State:</strong> {getDroneShowStateName(drone.State)}</p>
         <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
       </div>
 

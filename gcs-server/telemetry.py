@@ -132,7 +132,7 @@ def poll_telemetry(drone):
                     telemetry_data_all_drones[drone_id] = {
                         'Pos_ID': telemetry_data.get('pos_id', 'UNKNOWN'),
                         'Detected_Pos_ID': telemetry_data.get('detected_pos_id', 'UNKNOWN'),
-                        'State': get_enum_name(State, telemetry_data.get('state', 'UNKNOWN')),
+                        'State': telemetry_data.get('state', 999),  # Send numeric value, not enum name
                         'Mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
                         'lastMission': get_enum_name(Mission, telemetry_data.get('last_mission', 'UNKNOWN')),
                         'Position_Lat': telemetry_data.get('position_lat', 0.0),
@@ -174,7 +174,7 @@ def poll_telemetry(drone):
                             ),
                             'battery': telemetry_data.get('battery_voltage', 0.0),
                             'mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
-                            'status': get_enum_name(State, telemetry_data.get('state', 'UNKNOWN'))
+                            'status': telemetry_data.get('state', 999)  # Send numeric state value
                         }
                     )
 
@@ -190,7 +190,7 @@ def poll_telemetry(drone):
                             ),
                             'battery': telemetry_data.get('battery_voltage', 0.0),
                             'mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
-                            'status': get_enum_name(State, telemetry_data.get('state', 'UNKNOWN'))
+                            'status': telemetry_data.get('state', 999)  # Send numeric state value
                         }
                     )
 

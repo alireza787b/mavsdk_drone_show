@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
-from src.enums import Mission
+from src.enums import Mission, State
 from src.drone_config import DroneConfig
 from src.params import Params
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
@@ -180,14 +180,14 @@ class DroneCommunicator:
         self.drone_config.takeoff_altitude = min(float(assigned_altitude), self.params.max_takeoff_alt)
         logging.info(f"Takeoff command received. Assigned altitude: {self.drone_config.takeoff_altitude}m")
         self.drone_config.mission = Mission.TAKE_OFF.value
-        self.drone_config.state = 1 #double check
+        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
     def _handle_standard_mission(self, mission: int) -> None:
         """Handle standard (non-takeoff) mission commands."""
         mission_enum = Mission(mission)
         logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
         self.drone_config.mission = mission
-        self.drone_config.state = 1 #double check
+        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""

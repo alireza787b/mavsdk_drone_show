@@ -142,6 +142,58 @@
     font-weight: bold;
 }
 
+/* Mission State Indicators - Separate from PX4 Arming */
+
+.mission-state-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: bold;
+    color: white;
+    margin-left: 8px;
+    font-size: 0.75em;
+    transition: all 0.3s ease;
+}
+
+.mission-state-badge.idle {
+    background-color: #6c757d; /* Gray - no mission */
+    box-shadow: 0 0 6px rgba(108, 117, 125, 0.3);
+}
+
+.mission-state-badge.ready {
+    background-color: #fd7e14; /* Orange - mission loaded, waiting for trigger */
+    box-shadow: 0 0 6px rgba(253, 126, 20, 0.3);
+    animation: pulse-orange 2s infinite;
+}
+
+.mission-state-badge.executing {
+    background-color: #20c997; /* Teal - mission executing */
+    box-shadow: 0 0 6px rgba(32, 201, 151, 0.3);
+    animation: pulse-teal 1s infinite;
+}
+
+/* Mission State Widget Border Indicators */
+
+.drone-widget.mission-ready {
+    border-left: 4px solid #fd7e14; /* Orange left border */
+}
+
+.drone-widget.mission-executing {
+    border-left: 4px solid #20c997; /* Teal left border */
+}
+
+/* Pulse animations for mission states */
+
+@keyframes pulse-orange {
+    0%, 100% { box-shadow: 0 0 6px rgba(253, 126, 20, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(253, 126, 20, 0.6); }
+}
+
+@keyframes pulse-teal {
+    0%, 100% { box-shadow: 0 0 6px rgba(32, 201, 151, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(32, 201, 151, 0.6); }
+}
+
 
 /* Drone Info block */
 
