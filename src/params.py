@@ -237,6 +237,17 @@ class Params:
     auto_detection_interval = 15  # Interval in seconds
     max_deviation = 1.5 # Maximum allowed deviation in meters for pos_id detection
 
+    # Swarm Trajectory Mode Configuration
+    swarm_trajectory_dt = 0.05              # Trajectory interpolation timestep (seconds)
+    swarm_trajectory_max_speed = 20.0       # Maximum allowed speed (m/s) - for future use
+    
+    # LED Colors for swarm trajectory mode (RGB)
+    swarm_leader_led_color = (255, 0, 0)    # Red for leaders  
+    swarm_follower_led_color = (0, 255, 0)  # Green for followers
+    
+    # Processing configuration
+    swarm_missing_leader_strategy = 'skip'  # 'skip' or 'error' when leader CSV missing
+
     @classmethod
     def get_trajectory_files(cls, position_id, custom_csv):
         """

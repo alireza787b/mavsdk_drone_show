@@ -15,6 +15,7 @@ import DroneShowDesign from './pages/DroneShowDesign';
 import CustomShowPage from './pages/CustomShowPage';
 import GlobeView from './pages/GlobeView';
 import ManageDroneShow from './pages/ManageDroneShow';
+import SwarmTrajectory from './pages/SwarmTrajectory';
 
 // Clean import - no error boundary needed with Mapbox
 import TrajectoryPlanning from './pages/TrajectoryPlanning';
@@ -49,6 +50,7 @@ const App = () => {
             <Route path="/manage-drone-show" element={<ManageDroneShow />} />
             <Route path="/custom-show" element={<CustomShowPage />} />
             <Route path="/globe-view" element={<GlobeView />} />
+            <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
             
             {/* Enhanced Trajectory Planning Route with unified design system */}
             <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />

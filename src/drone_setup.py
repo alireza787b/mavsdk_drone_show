@@ -48,6 +48,7 @@ class DroneSetup:
             Mission.CUSTOM_CSV_DRONE_SHOW.value: self._execute_custom_drone_show,
             Mission.HOVER_TEST.value: self._execute_hover_test,
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
+            Mission.SWARM_TRAJECTORY.value: self._execute_swarm_trajectory,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
             Mission.RETURN_RTL.value: self._execute_return_rtl,
@@ -408,6 +409,11 @@ class DroneSetup:
 
         logger.debug("Conditions NOT met for Smart Swarm.")
         return (False, "Conditions not met for Smart Swarm.")
+
+    async def _execute_swarm_trajectory(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """Handler for Mission.SWARM_TRAJECTORY."""
+        logger.info("Starting Swarm Trajectory Mission")
+        return await self.execute_mission_script("swarm_trajectory_mission.py", "")
 
     async def _execute_takeoff(self, current_time: int = 0, earlier_trigger_time: int = 0) -> tuple:
         """Handler for Mission.TAKE_OFF."""

@@ -1,7 +1,7 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
 import { Sidebar, Menu, MenuItem } from 'react-pro-sidebar';
-import { FaGlobe, FaHome, FaChartBar, FaCog, FaTachometerAlt, FaGem, FaList, FaGithub, FaBars, FaRoute } from 'react-icons/fa';
+import { FaGlobe, FaHome, FaChartBar, FaCog, FaTachometerAlt, FaGem, FaList, FaGithub, FaBars, FaRoute, FaProjectDiagram } from 'react-icons/fa';
 
 import { Link } from 'react-router-dom';
 import '../styles/SidebarMenu.css';
@@ -81,6 +81,12 @@ const SidebarMenu = () => {
               <Link to="/swarm-design">
                 <MenuItem icon={<FaList />}>
                   Swarm Design
+                </MenuItem>
+              </Link>
+              
+              <Link to="/swarm-trajectory">
+                <MenuItem icon={<FaProjectDiagram />}>
+                  Swarm Trajectory
                 </MenuItem>
               </Link>
               
