@@ -55,8 +55,15 @@ class DroneConfig:
         # GPS and MAVLink data
         self.hdop = 0                         # Horizontal dilution of precision
         self.vdop = 0                         # Vertical dilution of precision
-        self.mav_mode = 0                     # MAVLink mode
-        self.system_status = 0                # System status from MAVLink HEARTBEAT message
+        
+        # MAVLink HEARTBEAT message fields (following MAVLink/PX4 standards)
+        self.base_mode = 0                    # MAVLink base mode flags (armed/disarmed, etc.)
+        self.custom_mode = 0                  # PX4-specific flight mode (Manual, Position, Hold, etc.)
+        self.system_status = 0                # System status (STANDBY, ACTIVE, etc.)
+        
+        # Derived fields for convenience
+        self.is_armed = False                 # Whether the drone is armed
+        self.is_ready_to_arm = False          # Whether pre-arm checks pass
         
         # LOCAL_POSITION_NED (msg #32) data - updated from MAVLink LOCAL_POSITION_NED messages
         # All values stored in MAVLink-native field names and units

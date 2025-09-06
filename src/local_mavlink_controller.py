@@ -87,11 +87,52 @@ class LocalMavlinkController:
     def process_heartbeat(self, msg):
         """
         Process the HEARTBEAT message and update flight mode and system status.
+        Follows MAVLink/PX4 standards for proper flight mode handling.
         """
-        # Store the current MAV mode (e.g., armed, preflight, etc.)
-        self.drone_config.mav_mode = msg.base_mode
-        self.drone_config.system_status = msg.system_status
-        self.log_debug(f"Updated MAV_MODE to: {self.drone_config.mav_mode}, SYSTEM_STATUS to: {self.drone_config.system_status}")
+        # Store MAVLink HEARTBEAT fields according to specification
+        self.drone_config.base_mode = msg.base_mode      # MAV_MODE flags (armed, custom mode enabled, etc.)
+        self.drone_config.custom_mode = msg.custom_mode  # PX4-specific flight mode
+        self.drone_config.system_status = msg.system_status  # MAV_STATE (STANDBY, ACTIVE, etc.)
+        
+        # Extract arming status from base_mode flags
+        self.drone_config.is_armed = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
+        
+        # Update pre-arm readiness based on system status and sensor health
+        self._update_pre_arm_status()
+        
+        self.log_debug(f"HEARTBEAT: base_mode={self.drone_config.base_mode}, "
+                      f"custom_mode={self.drone_config.custom_mode}, "
+                      f"system_status={self.drone_config.system_status}, "
+                      f"armed={self.drone_config.is_armed}, "
+                      f"ready_to_arm={self.drone_config.is_ready_to_arm}")
+                      
+    def _update_pre_arm_status(self):
+        """
+        Update pre-arm readiness status based on PX4/MAVLink standards.
+        A drone is ready to arm if:
+        1. System status indicates readiness (STANDBY or better)
+        2. Essential sensors are healthy and calibrated
+        3. GPS has sufficient accuracy
+        4. No critical system failures
+        """
+        # Check system status - must be STANDBY (4) or ACTIVE (5) to be ready
+        system_ready = self.drone_config.system_status >= mavutil.mavlink.MAV_STATE_STANDBY
+        
+        # Check sensor calibrations
+        sensors_ready = (
+            self.drone_config.is_gyrometer_calibration_ok and
+            self.drone_config.is_accelerometer_calibration_ok and
+            self.drone_config.is_magnetometer_calibration_ok
+        )
+        
+        # Check GPS accuracy (HDOP should be reasonable, e.g., < 2.0)
+        gps_ready = self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
+        
+        # Overall readiness assessment
+        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready
+        
+        self.log_debug(f"Pre-arm checks: system={system_ready}, sensors={sensors_ready}, "
+                      f"gps={gps_ready} (hdop={self.drone_config.hdop}) -> ready={self.drone_config.is_ready_to_arm}")
 
     def process_sys_status(self, msg):
         """

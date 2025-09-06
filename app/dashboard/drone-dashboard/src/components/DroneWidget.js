@@ -3,8 +3,7 @@ import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/
 import { Tooltip } from 'react-tooltip'; // For hover tooltips
 import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
-import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { MAV_MODE_ENUM } from '../constants/mavModeEnum';
+import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady } from '../utilities/flightModeUtils';
 import '../styles/DroneWidget.css';
 
 /**
@@ -28,10 +27,15 @@ const DroneWidget = ({
   // Mark data as stale if older than 5 seconds
   const isStale = currentTimeInMs - (drone.Timestamp || 0) > 5000;
 
-  // Flight Mode info
+  // Flight Mode and Status info using proper PX4/MAVLink standards
   const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
-  const mavModeName = MAV_MODE_ENUM[drone.Flight_Mode] || drone.Flight_Mode;
-  const isArmable = drone.Flight_Mode !== 0; // e.g., not in PREFLIGHT mode => armable
+  const systemStatusName = getSystemStatusTitle(drone.System_Status || 0);
+  
+  // Use proper arming status from telemetry (not derived from flight mode)
+  const isArmed = drone.Is_Armed || false;
+  const isReadyToArm = drone.Is_Ready_To_Arm || false;
+  const isInSafeMode = isSafeMode(drone.Flight_Mode || 0);
+  const isSystemReady = isReady(drone.System_Status || 0);
 
   // Example utility to assign color class for HDOP/VDOP
   const getHdopVdopClass = (hdop, vdop) => {
@@ -75,9 +79,9 @@ const DroneWidget = ({
 
   return (
     <div
-      className={`drone-widget ${isArmable ? 'armable' : 'not-armable'} ${
-        isExpanded ? 'expanded' : ''
-      }`}
+      className={`drone-widget ${isReadyToArm ? 'ready-to-arm' : 'not-ready-to-arm'} ${
+        isArmed ? 'armed' : 'disarmed'
+      } ${isExpanded ? 'expanded' : ''}`}
     >
       {/* Header with stale vs. active indicator */}
       <h3 onClick={() => toggleDroneDetails(drone)}>
@@ -152,6 +156,22 @@ const DroneWidget = ({
         </p>
       </div>
 
+      {/* Arming Status Section - QGroundControl Style */}
+      <div className="arming-status-section">
+        <div className="status-row">
+          <span className="status-label"><strong>Armed:</strong></span>
+          <span className={`status-indicator ${isArmed ? 'armed' : 'disarmed'}`}>
+            {isArmed ? 'YES' : 'NO'}
+          </span>
+        </div>
+        <div className="status-row">
+          <span className="status-label"><strong>Ready to Arm:</strong></span>
+          <span className={`status-indicator ${isReadyToArm ? 'ready' : 'not-ready'}`}>
+            {isReadyToArm ? 'YES' : 'NO'}
+          </span>
+        </div>
+      </div>
+
       {/* Main info block */}
       <div className="drone-info">
         <p>
@@ -161,10 +181,10 @@ const DroneWidget = ({
           <strong>Flight Mode:</strong> {flightModeTitle}
         </p>
         <p>
-          <strong>State:</strong> {drone.State || 'Unknown'}
+          <strong>System Status:</strong> {systemStatusName}
         </p>
         <p>
-          <strong>MAV Mode:</strong> {mavModeName}
+          <strong>State:</strong> {drone.State || 'Unknown'}
         </p>
         <p>
           <strong>Server Time:</strong>{' '}

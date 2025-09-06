@@ -146,8 +146,11 @@ def poll_telemetry(drone):
                         'Follow_Mode': telemetry_data.get('follow_mode', 'UNKNOWN'),
                         'Update_Time': telemetry_data.get('update_time', 'UNKNOWN'),
                         'Timestamp': telemetry_data.get('timestamp', time.time()),
-                        'Flight_Mode': telemetry_data.get('flight_mode_raw', 'UNKNOWN'),
+                        'Flight_Mode': telemetry_data.get('flight_mode', 'UNKNOWN'),  # PX4 custom_mode
+                        'Base_Mode': telemetry_data.get('base_mode', 'UNKNOWN'),      # MAVLink base_mode flags
                         'System_Status': telemetry_data.get('system_status', 'UNKNOWN'),
+                        'Is_Armed': telemetry_data.get('is_armed', False),           # Armed status
+                        'Is_Ready_To_Arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
                         'Hdop': telemetry_data.get('hdop', 99.99),
                         'Vdop': telemetry_data.get('vdop', 99.99),
                     }
