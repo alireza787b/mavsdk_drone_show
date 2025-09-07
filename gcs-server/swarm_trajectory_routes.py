@@ -350,3 +350,50 @@ def register_swarm_trajectory_routes(app):
         except Exception as e:
             logger.error(f"Failed to clear individual drone {drone_id}: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/swarm/trajectory/commit', methods=['POST'])
+    def commit_trajectory_changes():
+        """Commit and push trajectory changes to git repository"""
+        try:
+            from flask import request, jsonify
+            from datetime import datetime
+            
+            request_data = request.get_json() or {}
+            commit_message = request_data.get('message', f'Swarm trajectory update - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+            
+            # Import git operations from existing utils
+            from utils import git_operations
+            from src.params import Params
+            import os
+            
+            # Get the project base directory
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            logger.info(f"Starting git commit and push for trajectory changes")
+            logger.info(f"Base directory: {base_dir}")
+            logger.info(f"Commit message: {commit_message}")
+            
+            # Execute git operations
+            git_result = git_operations(base_dir, commit_message)
+            
+            if git_result.get('success'):
+                logger.info("Git operations completed successfully")
+                return jsonify({
+                    'success': True,
+                    'message': 'Trajectory changes committed and pushed successfully',
+                    'git_info': git_result
+                })
+            else:
+                logger.error(f"Git operations failed: {git_result.get('message')}")
+                return jsonify({
+                    'success': False,
+                    'error': git_result.get('message', 'Git operations failed'),
+                    'git_info': git_result
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"Failed to commit trajectory changes: {e}")
+            return jsonify({
+                'success': False, 
+                'error': f'Commit failed: {str(e)}'
+            }), 500

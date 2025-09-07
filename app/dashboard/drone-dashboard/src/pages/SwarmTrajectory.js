@@ -11,6 +11,9 @@ const SwarmTrajectory = () => {
   const [results, setResults] = useState(null);
   const [status, setStatus] = useState(null);
   const [simulationMode, setSimulationMode] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [committing, setCommitting] = useState(false);
+  const [commitProgress, setCommitProgress] = useState(null);
 
   useEffect(() => {
     fetchLeaders();
@@ -245,6 +248,85 @@ const SwarmTrajectory = () => {
     }
   };
 
+  const openLightbox = (imageSrc, title) => {
+    setLightboxImage({ src: imageSrc, title });
+  };
+
+  const closeLightbox = () => {
+    setLightboxImage(null);
+  };
+
+  // Handle ESC key for lightbox
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && lightboxImage) {
+        closeLightbox();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [lightboxImage]);
+
+  const commitAndPushChanges = async () => {
+    if (!results || results.processed_drones === 0) {
+      alert('⚠️ No trajectories to commit. Please process trajectories first.');
+      return;
+    }
+
+    const confirmed = window.confirm(`🚀 Commit & Push Trajectory Changes?\n\nThis will:\n✅ Save all processed trajectories to git\n✅ Push to remote repository\n✅ Make trajectories available to all drones\n\nProcessed drones: ${results.processed_drones}\nContinue?`);
+    
+    if (!confirmed) return;
+
+    setCommitting(true);
+    setCommitProgress({ step: 'Preparing...', progress: 10 });
+
+    try {
+      // Simulate progress steps for better UX
+      const progressSteps = [
+        { step: 'Staging trajectory files...', progress: 25 },
+        { step: 'Creating git commit...', progress: 50 },
+        { step: 'Pushing to remote repository...', progress: 75 },
+        { step: 'Finalizing...', progress: 90 }
+      ];
+
+      for (const progressStep of progressSteps) {
+        setCommitProgress(progressStep);
+        await new Promise(resolve => setTimeout(resolve, 800)); // Smooth progress
+      }
+
+      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/commit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Swarm trajectory update: ${results.processed_drones} drones processed - ${new Date().toISOString().split('T')[0]}`
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setCommitProgress({ step: 'Success!', progress: 100 });
+        
+        setTimeout(() => {
+          alert(`✅ Trajectory changes committed successfully!\n\n📊 ${results.processed_drones} drone trajectories pushed to repository\n🌐 All drones now have access to the latest trajectories\n\n${data.git_info?.message || 'Git operations completed successfully'}`);
+          setCommitProgress(null);
+        }, 500);
+      } else {
+        throw new Error(data.error || 'Commit failed');
+      }
+
+    } catch (error) {
+      console.error('Commit error:', error);
+      setCommitProgress(null);
+      alert(`❌ Commit failed: ${error.message}\n\nPlease check your git configuration and try again.`);
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   return (
     <div className="swarm-trajectory">
       {/* Header with clear title and mode indicator */}
@@ -258,13 +340,30 @@ const SwarmTrajectory = () => {
         </div>
       </div>
 
+      {/* Clean Workflow Guidance */}
+      <div className="workflow-guide">
+        <div className="guide-content">
+          <span className="guide-icon">💡</span>
+          <div className="guide-text">
+            <span className="guide-main">Complete Workflow:</span>
+            <span className="guide-steps">
+              1. <a href="/swarm-design" className="guide-link">Design your swarm structure</a>
+              {' → '}
+              2. <a href="/trajectory-planning" className="guide-link">Plan trajectories</a>
+              {' → '}
+              3. Upload exported CSV files here to generate swarm trajectories
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Current Status - Clean overview */}
       <div className="status-card">
         <h2>Current Status</h2>
         <div className="status-metrics">
           <div className="metric">
             <span className="metric-value">{leaders.length}</span>
-            <span className="metric-label">Drones Found</span>
+            <span className="metric-label">Clusters Found</span>
           </div>
           <div className="metric">
             <span className="metric-value">{uploadedLeaders.size}</span>
@@ -427,7 +526,7 @@ const SwarmTrajectory = () => {
                                   <h5>📊 Complete Cluster View</h5>
                                   <span className="plot-description">All trajectories in this formation</span>
                                 </div>
-                                <div className="cluster-plot">
+                                <div className="cluster-plot clickable" onClick={() => openLightbox(`${getBackendURL()}/static/plots/cluster_leader_${leaderId}.jpg`, `Cluster ${leaderId} Formation`)}>
                                   <img 
                                     src={`${getBackendURL()}/static/plots/cluster_leader_${leaderId}.jpg`}
                                     alt={`Cluster ${leaderId} formation trajectories`}
@@ -435,6 +534,10 @@ const SwarmTrajectory = () => {
                                       e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="%23f8fafc"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="%23667eea" text-anchor="middle">Cluster Formation Plot</text></svg>';
                                     }}
                                   />
+                                  <div className="zoom-overlay">
+                                    <span className="zoom-icon">🔍</span>
+                                    <span>Click to enlarge</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -459,7 +562,7 @@ const SwarmTrajectory = () => {
                                     </div>
                                   </div>
                                   
-                                  <div className="preview-plot">
+                                  <div className="preview-plot clickable" onClick={() => openLightbox(`${getBackendURL()}/static/plots/drone_${leaderId}_trajectory.jpg`, `Drone ${leaderId} Trajectory`)}>
                                     <img 
                                       src={`${getBackendURL()}/static/plots/drone_${leaderId}_trajectory.jpg`}
                                       alt={`Drone ${leaderId} trajectory`}
@@ -467,6 +570,9 @@ const SwarmTrajectory = () => {
                                         e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%23666" text-anchor="middle">Plot Loading...</text></svg>';
                                       }}
                                     />
+                                    <div className="zoom-overlay">
+                                      <span className="zoom-icon">🔍</span>
+                                    </div>
                                   </div>
                                   
                                   <div className="preview-actions">
@@ -514,7 +620,7 @@ const SwarmTrajectory = () => {
                                       </div>
                                     </div>
                                     
-                                    <div className="preview-plot">
+                                    <div className="preview-plot clickable" onClick={() => openLightbox(`${getBackendURL()}/static/plots/drone_${followerId}_trajectory.jpg`, `Drone ${followerId} Trajectory`)}>
                                       <img 
                                         src={`${getBackendURL()}/static/plots/drone_${followerId}_trajectory.jpg`}
                                         alt={`Drone ${followerId} trajectory`}
@@ -522,6 +628,9 @@ const SwarmTrajectory = () => {
                                           e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="100%" height="100%" fill="%23f7fafc"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2338a169" text-anchor="middle">Follower Plot</text></svg>';
                                         }}
                                       />
+                                      <div className="zoom-overlay">
+                                        <span className="zoom-icon">🔍</span>
+                                      </div>
                                     </div>
                                     
                                     <div className="preview-actions">
@@ -570,6 +679,18 @@ const SwarmTrajectory = () => {
               <span className="utility-icon">↻</span>
               Refresh Status
             </button>
+            
+            {results && results.processed_drones > 0 && (
+              <button 
+                className="utility-btn commit" 
+                onClick={commitAndPushChanges}
+                disabled={committing}
+              >
+                <span className="utility-icon">🚀</span>
+                {committing ? 'Committing...' : 'Commit & Push Changes'}
+              </button>
+            )}
+            
             <button className="utility-btn danger" onClick={clearAll}>
               <span className="utility-icon">🗑</span>
               Clear All Files
@@ -580,12 +701,67 @@ const SwarmTrajectory = () => {
         /* No Lead Drones Found State */
         <div className="empty-state">
           <div className="empty-icon">🤖</div>
-          <h3>No Lead Drones Found</h3>
-          <p>Please check your swarm configuration. Make sure you have drones with follow=0 defined as lead drones.</p>
+          <h3>No Clusters Found</h3>
+          <p>Please check your swarm configuration. Make sure you have lead drones with follow=0 defined to create clusters.</p>
           <button className="utility-btn" onClick={fetchLeaders}>
             <span className="utility-icon">↻</span>
             Reload Configuration
           </button>
+        </div>
+      )}
+
+      {/* Professional Lightbox Modal */}
+      {lightboxImage && (
+        <div className="lightbox-overlay" onClick={closeLightbox}>
+          <div className="lightbox-container" onClick={(e) => e.stopPropagation()}>
+            <div className="lightbox-header">
+              <h3>{lightboxImage.title}</h3>
+              <button className="lightbox-close" onClick={closeLightbox}>
+                ✕
+              </button>
+            </div>
+            <div className="lightbox-content">
+              <img 
+                src={lightboxImage.src} 
+                alt={lightboxImage.title}
+                className="lightbox-image"
+              />
+            </div>
+            <div className="lightbox-footer">
+              <span className="lightbox-hint">Click outside or press ESC to close</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Professional Progress Modal */}
+      {commitProgress && (
+        <div className="progress-overlay">
+          <div className="progress-modal">
+            <div className="progress-header">
+              <h3>🚀 Committing Trajectory Changes</h3>
+              <div className="progress-subtitle">
+                Pushing {results?.processed_drones || 0} drone trajectories to repository...
+              </div>
+            </div>
+            
+            <div className="progress-content">
+              <div className="progress-bar-container">
+                <div 
+                  className="progress-bar-fill" 
+                  style={{ width: `${commitProgress.progress}%` }}
+                ></div>
+              </div>
+              
+              <div className="progress-step">
+                {commitProgress.step}
+              </div>
+              
+              <div className="progress-percentage">
+                {commitProgress.progress}%
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

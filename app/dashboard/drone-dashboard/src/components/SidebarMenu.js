@@ -73,14 +73,21 @@ const SidebarMenu = () => {
               </MenuItem></Link>              
               
               <Link to="/mission-config">
-                <MenuItem icon={<FaGem />}>
+                <MenuItem icon={<FaCog />}>
                   Mission Config
                 </MenuItem>
               </Link>
               
+              {/* Swarm Workflow - Logical Order */}
               <Link to="/swarm-design">
                 <MenuItem icon={<FaList />}>
                   Swarm Design
+                </MenuItem>
+              </Link>
+              
+              <Link to="/trajectory-planning">
+                <MenuItem icon={<FaRoute />}>
+                  Trajectory Planning
                 </MenuItem>
               </Link>
               
@@ -90,6 +97,7 @@ const SidebarMenu = () => {
                 </MenuItem>
               </Link>
               
+              {/* Show Design Workflow */}
               <Link to="/manage-drone-show">
                 <MenuItem icon={<FaGithub />}>
                   Drone Show Design
@@ -102,16 +110,12 @@ const SidebarMenu = () => {
                 </MenuItem>
               </Link>
 
+              {/* Monitoring & Visualization */}
               <Link to="/globe-view">
                 <MenuItem icon={<FaGlobe />}>
                   Drone 3D View
                 </MenuItem>
               </Link>
-             <Link to="/trajectory-planning">
-                <MenuItem icon={<FaRoute />}>
-                  Trajectory Planning
-                </MenuItem>
-             </Link>            
             </Menu>
           </div>
 
