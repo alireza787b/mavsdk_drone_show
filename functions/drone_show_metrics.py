@@ -97,14 +97,18 @@ class DroneShowMetrics:
                         }
                     max_altitude = max(max_altitude, max_alt_value)
                     
-                    # Calculate distance from launch position
-                    if 'px' in df.columns and 'py' in df.columns:
+                    # Calculate 3D distance from launch position (x,y,z)
+                    if 'px' in df.columns and 'py' in df.columns and 'pz' in df.columns:
                         launch_x = df['px'].iloc[0]  # Launch position
                         launch_y = df['py'].iloc[0]
+                        launch_z = df['pz'].iloc[0]
                         
-                        distances = np.sqrt((df['px'] - launch_x)**2 + (df['py'] - launch_y)**2)
-                        max_dist_idx = distances.idxmax()
-                        max_dist_value = distances.iloc[max_dist_idx]
+                        # 3D distance calculation: sqrt(x^2 + y^2 + z^2)
+                        distances_3d = np.sqrt((df['px'] - launch_x)**2 + 
+                                             (df['py'] - launch_y)**2 + 
+                                             (df['pz'] - launch_z)**2)
+                        max_dist_idx = distances_3d.idxmax()
+                        max_dist_value = distances_3d.iloc[max_dist_idx]
                         
                         if max_dist_value > max_distance_info['value']:
                             max_distance_info = {
@@ -114,36 +118,52 @@ class DroneShowMetrics:
                             }
                         max_distance_from_launch = max(max_distance_from_launch, max_dist_value)
                     
-                    # Minimum altitude during flight phase (exclude first/last 10% as start/end)
-                    total_points = len(altitudes)
-                    start_exclude = int(total_points * 0.1)  # First 10%
-                    end_exclude = int(total_points * 0.9)    # Last 10%
-                    
-                    if total_points > 20:  # Only if we have enough data points
-                        flight_altitudes = altitudes.iloc[start_exclude:end_exclude]
-                        flight_times = times.iloc[start_exclude:end_exclude]
+                    # Minimum altitude during flight phase (exclude takeoff/landing based on position)
+                    if 'px' in df.columns and 'py' in df.columns:
+                        start_x, start_y = df['px'].iloc[0], df['py'].iloc[0]
+                        end_x, end_y = df['px'].iloc[-1], df['py'].iloc[-1]
                         
-                        if len(flight_altitudes) > 0:
-                            min_idx = flight_altitudes.idxmin()
-                            min_alt_value = flight_altitudes.iloc[min_idx]
-                            if min_alt_value < min_altitude_info['value']:
-                                min_altitude_info = {
-                                    'value': round(min_alt_value, 2),
-                                    'drone_id': drone_id,
-                                    'time_s': round(flight_times.iloc[min_idx], 1)
-                                }
-                            min_altitude_flight = min(min_altitude_flight, min_alt_value)
-                    else:
-                        # If too few points, use all data
-                        min_idx = altitudes.idxmin()
-                        min_alt_value = altitudes.iloc[min_idx]
-                        if min_alt_value < min_altitude_info['value']:
-                            min_altitude_info = {
-                                'value': round(min_alt_value, 2),
-                                'drone_id': drone_id,
-                                'time_s': round(times.iloc[min_idx], 1)
-                            }
-                        min_altitude_flight = min(min_altitude_flight, min_alt_value)
+                        # Create mask for points not near start/end positions (>5m away from both)
+                        dist_from_start = np.sqrt((df['px'] - start_x)**2 + (df['py'] - start_y)**2)
+                        dist_from_end = np.sqrt((df['px'] - end_x)**2 + (df['py'] - end_y)**2)
+                        
+                        # Points that are >5m from both start and end positions
+                        flight_mask = (dist_from_start > 5.0) & (dist_from_end > 5.0)
+                        
+                        if flight_mask.any():
+                            # Use only flight phase altitudes
+                            flight_altitudes = altitudes[flight_mask]
+                            flight_times = times[flight_mask]
+                            
+                            if len(flight_altitudes) > 0:
+                                min_idx = flight_altitudes.idxmin()
+                                min_alt_value = flight_altitudes.loc[min_idx]
+                                if min_alt_value < min_altitude_info['value']:
+                                    min_altitude_info = {
+                                        'value': round(min_alt_value, 2),
+                                        'drone_id': drone_id,
+                                        'time_s': round(flight_times.loc[min_idx], 1)
+                                    }
+                                min_altitude_flight = min(min_altitude_flight, min_alt_value)
+                        else:
+                            # Fallback to excluding first/last 20% if position-based filtering fails
+                            total_points = len(altitudes)
+                            if total_points > 10:
+                                start_exclude = int(total_points * 0.2)
+                                end_exclude = int(total_points * 0.8)
+                                flight_altitudes = altitudes.iloc[start_exclude:end_exclude]
+                                flight_times = times.iloc[start_exclude:end_exclude]
+                                
+                                if len(flight_altitudes) > 0:
+                                    min_idx = flight_altitudes.idxmin()
+                                    min_alt_value = flight_altitudes.iloc[min_idx]
+                                    if min_alt_value < min_altitude_info['value']:
+                                        min_altitude_info = {
+                                            'value': round(min_alt_value, 2),
+                                            'drone_id': drone_id,
+                                            'time_s': round(flight_times.iloc[min_idx], 1)
+                                        }
+                                    min_altitude_flight = min(min_altitude_flight, min_alt_value)
             
             # Handle edge cases
             if min_altitude_flight == float('inf'):

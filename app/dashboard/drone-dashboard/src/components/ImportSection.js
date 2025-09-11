@@ -113,9 +113,21 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose, isCompleted, onCon
       {/* Show real-time status when processing */}
       {!isCompleted && progress.overall > 0 && (
         <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Typography variant="caption" color="textSecondary" sx={{ fontStyle: 'italic' }}>
-            Backend processing in progress... Please wait
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+            <CircularProgress size={16} color="primary" />
+            <Typography variant="caption" color="primary" sx={{ fontWeight: 'medium' }}>
+              {progress.stage.includes('Backend') 
+                ? 'Backend processing - this may take several minutes...'
+                : progress.stage.includes('Deploying')
+                ? 'Deploying to git repository - this can take a few minutes longer...'
+                : 'Processing in progress...'}
+            </Typography>
+          </Box>
+          {progress.stage.includes('Deploying') && (
+            <Typography variant="caption" color="textSecondary" sx={{ fontStyle: 'italic', fontSize: '0.7rem' }}>
+              Committing and pushing changes to cloud repository
+            </Typography>
+          )}
         </Box>
       )}
     </Box>

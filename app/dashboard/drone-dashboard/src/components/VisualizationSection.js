@@ -8,7 +8,6 @@ import {
   Card,
   CardContent,
   Grid,
-  LinearProgress,
   Button,
   Chip,
   Divider,
@@ -18,7 +17,8 @@ import {
   Paper,
   Collapse,
   Modal,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
@@ -520,24 +520,6 @@ const VisualizationSection = ({ uploadCount }) => {
       {/* Advanced Metrics Row - Only if comprehensive metrics available */}
       {comprehensiveMetrics && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          {comprehensiveMetrics.performance_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <SpeedIcon color="primary" sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="caption" color="textSecondary" display="block">
-                    Max Speed
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
-                    {comprehensiveMetrics.performance_metrics.max_velocity_ms} m/s
-                  </Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    ({comprehensiveMetrics.performance_metrics.max_velocity_kmh} km/h)
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
 
           {comprehensiveMetrics.safety_metrics && (
             <Grid item xs={12} sm={6} md={3}>
@@ -589,7 +571,16 @@ const VisualizationSection = ({ uploadCount }) => {
                     <Typography variant="caption" color="textSecondary" display="block">
                       Safety Status
                     </Typography>
-                    <Tooltip title="Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances. SAFE = No collision warnings, proper clearances maintained." arrow>
+                    <Tooltip 
+                      title={
+                        comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' 
+                          ? `⚠️ CAUTION: ${comprehensiveMetrics.safety_metrics.collision_warnings_count || 0} collision warnings detected. Check inter-drone distances and flight paths before launch.`
+                          : comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE'
+                          ? '✅ SAFE: No collision risks detected. All clearances maintained properly.'
+                          : 'Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances.'
+                      }
+                      arrow
+                    >
                       <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
                     </Tooltip>
                   </Box>
@@ -602,6 +593,11 @@ const VisualizationSection = ({ uploadCount }) => {
                     size="small"
                     sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
                   />
+                  {comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' && (
+                    <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1, fontSize: '0.7rem' }}>
+                      Review flight paths
+                    </Typography>
+                  )}
                 </CardContent>
               </Card>
             </Grid>
@@ -610,7 +606,14 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
       )}
 
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {loading && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+          <CircularProgress size={20} color="primary" />
+          <Typography variant="body2" color="primary" sx={{ fontWeight: 'medium' }}>
+            Loading drone show analysis...
+          </Typography>
+        </Box>
+      )}
       {error && (
         <Typography variant="body1" color="error" sx={{ mb: 2 }}>
           {error}
