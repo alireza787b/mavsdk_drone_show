@@ -23,7 +23,9 @@ import {
   ListItemText,
   Paper,
   Collapse,
-  Modal
+  Modal,
+  Tooltip,
+  IconButton
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
@@ -35,7 +37,8 @@ import {
   CheckCircle as CheckCircleIcon,
   ExpandMore as ExpandMoreIcon,
   Timeline as TimelineIcon,
-  Psychology as PsychologyIcon
+  Psychology as PsychologyIcon,
+  HelpOutline as HelpIcon
 } from '@mui/icons-material';
 import HeightIcon from '@mui/icons-material/Height';
 
@@ -53,6 +56,7 @@ const VisualizationSection = ({ uploadCount }) => {
   });
   const [comprehensiveMetrics, setComprehensiveMetrics] = useState(null);
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
+  const [showPerDroneData, setShowPerDroneData] = useState(false);
 
   const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
 
@@ -176,6 +180,64 @@ const VisualizationSection = ({ uploadCount }) => {
 
         {/* Collapsible Technical Details */}
         <Collapse in={showAdvancedMetrics}>
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant="outlined"
+              onClick={() => setShowPerDroneData(!showPerDroneData)}
+              sx={{ borderColor: '#0056b3', color: '#0056b3', mb: 2 }}
+            >
+              {showPerDroneData ? 'Hide Per-Drone Data' : 'Show Per-Drone Data'}
+            </Button>
+            
+            <Collapse in={showPerDroneData}>
+              <Paper sx={{ p: 3, mb: 3, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+                <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TheatersIcon />
+                  Individual Drone Analysis
+                </Typography>
+                {comprehensiveMetrics?.performance_metrics?.per_drone_velocity && (
+                  <Grid container spacing={2}>
+                    {Object.entries(comprehensiveMetrics.performance_metrics.per_drone_velocity).map(([droneId, data]) => (
+                      <Grid item xs={12} sm={6} md={4} key={droneId}>
+                        <Paper sx={{ p: 2, border: '1px solid #dee2e6' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+                            Drone {droneId}
+                          </Typography>
+                          <List dense>
+                            <ListItem sx={{ px: 0, py: 0.5 }}>
+                              <ListItemText 
+                                primary="Max Speed" 
+                                secondary={`${data.max_velocity_ms} m/s`}
+                                primaryTypographyProps={{ variant: 'caption' }}
+                                secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                              />
+                            </ListItem>
+                            <ListItem sx={{ px: 0, py: 0.5 }}>
+                              <ListItemText 
+                                primary="Avg Speed" 
+                                secondary={`${data.avg_velocity_ms} m/s`}
+                                primaryTypographyProps={{ variant: 'caption' }}
+                                secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                              />
+                            </ListItem>
+                            <ListItem sx={{ px: 0, py: 0.5 }}>
+                              <ListItemText 
+                                primary="Speed Variation" 
+                                secondary={`±${data.velocity_std_ms} m/s`}
+                                primaryTypographyProps={{ variant: 'caption' }}
+                                secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                              />
+                            </ListItem>
+                          </List>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </Paper>
+            </Collapse>
+          </Box>
+          
           <Grid container spacing={3}>
             {/* Safety Analysis */}
             {safety_metrics && (
@@ -398,9 +460,16 @@ const VisualizationSection = ({ uploadCount }) => {
                     : '#6c757d'
                 }} 
               />
-              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                Safety Status
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="subtitle2" color="textSecondary">
+                  Safety Status
+                </Typography>
+                <Tooltip title="Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances. SAFE = No collision warnings, proper clearances maintained." arrow>
+                  <IconButton size="small" sx={{ p: 0.5 }}>
+                    <HelpIcon sx={{ fontSize: 14, color: '#6c757d' }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
               <Chip 
                 label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
                 color={
@@ -441,9 +510,14 @@ const VisualizationSection = ({ uploadCount }) => {
               <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
                 <CardContent sx={{ textAlign: 'center', py: 2 }}>
                   <SecurityIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="caption" color="textSecondary" display="block">
-                    Min Distance
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
+                    <Typography variant="caption" color="textSecondary">
+                      Min Distance
+                    </Typography>
+                    <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
+                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
+                    </Tooltip>
+                  </Box>
                   <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                     {typeof comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m === 'number' 
                       ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
@@ -475,9 +549,14 @@ const VisualizationSection = ({ uploadCount }) => {
               <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
                 <CardContent sx={{ textAlign: 'center', py: 2 }}>
                   <TimelineIcon color="secondary" sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="caption" color="textSecondary" display="block">
-                    Formation Quality
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
+                    <Typography variant="caption" color="textSecondary">
+                      Formation Quality
+                    </Typography>
+                    <Tooltip title="Formation coherence score based on how well drones maintain their relative positions. Higher percentage indicates better synchronized movement." arrow>
+                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
+                    </Tooltip>
+                  </Box>
                   <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                     {(comprehensiveMetrics.formation_metrics.formation_coherence_score * 100).toFixed(0)}%
                   </Typography>

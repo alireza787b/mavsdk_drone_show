@@ -28,8 +28,8 @@ import {
   Assessment
 } from '@mui/icons-material';
 
-const ProcessingProgressModal = ({ isOpen, progress, onClose }) => (
-  <Modal open={isOpen} onClose={onClose}>
+const ProcessingProgressModal = ({ isOpen, progress, onClose, isCompleted, onContinue }) => (
+  <Modal open={isOpen} onClose={isCompleted ? onClose : () => {}}>
     <Box sx={{
       position: 'absolute',
       top: '50%',
@@ -43,13 +43,20 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose }) => (
     }}>
       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Psychology color="primary" />
-        Processing Drone Show
+        {isCompleted ? 'Processing Complete!' : 'Processing Drone Show'}
       </Typography>
       
       <LinearProgress 
         variant="determinate" 
         value={progress.overall} 
-        sx={{ mb: 2, height: 8, borderRadius: 4 }}
+        sx={{ 
+          mb: 2, 
+          height: 8, 
+          borderRadius: 4,
+          '& .MuiLinearProgress-bar': {
+            backgroundColor: isCompleted ? '#28a745' : '#667eea'
+          }
+        }}
       />
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
@@ -68,6 +75,8 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose }) => (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                 {detail.completed ? (
                   <CheckCircle color="success" sx={{ fontSize: 20 }} />
+                ) : progress.overall >= 90 ? (
+                  <CircularProgress size={20} color="primary" />
                 ) : (
                   <CircularProgress size={20} />
                 )}
@@ -82,6 +91,33 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose }) => (
           ))}
         </List>
       )}
+
+      {/* Show Continue button when processing is complete */}
+      {isCompleted && (
+        <Box sx={{ mt: 3, textAlign: 'center' }}>
+          <Button
+            variant="contained"
+            onClick={onContinue}
+            sx={{
+              bgcolor: '#28a745',
+              '&:hover': { bgcolor: '#218838' },
+              px: 4,
+              py: 1.5
+            }}
+          >
+            Continue
+          </Button>
+        </Box>
+      )}
+
+      {/* Show real-time status when processing */}
+      {!isCompleted && progress.overall > 0 && (
+        <Box sx={{ mt: 2, textAlign: 'center' }}>
+          <Typography variant="caption" color="textSecondary" sx={{ fontStyle: 'italic' }}>
+            Backend processing in progress... Please wait
+          </Typography>
+        </Box>
+      )}
     </Box>
   </Modal>
 );
@@ -95,6 +131,7 @@ const ImportSection = ({ setUploadCount }) => {
     details: []
   });
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [isProcessingCompleted, setIsProcessingCompleted] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -163,8 +200,9 @@ const ImportSection = ({ setUploadCount }) => {
 
     setIsUploading(true);
     setShowProgressModal(true);
+    setIsProcessingCompleted(false);
     
-    // Start progress simulation but let it run until backend responds
+    // Start progress simulation
     const progressInterval = simulateProgressSteps();
 
     const xhr = new XMLHttpRequest();
@@ -173,44 +211,51 @@ const ImportSection = ({ setUploadCount }) => {
     xhr.onload = () => {
       clearInterval(progressInterval);
       
-      // Set final progress state
-      setProcessingProgress({
-        overall: 100,
-        stage: 'Processing complete!',
-        details: [
-          { step: 'Extracting ZIP file', completed: true },
-          { step: 'Converting coordinates (Blender → NED)', completed: true },
-          { step: 'Interpolating trajectories', completed: true },
-          { step: 'Calculating comprehensive metrics', completed: true },
-          { step: 'Generating 3D visualizations', completed: true },
-          { step: 'Updating configuration', completed: true }
-        ]
-      });
-
-      setIsUploading(false);
-      
-      // Wait 2 seconds to show completion, then close modal
-      setTimeout(() => {
-        setShowProgressModal(false);
-        
-        if (xhr.status === 200) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            if (result.success) {
-              toast.success('🎯 Drone show processed successfully!');
-              setUploadCount((prev) => prev + 1);
-              setSelectedFile(null);
-            } else {
-              toast.error(result.error || 'Unknown error during file upload.');
-            }
-          } catch (error) {
-            console.error('Error parsing response:', error);
-            toast.error('Invalid server response.');
+      if (xhr.status === 200) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          if (result.success) {
+            // Set completion state
+            setProcessingProgress({
+              overall: 100,
+              stage: 'All processing completed successfully!',
+              details: [
+                { step: 'Extracting ZIP file', completed: true },
+                { step: 'Converting coordinates (Blender → NED)', completed: true },
+                { step: 'Interpolating trajectories', completed: true },
+                { step: 'Calculating comprehensive metrics', completed: true },
+                { step: 'Generating 3D visualizations', completed: true },
+                { step: 'Updating configuration', completed: true }
+              ]
+            });
+            
+            setIsProcessingCompleted(true);
+            setIsUploading(false);
+          } else {
+            setProcessingProgress({
+              overall: 0,
+              stage: 'Processing failed!',
+              details: [{ step: result.error || 'Unknown error', completed: false }]
+            });
+            setIsUploading(false);
           }
-        } else {
-          toast.error('Network error. Please try again.');
+        } catch (error) {
+          console.error('Error parsing response:', error);
+          setProcessingProgress({
+            overall: 0,
+            stage: 'Processing failed!',
+            details: [{ step: 'Invalid server response', completed: false }]
+          });
+          setIsUploading(false);
         }
-      }, 2000);
+      } else {
+        setProcessingProgress({
+          overall: 0,
+          stage: 'Processing failed!',
+          details: [{ step: 'Network error occurred', completed: false }]
+        });
+        setIsUploading(false);
+      }
     };
 
     xhr.onerror = () => {
@@ -218,19 +263,20 @@ const ImportSection = ({ setUploadCount }) => {
       setProcessingProgress({
         overall: 0,
         stage: 'Processing failed!',
-        details: [
-          { step: 'Network error occurred', completed: false }
-        ]
+        details: [{ step: 'Network connection failed', completed: false }]
       });
       setIsUploading(false);
-      
-      setTimeout(() => {
-        setShowProgressModal(false);
-        toast.error('Network error. Please try again.');
-      }, 2000);
     };
 
     xhr.send(formData);
+  };
+
+  const handleContinue = () => {
+    setShowProgressModal(false);
+    setIsProcessingCompleted(false);
+    toast.success('🎯 Drone show processed successfully!');
+    setUploadCount((prev) => prev + 1);
+    setSelectedFile(null);
   };
 
   return (
@@ -337,7 +383,9 @@ const ImportSection = ({ setUploadCount }) => {
       <ProcessingProgressModal 
         isOpen={showProgressModal}
         progress={processingProgress}
-        onClose={() => !isUploading && setShowProgressModal(false)}
+        isCompleted={isProcessingCompleted}
+        onClose={() => setShowProgressModal(false)}
+        onContinue={handleContinue}
       />
     </Box>
   );

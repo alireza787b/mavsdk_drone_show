@@ -630,6 +630,35 @@ def setup_routes(app):
             log_system_error(f"Error validating trajectory: {e}", "show")
             return error_response(f"Error validating trajectory: {e}")
 
+    @app.route('/deploy-show', methods=['POST'])
+    def deploy_show():
+        """
+        NEW ENDPOINT: Deploy show changes to git repository for drone fleet
+        """
+        log_system_event("Show deployment requested", "INFO", "deploy")
+        
+        try:
+            data = request.get_json() or {}
+            commit_message = data.get('message', f"Deploy drone show: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Perform git operations to commit and push changes
+            git_result = git_operations(BASE_DIR, commit_message)
+            
+            if git_result.get('success'):
+                log_system_event("Show deployment successful", "INFO", "deploy")
+                return jsonify({
+                    'success': True,
+                    'message': 'Show deployed successfully to drone fleet',
+                    'git_info': git_result
+                })
+            else:
+                log_system_error(f"Show deployment failed: {git_result.get('message')}", "deploy")
+                return error_response(f"Deployment failed: {git_result.get('message')}")
+                
+        except Exception as e:
+            log_system_error(f"Error during show deployment: {e}", "deploy")
+            return error_response(f"Error during deployment: {e}")
+
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
         log_system_event(f"Image requested: {filename}", "INFO", "show")
