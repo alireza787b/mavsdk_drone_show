@@ -1,0 +1,90 @@
+{
+  "basic_metrics": {
+    "drone_count": 10,
+    "duration_seconds": 478.7,
+    "duration_minutes": 7.98,
+    "max_altitude_m": 85.0,
+    "min_altitude_m": -0.0,
+    "altitude_range_m": 85.0
+  },
+  "safety_metrics": {
+    "min_inter_drone_distance_m": 4.24,
+    "collision_warnings_count": 0,
+    "collision_warnings": [],
+    "min_ground_clearance_m": -0.0,
+    "safety_status": "CAUTION"
+  },
+  "performance_metrics": {
+    "max_velocity_ms": 4.53,
+    "max_velocity_kmh": 16.3,
+    "max_acceleration_ms2": 1.8,
+    "performance_status": "EXCELLENT",
+    "per_drone_velocity": {
+      "10": {
+        "max_velocity_ms": 2.73,
+        "avg_velocity_ms": 0.58,
+        "velocity_std_ms": 0.81
+      },
+      "8": {
+        "max_velocity_ms": 2.71,
+        "avg_velocity_ms": 0.53,
+        "velocity_std_ms": 0.81
+      },
+      "4": {
+        "max_velocity_ms": 4.38,
+        "avg_velocity_ms": 0.64,
+        "velocity_std_ms": 0.93
+      },
+      "2": {
+        "max_velocity_ms": 2.57,
+        "avg_velocity_ms": 0.64,
+        "velocity_std_ms": 0.82
+      },
+      "1": {
+        "max_velocity_ms": 2.58,
+        "avg_velocity_ms": 0.5,
+        "velocity_std_ms": 0.78
+      },
+      "7": {
+        "max_velocity_ms": 2.72,
+        "avg_velocity_ms": 0.65,
+        "velocity_std_ms": 0.87
+      },
+      "6": {
+        "max_velocity_ms": 2.82,
+        "avg_velocity_ms": 0.62,
+        "velocity_std_ms": 0.88
+      },
+      "3": {
+        "max_velocity_ms": 2.83,
+        "avg_velocity_ms": 0.64,
+        "velocity_std_ms": 0.9
+      },
+      "9": {
+        "max_velocity_ms": 3.92,
+        "avg_velocity_ms": 0.65,
+        "velocity_std_ms": 0.9
+      },
+      "5": {
+        "max_velocity_ms": 4.53,
+        "avg_velocity_ms": 0.58,
+        "velocity_std_ms": 0.89
+      }
+    },
+    "estimated_battery_usage_percent": 47
+  },
+  "formation_metrics": {
+    "formation_coherence_score": 0.193,
+    "formation_complexity": "COMPLEX",
+    "swarm_center_total_movement_m": 244.97,
+    "formation_quality": "NEEDS_IMPROVEMENT"
+  },
+  "quality_metrics": {
+    "trajectory_smoothness_score": 0.998,
+    "overall_quality_rating": "EXCELLENT",
+    "quality_score": 0.998,
+    "recommendations": [
+      "Trajectory analysis completed successfully"
+    ]
+  }
+}

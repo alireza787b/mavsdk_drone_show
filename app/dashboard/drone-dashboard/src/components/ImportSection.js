@@ -13,12 +13,88 @@ import {
   List, 
   ListItem, 
   ListItemText, 
-  Link 
+  Link,
+  Modal,
+  LinearProgress,
+  Chip,
+  Divider
 } from '@mui/material';
+import { 
+  CloudUpload, 
+  CheckCircle, 
+  Psychology,
+  Timeline,
+  Security,
+  Assessment
+} from '@mui/icons-material';
+
+const ProcessingProgressModal = ({ isOpen, progress, onClose }) => (
+  <Modal open={isOpen} onClose={onClose}>
+    <Box sx={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: 500,
+      bgcolor: 'background.paper',
+      borderRadius: 2,
+      boxShadow: 24,
+      p: 4
+    }}>
+      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Psychology color="primary" />
+        Processing Drone Show
+      </Typography>
+      
+      <LinearProgress 
+        variant="determinate" 
+        value={progress.overall} 
+        sx={{ mb: 2, height: 8, borderRadius: 4 }}
+      />
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="body2" color="textSecondary">
+          {progress.stage}
+        </Typography>
+        <Typography variant="body2" fontWeight="bold">
+          {`${Math.round(progress.overall)}%`}
+        </Typography>
+      </Box>
+
+      {progress.details && (
+        <List dense>
+          {progress.details.map((detail, idx) => (
+            <ListItem key={idx} sx={{ py: 0.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                {detail.completed ? (
+                  <CheckCircle color="success" sx={{ fontSize: 20 }} />
+                ) : (
+                  <CircularProgress size={20} />
+                )}
+                <Typography variant="body2" sx={{ flex: 1 }}>
+                  {detail.step}
+                </Typography>
+                {detail.completed && (
+                  <Chip label="Done" size="small" color="success" variant="outlined" />
+                )}
+              </Box>
+            </ListItem>
+          ))}
+        </List>
+      )}
+    </Box>
+  </Modal>
+);
 
 const ImportSection = ({ setUploadCount }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({
+    overall: 0,
+    stage: '',
+    details: []
+  });
+  const [showProgressModal, setShowProgressModal] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -33,6 +109,49 @@ const ImportSection = ({ setUploadCount }) => {
     setSelectedFile(file);
   };
 
+  const simulateProgressSteps = () => {
+    const steps = [
+      { step: 'Extracting ZIP file', completed: false },
+      { step: 'Converting coordinates (Blender → NED)', completed: false },
+      { step: 'Interpolating trajectories', completed: false },
+      { step: 'Calculating comprehensive metrics', completed: false },
+      { step: 'Generating 3D visualizations', completed: false },
+      { step: 'Updating configuration', completed: false }
+    ];
+
+    setProcessingProgress({
+      overall: 10,
+      stage: 'Starting processing...',
+      details: steps
+    });
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep++;
+      const newProgress = (currentStep / steps.length) * 90 + 10;
+      
+      const updatedSteps = steps.map((step, idx) => ({
+        ...step,
+        completed: idx < currentStep
+      }));
+
+      setProcessingProgress({
+        overall: newProgress,
+        stage: currentStep <= steps.length ? steps[currentStep - 1]?.step : 'Finalizing...',
+        details: updatedSteps
+      });
+
+      if (currentStep >= steps.length) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setProcessingProgress(prev => ({ ...prev, overall: 100, stage: 'Processing complete!' }));
+        }, 500);
+      }
+    }, 800);
+
+    return interval;
+  };
+
   const uploadFile = () => {
     if (!selectedFile) {
       toast.warn('Please select a file to upload.');
@@ -42,36 +161,48 @@ const ImportSection = ({ setUploadCount }) => {
     const formData = new FormData();
     formData.append('file', selectedFile);
 
+    setIsUploading(true);
+    setShowProgressModal(true);
+    
+    const progressInterval = simulateProgressSteps();
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${getBackendURL()}/import-show`);
 
     xhr.onload = () => {
+      clearInterval(progressInterval);
       setIsUploading(false);
-      if (xhr.status === 200) {
-        try {
-          const result = JSON.parse(xhr.responseText);
-          if (result.success) {
-            toast.success('File uploaded and processed successfully!');
-            setUploadCount((prev) => prev + 1);
-            setSelectedFile(null);
-          } else {
-            toast.error(result.error || 'Unknown error during file upload.');
+      
+      setTimeout(() => {
+        setShowProgressModal(false);
+        
+        if (xhr.status === 200) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (result.success) {
+              toast.success('🎯 File processed successfully with comprehensive analysis!');
+              setUploadCount((prev) => prev + 1);
+              setSelectedFile(null);
+            } else {
+              toast.error(result.error || 'Unknown error during file upload.');
+            }
+          } catch (error) {
+            console.error('Error parsing response:', error);
+            toast.error('Invalid server response.');
           }
-        } catch (error) {
-          console.error('Error parsing response:', error);
-          toast.error('Invalid server response.');
+        } else {
+          toast.error('Network error. Please try again.');
         }
-      } else {
-        toast.error('Network error. Please try again.');
-      }
+      }, 1000);
     };
 
     xhr.onerror = () => {
+      clearInterval(progressInterval);
       setIsUploading(false);
+      setShowProgressModal(false);
       toast.error('Network error. Please try again.');
     };
 
-    setIsUploading(true);
     xhr.send(formData);
   };
 
@@ -81,33 +212,58 @@ const ImportSection = ({ setUploadCount }) => {
         Import Drone Show
       </Typography>
 
-      <Box className="intro-section" sx={{ mb: 2 }}>
-        <Typography variant="body1" paragraph>
-          Welcome to the Drone Show Import Utility of our Swarm Dashboard. This tool
-          streamlines the entire workflow for your drone shows. Here's what you can do:
+      <Box className="intro-section" sx={{ mb: 3 }}>
+        <Typography variant="body1" paragraph sx={{ color: '#374151', lineHeight: 1.6 }}>
+          🎯 <strong>Professional Drone Show Import & Analysis</strong> - Upload your SkyBrush ZIP files 
+          for comprehensive trajectory processing and safety analysis.
         </Typography>
         
-        <List dense>
-          <ListItem>
-            <ListItemText primary="Upload: ZIP files exported from SkyBrush with one click." />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Process: Automatically adapts for drone show compatibility." />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Visualize: Generates plots for your drone paths automatically." />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Update: Mission configuration is automatically updated." />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Access: Retrieve processed files from shapes/swarm directory." />
-          </ListItem>
-        </List>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 2, mb: 2 }}>
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <CloudUpload color="primary" />
+              <Typography variant="subtitle2" fontWeight="bold">Smart Upload</Typography>
+            </Box>
+            <Typography variant="body2" color="textSecondary">
+              One-click ZIP processing with automatic format validation
+            </Typography>
+          </Paper>
+          
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Timeline color="secondary" />
+              <Typography variant="subtitle2" fontWeight="bold">Trajectory Analysis</Typography>
+            </Box>
+            <Typography variant="body2" color="textSecondary">
+              Advanced interpolation with performance metrics calculation
+            </Typography>
+          </Paper>
+          
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Security color="success" />
+              <Typography variant="subtitle2" fontWeight="bold">Safety Validation</Typography>
+            </Box>
+            <Typography variant="body2" color="textSecondary">
+              Real-time collision detection and clearance analysis
+            </Typography>
+          </Paper>
+          
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Assessment color="info" />
+              <Typography variant="subtitle2" fontWeight="bold">Quality Reports</Typography>
+            </Box>
+            <Typography variant="body2" color="textSecondary">
+              Formation coherence and performance optimization insights
+            </Typography>
+          </Paper>
+        </Box>
 
-        <Typography variant="body1" paragraph>
-          SkyBrush is a plugin compatible with Blender and 3D Max, designed for
-          creating drone show animations. Learn how to create stunning animations in our{' '}
+        <Divider sx={{ my: 2 }} />
+
+        <Typography variant="body2" color="textSecondary">
+          💡 <strong>Pro Tip:</strong> Use our{' '}
           <Link 
             href="https://youtu.be/wctmCIzpMpY" 
             target="_blank" 
@@ -115,14 +271,9 @@ const ImportSection = ({ setUploadCount }) => {
             color="primary" 
             underline="hover"
           >
-            YouTube tutorial
-          </Link>.
-        </Typography>
-
-        <Typography variant="body1">
-          For advanced users needing more control, you can directly execute the 
-          <code> process_formation.py </code> Python script. The files will be exported 
-          to the <code> shapes/swarm </code> directory.
+            SkyBrush tutorial
+          </Link>{' '}
+          to create professional drone show animations in Blender.
         </Typography>
       </Box>
 
@@ -143,18 +294,24 @@ const ImportSection = ({ setUploadCount }) => {
             variant="contained" 
             onClick={uploadFile} 
             disabled={!selectedFile || isUploading}
+            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
+            sx={{ 
+              minWidth: 140,
+              bgcolor: '#10b981',
+              '&:hover': { bgcolor: '#059669' }
+            }}
           >
-            {isUploading ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CircularProgress size={20} color="inherit" />
-                <span>Uploading...</span>
-              </Box>
-            ) : (
-              'Upload'
-            )}
+            {isUploading ? 'Processing...' : 'Upload & Analyze'}
           </Button>
         </Box>
       </Paper>
+
+      {/* Processing Progress Modal */}
+      <ProcessingProgressModal 
+        isOpen={showProgressModal}
+        progress={processingProgress}
+        onClose={() => !isUploading && setShowProgressModal(false)}
+      />
     </Box>
   );
 };

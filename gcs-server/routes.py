@@ -95,6 +95,15 @@ else:
 sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
+# Import new comprehensive metrics engine (after BASE_DIR is defined)
+try:
+    sys.path.append(os.path.join(BASE_DIR, 'functions'))
+    from drone_show_metrics import DroneShowMetrics
+    METRICS_AVAILABLE = True
+except ImportError as e:
+    METRICS_AVAILABLE = False
+    # We'll log this later when logging is available
+
 # Preserve original symbols and colors for backward compatibility
 RESET = "\x1b[0m"
 GREEN = "\x1b[32m"
@@ -371,7 +380,25 @@ def setup_routes(app):
             output = run_formation_process(BASE_DIR)
             log_system_event(f"Process formation output: {output}", "INFO", "show")
 
-            # 5) Optionally do Git commit/push
+            # 5) Calculate comprehensive metrics (new feature)
+            comprehensive_metrics = None
+            if METRICS_AVAILABLE:
+                try:
+                    log_system_event("Calculating comprehensive metrics", "INFO", "show")
+                    metrics_engine = DroneShowMetrics(processed_dir)
+                    comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
+                    
+                    # Save metrics to file for later retrieval
+                    metrics_file = metrics_engine.save_metrics_to_file(comprehensive_metrics)
+                    if metrics_file:
+                        log_system_event(f"Comprehensive metrics saved to {metrics_file}", "INFO", "show")
+                    else:
+                        log_system_warning("Failed to save comprehensive metrics", "show")
+                except Exception as metrics_error:
+                    log_system_error(f"Error calculating comprehensive metrics: {metrics_error}", "show")
+                    comprehensive_metrics = {'error': str(metrics_error)}
+
+            # 6) Optionally do Git commit/push
             if Params.GIT_AUTO_PUSH:
                 log_system_event("Git auto-push is enabled. Attempting to push show changes to repository.", "INFO", "show")
                 git_result = git_operations(
@@ -382,9 +409,22 @@ def setup_routes(app):
                     log_system_event("Git operations successful.", "INFO", "show")
                 else:
                     log_system_error(f"Git operations failed: {git_result.get('message')}", "show")
-                return jsonify({'success': True, 'message': output, 'git_info': git_result})
+                
+                response_data = {
+                    'success': True, 
+                    'message': output, 
+                    'git_info': git_result
+                }
+                if comprehensive_metrics:
+                    response_data['comprehensive_metrics'] = comprehensive_metrics
+                
+                return jsonify(response_data)
             else:
-                return jsonify({'success': True, 'message': output})
+                response_data = {'success': True, 'message': output}
+                if comprehensive_metrics:
+                    response_data['comprehensive_metrics'] = comprehensive_metrics
+                
+                return jsonify(response_data)
         except Exception as e:
             log_system_error(f"Unexpected error during show import: {traceback.format_exc()}", "show")
             return error_response(f"Unexpected error during show import: {traceback.format_exc()}")
@@ -470,6 +510,124 @@ def setup_routes(app):
             return error_response("Drone CSV files not found in skybrush directory")
         except Exception as e:
             return error_response(f"Error reading show info: {e}")
+
+    @app.route('/get-comprehensive-metrics', methods=['GET'])
+    def get_comprehensive_metrics():
+        """
+        NEW ENDPOINT: Retrieve comprehensive trajectory analysis metrics
+        """
+        log_system_event("Comprehensive metrics requested", "INFO", "show")
+        
+        if not METRICS_AVAILABLE:
+            return error_response("Enhanced metrics engine not available", 503)
+        
+        try:
+            # Try to load from saved file first
+            metrics_file = os.path.join(processed_dir, 'comprehensive_metrics.json')
+            if os.path.exists(metrics_file):
+                with open(metrics_file, 'r') as f:
+                    metrics_data = json.load(f)
+                log_system_event("Comprehensive metrics loaded from file", "INFO", "show")
+                return jsonify(metrics_data)
+            
+            # If no saved file, calculate on-demand
+            log_system_event("Calculating comprehensive metrics on-demand", "INFO", "show")
+            metrics_engine = DroneShowMetrics(processed_dir)
+            comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
+            
+            # Save for future requests
+            metrics_engine.save_metrics_to_file(comprehensive_metrics)
+            
+            return jsonify(comprehensive_metrics)
+            
+        except Exception as e:
+            log_system_error(f"Error retrieving comprehensive metrics: {e}", "show")
+            return error_response(f"Error calculating comprehensive metrics: {e}")
+
+    @app.route('/get-safety-report', methods=['GET'])
+    def get_safety_report():
+        """
+        NEW ENDPOINT: Get detailed safety analysis report
+        """
+        log_system_event("Safety report requested", "INFO", "show")
+        
+        if not METRICS_AVAILABLE:
+            return error_response("Enhanced metrics engine not available", 503)
+        
+        try:
+            metrics_engine = DroneShowMetrics(processed_dir)
+            if not metrics_engine.load_drone_data():
+                return error_response("No drone data available for safety analysis", 404)
+            
+            safety_metrics = metrics_engine.calculate_safety_metrics()
+            
+            return jsonify({
+                'safety_analysis': safety_metrics,
+                'recommendations': [
+                    'Maintain minimum 2m separation between drones',
+                    'Ensure ground clearance > 1m at all times',
+                    'Monitor collision warnings during flight'
+                ] if safety_metrics.get('collision_warnings_count', 0) > 0 else [
+                    'Safety analysis complete - no issues detected',
+                    'Formation maintains safe separation distances'
+                ]
+            })
+            
+        except Exception as e:
+            log_system_error(f"Error generating safety report: {e}", "show")
+            return error_response(f"Error generating safety report: {e}")
+
+    @app.route('/validate-trajectory', methods=['POST'])
+    def validate_trajectory():
+        """
+        NEW ENDPOINT: Real-time trajectory validation
+        """
+        log_system_event("Trajectory validation requested", "INFO", "show")
+        
+        if not METRICS_AVAILABLE:
+            return error_response("Enhanced metrics engine not available", 503)
+        
+        try:
+            metrics_engine = DroneShowMetrics(processed_dir)
+            if not metrics_engine.load_drone_data():
+                return error_response("No drone data available for validation", 404)
+            
+            # Calculate all metrics for validation
+            all_metrics = metrics_engine.calculate_comprehensive_metrics()
+            
+            # Determine overall validation status
+            validation_status = "PASS"
+            issues = []
+            
+            if 'safety_metrics' in all_metrics:
+                safety = all_metrics['safety_metrics']
+                if safety.get('safety_status') != 'SAFE':
+                    validation_status = "FAIL"
+                    issues.append(f"Safety issue: {safety.get('safety_status')}")
+                
+                if safety.get('collision_warnings_count', 0) > 0:
+                    validation_status = "WARNING"
+                    issues.append(f"{safety['collision_warnings_count']} collision warnings")
+            
+            if 'performance_metrics' in all_metrics:
+                perf = all_metrics['performance_metrics']
+                if perf.get('max_velocity_ms', 0) > 15:  # 15 m/s limit
+                    validation_status = "WARNING"
+                    issues.append(f"High velocity: {perf['max_velocity_ms']} m/s")
+            
+            return jsonify({
+                'validation_status': validation_status,
+                'issues': issues,
+                'metrics_summary': {
+                    'safety_status': all_metrics.get('safety_metrics', {}).get('safety_status', 'Unknown'),
+                    'max_velocity': all_metrics.get('performance_metrics', {}).get('max_velocity_ms', 0),
+                    'formation_quality': all_metrics.get('formation_metrics', {}).get('formation_quality', 'Unknown')
+                }
+            })
+            
+        except Exception as e:
+            log_system_error(f"Error validating trajectory: {e}", "show")
+            return error_response(f"Error validating trajectory: {e}")
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
@@ -774,3 +932,7 @@ def setup_routes(app):
 
     # Log successful route initialization
     log_system_event("All API routes initialized successfully", "INFO", "startup")
+    
+    # Log metrics engine availability
+    if not METRICS_AVAILABLE:
+        log_system_warning("Enhanced metrics engine not available - comprehensive analysis features disabled", "startup")
