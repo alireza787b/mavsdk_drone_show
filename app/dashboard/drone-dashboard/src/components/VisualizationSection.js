@@ -280,7 +280,11 @@ const VisualizationSection = ({ uploadCount }) => {
                     <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Collision Warnings" 
-                        secondary={`${safety_metrics.collision_warnings_count || 0} detected`}
+                        secondary={
+                          safety_metrics.collision_warnings_count > 0 && comprehensiveMetrics?.safety_metrics?.collision_warnings?.length > 0
+                            ? `${safety_metrics.collision_warnings_count} detected - Most critical: Drones ${comprehensiveMetrics.safety_metrics.collision_warnings[0].drone_1}-${comprehensiveMetrics.safety_metrics.collision_warnings[0].drone_2} (${comprehensiveMetrics.safety_metrics.collision_warnings[0].distance}m)`
+                            : `${safety_metrics.collision_warnings_count || 0} detected`
+                        }
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
@@ -301,14 +305,22 @@ const VisualizationSection = ({ uploadCount }) => {
                     <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Max Velocity" 
-                        secondary={`${performance_metrics.max_velocity_ms} m/s (${performance_metrics.max_velocity_kmh} km/h)`}
+                        secondary={
+                          performance_metrics.max_velocity_details 
+                            ? `${performance_metrics.max_velocity_ms} m/s (${performance_metrics.max_velocity_kmh} km/h) - Drone ${performance_metrics.max_velocity_details.drone_id} at ${performance_metrics.max_velocity_details.time_s}s`
+                            : `${performance_metrics.max_velocity_ms} m/s (${performance_metrics.max_velocity_kmh} km/h)`
+                        }
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
                     <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Max Acceleration" 
-                        secondary={`${performance_metrics.max_acceleration_ms2} m/s²`}
+                        secondary={
+                          performance_metrics.max_acceleration_details 
+                            ? `${performance_metrics.max_acceleration_ms2} m/s² - Drone ${performance_metrics.max_acceleration_details.drone_id} at ${performance_metrics.max_acceleration_details.time_s}s`
+                            : `${performance_metrics.max_acceleration_ms2} m/s²`
+                        }
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
@@ -316,6 +328,53 @@ const VisualizationSection = ({ uploadCount }) => {
                       <ListItemText 
                         primary="Performance Status" 
                         secondary={performance_metrics.performance_status}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                  </List>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* Enhanced Basic Metrics */}
+            {comprehensiveMetrics?.basic_metrics && (
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AssessmentIcon />
+                    Enhanced Metrics
+                  </Typography>
+                  <List dense>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Max Altitude" 
+                        secondary={
+                          comprehensiveMetrics.basic_metrics.max_altitude_details 
+                            ? `${comprehensiveMetrics.basic_metrics.max_altitude_details.value} m - Drone ${comprehensiveMetrics.basic_metrics.max_altitude_details.drone_id} at ${comprehensiveMetrics.basic_metrics.max_altitude_details.time_s}s`
+                            : `${comprehensiveMetrics.basic_metrics.max_altitude_m || 'N/A'} m`
+                        }
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Min Altitude (Flight)" 
+                        secondary={
+                          comprehensiveMetrics.basic_metrics.min_altitude_details 
+                            ? `${comprehensiveMetrics.basic_metrics.min_altitude_details.value} m - Drone ${comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at ${comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s`
+                            : `${comprehensiveMetrics.basic_metrics.min_altitude_flight_m || 'N/A'} m`
+                        }
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Max Distance from Launch" 
+                        secondary={
+                          comprehensiveMetrics.basic_metrics.max_distance_details 
+                            ? `${comprehensiveMetrics.basic_metrics.max_distance_details.value} m - Drone ${comprehensiveMetrics.basic_metrics.max_distance_details.drone_id} at ${comprehensiveMetrics.basic_metrics.max_distance_details.time_s}s`
+                            : `${comprehensiveMetrics.basic_metrics.max_distance_from_launch_m || 'N/A'} m`
+                        }
                         primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
@@ -540,6 +599,11 @@ const VisualizationSection = ({ uploadCount }) => {
                     ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
                     : 'N/A'}
                 </Typography>
+                {comprehensiveMetrics?.safety_metrics?.min_distance_details && (
+                  <Typography variant="body2" color="textSecondary" sx={{ mt: 1, fontWeight: 500 }}>
+                    Drones {comprehensiveMetrics.safety_metrics.min_distance_details.drone_1} & {comprehensiveMetrics.safety_metrics.min_distance_details.drone_2} at {comprehensiveMetrics.safety_metrics.min_distance_details.time_s}s
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -576,7 +640,7 @@ const VisualizationSection = ({ uploadCount }) => {
                   <Tooltip 
                     title={
                       comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' 
-                        ? `⚠️ CAUTION: ${comprehensiveMetrics.safety_metrics.collision_warnings_count || 0} collision warnings detected. Check inter-drone distances and flight paths before launch.`
+                        ? `⚠️ CAUTION: ${comprehensiveMetrics.safety_metrics.collision_warnings_count || 0} collision warnings detected.${comprehensiveMetrics?.safety_metrics?.collision_warnings?.length > 0 ? ` Critical proximities: ${comprehensiveMetrics.safety_metrics.collision_warnings.slice(0, 3).map(w => `Drones ${w.drone_1}-${w.drone_2} (${w.distance}m at ${w.time}s)`).join(', ')}${comprehensiveMetrics.safety_metrics.collision_warnings.length > 3 ? '...' : ''}` : ''} Check inter-drone distances and flight paths before launch.`
                         : comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE'
                         ? '✅ SAFE: No collision risks detected. All clearances maintained properly.'
                         : 'Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances.'

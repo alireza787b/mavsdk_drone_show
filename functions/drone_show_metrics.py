@@ -251,8 +251,40 @@ class DroneShowMetrics:
             
             min_ground_clearance = min(ground_clearances) if ground_clearances else 0
             
+            # Find the time and drones for minimum distance
+            min_distance_info = {'time_s': 0, 'drone_1': 'N/A', 'drone_2': 'N/A', 'distance_m': min_distance}
+            
+            # Re-scan to find the exact time and drones for minimum distance
+            if min_distance != float('inf'):
+                for t_idx, t in enumerate(time_points):
+                    positions = []
+                    drone_ids = []
+                    
+                    for drone_id, df in self.drone_data.items():
+                        if t_idx < len(df):
+                            pos = [df.iloc[t_idx]['px'], df.iloc[t_idx]['py'], -df.iloc[t_idx]['pz']]
+                            positions.append(pos)
+                            drone_ids.append(drone_id)
+                    
+                    if len(positions) >= 2:
+                        positions = np.array(positions)
+                        distances = pdist(positions)
+                        min_dist_at_t = distances.min()
+                        
+                        if abs(min_dist_at_t - min_distance) < 0.01:  # Found the minimum
+                            dist_matrix = squareform(distances)
+                            min_idx = np.unravel_index(np.argmin(dist_matrix + np.eye(len(positions)) * 1000), dist_matrix.shape)
+                            min_distance_info = {
+                                'time_s': round(t, 1),
+                                'drone_1': drone_ids[min_idx[0]], 
+                                'drone_2': drone_ids[min_idx[1]],
+                                'distance_m': round(min_distance, 2)
+                            }
+                            break
+
             return {
                 'min_inter_drone_distance_m': round(min_distance, 2) if min_distance != float('inf') else 'N/A',
+                'min_distance_details': min_distance_info,
                 'collision_warnings_count': len(collision_warnings),
                 'collision_warnings': collision_warnings[:10],  # Limit to first 10
                 'min_ground_clearance_m': round(min_ground_clearance, 2),
