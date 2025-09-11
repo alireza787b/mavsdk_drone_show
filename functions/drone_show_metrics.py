@@ -75,13 +75,30 @@ class DroneShowMetrics:
             max_altitude = 0.0
             min_altitude_flight = float('inf')  # Minimum altitude during flight (excluding start/end)
             max_distance_from_launch = 0.0  # Maximum distance from launch position
+            
+            # Store per-drone metrics
+            per_drone_metrics = {}
+            
+            # Track overall max/min values and details
             max_altitude_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
             min_altitude_info = {'value': float('inf'), 'drone_id': '', 'time_s': 0.0}
             max_distance_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
             
             for drone_id, df in self.drone_data.items():
+                # Initialize per-drone metrics
+                drone_metrics = {
+                    'max_altitude_m': 0.0,
+                    'max_altitude_time_s': 0.0,
+                    'min_altitude_flight_m': float('inf'),
+                    'min_altitude_flight_time_s': 0.0,
+                    'max_distance_from_launch_m': 0.0,
+                    'max_distance_time_s': 0.0,
+                    'duration_s': 0.0
+                }
+                
                 # Duration (time is in seconds)
                 duration = df['t'].iloc[-1] if 't' in df.columns else 0
+                drone_metrics['duration_s'] = round(duration, 2)
                 max_duration = max(max_duration, duration)
                 
                 # Altitude and position analysis (up = -pz in NED)
@@ -92,6 +109,12 @@ class DroneShowMetrics:
                     # Find max altitude with drone and time info
                     max_idx = altitudes.idxmax()
                     max_alt_value = altitudes.iloc[max_idx]
+                    
+                    # Store per-drone max altitude
+                    drone_metrics['max_altitude_m'] = round(max_alt_value, 2)
+                    drone_metrics['max_altitude_time_s'] = round(times.iloc[max_idx], 1)
+                    
+                    # Update overall max if this drone has higher altitude
                     if max_alt_value > max_altitude_info['value']:
                         max_altitude_info = {
                             'value': round(max_alt_value, 2),
@@ -113,6 +136,11 @@ class DroneShowMetrics:
                         max_dist_idx = distances_3d.idxmax()
                         max_dist_value = distances_3d.iloc[max_dist_idx]
                         
+                        # Store per-drone max distance
+                        drone_metrics['max_distance_from_launch_m'] = round(max_dist_value, 2)
+                        drone_metrics['max_distance_time_s'] = round(times.iloc[max_dist_idx], 1)
+                        
+                        # Update overall max if this drone has greater distance
                         if max_dist_value > max_distance_info['value']:
                             max_distance_info = {
                                 'value': round(max_dist_value, 2),
@@ -142,6 +170,12 @@ class DroneShowMetrics:
                             if len(flight_altitudes) > 0:
                                 min_idx = flight_altitudes.idxmin()
                                 min_alt_value = flight_altitudes.loc[min_idx]
+                                
+                                # Store per-drone min altitude
+                                drone_metrics['min_altitude_flight_m'] = round(min_alt_value, 2)
+                                drone_metrics['min_altitude_flight_time_s'] = round(flight_times.loc[min_idx], 1)
+                                
+                                # Update overall min if this drone has lower altitude
                                 if min_alt_value < min_altitude_info['value']:
                                     min_altitude_info = {
                                         'value': round(min_alt_value, 2),
@@ -161,6 +195,12 @@ class DroneShowMetrics:
                                 if len(flight_altitudes) > 0:
                                     min_idx = flight_altitudes.idxmin()
                                     min_alt_value = flight_altitudes.iloc[min_idx]
+                                    
+                                    # Store per-drone min altitude (fallback method)
+                                    drone_metrics['min_altitude_flight_m'] = round(min_alt_value, 2)
+                                    drone_metrics['min_altitude_flight_time_s'] = round(flight_times.iloc[min_idx], 1)
+                                    
+                                    # Update overall min if this drone has lower altitude
                                     if min_alt_value < min_altitude_info['value']:
                                         min_altitude_info = {
                                             'value': round(min_alt_value, 2),
@@ -168,6 +208,9 @@ class DroneShowMetrics:
                                             'time_s': round(flight_times.iloc[min_idx], 1)
                                         }
                                     min_altitude_flight = min(min_altitude_flight, min_alt_value)
+                
+                # Store the per-drone metrics
+                per_drone_metrics[drone_id] = drone_metrics
             
             # Handle edge cases
             if min_altitude_flight == float('inf'):
@@ -187,7 +230,8 @@ class DroneShowMetrics:
                 'min_altitude_details': min_altitude_info,
                 'max_distance_from_launch_m': round(max_distance_from_launch, 2),
                 'max_distance_details': max_distance_info,
-                'altitude_range_m': round(max_altitude - min_altitude_flight, 2)
+                'altitude_range_m': round(max_altitude - min_altitude_flight, 2),
+                'per_drone_metrics': per_drone_metrics
             }
         except Exception as e:
             self.logger.error(f"Error in basic metrics: {e}")

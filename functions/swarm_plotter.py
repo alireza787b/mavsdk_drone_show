@@ -78,7 +78,7 @@ def plot_single_drone(hw_id, trajectory, plots_dir):
         
         plt.tight_layout()
         plt.savefig(os.path.join(plots_dir, f'drone_{hw_id}_trajectory.jpg'), 
-                   dpi=150, bbox_inches='tight')
+                   dpi=90, bbox_inches='tight', optimize=True, quality=85)
         plt.close()
         
         logger.debug(f"Generated individual plot for drone {hw_id}")
@@ -118,7 +118,7 @@ def plot_cluster(leader_id, cluster_trajectories, plots_dir):
         
         plt.tight_layout()
         plt.savefig(os.path.join(plots_dir, f'cluster_leader_{leader_id}.jpg'),
-                   dpi=150, bbox_inches='tight')
+                   dpi=90, bbox_inches='tight', optimize=True, quality=85)
         plt.close()
         
         logger.debug(f"Generated cluster plot for leader {leader_id}")
@@ -160,7 +160,7 @@ def plot_combined_swarm(all_trajectories, plots_dir):
         
         plt.tight_layout()
         plt.savefig(os.path.join(plots_dir, 'combined_swarm.jpg'),
-                   dpi=150, bbox_inches='tight')
+                   dpi=100, bbox_inches='tight', optimize=True, quality=85)
         plt.close()
         
         logger.info("Generated combined swarm plot")

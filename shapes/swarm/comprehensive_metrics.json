@@ -1,35 +1,127 @@
 {
   "basic_metrics": {
     "drone_count": 10,
-    "duration_seconds": 478.7,
-    "duration_minutes": 7.98,
-    "max_altitude_m": 85.0,
+    "duration_seconds": 498.2,
+    "duration_minutes": 8.3,
+    "max_altitude_m": 120.0,
     "max_altitude_details": {
-      "value": 85.0,
+      "value": 120.0,
       "drone_id": "3",
-      "time_s": 238.6
+      "time_s": 362.1
     },
-    "min_altitude_flight_m": 12.54,
+    "min_altitude_flight_m": 36.89,
     "min_altitude_details": {
-      "value": 12.54,
-      "drone_id": "2",
-      "time_s": 422.6
+      "value": 36.89,
+      "drone_id": "8",
+      "time_s": 456.3
     },
-    "max_distance_from_launch_m": 119.4,
+    "max_distance_from_launch_m": 138.75,
     "max_distance_details": {
-      "value": 119.4,
-      "drone_id": "3",
-      "time_s": 238.6
+      "value": 138.75,
+      "drone_id": "8",
+      "time_s": 127.6
     },
-    "altitude_range_m": 72.47
+    "altitude_range_m": 83.11,
+    "per_drone_metrics": {
+      "10": {
+        "max_altitude_m": 86.65,
+        "max_altitude_time_s": 413.8,
+        "min_altitude_flight_m": 45.0,
+        "min_altitude_flight_time_s": 362.1,
+        "max_distance_from_launch_m": 103.28,
+        "max_distance_time_s": 413.8,
+        "duration_s": 498.2
+      },
+      "8": {
+        "max_altitude_m": 120.0,
+        "max_altitude_time_s": 127.6,
+        "min_altitude_flight_m": 36.89,
+        "min_altitude_flight_time_s": 456.3,
+        "max_distance_from_launch_m": 138.75,
+        "max_distance_time_s": 127.6,
+        "duration_s": 498.2
+      },
+      "4": {
+        "max_altitude_m": 106.67,
+        "max_altitude_time_s": 199.8,
+        "min_altitude_flight_m": 42.37,
+        "min_altitude_flight_time_s": 458.0,
+        "max_distance_from_launch_m": 120.47,
+        "max_distance_time_s": 199.8,
+        "duration_s": 498.2
+      },
+      "2": {
+        "max_altitude_m": 120.0,
+        "max_altitude_time_s": 390.6,
+        "min_altitude_flight_m": 54.94,
+        "min_altitude_flight_time_s": 456.8,
+        "max_distance_from_launch_m": 132.26,
+        "max_distance_time_s": 299.9,
+        "duration_s": 498.2
+      },
+      "1": {
+        "max_altitude_m": 120.0,
+        "max_altitude_time_s": 362.1,
+        "min_altitude_flight_m": 49.89,
+        "min_altitude_flight_time_s": 457.8,
+        "max_distance_from_launch_m": 132.77,
+        "max_distance_time_s": 362.1,
+        "duration_s": 498.2
+      },
+      "7": {
+        "max_altitude_m": 90.0,
+        "max_altitude_time_s": 127.6,
+        "min_altitude_flight_m": 40.71,
+        "min_altitude_flight_time_s": 456.3,
+        "max_distance_from_launch_m": 112.52,
+        "max_distance_time_s": 154.2,
+        "duration_s": 498.2
+      },
+      "6": {
+        "max_altitude_m": 120.0,
+        "max_altitude_time_s": 127.6,
+        "min_altitude_flight_m": 49.04,
+        "min_altitude_flight_time_s": 458.0,
+        "max_distance_from_launch_m": 136.71,
+        "max_distance_time_s": 127.6,
+        "duration_s": 498.2
+      },
+      "3": {
+        "max_altitude_m": 120.0,
+        "max_altitude_time_s": 362.1,
+        "min_altitude_flight_m": 48.37,
+        "min_altitude_flight_time_s": 459.2,
+        "max_distance_from_launch_m": 133.99,
+        "max_distance_time_s": 362.1,
+        "duration_s": 498.2
+      },
+      "9": {
+        "max_altitude_m": 69.05,
+        "max_altitude_time_s": 440.2,
+        "min_altitude_flight_m": 40.71,
+        "min_altitude_flight_time_s": 456.3,
+        "max_distance_from_launch_m": 87.58,
+        "max_distance_time_s": 199.8,
+        "duration_s": 498.2
+      },
+      "5": {
+        "max_altitude_m": 99.27,
+        "max_altitude_time_s": 323.6,
+        "min_altitude_flight_m": 51.57,
+        "min_altitude_flight_time_s": 456.8,
+        "max_distance_from_launch_m": 114.08,
+        "max_distance_time_s": 323.6,
+        "duration_s": 498.2
+      }
+    }
   },
   "safety_metrics": {
-    "min_inter_drone_distance_m": 4.24,
+    "min_inter_drone_distance_m": 3.0,
     "min_distance_details": {
-      "time_s": 330.0,
-      "drone_1": "8",
-      "drone_2": "2",
-      "distance_m": 4.24
+      "time_s": 0.0,
+      "drone_1": "10",
+      "drone_2": "5",
+      "distance_m": 3.0
     },
     "collision_warnings_count": 0,
     "collision_warnings": [],
@@ -37,88 +129,88 @@
     "safety_status": "CAUTION"
   },
   "performance_metrics": {
-    "max_velocity_ms": 4.53,
-    "max_velocity_kmh": 16.3,
+    "max_velocity_ms": 5.59,
+    "max_velocity_kmh": 20.13,
     "max_velocity_details": {
-      "value": 4.53,
-      "drone_id": "5",
-      "time_s": 277.2
+      "value": 5.59,
+      "drone_id": "6",
+      "time_s": 454.8
     },
-    "max_acceleration_ms2": 1.8,
+    "max_acceleration_ms2": 1.05,
     "max_acceleration_details": {
-      "value": 1.8,
-      "drone_id": "5",
-      "time_s": 281.7
+      "value": 1.05,
+      "drone_id": "6",
+      "time_s": 343.3
     },
     "performance_status": "EXCELLENT",
     "per_drone_velocity": {
       "10": {
-        "max_velocity_ms": 2.73,
-        "avg_velocity_ms": 0.58,
-        "velocity_std_ms": 0.81
+        "max_velocity_ms": 4.41,
+        "avg_velocity_ms": 0.79,
+        "velocity_std_ms": 1.1
       },
       "8": {
-        "max_velocity_ms": 2.71,
-        "avg_velocity_ms": 0.53,
-        "velocity_std_ms": 0.81
+        "max_velocity_ms": 3.21,
+        "avg_velocity_ms": 0.8,
+        "velocity_std_ms": 0.96
       },
       "4": {
-        "max_velocity_ms": 4.38,
-        "avg_velocity_ms": 0.64,
-        "velocity_std_ms": 0.93
+        "max_velocity_ms": 4.83,
+        "avg_velocity_ms": 0.74,
+        "velocity_std_ms": 0.97
       },
       "2": {
-        "max_velocity_ms": 2.57,
-        "avg_velocity_ms": 0.64,
-        "velocity_std_ms": 0.82
+        "max_velocity_ms": 5.31,
+        "avg_velocity_ms": 0.72,
+        "velocity_std_ms": 1.02
       },
       "1": {
-        "max_velocity_ms": 2.58,
-        "avg_velocity_ms": 0.5,
-        "velocity_std_ms": 0.78
+        "max_velocity_ms": 5.38,
+        "avg_velocity_ms": 0.73,
+        "velocity_std_ms": 1.06
       },
       "7": {
-        "max_velocity_ms": 2.72,
+        "max_velocity_ms": 3.54,
+        "avg_velocity_ms": 0.78,
+        "velocity_std_ms": 0.91
+      },
+      "6": {
+        "max_velocity_ms": 5.59,
+        "avg_velocity_ms": 1.07,
+        "velocity_std_ms": 1.28
+      },
+      "3": {
+        "max_velocity_ms": 5.11,
+        "avg_velocity_ms": 0.75,
+        "velocity_std_ms": 1.02
+      },
+      "9": {
+        "max_velocity_ms": 3.54,
         "avg_velocity_ms": 0.65,
         "velocity_std_ms": 0.87
       },
-      "6": {
-        "max_velocity_ms": 2.82,
-        "avg_velocity_ms": 0.62,
-        "velocity_std_ms": 0.88
-      },
-      "3": {
-        "max_velocity_ms": 2.83,
-        "avg_velocity_ms": 0.64,
-        "velocity_std_ms": 0.9
-      },
-      "9": {
-        "max_velocity_ms": 3.92,
-        "avg_velocity_ms": 0.65,
-        "velocity_std_ms": 0.9
-      },
       "5": {
-        "max_velocity_ms": 4.53,
-        "avg_velocity_ms": 0.58,
-        "velocity_std_ms": 0.89
+        "max_velocity_ms": 4.92,
+        "avg_velocity_ms": 0.78,
+        "velocity_std_ms": 1.0
       }
     }
   },
   "formation_metrics": {
     "formation_complexity": "COMPLEX",
-    "swarm_center_total_movement_m": 244.97
+    "swarm_center_total_movement_m": 271.94
   },
   "quality_metrics": {
-    "trajectory_smoothness_score": 0.998,
+    "trajectory_smoothness_score": 0.999,
     "overall_quality_rating": "EXCELLENT",
-    "quality_score": 0.998,
+    "quality_score": 0.999,
     "recommendations": [
       "Trajectory analysis completed successfully"
     ]
   },
   "show_info": {
-    "filename": "mci_v5.zip",
-    "uploaded_at": "2025-09-11T14:50:41.180239",
-    "processed_at": "2025-09-11T14:50:41.184055"
+    "filename": "mci_v7.zip",
+    "uploaded_at": "2025-09-11T15:20:29.965945",
+    "processed_at": "2025-09-11T15:20:30.027360"
   }
 }

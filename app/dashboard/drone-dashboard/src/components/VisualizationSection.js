@@ -208,9 +208,11 @@ const VisualizationSection = ({ uploadCount }) => {
                   <TheatersIcon />
                   Individual Drone Analysis
                 </Typography>
-                {comprehensiveMetrics?.performance_metrics?.per_drone_velocity && (
+                {comprehensiveMetrics?.basic_metrics?.per_drone_metrics && (
                   <Grid container spacing={2}>
-                    {Object.entries(comprehensiveMetrics.performance_metrics.per_drone_velocity).map(([droneId, data]) => (
+                    {Object.entries(comprehensiveMetrics.basic_metrics.per_drone_metrics).map(([droneId, data]) => {
+                      const velocityData = comprehensiveMetrics?.performance_metrics?.per_drone_velocity?.[droneId];
+                      return (
                       <Grid item xs={12} sm={6} md={4} key={droneId}>
                         <Paper sx={{ p: 2, border: '1px solid #dee2e6' }}>
                           <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
@@ -219,32 +221,61 @@ const VisualizationSection = ({ uploadCount }) => {
                           <List dense>
                             <ListItem sx={{ px: 0, py: 0.5 }}>
                               <ListItemText 
-                                primary="Max Speed" 
-                                secondary={`${data.max_velocity_ms} m/s`}
+                                primary="Max Altitude" 
+                                secondary={`${data.max_altitude_m} m at ${data.max_altitude_time_s}s`}
                                 primaryTypographyProps={{ variant: 'caption' }}
                                 secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
                               />
                             </ListItem>
                             <ListItem sx={{ px: 0, py: 0.5 }}>
                               <ListItemText 
-                                primary="Avg Speed" 
-                                secondary={`${data.avg_velocity_ms} m/s`}
+                                primary="Min Flight Altitude" 
+                                secondary={`${data.min_altitude_flight_m} m at ${data.min_altitude_flight_time_s}s`}
                                 primaryTypographyProps={{ variant: 'caption' }}
                                 secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
                               />
                             </ListItem>
                             <ListItem sx={{ px: 0, py: 0.5 }}>
                               <ListItemText 
-                                primary="Speed Variation" 
-                                secondary={`±${data.velocity_std_ms} m/s`}
+                                primary="Max Distance from Launch" 
+                                secondary={`${data.max_distance_from_launch_m} m at ${data.max_distance_time_s}s`}
                                 primaryTypographyProps={{ variant: 'caption' }}
                                 secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
                               />
                             </ListItem>
+                            <ListItem sx={{ px: 0, py: 0.5 }}>
+                              <ListItemText 
+                                primary="Flight Duration" 
+                                secondary={`${data.duration_s}s (${(data.duration_s / 60).toFixed(1)}min)`}
+                                primaryTypographyProps={{ variant: 'caption' }}
+                                secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                              />
+                            </ListItem>
+                            {velocityData && (
+                              <>
+                                <ListItem sx={{ px: 0, py: 0.5 }}>
+                                  <ListItemText 
+                                    primary="Max Speed" 
+                                    secondary={`${velocityData.max_velocity_ms} m/s`}
+                                    primaryTypographyProps={{ variant: 'caption' }}
+                                    secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                                  />
+                                </ListItem>
+                                <ListItem sx={{ px: 0, py: 0.5 }}>
+                                  <ListItemText 
+                                    primary="Avg Speed" 
+                                    secondary={`${velocityData.avg_velocity_ms} m/s`}
+                                    primaryTypographyProps={{ variant: 'caption' }}
+                                    secondaryTypographyProps={{ variant: 'body2', fontWeight: 'medium' }}
+                                  />
+                                </ListItem>
+                              </>
+                            )}
                           </List>
                         </Paper>
                       </Grid>
-                    ))}
+                      );
+                    })}
                   </Grid>
                 )}
               </Paper>
