@@ -164,6 +164,7 @@ const ImportSection = ({ setUploadCount }) => {
     setIsUploading(true);
     setShowProgressModal(true);
     
+    // Start progress simulation but let it run until backend responds
     const progressInterval = simulateProgressSteps();
 
     const xhr = new XMLHttpRequest();
@@ -171,8 +172,24 @@ const ImportSection = ({ setUploadCount }) => {
 
     xhr.onload = () => {
       clearInterval(progressInterval);
+      
+      // Set final progress state
+      setProcessingProgress({
+        overall: 100,
+        stage: 'Processing complete!',
+        details: [
+          { step: 'Extracting ZIP file', completed: true },
+          { step: 'Converting coordinates (Blender → NED)', completed: true },
+          { step: 'Interpolating trajectories', completed: true },
+          { step: 'Calculating comprehensive metrics', completed: true },
+          { step: 'Generating 3D visualizations', completed: true },
+          { step: 'Updating configuration', completed: true }
+        ]
+      });
+
       setIsUploading(false);
       
+      // Wait 2 seconds to show completion, then close modal
       setTimeout(() => {
         setShowProgressModal(false);
         
@@ -180,7 +197,7 @@ const ImportSection = ({ setUploadCount }) => {
           try {
             const result = JSON.parse(xhr.responseText);
             if (result.success) {
-              toast.success('🎯 File processed successfully with comprehensive analysis!');
+              toast.success('🎯 Drone show processed successfully!');
               setUploadCount((prev) => prev + 1);
               setSelectedFile(null);
             } else {
@@ -193,14 +210,24 @@ const ImportSection = ({ setUploadCount }) => {
         } else {
           toast.error('Network error. Please try again.');
         }
-      }, 1000);
+      }, 2000);
     };
 
     xhr.onerror = () => {
       clearInterval(progressInterval);
+      setProcessingProgress({
+        overall: 0,
+        stage: 'Processing failed!',
+        details: [
+          { step: 'Network error occurred', completed: false }
+        ]
+      });
       setIsUploading(false);
-      setShowProgressModal(false);
-      toast.error('Network error. Please try again.');
+      
+      setTimeout(() => {
+        setShowProgressModal(false);
+        toast.error('Network error. Please try again.');
+      }, 2000);
     };
 
     xhr.send(formData);

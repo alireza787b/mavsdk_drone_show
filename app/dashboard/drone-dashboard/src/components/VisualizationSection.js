@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
-import Modal from './Modal';
 import {
   Box,
   Typography,
@@ -22,7 +21,9 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Paper
+  Paper,
+  Collapse,
+  Modal
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
@@ -149,185 +150,98 @@ const VisualizationSection = ({ uploadCount }) => {
     }
   };
 
-  const renderComprehensiveMetrics = () => {
+  const renderTechnicalData = () => {
     if (!comprehensiveMetrics) return null;
 
     const { basic_metrics, safety_metrics, performance_metrics, formation_metrics, quality_metrics } = comprehensiveMetrics;
 
     return (
-      <Box sx={{ mt: 3 }}>
-        <Divider sx={{ my: 2 }} />
+      <Box sx={{ mt: 4 }}>
+        <Divider sx={{ my: 3 }} />
         
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
           <Typography variant="h6" sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
             <PsychologyIcon />
-            Comprehensive Analysis
+            Technical Analysis Data
           </Typography>
           <Button
             variant="outlined"
             onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
             endIcon={<ExpandMoreIcon sx={{ transform: showAdvancedMetrics ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />}
+            sx={{ borderColor: '#0056b3', color: '#0056b3' }}
           >
-            {showAdvancedMetrics ? 'Hide Details' : 'Show Details'}
+            {showAdvancedMetrics ? 'Hide Technical Data' : 'Show Technical Data'}
           </Button>
         </Box>
 
-        {/* Safety Status Alert */}
-        {safety_metrics && (
-          <Alert 
-            severity={safety_metrics.safety_status === 'SAFE' ? 'success' : 'warning'}
-            sx={{ mb: 2 }}
-          >
-            <strong>Safety Status: {safety_metrics.safety_status}</strong>
-            {safety_metrics.collision_warnings_count > 0 && (
-              <span> - {safety_metrics.collision_warnings_count} collision warnings detected</span>
-            )}
-          </Alert>
-        )}
-
-        {/* Performance & Quality Overview */}
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          {performance_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined">
-                <CardHeader
-                  avatar={<SpeedIcon color="primary" />}
-                  title="Max Speed"
-                />
-                <CardContent>
-                  <Typography variant="h6">{performance_metrics.max_velocity_ms} m/s</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    ({performance_metrics.max_velocity_kmh} km/h)
-                  </Typography>
-                  <Chip 
-                    label={performance_metrics.performance_status} 
-                    color={getStatusColor(performance_metrics.performance_status)}
-                    size="small"
-                    sx={{ mt: 1 }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-
-          {safety_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined">
-                <CardHeader
-                  avatar={<SecurityIcon color="success" />}
-                  title="Min Distance"
-                />
-                <CardContent>
-                  <Typography variant="h6">
-                    {typeof safety_metrics.min_inter_drone_distance_m === 'number' 
-                      ? `${safety_metrics.min_inter_drone_distance_m} m` 
-                      : safety_metrics.min_inter_drone_distance_m}
-                  </Typography>
-                  <Chip 
-                    label={safety_metrics.safety_status} 
-                    color={getStatusColor(safety_metrics.safety_status)}
-                    size="small"
-                    sx={{ mt: 1 }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-
-          {formation_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined">
-                <CardHeader
-                  avatar={<TimelineIcon color="secondary" />}
-                  title="Formation Quality"
-                />
-                <CardContent>
-                  <Typography variant="h6">{(formation_metrics.formation_coherence_score * 100).toFixed(1)}%</Typography>
-                  <Chip 
-                    label={formation_metrics.formation_quality} 
-                    color={getStatusColor(formation_metrics.formation_quality)}
-                    size="small"
-                    sx={{ mt: 1 }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-
-          {quality_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined">
-                <CardHeader
-                  avatar={<AssessmentIcon color="info" />}
-                  title="Overall Quality"
-                />
-                <CardContent>
-                  <Typography variant="h6">{(quality_metrics.quality_score * 100).toFixed(1)}%</Typography>
-                  <Chip 
-                    label={quality_metrics.overall_quality_rating} 
-                    color={getStatusColor(quality_metrics.overall_quality_rating)}
-                    size="small"
-                    sx={{ mt: 1 }}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-        </Grid>
-
-        {/* Detailed Metrics (Collapsible) */}
-        {showAdvancedMetrics && (
-          <Grid container spacing={2}>
-            {/* Safety Details */}
+        {/* Collapsible Technical Details */}
+        <Collapse in={showAdvancedMetrics}>
+          <Grid container spacing={3}>
+            {/* Safety Analysis */}
             {safety_metrics && (
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <SecurityIcon color="success" />
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SecurityIcon />
                     Safety Analysis
                   </Typography>
                   <List dense>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
-                        primary="Ground Clearance" 
-                        secondary={`${safety_metrics.min_ground_clearance_m} m minimum`}
+                        primary="Ground Clearance (Min)" 
+                        secondary={`${safety_metrics.min_ground_clearance_m} m`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
-                    {safety_metrics.collision_warnings && safety_metrics.collision_warnings.length > 0 && (
-                      <ListItem>
-                        <ListItemIcon>
-                          <WarningIcon color="warning" />
-                        </ListItemIcon>
-                        <ListItemText 
-                          primary="Collision Warnings" 
-                          secondary={`${safety_metrics.collision_warnings_count} warnings detected`}
-                        />
-                      </ListItem>
-                    )}
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Inter-Drone Distance (Min)" 
+                        secondary={typeof safety_metrics.min_inter_drone_distance_m === 'number' 
+                          ? `${safety_metrics.min_inter_drone_distance_m} m` 
+                          : safety_metrics.min_inter_drone_distance_m}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Collision Warnings" 
+                        secondary={`${safety_metrics.collision_warnings_count || 0} detected`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
                   </List>
                 </Paper>
               </Grid>
             )}
 
-            {/* Performance Details */}
+            {/* Performance Analysis */}
             {performance_metrics && (
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <SpeedIcon color="primary" />
-                    Performance Metrics
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SpeedIcon />
+                    Performance Analysis
                   </Typography>
                   <List dense>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Max Velocity" 
+                        secondary={`${performance_metrics.max_velocity_ms} m/s (${performance_metrics.max_velocity_kmh} km/h)`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Max Acceleration" 
                         secondary={`${performance_metrics.max_acceleration_ms2} m/s²`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
-                        primary="Est. Battery Usage" 
-                        secondary={`${performance_metrics.estimated_battery_usage_percent}%`}
+                        primary="Performance Status" 
+                        secondary={performance_metrics.performance_status}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
                   </List>
@@ -335,25 +249,34 @@ const VisualizationSection = ({ uploadCount }) => {
               </Grid>
             )}
 
-            {/* Formation Details */}
+            {/* Formation Analysis */}
             {formation_metrics && (
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <TimelineIcon color="secondary" />
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TimelineIcon />
                     Formation Analysis
                   </Typography>
                   <List dense>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Formation Coherence" 
+                        secondary={`${(formation_metrics.formation_coherence_score * 100).toFixed(1)}%`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Formation Complexity" 
                         secondary={formation_metrics.formation_complexity}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
-                        primary="Swarm Movement" 
+                        primary="Swarm Center Movement" 
                         secondary={`${formation_metrics.swarm_center_total_movement_m} m total`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
                   </List>
@@ -363,27 +286,32 @@ const VisualizationSection = ({ uploadCount }) => {
 
             {/* Quality & Recommendations */}
             {quality_metrics && (
-              <Grid item xs={12} md={6}>
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AssessmentIcon color="info" />
-                    Quality & Recommendations
+              <Grid item xs={12} lg={6}>
+                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AssessmentIcon />
+                    Quality Assessment
                   </Typography>
                   <List dense>
-                    <ListItem>
+                    <ListItem sx={{ px: 0 }}>
                       <ListItemText 
                         primary="Trajectory Smoothness" 
                         secondary={`${(quality_metrics.trajectory_smoothness_score * 100).toFixed(1)}%`}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
                       />
                     </ListItem>
-                    {quality_metrics.recommendations && quality_metrics.recommendations.map((rec, idx) => (
-                      <ListItem key={idx}>
-                        <ListItemIcon>
-                          <CheckCircleIcon color="info" sx={{ fontSize: 16 }} />
-                        </ListItemIcon>
+                    <ListItem sx={{ px: 0 }}>
+                      <ListItemText 
+                        primary="Overall Quality Rating" 
+                        secondary={quality_metrics.overall_quality_rating}
+                        primaryTypographyProps={{ fontWeight: 'medium' }}
+                      />
+                    </ListItem>
+                    {quality_metrics.recommendations && quality_metrics.recommendations.slice(0, 2).map((rec, idx) => (
+                      <ListItem key={idx} sx={{ px: 0 }}>
                         <ListItemText 
                           primary={rec}
-                          primaryTypographyProps={{ variant: 'body2' }}
+                          primaryTypographyProps={{ variant: 'body2', color: 'textSecondary' }}
                         />
                       </ListItem>
                     ))}
@@ -392,7 +320,7 @@ const VisualizationSection = ({ uploadCount }) => {
               </Grid>
             )}
           </Grid>
-        )}
+        </Collapse>
       </Box>
     );
   };
@@ -403,51 +331,162 @@ const VisualizationSection = ({ uploadCount }) => {
         Drone Show Visualization
       </Typography>
 
-      {/* Show Details (Duration, Drone Count, Max Altitude) */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card variant="outlined">
-            <CardHeader 
-              avatar={<AccessTimeIcon color="primary" fontSize="large" />} 
-              title="Show Duration" 
-            />
-            <CardContent>
-              <Typography variant="h6">
+      {/* Essential Metrics - Always Visible */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <AccessTimeIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Duration
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                 {formatDuration()}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4}>
-          <Card variant="outlined">
-            <CardHeader 
-              avatar={<TheatersIcon color="secondary" fontSize="large" />} 
-              title="Drone Count" 
-            />
-            <CardContent>
-              <Typography variant="h6">
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <TheatersIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Drone Count
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                 {showDetails.droneCount || 'N/A'}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* New card for Maximum Altitude */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Card variant="outlined">
-            <CardHeader
-              avatar={<HeightIcon color="success" fontSize="large" />}
-              title="Max Altitude"
-            />
-            <CardContent>
-              <Typography variant="h6">
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <HeightIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Max Altitude
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                 {formatMaxAltitude()}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Enhanced Metrics from Comprehensive Analysis */}
+        <Grid item xs={12} sm={6} lg={3}>
+          <Card variant="outlined" sx={{ 
+            height: '100%', 
+            border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+              ? '2px solid #28a745' 
+              : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+              ? '2px solid #ffc107'
+              : '2px solid #e9ecef',
+            borderRadius: 2 
+          }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <SecurityIcon 
+                sx={{ 
+                  fontSize: 40, 
+                  mb: 1,
+                  color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                    ? '#28a745' 
+                    : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+                    ? '#ffc107'
+                    : '#6c757d'
+                }} 
+              />
+              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                Safety Status
+              </Typography>
+              <Chip 
+                label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
+                color={
+                  comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' ? 'success' :
+                  comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' ? 'warning' : 'default'
+                }
+                sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
+
+      {/* Advanced Metrics Row - Only if comprehensive metrics available */}
+      {comprehensiveMetrics && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {comprehensiveMetrics.performance_metrics && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <SpeedIcon color="primary" sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="caption" color="textSecondary" display="block">
+                    Max Speed
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                    {comprehensiveMetrics.performance_metrics.max_velocity_ms} m/s
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    ({comprehensiveMetrics.performance_metrics.max_velocity_kmh} km/h)
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {comprehensiveMetrics.safety_metrics && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <SecurityIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="caption" color="textSecondary" display="block">
+                    Min Distance
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                    {typeof comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m === 'number' 
+                      ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
+                      : 'N/A'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {comprehensiveMetrics.performance_metrics && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <AssessmentIcon color="info" sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="caption" color="textSecondary" display="block">
+                    Battery Est.
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                    {comprehensiveMetrics.performance_metrics.estimated_battery_usage_percent}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {comprehensiveMetrics.formation_metrics && (
+            <Grid item xs={12} sm={6} md={3}>
+              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <TimelineIcon color="secondary" sx={{ fontSize: 30, mb: 1 }} />
+                  <Typography variant="caption" color="textSecondary" display="block">
+                    Formation Quality
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                    {(comprehensiveMetrics.formation_metrics.formation_coherence_score * 100).toFixed(0)}%
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+      )}
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
       {error && (
@@ -456,74 +495,225 @@ const VisualizationSection = ({ uploadCount }) => {
         </Typography>
       )}
 
-      {/* Render the Combined Plot (if it exists) */}
-      {plots
-        .filter((name) => name === 'combined_drone_paths.jpg')
-        .map((plot, index) => {
-          const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
-          return (
+      {/* Combined Plot - All Drones Together */}
+      {plots.some(name => name === 'combined_drone_paths.jpg') && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ color: '#0056b3', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AssessmentIcon />
+            All Drones Combined View
+          </Typography>
+          <Paper sx={{ p: 1, textAlign: 'center' }}>
             <Box
-              key={`combined-${index}`}
-              className="plot-full-width clickable-image"
-              onClick={() => openModal(0)}
-              sx={{ mb: 3 }}
+              className="clickable-image"
+              onClick={() => openModal(plots.findIndex(name => name === 'combined_drone_paths.jpg'))}
+              sx={{ 
+                cursor: 'pointer',
+                transition: 'transform 0.3s ease',
+                '&:hover': { transform: 'scale(1.02)' }
+              }}
             >
-              <img src={plotUrl} alt="All Drones" style={{ width: '80%' }} />
-            </Box>
-          );
-        })}
-
-      {/* Individual Plots in a Grid */}
-      <Box className="plot-grid">
-        {plots
-          .filter((name) => name !== 'combined_drone_paths.jpg')
-          .map((plot, index) => {
-            const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
-            return (
-              <Box
-                key={`individual-${index}`}
-                className="plot clickable-image"
-                onClick={() => openModal(index + 1)}
-              >
-                <img src={plotUrl} alt={`Plot ${index}`} />
-              </Box>
-            );
-          })}
-      </Box>
-
-      {/* Modal for displaying the selected image */}
-      <Modal isOpen={isModalOpen} onClose={closeModal}>
-        {plots.length > 0 && (
-          <Box className="modal-image-container">
-            <Button
-              className="nav-button prev-button"
-              onClick={showPrevious}
-              aria-label="Previous Image"
-            >
-              &#10094;
-            </Button>
-            <Box className="modal-image-wrapper">
-              <img
-                src={`${backendURL}/get-show-plots/${encodeURIComponent(
-                  plots[currentIndex] || ''
-                )}`}
-                alt={`Plot ${currentIndex}`}
-                className="modal-image"
+              <img 
+                src={`${backendURL}/get-show-plots/combined_drone_paths.jpg`} 
+                alt="All Drones Combined Trajectory" 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '800px',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                }} 
               />
             </Box>
-            <Button
-              className="nav-button next-button"
-              onClick={showNext}
-              aria-label="Next Image"
-            >
-              &#10095;
-            </Button>
+            <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+              Click to view in full screen
+            </Typography>
+          </Paper>
+        </Box>
+      )}
+
+      {/* Individual Drone Plots */}
+      {plots.filter(name => name !== 'combined_drone_paths.jpg').length > 0 && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ color: '#0056b3', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TimelineIcon />
+            Individual Drone Trajectories
+          </Typography>
+          <Box className="plot-grid" sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: 2 
+          }}>
+            {plots
+              .filter((name) => name !== 'combined_drone_paths.jpg')
+              .map((plot, index) => {
+                const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+                const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
+                return (
+                  <Paper key={`individual-${index}`} sx={{ p: 1 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#0056b3' }}>
+                      Drone {droneId}
+                    </Typography>
+                    <Box
+                      className="clickable-image"
+                      onClick={() => openModal(plots.findIndex(p => p === plot))}
+                      sx={{ 
+                        cursor: 'pointer',
+                        transition: 'transform 0.3s ease',
+                        '&:hover': { transform: 'scale(1.05)' }
+                      }}
+                    >
+                      <img 
+                        src={plotUrl} 
+                        alt={`Drone ${droneId} Trajectory`} 
+                        style={{ 
+                          width: '100%', 
+                          height: 'auto',
+                          borderRadius: '6px',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                );
+              })}
           </Box>
-        )}
+        </Box>
+      )}
+
+      {/* Professional Lightbox Modal */}
+      <Modal 
+        open={isModalOpen} 
+        onClose={closeModal}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 2,
+          bgcolor: 'rgba(0, 0, 0, 0.9)',
+          backdropFilter: 'blur(4px)'
+        }}
+      >
+        <Box sx={{
+          position: 'relative',
+          maxWidth: '95vw',
+          maxHeight: '95vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          outline: 'none'
+        }}>
+          {/* Close Button */}
+          <Button
+            onClick={closeModal}
+            sx={{
+              position: 'absolute',
+              top: -10,
+              right: -10,
+              minWidth: 40,
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              bgcolor: 'rgba(255, 255, 255, 0.9)',
+              color: '#333',
+              zIndex: 1000,
+              '&:hover': { bgcolor: 'white' }
+            }}
+          >
+            ✕
+          </Button>
+
+          {plots.length > 1 && (
+            <>
+              {/* Previous Button */}
+              <Button
+                onClick={showPrevious}
+                sx={{
+                  position: 'absolute',
+                  left: -60,
+                  minWidth: 50,
+                  width: 50,
+                  height: 50,
+                  borderRadius: '50%',
+                  bgcolor: 'rgba(255, 255, 255, 0.9)',
+                  color: '#333',
+                  fontSize: '20px',
+                  zIndex: 1000,
+                  '&:hover': { bgcolor: 'white' }
+                }}
+              >
+                ‹
+              </Button>
+
+              {/* Next Button */}
+              <Button
+                onClick={showNext}
+                sx={{
+                  position: 'absolute',
+                  right: -60,
+                  minWidth: 50,
+                  width: 50,
+                  height: 50,
+                  borderRadius: '50%',
+                  bgcolor: 'rgba(255, 255, 255, 0.9)',
+                  color: '#333',
+                  fontSize: '20px',
+                  zIndex: 1000,
+                  '&:hover': { bgcolor: 'white' }
+                }}
+              >
+                ›
+              </Button>
+            </>
+          )}
+
+          {/* Image Container */}
+          <Box sx={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            bgcolor: 'white',
+            borderRadius: 2,
+            overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            {plots.length > 0 && (
+              <>
+                <img
+                  src={`${backendURL}/get-show-plots/${encodeURIComponent(plots[currentIndex] || '')}`}
+                  alt={`Drone Trajectory Plot ${currentIndex + 1}`}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 'calc(95vh - 60px)',
+                    width: 'auto',
+                    height: 'auto',
+                    display: 'block'
+                  }}
+                />
+                
+                {/* Image Info */}
+                <Box sx={{ p: 2, bgcolor: '#f8f9fa', width: '100%', textAlign: 'center' }}>
+                  <Typography variant="subtitle1" sx={{ color: '#0056b3', fontWeight: 'bold' }}>
+                    {plots[currentIndex]?.includes('combined') 
+                      ? 'All Drones Combined View' 
+                      : `Drone ${plots[currentIndex]?.match(/drone_(\d+)_path/)?.[1] || currentIndex + 1} Trajectory`
+                    }
+                  </Typography>
+                  {plots.length > 1 && (
+                    <Typography variant="caption" color="textSecondary">
+                      {currentIndex + 1} of {plots.length} plots
+                    </Typography>
+                  )}
+                </Box>
+              </>
+            )}
+          </Box>
+        </Box>
       </Modal>
 
-      {/* Render Comprehensive Metrics */}
-      {renderComprehensiveMetrics()}
+      {/* Render Technical Data */}
+      {renderTechnicalData()}
     </Box>
   );
 };

@@ -12,7 +12,7 @@ const ExportSection = () => {
   return (
     <Box className="export-section">
       <Typography variant="h5" sx={{ color: '#0056b3', mb: 2 }}>
-        Export Drone Show Data
+        Export & Download
       </Typography>
 
       <Paper sx={{ p: 2 }}>

@@ -23,18 +23,17 @@ const WorkflowGuidanceSection = () => {
       }}
     >
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-        🚁 Drone Show Design Workflow
+        🎬 Drone Show Production Workflow
       </Typography>
       <Typography variant="body2" sx={{ mb: 2, opacity: 0.9 }}>
-        Follow this workflow for optimal drone show development
+        Complete workflow: Create in Blender → Upload here → Verify in Mission Control → Launch
       </Typography>
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         <Button 
           variant="outlined" 
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-          onClick={() => navigate('/trajectory-planning')}
         >
-          1. Design Trajectory
+          1. Create in Blender/SkyBrush
         </Button>
         <Button 
           variant="contained" 
@@ -44,14 +43,20 @@ const WorkflowGuidanceSection = () => {
             '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
           }}
         >
-          2. Import & Process Show ← You are here
+          2. Upload & Process ← You are here
         </Button>
         <Button 
           variant="outlined" 
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-          onClick={() => navigate('/swarm-trajectory')}
+          onClick={() => navigate('/mission-control')}
         >
-          3. Configure Swarm
+          3. Verify Mission Control
+        </Button>
+        <Button 
+          variant="outlined" 
+          sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
+        >
+          4. Launch Show
         </Button>
       </Box>
     </Paper>
@@ -60,7 +65,6 @@ const WorkflowGuidanceSection = () => {
 
 const ManageDroneShow = () => {
   const [uploadCount, setUploadCount] = useState(0);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
     <Container maxWidth="97%" className="manage-drone-show-container">
@@ -83,27 +87,9 @@ const ManageDroneShow = () => {
         <VisualizationSection uploadCount={uploadCount} />
       </Paper>
 
-      {/* Advanced Features Toggle */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3, bgcolor: '#f8f9fa' }}>
-        <Button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          sx={{ 
-            color: '#0056b3', 
-            fontWeight: 'bold',
-            '&:hover': { bgcolor: 'rgba(0, 86, 179, 0.1)' }
-          }}
-          endIcon={showAdvanced ? <ExpandLess /> : <ExpandMore />}
-        >
-          {showAdvanced ? 'Hide Advanced Features' : 'Show Advanced Features'}
-        </Button>
-        
-        <Collapse in={showAdvanced}>
-          <Box sx={{ mt: 2 }}>
-            <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
-              <ExportSection />
-            </Paper>
-          </Box>
-        </Collapse>
+      {/* Export Options */}
+      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+        <ExportSection />
       </Paper>
 
       {/* Footer */}

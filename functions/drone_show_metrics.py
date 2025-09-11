@@ -333,9 +333,11 @@ class DroneShowMetrics:
         return recommendations
 
     def save_metrics_to_file(self, metrics: Dict, filename: str = 'comprehensive_metrics.json') -> str:
-        """Save calculated metrics to JSON file"""
+        """Save calculated metrics to JSON file in swarm directory"""
         try:
-            filepath = os.path.join(self.processed_dir, filename)
+            # Save to swarm directory instead of processed
+            swarm_dir = os.path.dirname(self.processed_dir)  # Go up one level from processed to swarm
+            filepath = os.path.join(swarm_dir, filename)
             with open(filepath, 'w') as f:
                 json.dump(metrics, f, indent=2, default=str)
             self.logger.info(f"Metrics saved to {filepath}")

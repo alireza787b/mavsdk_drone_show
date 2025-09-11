@@ -522,8 +522,9 @@ def setup_routes(app):
             return error_response("Enhanced metrics engine not available", 503)
         
         try:
-            # Try to load from saved file first
-            metrics_file = os.path.join(processed_dir, 'comprehensive_metrics.json')
+            # Try to load from saved file first (now in swarm directory)
+            swarm_dir = os.path.join(BASE_DIR, base_folder, 'swarm') if 'base_folder' in locals() else os.path.join(BASE_DIR, 'shapes/swarm')
+            metrics_file = os.path.join(swarm_dir, 'comprehensive_metrics.json')
             if os.path.exists(metrics_file):
                 with open(metrics_file, 'r') as f:
                     metrics_data = json.load(f)
