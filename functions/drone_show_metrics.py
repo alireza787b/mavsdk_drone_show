@@ -70,26 +70,97 @@ class DroneShowMetrics:
             drone_count = len(self.drone_data)
             max_duration = 0.0
             max_altitude = 0.0
-            min_altitude = float('inf')
+            min_altitude_flight = float('inf')  # Minimum altitude during flight (excluding start/end)
+            max_distance_from_launch = 0.0  # Maximum distance from launch position
+            max_altitude_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
+            min_altitude_info = {'value': float('inf'), 'drone_id': '', 'time_s': 0.0}
+            max_distance_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
             
             for drone_id, df in self.drone_data.items():
                 # Duration (time is in seconds)
                 duration = df['t'].iloc[-1] if 't' in df.columns else 0
                 max_duration = max(max_duration, duration)
                 
-                # Altitude (up = -pz in NED)
-                if 'pz' in df.columns:
+                # Altitude and position analysis (up = -pz in NED)
+                if 'pz' in df.columns and 't' in df.columns:
                     altitudes = -df['pz']  # Convert NED down to up
-                    max_altitude = max(max_altitude, altitudes.max())
-                    min_altitude = min(min_altitude, altitudes.min())
+                    times = df['t']
+                    
+                    # Find max altitude with drone and time info
+                    max_idx = altitudes.idxmax()
+                    max_alt_value = altitudes.iloc[max_idx]
+                    if max_alt_value > max_altitude_info['value']:
+                        max_altitude_info = {
+                            'value': round(max_alt_value, 2),
+                            'drone_id': drone_id,
+                            'time_s': round(times.iloc[max_idx], 1)
+                        }
+                    max_altitude = max(max_altitude, max_alt_value)
+                    
+                    # Calculate distance from launch position
+                    if 'px' in df.columns and 'py' in df.columns:
+                        launch_x = df['px'].iloc[0]  # Launch position
+                        launch_y = df['py'].iloc[0]
+                        
+                        distances = np.sqrt((df['px'] - launch_x)**2 + (df['py'] - launch_y)**2)
+                        max_dist_idx = distances.idxmax()
+                        max_dist_value = distances.iloc[max_dist_idx]
+                        
+                        if max_dist_value > max_distance_info['value']:
+                            max_distance_info = {
+                                'value': round(max_dist_value, 2),
+                                'drone_id': drone_id,
+                                'time_s': round(times.iloc[max_dist_idx], 1)
+                            }
+                        max_distance_from_launch = max(max_distance_from_launch, max_dist_value)
+                    
+                    # Minimum altitude during flight phase (exclude first/last 10% as start/end)
+                    total_points = len(altitudes)
+                    start_exclude = int(total_points * 0.1)  # First 10%
+                    end_exclude = int(total_points * 0.9)    # Last 10%
+                    
+                    if total_points > 20:  # Only if we have enough data points
+                        flight_altitudes = altitudes.iloc[start_exclude:end_exclude]
+                        flight_times = times.iloc[start_exclude:end_exclude]
+                        
+                        if len(flight_altitudes) > 0:
+                            min_idx = flight_altitudes.idxmin()
+                            min_alt_value = flight_altitudes.iloc[min_idx]
+                            if min_alt_value < min_altitude_info['value']:
+                                min_altitude_info = {
+                                    'value': round(min_alt_value, 2),
+                                    'drone_id': drone_id,
+                                    'time_s': round(flight_times.iloc[min_idx], 1)
+                                }
+                            min_altitude_flight = min(min_altitude_flight, min_alt_value)
+                    else:
+                        # If too few points, use all data
+                        min_idx = altitudes.idxmin()
+                        min_alt_value = altitudes.iloc[min_idx]
+                        if min_alt_value < min_altitude_info['value']:
+                            min_altitude_info = {
+                                'value': round(min_alt_value, 2),
+                                'drone_id': drone_id,
+                                'time_s': round(times.iloc[min_idx], 1)
+                            }
+                        min_altitude_flight = min(min_altitude_flight, min_alt_value)
+            
+            # Handle case where no valid minimum was found
+            if min_altitude_flight == float('inf'):
+                min_altitude_flight = 0.0
+                min_altitude_info = {'value': 0.0, 'drone_id': 'N/A', 'time_s': 0.0}
             
             return {
                 'drone_count': drone_count,
                 'duration_seconds': round(max_duration, 2),
                 'duration_minutes': round(max_duration / 60, 2),
                 'max_altitude_m': round(max_altitude, 2),
-                'min_altitude_m': round(min_altitude, 2),
-                'altitude_range_m': round(max_altitude - min_altitude, 2)
+                'max_altitude_details': max_altitude_info,
+                'min_altitude_flight_m': round(min_altitude_flight, 2),
+                'min_altitude_details': min_altitude_info,
+                'max_distance_from_launch_m': round(max_distance_from_launch, 2),
+                'max_distance_details': max_distance_info,
+                'altitude_range_m': round(max_altitude - min_altitude_flight, 2)
             }
         except Exception as e:
             self.logger.error(f"Error in basic metrics: {e}")
@@ -170,12 +241,25 @@ class DroneShowMetrics:
             max_velocity = 0.0
             max_acceleration = 0.0
             velocity_stats = {}
+            max_velocity_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
+            max_acceleration_info = {'value': 0.0, 'drone_id': '', 'time_s': 0.0}
             
             for drone_id, df in self.drone_data.items():
-                if all(col in df.columns for col in ['vx', 'vy', 'vz']):
+                if all(col in df.columns for col in ['vx', 'vy', 'vz', 't']):
                     # Calculate 3D velocity magnitude
                     velocities = np.sqrt(df['vx']**2 + df['vy']**2 + df['vz']**2)
-                    max_v = velocities.max()
+                    times = df['t']
+                    
+                    # Find max velocity with drone and time info
+                    max_v_idx = velocities.idxmax()
+                    max_v = velocities.iloc[max_v_idx]
+                    
+                    if max_v > max_velocity_info['value']:
+                        max_velocity_info = {
+                            'value': round(max_v, 2),
+                            'drone_id': drone_id,
+                            'time_s': round(times.iloc[max_v_idx], 1)
+                        }
                     max_velocity = max(max_velocity, max_v)
                     
                     velocity_stats[drone_id] = {
@@ -184,10 +268,21 @@ class DroneShowMetrics:
                         'velocity_std_ms': round(velocities.std(), 2)
                     }
                 
-                if all(col in df.columns for col in ['ax', 'ay', 'az']):
+                if all(col in df.columns for col in ['ax', 'ay', 'az', 't']):
                     # Calculate 3D acceleration magnitude
                     accelerations = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
-                    max_a = accelerations.max()
+                    times = df['t']
+                    
+                    # Find max acceleration with drone and time info
+                    max_a_idx = accelerations.idxmax()
+                    max_a = accelerations.iloc[max_a_idx]
+                    
+                    if max_a > max_acceleration_info['value']:
+                        max_acceleration_info = {
+                            'value': round(max_a, 2),
+                            'drone_id': drone_id,
+                            'time_s': round(times.iloc[max_a_idx], 1)
+                        }
                     max_acceleration = max(max_acceleration, max_a)
             
             # Performance assessment
@@ -200,23 +295,22 @@ class DroneShowMetrics:
             return {
                 'max_velocity_ms': round(max_velocity, 2),
                 'max_velocity_kmh': round(max_velocity * 3.6, 2),
+                'max_velocity_details': max_velocity_info,
                 'max_acceleration_ms2': round(max_acceleration, 2),
+                'max_acceleration_details': max_acceleration_info,
                 'performance_status': performance_status,
-                'per_drone_velocity': velocity_stats,
-                'estimated_battery_usage_percent': self._estimate_battery_usage(max_velocity, max_acceleration)
+                'per_drone_velocity': velocity_stats
             }
         except Exception as e:
             self.logger.error(f"Error in performance metrics: {e}")
             return {'error': str(e)}
     
     def calculate_formation_metrics(self) -> Dict:
-        """Calculate formation quality metrics"""
+        """Calculate formation-related metrics (formation quality removed per user request)"""
         try:
             if len(self.drone_data) < 3:
                 return {'formation_analysis': 'N/A (insufficient drones for formation analysis)'}
                 
-            # Formation coherence analysis
-            formation_coherence_scores = []
             swarm_center_trajectory = []
             
             first_drone = list(self.drone_data.values())[0]
@@ -235,13 +329,6 @@ class DroneShowMetrics:
                     # Calculate swarm center
                     center = positions.mean(axis=0)
                     swarm_center_trajectory.append(center)
-                    
-                    # Formation coherence (based on variance from center)
-                    distances_from_center = np.linalg.norm(positions - center, axis=1)
-                    coherence = 1.0 / (1.0 + distances_from_center.std())
-                    formation_coherence_scores.append(coherence)
-            
-            avg_coherence = np.mean(formation_coherence_scores) if formation_coherence_scores else 0
             
             # Formation complexity (based on swarm center movement)
             formation_complexity = 'SIMPLE'
@@ -258,10 +345,8 @@ class DroneShowMetrics:
                     formation_complexity = 'MODERATE'
             
             return {
-                'formation_coherence_score': round(avg_coherence, 3),
                 'formation_complexity': formation_complexity,
-                'swarm_center_total_movement_m': round(sum(center_distances) if 'center_distances' in locals() else 0, 2),
-                'formation_quality': 'EXCELLENT' if avg_coherence > 0.8 else 'GOOD' if avg_coherence > 0.6 else 'NEEDS_IMPROVEMENT'
+                'swarm_center_total_movement_m': round(sum(center_distances) if 'center_distances' in locals() else 0, 2)
             }
         except Exception as e:
             self.logger.error(f"Error in formation metrics: {e}")
@@ -309,15 +394,6 @@ class DroneShowMetrics:
             self.logger.error(f"Error in quality metrics: {e}")
             return {'error': str(e)}
     
-    def _estimate_battery_usage(self, max_velocity: float, max_acceleration: float) -> int:
-        """Estimate battery usage percentage based on performance metrics"""
-        # Simple heuristic model
-        base_usage = 30  # Base consumption for hovering
-        velocity_factor = min(max_velocity * 3, 40)  # Velocity impact
-        acceleration_factor = min(max_acceleration * 2, 30)  # Acceleration impact
-        
-        total_usage = base_usage + velocity_factor + acceleration_factor
-        return min(int(total_usage), 100)
     
     def _generate_recommendations(self, quality_score: float, smoothness: float) -> List[str]:
         """Generate optimization recommendations"""

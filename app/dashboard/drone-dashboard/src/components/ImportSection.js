@@ -153,38 +153,48 @@ const ImportSection = ({ setUploadCount }) => {
       { step: 'Interpolating trajectories', completed: false },
       { step: 'Calculating comprehensive metrics', completed: false },
       { step: 'Generating 3D visualizations', completed: false },
-      { step: 'Updating configuration', completed: false }
+      { step: 'Updating configuration', completed: false },
+      { step: 'Backend processing and analysis', completed: false }
     ];
 
     setProcessingProgress({
-      overall: 10,
+      overall: 5,
       stage: 'Starting processing...',
       details: steps
     });
 
     let currentStep = 0;
     const interval = setInterval(() => {
-      currentStep++;
-      const newProgress = (currentStep / steps.length) * 90 + 10;
-      
-      const updatedSteps = steps.map((step, idx) => ({
-        ...step,
-        completed: idx < currentStep
-      }));
+      if (currentStep < steps.length) {
+        const updatedSteps = steps.map((step, idx) => ({
+          ...step,
+          completed: idx < currentStep
+        }));
 
-      setProcessingProgress({
-        overall: newProgress,
-        stage: currentStep <= steps.length ? steps[currentStep - 1]?.step : 'Finalizing...',
-        details: updatedSteps
-      });
+        // More realistic progress calculation
+        const baseProgress = (currentStep / steps.length) * 85 + 5;
+        
+        setProcessingProgress({
+          overall: Math.min(baseProgress, 90),
+          stage: steps[currentStep]?.step + '...',
+          details: updatedSteps
+        });
 
-      if (currentStep >= steps.length) {
+        currentStep++;
+      } else {
+        // Stop at 90% and wait for actual backend completion
         clearInterval(interval);
-        setTimeout(() => {
-          setProcessingProgress(prev => ({ ...prev, overall: 100, stage: 'Processing complete!' }));
-        }, 500);
+        setProcessingProgress(prev => ({
+          ...prev,
+          overall: 90,
+          stage: 'Backend processing and analysis...',
+          details: steps.map((step, idx) => ({
+            ...step,
+            completed: idx < steps.length - 1
+          }))
+        }));
       }
-    }, 800);
+    }, 1500); // Slower progression for better UX
 
     return interval;
   };
@@ -225,7 +235,8 @@ const ImportSection = ({ setUploadCount }) => {
                 { step: 'Interpolating trajectories', completed: true },
                 { step: 'Calculating comprehensive metrics', completed: true },
                 { step: 'Generating 3D visualizations', completed: true },
-                { step: 'Updating configuration', completed: true }
+                { step: 'Updating configuration', completed: true },
+                { step: 'Backend processing and analysis', completed: true }
               ]
             });
             

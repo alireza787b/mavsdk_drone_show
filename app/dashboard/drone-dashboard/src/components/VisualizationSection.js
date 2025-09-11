@@ -119,10 +119,41 @@ const VisualizationSection = ({ uploadCount }) => {
     return `${duration.minutes}m ${duration.seconds}s`; // No decimals
   };
 
-  // Format max altitude with rounding up to 1 decimal
+  // Format max altitude with enhanced details
   const formatMaxAltitude = () => {
+    if (comprehensiveMetrics?.basic_metrics?.max_altitude_details) {
+      const details = comprehensiveMetrics.basic_metrics.max_altitude_details;
+      return `${details.value} m`;
+    }
     if (showDetails.maxAltitude == null) return 'N/A';
     return `${Math.ceil(showDetails.maxAltitude * 10) / 10} m`; // Round up to 1 decimal
+  };
+
+  // Format minimum altitude with details
+  const formatMinAltitude = () => {
+    if (comprehensiveMetrics?.basic_metrics?.min_altitude_details) {
+      const details = comprehensiveMetrics.basic_metrics.min_altitude_details;
+      return `${details.value} m`;
+    }
+    return 'N/A';
+  };
+
+  // Format max speed with details
+  const formatMaxSpeed = () => {
+    if (comprehensiveMetrics?.performance_metrics?.max_velocity_details) {
+      const details = comprehensiveMetrics.performance_metrics.max_velocity_details;
+      return `${details.value} m/s`;
+    }
+    return 'N/A';
+  };
+
+  // Format max distance from launch with details
+  const formatMaxDistance = () => {
+    if (comprehensiveMetrics?.basic_metrics?.max_distance_details) {
+      const details = comprehensiveMetrics.basic_metrics.max_distance_details;
+      return `${details.value} m`;
+    }
+    return 'N/A';
   };
 
   const openModal = (index) => {
@@ -395,7 +426,7 @@ const VisualizationSection = ({ uploadCount }) => {
 
       {/* Essential Metrics - Always Visible */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <AccessTimeIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
@@ -409,7 +440,7 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <TheatersIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
@@ -423,61 +454,89 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid item xs={12} sm={6} md={4} lg={2}>
           <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <HeightIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                Max Altitude
-              </Typography>
+              <Tooltip title="Maximum altitude reached during the entire show">
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Altitude <HelpIcon sx={{ fontSize: 16 }} />
+                </Typography>
+              </Tooltip>
               <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
                 {formatMaxAltitude()}
               </Typography>
+              {comprehensiveMetrics?.basic_metrics?.max_altitude_details && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                  Drone {comprehensiveMetrics.basic_metrics.max_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_altitude_details.time_s}s
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Enhanced Metrics from Comprehensive Analysis */}
-        <Grid item xs={12} sm={6} lg={3}>
-          <Card variant="outlined" sx={{ 
-            height: '100%', 
-            border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-              ? '2px solid #28a745' 
-              : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-              ? '2px solid #ffc107'
-              : '2px solid #e9ecef',
-            borderRadius: 2 
-          }}>
+        {/* Min Altitude Card */}
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SecurityIcon 
-                sx={{ 
-                  fontSize: 40, 
-                  mb: 1,
-                  color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-                    ? '#28a745' 
-                    : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-                    ? '#ffc107'
-                    : '#6c757d'
-                }} 
-              />
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Safety Status
+              <HeightIcon color="warning" sx={{ fontSize: 40, mb: 1, transform: 'rotate(180deg)' }} />
+              <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing)">
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Min Altitude <HelpIcon sx={{ fontSize: 16 }} />
                 </Typography>
-                <Tooltip title="Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances. SAFE = No collision warnings, proper clearances maintained." arrow>
-                  <IconButton size="small" sx={{ p: 0.5 }}>
-                    <HelpIcon sx={{ fontSize: 14, color: '#6c757d' }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <Chip 
-                label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
-                color={
-                  comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' ? 'success' :
-                  comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' ? 'warning' : 'default'
-                }
-                sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}
-              />
+              </Tooltip>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                {formatMinAltitude()}
+              </Typography>
+              {comprehensiveMetrics?.basic_metrics?.min_altitude_details && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                  Drone {comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Max Speed Card */}
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <SpeedIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
+              <Tooltip title="Maximum velocity reached by any drone during the show">
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Speed <HelpIcon sx={{ fontSize: 16 }} />
+                </Typography>
+              </Tooltip>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                {formatMaxSpeed()}
+              </Typography>
+              {comprehensiveMetrics?.performance_metrics?.max_velocity_details && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                  Drone {comprehensiveMetrics.performance_metrics.max_velocity_details.drone_id} at {comprehensiveMetrics.performance_metrics.max_velocity_details.time_s}s
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Max Distance from Launch */}
+        <Grid item xs={12} sm={6} md={4} lg={2}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <TimelineIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+              <Tooltip title="Maximum distance any drone traveled from its launch position during the show">
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Distance <HelpIcon sx={{ fontSize: 16 }} />
+                </Typography>
+              </Tooltip>
+              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                {formatMaxDistance()}
+              </Typography>
+              {comprehensiveMetrics?.basic_metrics?.max_distance_details && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                  Drone {comprehensiveMetrics.basic_metrics.max_distance_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_distance_details.time_s}s
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -512,7 +571,7 @@ const VisualizationSection = ({ uploadCount }) => {
                   <SecurityIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
                     <Typography variant="caption" color="textSecondary">
-                      Min Distance
+                      Min Profile
                     </Typography>
                     <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
                       <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
@@ -528,17 +587,46 @@ const VisualizationSection = ({ uploadCount }) => {
             </Grid>
           )}
 
-          {comprehensiveMetrics.performance_metrics && (
+          {comprehensiveMetrics.safety_metrics && (
             <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
+              <Card variant="outlined" sx={{ 
+                height: '100%', 
+                bgcolor: '#f8f9fa',
+                border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                  ? '2px solid #28a745' 
+                  : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+                  ? '2px solid #ffc107'
+                  : '1px solid #e9ecef'
+              }}>
                 <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <AssessmentIcon color="info" sx={{ fontSize: 30, mb: 1 }} />
-                  <Typography variant="caption" color="textSecondary" display="block">
-                    Battery Est.
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
-                    {comprehensiveMetrics.performance_metrics.estimated_battery_usage_percent}%
-                  </Typography>
+                  <SecurityIcon 
+                    sx={{ 
+                      fontSize: 30, 
+                      mb: 1,
+                      color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                        ? '#28a745' 
+                        : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+                        ? '#ffc107'
+                        : '#6c757d'
+                    }} 
+                  />
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                    <Typography variant="caption" color="textSecondary" display="block">
+                      Safety Status
+                    </Typography>
+                    <Tooltip title="Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances. SAFE = No collision warnings, proper clearances maintained." arrow>
+                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
+                    </Tooltip>
+                  </Box>
+                  <Chip 
+                    label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
+                    color={
+                      comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' ? 'success' :
+                      comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' ? 'warning' : 'default'
+                    }
+                    size="small"
+                    sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
+                  />
                 </CardContent>
               </Card>
             </Grid>
