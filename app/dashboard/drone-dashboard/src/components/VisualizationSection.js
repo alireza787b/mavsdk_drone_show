@@ -399,50 +399,50 @@ const VisualizationSection = ({ uploadCount }) => {
         </Box>
       )}
 
-      {/* Essential Metrics - Always Visible */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <AccessTimeIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+      {/* Essential Metrics - Always Visible - 3 cards per row on large screens */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <AccessTimeIcon color="primary" sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600 }}>
                 Duration
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {formatDuration()}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <TheatersIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-              <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <TheatersIcon color="secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600 }}>
                 Drone Count
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {showDetails.droneCount || 'N/A'}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <HeightIcon color="success" sx={{ fontSize: 40, mb: 1 }} />
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <HeightIcon color="success" sx={{ fontSize: 48, mb: 2 }} />
               <Tooltip title="Maximum altitude reached during the entire show">
-                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Altitude <HelpIcon sx={{ fontSize: 16 }} />
+                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Altitude <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {formatMaxAltitude()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.max_altitude_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
                   Drone {comprehensiveMetrics.basic_metrics.max_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_altitude_details.time_s}s
                 </Typography>
               )}
@@ -450,21 +450,20 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        {/* Min Altitude Card */}
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <HeightIcon color="warning" sx={{ fontSize: 40, mb: 1, transform: 'rotate(180deg)' }} />
-              <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing)">
-                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Min Altitude <HelpIcon sx={{ fontSize: 16 }} />
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <HeightIcon color="warning" sx={{ fontSize: 48, mb: 2, transform: 'rotate(180deg)' }} />
+              <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing within 20m)">
+                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Min Altitude <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {formatMinAltitude()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.min_altitude_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
                   Drone {comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s
                 </Typography>
               )}
@@ -472,21 +471,20 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        {/* Max Speed Card */}
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <SpeedIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <SpeedIcon color="info" sx={{ fontSize: 48, mb: 2 }} />
               <Tooltip title="Maximum velocity reached by any drone during the show">
-                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Speed <HelpIcon sx={{ fontSize: 16 }} />
+                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Speed <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {formatMaxSpeed()}
               </Typography>
               {comprehensiveMetrics?.performance_metrics?.max_velocity_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
                   Drone {comprehensiveMetrics.performance_metrics.max_velocity_details.drone_id} at {comprehensiveMetrics.performance_metrics.max_velocity_details.time_s}s
                 </Typography>
               )}
@@ -494,21 +492,20 @@ const VisualizationSection = ({ uploadCount }) => {
           </Card>
         </Grid>
 
-        {/* Max Distance from Launch */}
-        <Grid item xs={12} sm={6} md={4} lg={2}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2 }}>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <TimelineIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-              <Tooltip title="Maximum distance any drone traveled from its launch position during the show">
-                <Typography variant="subtitle2" color="textSecondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Distance <HelpIcon sx={{ fontSize: 16 }} />
+        <Grid item xs={12} sm={6} lg={4}>
+          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <TimelineIcon color="secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <Tooltip title="Maximum 3D distance any drone traveled from its launch position during the show">
+                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  Max Distance <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
                 {formatMaxDistance()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.max_distance_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
                   Drone {comprehensiveMetrics.basic_metrics.max_distance_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_distance_details.time_s}s
                 </Typography>
               )}
@@ -517,92 +514,94 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
       </Grid>
 
-      {/* Advanced Metrics Row - Only if comprehensive metrics available */}
-      {comprehensiveMetrics && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-
-          {comprehensiveMetrics.safety_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <SecurityIcon color="success" sx={{ fontSize: 30, mb: 1 }} />
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                    <Typography variant="caption" color="textSecondary">
-                      Min Profile
-                    </Typography>
-                    <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
-                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
-                    </Tooltip>
-                  </Box>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
-                    {typeof comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m === 'number' 
-                      ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
-                      : 'N/A'}
+      {/* Advanced Safety Metrics Row - 2 cards per row */}
+      {comprehensiveMetrics && comprehensiveMetrics.safety_metrics && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ 
+              height: '100%', 
+              bgcolor: '#f8f9fa',
+              borderRadius: 2,
+              transition: 'all 0.3s ease',
+              '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' }
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                <SecurityIcon color="success" sx={{ fontSize: 40, mb: 2 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center', mb: 2 }}>
+                  <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 600 }}>
+                    Min Proximity
                   </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
+                  <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
+                    <HelpIcon sx={{ fontSize: 16, color: '#6c757d' }} />
+                  </Tooltip>
+                </Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                  {typeof comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m === 'number' 
+                    ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
+                    : 'N/A'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
 
-          {comprehensiveMetrics.safety_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined" sx={{ 
-                height: '100%', 
-                bgcolor: '#f8f9fa',
-                border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-                  ? '2px solid #28a745' 
-                  : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-                  ? '2px solid #ffc107'
-                  : '1px solid #e9ecef'
-              }}>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <SecurityIcon 
-                    sx={{ 
-                      fontSize: 30, 
-                      mb: 1,
-                      color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-                        ? '#28a745' 
-                        : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-                        ? '#ffc107'
-                        : '#6c757d'
-                    }} 
-                  />
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                    <Typography variant="caption" color="textSecondary" display="block">
-                      Safety Status
-                    </Typography>
-                    <Tooltip 
-                      title={
-                        comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' 
-                          ? `⚠️ CAUTION: ${comprehensiveMetrics.safety_metrics.collision_warnings_count || 0} collision warnings detected. Check inter-drone distances and flight paths before launch.`
-                          : comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE'
-                          ? '✅ SAFE: No collision risks detected. All clearances maintained properly.'
-                          : 'Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances.'
-                      }
-                      arrow
-                    >
-                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
-                    </Tooltip>
-                  </Box>
-                  <Chip 
-                    label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
-                    color={
-                      comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' ? 'success' :
-                      comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' ? 'warning' : 'default'
+          <Grid item xs={12} md={6}>
+            <Card variant="outlined" sx={{ 
+              height: '100%', 
+              bgcolor: '#f8f9fa',
+              borderRadius: 2,
+              transition: 'all 0.3s ease',
+              border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                ? '2px solid #28a745' 
+                : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+                ? '2px solid #ffc107'
+                : '2px solid #e9ecef',
+              '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' }
+            }}>
+              <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                <SecurityIcon 
+                  sx={{ 
+                    fontSize: 40, 
+                    mb: 2,
+                    color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                      ? '#28a745' 
+                      : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
+                      ? '#ffc107'
+                      : '#6c757d'
+                  }} 
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 2 }}>
+                  <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 600 }}>
+                    Safety Status
+                  </Typography>
+                  <Tooltip 
+                    title={
+                      comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' 
+                        ? `⚠️ CAUTION: ${comprehensiveMetrics.safety_metrics.collision_warnings_count || 0} collision warnings detected. Check inter-drone distances and flight paths before launch.`
+                        : comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE'
+                        ? '✅ SAFE: No collision risks detected. All clearances maintained properly.'
+                        : 'Safety assessment based on collision risk analysis, ground clearance, and inter-drone distances.'
                     }
-                    size="small"
-                    sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
-                  />
-                  {comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' && (
-                    <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1, fontSize: '0.7rem' }}>
-                      Review flight paths
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
-
+                    arrow
+                  >
+                    <HelpIcon sx={{ fontSize: 16, color: '#6c757d' }} />
+                  </Tooltip>
+                </Box>
+                <Chip 
+                  label={comprehensiveMetrics?.safety_metrics?.safety_status || 'Analyzing...'} 
+                  color={
+                    comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' ? 'success' :
+                    comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' ? 'warning' : 'default'
+                  }
+                  sx={{ fontWeight: 'bold', fontSize: '1rem', px: 2, py: 1 }}
+                />
+                {comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION' && (
+                  <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1, fontSize: '0.8rem', fontWeight: 500 }}>
+                    Review flight paths before launch
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       )}
 

@@ -39,25 +39,71 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose, isCompleted, onCon
       bgcolor: 'background.paper',
       borderRadius: 2,
       boxShadow: 24,
-      p: 4
+      p: 4,
+      '@keyframes checkPulse': {
+        '0%': { transform: 'scale(0.8)', opacity: 0.8 },
+        '50%': { transform: 'scale(1.1)', opacity: 1 },
+        '100%': { transform: 'scale(1)', opacity: 1 }
+      },
+      '@keyframes fadeInRight': {
+        '0%': { transform: 'translateX(10px)', opacity: 0 },
+        '100%': { transform: 'translateX(0)', opacity: 1 }
+      },
+      '@keyframes spin': {
+        '0%': { transform: 'rotate(0deg)' },
+        '100%': { transform: 'rotate(360deg)' }
+      },
+      '@keyframes modalSlideIn': {
+        '0%': { transform: 'translate(-50%, -60%) scale(0.95)', opacity: 0 },
+        '100%': { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }
+      },
+      animation: 'modalSlideIn 0.3s ease-out'
     }}>
       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Psychology color="primary" />
         {isCompleted ? 'Processing Complete!' : 'Processing Drone Show'}
       </Typography>
       
-      <LinearProgress 
-        variant="determinate" 
-        value={progress.overall} 
-        sx={{ 
-          mb: 2, 
-          height: 8, 
-          borderRadius: 4,
-          '& .MuiLinearProgress-bar': {
-            backgroundColor: isCompleted ? '#28a745' : '#667eea'
-          }
-        }}
-      />
+      <Box sx={{ position: 'relative', mb: 3 }}>
+        <LinearProgress 
+          variant="determinate" 
+          value={progress.overall} 
+          sx={{ 
+            height: 10, 
+            borderRadius: 5,
+            backgroundColor: '#e9ecef',
+            '& .MuiLinearProgress-bar': {
+              backgroundColor: isCompleted ? '#28a745' : '#667eea',
+              borderRadius: 5,
+              background: isCompleted 
+                ? 'linear-gradient(90deg, #28a745 0%, #20c997 100%)'
+                : 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+              animation: !isCompleted ? 'progressPulse 2s ease-in-out infinite' : 'none',
+            },
+            '@keyframes progressPulse': {
+              '0%': { opacity: 0.8 },
+              '50%': { opacity: 1 },
+              '100%': { opacity: 0.8 }
+            }
+          }}
+        />
+        {!isCompleted && (
+          <Box sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+            animation: 'progressShimmer 2s infinite',
+            borderRadius: 5,
+            '@keyframes progressShimmer': {
+              '0%': { transform: 'translateX(-100%)' },
+              '100%': { transform: 'translateX(100%)' }
+            }
+          }} />
+        )}
+      </Box>
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="body2" color="textSecondary">
@@ -74,17 +120,27 @@ const ProcessingProgressModal = ({ isOpen, progress, onClose, isCompleted, onCon
             <ListItem key={idx} sx={{ py: 0.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                 {detail.completed ? (
-                  <CheckCircle color="success" sx={{ fontSize: 20 }} />
-                ) : progress.overall >= 90 ? (
-                  <CircularProgress size={20} color="primary" />
+                  <CheckCircle color="success" sx={{ fontSize: 20, animation: 'checkPulse 0.6s ease-out' }} />
                 ) : (
-                  <CircularProgress size={20} />
+                  <CircularProgress size={16} color="primary" sx={{ animation: 'spin 1s linear infinite' }} />
                 )}
-                <Typography variant="body2" sx={{ flex: 1 }}>
+                <Typography variant="body2" sx={{ 
+                  flex: 1, 
+                  color: detail.completed ? 'success.main' : 'text.primary',
+                  fontWeight: detail.completed ? 600 : 400
+                }}>
                   {detail.step}
                 </Typography>
                 {detail.completed && (
-                  <Chip label="Done" size="small" color="success" variant="outlined" />
+                  <Chip 
+                    label="✓" 
+                    size="small" 
+                    color="success" 
+                    sx={{ 
+                      minWidth: 32,
+                      animation: 'fadeInRight 0.3s ease-out'
+                    }}
+                  />
                 )}
               </Box>
             </ListItem>

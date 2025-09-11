@@ -15,6 +15,9 @@ class DroneShowMetrics:
     Provides safety, performance, and formation quality metrics.
     """
     
+    # Configuration constants
+    TAKEOFF_LANDING_EXCLUSION_RADIUS_M = 20.0  # Exclude points within 20m of start/end
+    
     def __init__(self, processed_dir: str):
         self.processed_dir = processed_dir
         self.drone_data = {}
@@ -123,12 +126,13 @@ class DroneShowMetrics:
                         start_x, start_y = df['px'].iloc[0], df['py'].iloc[0]
                         end_x, end_y = df['px'].iloc[-1], df['py'].iloc[-1]
                         
-                        # Create mask for points not near start/end positions (>5m away from both)
+                        # Create mask for points not near start/end positions (>20m away from both)
                         dist_from_start = np.sqrt((df['px'] - start_x)**2 + (df['py'] - start_y)**2)
                         dist_from_end = np.sqrt((df['px'] - end_x)**2 + (df['py'] - end_y)**2)
                         
-                        # Points that are >5m from both start and end positions
-                        flight_mask = (dist_from_start > 5.0) & (dist_from_end > 5.0)
+                        # Points that are >20m from both start and end positions
+                        flight_mask = (dist_from_start > self.TAKEOFF_LANDING_EXCLUSION_RADIUS_M) & \
+                                    (dist_from_end > self.TAKEOFF_LANDING_EXCLUSION_RADIUS_M)
                         
                         if flight_mask.any():
                             # Use only flight phase altitudes
