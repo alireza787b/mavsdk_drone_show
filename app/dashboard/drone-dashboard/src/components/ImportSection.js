@@ -154,47 +154,63 @@ const ImportSection = ({ setUploadCount }) => {
       { step: 'Calculating comprehensive metrics', completed: false },
       { step: 'Generating 3D visualizations', completed: false },
       { step: 'Updating configuration', completed: false },
-      { step: 'Backend processing and analysis', completed: false }
+      { step: 'Backend processing and analysis', completed: false },
+      { step: 'Deploying to cloud repository', completed: false }
     ];
 
     setProcessingProgress({
-      overall: 5,
-      stage: 'Starting processing...',
+      overall: 2,
+      stage: 'Initializing upload...',
       details: steps
     });
 
     let currentStep = 0;
     const interval = setInterval(() => {
-      if (currentStep < steps.length) {
+      if (currentStep < steps.length - 2) {  // Stop before backend processing
         const updatedSteps = steps.map((step, idx) => ({
           ...step,
           completed: idx < currentStep
         }));
 
-        // More realistic progress calculation
-        const baseProgress = (currentStep / steps.length) * 85 + 5;
+        // Much slower progress - only advance 10% every 2 seconds for first 6 steps
+        const baseProgress = (currentStep / (steps.length - 2)) * 60 + 2;
         
         setProcessingProgress({
-          overall: Math.min(baseProgress, 90),
+          overall: Math.min(baseProgress, 65),
           stage: steps[currentStep]?.step + '...',
           details: updatedSteps
         });
 
         currentStep++;
-      } else {
-        // Stop at 90% and wait for actual backend completion
-        clearInterval(interval);
-        setProcessingProgress(prev => ({
-          ...prev,
-          overall: 90,
-          stage: 'Backend processing and analysis...',
-          details: steps.map((step, idx) => ({
-            ...step,
-            completed: idx < steps.length - 1
-          }))
+      } else if (currentStep === steps.length - 2) {
+        // Backend processing step - stay here longer
+        const updatedSteps = steps.map((step, idx) => ({
+          ...step,
+          completed: idx < currentStep
         }));
+
+        setProcessingProgress({
+          overall: 75,
+          stage: 'Backend processing and analysis - this may take several minutes...',
+          details: updatedSteps
+        });
+        
+        currentStep++;
+      } else {
+        // Final step - deployment
+        clearInterval(interval);
+        const updatedSteps = steps.map((step, idx) => ({
+          ...step,
+          completed: idx < steps.length - 1 // All except deployment
+        }));
+
+        setProcessingProgress({
+          overall: 85,
+          stage: 'Deploying to cloud repository...',
+          details: updatedSteps
+        });
       }
-    }, 1500); // Slower progression for better UX
+    }, 2500); // Much slower progression - 2.5 seconds per step
 
     return interval;
   };
@@ -236,7 +252,8 @@ const ImportSection = ({ setUploadCount }) => {
                 { step: 'Calculating comprehensive metrics', completed: true },
                 { step: 'Generating 3D visualizations', completed: true },
                 { step: 'Updating configuration', completed: true },
-                { step: 'Backend processing and analysis', completed: true }
+                { step: 'Backend processing and analysis', completed: true },
+                { step: 'Deploying to cloud repository', completed: true }
               ]
             });
             
@@ -245,8 +262,8 @@ const ImportSection = ({ setUploadCount }) => {
           } else {
             setProcessingProgress({
               overall: 0,
-              stage: 'Processing failed!',
-              details: [{ step: result.error || 'Unknown error', completed: false }]
+              stage: `Processing failed: ${result.error || 'Unknown error'}`,
+              details: [{ step: result.error || 'Upload failed - please check file format and try again', completed: false }]
             });
             setIsUploading(false);
           }

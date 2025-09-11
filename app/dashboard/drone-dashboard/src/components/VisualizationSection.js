@@ -6,39 +6,30 @@ import {
   Box,
   Typography,
   Card,
-  CardHeader,
   CardContent,
   Grid,
   LinearProgress,
   Button,
   Chip,
   Divider,
-  Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   List,
   ListItem,
-  ListItemIcon,
   ListItemText,
   Paper,
   Collapse,
   Modal,
-  Tooltip,
-  IconButton
+  Tooltip
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
   Theaters as TheatersIcon,
   Speed as SpeedIcon,
   Security as SecurityIcon,
-  Assessment as AssessmentIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
-  ExpandMore as ExpandMoreIcon,
   Timeline as TimelineIcon,
   Psychology as PsychologyIcon,
-  HelpOutline as HelpIcon
+  HelpOutline as HelpIcon,
+  ExpandMore as ExpandMoreIcon,
+  Assessment as AssessmentIcon
 } from '@mui/icons-material';
 import HeightIcon from '@mui/icons-material/Height';
 
@@ -175,20 +166,11 @@ const VisualizationSection = ({ uploadCount }) => {
     setCurrentIndex(nextIndex);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'SAFE': case 'EXCELLENT': return 'success';
-      case 'GOOD': return 'info';
-      case 'CAUTION': case 'NEEDS_IMPROVEMENT': return 'warning';
-      case 'HIGH_SPEED': case 'HIGH_ACCELERATION': return 'secondary';
-      default: return 'default';
-    }
-  };
 
   const renderTechnicalData = () => {
     if (!comprehensiveMetrics) return null;
 
-    const { basic_metrics, safety_metrics, performance_metrics, formation_metrics, quality_metrics } = comprehensiveMetrics;
+    const { safety_metrics, performance_metrics, quality_metrics } = comprehensiveMetrics;
 
     return (
       <Box sx={{ mt: 4 }}>
@@ -342,40 +324,6 @@ const VisualizationSection = ({ uploadCount }) => {
               </Grid>
             )}
 
-            {/* Formation Analysis */}
-            {formation_metrics && (
-              <Grid item xs={12} lg={6}>
-                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
-                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <TimelineIcon />
-                    Formation Analysis
-                  </Typography>
-                  <List dense>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemText 
-                        primary="Formation Coherence" 
-                        secondary={`${(formation_metrics.formation_coherence_score * 100).toFixed(1)}%`}
-                        primaryTypographyProps={{ fontWeight: 'medium' }}
-                      />
-                    </ListItem>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemText 
-                        primary="Formation Complexity" 
-                        secondary={formation_metrics.formation_complexity}
-                        primaryTypographyProps={{ fontWeight: 'medium' }}
-                      />
-                    </ListItem>
-                    <ListItem sx={{ px: 0 }}>
-                      <ListItemText 
-                        primary="Swarm Center Movement" 
-                        secondary={`${formation_metrics.swarm_center_total_movement_m} m total`}
-                        primaryTypographyProps={{ fontWeight: 'medium' }}
-                      />
-                    </ListItem>
-                  </List>
-                </Paper>
-              </Grid>
-            )}
 
             {/* Quality & Recommendations */}
             {quality_metrics && (
@@ -420,9 +368,36 @@ const VisualizationSection = ({ uploadCount }) => {
 
   return (
     <Box className="visualization-section">
-      <Typography variant="h5" sx={{ color: '#0056b3', mb: 2 }}>
+      <Typography variant="h5" sx={{ color: '#0056b3', mb: 1 }}>
         Drone Show Visualization
       </Typography>
+      
+      {/* Show File Information */}
+      {comprehensiveMetrics?.show_info && (
+        <Box sx={{ 
+          bgcolor: '#f8f9fa', 
+          border: '1px solid #dee2e6', 
+          borderRadius: 1, 
+          p: 2, 
+          mb: 3 
+        }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ color: '#0056b3', fontWeight: 'bold' }}>
+                📁 Current Show: {comprehensiveMetrics.show_info.filename}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Uploaded: {new Date(comprehensiveMetrics.show_info.uploaded_at).toLocaleString()}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="caption" color="textSecondary">
+                Processed: {new Date(comprehensiveMetrics.show_info.processed_at).toLocaleString()}
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
 
       {/* Essential Metrics - Always Visible */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -632,26 +607,6 @@ const VisualizationSection = ({ uploadCount }) => {
             </Grid>
           )}
 
-          {comprehensiveMetrics.formation_metrics && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Card variant="outlined" sx={{ height: '100%', bgcolor: '#f8f9fa' }}>
-                <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                  <TimelineIcon color="secondary" sx={{ fontSize: 30, mb: 1 }} />
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                    <Typography variant="caption" color="textSecondary">
-                      Formation Quality
-                    </Typography>
-                    <Tooltip title="Formation coherence score based on how well drones maintain their relative positions. Higher percentage indicates better synchronized movement." arrow>
-                      <HelpIcon sx={{ fontSize: 12, color: '#6c757d' }} />
-                    </Tooltip>
-                  </Box>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
-                    {(comprehensiveMetrics.formation_metrics.formation_coherence_score * 100).toFixed(0)}%
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          )}
         </Grid>
       )}
 

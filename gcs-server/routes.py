@@ -388,8 +388,13 @@ def setup_routes(app):
                     metrics_engine = DroneShowMetrics(processed_dir)
                     comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
                     
-                    # Save metrics to file for later retrieval
-                    metrics_file = metrics_engine.save_metrics_to_file(comprehensive_metrics)
+                    # Save metrics to file for later retrieval with show info
+                    upload_time = datetime.now().isoformat()
+                    metrics_file = metrics_engine.save_metrics_to_file(
+                        comprehensive_metrics, 
+                        show_filename=file.filename,
+                        upload_datetime=upload_time
+                    )
                     if metrics_file:
                         log_system_event(f"Comprehensive metrics saved to {metrics_file}", "INFO", "show")
                     else:

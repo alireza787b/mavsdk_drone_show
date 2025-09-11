@@ -4,7 +4,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List
 from scipy.spatial.distance import pdist, squareform
 import warnings
 warnings.filterwarnings('ignore')
@@ -145,10 +145,13 @@ class DroneShowMetrics:
                             }
                         min_altitude_flight = min(min_altitude_flight, min_alt_value)
             
-            # Handle case where no valid minimum was found
+            # Handle edge cases
             if min_altitude_flight == float('inf'):
                 min_altitude_flight = 0.0
                 min_altitude_info = {'value': 0.0, 'drone_id': 'N/A', 'time_s': 0.0}
+                
+            if max_distance_info['value'] == 0.0 and max_distance_info['drone_id'] == '':
+                max_distance_info = {'value': 0.0, 'drone_id': 'N/A', 'time_s': 0.0}
             
             return {
                 'drone_count': drone_count,
@@ -408,9 +411,18 @@ class DroneShowMetrics:
         recommendations.append("Trajectory analysis completed successfully")
         return recommendations
 
-    def save_metrics_to_file(self, metrics: Dict, filename: str = 'comprehensive_metrics.json') -> str:
-        """Save calculated metrics to JSON file in swarm directory"""
+    def save_metrics_to_file(self, metrics: Dict, filename: str = 'comprehensive_metrics.json', 
+                           show_filename: str = None, upload_datetime: str = None) -> str:
+        """Save calculated metrics to JSON file in swarm directory with show info"""
         try:
+            # Add show file information to metrics
+            if show_filename or upload_datetime:
+                metrics['show_info'] = {
+                    'filename': show_filename or 'Unknown',
+                    'uploaded_at': upload_datetime or pd.Timestamp.now().isoformat(),
+                    'processed_at': pd.Timestamp.now().isoformat()
+                }
+            
             # Save to swarm directory instead of processed
             swarm_dir = os.path.dirname(self.processed_dir)  # Go up one level from processed to swarm
             filepath = os.path.join(swarm_dir, filename)

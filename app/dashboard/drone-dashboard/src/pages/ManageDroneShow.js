@@ -1,9 +1,8 @@
 // src/pages/ManageDroneShow.js
 import React, { useState } from 'react';
-import { Container, Box, Typography, Paper, Button, Modal, LinearProgress, List, ListItem, ListItemIcon, ListItemText, Chip } from '@mui/material';
-import { ToastContainer, toast } from 'react-toastify';
+import { Container, Box, Typography, Paper, Button } from '@mui/material';
+import { ToastContainer } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
-import { CloudUpload, CheckCircle, Publish } from '@mui/icons-material';
 import { getBackendURL } from '../utilities/utilities';
 import ImportSection from '../components/ImportSection';
 import ExportSection from '../components/ExportSection';
@@ -64,202 +63,19 @@ const WorkflowGuidanceSection = () => {
   );
 };
 
-const DeployProgressModal = ({ isOpen, progress, onClose, onContinue, isCompleted }) => (
-  <Modal open={isOpen} onClose={isCompleted ? onClose : () => {}}>
-    <Box sx={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: 500,
-      bgcolor: 'background.paper',
-      borderRadius: 2,
-      boxShadow: 24,
-      p: 4
-    }}>
-      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Publish color="primary" />
-        {isCompleted ? 'Deployment Complete!' : 'Deploying to Drone Fleet'}
-      </Typography>
-      
-      <LinearProgress 
-        variant="determinate" 
-        value={progress.overall} 
-        sx={{ 
-          mb: 2, 
-          height: 8, 
-          borderRadius: 4,
-          '& .MuiLinearProgress-bar': {
-            backgroundColor: isCompleted ? '#28a745' : '#ff9800'
-          }
-        }}
-      />
-      
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="body2" color="textSecondary">
-          {progress.stage}
-        </Typography>
-        <Typography variant="body2" fontWeight="bold">
-          {`${Math.round(progress.overall)}%`}
-        </Typography>
-      </Box>
-
-      {progress.details && (
-        <List dense>
-          {progress.details.map((detail, idx) => (
-            <ListItem key={idx} sx={{ py: 0.5 }}>
-              <ListItemIcon sx={{ minWidth: 30 }}>
-                {detail.completed ? (
-                  <CheckCircle color="success" sx={{ fontSize: 20 }} />
-                ) : (
-                  <Publish color="primary" sx={{ fontSize: 20 }} />
-                )}
-              </ListItemIcon>
-              <ListItemText 
-                primary={detail.step}
-                primaryTypographyProps={{ variant: 'body2' }}
-              />
-              {detail.completed && (
-                <Chip label="Done" size="small" color="success" variant="outlined" />
-              )}
-            </ListItem>
-          ))}
-        </List>
-      )}
-
-      {isCompleted && (
-        <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
-            All drones will receive updates on next boot
-          </Typography>
-          <Button
-            variant="contained"
-            onClick={onContinue}
-            sx={{
-              bgcolor: '#28a745',
-              '&:hover': { bgcolor: '#218838' },
-              px: 4,
-              py: 1.5
-            }}
-          >
-            Continue
-          </Button>
-        </Box>
-      )}
-
-      {!isCompleted && progress.overall > 0 && (
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Typography variant="caption" color="textSecondary" sx={{ fontStyle: 'italic' }}>
-            Pushing changes to git repository... Please wait
-          </Typography>
-        </Box>
-      )}
-    </Box>
-  </Modal>
-);
 
 const ManageDroneShow = () => {
   const [uploadCount, setUploadCount] = useState(0);
-  const [showDeployModal, setShowDeployModal] = useState(false);
-  const [deployProgress, setDeployProgress] = useState({ overall: 0, stage: '', details: [] });
-  const [isDeployCompleted, setIsDeployCompleted] = useState(false);
 
-  const handleDeploy = async () => {
-    setShowDeployModal(true);
-    setIsDeployCompleted(false);
-    
-    const steps = [
-      { step: 'Preparing changes for deployment', completed: false },
-      { step: 'Committing show data to repository', completed: false },
-      { step: 'Pushing to remote repository', completed: false },
-      { step: 'Updating drone fleet configuration', completed: false }
-    ];
-
-    setDeployProgress({
-      overall: 10,
-      stage: 'Starting deployment...',
-      details: steps
-    });
-
-    try {
-      // Simulate deployment progress
-      for (let i = 0; i < steps.length; i++) {
-        const updatedSteps = steps.map((step, idx) => ({
-          ...step,
-          completed: idx <= i
-        }));
-
-        setDeployProgress({
-          overall: 25 + (i * 20),
-          stage: steps[i].step + '...',
-          details: updatedSteps
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-
-      // Call backend deploy endpoint
-      const response = await fetch(`${getBackendURL()}/deploy-show`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: `Deploy drone show: ${new Date().toISOString()}` })
-      });
-
-      if (response.ok) {
-        setDeployProgress({
-          overall: 100,
-          stage: 'Deployment completed successfully!',
-          details: steps.map(step => ({ ...step, completed: true }))
-        });
-        setIsDeployCompleted(true);
-      } else {
-        throw new Error('Deployment failed');
-      }
-    } catch (error) {
-      console.error('Deploy error:', error);
-      setDeployProgress({
-        overall: 0,
-        stage: 'Deployment failed!',
-        details: [{ step: 'Error: ' + error.message, completed: false }]
-      });
-    }
-  };
-
-  const handleDeployContinue = () => {
-    setShowDeployModal(false);
-    setIsDeployCompleted(false);
-    toast.success('🚀 Drone show deployed successfully! All drones will receive updates on next boot.');
-  };
 
   return (
     <Container maxWidth="97%" className="manage-drone-show-container">
       <ToastContainer />
       
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3, mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, mb: 2 }}>
         <Typography variant="h4" sx={{ color: '#0056b3' }}>
           Manage Drone Show
         </Typography>
-        
-        {/* Deploy Button */}
-        <Button
-          variant="contained"
-          onClick={handleDeploy}
-          startIcon={<Publish />}
-          sx={{
-            bgcolor: '#ff9800',
-            '&:hover': { bgcolor: '#f57c00' },
-            color: 'white',
-            fontWeight: 'bold',
-            px: 3,
-            py: 1.5,
-            boxShadow: '0 4px 12px rgba(255, 152, 0, 0.3)',
-            borderRadius: 2
-          }}
-        >
-          Deploy to Fleet
-        </Button>
       </Box>
 
       {/* Workflow Guidance */}
@@ -287,14 +103,6 @@ const ManageDroneShow = () => {
         </Typography>
       </Box>
 
-      {/* Deploy Progress Modal */}
-      <DeployProgressModal
-        isOpen={showDeployModal}
-        progress={deployProgress}
-        isCompleted={isDeployCompleted}
-        onClose={() => setShowDeployModal(false)}
-        onContinue={handleDeployContinue}
-      />
     </Container>
   );
 };
