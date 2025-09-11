@@ -1,118 +1,118 @@
 {
   "basic_metrics": {
     "drone_count": 10,
-    "duration_seconds": 498.2,
-    "duration_minutes": 8.3,
-    "max_altitude_m": 120.0,
+    "duration_seconds": 341.95,
+    "duration_minutes": 5.7,
+    "max_altitude_m": 75.75,
     "max_altitude_details": {
-      "value": 120.0,
-      "drone_id": "3",
-      "time_s": 362.1
+      "value": 75.75,
+      "drone_id": "4",
+      "time_s": 285.4
     },
-    "min_altitude_flight_m": 36.89,
+    "min_altitude_flight_m": 23.46,
     "min_altitude_details": {
-      "value": 36.89,
-      "drone_id": "8",
-      "time_s": 456.3
+      "value": 23.46,
+      "drone_id": "3",
+      "time_s": 156.0
     },
-    "max_distance_from_launch_m": 138.75,
+    "max_distance_from_launch_m": 76.42,
     "max_distance_details": {
-      "value": 138.75,
-      "drone_id": "8",
-      "time_s": 127.6
+      "value": 76.42,
+      "drone_id": "4",
+      "time_s": 293.7
     },
-    "altitude_range_m": 83.11
+    "altitude_range_m": 52.28
   },
   "safety_metrics": {
-    "min_inter_drone_distance_m": 3.0,
+    "min_inter_drone_distance_m": 3.98,
     "collision_warnings_count": 0,
     "collision_warnings": [],
     "min_ground_clearance_m": -0.0,
     "safety_status": "CAUTION"
   },
   "performance_metrics": {
-    "max_velocity_ms": 5.59,
-    "max_velocity_kmh": 20.13,
+    "max_velocity_ms": 4.87,
+    "max_velocity_kmh": 17.51,
     "max_velocity_details": {
-      "value": 5.59,
-      "drone_id": "6",
-      "time_s": 454.8
+      "value": 4.87,
+      "drone_id": "4",
+      "time_s": 80.2
     },
-    "max_acceleration_ms2": 1.05,
+    "max_acceleration_ms2": 2.42,
     "max_acceleration_details": {
-      "value": 1.05,
-      "drone_id": "6",
-      "time_s": 343.3
+      "value": 2.42,
+      "drone_id": "2",
+      "time_s": 269.8
     },
     "performance_status": "EXCELLENT",
     "per_drone_velocity": {
       "10": {
-        "max_velocity_ms": 4.41,
-        "avg_velocity_ms": 0.79,
-        "velocity_std_ms": 1.1
+        "max_velocity_ms": 2.24,
+        "avg_velocity_ms": 0.96,
+        "velocity_std_ms": 0.72
       },
       "8": {
-        "max_velocity_ms": 3.21,
-        "avg_velocity_ms": 0.8,
-        "velocity_std_ms": 0.96
+        "max_velocity_ms": 2.27,
+        "avg_velocity_ms": 0.62,
+        "velocity_std_ms": 0.71
       },
       "4": {
-        "max_velocity_ms": 4.83,
-        "avg_velocity_ms": 0.74,
-        "velocity_std_ms": 0.97
+        "max_velocity_ms": 4.87,
+        "avg_velocity_ms": 1.11,
+        "velocity_std_ms": 0.96
       },
       "2": {
-        "max_velocity_ms": 5.31,
-        "avg_velocity_ms": 0.72,
-        "velocity_std_ms": 1.02
+        "max_velocity_ms": 4.87,
+        "avg_velocity_ms": 1.24,
+        "velocity_std_ms": 0.99
       },
       "1": {
-        "max_velocity_ms": 5.38,
-        "avg_velocity_ms": 0.73,
-        "velocity_std_ms": 1.06
+        "max_velocity_ms": 2.91,
+        "avg_velocity_ms": 1.03,
+        "velocity_std_ms": 0.81
       },
       "7": {
-        "max_velocity_ms": 3.54,
-        "avg_velocity_ms": 0.78,
-        "velocity_std_ms": 0.91
+        "max_velocity_ms": 3.36,
+        "avg_velocity_ms": 0.85,
+        "velocity_std_ms": 0.76
       },
       "6": {
-        "max_velocity_ms": 5.59,
-        "avg_velocity_ms": 1.07,
-        "velocity_std_ms": 1.28
+        "max_velocity_ms": 2.24,
+        "avg_velocity_ms": 0.79,
+        "velocity_std_ms": 0.66
       },
       "3": {
-        "max_velocity_ms": 5.11,
-        "avg_velocity_ms": 0.75,
-        "velocity_std_ms": 1.02
+        "max_velocity_ms": 2.25,
+        "avg_velocity_ms": 0.34,
+        "velocity_std_ms": 0.5
       },
       "9": {
-        "max_velocity_ms": 3.54,
-        "avg_velocity_ms": 0.65,
-        "velocity_std_ms": 0.87
+        "max_velocity_ms": 3.36,
+        "avg_velocity_ms": 0.67,
+        "velocity_std_ms": 0.78
       },
       "5": {
-        "max_velocity_ms": 4.92,
-        "avg_velocity_ms": 0.78,
-        "velocity_std_ms": 1.0
+        "max_velocity_ms": 2.24,
+        "avg_velocity_ms": 0.84,
+        "velocity_std_ms": 0.71
       }
     }
   },
   "formation_metrics": {
     "formation_complexity": "COMPLEX",
-    "swarm_center_total_movement_m": 271.94
+    "swarm_center_total_movement_m": 104.75
   },
   "quality_metrics": {
-    "trajectory_smoothness_score": 0.999,
+    "trajectory_smoothness_score": 0.997,
     "overall_quality_rating": "EXCELLENT",
-    "quality_score": 0.999,
+    "quality_score": 0.997,
     "recommendations": [
       "Trajectory analysis completed successfully"
     ]
   },
   "show_info": {
-    "filename": "mci_v7.zip",
-    "uploaded_at": "2025-09-11T14:20:36.717538",
-    "processed_at": "2025-09-11T14:20:36.724261"
+    "filename": "mci_10.zip",
+    "uploaded_at": "2025-09-11T14:22:01.419279",
+    "processed_at": "2025-09-11T14:22:01.424572"
   }
 }
