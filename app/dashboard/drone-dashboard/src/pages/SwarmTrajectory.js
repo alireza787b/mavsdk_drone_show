@@ -854,7 +854,7 @@ const SwarmTrajectory = () => {
             <div className="progress-header">
               <h3>🚀 Committing Trajectory Changes</h3>
               <div className="progress-subtitle">
-                Pushing {results?.processed_drones || 0} drone trajectories to repository...
+                Processing {results?.processed_drones || 0} drone trajectories ...
               </div>
             </div>
             
