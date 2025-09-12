@@ -109,12 +109,56 @@ def register_swarm_trajectory_routes(app):
             processed_count = len([f for f in os.listdir(folders['processed']) if f.endswith('.csv')]) if os.path.exists(folders['processed']) else 0
             plot_count = len([f for f in os.listdir(folders['plots']) if f.endswith('.jpg')]) if os.path.exists(folders['plots']) else 0
             
+            # Get detailed information about processed files and categorize them
+            processed_drones = []
+            if os.path.exists(folders['processed']):
+                for filename in os.listdir(folders['processed']):
+                    if filename.endswith('.csv') and filename.startswith('Drone '):
+                        drone_id = filename.replace('Drone ', '').replace('.csv', '')
+                        try:
+                            drone_id = int(drone_id)
+                            processed_drones.append(drone_id)
+                        except ValueError:
+                            continue
+            
+            processed_drones.sort()
+            
+            # Get swarm structure to categorize leaders vs followers
+            try:
+                from config import load_swarm
+                swarm_data = load_swarm()
+                structure = analyze_swarm_structure(swarm_data)
+                
+                # Count leaders and followers among processed drones
+                processed_leaders = [d for d in processed_drones if d in structure['top_leaders']]
+                processed_followers = [d for d in processed_drones if d not in structure['top_leaders']]
+                
+                leader_count = len(processed_leaders)
+                follower_count = len(processed_followers)
+                
+            except Exception as e:
+                logger.warning(f"Could not analyze swarm structure: {e}")
+                # Fallback: assume all processed drones are leaders if we can't determine structure
+                leader_count = len(processed_drones)
+                follower_count = 0
+                processed_leaders = processed_drones
+                processed_followers = []
+            
+            # Check if we have results (processed files + plots)
+            has_results = processed_count > 0 and plot_count > 0
+            
             return jsonify({
                 'success': True,
                 'status': {
                     'raw_trajectories': raw_count,
                     'processed_trajectories': processed_count,
-                    'generated_plots': plot_count
+                    'generated_plots': plot_count,
+                    'processed_drones': processed_drones,
+                    'processed_leaders': processed_leaders,
+                    'processed_followers': processed_followers,
+                    'leader_count': leader_count,
+                    'follower_count': follower_count,
+                    'has_results': has_results
                 },
                 'folders': folders
             })
@@ -312,6 +356,76 @@ def register_swarm_trajectory_routes(app):
             
         except Exception as e:
             logger.error(f"Failed to generate KML for Drone {drone_id}: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/swarm/trajectory/download-cluster-kml/<int:leader_id>', methods=['GET'])
+    def download_cluster_kml(leader_id):
+        """Generate and download cluster KML file with all drones in formation"""
+        try:
+            folders = get_swarm_trajectory_folders()
+            
+            # Get swarm structure to find cluster drones
+            from config import load_swarm
+            swarm_data = load_swarm()
+            structure = analyze_swarm_structure(swarm_data)
+            
+            # Validate leader exists
+            if leader_id not in structure['top_leaders']:
+                return jsonify({
+                    'success': False,
+                    'error': f'Drone {leader_id} is not a cluster leader'
+                }), 400
+            
+            # Get all drones in this cluster
+            cluster_drones = [leader_id] + structure['hierarchies'].get(leader_id, [])
+            
+            # Check if processed trajectories exist for cluster drones
+            missing_drones = []
+            for drone_id in cluster_drones:
+                csv_path = os.path.join(folders['processed'], f'Drone {drone_id}.csv')
+                if not os.path.exists(csv_path):
+                    missing_drones.append(drone_id)
+            
+            if missing_drones:
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing processed trajectories for drones: {missing_drones}'
+                }), 404
+            
+            # Generate cluster KML
+            from functions.swarm_kml_generator import generate_cluster_kml
+            import tempfile
+            import os as os_module
+            
+            # Create temporary directory for KML
+            with tempfile.TemporaryDirectory() as temp_dir:
+                kml_path = generate_cluster_kml(
+                    leader_id, 
+                    cluster_drones, 
+                    folders['processed'], 
+                    temp_dir
+                )
+                
+                # Read the generated KML file
+                with open(kml_path, 'r', encoding='utf-8') as f:
+                    kml_content = f.read()
+                
+                from flask import Response
+                
+                # Create response with KML content
+                response = Response(
+                    kml_content,
+                    mimetype='application/vnd.google-earth.kml+xml',
+                    headers={
+                        'Content-Disposition': f'attachment; filename=Cluster_Leader_{leader_id}.kml'
+                    }
+                )
+                
+                logger.info(f"Generated cluster KML for Leader {leader_id} with {len(cluster_drones)} drones")
+                return response
+            
+        except Exception as e:
+            logger.error(f"Failed to generate cluster KML for Leader {leader_id}: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/swarm/trajectory/clear-drone/<int:drone_id>', methods=['POST'])

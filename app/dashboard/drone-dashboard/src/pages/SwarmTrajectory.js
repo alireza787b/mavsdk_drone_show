@@ -16,9 +16,39 @@ const SwarmTrajectory = () => {
   const [commitProgress, setCommitProgress] = useState(null);
 
   useEffect(() => {
-    fetchLeaders();
-    fetchStatus();
+    initializeComponent();
   }, []);
+
+  const initializeComponent = async () => {
+    await fetchLeaders();
+    await fetchStatus();
+    await checkExistingResults();
+  };
+
+  const checkExistingResults = async () => {
+    try {
+      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/status`);
+      const data = await response.json();
+      
+      if (data.success && data.status.has_results) {
+        // Create results object to show existing processed trajectories
+        setResults({
+          success: true,
+          processed_drones: data.status.processed_trajectories,
+          statistics: {
+            leaders: data.status.leader_count || 0,
+            followers: data.status.follower_count || 0,
+            errors: 0
+          },
+          processed_drone_list: data.status.processed_drones // Store the list of processed drone IDs
+        });
+        
+        console.log(`Found existing results: ${data.status.processed_trajectories} processed drones with ${data.status.generated_plots} plots`);
+      }
+    } catch (error) {
+      console.error('Error checking existing results:', error);
+    }
+  };
 
   const fetchLeaders = async () => {
     try {
@@ -183,6 +213,46 @@ const SwarmTrajectory = () => {
     } catch (error) {
       console.error('KML download error:', error);
       alert(`KML download error: ${error.message}`);
+    }
+  };
+
+  const downloadClusterKML = async (leaderId) => {
+    try {
+      setCommitting(true); // Show loading state
+      setCommitProgress({ step: 'Generating cluster KML...', progress: 25 });
+      
+      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/download-cluster-kml/${leaderId}`);
+      
+      setCommitProgress({ step: 'Preparing download...', progress: 75 });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Cluster_Leader_${leaderId}.kml`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        setCommitProgress({ step: 'Download complete!', progress: 100 });
+        
+        setTimeout(() => {
+          alert(`🌍 Cluster KML Downloaded Successfully!\n\n📁 File: Cluster_Leader_${leaderId}.kml\n\n✨ Features included:\n• Leader & follower trajectories with distinct colors\n• Time-based animation for Google Earth\n• Detailed flight data (lat/lon/alt/time)\n• Formation center point with statistics\n• Compatible with Google Earth Pro\n\n🚀 Open with Google Earth to view the complete 3D swarm formation!`);
+          setCommitProgress(null);
+        }, 500);
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Download failed');
+      }
+    } catch (error) {
+      console.error('Cluster KML download error:', error);
+      setCommitProgress(null);
+      alert(`❌ Cluster KML Download Failed\n\nError: ${error.message}\n\nPlease ensure:\n• Trajectories have been processed\n• All cluster drones have valid data\n• Try refreshing and processing again`);
+    } finally {
+      setCommitting(false);
     }
   };
 
@@ -523,8 +593,37 @@ const SwarmTrajectory = () => {
                             <div className="cluster-plot-section">
                               <div className="cluster-plot-card">
                                 <div className="cluster-plot-header">
-                                  <h5>📊 Complete Cluster View</h5>
-                                  <span className="plot-description">All trajectories in this formation</span>
+                                  <div className="plot-header-left">
+                                    <h5>📊 Complete Cluster View</h5>
+                                    <span className="plot-description">All trajectories in this formation</span>
+                                  </div>
+                                  <div className="plot-header-actions">
+                                    <button 
+                                      className={`cluster-kml-btn ${committing ? 'loading' : ''}`}
+                                      onClick={() => downloadClusterKML(leaderId)}
+                                      disabled={committing}
+                                      title="Download complete cluster formation as KML for Google Earth visualization"
+                                      aria-label={`Download cluster ${leaderId} KML file for Google Earth`}
+                                    >
+                                      {committing ? (
+                                        <>
+                                          <span className="btn-icon spinner">⏳</span>
+                                          <div className="btn-content">
+                                            <span className="btn-text">Generating...</span>
+                                            <span className="btn-subtitle">Please wait</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="btn-icon">🌍</span>
+                                          <div className="btn-content">
+                                            <span className="btn-text">Cluster KML</span>
+                                            <span className="btn-subtitle">Google Earth</span>
+                                          </div>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="cluster-plot clickable" onClick={() => openLightbox(`${getBackendURL()}/static/plots/cluster_leader_${leaderId}.jpg`, `Cluster ${leaderId} Formation`)}>
                                   <img 
@@ -537,6 +636,20 @@ const SwarmTrajectory = () => {
                                   <div className="zoom-overlay">
                                     <span className="zoom-icon">🔍</span>
                                     <span>Click to enlarge</span>
+                                  </div>
+                                </div>
+                                <div className="cluster-features">
+                                  <div className="feature-item">
+                                    <span className="feature-icon">🎬</span>
+                                    <span className="feature-text">Time Animation</span>
+                                  </div>
+                                  <div className="feature-item">
+                                    <span className="feature-icon">📍</span>
+                                    <span className="feature-text">Precise Coordinates</span>
+                                  </div>
+                                  <div className="feature-item">
+                                    <span className="feature-icon">🎨</span>
+                                    <span className="feature-text">Color-Coded Paths</span>
                                   </div>
                                 </div>
                               </div>

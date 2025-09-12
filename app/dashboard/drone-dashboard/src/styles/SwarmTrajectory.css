@@ -7,6 +7,196 @@
   min-height: 100vh;
 }
 
+/* Enhanced Cluster Plot Header */
+.cluster-plot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.plot-header-left {
+  flex: 1;
+}
+
+.plot-header-left h5 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a202c;
+}
+
+.plot-description {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.plot-header-actions {
+  flex-shrink: 0;
+}
+
+/* Professional Cluster KML Button */
+.cluster-kml-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.cluster-kml-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.cluster-kml-btn:hover::before {
+  left: 100%;
+}
+
+.cluster-kml-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.35);
+}
+
+.cluster-kml-btn:active {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.3);
+}
+
+.cluster-kml-btn:disabled,
+.cluster-kml-btn.loading {
+  cursor: not-allowed;
+  opacity: 0.8;
+  transform: none;
+}
+
+.cluster-kml-btn:disabled:hover,
+.cluster-kml-btn.loading:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+}
+
+.cluster-kml-btn .spinner {
+  animation: spin 1s linear infinite;
+}
+
+.cluster-kml-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cluster-kml-btn .btn-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.btn-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.btn-text {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-subtitle {
+  font-size: 11px;
+  opacity: 0.85;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* Cluster Features */
+.cluster-features {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.feature-icon {
+  font-size: 14px;
+}
+
+/* Mobile Responsive Design */
+@media (max-width: 768px) {
+  .swarm-trajectory {
+    padding: 16px;
+  }
+  
+  .cluster-plot-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .plot-header-actions {
+    align-self: stretch;
+  }
+  
+  .cluster-kml-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+  
+  .cluster-features {
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  
+  .feature-item {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-content {
+    align-items: center;
+    text-align: center;
+  }
+  
+  .cluster-kml-btn .btn-icon {
+    font-size: 20px;
+  }
+}
+
 /* Header Section */
 .header {
   display: flex;

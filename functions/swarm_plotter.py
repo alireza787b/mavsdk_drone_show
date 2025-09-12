@@ -4,6 +4,8 @@ Generates visualization plots for swarm trajectories
 """
 import os
 import logging
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for server environments
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
@@ -20,7 +22,12 @@ def generate_swarm_plots(all_trajectories, swarm_structure, plots_dir):
     - Combined swarm plot
     """
     ensure_directory_exists(plots_dir)
-    logger.info(f"Generating plots for {len(all_trajectories)} drones")
+    logger.info(f"Generating plots for {len(all_trajectories)} drones to {plots_dir}")
+    
+    # Verify directory is writable
+    if not os.access(plots_dir, os.W_OK):
+        logger.error(f"Plots directory not writable: {plots_dir}")
+        raise PermissionError(f"Cannot write to plots directory: {plots_dir}")
     
     try:
         # Individual drone plots
@@ -77,9 +84,15 @@ def plot_single_drone(hw_id, trajectory, plots_dir):
         ax.view_init(elev=30, azim=-60)
         
         plt.tight_layout()
-        plt.savefig(os.path.join(plots_dir, f'drone_{hw_id}_trajectory.jpg'), 
-                   dpi=90, bbox_inches='tight', optimize=True, quality=85)
+        plot_path = os.path.join(plots_dir, f'drone_{hw_id}_trajectory.jpg')
+        plt.savefig(plot_path, dpi=90, bbox_inches='tight', facecolor='white')
         plt.close()
+        
+        # Verify file was created
+        if os.path.exists(plot_path):
+            logger.debug(f"✓ Generated plot: {plot_path} ({os.path.getsize(plot_path)} bytes)")
+        else:
+            logger.error(f"✗ Failed to create plot: {plot_path}")
         
         logger.debug(f"Generated individual plot for drone {hw_id}")
         
@@ -117,9 +130,15 @@ def plot_cluster(leader_id, cluster_trajectories, plots_dir):
         ax.view_init(elev=30, azim=-60)
         
         plt.tight_layout()
-        plt.savefig(os.path.join(plots_dir, f'cluster_leader_{leader_id}.jpg'),
-                   dpi=90, bbox_inches='tight', optimize=True, quality=85)
+        plot_path = os.path.join(plots_dir, f'cluster_leader_{leader_id}.jpg')
+        plt.savefig(plot_path, dpi=90, bbox_inches='tight', facecolor='white')
         plt.close()
+        
+        # Verify file was created
+        if os.path.exists(plot_path):
+            logger.debug(f"✓ Generated cluster plot: {plot_path} ({os.path.getsize(plot_path)} bytes)")
+        else:
+            logger.error(f"✗ Failed to create cluster plot: {plot_path}")
         
         logger.debug(f"Generated cluster plot for leader {leader_id}")
         
@@ -159,9 +178,15 @@ def plot_combined_swarm(all_trajectories, plots_dir):
         ax.view_init(elev=30, azim=-60)
         
         plt.tight_layout()
-        plt.savefig(os.path.join(plots_dir, 'combined_swarm.jpg'),
-                   dpi=100, bbox_inches='tight', optimize=True, quality=85)
+        plot_path = os.path.join(plots_dir, 'combined_swarm.jpg')
+        plt.savefig(plot_path, dpi=100, bbox_inches='tight', facecolor='white')
         plt.close()
+        
+        # Verify file was created
+        if os.path.exists(plot_path):
+            logger.info(f"✓ Generated combined swarm plot: {plot_path} ({os.path.getsize(plot_path)} bytes)")
+        else:
+            logger.error(f"✗ Failed to create combined swarm plot: {plot_path}")
         
         logger.info("Generated combined swarm plot")
         
