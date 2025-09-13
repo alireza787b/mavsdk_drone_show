@@ -96,6 +96,7 @@ from mavsdk.offboard import (
     PositionNedYaw,
     VelocityBodyYawspeed,
     PositionGlobalYaw,
+    VelocityNedYaw,
     OffboardError,
 )
 from mavsdk.telemetry import LandedState
@@ -363,6 +364,8 @@ async def perform_swarm_trajectory(
     # -----------------------------------
     # Main Trajectory Execution Loop
     # -----------------------------------
+    last_velocity = None  # Track last velocity for continue_heading behavior
+
     while waypoint_index < total_waypoints:
         try:
             now = time.time()
@@ -470,7 +473,10 @@ async def perform_swarm_trajectory(
                 # Update LED color
                 led_controller.set_color(ledr, ledg, ledb)
 
-                # --- (4) Progress Logging ---
+                # --- (4) Capture velocity for continue_heading behavior ---
+                last_velocity = (vx, vy, vz, 0.0)  # yaw_rate = 0 for now
+
+                # --- (5) Progress Logging ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
 
@@ -513,75 +519,80 @@ async def perform_swarm_trajectory(
     logger.info(f"Trajectory complete. Executing end behavior: {end_behavior}")
     led_controller.set_color(0, 255, 255)  # Cyan for end behavior
     
-    await execute_end_behavior(drone, end_behavior, launch_lat, launch_lon, launch_alt)
+    await execute_end_behavior(drone, end_behavior, launch_lat, launch_lon, launch_alt, last_velocity)
 
     logger.info("Swarm trajectory mission complete.")
     led_controller.set_color(0, 255, 0)  # Green for completion
 
 
-async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, launch_lon: float, launch_alt: float):
+async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, launch_lon: float, launch_alt: float, last_velocity=None):
     """
-    Execute the specified end-of-mission behavior.
-    
+    Execute the specified end-of-mission behavior using PX4 native flight modes.
+
     Args:
         drone: MAVSDK drone system instance
         behavior: End behavior mode
         launch_lat: Launch latitude for return_home
-        launch_lon: Launch longitude for return_home  
+        launch_lon: Launch longitude for return_home
         launch_alt: Launch altitude for return_home
+        last_velocity: Last NED velocity vector for continue_heading mode
     """
     logger = logging.getLogger(__name__)
-    
+
     try:
         if behavior == 'return_home':
-            logger.info("Executing return_home behavior")
-            # Return to launch position and land
-            return_gp = PositionGlobalYaw(
-                launch_lat,
-                launch_lon, 
-                launch_alt + 5.0,  # 5m above launch for safety
-                0.0,  # Face north
-                PositionGlobalYaw.AltitudeType.AMSL
-            )
-            await drone.offboard.set_position_global(return_gp)
-            await asyncio.sleep(5)  # Wait to reach return position
-            
+            logger.info("Executing return_home behavior - switching to PX4 RTL mode")
             await stop_offboard_mode(drone)
-            await perform_landing(drone)
-            await wait_for_landing(drone)
-            
+            await drone.action.return_to_launch()
+            logger.info("RTL mode activated - drone will return home and land automatically")
+
         elif behavior == 'land_current':
-            logger.info("Executing land_current behavior")
-            # Land at current position
+            logger.info("Executing land_current behavior - switching to PX4 LAND mode")
             await stop_offboard_mode(drone)
-            await perform_landing(drone)
+            await drone.action.land()
             await wait_for_landing(drone)
-            
+            logger.info("Landing at current position completed")
+
         elif behavior == 'hold_position':
-            logger.info("Executing hold_position behavior")
-            # Continue holding at final waypoint position
-            # Offboard mode remains active - drone will hover
-            logger.info("Holding position. Offboard mode remains active.")
-            
+            logger.info("Executing hold_position behavior - switching to PX4 HOLD mode")
+            await stop_offboard_mode(drone)
+            await drone.action.hold()
+            logger.info("HOLD mode activated - drone will maintain current position")
+
         elif behavior == 'continue_heading':
-            logger.info("Executing continue_heading behavior")
-            # Continue with last heading and velocity
-            # Note: This is advanced behavior - needs last velocity vector
-            logger.info("Continue heading behavior - maintaining last trajectory vector")
-            # Implementation would continue last velocity setpoint
-            
+            logger.info("Executing continue_heading behavior - maintaining last velocity vector")
+            if last_velocity is not None:
+                vx, vy, vz, yaw_rate = last_velocity
+                logger.info(f"Continuing with velocity: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} m/s, yaw_rate={yaw_rate:.2f} deg/s")
+
+                # Continue with last velocity indefinitely
+                while True:
+                    try:
+                        await drone.offboard.set_velocity_ned(
+                            VelocityNedYaw(vx, vy, vz, yaw_rate)
+                        )
+                        await asyncio.sleep(0.1)  # 10Hz velocity commands
+                    except OffboardError:
+                        logger.warning("Offboard error in continue_heading - stopping")
+                        break
+            else:
+                logger.warning("No last velocity available for continue_heading, switching to HOLD")
+                await stop_offboard_mode(drone)
+                await drone.action.hold()
+
         else:
             logger.warning(f"Unknown end behavior '{behavior}', defaulting to return_home")
             await execute_end_behavior(drone, 'return_home', launch_lat, launch_lon, launch_alt)
-            
+
     except Exception as e:
         logger.error(f"Error executing end behavior '{behavior}': {e}")
         # Fallback to safe landing
         try:
             await stop_offboard_mode(drone)
-            await perform_landing(drone)
+            await drone.action.land()
+            logger.info("Emergency landing initiated")
         except Exception as fallback_error:
-            logger.error(f"Fallback landing also failed: {fallback_error}")
+            logger.error(f"Emergency landing also failed: {fallback_error}")
 
 
 # Import all the other functions from drone_show.py (connection, preflight, etc.)
