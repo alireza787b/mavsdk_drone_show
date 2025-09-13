@@ -120,7 +120,8 @@ sudo apt install docker.io
 Load the downloaded image into Docker:
 
 ```bash
-docker load < drone-template-v3.tar
+docker load < drone-template_v3.
+docker tag drone-template:v3.0 drone-template:latest
 ```
 
 #### Image Features and Components
@@ -183,7 +184,7 @@ cd ~
 git clone https://github.com/alireza787b/mavsdk_drone_show
 cd mavsdk_drone_show
 git checkout main-candidate
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
