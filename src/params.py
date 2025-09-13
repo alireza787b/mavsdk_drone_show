@@ -255,14 +255,39 @@ class Params:
     auto_detection_interval = 15  # Interval in seconds
     max_deviation = 1.5 # Maximum allowed deviation in meters for pos_id detection
 
-    # Swarm Trajectory Mode Configuration
+    # =========================
+    # SWARM TRAJECTORY CONFIGURATION
+    # =========================
+
+    # Basic Trajectory Settings
     swarm_trajectory_dt = 0.05              # Trajectory interpolation timestep (seconds)
-    swarm_trajectory_max_speed = 20.0       # Maximum allowed speed (m/s) - for future use
-    
+    swarm_trajectory_max_speed = 20.0       # Maximum allowed speed (m/s) - for safety
+
+    # WAYPOINT ACCEPTANCE RADIUS (most important setting)
+    # How close to waypoint before considering "reached" and starting turn
+    swarm_waypoint_acceptance_radius = 4.0  # meters
+
+    # TUNING GUIDE:
+    # 1.0-2.0m  = Very tight turns (precision/aerobatic shows)
+    # 3.0-5.0m  = Balanced turns (recommended for most shows)  ← YOU ARE HERE
+    # 6.0-10.0m = Smooth turns (cinematic/large formations)
+    #
+    # TOO TIGHT NOW? Try: 5.0 or 6.0
+    # TOO LOOSE?    Try: 3.0 or 2.0
+
+    # FLIGHT MODE
+    swarm_flyover_mode = True               # True = fly OVER waypoints exactly
+                                            # False = cut corners for efficiency
+                                            # Keep True for precision shows
+
+    # ADVANCED SETTINGS (usually don't need to change)
+    swarm_curve_tightness = 0.6             # 0.0-1.0 (not used in current implementation)
+    swarm_speed_adaptive = True             # Auto-adjust radius based on speed
+
     # LED Colors for swarm trajectory mode (RGB)
-    swarm_leader_led_color = (255, 0, 0)    # Red for leaders  
+    swarm_leader_led_color = (255, 0, 0)    # Red for leaders
     swarm_follower_led_color = (0, 255, 0)  # Green for followers
-    
+
     # Processing configuration
     swarm_missing_leader_strategy = 'skip'  # 'skip' or 'error' when leader CSV missing
 

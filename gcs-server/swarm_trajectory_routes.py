@@ -321,6 +321,87 @@ def register_swarm_trajectory_routes(app):
             logger.error(f"Failed to clear drone {leader_id} trajectory: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    @app.route('/api/swarm/trajectory/remove/<int:leader_id>', methods=['DELETE'])
+    def remove_leader_trajectory(leader_id):
+        """Remove trajectory for specific leader and clear all related processed files and plots"""
+        try:
+            folders = get_swarm_trajectory_folders()
+            removed_files = []
+
+            # 1. Remove raw leader trajectory file
+            raw_file = os.path.join(folders['raw'], f'Drone {leader_id}.csv')
+            if os.path.exists(raw_file):
+                os.remove(raw_file)
+                removed_files.append(f'raw/Drone {leader_id}.csv')
+                logger.info(f"Removed raw trajectory for leader {leader_id}")
+
+            # 2. Get follower information to clear their processed files
+            try:
+                swarm_structure = analyze_swarm_structure()
+                leader_cluster = None
+
+                for leader, followers in swarm_structure['hierarchies'].items():
+                    if leader == leader_id:
+                        leader_cluster = [leader] + followers
+                        break
+
+                if leader_cluster:
+                    # 3. Clear processed files for entire cluster
+                    for drone_id in leader_cluster:
+                        processed_file = os.path.join(folders['processed'], f'Drone {drone_id}.csv')
+                        if os.path.exists(processed_file):
+                            os.remove(processed_file)
+                            removed_files.append(f'processed/Drone {drone_id}.csv')
+
+                    # 4. Clear all related plot files
+                    plot_files = [
+                        f'{leader_id}_cluster_formation.jpg',
+                        f'{leader_id}_cluster_trajectory.jpg',
+                        f'drone_{leader_id}_trajectory.jpg'  # Individual plots
+                    ]
+
+                    # Also clear follower plots
+                    for follower_id in leader_cluster[1:]:  # Skip leader, already handled
+                        plot_files.append(f'drone_{follower_id}_trajectory.jpg')
+
+                    for plot_file in plot_files:
+                        plot_path = os.path.join(folders['plots'], plot_file)
+                        if os.path.exists(plot_path):
+                            os.remove(plot_path)
+                            removed_files.append(f'plots/{plot_file}')
+
+                    logger.info(f"Removed complete cluster {leader_id}: {len(removed_files)} files")
+                else:
+                    logger.warning(f"No cluster found for leader {leader_id}, only cleared raw file")
+
+            except Exception as cluster_error:
+                logger.warning(f"Could not analyze cluster structure: {cluster_error}")
+                # Continue anyway - raw file was already removed
+
+            # 5. Clear any orphaned processed files that might exist
+            try:
+                processed_leader_file = os.path.join(folders['processed'], f'Drone {leader_id}.csv')
+                if os.path.exists(processed_leader_file):
+                    os.remove(processed_leader_file)
+                    removed_files.append(f'processed/Drone {leader_id}.csv')
+            except:
+                pass  # Ignore if already removed or doesn't exist
+
+            message = f"Removed trajectory for Drone {leader_id}"
+            if len(removed_files) > 1:
+                message += f" and {len(removed_files)-1} related cluster files"
+
+            return jsonify({
+                'success': True,
+                'message': message,
+                'removed_files': removed_files,
+                'files_removed': len(removed_files)
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to remove leader {leader_id} trajectory: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/swarm/trajectory/download/<int:drone_id>', methods=['GET'])
     def download_drone_trajectory(drone_id):
         """Download specific drone's processed trajectory"""

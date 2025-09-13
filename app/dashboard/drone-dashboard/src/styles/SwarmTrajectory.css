@@ -549,6 +549,13 @@
   text-align: center;
 }
 
+.upload-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
 .upload-btn {
   display: inline-flex;
   align-items: center;
@@ -561,6 +568,9 @@
   font-weight: 600;
   transition: background 0.3s ease;
   text-decoration: none;
+  width: 100%;
+  justify-content: center;
+  max-width: 200px;
 }
 
 .upload-btn:hover {
@@ -577,6 +587,33 @@
 
 .upload-icon {
   font-size: 16px;
+}
+
+.remove-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 8px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  max-width: 200px;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  transform: translateY(-1px);
+}
+
+.remove-icon {
+  font-size: 14px;
 }
 
 /* Process Controls */

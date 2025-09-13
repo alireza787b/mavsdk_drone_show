@@ -217,6 +217,42 @@ const SwarmTrajectory = () => {
   // Keep the old function name for compatibility but delegate to smart processing
   const processTrajectories_old = () => handleSmartProcessing(false);
 
+  const removeTrajectoryFile = async (leaderId) => {
+    if (!window.confirm(`Remove trajectory for Drone ${leaderId}?\n\nThis will delete:\n• Raw trajectory CSV\n• All processed files for this cluster\n• All generated plots\n\nThis cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/remove/${leaderId}`, {
+        method: 'DELETE'
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove from uploaded leaders
+        setUploadedLeaders(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(leaderId);
+          return newSet;
+        });
+
+        // Clear results if this was affecting processed data
+        if (results && results.processed_leaders && results.processed_leaders.includes(leaderId)) {
+          setResults(null);
+        }
+
+        await fetchStatus();
+        await fetchRecommendation();
+        alert(`✅ Drone ${leaderId} trajectory removed successfully!\n\n${result.message}`);
+      } else {
+        alert(`❌ Remove failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Remove error:', error);
+      alert(`❌ Remove error: ${error.message}`);
+    }
+  };
+
   const clearAll = async () => {
     if (!window.confirm('This will clear all uploaded trajectories, processed files, and generated plots. Continue?')) {
       return;
@@ -227,7 +263,7 @@ const SwarmTrajectory = () => {
         method: 'POST'
       });
       const result = await response.json();
-      
+
       if (result.success) {
         setUploadedLeaders(new Set());
         setResults(null);
@@ -608,19 +644,32 @@ const SwarmTrajectory = () => {
                       id={`file-${leaderId}`}
                       style={{ display: 'none' }}
                     />
-                    <label htmlFor={`file-${leaderId}`} className="upload-btn">
-                      {uploadedLeaders.has(leaderId) ? (
-                        <>
-                          <span className="upload-icon">✓</span>
-                          Replace CSV
-                        </>
-                      ) : (
-                        <>
-                          <span className="upload-icon">↑</span>
-                          Upload CSV
-                        </>
+                    <div className="upload-controls">
+                      <label htmlFor={`file-${leaderId}`} className="upload-btn">
+                        {uploadedLeaders.has(leaderId) ? (
+                          <>
+                            <span className="upload-icon">✓</span>
+                            Replace CSV
+                          </>
+                        ) : (
+                          <>
+                            <span className="upload-icon">↑</span>
+                            Upload CSV
+                          </>
+                        )}
+                      </label>
+
+                      {uploadedLeaders.has(leaderId) && (
+                        <button
+                          className="remove-btn"
+                          onClick={() => removeTrajectoryFile(leaderId)}
+                          title={`Remove trajectory for Drone ${leaderId}`}
+                        >
+                          <span className="remove-icon">🗑️</span>
+                          Remove
+                        </button>
                       )}
-                    </label>
+                    </div>
                   </div>
                 </div>
               ))}
