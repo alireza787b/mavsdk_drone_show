@@ -86,6 +86,24 @@ class Params:
     get_drone_state_URI = 'get_drone_state' # URI for getting drone state
     send_drone_command_URI = 'api/send-command'  # Replace with actual URI
 
+    # Professional Logging & Status Reporting Configuration (Ultra-Quiet Mode)
+    TELEMETRY_REPORT_INTERVAL = 120         # Report telemetry summary every 2 minutes (was 30s)
+    GIT_STATUS_REPORT_INTERVAL = 300        # Report git status summary every 5 minutes (was 60s)
+    STATUS_DASHBOARD_INTERVAL = 30          # Update status dashboard every 30 seconds (was 10s)
+    POLLING_QUIET_MODE = True               # Suppress routine polling success messages
+    ERROR_REPORT_THROTTLE = 20              # Report recurring errors every N occurrences (was 10)
+    HEALTH_CHECK_INTERVAL = 600             # Overall system health check every 10 minutes (was 5m)
+
+    # Ultra-Quiet Mode Settings
+    ULTRA_QUIET_MODE = True                 # Enable ultra-quiet mode for production
+    SUPPRESS_RECOVERY_MESSAGES = True       # Don't log every recovery event
+    MIN_ERROR_THRESHOLD = 5                 # Minimum errors before logging starts
+
+    # API Request Logging Optimization
+    LOG_ROUTINE_API_CALLS = False           # Don't log routine API calls (telemetry, ping)
+    API_ERROR_LOG_THRESHOLD = 400           # Only log API responses >= this status code
+    LOG_SUCCESSFUL_COMMANDS = True          # Still log successful command completions
+
     get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
     get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
     flask_telem_socket_port = 5000          # Flask telemetry socket port
@@ -247,6 +265,64 @@ class Params:
     
     # Processing configuration
     swarm_missing_leader_strategy = 'skip'  # 'skip' or 'error' when leader CSV missing
+
+    # =========================
+    # Swarm Trajectory Mode Parameters
+    # =========================
+    
+    # File Path Configuration
+    SWARM_TRAJECTORY_BASE_PATH = "trajectory/processed"
+    SWARM_TRAJECTORY_FILE_PREFIX = "drone_"
+    SWARM_TRAJECTORY_FILE_SUFFIX = ".csv"
+    
+    # End-of-Mission Behavior Options
+    # Available modes: 'return_home', 'land_current', 'hold_position', 'continue_heading'
+    SWARM_TRAJECTORY_END_BEHAVIOR = 'return_home'
+    
+    # Mission Execution Settings
+    SWARM_TRAJECTORY_FORCE_GLOBAL = True       # Always use global offboard positioning
+    SWARM_TRAJECTORY_REQUIRE_YAW = True        # Use yaw from CSV trajectory
+    SWARM_TRAJECTORY_SYNC_TOLERANCE = 0.1      # Synchronization tolerance in seconds
+    
+    # Safety and Performance
+    SWARM_TRAJECTORY_SAFETY_MARGIN = 2.0       # Safety margin for trajectory execution
+    SWARM_TRAJECTORY_MAX_VELOCITY = 15.0       # Maximum velocity for trajectory mode
+    SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER = 1.2  # Timeout multiplier for mission duration
+    
+    # Takeoff Configuration (same as drone show)
+    SWARM_TRAJECTORY_TAKEOFF_MODE = "BODY_VELOCITY"  # Use same as drone show
+    SWARM_TRAJECTORY_TAKEOFF_ALT = 5.0               # Initial takeoff altitude
+    
+    # Logging and Debug
+    SWARM_TRAJECTORY_VERBOSE_LOGGING = True     # Enable detailed trajectory logging
+    SWARM_TRAJECTORY_LOG_WAYPOINTS = False      # Log each waypoint execution
+    
+    # React UI Integration
+    swarm_trajectory_executer = "swarm_trajectory_mission.py"  # Script name for UI
+
+    @classmethod
+    def get_swarm_trajectory_file_path(cls, position_id):
+        """
+        Returns the path to the swarm trajectory file based on position ID and mode.
+        
+        Args:
+            position_id (int): The drone's position identifier.
+            
+        Returns:
+            str: Full path to the trajectory CSV file
+        """
+        base_dir = 'shapes_sitl' if cls.sim_mode else 'shapes'
+        filename = f"{cls.SWARM_TRAJECTORY_FILE_PREFIX}{position_id}{cls.SWARM_TRAJECTORY_FILE_SUFFIX}"
+        
+        trajectory_path = os.path.join(
+            base_dir, 
+            cls.SWARM_TRAJECTORY_BASE_PATH, 
+            filename
+        )
+        
+        # Debug: Print the trajectory file path
+        print(f"[DEBUG] Swarm Trajectory File: {trajectory_path}")
+        return trajectory_path
 
     @classmethod
     def get_trajectory_files(cls, position_id, custom_csv):

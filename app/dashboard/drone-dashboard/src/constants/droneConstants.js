@@ -9,6 +9,15 @@ export const DRONE_MISSION_TYPES = {
     SWARM_TRAJECTORY: 4,
 };
 
+// Define mission display order for better UX (Cancel last as requested)
+export const DRONE_MISSION_DISPLAY_ORDER = [
+    { key: 'DRONE_SHOW_FROM_CSV', value: DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV },
+    { key: 'CUSTOM_CSV_DRONE_SHOW', value: DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW },
+    { key: 'SMART_SWARM', value: DRONE_MISSION_TYPES.SMART_SWARM },
+    { key: 'SWARM_TRAJECTORY', value: DRONE_MISSION_TYPES.SWARM_TRAJECTORY },
+    { key: 'NONE', value: DRONE_MISSION_TYPES.NONE }, // Cancel last for safety
+];
+
 export const DRONE_ACTION_TYPES = {
     TAKE_OFF: 10,
     LAND: 101,

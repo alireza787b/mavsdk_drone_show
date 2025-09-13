@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import MissionNotification from './MissionNotification';
-import { DRONE_MISSION_TYPES, defaultTriggerTimeDelay, getMissionDescription } from '../constants/droneConstants';
+import { DRONE_MISSION_TYPES, DRONE_MISSION_DISPLAY_ORDER, defaultTriggerTimeDelay, getMissionDescription } from '../constants/droneConstants';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
@@ -74,22 +74,24 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
 
       {!selectedMission && (
         <div className="mission-cards">
-          {Object.entries(missionTypes).map(([key, value]) => (
+          {DRONE_MISSION_DISPLAY_ORDER.map((mission) => (
             <MissionCard
-              key={value}
-              missionType={value}
+              key={mission.value}
+              missionType={mission.value}
               icon={
-                value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
+                mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
                   ? '🛸'
-                  : value === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
+                  : mission.value === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
                   ? '🎯'
-                  : value === DRONE_MISSION_TYPES.SMART_SWARM
+                  : mission.value === DRONE_MISSION_TYPES.SMART_SWARM
                   ? '🐝🐝🐝'
+                  : mission.value === DRONE_MISSION_TYPES.SWARM_TRAJECTORY
+                  ? '🚀🛸🚀'
                   : '🚫'
               }
-              label={key === 'NONE' ? 'Cancel Mission' : key.replace(/_/g, ' ')}
-              onClick={() => handleMissionSelect(value)}
-              isCancel={value === DRONE_MISSION_TYPES.NONE}
+              label={mission.key === 'NONE' ? 'Cancel Mission' : mission.key.replace(/_/g, ' ')}
+              onClick={() => handleMissionSelect(mission.value)}
+              isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
             />
           ))}
         </div>
@@ -103,7 +105,11 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
               ? '🛸'
               : selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
               ? '🎯'
-              : '🐝🐝🐝'
+              : selectedMission === DRONE_MISSION_TYPES.SMART_SWARM
+              ? '🐝🐝🐝'
+              : selectedMission === DRONE_MISSION_TYPES.SWARM_TRAJECTORY
+              ? '🚀🛸🚀'
+              : '❓'
           }
           label={Object.keys(missionTypes)
             .find((key) => missionTypes[key] === selectedMission)

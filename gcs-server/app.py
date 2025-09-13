@@ -62,7 +62,7 @@ def create_app():
     
     # Add static file serving for trajectory plots
     from flask import send_from_directory
-    from functions.swarm_trajectory_processor import get_swarm_trajectory_folders
+    from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
     
     @app.route('/static/plots/<filename>')
     def serve_plot(filename):

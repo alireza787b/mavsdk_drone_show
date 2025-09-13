@@ -7,6 +7,133 @@
   min-height: 100vh;
 }
 
+/* Smart Processing Recommendation Styles */
+.processing-recommendation {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.processing-recommendation.mandatory-full-reprocess {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.processing-recommendation.recommended-full-reprocess {
+  background: #fefce8;
+  border-color: #eab308;
+}
+
+.processing-recommendation.incremental-with-option {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.processing-recommendation.safe-incremental {
+  background: #f0fdf4;
+  border-color: #22c55e;
+}
+
+.processing-recommendation.no-uploads {
+  background: #f8fafc;
+  border-color: #64748b;
+}
+
+.recommendation-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.recommendation-icon {
+  font-size: 18px;
+}
+
+.recommendation-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.recommendation-details {
+  margin: 12px 0;
+  padding-left: 28px;
+}
+
+.recommendation-detail {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.advanced-processing-options {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.process-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+  justify-content: center;
+}
+
+.process-option-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.process-option-btn.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.process-option-btn.primary:hover:not(:disabled) {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.process-option-btn.secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.process-option-btn.secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+.process-option-btn.tertiary {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.process-option-btn.tertiary:hover:not(:disabled) {
+  background: #fee2e2;
+  transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Enhanced Cluster Plot Header */
 .cluster-plot-header {
   display: flex;

@@ -7,7 +7,8 @@ import logging
 from flask import request, jsonify
 from utils import ensure_directory
 from functions.swarm_analyzer import analyze_swarm_structure
-from functions.swarm_trajectory_processor import process_swarm_trajectories, get_swarm_trajectory_folders
+from functions.swarm_trajectory_processor import process_swarm_trajectories, get_processing_recommendation, clear_processed_data
+from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 from functions.file_management import clear_directory
 from src.params import Params
 
@@ -82,20 +83,61 @@ def register_swarm_trajectory_routes(app):
     
     @app.route('/api/swarm/trajectory/process', methods=['POST'])
     def process_trajectories():
-        """Process all uploaded leader trajectories"""
+        """Smart processing with automatic change detection and clearing"""
         try:
-            logger.info("Starting swarm trajectory processing via API")
-            result = process_swarm_trajectories()
-            
+            # Get processing options from request
+            data = request.get_json() or {}
+            force_clear = data.get('force_clear', False)
+            auto_reload = data.get('auto_reload', True)
+
+            logger.info(f"Starting smart trajectory processing (force_clear={force_clear}, auto_reload={auto_reload})")
+
+            # Use smart processing with new parameters
+            result = process_swarm_trajectories(force_clear=force_clear, auto_reload=auto_reload)
+
             if result['success']:
                 logger.info(f"Processing completed: {result['processed_drones']} drones")
+                if result.get('auto_reloaded'):
+                    logger.info(f"Auto-reloaded leaders: {result['auto_reloaded']}")
             else:
                 logger.error(f"Processing failed: {result.get('error', 'Unknown error')}")
-            
+
             return jsonify(result)
-            
+
         except Exception as e:
             logger.error(f"API processing error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/swarm/trajectory/recommendation', methods=['GET'])
+    def get_trajectory_recommendation():
+        """Get smart processing recommendation based on current state"""
+        try:
+            recommendation = get_processing_recommendation()
+            logger.info(f"Processing recommendation: {recommendation['action']}")
+            return jsonify({
+                'success': True,
+                'recommendation': recommendation
+            })
+        except Exception as e:
+            logger.error(f"Failed to get recommendation: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/swarm/trajectory/clear-processed', methods=['POST'])
+    def clear_processed_trajectories():
+        """Explicitly clear all processed data and plots"""
+        try:
+            logger.info("Clearing processed trajectory data via API")
+            result = clear_processed_data()
+
+            if result['success']:
+                logger.info(f"Cleared data: {result['message']}")
+            else:
+                logger.error(f"Clear failed: {result['error']}")
+
+            return jsonify(result)
+
+        except Exception as e:
+            logger.error(f"API clear error: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/api/swarm/trajectory/status', methods=['GET'])

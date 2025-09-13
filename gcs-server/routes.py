@@ -38,22 +38,35 @@ try:
         get_logger().log_system_event(message, level, component)
         
     def log_api_request(endpoint: str, method: str, status_code: int = 200):
-        """Log API request with intelligent filtering"""
+        """Professional API request logging with intelligent filtering"""
+        from params import Params
         logger = get_logger()
-        routine_endpoints = ['/telemetry', '/ping', '/drone-heartbeat']
-        
-        if any(routine in endpoint for routine in routine_endpoints):
-            # Only log errors or every 100th request for routine endpoints
-            if status_code >= 400:
+
+        # Define routine endpoints that shouldn't be logged unless there's an error
+        routine_endpoints = ['/telemetry', '/ping', '/drone-heartbeat', '/get-heartbeats']
+
+        # Check if this is a routine endpoint
+        is_routine = any(routine in endpoint for routine in routine_endpoints)
+
+        if is_routine and not Params.LOG_ROUTINE_API_CALLS:
+            # Only log errors for routine endpoints in professional mode
+            if status_code >= Params.API_ERROR_LOG_THRESHOLD:
+                level = "ERROR" if status_code >= 500 else "WARNING"
                 logger.log_system_event(
-                    f"{method} {endpoint} - {status_code}",
-                    "ERROR" if status_code >= 500 else "WARNING",
-                    "api"
+                    f"API Error: {method} {endpoint} → {status_code}",
+                    level, "api"
                 )
         else:
-            # Log all non-routine requests
-            level = "ERROR" if status_code >= 500 else "WARNING" if status_code >= 400 else "INFO"
-            logger.log_system_event(f"{method} {endpoint} - {status_code}", level, "api")
+            # Log important non-routine API calls
+            if status_code >= 400:
+                level = "ERROR" if status_code >= 500 else "WARNING"
+                logger.log_system_event(
+                    f"API {method} {endpoint} → {status_code}", level, "api"
+                )
+            elif not is_routine:  # Log successful non-routine calls
+                logger.log_system_event(
+                    f"✅ API {method} {endpoint} → {status_code}", "INFO", "api"
+                )
         
     LOGGING_AVAILABLE = True
 except ImportError:
@@ -152,15 +165,8 @@ def setup_routes(app):
     
     @app.route('/telemetry', methods=['GET'])
     def get_telemetry():
-        if LOGGING_AVAILABLE:
-            logger = get_logger()
-            logger.log_system_event("Telemetry data requested", "INFO", "api")
-            if not telemetry_data_all_drones:
-                logger.log_system_event("Telemetry data is currently empty", "WARNING", "api")
-        else:
-            logger.info(f"{INFO_SYMBOL} Telemetry data requested")
-            if not telemetry_data_all_drones:
-                logger.warning(f"{YELLOW}Telemetry data is currently empty{RESET}")
+        # Professional mode: Don't log routine telemetry requests
+        # This endpoint is called frequently by the dashboard
         return jsonify(telemetry_data_all_drones)
 
     # ========================================================================
@@ -179,7 +185,11 @@ def setup_routes(app):
         # Extract target_drones from command_data if provided
         target_drones = command_data.pop('target_drones', None)
 
-        log_system_event(f"Received command: {command_data} for drones: {target_drones}", "INFO", "command")
+        # Professional command logging
+        if target_drones:
+            log_system_event(f"⚡ Command '{command_data.get('action', 'unknown')}' received for {len(target_drones)} selected drones", "INFO", "command")
+        else:
+            log_system_event(f"⚡ Command '{command_data.get('action', 'unknown')}' received for all drones", "INFO", "command")
 
         try:
             drones = load_config()
@@ -195,7 +205,7 @@ def setup_routes(app):
             thread.daemon = True
             thread.start()
 
-            log_system_event("Command processing started asynchronously.", "INFO", "command")
+            # Don't log routine command processing start - reduces noise
             
             response_data = {
                 'status': 'success',
@@ -224,7 +234,17 @@ def setup_routes(app):
             elapsed_time = time.time() - start_time
             success_count = sum(results.values())
 
-            log_system_event(f"Command sent to {success_count}/{total_count} drones in {elapsed_time:.2f} seconds", "INFO", "command")
+            # Professional command completion logging
+            if success_count == total_count:
+                log_system_event(
+                    f"✅ Command completed successfully on all {total_count} drones ({elapsed_time:.2f}s)",
+                    "INFO", "command"
+                )
+            else:
+                log_system_event(
+                    f"⚠️ Command partially completed: {success_count}/{total_count} drones succeeded ({elapsed_time:.2f}s)",
+                    "WARNING", "command"
+                )
         except Exception as e:
             log_system_error(f"Error processing command asynchronously: {e}", "command")
 
@@ -238,7 +258,7 @@ def setup_routes(app):
         if not config_data:
             return error_response("No configuration data provided", 400)
 
-        log_system_event("Received configuration data for saving", "INFO", "config")
+        log_system_event("💾 Configuration update received", "INFO", "config")
 
         try:
             # Validate config_data
@@ -247,7 +267,7 @@ def setup_routes(app):
 
             # Save the configuration data
             save_config(config_data)
-            log_system_event("Configuration saved successfully", "INFO", "config")
+            log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
             git_info = None
             # If auto push to Git is enabled, perform Git operations
@@ -275,7 +295,7 @@ def setup_routes(app):
 
     @app.route('/get-config-data', methods=['GET'])
     def get_config():
-        log_system_event("Configuration data requested", "INFO", "config")
+        # Don't log routine config requests - reduces noise
         try:
             config = load_config()
             return jsonify(config)
@@ -292,10 +312,10 @@ def setup_routes(app):
         if not swarm_data:
             return error_response("No swarm data provided", 400)
 
-        log_system_event("Received swarm data for saving", "INFO", "swarm")
+        log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
         try:
             save_swarm(swarm_data)
-            log_system_event("Swarm data saved successfully", "INFO", "swarm")
+            log_system_event("✅ Swarm configuration saved successfully", "INFO", "swarm")
 
             # Determine Git push behavior
             commit_override = request.args.get('commit')
@@ -334,7 +354,7 @@ def setup_routes(app):
     
     @app.route('/get-swarm-data', methods=['GET'])
     def get_swarm():
-        log_system_event("Swarm data requested", "INFO", "swarm")
+        # Don't log routine swarm data requests - reduces noise
         try:
             swarm = load_swarm()
             return jsonify(swarm)
@@ -355,7 +375,7 @@ def setup_routes(app):
           4) Calls run_formation_process.
           5) Optionally pushes changes to Git.
         """
-        log_system_event("Show import requested", "INFO", "show")
+        log_system_event(f"📤 Show import requested: {file.filename}", "INFO", "show")
         file = request.files.get('file')
         if not file or file.filename == '':
             log_system_warning("No file part or empty filename", "show")
@@ -376,15 +396,15 @@ def setup_routes(app):
             os.remove(zip_path)
 
             # 4) Process formation
-            log_system_event(f"Starting process formation for files in {skybrush_dir}", "INFO", "show")
+            log_system_event(f"⚙️ Processing show files from {skybrush_dir}", "INFO", "show")
             output = run_formation_process(BASE_DIR)
-            log_system_event(f"Process formation output: {output}", "INFO", "show")
+            log_system_event(f"✅ Show processing completed: {output[:100]}{'...' if len(output) > 100 else ''}", "INFO", "show")
 
             # 5) Calculate comprehensive metrics (new feature)
             comprehensive_metrics = None
             if METRICS_AVAILABLE:
                 try:
-                    log_system_event("Calculating comprehensive metrics", "INFO", "show")
+                    log_system_event("📊 Calculating comprehensive show metrics", "INFO", "show")
                     metrics_engine = DroneShowMetrics(processed_dir)
                     comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
                     
@@ -396,7 +416,7 @@ def setup_routes(app):
                         upload_datetime=upload_time
                     )
                     if metrics_file:
-                        log_system_event(f"Comprehensive metrics saved to {metrics_file}", "INFO", "show")
+                        log_system_event(f"✅ Show metrics saved to {metrics_file}", "INFO", "show")
                     else:
                         log_system_warning("Failed to save comprehensive metrics", "show")
                 except Exception as metrics_error:
@@ -640,7 +660,7 @@ def setup_routes(app):
         """
         NEW ENDPOINT: Deploy show changes to git repository for drone fleet
         """
-        log_system_event("Show deployment requested", "INFO", "deploy")
+        log_system_event("🚀 Show deployment initiated", "INFO", "deploy")
         
         try:
             data = request.get_json() or {}
@@ -650,7 +670,7 @@ def setup_routes(app):
             git_result = git_operations(BASE_DIR, commit_message)
             
             if git_result.get('success'):
-                log_system_event("Show deployment successful", "INFO", "deploy")
+                log_system_event("✅ Show deployed successfully to drone fleet", "INFO", "deploy")
                 return jsonify({
                     'success': True,
                     'message': 'Show deployed successfully to drone fleet',
@@ -666,7 +686,7 @@ def setup_routes(app):
 
     @app.route('/get-show-plots/<filename>')
     def send_image(filename):
-        log_system_event(f"Image requested: {filename}", "INFO", "show")
+        # Don't log routine image requests - reduces noise
         try:
             return send_from_directory(plots_directory, filename)
         except Exception as e:
@@ -674,7 +694,7 @@ def setup_routes(app):
 
     @app.route('/get-show-plots', methods=['GET'])
     def get_show_plots():
-        log_system_event("Show plots list requested", "INFO", "show")
+        # Don't log routine plot list requests - reduces noise
         try:
             if not os.path.exists(plots_directory):
                 os.makedirs(plots_directory)
@@ -962,7 +982,7 @@ def setup_routes(app):
     
     @app.route('/ping', methods=['GET'])
     def ping():
-        """Simple endpoint to confirm connectivity."""
+        """Simple endpoint to confirm connectivity - no logging needed."""
         return jsonify({"status": "ok"}), 200
 
     # Log successful route initialization

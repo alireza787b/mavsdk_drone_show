@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
+import { getProcessingRecommendation, processTrajectories, clearProcessedData } from '../services/droneApiService';
 import '../styles/SwarmTrajectory.css';
 
 const SwarmTrajectory = () => {
@@ -14,6 +15,8 @@ const SwarmTrajectory = () => {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [commitProgress, setCommitProgress] = useState(null);
+  const [recommendation, setRecommendation] = useState(null);
+  const [clearingData, setClearingData] = useState(false);
 
   useEffect(() => {
     initializeComponent();
@@ -23,6 +26,18 @@ const SwarmTrajectory = () => {
     await fetchLeaders();
     await fetchStatus();
     await checkExistingResults();
+    await fetchRecommendation();
+  };
+
+  const fetchRecommendation = async () => {
+    try {
+      const response = await getProcessingRecommendation();
+      if (response.success) {
+        setRecommendation(response.recommendation);
+      }
+    } catch (error) {
+      console.error('Error fetching recommendation:', error);
+    }
   };
 
   const checkExistingResults = async () => {
@@ -111,36 +126,96 @@ const SwarmTrajectory = () => {
     }
   };
 
-  const processTrajectories = async () => {
-    if (uploadedLeaders.size === 0) {
-      alert('Please upload at least one drone trajectory before processing.');
-      return;
-    }
-
+  const handleSmartProcessing = async (forceRestart = false) => {
     setProcessing(true);
     setResults(null);
 
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/process`, {
-        method: 'POST'
-      });
-      const result = await response.json();
-      
+      // Get latest recommendation
+      await fetchRecommendation();
+
+      let processingOptions = { auto_reload: true };
+
+      if (forceRestart) {
+        processingOptions.force_clear = true;
+      } else if (recommendation?.requires_confirmation) {
+        // Show confirmation dialog for critical actions
+        const confirmMessage = `${recommendation.message}\n\n${recommendation.details.join('\n')}\n\nContinue?`;
+
+        if (!window.confirm(confirmMessage)) {
+          setProcessing(false);
+          return;
+        }
+
+        // Set appropriate options based on recommendation
+        if (recommendation.action === 'mandatory_full_reprocess' || recommendation.action === 'recommended_full_reprocess') {
+          processingOptions.force_clear = true;
+        }
+      }
+
+      const result = await processTrajectories(processingOptions); // Using imported function
+
       setResults(result);
-      await fetchStatus(); // Refresh status
-      
+      await fetchStatus();
+      await fetchRecommendation(); // Update recommendation after processing
+
       if (result.success) {
-        alert(`Processing complete! ${result.processed_drones} drones processed successfully.`);
+        let message = `✅ Processing complete! ${result.processed_drones} drones processed successfully.`;
+
+        if (result.auto_reloaded && result.auto_reloaded.length > 0) {
+          message += `\n\n📋 Auto-reloaded existing trajectories: ${result.auto_reloaded.join(', ')}`;
+        }
+
+        if (result.missing_leaders && result.missing_leaders.length > 0) {
+          message += `\n\n⚠️ Missing leaders: ${result.missing_leaders.join(', ')}`;
+        }
+
+        alert(message);
       } else {
-        alert(`Processing failed: ${result.error}`);
+        let errorMessage = `❌ Processing failed: ${result.error}`;
+
+        if (result.recommendation && result.recommendation.message) {
+          errorMessage += `\n\n💡 Recommendation: ${result.recommendation.message}`;
+        }
+
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Processing error:', error);
-      alert(`Processing error: ${error.message}`);
+      alert(`❌ Processing error: ${error.message}`);
     } finally {
       setProcessing(false);
     }
   };
+
+  const handleExplicitClear = async () => {
+    if (!window.confirm('🗑️ Clear All Processed Data?\n\nThis will remove:\n• All processed trajectory files\n• Generated plots and visualizations\n• Session tracking data\n\nThis action cannot be undone. Continue?')) {
+      return;
+    }
+
+    setClearingData(true);
+
+    try {
+      const result = await clearProcessedData();
+
+      if (result.success) {
+        setResults(null);
+        await fetchStatus();
+        await fetchRecommendation();
+        alert(`✅ Cleared successfully!\n\n${result.message}`);
+      } else {
+        alert(`❌ Clear failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Clear error:', error);
+      alert(`❌ Clear error: ${error.message}`);
+    } finally {
+      setClearingData(false);
+    }
+  };
+
+  // Keep the old function name for compatibility but delegate to smart processing
+  const processTrajectories_old = () => handleSmartProcessing(false);
 
   const clearAll = async () => {
     if (!window.confirm('This will clear all uploaded trajectories, processed files, and generated plots. Continue?')) {
@@ -427,7 +502,7 @@ const SwarmTrajectory = () => {
         </div>
       </div>
 
-      {/* Current Status - Clean overview */}
+      {/* Current Status - Clean overview with smart recommendations */}
       <div className="status-card">
         <h2>Current Status</h2>
         <div className="status-metrics">
@@ -444,6 +519,61 @@ const SwarmTrajectory = () => {
             <span className="metric-label">Processed</span>
           </div>
         </div>
+
+        {/* Smart Processing Recommendation */}
+        {recommendation && (
+          <div className={`processing-recommendation ${recommendation.action.replace('_', '-')}`}>
+            <div className="recommendation-header">
+              <span className="recommendation-icon">
+                {recommendation.action === 'mandatory_full_reprocess' ? '⚠️' :
+                 recommendation.action === 'recommended_full_reprocess' ? '💡' :
+                 recommendation.action === 'incremental_with_option' ? '🔄' :
+                 recommendation.action === 'safe_incremental' ? '✅' :
+                 recommendation.action === 'no_uploads' ? '📁' : 'ℹ️'}
+              </span>
+              <span className="recommendation-title">{recommendation.message}</span>
+            </div>
+            {recommendation.details && recommendation.details.length > 0 && (
+              <div className="recommendation-details">
+                {recommendation.details.map((detail, index) => (
+                  <div key={index} className="recommendation-detail">• {detail}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Additional processing options for advanced users */}
+            {recommendation.uploaded_count > 0 && (
+              <div className="advanced-processing-options">
+                <button
+                  className="process-option-btn primary"
+                  onClick={() => handleSmartProcessing(false)}
+                  disabled={processing}
+                >
+                  <span className="btn-icon">⚡</span>
+                  {recommendation.action === 'safe_incremental' ? 'Process Normally' : 'Smart Process'}
+                </button>
+
+                <button
+                  className="process-option-btn secondary"
+                  onClick={() => handleSmartProcessing(true)}
+                  disabled={processing}
+                >
+                  <span className="btn-icon">🔄</span>
+                  Start Fresh
+                </button>
+
+                <button
+                  className="process-option-btn tertiary"
+                  onClick={handleExplicitClear}
+                  disabled={clearingData}
+                >
+                  <span className="btn-icon">🗑️</span>
+                  {clearingData ? 'Clearing...' : 'Clear Only'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Step-by-step workflow */}
@@ -507,7 +637,7 @@ const SwarmTrajectory = () => {
             <div className="process-controls">
               <button 
                 className={`process-btn ${processing ? 'processing' : ''} ${uploadedLeaders.size === 0 ? 'disabled' : ''}`}
-                onClick={processTrajectories} 
+                onClick={processTrajectories_old} 
                 disabled={processing || uploadedLeaders.size === 0}
               >
                 {processing ? (

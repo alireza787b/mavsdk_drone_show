@@ -82,25 +82,49 @@ def update_telemetry_stats(drone_id: str, success: bool):
 
 def should_log_telemetry_event(drone_id: str, success: bool) -> bool:
     """
-    Intelligent logging decision - reduce noise from successful polling
-    but ensure we capture important state changes and failures.
+    Ultra-quiet logging decision - absolute minimum noise for production.
+    Only logs critical events and significant state changes.
     """
+    from params import Params
+
+    # Ultra-quiet mode - extremely selective logging
+    if Params.ULTRA_QUIET_MODE:
+        stats = telemetry_stats.get(drone_id, {})
+        consecutive_failures = stats.get('consecutive_failures', 0)
+
+        if not success:
+            # Only log after multiple failures to avoid single connection hiccups
+            if consecutive_failures >= Params.MIN_ERROR_THRESHOLD:
+                # Then log every Nth failure to avoid spam
+                return consecutive_failures % Params.ERROR_REPORT_THROTTLE == 0
+            return False
+
+        # Log recovery only after significant failures, and only if enabled
+        if not Params.SUPPRESS_RECOVERY_MESSAGES and consecutive_failures >= Params.MIN_ERROR_THRESHOLD:
+            return True
+
+        # Never log routine successful polls in ultra-quiet mode
+        return False
+
+    # Regular quiet mode behavior
+    elif Params.POLLING_QUIET_MODE:
+        stats = telemetry_stats.get(drone_id, {})
+        if not success:
+            consecutive_failures = stats.get('consecutive_failures', 0)
+            return consecutive_failures == 1 or consecutive_failures % Params.ERROR_REPORT_THROTTLE == 0
+        if stats.get('consecutive_failures', 0) > 0:
+            return True
+        return False
+
+    # Legacy behavior for verbose mode
     stats = telemetry_stats.get(drone_id, {})
-    
-    # Always log failures
     if not success:
         return True
-    
-    # Always log first success after failure(s)
     if stats.get('consecutive_failures', 0) > 0:
         return True
-    
-    # Log periodic success confirmations (every 100 successful polls)
     success_count = stats.get('success_count', 0)
     if success_count > 0 and success_count % 100 == 0:
         return True
-    
-    # Otherwise, don't log routine successful telemetry
     return False
 
 def poll_telemetry(drone):
@@ -162,23 +186,24 @@ def poll_telemetry(drone):
                 # Reset consecutive error counter on success
                 if consecutive_errors > 0:
                     consecutive_errors = 0
-                    # Log recovery from errors
-                    log_drone_telemetry(
-                        drone_id, True, 
-                        {
-                            'message': 'Telemetry restored after connectivity issues',
-                            'position': (
-                                telemetry_data.get('position_lat', 0.0),
-                                telemetry_data.get('position_long', 0.0), 
-                                telemetry_data.get('position_alt', 0.0)
-                            ),
-                            'battery': telemetry_data.get('battery_voltage', 0.0),
-                            'mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
-                            'status': telemetry_data.get('state', 999)  # Send numeric state value
-                        }
-                    )
+                    # Ultra-quiet: Only log recovery if it's significant
+                    if should_log_telemetry_event(drone_id, True):
+                        log_drone_telemetry(
+                            drone_id, True,
+                            {
+                                'message': 'Telemetry restored after connectivity issues',
+                                'position': (
+                                    telemetry_data.get('position_lat', 0.0),
+                                    telemetry_data.get('position_long', 0.0),
+                                    telemetry_data.get('position_alt', 0.0)
+                                ),
+                                'battery': telemetry_data.get('battery_voltage', 0.0),
+                                'mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
+                                'status': telemetry_data.get('state', 999)
+                            }
+                        )
 
-                # Log telemetry only if it's significant
+                # Log telemetry only if it's significant (much quieter now)
                 elif should_log_telemetry_event(drone_id, True):
                     log_drone_telemetry(
                         drone_id, True,
@@ -190,20 +215,18 @@ def poll_telemetry(drone):
                             ),
                             'battery': telemetry_data.get('battery_voltage', 0.0),
                             'mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
-                            'status': telemetry_data.get('state', 999)  # Send numeric state value
+                            'status': telemetry_data.get('state', 999)
                         }
                     )
 
             else:
-                # HTTP error - log with details but avoid spam
+                # HTTP error - professional error handling with throttling
                 error_msg = f"HTTP {response.status_code}: {response.text[:100]}"
                 consecutive_errors += 1
                 update_telemetry_stats(drone_id, False)
-                
-                # Log error if it's new or every 10 consecutive errors
-                if (error_msg != last_logged_error or 
-                    consecutive_errors % 10 == 0):
-                    
+
+                # Smart error logging: first error + every Nth occurrence
+                if should_log_telemetry_event(drone_id, False):
                     log_drone_telemetry(
                         drone_id, False,
                         {
@@ -217,9 +240,9 @@ def poll_telemetry(drone):
         except requests.Timeout:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
-            
-            # Log timeout errors periodically
-            if consecutive_errors == 1 or consecutive_errors % 10 == 0:
+
+            # Log timeout errors with intelligent throttling
+            if should_log_telemetry_event(drone_id, False):
                 log_drone_telemetry(
                     drone_id, False,
                     {
@@ -232,9 +255,9 @@ def poll_telemetry(drone):
         except requests.ConnectionError as e:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
-            
-            # Log connection errors periodically
-            if consecutive_errors == 1 or consecutive_errors % 10 == 0:
+
+            # Log connection errors with smart throttling
+            if should_log_telemetry_event(drone_id, False):
                 log_drone_telemetry(
                     drone_id, False,
                     {
@@ -247,9 +270,9 @@ def poll_telemetry(drone):
         except requests.RequestException as e:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
-            
-            # Log other request errors periodically  
-            if consecutive_errors == 1 or consecutive_errors % 10 == 0:
+
+            # Log request errors with professional throttling
+            if should_log_telemetry_event(drone_id, False):
                 log_drone_telemetry(
                     drone_id, False,
                     {
@@ -289,40 +312,98 @@ def poll_telemetry(drone):
         time.sleep(Params.polling_interval)
 
 def start_telemetry_polling(drones):
-    """Start telemetry polling threads for all drones"""
+    """Start telemetry polling threads for all drones with professional reporting"""
     if not drones:
         log_system_error("Cannot start telemetry polling: no drones provided", "telemetry")
         return
-    
+
     # Initialize tracking
     initialize_telemetry_tracking(drones)
-    
+
     logger = get_logger()
     started_threads = 0
-    
+
     # Start polling threads
     for drone in drones:
         try:
             thread = threading.Thread(
-                target=poll_telemetry, 
+                target=poll_telemetry,
                 args=(drone,),
                 name=f"telemetry-{drone['hw_id']}",
                 daemon=True
             )
             thread.start()
             started_threads += 1
-            
+
         except Exception as e:
             log_system_error(
                 f"Failed to start telemetry thread for drone {drone['hw_id']}: {e}",
                 "telemetry"
             )
-    
+
+    # Start periodic status reporter
+    _start_telemetry_reporter()
+
     logger.log_system_event(
-        f"Started {started_threads}/{len(drones)} telemetry polling threads",
+        f"Started {started_threads}/{len(drones)} telemetry polling threads with professional reporting",
         "INFO" if started_threads == len(drones) else "WARNING",
         "telemetry"
     )
+
+def _start_telemetry_reporter():
+    """Start background thread for periodic telemetry status reports"""
+    def telemetry_reporter():
+        from params import Params
+        logger = get_logger()
+
+        while True:
+            try:
+                time.sleep(Params.TELEMETRY_REPORT_INTERVAL)
+                summary = get_telemetry_summary()
+
+                # Generate professional status report
+                active = summary['active_drones']
+                total = summary['total_drones']
+                failed = summary['failed_drones']
+                inactive = summary['inactive_drones']
+
+                if failed > 0:
+                    level = "WARNING"
+                    status = f"⚠️  TELEMETRY: {active}/{total} active, {failed} failed, {inactive} inactive"
+                elif inactive > 0:
+                    level = "INFO"
+                    status = f"📊 TELEMETRY: {active}/{total} active, {inactive} inactive"
+                else:
+                    level = "INFO"
+                    status = f"✅ TELEMETRY: All {total} drones active and responsive"
+
+                # Only report if there are drones configured
+                if total > 0:
+                    logger.log_system_event(status, level, "telemetry-report")
+
+                # Additional details for failed drones
+                if failed > 0:
+                    with data_lock:
+                        failed_drones = []
+                        current_time = time.time()
+                        for drone_id, stats in telemetry_stats.items():
+                            if stats.get('consecutive_failures', 0) > 5:
+                                last_error = telemetry_data_all_drones.get(drone_id, {}).get('last_error')
+                                age = int(current_time - stats.get('last_success', 0))
+                                failed_drones.append(f"D{drone_id} ({age}s ago)")
+
+                        if failed_drones:
+                            logger.log_system_event(
+                                f"Failed drones: {', '.join(failed_drones[:5])}{'...' if len(failed_drones) > 5 else ''}",
+                                "WARNING", "telemetry-report"
+                            )
+
+            except Exception as e:
+                logger.log_system_event(f"Telemetry reporter error: {e}", "ERROR", "telemetry")
+                time.sleep(60)  # Wait a minute before retrying
+
+    reporter_thread = threading.Thread(target=telemetry_reporter, daemon=True, name="telemetry-reporter")
+    reporter_thread.start()
 
 def get_telemetry_summary():
     """Get a summary of telemetry system health"""
