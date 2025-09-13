@@ -68,8 +68,8 @@ LED Status Indicators:
   • Cyan      — End behavior execution
 
 File Structure:
-  • Trajectory files: shapes[_sitl]/trajectory/processed/Drone {pos_id}.csv
-  • Same CSV format as drone show with columns: t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb
+  • Trajectory files: shapes[_sitl]/swarm_trajectory/processed/Drone {pos_id}.csv
+  • CSV format with global coordinates: t,lat,lon,alt,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb
 
 Notes:
   • Built on proven drone_show.py architecture for maximum reliability
@@ -221,13 +221,15 @@ def read_config(filename: str) -> Drone:
 def read_swarm_trajectory_file(position_id: int) -> list:
     """
     Read and adjust the swarm trajectory waypoints from a CSV file.
-    File path: shapes[_sitl]/trajectory/processed/Drone {position_id}.csv
+    File path: shapes[_sitl]/swarm_trajectory/processed/Drone {position_id}.csv
+
+    CSV format: t,lat,lon,alt,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb
 
     Args:
         position_id (int): Position ID for the drone trajectory file.
 
     Returns:
-        list: List of trajectory waypoints.
+        list: List of trajectory waypoints with lat/lon/alt coordinates.
     """
     logger = logging.getLogger(__name__)
     waypoints = []
@@ -248,10 +250,10 @@ def read_swarm_trajectory_file(position_id: int) -> list:
             for idx, row in enumerate(rows):
                 try:
                     t = float(row["t"])
-                    # Positions in NED
-                    px = float(row["px"])
-                    py = float(row["py"])
-                    pz = float(row.get("pz", 0.0))
+                    # Positions in lat/lon/alt (global coordinates)
+                    px = float(row["lat"])  # lat -> px for processing
+                    py = float(row["lon"])  # lon -> py for processing
+                    pz = float(row.get("alt", 0.0))  # alt -> pz for processing
 
                     # Velocities in NED
                     vx = float(row.get("vx", 0.0))
@@ -382,13 +384,9 @@ async def perform_swarm_trajectory(
                  raw_yaw, mode,
                  ledr, ledg, ledb) = waypoint
 
-                # --- Apply initial-position correction if enabled ---
-                if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift:
-                    px = raw_px + initial_position_drift.north_m
-                    py = raw_py + initial_position_drift.east_m
-                    pz = raw_pz + initial_position_drift.down_m
-                else:
-                    px, py, pz = raw_px, raw_py, raw_pz
+                # For global coordinates (lat/lon/alt), use them directly
+                # px = lat, py = lon, pz = alt (no conversion needed for global setpoints)
+                px, py, pz = raw_px, raw_py, raw_pz
 
                 # --- (1) Initial Climb Phase (same as drone_show.py) ---
                 time_in_climb = now - initial_climb_start_time
@@ -440,20 +438,12 @@ async def perform_swarm_trajectory(
                      raw_yaw, mode,
                      ledr, ledg, ledb) = waypoint
 
-                    if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift:
-                        px = raw_px + initial_position_drift.north_m
-                        py = raw_py + initial_position_drift.east_m
-                        pz = raw_pz + initial_position_drift.down_m
-                    else:
-                        px, py, pz = raw_px, raw_py, raw_pz
+                    # For global coordinates (lat/lon/alt), use them directly
+                    px, py, pz = raw_px, raw_py, raw_pz
 
-                # --- (3) Convert NED → LLA and Send Global Setpoint ---
-                current_alt_sp = -pz
-                # Use PyMap3D's ned2geodetic (positional args):
-                lla_lat, lla_lon, lla_alt = pm.ned2geodetic(
-                    px, py, pz,
-                    launch_lat, launch_lon, launch_alt
-                )
+                # --- (3) Use Global Coordinates Directly ---
+                # px=lat, py=lon, pz=alt (already in global coordinates)
+                lla_lat, lla_lon, lla_alt = px, py, pz
 
                 # Always use GLOBAL setpoint for swarm trajectory mode
                 gp = PositionGlobalYaw(
