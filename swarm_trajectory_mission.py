@@ -88,8 +88,6 @@ import socket
 import psutil
 import requests
 import argparse
-import pymap3d as pm
-
 from collections import namedtuple
 
 from mavsdk import System
@@ -98,8 +96,6 @@ from mavsdk.offboard import (
     PositionNedYaw,
     VelocityBodyYawspeed,
     PositionGlobalYaw,
-    VelocityNedYaw,
-    AccelerationNed,
     OffboardError,
 )
 from mavsdk.telemetry import LandedState
@@ -113,7 +109,6 @@ from drone_show_src.utils import (
     configure_logging,
     read_hw_id,
     clamp_led_value,
-    global_to_local,
 )
 
 # ----------------------------- #
@@ -361,8 +356,9 @@ async def perform_swarm_trajectory(
     csv_step = (waypoints[1][0] - waypoints[0][0]) \
         if total_waypoints > 1 else Params.DRIFT_CHECK_PERIOD
 
-    logger.info(f"Starting swarm trajectory execution with {total_waypoints} waypoints")
-    logger.info(f"End-of-mission behavior: {end_behavior}")
+    logger.info(f"=== STARTING SWARM TRAJECTORY MISSION ===")
+    logger.info(f"Waypoints: {total_waypoints} | End behavior: {end_behavior}")
+    logger.info(f"Launch position: lat={launch_lat:.6f}, lon={launch_lon:.6f}, alt={launch_alt:.1f}m")
     
     # -----------------------------------
     # Main Trajectory Execution Loop
@@ -388,15 +384,24 @@ async def perform_swarm_trajectory(
                 # px = lat, py = lon, pz = alt (no conversion needed for global setpoints)
                 px, py, pz = raw_px, raw_py, raw_pz
 
-                # --- (1) Initial Climb Phase (same as drone_show.py) ---
+                # --- (1) Initial Climb Phase (adapted for global coordinates) ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    actual_alt = -pz
+                    # pz is already positive altitude (AMSL), not NED down
+                    actual_alt = pz - launch_alt  # Altitude above launch
                     under_alt = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                     under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
                     in_initial_climb = under_alt or under_time
+
+                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING:
+                        logger.debug(
+                            f"Initial climb: alt={actual_alt:.1f}m, time={time_in_climb:.1f}s, "
+                            f"under_alt={under_alt}, under_time={under_time}"
+                        )
+
                     if not in_initial_climb:
                         initial_climb_completed = True
+                        logger.info(f"Initial climb phase completed at {actual_alt:.1f}m after {time_in_climb:.1f}s")
                 else:
                     in_initial_climb = False
 
@@ -404,23 +409,23 @@ async def perform_swarm_trajectory(
                 led_controller.set_color(ledr, ledg, ledb)
 
                 if in_initial_climb:
-                    # BODY-frame climb or LOCAL-NED climb
-                    if Params.SWARM_TRAJECTORY_TAKEOFF_MODE == "BODY_VELOCITY":
-                        vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
-                        if initial_climb_yaw is None:
-                            initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
-                        # Send body‐frame velocity setpoint
-                        await drone.offboard.set_velocity_body(
-                            VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
-                        )
-                    else:
-                        if initial_climb_yaw is None:
-                            async for e in drone.telemetry.attitude_euler():
-                                initial_climb_yaw = e.yaw_deg
-                                break
-                        await drone.offboard.set_position_ned(
-                            PositionNedYaw(px, py, pz, initial_climb_yaw)
-                        )
+                    # During initial climb, use global setpoints to reach target altitude
+                    if initial_climb_yaw is None:
+                        initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
+
+                    # Send global position setpoint during climb
+                    climb_gp = PositionGlobalYaw(
+                        lla_lat,
+                        lla_lon,
+                        lla_alt,
+                        initial_climb_yaw,
+                        PositionGlobalYaw.AltitudeType.AMSL
+                    )
+                    await drone.offboard.set_position_global(climb_gp)
+
+                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 10 == 0:
+                        logger.debug(f"Climbing to alt={lla_alt:.1f}m (target: {launch_alt + Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD:.1f}m)")
+
                     waypoint_index += 1
                     continue
 
@@ -468,12 +473,19 @@ async def perform_swarm_trajectory(
                 # --- (4) Progress Logging ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
-                
-                if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING:
+
+                # Log every 50 waypoints or at significant progress milestones
+                if (waypoint_index % 50 == 0) or (prog in [0.1, 0.25, 0.5, 0.75, 0.9]):
                     logger.info(
-                        f"WP {waypoint_index+1}/{total_waypoints}, "
-                        f"progress {prog:.2%}, ETA {time_to_end:.2f}s, "
-                        f"drift {drift_delta:.2f}s"
+                        f"Trajectory progress: {prog:.1%} complete | "
+                        f"WP {waypoint_index+1}/{total_waypoints} | "
+                        f"Alt: {lla_alt:.1f}m | ETA: {time_to_end:.0f}s"
+                    )
+
+                if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 20 == 0:
+                    logger.debug(
+                        f"Position: lat={lla_lat:.6f}, lon={lla_lon:.6f}, alt={lla_alt:.1f}m, "
+                        f"yaw={raw_yaw:.1f}°, drift={drift_delta:.2f}s"
                     )
 
                 waypoint_index += 1
