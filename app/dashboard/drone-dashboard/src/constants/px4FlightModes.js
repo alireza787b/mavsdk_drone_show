@@ -71,6 +71,7 @@ export const PX4_FLIGHT_MODES = {
 
   // Special PX4 Hold mode (observed in field - GPS-independent Hold)
   50593792: 'Hold',        // Special Hold mode variant (772 << 16) - No GPS required
+  84148224: 'Return',      // Special Return mode variant (131072 << 16) - No GPS required
 
   // Common fallback modes when GPS is not available
   // Note: PX4 typically falls back to Stabilized or Altitude mode without GPS
