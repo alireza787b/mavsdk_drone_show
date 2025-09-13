@@ -15,6 +15,8 @@ const SwarmTrajectory = () => {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [commitProgress, setCommitProgress] = useState(null);
+  const [downloadingKML, setDownloadingKML] = useState(false);
+  const [kmlProgress, setKmlProgress] = useState(null);
   const [recommendation, setRecommendation] = useState(null);
   const [clearingData, setClearingData] = useState(false);
 
@@ -329,12 +331,12 @@ const SwarmTrajectory = () => {
 
   const downloadClusterKML = async (leaderId) => {
     try {
-      setCommitting(true); // Show loading state
-      setCommitProgress({ step: 'Generating cluster KML...', progress: 25 });
+      setDownloadingKML(true);
+      setKmlProgress({ step: 'Analyzing cluster formation...', progress: 20 });
       
       const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/download-cluster-kml/${leaderId}`);
       
-      setCommitProgress({ step: 'Preparing download...', progress: 75 });
+      setKmlProgress({ step: 'Generating KML file...', progress: 60 });
       
       if (response.ok) {
         const blob = await response.blob();
@@ -348,22 +350,22 @@ const SwarmTrajectory = () => {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
-        setCommitProgress({ step: 'Download complete!', progress: 100 });
+        setKmlProgress({ step: 'Download complete!', progress: 100 });
         
         setTimeout(() => {
-          alert(`🌍 Cluster KML Downloaded Successfully!\n\n📁 File: Cluster_Leader_${leaderId}.kml\n\n✨ Features included:\n• Leader & follower trajectories with distinct colors\n• Time-based animation for Google Earth\n• Detailed flight data (lat/lon/alt/time)\n• Formation center point with statistics\n• Compatible with Google Earth Pro\n\n🚀 Open with Google Earth to view the complete 3D swarm formation!`);
-          setCommitProgress(null);
+          alert(`🌍 KML Downloaded Successfully!\n\n📁 File: Cluster_Leader_${leaderId}.kml\n🚀 Open with Google Earth to view 3D trajectories`);
+          setKmlProgress(null);
         }, 500);
       } else {
         const error = await response.json();
         throw new Error(error.error || 'Download failed');
       }
     } catch (error) {
-      console.error('Cluster KML download error:', error);
-      setCommitProgress(null);
-      alert(`❌ Cluster KML Download Failed\n\nError: ${error.message}\n\nPlease ensure:\n• Trajectories have been processed\n• All cluster drones have valid data\n• Try refreshing and processing again`);
+      console.error('KML download error:', error);
+      setKmlProgress(null);
+      alert(`❌ KML Download Failed\n\nError: ${error.message}`);
     } finally {
-      setCommitting(false);
+      setDownloadingKML(false);
     }
   };
 
@@ -455,7 +457,7 @@ const SwarmTrajectory = () => {
       return;
     }
 
-    const confirmed = window.confirm(`🚀 Commit & Push Trajectory Changes?\n\nThis will:\n✅ Save all processed trajectories to git\n✅ Push to remote repository\n✅ Make trajectories available to all drones\n\nProcessed drones: ${results.processed_drones}\nContinue?`);
+    const confirmed = window.confirm(`🚀 Commit & Push Changes?\n\nSave ${results.processed_drones} trajectories to repository and sync with all drones.\n\nContinue?`);
     
     if (!confirmed) return;
 
@@ -492,7 +494,7 @@ const SwarmTrajectory = () => {
         setCommitProgress({ step: 'Success!', progress: 100 });
         
         setTimeout(() => {
-          alert(`✅ Trajectory changes committed successfully!\n\n📊 ${results.processed_drones} drone trajectories pushed to repository\n🌐 All drones now have access to the latest trajectories\n\n${data.git_info?.message || 'Git operations completed successfully'}`);
+          alert(`✅ Changes Committed Successfully!\n\n${results.processed_drones} trajectories synced to repository\n${data.git_info?.message || 'All drones updated'}`);
           setCommitProgress(null);
         }, 500);
       } else {
@@ -619,7 +621,7 @@ const SwarmTrajectory = () => {
           <div className="workflow-step">
             <div className="step-header">
               <h3><span className="step-number">1</span>Upload Drone Trajectories</h3>
-              <p>Upload CSV files for each lead drone. Followers will be calculated automatically.</p>
+              <p>Upload trajectory files for lead drones.</p>
             </div>
             
             <div className="leaders-grid">
@@ -680,7 +682,7 @@ const SwarmTrajectory = () => {
           <div className="workflow-step">
             <div className="step-header">
               <h3><span className="step-number">2</span>Process Formation</h3>
-              <p>Generate smooth trajectories for all drones with follower positions calculated automatically.</p>
+              <p>Generate trajectories for the complete formation.</p>
             </div>
             
             <div className="process-controls">
@@ -778,13 +780,13 @@ const SwarmTrajectory = () => {
                                   </div>
                                   <div className="plot-header-actions">
                                     <button 
-                                      className={`cluster-kml-btn ${committing ? 'loading' : ''}`}
+                                      className={`cluster-kml-btn ${downloadingKML ? 'loading' : ''}`}
                                       onClick={() => downloadClusterKML(leaderId)}
-                                      disabled={committing}
-                                      title="Download complete cluster formation as KML for Google Earth visualization"
+                                      disabled={downloadingKML}
+                                      title="Download cluster formation as KML for Google Earth"
                                       aria-label={`Download cluster ${leaderId} KML file for Google Earth`}
                                     >
-                                      {committing ? (
+                                      {downloadingKML ? (
                                         <>
                                           <span className="btn-icon spinner">⏳</span>
                                           <div className="btn-content">
@@ -1031,9 +1033,9 @@ const SwarmTrajectory = () => {
         <div className="progress-overlay">
           <div className="progress-modal">
             <div className="progress-header">
-              <h3>🚀 Committing Trajectory Changes</h3>
+              <h3>🚀 Committing Changes</h3>
               <div className="progress-subtitle">
-                Processing {results?.processed_drones || 0} drone trajectories ...
+                Syncing trajectories with repository
               </div>
             </div>
             
@@ -1051,6 +1053,37 @@ const SwarmTrajectory = () => {
               
               <div className="progress-percentage">
                 {commitProgress.progress}%
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KML Download Progress Modal */}
+      {kmlProgress && (
+        <div className="progress-overlay">
+          <div className="progress-modal">
+            <div className="progress-header">
+              <h3>🌍 Generating KML</h3>
+              <div className="progress-subtitle">
+                Preparing 3D visualization file
+              </div>
+            </div>
+
+            <div className="progress-content">
+              <div className="progress-bar-container">
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${kmlProgress.progress}%` }}
+                ></div>
+              </div>
+
+              <div className="progress-step">
+                {kmlProgress.step}
+              </div>
+
+              <div className="progress-percentage">
+                {kmlProgress.progress}%
               </div>
             </div>
           </div>
