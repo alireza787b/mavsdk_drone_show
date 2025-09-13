@@ -10,7 +10,7 @@ Based on: drone_show.py v2.6.0
 ----------------------------------------
 
 Description:
-    Executes individual drone trajectories from shapes[_sitl]/trajectory/processed/drone_{pos_id}.csv
+    Executes individual drone trajectories from shapes[_sitl]/trajectory/processed/Drone {pos_id}.csv
     files using the proven drone_show.py architecture. Designed for swarm operations where each
     drone follows its own pre-planned trajectory with global GPS positioning and synchronized timing.
 
@@ -20,7 +20,7 @@ Key Features:
     – Real-time NED to LLA conversion using PyMap3D
 
   • Position ID Based Execution
-    – Automatically loads trajectory files: drone_{position_id}.csv
+    – Automatically loads trajectory files: Drone {position_id}.csv
     – Falls back to HW_ID if no position_id specified
     – Compatible with React UI and manual execution
 
@@ -68,7 +68,7 @@ LED Status Indicators:
   • Cyan      — End behavior execution
 
 File Structure:
-  • Trajectory files: shapes[_sitl]/trajectory/processed/drone_{pos_id}.csv
+  • Trajectory files: shapes[_sitl]/trajectory/processed/Drone {pos_id}.csv
   • Same CSV format as drone show with columns: t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb
 
 Notes:
@@ -221,7 +221,7 @@ def read_config(filename: str) -> Drone:
 def read_swarm_trajectory_file(position_id: int) -> list:
     """
     Read and adjust the swarm trajectory waypoints from a CSV file.
-    File path: shapes[_sitl]/trajectory/processed/drone_{position_id}.csv
+    File path: shapes[_sitl]/trajectory/processed/Drone {position_id}.csv
 
     Args:
         position_id (int): Position ID for the drone trajectory file.

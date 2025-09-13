@@ -297,7 +297,7 @@ class Params:
     
     # File Path Configuration
     SWARM_TRAJECTORY_BASE_PATH = "swarm_trajectory/processed"
-    SWARM_TRAJECTORY_FILE_PREFIX = "drone_"
+    SWARM_TRAJECTORY_FILE_PREFIX = "Drone "
     SWARM_TRAJECTORY_FILE_SUFFIX = ".csv"
     
     # End-of-Mission Behavior Options
