@@ -1,4 +1,5 @@
 import logging
+import time
 from flask import request, jsonify
 from threading import Lock
 
@@ -28,14 +29,33 @@ def handle_heartbeat_post():
 
     # We can do further validation if needed
     with last_heartbeats_lock:
-        last_heartbeats[hw_id] = {
-            "pos_id": pos_id,
-            "detected_pos_id": detected_pos_id,
-            "ip": ip,
-            "timestamp": timestamp
-        }
+        # Professional heartbeat logging: Only log first heartbeat and periodic confirmations
+        is_first_heartbeat = hw_id not in last_heartbeats
 
-    logger.info(f"Heartbeat received from hw_id={hw_id}, ip={ip}, pos_id={pos_id}")
+        # Update heartbeat data
+        if is_first_heartbeat:
+            last_heartbeats[hw_id] = {
+                "pos_id": pos_id,
+                "detected_pos_id": detected_pos_id,
+                "ip": ip,
+                "timestamp": timestamp,
+                "first_seen": time.time(),
+                "last_logged": time.time()
+            }
+            logger.info(f"💓 Heartbeat established from drone {hw_id} (IP: {ip}, Pos: {pos_id})")
+        else:
+            # Update existing heartbeat
+            last_heartbeats[hw_id].update({
+                "pos_id": pos_id,
+                "detected_pos_id": detected_pos_id,
+                "ip": ip,
+                "timestamp": timestamp
+            })
+
+            # Log periodic confirmation (every 5 minutes)
+            if (time.time() - last_heartbeats[hw_id].get('last_logged', 0)) > 300:
+                logger.info(f"💓 Heartbeat active from drone {hw_id} (IP: {ip}, Pos: {pos_id})")
+                last_heartbeats[hw_id]['last_logged'] = time.time()
     return jsonify({"message": "Heartbeat received"}), 200
 
 def get_all_heartbeats():

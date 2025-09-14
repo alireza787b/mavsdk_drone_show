@@ -11,16 +11,28 @@
 }
 
 
-/* Armable vs. Not-Armable */
+/* Drone Readiness States - Following QGroundControl Standards */
 
-.drone-widget.armable {
-    border-color: green;
-    box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.3), 0 2px 8px rgba(0, 255, 0, 0.15);
+/* Ready to Arm - Green Border */
+.drone-widget.ready-to-arm {
+    border-color: #28a745;
+    box-shadow: inset 0 0 10px rgba(40, 167, 69, 0.2), 0 2px 8px rgba(40, 167, 69, 0.15);
 }
 
-.drone-widget.not-armable {
-    border-color: red;
-    box-shadow: inset 0 0 10px rgba(255, 0, 0, 0.3), 0 2px 8px rgba(255, 0, 0, 0.15);
+/* Not Ready to Arm - Red Border */
+.drone-widget.not-ready-to-arm {
+    border-color: #dc3545;
+    box-shadow: inset 0 0 10px rgba(220, 53, 69, 0.2), 0 2px 8px rgba(220, 53, 69, 0.15);
+}
+
+/* Armed State - Blue Border Highlight */
+.drone-widget.armed {
+    border-top: 4px solid #007bff;
+}
+
+/* Disarmed State - Gray Border */
+.drone-widget.disarmed {
+    border-top: 4px solid #6c757d;
 }
 
 
@@ -69,6 +81,117 @@
 
 .status-indicator.stale {
     background-color: red;
+}
+
+/* Arming Status Section - QGroundControl Style */
+
+.arming-status-section {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 8px 0;
+    font-size: 0.9em;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 4px 0;
+}
+
+.status-label {
+    color: #495057;
+}
+
+/* Status Indicators for Arming Status */
+.status-indicator.armed {
+    background-color: #007bff;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+}
+
+.status-indicator.disarmed {
+    background-color: #6c757d;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+}
+
+.status-indicator.ready {
+    background-color: #28a745;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+}
+
+.status-indicator.not-ready {
+    background-color: #dc3545;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+}
+
+/* Mission State Indicators - Separate from PX4 Arming */
+
+.mission-state-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: bold;
+    color: white;
+    margin-left: 8px;
+    font-size: 0.75em;
+    transition: all 0.3s ease;
+}
+
+.mission-state-badge.idle {
+    background-color: #6c757d; /* Gray - no mission */
+    box-shadow: 0 0 6px rgba(108, 117, 125, 0.3);
+}
+
+.mission-state-badge.ready {
+    background-color: #fd7e14; /* Orange - mission loaded, waiting for trigger */
+    box-shadow: 0 0 6px rgba(253, 126, 20, 0.3);
+    animation: pulse-orange 2s infinite;
+}
+
+.mission-state-badge.executing {
+    background-color: #20c997; /* Teal - mission executing */
+    box-shadow: 0 0 6px rgba(32, 201, 151, 0.3);
+    animation: pulse-teal 1s infinite;
+}
+
+/* Mission State Widget Border Indicators */
+
+.drone-widget.mission-ready {
+    border-left: 4px solid #fd7e14; /* Orange left border */
+}
+
+.drone-widget.mission-executing {
+    border-left: 4px solid #20c997; /* Teal left border */
+}
+
+/* Pulse animations for mission states */
+
+@keyframes pulse-orange {
+    0%, 100% { box-shadow: 0 0 6px rgba(253, 126, 20, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(253, 126, 20, 0.6); }
+}
+
+@keyframes pulse-teal {
+    0%, 100% { box-shadow: 0 0 6px rgba(32, 201, 151, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(32, 201, 151, 0.6); }
 }
 
 

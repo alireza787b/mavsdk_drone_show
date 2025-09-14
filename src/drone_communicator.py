@@ -9,7 +9,7 @@ import time
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
-from src.enums import Mission
+from src.enums import Mission, State
 from src.drone_config import DroneConfig
 from src.params import Params
 from src.telemetry_subscription_manager import TelemetrySubscriptionManager
@@ -180,14 +180,14 @@ class DroneCommunicator:
         self.drone_config.takeoff_altitude = min(float(assigned_altitude), self.params.max_takeoff_alt)
         logging.info(f"Takeoff command received. Assigned altitude: {self.drone_config.takeoff_altitude}m")
         self.drone_config.mission = Mission.TAKE_OFF.value
-        self.drone_config.state = 1 #double check
+        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
     def _handle_standard_mission(self, mission: int) -> None:
         """Handle standard (non-takeoff) mission commands."""
         mission_enum = Mission(mission)
         logging.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
         self.drone_config.mission = mission
-        self.drone_config.state = 1 #double check
+        self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""
@@ -274,8 +274,11 @@ class DroneCommunicator:
             "battery_voltage": safe_float(self.drone_config.battery),  # Current battery voltage
             "follow_mode": safe_int(safe_get(self.drone_config.swarm, 'follow')),  # Follow mode in swarm operation
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
-            "flight_mode_raw": safe_int(self.drone_config.mav_mode),  # MAVLink flight mode (raw value from MAV_MODE)
+            "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
+            "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags 
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
+            "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
+            "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
             "vdop": safe_float(self.drone_config.vdop)  # Vertical dilution of precision
         }

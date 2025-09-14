@@ -61,30 +61,62 @@ def update_git_status_stats(drone_id: str, success: bool, status_data: Dict[str,
 
 def should_log_git_event(drone_id: str, success: bool, current_status: str = None) -> bool:
     """
-    Determine if a git status event should be logged.
-    Reduces noise from routine polling while capturing important changes.
+    Ultra-quiet git logging decision - absolute minimum noise for production.
+    Only logs critical git events and significant state changes.
     """
+    from params import Params
+
+    # Ultra-quiet mode - extremely selective logging
+    if Params.ULTRA_QUIET_MODE:
+        stats = git_status_stats.get(drone_id, {})
+        consecutive_failures = stats.get('consecutive_failures', 0)
+
+        if not success:
+            # Only log after multiple failures to avoid single connection hiccups
+            if consecutive_failures >= Params.MIN_ERROR_THRESHOLD:
+                return consecutive_failures % Params.ERROR_REPORT_THROTTLE == 0
+            return False
+
+        # Log recovery only after significant failures, and only if enabled
+        if not Params.SUPPRESS_RECOVERY_MESSAGES and consecutive_failures >= Params.MIN_ERROR_THRESHOLD:
+            return True
+
+        # Always log significant status changes (clean <-> dirty, branch changes)
+        last_status = stats.get('last_status')
+        if last_status and current_status and last_status != current_status:
+            # But only if it's a meaningful change
+            if (last_status == 'clean' and current_status == 'dirty') or \
+               (last_status == 'dirty' and current_status == 'clean'):
+                return True
+
+        # Never log routine successful polls in ultra-quiet mode
+        return False
+
+    # Regular quiet mode behavior
+    elif Params.POLLING_QUIET_MODE:
+        stats = git_status_stats.get(drone_id, {})
+        if not success:
+            consecutive_failures = stats.get('consecutive_failures', 0)
+            return consecutive_failures == 1 or consecutive_failures % Params.ERROR_REPORT_THROTTLE == 0
+        if stats.get('consecutive_failures', 0) > 0:
+            return True
+        last_status = stats.get('last_status')
+        if last_status and current_status and last_status != current_status:
+            return True
+        return False
+
+    # Legacy behavior for verbose mode
     stats = git_status_stats.get(drone_id, {})
-    
-    # Always log failures
     if not success:
         return True
-    
-    # Always log first success after failure(s)
     if stats.get('consecutive_failures', 0) > 0:
         return True
-    
-    # Log status changes (clean -> dirty, branch changes, etc.)
     last_status = stats.get('last_status')
     if last_status and current_status and last_status != current_status:
         return True
-    
-    # Log periodic health confirmations (every 50 successful polls)
     success_count = stats.get('success_count', 0)
     if success_count > 0 and success_count % 50 == 0:
         return True
-    
-    # Don't log routine successful polls
     return False
 
 def poll_git_status(drone):
@@ -159,8 +191,8 @@ def poll_git_status(drone):
                 consecutive_errors += 1
                 update_git_status_stats(drone_id, False)
                 
-                # Log error if it's new or every 10 consecutive errors
-                if error_msg != last_logged_error or consecutive_errors % 10 == 0:
+                # Professional error logging with intelligent throttling
+                if should_log_git_event(drone_id, False):
                     logger.log_drone_event(
                         drone_id, "git",
                         f"Git status request failed: {error_msg}",
@@ -176,8 +208,8 @@ def poll_git_status(drone):
             consecutive_errors += 1
             update_git_status_stats(drone_id, False)
             
-            # Log timeout errors periodically
-            if consecutive_errors == 1 or consecutive_errors % 10 == 0:
+            # Log timeout errors with smart throttling
+            if should_log_git_event(drone_id, False):
                 logger.log_drone_event(
                     drone_id, "git",
                     f"Git status timeout after {Params.HTTP_REQUEST_TIMEOUT}s",
@@ -191,8 +223,8 @@ def poll_git_status(drone):
             consecutive_errors += 1
             update_git_status_stats(drone_id, False)
             
-            # Log connection errors periodically
-            if consecutive_errors == 1 or consecutive_errors % 10 == 0:
+            # Log connection errors with professional throttling
+            if should_log_git_event(drone_id, False):
                 logger.log_drone_event(
                     drone_id, "git",
                     f"Git status connection failed to {drone_ip}",
@@ -220,17 +252,17 @@ def poll_git_status(drone):
         time.sleep(Params.polling_interval)
 
 def start_git_status_polling(drones):
-    """Start git status polling threads for all drones"""
+    """Start git status polling threads for all drones with professional reporting"""
     if not drones:
         log_system_error("Cannot start git status polling: no drones provided", "git")
         return
-    
+
     # Initialize tracking
     initialize_git_status_tracking(drones)
-    
+
     logger = get_logger()
     started_threads = 0
-    
+
     # Start polling threads
     for drone in drones:
         try:
@@ -242,18 +274,89 @@ def start_git_status_polling(drones):
             )
             thread.start()
             started_threads += 1
-            
+
         except Exception as e:
             log_system_error(
                 f"Failed to start git status thread for drone {drone['hw_id']}: {e}",
                 "git"
             )
-    
+
+    # Start periodic status reporter
+    _start_git_status_reporter()
+
     logger.log_system_event(
-        f"Started {started_threads}/{len(drones)} git status polling threads",
+        f"Started {started_threads}/{len(drones)} git status polling threads with professional reporting",
         "INFO" if started_threads == len(drones) else "WARNING",
         "git"
     )
+
+def _start_git_status_reporter():
+    """Start background thread for periodic git status reports"""
+    def git_status_reporter():
+        from params import Params
+        logger = get_logger()
+
+        while True:
+            try:
+                time.sleep(Params.GIT_STATUS_REPORT_INTERVAL)
+                summary = get_git_status_summary()
+                sync_status = check_git_sync_status()
+
+                # Generate professional status report
+                active = summary['active_drones']
+                total = summary['total_drones']
+                failed = summary['failed_drones']
+                dirty = summary['dirty_drones']
+
+                # Sync status
+                is_synced = sync_status['is_fully_synced']
+                branch_count = len(sync_status['branch_distribution'])
+                commit_count = len(sync_status['commit_distribution'])
+
+                # Main status message
+                if failed > 0:
+                    level = "WARNING"
+                    status = f"⚠️  GIT STATUS: {active}/{total} active, {failed} failed, {dirty} uncommitted"
+                elif not is_synced:
+                    level = "WARNING"
+                    status = f"⚠️  GIT SYNC: {active}/{total} active, {branch_count} branches, {commit_count} commits"
+                elif dirty > 0:
+                    level = "INFO"
+                    status = f"📋 GIT STATUS: {active}/{total} synced, {dirty} have uncommitted changes"
+                else:
+                    level = "INFO"
+                    status = f"✅ GIT STATUS: All {total} drones synced and clean"
+
+                # Only report if there are drones configured
+                if total > 0:
+                    logger.log_system_event(status, level, "git-report")
+
+                # Additional details for issues
+                if not is_synced and branch_count > 1:
+                    branches_info = []
+                    for branch, drone_list in sync_status['branch_distribution'].items():
+                        branches_info.append(f"{branch}({len(drone_list)})")
+                    logger.log_system_event(
+                        f"Branch distribution: {', '.join(branches_info)}",
+                        "WARNING", "git-report"
+                    )
+
+                # Report uncommitted changes
+                if dirty > 0:
+                    uncommitted = get_drones_with_uncommitted_changes()
+                    drone_list = [f"D{d['drone_id']}({d['uncommitted_count']})"
+                                  for d in uncommitted[:5]]
+                    logger.log_system_event(
+                        f"Uncommitted changes: {', '.join(drone_list)}{'...' if len(uncommitted) > 5 else ''}",
+                        "INFO", "git-report"
+                    )
+
+            except Exception as e:
+                logger.log_system_event(f"Git status reporter error: {e}", "ERROR", "git")
+                time.sleep(60)  # Wait a minute before retrying
+
+    reporter_thread = threading.Thread(target=git_status_reporter, daemon=True, name="git-status-reporter")
+    reporter_thread.start()
 
 def get_git_status_summary():
     """Get a summary of git status system health"""

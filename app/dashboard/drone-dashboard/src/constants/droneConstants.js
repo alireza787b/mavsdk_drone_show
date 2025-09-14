@@ -6,7 +6,17 @@ export const DRONE_MISSION_TYPES = {
     DRONE_SHOW_FROM_CSV: 1,
     SMART_SWARM: 2,
     CUSTOM_CSV_DRONE_SHOW: 3,
+    SWARM_TRAJECTORY: 4,
 };
+
+// Define mission display order for better UX (Cancel last as requested)
+export const DRONE_MISSION_DISPLAY_ORDER = [
+    { key: 'DRONE_SHOW_FROM_CSV', value: DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV },
+    { key: 'CUSTOM_CSV_DRONE_SHOW', value: DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW },
+    { key: 'SMART_SWARM', value: DRONE_MISSION_TYPES.SMART_SWARM },
+    { key: 'SWARM_TRAJECTORY', value: DRONE_MISSION_TYPES.SWARM_TRAJECTORY },
+    { key: 'NONE', value: DRONE_MISSION_TYPES.NONE }, // Cancel last for safety
+];
 
 export const DRONE_ACTION_TYPES = {
     TAKE_OFF: 10,
@@ -35,6 +45,7 @@ export const DRONE_MISSION_NAMES = {
     1: 'Drone Show from CSV',
     2: 'Smart Swarm',
     3: 'Custom CSV Drone Show',
+    4: 'Swarm Trajectory',
 };
 
 export const DRONE_ACTION_NAMES = {
@@ -62,6 +73,8 @@ export const getMissionDescription = (missionType) => {
             return 'Initiates a custom drone show sequence from a user-defined CSV file. This mission allows for flexibility in the drone choreography, utilizing MAVSDK for offboard control to follow intricate trajectories specified in the CSV.';
         case DRONE_MISSION_TYPES.SMART_SWARM:
             return 'Implements a smart swarm formation with leader-follower dynamics. This mission is designed for scenarios requiring coordinated movements across multiple drones, where MAVSDK ensures seamless communication and control within the swarm (currently in development).';
+        case DRONE_MISSION_TYPES.SWARM_TRAJECTORY:
+            return 'Executes coordinated swarm trajectories where leaders follow uploaded waypoint paths and followers maintain formation using configured offsets. Each drone follows a time-synchronized global trajectory with precise positioning and formation integrity.';
         case DRONE_MISSION_TYPES.NONE:
             return 'Immediately cancels any active mission, bringing all drones back to their default state.';
         default:

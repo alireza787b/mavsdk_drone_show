@@ -48,6 +48,7 @@ class DroneSetup:
             Mission.CUSTOM_CSV_DRONE_SHOW.value: self._execute_custom_drone_show,
             Mission.HOVER_TEST.value: self._execute_hover_test,
             Mission.SMART_SWARM.value: self._execute_smart_swarm,
+            Mission.SWARM_TRAJECTORY.value: self._execute_swarm_trajectory,
             Mission.TAKE_OFF.value: self._execute_takeoff,
             Mission.LAND.value: self._execute_land,
             Mission.RETURN_RTL.value: self._execute_return_rtl,
@@ -255,7 +256,7 @@ class DroneSetup:
         Periodically called (e.g., by the coordinator) to see if we should start or handle a mission.
         """
         # Guard: if already triggered, skip to avoid double triggers
-        if self.drone_config.state == State.TRIGGERED.value:
+        if self.drone_config.state == State.MISSION_EXECUTING.value:
             logger.debug("schedule_mission: Drone is already in TRIGGERED state, skipping.")
             return
 
@@ -295,11 +296,11 @@ class DroneSetup:
     async def _execute_standard_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.DRONE_SHOW_FROM_CSV."""
         if (
-            self.drone_config.state == State.ARMED.value
+            self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
             logger.debug("Conditions met for Standard Drone Show; transitioning to TRIGGERED.")
-            self.drone_config.state = State.TRIGGERED.value
+            self.drone_config.state = State.MISSION_EXECUTING.value
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0
 
@@ -321,11 +322,11 @@ class DroneSetup:
     async def _execute_custom_drone_show(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.CUSTOM_CSV_DRONE_SHOW."""
         if (
-            self.drone_config.state == State.ARMED.value
+            self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
             logger.debug("Conditions met for Custom Drone Show; transitioning to TRIGGERED.")
-            self.drone_config.state = State.TRIGGERED.value
+            self.drone_config.state = State.MISSION_EXECUTING.value
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0
 
@@ -352,11 +353,11 @@ class DroneSetup:
     async def _execute_hover_test(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.HOVER_TEST."""
         if (
-            self.drone_config.state == State.ARMED.value
+            self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
             logger.debug("Conditions met for Hover Test; transitioning to TRIGGERED.")
-            self.drone_config.state = State.TRIGGERED.value
+            self.drone_config.state = State.MISSION_EXECUTING.value
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0
 
@@ -383,11 +384,11 @@ class DroneSetup:
     async def _execute_smart_swarm(self, current_time: int, earlier_trigger_time: int) -> tuple:
         """Handler for Mission.SMART_SWARM."""
         if (
-            self.drone_config.state == State.ARMED.value
+            self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
             logger.debug("Conditions met for Smart Swarm; transitioning to TRIGGERED.")
-            self.drone_config.state = State.TRIGGERED.value
+            self.drone_config.state = State.MISSION_EXECUTING.value
             self.drone_config.trigger_time = 0
 
             smart_swarm_executer = getattr(self.params, 'smart_swarm_executer', None)
@@ -409,13 +410,18 @@ class DroneSetup:
         logger.debug("Conditions NOT met for Smart Swarm.")
         return (False, "Conditions not met for Smart Swarm.")
 
+    async def _execute_swarm_trajectory(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """Handler for Mission.SWARM_TRAJECTORY."""
+        logger.info("Starting Swarm Trajectory Mission")
+        return await self.execute_mission_script("swarm_trajectory_mission.py", "")
+
     async def _execute_takeoff(self, current_time: int = 0, earlier_trigger_time: int = 0) -> tuple:
         """Handler for Mission.TAKE_OFF."""
         if current_time == 0:
             current_time = int(time.time())
 
         if (
-            self.drone_config.state == State.ARMED.value
+            self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
             logger.debug("Conditions met for Takeoff; transitioning to TRIGGERED.")
@@ -427,7 +433,7 @@ class DroneSetup:
                 return (False, f"Invalid takeoff altitude: {e}")
 
             logger.info(f"Starting Takeoff to altitude: {altitude}m")
-            self.drone_config.state = State.TRIGGERED.value
+            self.drone_config.state = State.MISSION_EXECUTING.value
             self.drone_config.trigger_time = 0
             return await self.execute_mission_script("actions.py", f"--action=takeoff --altitude={altitude}")
 

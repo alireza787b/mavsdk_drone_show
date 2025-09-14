@@ -6,6 +6,7 @@ class Mission(Enum):
     DRONE_SHOW_FROM_CSV = 1
     SMART_SWARM = 2
     CUSTOM_CSV_DRONE_SHOW = 3
+    SWARM_TRAJECTORY = 4
     HOVER_TEST = 106
     TAKE_OFF = 10
     LAND = 101
@@ -25,6 +26,6 @@ class Mission(Enum):
 
 class State(Enum):
     IDLE = 0
-    ARMED = 1
-    TRIGGERED = 2
+    MISSION_READY = 1  # Mission loaded, waiting for trigger time (was ARMED)
+    MISSION_EXECUTING = 2  # Mission is executing (was TRIGGERED)
     UNKNOWN = 999

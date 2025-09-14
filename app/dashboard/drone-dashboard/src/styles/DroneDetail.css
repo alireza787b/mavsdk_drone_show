@@ -78,35 +78,49 @@
 }
 
 
-/* Armable Status */
+/* Arming Status - QGroundControl Style */
 
-.armable-status {
+.arming-status {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
     margin-bottom: 16px;
-    font-size: 1.1em;
-    font-weight: bold;
+    font-size: 1em;
 }
 
-.armable-badge {
+.status-badge {
     display: inline-block;
-    padding: 6px 10px;
-    border-radius: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
     font-weight: bold;
     color: #fff;
     margin-left: 8px;
+    font-size: 0.8em;
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.armable-badge.armable {
-    background-color: green;
-    box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+.status-badge.armed {
+    background-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
 }
 
-.armable-badge.not-armable {
-    background-color: red;
-    box-shadow: 0 0 10px rgba(255, 0, 0, 0.4);
+.status-badge.disarmed {
+    background-color: #6c757d;
+    box-shadow: 0 0 8px rgba(108, 117, 125, 0.3);
 }
 
-.armable-badge:hover {
+.status-badge.ready {
+    background-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.3);
+}
+
+.status-badge.not-ready {
+    background-color: #dc3545;
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.3);
+}
+
+.status-badge:hover {
     box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
 }
 

@@ -3,7 +3,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { getSpeedStatus, validateSpeed } from '../../utilities/SpeedCalculator';
+import { 
+  getSpeedStatus, 
+  validateSpeed, 
+  YAW_CONSTANTS,
+  normalizeHeading,
+  formatHeading 
+} from '../../utilities/SpeedCalculator';
 
 const WaypointPanel = ({
   waypoints,
@@ -14,9 +20,11 @@ const WaypointPanel = ({
   onMoveWaypoint,
   onFlyTo
 }) => {
-  // PHASE 1: Inline editing state management
+  // ENHANCED: Inline editing + panel collapse state management
   const [editingWaypointId, setEditingWaypointId] = useState(null);
   const [editValues, setEditValues] = useState({});
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const editInputRef = useRef(null);
 
   // Auto-focus when entering edit mode
@@ -26,6 +34,29 @@ const WaypointPanel = ({
       editInputRef.current.select();
     }
   }, [editingWaypointId]);
+
+  // Handle window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const newIsMobile = window.innerWidth <= 768;
+      setIsMobile(newIsMobile);
+      
+      // Auto-collapse on mobile if there are many waypoints
+      if (newIsMobile && waypoints.length > 3) {
+        setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [waypoints.length]);
+
+  // Auto-collapse on mobile when waypoints increase
+  useEffect(() => {
+    if (isMobile && waypoints.length > 5) {
+      setIsCollapsed(true);
+    }
+  }, [waypoints.length, isMobile]);
 
   if (!waypoints || waypoints.length === 0) {
     return (
@@ -46,7 +77,9 @@ const WaypointPanel = ({
       latitude: waypoint.latitude,
       longitude: waypoint.longitude,
       altitude: waypoint.altitude,
-      timeFromStart: waypoint.timeFromStart || waypoint.time || 0
+      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      heading: waypoint.heading || waypoint.yaw || 0,
+      headingMode: waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO
     });
   };
 
@@ -102,6 +135,29 @@ const WaypointPanel = ({
         } else {
           alert('Time must be a positive number');
           return;
+        }
+        break;
+      
+      case 'heading':
+        const heading = parseFloat(editValues.heading);
+        if (!isNaN(heading)) {
+          const normalizedHeading = normalizeHeading(heading);
+          updates.heading = normalizedHeading;
+          // Switch to manual mode when heading is manually edited
+          updates.headingMode = YAW_CONSTANTS.MANUAL;
+        } else {
+          alert('Heading must be a valid number (0-360 degrees)');
+          return;
+        }
+        break;
+      
+      case 'headingMode':
+        const newHeadingMode = editValues.headingMode;
+        updates.headingMode = newHeadingMode;
+        
+        if (newHeadingMode === YAW_CONSTANTS.AUTO) {
+          // When switching to auto, recalculate heading based on trajectory
+          // This will be handled by the speed recalculation in the parent component
         }
         break;
     }
@@ -192,27 +248,54 @@ const WaypointPanel = ({
           </div>
         );
       } else {
-        return (
-          <div className="edit-single">
-            <input
-              ref={editInputRef}
-              type="number"
-              step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : 'any'}
-              value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']}
-              onChange={(e) => setEditValues(prev => ({ 
-                ...prev, 
-                [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : 'value']: e.target.value 
-              }))}
-              onKeyDown={handleEditKeyPress}
-              className="edit-input"
-              placeholder={field === 'altitude' ? 'Altitude MSL (m)' : field === 'time' ? 'Time (s)' : ''}
-            />
-            <div className="edit-buttons">
-              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
-              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+        if (field === 'headingMode') {
+          return (
+            <div className="edit-heading-mode">
+              <select
+                ref={editInputRef}
+                value={editValues.headingMode}
+                onChange={(e) => setEditValues(prev => ({ ...prev, headingMode: e.target.value }))}
+                onKeyDown={handleEditKeyPress}
+                className="edit-input edit-select"
+              >
+                <option value={YAW_CONSTANTS.AUTO}>Auto (to next waypoint)</option>
+                <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
+              </select>
+              <div className="edit-buttons">
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+              </div>
             </div>
-          </div>
-        );
+          );
+        } else {
+          return (
+            <div className="edit-single">
+              <input
+                ref={editInputRef}
+                type="number"
+                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : 'any'}
+                min={field === 'heading' ? '0' : undefined}
+                max={field === 'heading' ? '360' : undefined}
+                value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']}
+                onChange={(e) => setEditValues(prev => ({ 
+                  ...prev, 
+                  [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']: e.target.value 
+                }))}
+                onKeyDown={handleEditKeyPress}
+                className="edit-input"
+                placeholder={
+                  field === 'altitude' ? 'Altitude MSL (m)' : 
+                  field === 'time' ? 'Time (s)' : 
+                  field === 'heading' ? 'Heading (0-360°)' : ''
+                }
+              />
+              <div className="edit-buttons">
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+              </div>
+            </div>
+          );
+        }
       }
     }
 
@@ -228,19 +311,32 @@ const WaypointPanel = ({
   };
 
   return (
-    <div className="waypoint-panel">
+    <div className={`waypoint-panel ${isCollapsed ? 'collapsed' : 'expanded'} ${isMobile ? 'mobile' : 'desktop'}`}>
       <div className="waypoint-panel-header">
-        <h3>Waypoints ({waypoints.length})</h3>
-        {waypoints.some(wp => wp.estimatedSpeed > 20) && (
-          <div className="speed-warning-summary">
-            <span className="speed-indicator speed-impossible">⚠</span>
-            High speed detected
-          </div>
-        )}
+        <div className="header-title-section">
+          <h3>Waypoints ({waypoints.length})</h3>
+          {waypoints.some(wp => wp.estimatedSpeed > 20) && (
+            <div className="speed-warning-summary">
+              <span className="speed-indicator speed-impossible">⚠</span>
+              {!isCollapsed && <span className="warning-text">High speed detected</span>}
+            </div>
+          )}
+        </div>
+        <div className="panel-controls">
+          <button
+            className={`collapse-toggle ${isCollapsed ? 'collapsed' : 'expanded'}`}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
+            aria-label={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
+          >
+            {isCollapsed ? '📋' : '▼'}
+          </button>
+        </div>
       </div>
       
-      <div className="waypoint-list">
-        {waypoints.map((waypoint, index) => (
+      {!isCollapsed && (
+        <div className="waypoint-list">
+          {waypoints.map((waypoint, index) => (
           <div 
             key={waypoint.id}
             className={`waypoint-item ${selectedWaypointId === waypoint.id ? 'selected' : ''} ${
@@ -326,6 +422,26 @@ const WaypointPanel = ({
                 </div>
               )}
               
+              <div className="detail-row heading-row">
+                <span className="detail-label">Heading:</span>
+                <div className="heading-display">
+                  {renderEditableField(
+                    waypoint, 
+                    'heading', 
+                    waypoint.heading || waypoint.yaw || 0,
+                    formatHeading(waypoint.heading || waypoint.yaw || 0)
+                  )}
+                  <span className="heading-mode-indicator">
+                    ({renderEditableField(
+                      waypoint,
+                      'headingMode',
+                      waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                      (waypoint.headingMode || waypoint.yawMode) === YAW_CONSTANTS.AUTO ? 'Auto' : 'Manual'
+                    )})
+                  </span>
+                </div>
+              </div>
+              
               {index === 0 && (
                 <div className="detail-row start-point">
                   <span className="detail-label">Type:</span>
@@ -355,44 +471,52 @@ const WaypointPanel = ({
               </div>
             )}
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       
-      {/* Summary statistics */}
+      {/* Summary statistics - always show for quick reference */}
       {waypoints.length > 1 && (
-        <div className="waypoint-summary">
+        <div className={`waypoint-summary ${isCollapsed ? 'collapsed' : 'expanded'}`}>
           <div className="summary-item">
-            <span className="summary-label">Total Points:</span>
+            <span className="summary-label">{isCollapsed ? 'Pts:' : 'Total Points:'}</span>
             <span className="summary-value">{waypoints.length}</span>
           </div>
           
           <div className="summary-item">
-            <span className="summary-label">Duration:</span>
+            <span className="summary-label">{isCollapsed ? 'Time:' : 'Duration:'}</span>
             <span className="summary-value">
               {formatTime(waypoints[waypoints.length - 1]?.timeFromStart || 0)}
             </span>
           </div>
           
-          <div className="summary-item">
-            <span className="summary-label">Max Speed:</span>
-            <span className="summary-value">
-              {Math.max(...waypoints.slice(1).map(wp => wp.estimatedSpeed || 0)).toFixed(1)}m/s
-            </span>
-          </div>
-          
-          <div className="summary-item">
-            <span className="summary-label">Max Alt MSL:</span>
-            <span className="summary-value">
-              {Math.max(...waypoints.map(wp => wp.altitude)).toFixed(1)}m
-            </span>
-          </div>
+          {!isCollapsed && (
+            <>
+              <div className="summary-item">
+                <span className="summary-label">Max Speed:</span>
+                <span className="summary-value">
+                  {Math.max(...waypoints.slice(1).map(wp => wp.estimatedSpeed || 0)).toFixed(1)}m/s
+                </span>
+              </div>
+              
+              <div className="summary-item">
+                <span className="summary-label">Max Alt MSL:</span>
+                <span className="summary-value">
+                  {Math.max(...waypoints.map(wp => wp.altitude)).toFixed(1)}m
+                </span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* PHASE 1: Quick edit instructions */}
-      {waypoints.length > 0 && !editingWaypointId && (
+      {/* Enhanced instructions - responsive */}
+      {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
         <div className="edit-instructions">
-          <small>💡 Click any value to edit inline. Drag waypoints on map to reposition.</small>
+          <small>
+            💡 {isMobile ? 'Tap to edit values' : 'Click any value to edit inline'}. 
+            {!isMobile && 'Drag waypoints on map to reposition.'}
+          </small>
         </div>
       )}
     </div>

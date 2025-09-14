@@ -5,7 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { calculateSpeed, getSpeedStatus } from '../../utilities/SpeedCalculator';
+import { 
+  calculateSpeed, 
+  getSpeedStatus, 
+  calculateHeadingForNewWaypoint, 
+  YAW_CONSTANTS,
+  normalizeHeading,
+  formatHeading
+} from '../../utilities/SpeedCalculator';
 import '../../styles/WaypointModal.css';
 
 const MAPBOX_ACCESS_TOKEN = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
@@ -26,6 +33,11 @@ const WaypointModal = ({
   const [groundElevation, setGroundElevation] = useState(0);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
+  
+  // Heading state (aviation standard)
+  const [heading, setHeading] = useState(0);
+  const [headingMode, setHeadingMode] = useState(YAW_CONSTANTS.AUTO);
+  const [calculatedHeading, setCalculatedHeading] = useState(0);
 
   const altitudeRef = useRef(null);
 
@@ -36,14 +48,53 @@ const WaypointModal = ({
     }
   }, [isOpen]);
 
+  // Enhanced pre-population logic based on waypoint index and previous waypoint data
   useEffect(() => {
-    if (isOpen) {
-      const defaultTime = previousWaypoint
-        ? (previousWaypoint.timeFromStart || 0) + 10
-        : 10;
+    if (isOpen && position) {
+      // Initialize altitude based on previous waypoint or intelligent defaults
+      let defaultAltitude = 100; // Base default
+      
+      if (previousWaypoint) {
+        // Use previous waypoint's altitude as starting point
+        defaultAltitude = previousWaypoint.altitude;
+      }
+      
+      // Initialize time based on distance and speed logic
+      let defaultTime = 10; // Base default for first waypoint
+      
+      if (previousWaypoint) {
+        // Calculate distance to this new position
+        const distanceToNew = Math.sqrt(
+          Math.pow((position.latitude - previousWaypoint.latitude) * 111000, 2) + // Rough lat to meters
+          Math.pow((position.longitude - previousWaypoint.longitude) * 111000 * Math.cos(position.latitude * Math.PI / 180), 2) // Rough lng to meters
+        );
+        
+        // Determine recommended speed based on waypoint sequence
+        let recommendedSpeed = 8; // Default moderate speed
+        
+        if (waypointIndex === 2) {
+          // Second waypoint: use default moderate speed
+          recommendedSpeed = 8;
+        } else if (waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0) {
+          // Third waypoint onwards: use speed from previous leg
+          recommendedSpeed = Math.min(previousWaypoint.estimatedSpeed, 15); // Cap at 15 m/s for safety
+        }
+        
+        // Calculate recommended time based on distance and speed
+        const recommendedTimeIncrement = Math.max(3, distanceToNew / recommendedSpeed);
+        defaultTime = (previousWaypoint.timeFromStart || 0) + Math.ceil(recommendedTimeIncrement);
+      }
+      
+      setAltitude(defaultAltitude);
       setTimeFromStart(defaultTime);
+      
+      // Initialize heading data - calculate default heading to next waypoint (aviation standard)
+      const headingData = calculateHeadingForNewWaypoint(position, { headingMode: YAW_CONSTANTS.AUTO }, previousWaypoint ? [previousWaypoint] : []);
+      setHeading(headingData.heading);
+      setHeadingMode(headingData.headingMode);
+      setCalculatedHeading(headingData.calculatedHeading);
     }
-  }, [isOpen, previousWaypoint]);
+  }, [isOpen, previousWaypoint, position, waypointIndex]);
 
   useEffect(() => {
     const fetchElevationFromTilequery = async (latitude, longitude) => {
@@ -52,7 +103,14 @@ const WaypointModal = ({
         setTerrainError('Missing Mapbox access token');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        setAltitude(estimatedGround + 100);
+        
+        // Only override altitude if it would be below estimated ground level
+        setAltitude(prev => {
+          if (prev < estimatedGround + 50) {
+            return estimatedGround + 100;
+          }
+          return prev;
+        });
         setIsLoadingTerrain(false);
         return;
       }
@@ -82,7 +140,14 @@ const WaypointModal = ({
 
         const maxElevation = Math.max(...elevations);
         setGroundElevation(maxElevation);
-        setAltitude(maxElevation + 100);
+        
+        // Only override altitude if it would be below ground level
+        setAltitude(prev => {
+          if (prev < maxElevation + 50) { // Ensure at least 50m above ground
+            return maxElevation + 100;
+          }
+          return prev; // Keep the pre-populated altitude from previous waypoint
+        });
 
         console.info(`✅ Tilequery terrain: Ground ${maxElevation.toFixed(1)}m MSL, Suggested ${maxElevation + 100}m MSL`);
       } catch (error) {
@@ -90,7 +155,14 @@ const WaypointModal = ({
         setTerrainError('Query failed, using estimated data');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        setAltitude(estimatedGround + 100);
+        
+        // Only override altitude if it would be below estimated ground level
+        setAltitude(prev => {
+          if (prev < estimatedGround + 50) { // Ensure at least 50m above estimated ground
+            return estimatedGround + 100;
+          }
+          return prev; // Keep the pre-populated altitude
+        });
       } finally {
         setIsLoadingTerrain(false);
       }
@@ -155,7 +227,11 @@ const WaypointModal = ({
       estimatedSpeed,
       speedFeasible: true,
       groundElevation,
-      terrainAccurate: !terrainError
+      terrainAccurate: !terrainError,
+      // Aviation standard heading data
+      heading: parseFloat(heading),
+      headingMode,
+      calculatedHeading
     };
 
     onConfirm(waypointData);
@@ -173,6 +249,27 @@ const WaypointModal = ({
   const handleTimeChange = (e) => {
     const newTime = parseFloat(e.target.value) || 0;
     setTimeFromStart(Math.max(0, newTime));
+  };
+
+  const handleHeadingModeChange = (newMode) => {
+    setHeadingMode(newMode);
+    
+    if (newMode === YAW_CONSTANTS.AUTO) {
+      // Switch to auto mode: use calculated heading
+      setHeading(calculatedHeading);
+    }
+    // Manual mode: keep current heading value
+  };
+
+  const handleHeadingChange = (e) => {
+    const newHeading = parseFloat(e.target.value) || 0;
+    const normalizedHeading = normalizeHeading(newHeading);
+    setHeading(normalizedHeading);
+    
+    // Switch to manual mode when user enters custom heading
+    if (headingMode === YAW_CONSTANTS.AUTO) {
+      setHeadingMode(YAW_CONSTANTS.MANUAL);
+    }
   };
 
   const getSpeedStatusStyle = (status) => {
@@ -209,6 +306,17 @@ const WaypointModal = ({
               <label>📍 Coordinates</label>
               <span>{position?.latitude?.toFixed(6)}, {position?.longitude?.toFixed(6)}</span>
             </div>
+            
+            {/* Smart defaults info */}
+            {previousWaypoint && (
+              <div className="smart-defaults-info">
+                <small className="defaults-note">
+                  💡 Smart defaults: Altitude from previous waypoint
+                  {waypointIndex === 2 && ', moderate speed (8 m/s)'}
+                  {waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0 && `, continuing at ${Math.min(previousWaypoint.estimatedSpeed, 15).toFixed(1)} m/s`}
+                </small>
+              </div>
+            )}
           </div>
 
           <div className="altitude-section">
@@ -237,6 +345,11 @@ const WaypointModal = ({
                 <small className="agl-note">
                   Above ground: <strong>{aglAltitude.toFixed(1)}m AGL</strong>
                 </small>
+                {previousWaypoint && (
+                  <small className="altitude-source">
+                    Pre-filled from previous waypoint ({previousWaypoint.altitude.toFixed(1)}m MSL)
+                  </small>
+                )}
               </div>
               {isUnderground && (
                 <div className="validation-message error">
@@ -258,6 +371,80 @@ const WaypointModal = ({
               step="1"
               min="0"
             />
+            {previousWaypoint && (
+              <small className="time-calculation">
+                Calculated based on distance and {waypointIndex === 2 ? 'moderate speed (8 m/s)' : 'previous leg speed'}
+              </small>
+            )}
+          </div>
+
+          <div className="heading-section">
+            <div className="heading-input-group">
+              <label htmlFor="heading" className="input-label">
+                🧭 Heading
+                <span className="heading-display">({formatHeading(heading)})</span>
+              </label>
+              
+              <div className="heading-mode-selector">
+                <div className="radio-group">
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="headingMode"
+                      checked={headingMode === YAW_CONSTANTS.AUTO}
+                      onChange={() => handleHeadingModeChange(YAW_CONSTANTS.AUTO)}
+                    />
+                    <span className="radio-label">
+                      Auto (to next waypoint)
+                      {previousWaypoint && <span className="auto-heading-value"> - {formatHeading(calculatedHeading)}</span>}
+                    </span>
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="headingMode"
+                      checked={headingMode === YAW_CONSTANTS.MANUAL}
+                      onChange={() => handleHeadingModeChange(YAW_CONSTANTS.MANUAL)}
+                    />
+                    <span className="radio-label">Manual</span>
+                  </label>
+                </div>
+              </div>
+
+              <input
+                id="heading"
+                type="number"
+                value={heading}
+                onChange={handleHeadingChange}
+                className={`waypoint-input ${headingMode === YAW_CONSTANTS.AUTO ? 'disabled-input' : ''}`}
+                placeholder="Heading in degrees (0-360)"
+                step="0.1"
+                min="0"
+                max="360"
+                disabled={headingMode === YAW_CONSTANTS.AUTO}
+              />
+              
+              <div className="heading-context">
+                <small className="heading-note">
+                  Aviation Standard: 000° = North, 090° = East, 180° = South, 270° = West
+                </small>
+                {headingMode === YAW_CONSTANTS.AUTO && previousWaypoint && (
+                  <small className="auto-heading-note">
+                    Auto mode: Points toward next waypoint ({formatHeading(calculatedHeading)})
+                  </small>
+                )}
+                {headingMode === YAW_CONSTANTS.MANUAL && (
+                  <small className="manual-heading-note">
+                    Manual mode: Custom heading ({formatHeading(heading)})
+                  </small>
+                )}
+                {!previousWaypoint && (
+                  <small className="first-waypoint-note">
+                    First waypoint: Set initial drone heading
+                  </small>
+                )}
+              </div>
+            </div>
           </div>
 
           {previousWaypoint && (
@@ -266,12 +453,16 @@ const WaypointModal = ({
                 <div className="speed-header">
                   <span className="speed-label">Required Speed</span>
                   <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>
+                  <span className="speed-kmh">({(estimatedSpeed * 3.6).toFixed(1)} km/h)</span>
                 </div>
                 {speedStatus !== 'feasible' && (
                   <div className="speed-warning">
                     {speedStatus === 'marginal' ? '⚠️ High speed - use caution' : '🚨 Very high speed - review timing'}
                   </div>
                 )}
+                <small className="speed-note">
+                  From waypoint {waypointIndex - 1} to waypoint {waypointIndex}
+                </small>
               </div>
             </div>
           )}
@@ -314,6 +505,12 @@ WaypointModal.defaultProps = {
   position: null,
   previousWaypoint: null,
   waypointIndex: 1,
+};
+
+// Add PropTypes for waypointIndex
+WaypointModal.propTypes = {
+  ...WaypointModal.propTypes,
+  waypointIndex: PropTypes.number,
 };
 
 export default WaypointModal;

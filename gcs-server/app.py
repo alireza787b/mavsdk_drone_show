@@ -22,6 +22,7 @@ from routes import setup_routes
 from telemetry import start_telemetry_polling
 from git_status import start_git_status_polling  
 from config import load_config
+from swarm_trajectory_routes import register_swarm_trajectory_routes
 
 def configure_logging():
     """Configure the advanced logging system"""
@@ -57,6 +58,21 @@ def create_app():
     
     # Setup routes
     setup_routes(app)
+    register_swarm_trajectory_routes(app)
+    
+    # Add static file serving for trajectory plots
+    from flask import send_from_directory
+    from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
+    
+    @app.route('/static/plots/<filename>')
+    def serve_plot(filename):
+        """Serve plot images for trajectory previews"""
+        try:
+            folders = get_swarm_trajectory_folders()
+            return send_from_directory(folders['plots'], filename)
+        except Exception as e:
+            get_logger().log_system_event(f"Error serving plot {filename}: {e}", "WARNING", "static")
+            return jsonify({'error': 'Plot not found'}), 404
 
     @app.errorhandler(404)
     def not_found(error):

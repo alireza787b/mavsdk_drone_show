@@ -137,6 +137,7 @@ class DroneSwarmLogger:
         # Dashboard state
         self.last_dashboard_update = 0
         self.dashboard_lines = []
+        self.last_status_report = 0  # For ultra-quiet periodic status
         
         # Setup logging infrastructure
         self._setup_file_logging(log_file)
@@ -210,6 +211,12 @@ class DroneSwarmLogger:
             target=self._cleanup_loop, daemon=True
         )
         cleanup_thread.start()
+
+        # Professional system health monitor
+        health_thread = threading.Thread(
+            target=self._system_health_monitor, daemon=True
+        )
+        health_thread.start()
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals gracefully"""
@@ -294,15 +301,33 @@ class DroneSwarmLogger:
                 logger.log(log_level, message, extra={'component': component})
 
     def _should_log_event(self, level: str, event_type: str) -> bool:
-        """Determine if an event should be logged based on current log level"""
+        """Determine if an event should be logged based on current log level and ultra-quiet mode"""
+        from params import Params
+
+        # Check for ultra-quiet mode override
+        if hasattr(Params, 'ULTRA_QUIET_MODE') and Params.ULTRA_QUIET_MODE:
+            # Ultra-quiet mode: Only critical events and periodic reports
+            if level == "CRITICAL":
+                return True
+            if level == "ERROR" and event_type not in ["telemetry", "git"]:
+                return True  # System errors, but not polling errors
+            if event_type in ["telemetry-report", "git-report", "health-report"]:
+                return True  # Periodic status reports
+            if event_type in ["command", "show", "deploy", "config", "swarm"]:
+                return level in ["INFO", "WARNING", "ERROR", "CRITICAL"]  # Important operations
+            return False  # Suppress everything else
+
+        # Regular log level behavior
         if self.log_level == LogLevel.SILENT:
             return level == "CRITICAL"
         elif self.log_level == LogLevel.QUIET:
             return level in ["ERROR", "WARNING", "CRITICAL"]
         elif self.log_level == LogLevel.NORMAL:
-            # Reduce telemetry noise but show important events
-            if event_type == "telemetry" and level == "INFO":
-                return False
+            # Professional mode: Reduce polling noise but show all important events
+            if event_type in ["telemetry", "git"] and level == "INFO":
+                return False  # Suppress individual polling success messages
+            if event_type in ["telemetry-report", "git-report"]:
+                return True  # Always show periodic status reports
             return level in ["INFO", "WARNING", "ERROR", "CRITICAL"]
         else:  # VERBOSE or DEBUG
             return True
@@ -312,12 +337,20 @@ class DroneSwarmLogger:
     # ========================================================================
 
     def _dashboard_loop(self):
-        """Main dashboard update loop"""
+        """Main dashboard update loop with ultra-quiet mode support"""
         while self.running:
             try:
-                if time.time() - self.last_dashboard_update > self.update_interval:
+                from params import Params
+
+                # Use different update intervals based on mode
+                if hasattr(Params, 'ULTRA_QUIET_MODE') and Params.ULTRA_QUIET_MODE:
+                    update_interval = Params.STATUS_DASHBOARD_INTERVAL
+                else:
+                    update_interval = self.update_interval
+
+                if time.time() - self.last_dashboard_update > update_interval:
                     self._update_dashboard()
-                time.sleep(0.1)
+                time.sleep(1.0)  # Sleep longer to reduce CPU usage
             except Exception as e:
                 print(f"Dashboard error: {e}")
 
@@ -510,9 +543,108 @@ class DroneSwarmLogger:
                     # Clear old error summaries
                     if len(self.error_summary) > 1000:
                         self.error_summary.clear()
-                        
+    
             except Exception as e:
                 print(f"Cleanup error: {e}")
+
+    def _system_health_monitor(self):
+        """Professional system health monitoring and periodic status reports"""
+        last_health_report = 0
+
+        while self.running:
+            try:
+                from params import Params
+                current_time = time.time()
+
+                # Generate comprehensive health report periodically
+                if (current_time - last_health_report) >= Params.HEALTH_CHECK_INTERVAL:
+                    self._generate_health_report()
+                    last_health_report = current_time
+
+                time.sleep(30)  # Check every 30 seconds
+
+            except Exception as e:
+                self.log_system_event(f"Health monitor error: {e}", "ERROR", "health")
+                time.sleep(60)
+
+    def _generate_health_report(self):
+        """Generate comprehensive system health report"""
+        with self.lock:
+            uptime = time.time() - self.system_stats.start_time
+            total_drones = len(self.drone_status)
+
+            # Count drone states
+            online_count = 0
+            error_count = 0
+            telemetry_ok = 0
+            git_ok = 0
+
+            current_time = time.time()
+            for drone in self.drone_status.values():
+                age = current_time - drone.last_seen
+                if age < 60:  # Online within last minute
+                    online_count += 1
+                if drone.error_count > 0:
+                    error_count += 1
+                if drone.telemetry_ok:
+                    telemetry_ok += 1
+                if drone.git_ok:
+                    git_ok += 1
+
+            # System performance metrics
+            command_success_rate = 0
+            if self.system_stats.commands_sent > 0:
+                command_success_rate = ((self.system_stats.commands_sent - self.system_stats.commands_failed) /
+                                      self.system_stats.commands_sent) * 100
+
+            # Overall system health score
+            if total_drones > 0:
+                health_score = ((online_count + telemetry_ok + git_ok) / (total_drones * 3)) * 100
+            else:
+                health_score = 100
+
+            # Generate professional status message
+            uptime_str = f"{int(uptime//3600):02d}:{int((uptime%3600)//60):02d}:{int(uptime%60):02d}"
+
+            if health_score >= 90:
+                level = "INFO"
+                status_emoji = "🟢"
+                health_status = "EXCELLENT"
+            elif health_score >= 75:
+                level = "INFO"
+                status_emoji = "🟡"
+                health_status = "GOOD"
+            elif health_score >= 50:
+                level = "WARNING"
+                status_emoji = "🟠"
+                health_status = "DEGRADED"
+            else:
+                level = "WARNING"
+                status_emoji = "🔴"
+                health_status = "CRITICAL"
+
+            # Main health report
+            self.log_system_event(
+                f"{status_emoji} SYSTEM HEALTH: {health_status} ({health_score:.0f}%) | "
+                f"Uptime: {uptime_str} | Drones: {online_count}/{total_drones} | "
+                f"Commands: {command_success_rate:.0f}% success",
+                level, "health-report"
+            )
+
+            # Additional details if there are issues
+            if error_count > 0:
+                self.log_system_event(
+                    f"🔧 Issues detected: {error_count} drones with errors, "
+                    f"telemetry: {telemetry_ok}/{total_drones}, git: {git_ok}/{total_drones}",
+                    "WARNING", "health-report"
+                )
+
+            # Memory cleanup reminder
+            if len(self.recent_events) > 80:
+                self.log_system_event(
+                    "📊 System metrics: Event buffer at 80% capacity, cleanup running normally",
+                    "INFO", "health-report"
+                )
 
 
 # ============================================================================
@@ -645,24 +777,33 @@ def log_system_warning(message: str, component: str = "system"):
 
 # Environment-based configuration
 def configure_from_environment():
-    """Configure logging based on environment variables"""
+    """Configure logging based on environment variables with ultra-quiet mode support"""
+    # Check for ultra-quiet mode override
+    ultra_quiet = os.getenv('DRONE_ULTRA_QUIET', 'true').lower() == 'true'
+
     # Log level
-    log_level_str = os.getenv('DRONE_LOG_LEVEL', 'NORMAL').upper()
-    try:
-        log_level = LogLevel[log_level_str]
-    except KeyError:
-        log_level = LogLevel.NORMAL
-    
-    # Display mode
-    display_mode_str = os.getenv('DRONE_DISPLAY_MODE', 'HYBRID').upper()
-    try:
-        display_mode = DisplayMode[display_mode_str]
-    except KeyError:
-        display_mode = DisplayMode.HYBRID
-    
+    if ultra_quiet:
+        log_level = LogLevel.QUIET  # Use QUIET level for ultra-quiet mode
+    else:
+        log_level_str = os.getenv('DRONE_LOG_LEVEL', 'NORMAL').upper()
+        try:
+            log_level = LogLevel[log_level_str]
+        except KeyError:
+            log_level = LogLevel.NORMAL
+
+    # Display mode - prefer stream mode for production
+    if ultra_quiet:
+        display_mode = DisplayMode.STREAM  # Clean stream output for production
+    else:
+        display_mode_str = os.getenv('DRONE_DISPLAY_MODE', 'HYBRID').upper()
+        try:
+            display_mode = DisplayMode[display_mode_str]
+        except KeyError:
+            display_mode = DisplayMode.HYBRID
+
     # Log file
     log_file = os.getenv('DRONE_LOG_FILE', 'logs/drone_swarm.log')
-    
+
     return initialize_logging(log_level, display_mode, log_file)
 
 if __name__ == "__main__":

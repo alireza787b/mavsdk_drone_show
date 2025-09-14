@@ -5,8 +5,8 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
-import { getFlightModeTitle } from '../utilities/flightModeUtils';
-import { MAV_MODE_ENUM } from '../constants/mavModeEnum'; // Import MAV mode enumeration
+import { getFlightModeTitle, getSystemStatusTitle } from '../utilities/flightModeUtils';
+import { getDroneShowStateName } from '../constants/droneStates';
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -66,12 +66,17 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   };
 
 
-  // Map MAV mode to informative name
-  const mavModeName = MAV_MODE_ENUM[detailedDrone.Flight_Mode] || `Unknown (${detailedDrone.Flight_Mode})`;
+  // Get flight mode and system status names using proper PX4/MAVLink standards
+  const flightModeName = getFlightModeTitle(detailedDrone.Flight_Mode);
+  const systemStatusName = getSystemStatusTitle(detailedDrone.System_Status);
 
-  // Determine if the drone is armable based on MAV mode
-  const isArmable = detailedDrone.Flight_Mode && detailedDrone.Flight_Mode !== 0; // Any mode except preflight should be armable
-  const armableClass = isArmable ? 'armable' : 'not-armable';
+  // Use proper arming status from telemetry data (not derived from flight mode)
+  const isArmed = detailedDrone.Is_Armed || false;
+  const isReadyToArm = detailedDrone.Is_Ready_To_Arm || false;
+  
+  // Determine status classes for visual indicators
+  const armedClass = isArmed ? 'armed' : 'disarmed';
+  const readyClass = isReadyToArm ? 'ready' : 'not-ready';
 
   return (
     <div className="drone-detail">
@@ -88,22 +93,26 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <p><strong>Update Time:</strong> {new Date(detailedDrone.Update_Time * 1000).toLocaleString()}</p>
       </div>
 
-      {/* Armable Status */}
-      <div className="armable-status">
-        <p><strong>Armable:</strong> 
-          <span className={`armable-badge ${armableClass}`}>
-            {isArmable ? 'Yes' : 'No'}
+      {/* Arming Status - Following QGroundControl standards */}
+      <div className="arming-status">
+        <p><strong>Armed:</strong> 
+          <span className={`status-badge ${armedClass}`}>
+            {isArmed ? 'Yes' : 'No'}
+          </span>
+        </p>
+        <p><strong>Ready to Arm:</strong> 
+          <span className={`status-badge ${readyClass}`}>
+            {isReadyToArm ? 'Yes' : 'No'}
           </span>
         </p>
       </div>
 
-      {/* MAV Mode & System Status Information */}
+      {/* Flight Mode & System Status Information */}
       <div className="detail-group">
         <p><strong>Mission:</strong> {detailedDrone.Mission}</p>
-        <p><strong>Flight Mode:</strong> {getFlightModeTitle(detailedDrone.Flight_Mode)}</p>
-        <p><strong>MAV Mode:</strong> {mavModeName}</p> {/* Display MAV mode */}
-        <p><strong>State:</strong> {drone.State || 'Unknown'}</p>
-
+        <p><strong>Flight Mode:</strong> {flightModeName}</p>
+        <p><strong>System Status:</strong> {systemStatusName}</p>
+        <p><strong>Mission State:</strong> {getDroneShowStateName(drone.State)}</p>
         <p><strong>Follow Mode:</strong> {detailedDrone.Follow_Mode}</p>
       </div>
 

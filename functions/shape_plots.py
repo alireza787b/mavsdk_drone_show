@@ -77,7 +77,7 @@ def plot_points(points, viewer_position):
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
     # Save and show the plot
-    plt.savefig('shapes/static_shapes/active/3d_plot.png')
+    plt.savefig('shapes/static_shapes/active/3d_plot.png', dpi=80, bbox_inches='tight', optimize=True)
     plt.show()
 
     return fig
@@ -152,7 +152,7 @@ def plot_2d_observer(points, heading, plane):
     ax.grid(True)
 
     # Save and show the plot
-    plt.savefig('shapes/static_shapes/active/2d_observer.png')
+    plt.savefig('shapes/static_shapes/active/2d_observer.png', dpi=80, bbox_inches='tight', optimize=True)
     plt.show()
 
     return fig
