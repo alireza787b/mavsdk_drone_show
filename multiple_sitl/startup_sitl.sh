@@ -21,10 +21,46 @@ set -euo pipefail
 # Configuration Variables
 # =============================================================================
 
-# GitHub Repository Details
+# =============================================================================
+# REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
+# =============================================================================
+# This script now supports environment variable override for advanced deployments
+# while maintaining 100% backward compatibility for normal users.
+#
+# FOR NORMAL USERS (99%):
+#   - No action required - defaults work identically to previous versions
+#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main-candidate
+#   - Simply run: bash create_dockers.sh <number_of_drones>
+#
+# FOR ADVANCED USERS (Custom Forks):
+#   - Set environment variables on HOST before running create_dockers.sh:
+#     export MDS_REPO_URL="git@github.com:yourcompany/your-fork.git"
+#     export MDS_BRANCH="your-production-branch"
+#   - Environment variables are automatically passed to containers
+#   - All containers will use your custom repository configuration
+#
+# EXAMPLES:
+#   # Use HTTPS URL (no SSH keys needed):
+#   export MDS_REPO_URL="https://github.com/company/fork.git"
+#   export MDS_BRANCH="production"
+#   bash create_dockers.sh 5
+#
+#   # Use SSH URL (requires SSH keys in Docker image):
+#   export MDS_REPO_URL="git@github.com:company/fork.git"
+#   export MDS_BRANCH="main"
+#   bash create_dockers.sh 10
+#
+# ENVIRONMENT VARIABLES SUPPORTED:
+#   MDS_REPO_URL  - Git repository URL (SSH or HTTPS format)
+#   MDS_BRANCH    - Git branch name to checkout and use
+#
+# NOTE: These variables are checked at container startup time
+# =============================================================================
+
+# GitHub Repository Details (with environment variable override support)
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="main-candidate"
-GITHUB_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
+DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
+GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
 
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv

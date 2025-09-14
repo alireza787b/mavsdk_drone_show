@@ -15,11 +15,42 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # =============================================================================
-# Default Values
+# REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
 # =============================================================================
-DEFAULT_BRANCH="main-candidate"
+# This hardware setup script now supports environment variable override for
+# advanced deployments while maintaining 100% backward compatibility.
+#
+# FOR NORMAL USERS (99%):
+#   - No action required - defaults work identically to previous versions
+#   - Uses: git@github.com:alireza787b/mavsdk_drone_show.git@main-candidate
+#   - Simply run: bash raspberry_setup.sh [options]
+#
+# FOR ADVANCED USERS (Custom Forks):
+#   - Set environment variables before running this script:
+#     export MDS_REPO_URL="git@github.com:yourcompany/your-fork.git"
+#     export MDS_BRANCH="your-production-branch"
+#   - Hardware will be deployed with your custom repository configuration
+#
+# EXAMPLES:
+#   # Normal usage (no environment variables):
+#   bash raspberry_setup.sh -d 1
+#
+#   # Advanced usage with custom repository:
+#   export MDS_REPO_URL="git@github.com:company/fork.git"
+#   export MDS_BRANCH="production"
+#   bash raspberry_setup.sh -d 5 -k "your_netbird_key"
+#
+# ENVIRONMENT VARIABLES SUPPORTED:
+#   MDS_REPO_URL  - Git repository URL (SSH or HTTPS format)
+#   MDS_BRANCH    - Git branch name to checkout and use
+#
+# NOTE: Command line arguments --repo-url and --branch will override env vars
+# =============================================================================
+
+# Default Values (with environment variable override support)
+DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
 DEFAULT_MANAGEMENT_URL="https://nb1.joomtalk.ir"
-DEFAULT_REPO_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
+DEFAULT_REPO_URL="${MDS_REPO_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
 DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
 REPO_DIR="$HOME/mavsdk_drone_show"
 

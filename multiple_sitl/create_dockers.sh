@@ -44,10 +44,45 @@ echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
 echo "==============================================================="
 echo
 
-# Global variables
+# =============================================================================
+# DOCKER CONFIGURATION: Environment Variable Support (MDS v3.1+)
+# =============================================================================
+# This script now supports custom Docker images and repository configuration
+# via environment variables while maintaining full backward compatibility.
+#
+# FOR NORMAL USERS (99%):
+#   - No action required - uses default drone-template:latest image
+#   - Uses: git@github.com:alireza787b/mavsdk_drone_show.git@main-candidate
+#   - Simply run: bash create_dockers.sh <number_of_drones>
+#
+# FOR ADVANCED USERS (Custom Docker Images & Repositories):
+#   - Build custom image first (see tools/build_custom_image.sh)
+#   - Set environment variables before running this script:
+#     export MDS_DOCKER_IMAGE="company-drone:v1.0"
+#     export MDS_REPO_URL="git@github.com:company/fork.git"
+#     export MDS_BRANCH="production"
+#   - All containers will use your custom image and repository
+#
+# ENVIRONMENT VARIABLES SUPPORTED:
+#   MDS_DOCKER_IMAGE  - Docker image name to use (default: drone-template:latest)
+#   MDS_REPO_URL      - Git repository URL (passed to containers)
+#   MDS_BRANCH        - Git branch name (passed to containers)
+#
+# EXAMPLES:
+#   # Normal usage (no environment variables):
+#   bash create_dockers.sh 5
+#
+#   # Advanced usage with custom image and repository:
+#   export MDS_DOCKER_IMAGE="mycompany-drone:v2.0"
+#   export MDS_REPO_URL="git@github.com:mycompany/drone-fork.git"
+#   export MDS_BRANCH="production"
+#   bash create_dockers.sh 10
+# =============================================================================
+
+# Global variables (with environment variable override support)
 STARTUP_SCRIPT_HOST="$HOME/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/root/mavsdk_drone_show/multiple_sitl/startup_sitl.sh"
-TEMPLATE_IMAGE="drone-template:latest"
+TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-drone-template:latest}"
 VERBOSE=false
 
 # Variables for custom network, starting drone ID, and starting IP
@@ -200,8 +235,11 @@ create_instance() {
         return 1
     fi
 
-    # Run the container with specified network and IP
-    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
+    # Run the container with specified network and IP (pass environment variables for repository config)
+    if ! docker run --name "$container_name" --network "$DOCKER_NETWORK_NAME" --ip "$IP_ADDRESS" \
+        -e MDS_REPO_URL="${MDS_REPO_URL:-}" \
+        -e MDS_BRANCH="${MDS_BRANCH:-}" \
+        -d "$TEMPLATE_IMAGE" tail -f /dev/null >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
         rm -f "$hwid_file"  # Clean up local .hwID file
         return 1

@@ -137,30 +137,51 @@ This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes
 
 Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.
 
-#### Customizing the Image (Optional for advanced users)
+#### Advanced Customization Options
 
-If you wish to customize this image, you'll need to load it into a Docker container and access its terminal bash for modifications. Follow these steps:
+The MDS demo works perfectly with the default configuration for learning, testing, and demonstration purposes. However, if you're planning to:
 
-1. Load the image into a Docker container (for example, name it **"my-drone"**).
- ```bash
-   sudo docker run -it --name my-drone drone-template:latest /bin/bash
-   ```
-2. Fork the `mavsdk_drone_show` repository.
-3. Change the upstream and branch settings of the  `mavsdk_drone_show`  repository in container home directory based on your own forked repository.
-	*	Forking the `mavsdk_drone_show` GitHub repo is required only if you are planning to customize the code and shows.
-	*	If you need help for your custom projects, contact me on [LinkedIn](https://www.linkedin.com/in/alireza787b/) or [Email](mailto:p30planets@gmail.com).
+- **Deploy in production environments**
+- **Customize drone behaviors or flight patterns**
+- **Integrate with your own repository or codebase**
+- **Deploy across multiple organizations or teams**
 
-4. Once all modifications are complete, commit the changes to the Docker image using:
- ```bash
-docker commit -m "Updated custom drone image" my-drone drone-template:v3.1
-docker tag drone-template:v3.1 drone-template:latest
-```
-If you also want to export the image to a file run:
- ```bash
-docker save -o ~/drone-template_v3.tar drone-template:v3.1 
-```
+You have access to professional-grade customization capabilities introduced in MDS v3.1+.
 
-This will save your customizations into the Docker image. You can now proceed to use this customized image for your drone instances.
+> **⚠️ Important Note for Demo Users:**
+>
+> The default setup is **fully functional** and requires **no customization** for running SITL demonstrations. You can safely skip this section if you're just testing or learning the system.
+
+#### Advanced Deployment Guide
+
+For organizations and advanced users who need custom repository integration, we provide comprehensive customization tools and documentation:
+
+**📖 Complete Advanced Guide:** [Advanced MDS Deployment & Customization](advanced_deployment.md)
+
+**What's Covered:**
+- ✅ **Custom Repository Integration** - Use your own GitHub forks and branches
+- ✅ **Automated Docker Image Creation** - One-command custom image building
+- ✅ **Enterprise Environment Configuration** - Environment variable management
+- ✅ **Multi-Organization Deployment** - Isolated configurations for different teams
+- ✅ **Production Deployment Best Practices** - Professional workflows and security
+
+**Prerequisites for Advanced Deployment:**
+- Strong understanding of Git, Docker, and Linux systems
+- Experience with environment variables and container orchestration
+- Ability to maintain independent repository forks and syncing
+
+**Important Considerations:**
+- Advanced customization **disconnects you from automatic MDS updates**
+- You'll need to manually sync your fork with upstream changes
+- Requires ongoing maintenance of your custom Docker images and configurations
+- Recommended for users with DevOps/IT expertise
+
+**Ready to proceed with advanced customization?**
+👉 **[Start with the Advanced Deployment Guide](advanced_deployment.md)**
+
+---
+
+*For questions about advanced deployment, contact me on [LinkedIn](https://www.linkedin.com/in/alireza787b/) or [Email](mailto:p30planets@gmail.com).*
 
 ### Portainer Installation (Optional but Highly Recommended)
 

@@ -132,17 +132,27 @@ In short, MDS 3 is **one package** that can be used for:
 
 ## Getting Started
 
+### Quick Start Guide
+
 All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/sitl_demo_docker.md):
 
 
 
-> **Note:** That document covers:  
-> - Docker image pull/load commands  
-> - `setup_environment.sh` and `create_dockers.sh` usage  
-> - Network, MAVLink Router, Netbird VPN setup  
-> - React dashboard startup (`linux_dashboard_start.sh --sitl`)  
-> - How to upload offline trajectories or launch live swarm missions  
-> - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)  
+> **Note:** The main guide covers:
+> - Docker image pull/load commands
+> - `setup_environment.sh` and `create_dockers.sh` usage
+> - Network, MAVLink Router, Netbird VPN setup
+> - React dashboard startup (`linux_dashboard_start.sh --sitl`)
+> - How to upload offline trajectories or launch live swarm missions
+> - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)
+
+### Advanced Deployment (v3.1+)
+
+For **production environments**, **custom repositories**, or **enterprise deployments**, MDS now supports professional-grade configuration management:
+
+📖 **[Advanced Deployment Guide](docs/advanced_deployment.md)** - Custom repository integration, environment variable configuration, and production deployment strategies.
+
+> **⚠️ Advanced deployment is for experienced users only** and requires strong Git, Docker, and Linux knowledge.  
 
 
 
