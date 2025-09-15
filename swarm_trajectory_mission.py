@@ -598,12 +598,14 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
         if behavior == 'return_home':
             logger.info("Executing return_home behavior - switching to PX4 RTL mode")
             await stop_offboard_mode(drone)
+            await drone.action.hold()
             await drone.action.return_to_launch()
             logger.info("RTL mode activated - drone will return home and land automatically")
 
         elif behavior == 'land_current':
             logger.info("Executing land_current behavior - switching to PX4 LAND mode")
             await stop_offboard_mode(drone)
+            await drone.action.hold()
             await drone.action.land()
             await wait_for_landing(drone)
             logger.info("Landing at current position completed")
@@ -644,10 +646,11 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
         # Fallback to safe landing
         try:
             await stop_offboard_mode(drone)
-            await drone.action.land()
-            logger.info("Emergency landing initiated")
+            await drone.action.hold()
+            await drone.action.return_to_launch()
+            logger.info("Emergency Return to Launch initiated")
         except Exception as fallback_error:
-            logger.error(f"Emergency landing also failed: {fallback_error}")
+            logger.error(f"Emergency Return to Launch also failed: {fallback_error}")
 
 
 # Import all the other functions from drone_show.py (connection, preflight, etc.)
