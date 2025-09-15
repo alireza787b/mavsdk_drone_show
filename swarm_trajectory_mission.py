@@ -30,9 +30,11 @@ Key Features:
     – hold_position: Hover at final waypoint
     – continue_heading: Continue last heading and speed
 
-  • Initial Climb Safety  
-    – Same proven safety system as drone_show.py
-    – Vertical climb phase with configurable thresholds
+  • Synchronized Initial Climb for Multicopters
+    – Velocity-controlled climb during initial phase (height: 5m, time: 5s, speed: 1m/s)
+    – Simple time padding copies first waypoint position for gap periods
+    – Seamless transition from climb to CSV trajectory following
+    – Perfect synchronization: timer starts at t=0, climb completes, then joins CSV
 
   • Comprehensive Logging & LEDs  
     – Verbose debug/info logs for trajectory execution
@@ -74,7 +76,9 @@ File Structure:
 Notes:
   • Built on proven drone_show.py architecture for maximum reliability
   • Always uses global GPS positioning for large-area operations
-  • Simplified landing logic - no controlled landing paths needed
+  • Two-phase approach: velocity-based climb + CSV trajectory following
+  • Time padding ensures synchronized start regardless of first waypoint time
+  • Parameters: SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT/TIME/SPEED in Params
 """
 
 import os
@@ -214,6 +218,65 @@ def read_config(filename: str) -> Drone:
         return None
 
 
+def pad_trajectory_for_time_gap(waypoints: list) -> list:
+    """
+    Simple trajectory padding to fill time gap from t=0 to first CSV waypoint.
+
+    This function only copies the first waypoint's position (lat/lon/alt) for all
+    times from 0 to first_waypoint_time. No altitude modifications.
+    The actual initial climb is handled separately via velocity commands.
+
+    Args:
+        waypoints (list): Original CSV waypoints starting at some time > 0
+
+    Returns:
+        list: Padded waypoints list starting from t=0 with copied first position
+    """
+    logger = logging.getLogger(__name__)
+
+    if not waypoints:
+        logger.warning("Empty waypoints provided to padding function")
+        return waypoints
+
+    first_waypoint = waypoints[0]
+    first_time = first_waypoint[0]  # t value of first CSV waypoint
+
+    # If first waypoint is already at t=0 or very close, no padding needed
+    if first_time <= 1.0:  # 1 second tolerance
+        logger.info(f"First waypoint at t={first_time:.1f}s, no padding needed")
+        return waypoints
+
+    # Extract first waypoint data (no modifications)
+    first_lat, first_lon, first_alt = first_waypoint[1], first_waypoint[2], first_waypoint[3]
+    first_yaw = first_waypoint[10]
+    first_ledr, first_ledg, first_ledb = first_waypoint[12], first_waypoint[13], first_waypoint[14]
+
+    padded_waypoints = []
+
+    logger.info(f"Padding trajectory: copy first position from t=0 to t={first_time:.1f}s")
+
+    # Pad from t=0 to first_time with copied first waypoint position
+    pad_steps = max(int(first_time / 0.1), 1)  # 10Hz rate
+
+    for i in range(pad_steps):
+        t = i * first_time / pad_steps
+
+        padded_waypoints.append((
+            t, first_lat, first_lon, first_alt,  # Use exact first waypoint position
+            0.0, 0.0, 0.0,  # Zero velocity (position hold)
+            0.0, 0.0, 0.0,  # Zero acceleration
+            first_yaw,  # First waypoint yaw
+            "0",  # mode
+            first_ledr, first_ledg, first_ledb  # First waypoint LED color
+        ))
+
+    # Add original CSV waypoints unchanged
+    padded_waypoints.extend(waypoints)
+
+    logger.info(f"Trajectory padded: {len(padded_waypoints)} total waypoints (added {len(padded_waypoints) - len(waypoints)} padding points)")
+    return padded_waypoints
+
+
 def read_swarm_trajectory_file(position_id: int) -> list:
     """
     Read and adjust the swarm trajectory waypoints from a CSV file.
@@ -293,6 +356,9 @@ def read_swarm_trajectory_file(position_id: int) -> list:
 
             logger.info(f"Trajectory file '{filename}' loaded with {len(waypoints)} waypoints.")
 
+            # Apply simple trajectory padding to fill time gap from t=0
+            waypoints = pad_trajectory_for_time_gap(waypoints)
+
     except FileNotFoundError:
         logger.exception(f"Trajectory file '{filename}' not found.")
         sys.exit(1)
@@ -347,11 +413,11 @@ async def perform_swarm_trajectory(
     mission_completed = False
     led_controller = LEDController.get_instance()
 
-    # Initial climb bookkeeping (same as drone_show.py)
+    # Initial climb state tracking for velocity-based climb control
     in_initial_climb = True
     initial_climb_completed = False
     initial_climb_start_time = time.time()
-    initial_climb_yaw = None
+    climb_target_reached = False
 
     # Time step between CSV rows (for drift‐skip calculations)
     csv_step = (waypoints[1][0] - waypoints[0][0]) \
@@ -387,50 +453,39 @@ async def perform_swarm_trajectory(
                 # px = lat, py = lon, pz = alt (no conversion needed for global setpoints)
                 px, py, pz = raw_px, raw_py, raw_pz
 
-                # --- (1) Initial Climb Phase (adapted for global coordinates) ---
+                # --- (1) Initial Climb Phase with Velocity Control ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    # pz is already positive altitude (AMSL), not NED down
-                    actual_alt = pz - launch_alt  # Altitude above launch
-                    under_alt = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
-                    under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
-                    in_initial_climb = under_alt or under_time
+                    # Check climb completion conditions
+                    altitude_condition = time_in_climb >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_TIME
+                    height_condition = (time_in_climb * Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED) >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT
 
-                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING:
-                        logger.debug(
-                            f"Initial climb: alt={actual_alt:.1f}m, time={time_in_climb:.1f}s, "
-                            f"under_alt={under_alt}, under_time={under_time}"
+                    in_initial_climb = not (altitude_condition and height_condition)
+
+                    if in_initial_climb:
+                        # Use velocity commands for initial climb
+                        climb_vz = -Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED  # Negative = up in NED
+
+                        # Send velocity setpoint during climb
+                        await drone.offboard.set_velocity_ned(
+                            VelocityNedYaw(0.0, 0.0, climb_vz, raw_yaw)
                         )
 
-                    if not in_initial_climb:
+                        # LED white during climb
+                        led_controller.set_color(255, 255, 255)
+
+                        if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 50 == 0:
+                            logger.debug(f"Initial climb: t={time_in_climb:.1f}s, vz={climb_vz:.1f}m/s")
+
+                        waypoint_index += 1
+                        continue
+                    else:
+                        # Initial climb completed - switch to CSV trajectory following
                         initial_climb_completed = True
-                        logger.info(f"Initial climb phase completed at {actual_alt:.1f}m after {time_in_climb:.1f}s")
-                else:
-                    in_initial_climb = False
+                        logger.info(f"Initial climb completed after {time_in_climb:.1f}s - switching to CSV trajectory")
 
-                # Update LED color for feedback
+                # Update LED color for feedback (after climb or normal trajectory)
                 led_controller.set_color(ledr, ledg, ledb)
-
-                if in_initial_climb:
-                    # During initial climb, use global setpoints to reach target altitude
-                    if initial_climb_yaw is None:
-                        initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
-
-                    # Send global position setpoint during climb
-                    climb_gp = PositionGlobalYaw(
-                        lla_lat,
-                        lla_lon,
-                        lla_alt,
-                        initial_climb_yaw,
-                        PositionGlobalYaw.AltitudeType.AMSL
-                    )
-                    await drone.offboard.set_position_global(climb_gp)
-
-                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 10 == 0:
-                        logger.debug(f"Climbing to alt={lla_alt:.1f}m (target: {launch_alt + Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD:.1f}m)")
-
-                    waypoint_index += 1
-                    continue
 
                 # --- (2) Drift Correction (Skipping) ---
                 safe_drift = min(drift_delta, DRIFT_CATCHUP_MAX_SEC)

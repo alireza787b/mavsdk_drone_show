@@ -345,6 +345,16 @@ class Params:
     # React UI Integration
     swarm_trajectory_executer = "swarm_trajectory_mission.py"  # Script name for UI
 
+    # =========================
+    # SWARM TRAJECTORY INITIAL CLIMB CONFIGURATION
+    # =========================
+
+    # Dedicated climb phase parameters for swarm trajectory mode multicopter synchronization
+    # These handle the gap between t=0 and first CSV waypoint time in swarm trajectory missions
+    SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT = 5.0    # meters above first setpoint altitude
+    SWARM_TRAJECTORY_INITIAL_CLIMB_TIME = 5.0      # seconds for climb phase duration
+    SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED = 1.0     # m/s vertical climb speed (positive = up)
+
     @classmethod
     def get_swarm_trajectory_file_path(cls, position_id):
         """
