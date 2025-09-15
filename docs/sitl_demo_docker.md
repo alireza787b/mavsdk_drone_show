@@ -3,15 +3,23 @@
 
 ## Introduction
 
-Welcome to the MDS Simulation Server Setup Guide. This document provides a complete, all-in-one framework for setting up and running either:
+Welcome to the MDS Simulation Server Setup Guide. This document provides a **basic demonstration setup** for evaluation and learning purposes.
+
+> **🎯 This guide is for DEMO and EVALUATION only**
+>
+> For production deployments, custom features, or real hardware implementation:
+> - **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
+> - **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
+
+This document provides a complete, all-in-one framework for setting up and running either:
 - **Decentralized Drone Shows** (offline, pre-planned trajectories), and
 - **Live, Cooperative Swarm Missions** (real-time, leader–follower clustering with dynamic role changes).
 
 MDS 3 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released June 2025). It supports:
-- **Offline Choreography Modes:** Preload “ShowMode” trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.  
+- **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
 - **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
 
-In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in. Both drone-show artists and swarm-mission engineers will find this guide relevant for taking advantage of MDS 3’s unified feature set.
+In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in. Both drone-show artists and swarm-mission engineers will find this guide relevant for taking advantage of MDS 3's unified feature set.
 
 For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutorial playlist linked in the [GitHub repository](https://github.com/alireza787b/mavsdk_drone_show).
 

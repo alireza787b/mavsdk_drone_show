@@ -186,6 +186,113 @@ echo $MDS_BRANCH
 
 ---
 
+## Docker Container Development Workflow
+
+**⚠️ IMPORTANT:** This section is ONLY for creating custom Docker images. For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles hwid generation and proper drone setup.
+
+For advanced users who want to develop inside containers and maintain custom images:
+
+### Step 1: Create Development Container
+
+```bash
+# Create a template container directly (avoid create_dockers.sh to prevent hwid generation)
+sudo docker run -it --name my-drone-dev drone-template:latest /bin/bash
+```
+
+### Step 2: Make Your Changes Inside Container
+
+```bash
+# Inside container - make your changes:
+cd /root/mavsdk_drone_show
+
+# Update to your repository if needed
+git remote set-url origin git@github.com:YOURORG/YOURREPO.git
+git pull origin your-branch
+
+# Edit files, test changes, debug issues
+# Install new packages, modify configuration
+# Make any customizations you need
+```
+
+### Step 3: Commit Your Changes
+
+```bash
+# Exit the container first
+exit
+
+# Commit container to new image version
+docker commit -m "Updated custom drone image" my-drone-dev drone-template:v3.1
+
+# Tag as latest (optional)
+docker tag drone-template:v3.1 drone-template:latest
+```
+
+### Step 4: Export Container (Optional)
+
+```bash
+# Export to tar file for backup/distribution
+docker save -o ~/drone-template_v3.tar drone-template:v3.1
+
+# Or compress with 7z for smaller size
+docker save drone-template:v3.1 | 7z a -si ~/drone-template_v3.7z
+```
+
+### Step 5: Use Your Custom Image for Real SITL Operations
+
+```bash
+# Set your custom image for future SITL deployments
+export MDS_DOCKER_IMAGE="drone-template:v3.1"
+
+# NOW use create_dockers.sh for actual SITL drone operations
+# (This will properly generate hwid and configure each drone)
+bash multiple_sitl/create_dockers.sh 5
+```
+
+### Regular Maintenance Workflow
+
+```bash
+# Start your development container again (for image updates only)
+sudo docker run -it --name my-drone-dev-v2 drone-template:latest /bin/bash
+
+# Make updates inside container
+cd /root/mavsdk_drone_show
+git pull
+
+# Exit and commit new version
+exit
+docker commit -m "Updated to latest version" my-drone-dev-v2 drone-template:v3.2
+docker tag drone-template:v3.2 drone-template:latest
+
+# Clean up old containers
+docker rm my-drone-dev my-drone-dev-v2
+```
+
+> **💡 Pro Tip:** This workflow is for customizing Docker images only. For actual SITL drone operations, always use `bash multiple_sitl/create_dockers.sh` which handles proper drone setup, hwid generation, and network configuration.
+
+---
+
+## Commercial Support & Custom Implementation
+
+### For Companies and Real-World Deployments
+
+The basic SITL demo is designed for evaluation and learning. For production deployments, custom features, or hardware implementation, professional support is available:
+
+**Services Available:**
+- ✈️ **Custom SITL Features** - Specialized simulation scenarios and advanced functionality
+- 🚁 **Hardware Implementation** - Real drone deployment with safety protocols
+- 🏢 **Enterprise Integration** - Custom APIs, cloud integration, fleet management
+- 📊 **Performance Optimization** - Large-scale swarm optimization and mission planning
+- 🔧 **Training & Support** - Team training and ongoing technical support
+- 🎯 **Custom Mission Types** - Specialized applications beyond standard formations
+
+**Contact for Professional Implementation:**
+- **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
+- **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
+
+> **🏢 Note for Companies:** Real-world drone deployments require aviation compliance, safety protocols, and specialized expertise. Contact us for professional consultation and implementation contracts.
+
+---
+
 ## Support
 
 For help with advanced configuration:
