@@ -416,7 +416,7 @@ EOF
     # Print success message with additional instructions
     printf "To run the Swarm Dashboard, execute the following command:\n"
     printf "  bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl\n"
-    printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3000\n\n"
+    printf "You can access the swarm dashboard at http://GCS_SERVER_IP:3030\n\n"
 
     printf "To access QGC on another system, ensure 'mavlink-router' is installed:\n"
     printf "  bash ~/mavsdk_drone_show/tools/mavlink-router-install.sh\n\n"

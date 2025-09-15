@@ -163,7 +163,7 @@ class Params:
     extra_devices = [
         f"127.0.0.1:{local_mavlink_port}",
         f"127.0.0.1:{local_mavlink2rest_port}",
-        "100.74.49.250:14550",
+        "100.96.64.247:14550", # GCS PC
     ]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Allow hard reboot commands (ensure root privileges)
@@ -255,7 +255,7 @@ class Params:
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
     
     # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
-    INITIAL_CLIMB_MODE = "BODY_VELOCITY"  
+    INITIAL_CLIMB_MODE = "LOCAL_NED"  
 
     # Feedforward Control Settings
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
