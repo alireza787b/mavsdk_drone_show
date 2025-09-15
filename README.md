@@ -146,13 +146,25 @@ All the detailed setup instructions—downloading the Docker image, creating SIT
 > - How to upload offline trajectories or launch live swarm missions
 > - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)
 
-### Advanced Deployment (v3.1+)
+### Advanced SITL Configuration
 
-For **production environments**, **custom repositories**, or **enterprise deployments**, MDS now supports professional-grade configuration management:
+For custom repositories or production SITL deployments:
 
-📖 **[Advanced Deployment Guide](docs/advanced_deployment.md)** - Custom repository integration, environment variable configuration, and production deployment strategies.
+📖 **[Advanced SITL Guide](docs/advanced_sitl.md)** - Simple copy-paste commands for custom configuration
 
-> **⚠️ Advanced deployment is for experienced users only** and requires strong Git, Docker, and Linux knowledge.  
+> **⚠️ Advanced configuration requires good understanding of Git, Docker, and Linux**
+
+### Real Hardware Deployment
+
+**⚠️ IMPORTANT:** Deploying MDS on real drones and hardware requires:
+- Deep understanding of flight control systems, safety protocols, and aviation regulations
+- Extensive testing in controlled environments before any real-world use
+- Professional drone operation knowledge and certifications
+- Additional hardware setup, networking, and safety configurations
+
+**For real hardware deployment assistance, contact:**
+- **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
+- **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)  
 
 
 

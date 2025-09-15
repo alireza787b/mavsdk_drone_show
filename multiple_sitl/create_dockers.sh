@@ -39,8 +39,15 @@ echo "  - Reserved IP addresses (.0, .255) are skipped to avoid conflicts."
 echo
 echo "To debug and see full console logs of the container workflow, run:"
 echo "  bash create_dockers.sh 1 --verbose"
-echo "You can also manually create containers with the command:"
-echo "  docker run -it --name my-drone drone-template:latest /bin/bash"
+echo
+echo "For ADVANCED USERS - Custom Repository Configuration:"
+echo "  Set environment variables before running this script:"
+echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
+echo "    export MDS_BRANCH=\"your-branch\""
+echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
+echo "  Then run: bash create_dockers.sh <number>"
+echo "  See: docs/advanced_sitl.md for complete guide"
+echo
 echo "==============================================================="
 echo
 

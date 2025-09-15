@@ -137,51 +137,13 @@ This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes
 
 Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.
 
-#### Advanced Customization Options
+#### Need Custom Repository or Advanced Configuration?
 
-The MDS demo works perfectly with the default configuration for learning, testing, and demonstration purposes. However, if you're planning to:
+The default setup works perfectly for demos and testing. For advanced users who need custom repositories or production deployments:
 
-- **Deploy in production environments**
-- **Customize drone behaviors or flight patterns**
-- **Integrate with your own repository or codebase**
-- **Deploy across multiple organizations or teams**
+📖 **[Advanced SITL Configuration Guide](advanced_sitl.md)** - Custom repository setup with simple copy-paste commands
 
-You have access to professional-grade customization capabilities introduced in MDS v3.1+.
-
-> **⚠️ Important Note for Demo Users:**
->
-> The default setup is **fully functional** and requires **no customization** for running SITL demonstrations. You can safely skip this section if you're just testing or learning the system.
-
-#### Advanced Deployment Guide
-
-For organizations and advanced users who need custom repository integration, we provide comprehensive customization tools and documentation:
-
-**📖 Complete Advanced Guide:** [Advanced MDS Deployment & Customization](advanced_deployment.md)
-
-**What's Covered:**
-- ✅ **Custom Repository Integration** - Use your own GitHub forks and branches
-- ✅ **Automated Docker Image Creation** - One-command custom image building
-- ✅ **Enterprise Environment Configuration** - Environment variable management
-- ✅ **Multi-Organization Deployment** - Isolated configurations for different teams
-- ✅ **Production Deployment Best Practices** - Professional workflows and security
-
-**Prerequisites for Advanced Deployment:**
-- Strong understanding of Git, Docker, and Linux systems
-- Experience with environment variables and container orchestration
-- Ability to maintain independent repository forks and syncing
-
-**Important Considerations:**
-- Advanced customization **disconnects you from automatic MDS updates**
-- You'll need to manually sync your fork with upstream changes
-- Requires ongoing maintenance of your custom Docker images and configurations
-- Recommended for users with DevOps/IT expertise
-
-**Ready to proceed with advanced customization?**
-👉 **[Start with the Advanced Deployment Guide](advanced_deployment.md)**
-
----
-
-*For questions about advanced deployment, contact me on [LinkedIn](https://www.linkedin.com/in/alireza787b/) or [Email](mailto:p30planets@gmail.com).*
+> **⚠️ Note:** Advanced configuration requires good understanding of Git, Docker, and Linux. Contact [p30planets@gmail.com](mailto:p30planets@gmail.com) for help.
 
 ### Portainer Installation (Optional but Highly Recommended)
 
