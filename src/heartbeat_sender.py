@@ -5,6 +5,7 @@ import logging
 import requests
 import socket
 import netifaces
+import subprocess
 
 from src.params import Params
 from src.drone_config import DroneConfig
@@ -79,12 +80,16 @@ class HeartbeatSender:
             # Fallback to the IP from config.csv if no netbird IP found
             netbird_ip = self.drone_config.config.get('ip', 'unknown')
 
+        # Get comprehensive network info for heartbeat
+        network_info = self._get_network_info()
+
         data = {
             "hw_id": hw_id,
             "pos_id": pos_id,
             "detected_pos_id": detected_pos_id,
             "ip": netbird_ip,
             "timestamp": int(time.time() * 1000),  # ms precision
+            "network_info": network_info  # Include network details
         }
 
         url = f"http://{self.gcs_ip}:{self.gcs_port}{Params.gcs_heartbeat_endpoint}"
@@ -118,3 +123,82 @@ class HeartbeatSender:
         except Exception as e:
             logging.error(f"Failed to retrieve Netbird IP: {e}", exc_info=True)
             return None
+
+    def _get_network_info(self):
+        """
+        Fetch comprehensive network information for heartbeat.
+        Returns Wi-Fi and Ethernet details with current status.
+        """
+        try:
+            # Gather Wi-Fi information with active status, SSID, and signal strength
+            wifi_info = subprocess.check_output(
+                ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"],
+                universal_newlines=True
+            )
+
+            # Gather Wired LAN information
+            eth_connection = subprocess.check_output(
+                ["nmcli", "-t", "-f", "device,state,connection", "device", "status"],
+                universal_newlines=True
+            )
+
+            # Initialize network info structure
+            network_info = {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000)
+            }
+
+            # Extract Wi-Fi details
+            active_wifi_ssid = None
+            active_wifi_signal = None
+            for line in wifi_info.splitlines():
+                parts = line.split(':')
+                if len(parts) >= 3 and parts[0].lower() == 'yes':
+                    active_wifi_ssid = parts[1]
+                    active_wifi_signal = parts[2]
+                    break
+
+            # If Wi-Fi is connected, add it to network info
+            if active_wifi_ssid:
+                signal_strength = int(active_wifi_signal) if active_wifi_signal.isdigit() else 0
+                network_info["wifi"] = {
+                    "ssid": active_wifi_ssid,
+                    "signal_strength_percent": signal_strength
+                }
+
+            # Extract Ethernet details
+            active_eth_connection = None
+            active_eth_device = None
+            for line in eth_connection.splitlines():
+                parts = line.split(':')
+                if len(parts) >= 3 and parts[1].lower() == 'connected' and 'eth' in parts[0].lower():
+                    active_eth_device = parts[0]
+                    active_eth_connection = parts[2]
+                    break
+
+            # If Ethernet is connected, add it to network info
+            if active_eth_device and active_eth_connection:
+                network_info["ethernet"] = {
+                    "interface": active_eth_device,
+                    "connection_name": active_eth_connection
+                }
+
+            return network_info
+
+        except subprocess.CalledProcessError as e:
+            logging.warning(f"Failed to get network info for heartbeat: {e}")
+            return {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000),
+                "error": f"Command failed: {e}"
+            }
+        except Exception as e:
+            logging.error(f"Unexpected error getting network info for heartbeat: {e}")
+            return {
+                "wifi": None,
+                "ethernet": None,
+                "timestamp": int(time.time() * 1000),
+                "error": f"Unexpected error: {e}"
+            }
