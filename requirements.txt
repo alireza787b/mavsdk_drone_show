@@ -54,3 +54,4 @@ filterpy
 netifaces
 seaborn
 pymap3d
+nmcli
