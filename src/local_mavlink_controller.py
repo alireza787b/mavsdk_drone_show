@@ -44,6 +44,16 @@ class LocalMavlinkController:
         if self.debug_enabled:
             logging.debug(message)
 
+    def log_info(self, message):
+        """Logs an info message if debugging is enabled."""
+        if self.debug_enabled:
+            logging.info(message)
+
+    def log_warning(self, message):
+        """Logs a warning message if debugging is enabled."""
+        if self.debug_enabled:
+            logging.warning(message)
+
     def mavlink_monitor(self):
         """
         Continuously monitor for incoming Mavlink messages and process them.
