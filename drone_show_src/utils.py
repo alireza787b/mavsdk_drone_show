@@ -37,17 +37,20 @@ def calculate_ned_origin(current_gps, ned_position):
     return lat_origin, lon_origin, alt_origin
 
 
-def configure_logging():
+def configure_logging(mission_type="drone_show"):
     """
-    Configures logging for the script, ensuring logs are written to a per-session file
-    and displayed on the console. It also limits the number of log files to MAX_LOG_FILES.
+    Configures consistent logging for all mission types with last mission tracking.
+    Creates both timestamped archives and a clean 'last_mission.log' file.
+
+    Args:
+        mission_type (str): Type of mission (drone_show, swarm_trajectory, smart_swarm)
     """
     # Check if the root logger already has handlers configured
     if logging.getLogger().hasHandlers():
         return
 
     # Create logs directory if it doesn't exist
-    logs_directory = os.path.join("..", "logs", "offboard_mission_logs")
+    logs_directory = os.path.join("logs")
     os.makedirs(logs_directory, exist_ok=True)
 
     # Configure the root logger
@@ -62,14 +65,22 @@ def configure_logging():
 
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # Adjust as needed
+    console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
 
-    # Create file handler with per-session log file
-    session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"offboard_mission_{session_time}.log"
-    log_file = os.path.join(logs_directory, log_filename)
-    file_handler = logging.FileHandler(log_file)
+    # Archive previous last_mission.log if it exists
+    last_mission_file = os.path.join(logs_directory, "last_mission.log")
+    if os.path.exists(last_mission_file):
+        session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_filename = f"{mission_type}_{session_time}.log"
+        archive_file = os.path.join(logs_directory, archive_filename)
+        try:
+            os.rename(last_mission_file, archive_file)
+        except OSError:
+            pass  # Continue if rename fails
+
+    # Create file handler for last mission (overwrites)
+    file_handler = logging.FileHandler(last_mission_file, mode='w')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 
@@ -77,28 +88,39 @@ def configure_logging():
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # Limit the number of log files
+    # Limit the number of archived log files
     limit_log_files(logs_directory, Params.MAX_LOG_FILES)
+
+    # Log the mission start
+    logger = logging.getLogger(__name__)
+    logger.info(f"=== {mission_type.upper()} MISSION STARTED ===")
+    logger.info(f"Session time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 def limit_log_files(logs_directory, max_files):
     """
-    Limits the number of log files in the specified directory to the max_files.
-    Deletes the oldest files when the limit is exceeded.
+    Limits the number of archived log files, excluding last_mission.log.
+    Deletes the oldest archived files when the limit is exceeded.
 
     Args:
         logs_directory (str): Path to the logs directory.
-        max_files (int): Maximum number of log files to keep.
+        max_files (int): Maximum number of archived log files to keep.
     """
     logger = logging.getLogger(__name__)
     try:
-        log_files = [os.path.join(logs_directory, f) for f in os.listdir(logs_directory) if os.path.isfile(os.path.join(logs_directory, f))]
+        # Get all log files except last_mission.log
+        all_files = [f for f in os.listdir(logs_directory)
+                    if os.path.isfile(os.path.join(logs_directory, f)) and f != "last_mission.log"]
+
+        log_files = [os.path.join(logs_directory, f) for f in all_files
+                    if f.endswith('.log')]
+
         if len(log_files) > max_files:
             # Sort files by creation time
             log_files.sort(key=os.path.getctime)
             files_to_delete = log_files[:len(log_files) - max_files]
             for file_path in files_to_delete:
                 os.remove(file_path)
-                logger.info(f"Deleted old log file: {file_path}")
+                logger.info(f"Deleted old archived log: {os.path.basename(file_path)}")
     except Exception:
         logger.exception("Error limiting log files")
 

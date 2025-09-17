@@ -122,6 +122,7 @@ venv.bak/
 # Logs
 logs/
 *.log
+last_mission.log
 gcs-server/logs/
 
 # Test and optimization files

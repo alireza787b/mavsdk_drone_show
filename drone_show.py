@@ -1441,7 +1441,7 @@ def main():
     Main function to run the drone.
     """
     # Configure logging
-    configure_logging()
+    configure_logging("drone_show")
     logger = logging.getLogger(__name__)
 
     parser = argparse.ArgumentParser(description='Drone Show Script')
