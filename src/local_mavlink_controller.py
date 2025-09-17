@@ -231,27 +231,53 @@ class LocalMavlinkController:
             33816576: 'Takeoff',   # Custom takeoff mode (516 << 16)
             100925440: 'Land'      # Custom land mode (1540 << 16)
         }
-        # Enhanced fallback for unknown modes
+        # Enhanced fallback for unknown modes with modern approach
         if custom_mode not in flight_modes:
             main_mode = (custom_mode >> 16) & 0xFFFF
             sub_mode = custom_mode & 0xFFFF
 
+            # Log detailed info for debugging
+            self.log_debug(f"Unmapped flight mode - Mode: {custom_mode}, Main: {main_mode}, Sub: {sub_mode}")
+
             # Try intelligent detection for common patterns
             if main_mode == 6:
-                return 'Offboard*'  # Offboard variant
+                self.log_info(f"Detected OFFBOARD variant: {custom_mode}")
+                return 'Offboard'  # Remove asterisk for cleaner display
             elif main_mode == 516:
-                return 'Takeoff*'   # Custom takeoff
+                self.log_info(f"Detected custom TAKEOFF: {custom_mode}")
+                return 'Takeoff'
             elif main_mode == 1540:
-                return 'Land*'      # Custom land
+                self.log_info(f"Detected custom LAND: {custom_mode}")
+                return 'Land'
             elif main_mode == 4:
-                # Auto modes
+                # Auto modes with comprehensive sub-mode support
                 auto_sub_modes = {
-                    1: 'Ready*', 2: 'Takeoff*', 3: 'Hold*',
-                    4: 'Mission*', 5: 'Return*', 6: 'Land*'
+                    1: 'Ready', 2: 'Takeoff', 3: 'Hold',
+                    4: 'Mission', 5: 'Return', 6: 'Land',
+                    7: 'RTGS', 8: 'Follow', 9: 'Precision Land',
+                    10: 'VTOL Takeoff'
                 }
-                return auto_sub_modes.get(sub_mode, f'Auto*({sub_mode})')
+                mode_name = auto_sub_modes.get(sub_mode, f'Auto({sub_mode})')
+                self.log_info(f"Detected AUTO mode: {custom_mode} -> {mode_name}")
+                return mode_name
+            elif main_mode == 1:
+                return 'Manual'
+            elif main_mode == 2:
+                return 'Altitude'
+            elif main_mode == 3:
+                return 'Position'
+            elif main_mode == 5:
+                return 'Acro'
+            elif main_mode == 7:
+                return 'Stabilized'
+            elif main_mode == 8:
+                return 'Rattitude'
+            elif main_mode == 10:
+                return 'Termination'
 
-            return f'Unknown({custom_mode}:M{main_mode}:S{sub_mode})'
+            # Final fallback with detailed diagnostic info
+            self.log_warning(f"Completely unknown flight mode: {custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
+            return f'Unknown({custom_mode})'
 
         return flight_modes[custom_mode]
 
