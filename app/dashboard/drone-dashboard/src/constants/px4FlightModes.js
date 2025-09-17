@@ -73,6 +73,16 @@ export const PX4_FLIGHT_MODES = {
   50593792: 'Hold',        // Special Hold mode variant (772 << 16) - No GPS required
   84148224: 'Return',      // Special Return mode variant (131072 << 16) - No GPS required
 
+  // Additional Offboard mode variations (PX4 sub-modes)
+  393217: 'Offboard',      // OFFBOARD with sub-mode 1
+  393218: 'Offboard',      // OFFBOARD with sub-mode 2
+  393219: 'Offboard',      // OFFBOARD with sub-mode 3
+  393220: 'Offboard',      // OFFBOARD with sub-mode 4
+
+  // Custom/Extended flight modes (observed in field)
+  33816576: 'Takeoff',     // Custom takeoff mode (516 << 16)
+  100925440: 'Land',       // Custom land mode (1540 << 16)
+
   // Common fallback modes when GPS is not available
   // Note: PX4 typically falls back to Stabilized or Altitude mode without GPS
 };

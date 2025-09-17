@@ -107,6 +107,21 @@ class LocalMavlinkController:
                       f"system_status={self.drone_config.system_status}, "
                       f"armed={self.drone_config.is_armed}, "
                       f"ready_to_arm={self.drone_config.is_ready_to_arm}")
+
+        # Special logging for flight mode detection issues
+        if self.drone_config.custom_mode == 393216:  # Standard PX4 OFFBOARD mode
+            self.log_debug(f"✓ OFFBOARD mode detected correctly: {self.drone_config.custom_mode}")
+        elif self.drone_config.custom_mode in [33816576, 100925440]:  # Custom modes observed in field
+            self.log_info(f"✓ Custom flight mode detected: {self.drone_config.custom_mode} ({mode_name})")
+        elif mode_name.startswith('Unknown') and (self.drone_config.custom_mode >> 16) == 6:  # Main mode 6 = OFFBOARD
+            self.log_warning(f"⚠️ Possible OFFBOARD mode with non-standard custom_mode: {self.drone_config.custom_mode}")
+            self.log_warning(f"   Main mode: {self.drone_config.custom_mode >> 16}, Sub mode: {self.drone_config.custom_mode & 0xFFFF}")
+            self.log_warning(f"   Expected standard OFFBOARD custom_mode: 393216")
+        elif mode_name.startswith('Unknown'):
+            main_mode = self.drone_config.custom_mode >> 16
+            sub_mode = self.drone_config.custom_mode & 0xFFFF
+            self.log_warning(f"⚠️ Unmapped flight mode: {self.drone_config.custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
+            self.log_warning(f"   Please add this mapping to PX4_FLIGHT_MODES")
                       
     def _update_pre_arm_status(self):
         """
@@ -194,9 +209,41 @@ class LocalMavlinkController:
             262154: 'VTOL Takeoff',
             196609: 'Orbit',
             196610: 'Position Slow',
-            50593792: 'Hold (GPS-less)'  # Special Hold mode variant
+            50593792: 'Hold (GPS-less)',  # Special Hold mode variant
+
+            # Additional Offboard mode variations (PX4 sub-modes)
+            393217: 'Offboard',  # OFFBOARD with sub-mode 1
+            393218: 'Offboard',  # OFFBOARD with sub-mode 2
+            393219: 'Offboard',  # OFFBOARD with sub-mode 3
+            393220: 'Offboard',  # OFFBOARD with sub-mode 4
+
+            # Custom/Extended flight modes (observed in field)
+            33816576: 'Takeoff',   # Custom takeoff mode (516 << 16)
+            100925440: 'Land'      # Custom land mode (1540 << 16)
         }
-        return flight_modes.get(custom_mode, f'Unknown({custom_mode})')
+        # Enhanced fallback for unknown modes
+        if custom_mode not in flight_modes:
+            main_mode = (custom_mode >> 16) & 0xFFFF
+            sub_mode = custom_mode & 0xFFFF
+
+            # Try intelligent detection for common patterns
+            if main_mode == 6:
+                return 'Offboard*'  # Offboard variant
+            elif main_mode == 516:
+                return 'Takeoff*'   # Custom takeoff
+            elif main_mode == 1540:
+                return 'Land*'      # Custom land
+            elif main_mode == 4:
+                # Auto modes
+                auto_sub_modes = {
+                    1: 'Ready*', 2: 'Takeoff*', 3: 'Hold*',
+                    4: 'Mission*', 5: 'Return*', 6: 'Land*'
+                }
+                return auto_sub_modes.get(sub_mode, f'Auto*({sub_mode})')
+
+            return f'Unknown({custom_mode}:M{main_mode}:S{sub_mode})'
+
+        return flight_modes[custom_mode]
 
     def process_sys_status(self, msg):
         """

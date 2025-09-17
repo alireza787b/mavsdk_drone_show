@@ -861,23 +861,45 @@ async def initial_setup_and_connection():
             f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {Params.mavsdk_port}."
         )
 
-        # Wait for connection with a timeout
+        # Enhanced connection wait for container environments
+        connection_timeout = 30  # Longer timeout for containers
         start_time = time.time()
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                logger.info(
-                    f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}."
-                )
-                break
-            if time.time() - start_time > 10:
-                logger.error("Timeout while waiting for drone connection.")
-                led_controller.set_color(255, 0, 0)  # Red
-                raise TimeoutError("Drone connection timeout.")
-            await asyncio.sleep(1)
+        connection_attempts = 0
+        max_attempts = 3
 
-        # Log initial connection success
-        logger.info("Initial setup and connection successful.")
-        return drone
+        while connection_attempts < max_attempts:
+            try:
+                logger.info(f"Connection attempt {connection_attempts + 1}/{max_attempts}")
+
+                async for state in drone.core.connection_state():
+                    if state.is_connected:
+                        logger.info(
+                            f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}."
+                        )
+                        return drone
+                    if time.time() - start_time > connection_timeout:
+                        logger.warning(f"Connection attempt {connection_attempts + 1} timed out after {connection_timeout}s")
+                        break
+                    await asyncio.sleep(1)
+
+                connection_attempts += 1
+                if connection_attempts < max_attempts:
+                    logger.info("Retrying connection in 3 seconds...")
+                    await asyncio.sleep(3)
+                    start_time = time.time()  # Reset timeout for next attempt
+
+            except Exception as e:
+                logger.warning(f"Connection attempt {connection_attempts + 1} failed: {e}")
+                connection_attempts += 1
+                if connection_attempts < max_attempts:
+                    logger.info("Retrying connection in 3 seconds...")
+                    await asyncio.sleep(3)
+                    start_time = time.time()
+
+        # All attempts failed
+        logger.error(f"Failed to connect after {max_attempts} attempts.")
+        led_controller.set_color(255, 0, 0)  # Red
+        raise TimeoutError("Drone connection failed after multiple attempts.")
     except Exception:
         logger.exception("Error during initial setup and connection.")
         led_controller.set_color(255, 0, 0)  # Red
@@ -1184,21 +1206,37 @@ def start_mavsdk_server(udp_port: int):
     """
     logger = logging.getLogger(__name__)
     try:
-        # Check if MAVSDK server is already running
+        # Enhanced MAVSDK server management for containers
         is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
             logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating existing server (PID: {pid})...")
             try:
-                psutil.Process(pid).terminate()
-                psutil.Process(pid).wait(timeout=5)
+                process = psutil.Process(pid)
+                process.terminate()
+                # Wait longer for graceful termination in container environments
+                process.wait(timeout=10)
                 logger.info(f"Terminated existing MAVSDK server with PID: {pid}.")
             except psutil.NoSuchProcess:
                 logger.warning(f"No process found with PID: {pid} to terminate.")
             except psutil.TimeoutExpired:
-                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
-                psutil.Process(pid).kill()
-                psutil.Process(pid).wait()
-                logger.info(f"Killed MAVSDK server with PID: {pid}.")
+                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Force killing...")
+                try:
+                    process.kill()
+                    process.wait(timeout=5)
+                    logger.info(f"Force killed MAVSDK server with PID: {pid}.")
+                except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                    logger.warning(f"Could not kill process {pid}, continuing anyway...")
+
+            # Extra wait time for port cleanup in container environments
+            logger.info("Waiting for port cleanup after server termination...")
+            time.sleep(3.0)
+
+            # Verify port is actually free
+            retry_count = 0
+            while check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)[0] and retry_count < 5:
+                logger.warning(f"Port still occupied, waiting... (attempt {retry_count + 1}/5)")
+                time.sleep(2.0)
+                retry_count += 1
 
         # Construct the absolute path to mavsdk_server
         mavsdk_server_path = get_mavsdk_server_path()
@@ -1213,7 +1251,8 @@ def start_mavsdk_server(udp_port: int):
             logger.info(f"Setting executable permissions for '{mavsdk_server_path}'.")
             os.chmod(mavsdk_server_path, 0o755)
 
-        # Start the MAVSDK server
+        # Start the MAVSDK server with enhanced container-friendly startup
+        logger.info("Starting new MAVSDK server...")
         mavsdk_server = subprocess.Popen(
             [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
@@ -1223,18 +1262,40 @@ def start_mavsdk_server(udp_port: int):
             f"MAVSDK server started with gRPC port {Params.DEFAULT_GRPC_PORT} and UDP port {udp_port}."
         )
 
-        # Optionally, start logging the MAVSDK server output asynchronously
+        # Start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        # Wait until the server is listening on the gRPC port
-        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=Params.PRE_FLIGHT_TIMEOUT):
-            logger.error(
-                f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout."
-            )
-            mavsdk_server.terminate()
+        # Enhanced wait with multiple checks for container environments
+        logger.info("Waiting for MAVSDK server to be ready...")
+
+        # First, give the server time to initialize
+        time.sleep(2.0)
+
+        # Check if process is still running
+        if mavsdk_server.poll() is not None:
+            logger.error(f"MAVSDK server process died immediately. Return code: {mavsdk_server.returncode}")
             return None
 
-        logger.info("MAVSDK server is now listening on gRPC port.")
+        # Wait until the server is listening on the gRPC port with extended timeout
+        startup_timeout = max(Params.PRE_FLIGHT_TIMEOUT, 30)  # At least 30 seconds for containers
+        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=startup_timeout):
+            logger.error(
+                f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within {startup_timeout}s timeout."
+            )
+            try:
+                mavsdk_server.terminate()
+                mavsdk_server.wait(timeout=5)
+            except:
+                pass
+            return None
+
+        # Final verification
+        time.sleep(1.0)
+        if mavsdk_server.poll() is not None:
+            logger.error(f"MAVSDK server died after startup. Return code: {mavsdk_server.returncode}")
+            return None
+
+        logger.info("MAVSDK server is ready and listening on gRPC port.")
         return mavsdk_server
 
     except FileNotFoundError:

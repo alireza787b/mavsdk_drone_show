@@ -300,6 +300,68 @@
 }
 
 
+/* Mission Badge Styling */
+
+.mission-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+    color: white;
+    margin-left: 8px;
+    font-size: 0.8em;
+    transition: all 0.3s ease;
+}
+
+.mission-badge.mission-none {
+    background-color: #6c757d; /* Gray */
+    box-shadow: 0 1px 3px rgba(108, 117, 125, 0.3);
+}
+
+.mission-badge.mission-performance {
+    background-color: #6610f2; /* Purple - for choreography */
+    box-shadow: 0 1px 3px rgba(102, 16, 242, 0.3);
+}
+
+.mission-badge.mission-flight {
+    background-color: #17a2b8; /* Info blue - for flight ops */
+    box-shadow: 0 1px 3px rgba(23, 162, 184, 0.3);
+}
+
+.mission-badge.mission-test {
+    background-color: #ffc107; /* Warning yellow - for tests */
+    color: #212529; /* Dark text for better contrast */
+    box-shadow: 0 1px 3px rgba(255, 193, 7, 0.3);
+}
+
+.mission-badge.mission-system {
+    background-color: #007bff; /* Primary blue - for system ops */
+    box-shadow: 0 1px 3px rgba(0, 123, 255, 0.3);
+}
+
+.mission-badge.mission-emergency {
+    background-color: #dc3545; /* Danger red - for emergency */
+    box-shadow: 0 1px 3px rgba(220, 53, 69, 0.3);
+    animation: pulse-emergency 1.5s infinite;
+}
+
+.mission-badge.mission-default {
+    background-color: #28a745; /* Success green - default */
+    box-shadow: 0 1px 3px rgba(40, 167, 69, 0.3);
+}
+
+/* Emergency mission pulse animation */
+@keyframes pulse-emergency {
+    0%, 100% {
+        box-shadow: 0 1px 3px rgba(220, 53, 69, 0.3);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.6);
+        transform: scale(1.05);
+    }
+}
+
 /* Tooltip styling overrides (optional) */
 
 .__react_component_tooltip {

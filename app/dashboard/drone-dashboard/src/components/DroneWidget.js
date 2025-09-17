@@ -5,6 +5,7 @@ import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
 import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
+import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import '../styles/DroneWidget.css';
 
 /**
@@ -29,8 +30,14 @@ const DroneWidget = ({
   const isStale = currentTimeInMs - (drone.Timestamp || 0) > 5000;
 
   // Flight Mode and Status info using proper PX4/MAVLink standards
-  const flightModeTitle = getFlightModeTitle(drone.Flight_Mode || 0);
+  const flightModeValue = drone.Flight_Mode || 0;
+  const flightModeTitle = getFlightModeTitle(flightModeValue);
   const systemStatusName = getSystemStatusTitle(drone.System_Status || 0);
+
+  // Debug logging for flight mode issues
+  if (flightModeValue !== 0 && flightModeTitle.includes('Unknown')) {
+    console.warn(`[Drone ${drone.hw_ID}] Unknown flight mode: ${flightModeValue}. Expected Offboard (393216) but got: ${flightModeValue}`);
+  }
   
   // Use proper arming status from telemetry (not derived from flight mode)
   const isArmed = drone.Is_Armed || false;
@@ -42,6 +49,10 @@ const DroneWidget = ({
   const missionReady = isMissionReady(drone.State);
   const missionExecuting = isMissionExecuting(drone.State);
   const missionStateName = getDroneShowStateName(drone.State);
+
+  // Friendly mission name for display
+  const friendlyMissionName = getFriendlyMissionName(drone.lastMission);
+  const missionStatusClass = getMissionStatusClass(drone.lastMission);
 
   // Example utility to assign color class for HDOP/VDOP
   const getHdopVdopClass = (hdop, vdop) => {
@@ -183,7 +194,10 @@ const DroneWidget = ({
       {/* Main info block */}
       <div className="drone-info">
         <p>
-          <strong>Mission:</strong> {drone.lastMission || 'N/A'}
+          <strong>Mission:</strong>
+          <span className={`mission-badge ${missionStatusClass}`}>
+            {friendlyMissionName}
+          </span>
         </p>
         <p>
           <strong>Flight Mode:</strong> {flightModeTitle}
