@@ -68,10 +68,11 @@ python3 swarm_trajectory_mission.py --start_time $START_TIME --debug
 - Uses existing `requirements.txt` and `venv`
 - No additional dependencies required
 
-## 📋 **Consistent Logging System**
-- **`logs/last_mission.log`** - Current mission (git-ignored, overwrites each run)
-- **Archived logs** - `{mission_type}_YYYYMMDD_HHMMSS.log` (automatic rotation)
-- **All missions** use same clean format and monitoring commands
+## 📋 **Simple Logging System (3 files total)**
+- **`logs/last_drone_show.log`** - Latest drone show mission (git-ignored, overwrites)
+- **`logs/last_swarm_trajectory.log`** - Latest swarm trajectory mission (git-ignored, overwrites)
+- **`logs/last_smart_swarm.log`** - Latest smart swarm mission (git-ignored, overwrites)
+- **No archives, no redundancy** - just clean current mission logs with full details
 
 ---
 **Clean, focused enhancements with consistent logging ready for 6-drone deployment.**

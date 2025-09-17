@@ -39,8 +39,8 @@ def calculate_ned_origin(current_gps, ned_position):
 
 def configure_logging(mission_type="drone_show"):
     """
-    Configures consistent logging for all mission types with last mission tracking.
-    Creates both timestamped archives and a clean 'last_mission.log' file.
+    Configures simple logging - ONE log file per mission type only.
+    No archives, no redundancy, just clean current mission logs.
 
     Args:
         mission_type (str): Type of mission (drone_show, swarm_trajectory, smart_swarm)
@@ -57,72 +57,39 @@ def configure_logging(mission_type="drone_show"):
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
-    # Create formatter
+    # Create detailed formatter with timestamps and step-by-step info
     formatter = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        fmt="%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.INFO)  # Less verbose on console
     console_handler.setFormatter(formatter)
 
-    # Archive previous last_mission.log if it exists
-    last_mission_file = os.path.join(logs_directory, "last_mission.log")
-    if os.path.exists(last_mission_file):
-        session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        archive_filename = f"{mission_type}_{session_time}.log"
-        archive_file = os.path.join(logs_directory, archive_filename)
-        try:
-            os.rename(last_mission_file, archive_file)
-        except OSError:
-            pass  # Continue if rename fails
+    # Create ONE log file per mission type (overwrites each run)
+    log_filename = f"last_{mission_type}.log"
+    log_file = os.path.join(logs_directory, log_filename)
 
-    # Create file handler for last mission (overwrites)
-    file_handler = logging.FileHandler(last_mission_file, mode='w')
-    file_handler.setLevel(logging.DEBUG)
+    # Overwrite previous mission log
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.DEBUG)  # Full detail in file
     file_handler.setFormatter(formatter)
 
     # Add handlers to the root logger
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # Limit the number of archived log files
-    limit_log_files(logs_directory, Params.MAX_LOG_FILES)
-
-    # Log the mission start
+    # Log the mission start with full details
     logger = logging.getLogger(__name__)
     logger.info(f"=== {mission_type.upper()} MISSION STARTED ===")
-    logger.info(f"Session time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Mission type: {mission_type}")
+    logger.info("=" * 60)
 
-def limit_log_files(logs_directory, max_files):
-    """
-    Limits the number of archived log files, excluding last_mission.log.
-    Deletes the oldest archived files when the limit is exceeded.
-
-    Args:
-        logs_directory (str): Path to the logs directory.
-        max_files (int): Maximum number of archived log files to keep.
-    """
-    logger = logging.getLogger(__name__)
-    try:
-        # Get all log files except last_mission.log
-        all_files = [f for f in os.listdir(logs_directory)
-                    if os.path.isfile(os.path.join(logs_directory, f)) and f != "last_mission.log"]
-
-        log_files = [os.path.join(logs_directory, f) for f in all_files
-                    if f.endswith('.log')]
-
-        if len(log_files) > max_files:
-            # Sort files by creation time
-            log_files.sort(key=os.path.getctime)
-            files_to_delete = log_files[:len(log_files) - max_files]
-            for file_path in files_to_delete:
-                os.remove(file_path)
-                logger.info(f"Deleted old archived log: {os.path.basename(file_path)}")
-    except Exception:
-        logger.exception("Error limiting log files")
+# Legacy limit_log_files function removed - no more archives, just simple one-log-per-mission
 
 def read_hw_id() -> int:
     """
