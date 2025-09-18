@@ -161,7 +161,10 @@ class LocalMavlinkController:
         
         # Magnetometer is required but less critical
         mag_ready = self.drone_config.is_magnetometer_calibration_ok
-        
+
+        # GPS fix status check
+        gps_fix_ok = getattr(self.drone_config, 'gps_fix_type', 0) >= 3  # Require 3D fix or better
+
         # GPS requirements depend on flight mode
         gps_dependent_modes = [
             196608,  # Position mode (POSCTL)
@@ -288,12 +291,18 @@ class LocalMavlinkController:
 
     def process_gps_raw_int(self, msg):
         """
-        Process the GPS_RAW_INT message and update GPS data including HDOP and VDOP.
+        Process the GPS_RAW_INT message and update GPS data including HDOP, VDOP, and fix status.
         """
         # Update GPS data including HDOP and VDOP (if available)
         self.drone_config.hdop = msg.eph / 1E2  # Horizontal dilution of precision
         self.drone_config.vdop = msg.epv / 1E2  # Vertical dilution of precision (if applicable)
-        self.log_debug(f"Updated GPS HDOP to: {self.drone_config.hdop}, VDOP to: {self.drone_config.vdop}")
+
+        # Update GPS fix status
+        # GPS fix type: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
+        self.drone_config.gps_fix_type = getattr(msg, 'fix_type', 0)
+        self.drone_config.satellites_visible = getattr(msg, 'satellites_visible', 0)
+
+        self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}")
 
     def process_attitude(self, msg):
         """

@@ -285,7 +285,9 @@ class DroneCommunicator:
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
-            "vdop": safe_float(self.drone_config.vdop)  # Vertical dilution of precision
+            "vdop": safe_float(self.drone_config.vdop),  # Vertical dilution of precision
+            "gps_fix_type": safe_int(getattr(self.drone_config, 'gps_fix_type', 0)),  # GPS fix status
+            "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0))  # Number of satellites
         }
 
         return self.drone_state

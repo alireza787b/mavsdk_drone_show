@@ -55,6 +55,8 @@ class DroneConfig:
         # GPS and MAVLink data
         self.hdop = 0                         # Horizontal dilution of precision
         self.vdop = 0                         # Vertical dilution of precision
+        self.gps_fix_type = 0                 # GPS fix status: 0=No GPS, 1=No Fix, 2=2D, 3=3D, 4=DGPS, 5=RTK Float, 6=RTK Fixed
+        self.satellites_visible = 0           # Number of visible satellites
         
         # MAVLink HEARTBEAT message fields (following MAVLink/PX4 standards)
         self.base_mode = 0                    # MAVLink base mode flags (armed/disarmed, etc.)
