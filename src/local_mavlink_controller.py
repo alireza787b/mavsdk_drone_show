@@ -108,8 +108,25 @@ class LocalMavlinkController:
         self.drone_config.custom_mode = msg.custom_mode  # PX4-specific flight mode
         self.drone_config.system_status = msg.system_status  # MAV_STATE (STANDBY, ACTIVE, etc.)
 
-        # Extract arming status from base_mode flags
-        self.drone_config.is_armed = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
+        # Extract arming status from base_mode flags (raw MAVLink value)
+        mavlink_armed_flag = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
+
+        # Enhanced arming detection for SITL and real operations
+        # In SITL, the armed flag can be misleading, so we cross-reference with flight mode and system status
+        if mavlink_armed_flag:
+            # If MAVLink says armed, verify with flight mode and system status
+            if (self.drone_config.custom_mode == 0 and
+                self.drone_config.system_status == mavutil.mavlink.MAV_STATE_ACTIVE):
+                # Special case: SITL shows armed flag but custom_mode=0 (Initializing)
+                # This typically means the system is ready but not actually armed for flight
+                self.drone_config.is_armed = False
+                self.log_debug(f"⚠️ SITL Armed flag detected but flight mode is Initializing - treating as disarmed")
+            else:
+                # Normal case: armed flag set and flight mode is valid
+                self.drone_config.is_armed = True
+        else:
+            # MAVLink says disarmed
+            self.drone_config.is_armed = False
 
         # Update pre-arm readiness based on system status and sensor health
         self._update_pre_arm_status()

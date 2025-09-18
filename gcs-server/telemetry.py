@@ -81,6 +81,28 @@ def update_telemetry_stats(drone_id: str, success: bool):
         
         telemetry_stats[drone_id] = stats
 
+def _get_enhanced_armed_status(telemetry_data):
+    """
+    Enhanced arming detection for SITL and real operations.
+    Cross-references armed flag with flight mode and system status.
+    """
+    raw_armed = telemetry_data.get('is_armed', False)
+    flight_mode = telemetry_data.get('flight_mode', 0)
+    system_status = telemetry_data.get('system_status', 0)
+
+    if raw_armed:
+        # If raw armed flag is true, verify with flight mode
+        if flight_mode == 0 and system_status == 4:
+            # SITL special case: armed flag set but flight mode is 0 (Initializing)
+            # This typically means ready but not actually armed for flight
+            return False
+        else:
+            # Normal case: armed flag set and flight mode is valid
+            return True
+    else:
+        # Raw armed flag is false
+        return False
+
 def should_log_telemetry_event(drone_id: str, success: bool) -> bool:
     """
     Ultra-quiet logging decision - absolute minimum noise for production.
@@ -180,7 +202,7 @@ def poll_telemetry(drone):
                         'Flight_Mode': telemetry_data.get('flight_mode', 'UNKNOWN'),  # PX4 custom_mode
                         'Base_Mode': telemetry_data.get('base_mode', 'UNKNOWN'),      # MAVLink base_mode flags
                         'System_Status': telemetry_data.get('system_status', 'UNKNOWN'),
-                        'Is_Armed': telemetry_data.get('is_armed', False),           # Armed status
+                        'Is_Armed': _get_enhanced_armed_status(telemetry_data), # Enhanced armed status
                         'Is_Ready_To_Arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
                         'Hdop': telemetry_data.get('hdop', 99.99),
                         'Vdop': telemetry_data.get('vdop', 99.99),
