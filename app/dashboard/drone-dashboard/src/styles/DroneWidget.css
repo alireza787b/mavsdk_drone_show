@@ -380,10 +380,27 @@
 .last-update {
     font-size: 0.65em;
     color: #9ca3af;
-    text-align: right;
     margin-top: auto;
-    padding-top: 4px;
+    padding-top: 6px;
     border-top: 1px solid rgba(229, 231, 235, 0.5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.update-time {
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.drone-ip {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #9ca3af;
+    background: rgba(243, 244, 246, 0.5);
+    padding: 1px 4px;
+    border-radius: 3px;
 }
 
 /* Action Commands Section */
@@ -449,6 +466,16 @@
         font-size: 1em;
         margin-bottom: 8px;
     }
+
+    .last-update {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .position-section {
+        font-size: 0.75em;
+    }
 }
 
 @media (max-width: 480px) {
@@ -470,5 +497,18 @@
     .mission-state-badge {
         font-size: 0.65em;
         padding: 1px 6px;
+    }
+
+    .critical-status {
+        gap: 4px;
+    }
+
+    .status-badge {
+        font-size: 0.6em;
+        padding: 1px 4px;
+    }
+
+    .drone-ip {
+        font-size: 0.8em;
     }
 }

@@ -287,7 +287,8 @@ class DroneCommunicator:
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
             "vdop": safe_float(self.drone_config.vdop),  # Vertical dilution of precision
             "gps_fix_type": safe_int(getattr(self.drone_config, 'gps_fix_type', 0)),  # GPS fix status
-            "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0))  # Number of satellites
+            "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0)),  # Number of satellites
+            "ip": self.drone_config.config.get('ip', 'N/A')  # Drone IP address
         }
 
         return self.drone_state
