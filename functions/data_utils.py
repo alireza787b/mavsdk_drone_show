@@ -2,14 +2,13 @@ import logging
 
 
 def safe_int(value, default=0):
-            try:
-                if value is None:
-                    logging.warning(f"Expected int, got None. Using default {default}.")
-                    return default
-                return int(value)
-            except (ValueError, TypeError) as e:
-                logging.error(f"Error converting value to int: {e}. Using default {default}.")
-                return default
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except (ValueError, TypeError) as e:
+        logging.debug(f"Error converting value to int: {e}. Using default {default}.")
+        return default
 
 def safe_float(value, default=0.0):
     try:

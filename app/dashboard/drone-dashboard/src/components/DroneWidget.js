@@ -3,7 +3,7 @@ import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/
 import { Tooltip } from 'react-tooltip'; // For hover tooltips
 import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
-import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, debugFlightMode } from '../utilities/flightModeUtils';
+import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import '../styles/DroneWidget.css';
@@ -34,11 +34,10 @@ const DroneWidget = ({
   const flightModeTitle = getFlightModeTitle(flightModeValue);
   const systemStatusName = getSystemStatusTitle(drone.System_Status || 0);
 
-  // Comprehensive flight mode debugging
+  // Simple flight mode logging for debugging
   React.useEffect(() => {
-    // Only debug if we have issues or user wants detailed logging
-    if (flightModeValue !== 0 && (flightModeTitle.includes('Unknown') || flightModeTitle.includes('Error'))) {
-      debugFlightMode(drone, drone.hw_ID);
+    if (flightModeValue !== 0) {
+      console.debug(`Drone ${drone.hw_ID}: Flight mode ${flightModeValue} → ${flightModeTitle}`);
     }
   }, [flightModeValue, flightModeTitle, drone.hw_ID]);
   

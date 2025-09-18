@@ -1,10 +1,11 @@
 /* app/dashboard/drone-dashboard/src/styles/Overview.css */
 .drone-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: center;
-    /* Centering the drone cards for better visual appeal */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 0 16px;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 .drone-card {
