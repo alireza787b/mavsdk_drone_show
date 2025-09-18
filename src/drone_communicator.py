@@ -256,6 +256,11 @@ class DroneCommunicator:
         """
         
 
+        # Debug logging for flight mode issues
+        if self.drone_config.custom_mode == 0 and self.drone_config.is_armed:
+            logging.warning(f"[DRONE {self.drone_config.hw_id}] ⚠️ custom_mode=0 while armed! "
+                          f"base_mode={self.drone_config.base_mode}, system_status={self.drone_config.system_status}")
+
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
             "pos_id": safe_int(self.drone_config.pos_id),  # Position ID
@@ -275,7 +280,7 @@ class DroneCommunicator:
             "follow_mode": safe_int(safe_get(self.drone_config.swarm, 'follow')),  # Follow mode in swarm operation
             "update_time": safe_int(self.drone_config.last_update_timestamp),  # Timestamp of the last telemetry update
             "flight_mode": safe_int(self.drone_config.custom_mode),  # PX4 flight mode (from HEARTBEAT.custom_mode)
-            "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags 
+            "base_mode": safe_int(self.drone_config.base_mode),  # MAVLink base mode flags
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status

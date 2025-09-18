@@ -196,19 +196,21 @@ const DroneWidget = ({
       {/* Main info block */}
       <div className="drone-info">
         <p>
-          <strong>Mission:</strong>
+          <strong>Flight Mode</strong>
+          {flightModeTitle}
+        </p>
+        <p>
+          <strong>Mission</strong>
           <span className={`mission-badge ${missionStatusClass}`}>
             {friendlyMissionName}
           </span>
         </p>
         <p>
-          <strong>Flight Mode:</strong> {flightModeTitle}
+          <strong>System Status</strong>
+          {systemStatusName}
         </p>
         <p>
-          <strong>System Status:</strong> {systemStatusName}
-        </p>
-        <p>
-          <strong>Mission State:</strong> 
+          <strong>Mission State</strong>
           <span className={`mission-state-badge ${
             missionExecuting ? 'executing' : missionReady ? 'ready' : 'idle'
           }`}>
@@ -216,36 +218,36 @@ const DroneWidget = ({
           </span>
         </p>
         <p>
-          <strong>Server Time:</strong>{' '}
-          {drone.Timestamp ? new Date(drone.Timestamp).toLocaleString() : 'N/A'}
-        </p>
-        <p>
-          <strong>Altitude:</strong>{' '}
+          <strong>Altitude</strong>
           {drone.Position_Alt !== undefined
             ? `${drone.Position_Alt.toFixed(1)}m`
             : 'N/A'}
         </p>
         <p>
-          <strong>HDOP/VDOP:</strong>{' '}
-          <span className={getHdopVdopClass(drone.Hdop, drone.Vdop)}>
-            {drone.Hdop !== undefined && drone.Vdop !== undefined
-              ? `${drone.Hdop}/${drone.Vdop}`
+          <strong>Battery</strong>
+          <span className={getBatteryClass(drone.Battery_Voltage)}>
+            {drone.Battery_Voltage !== undefined
+              ? `${drone.Battery_Voltage.toFixed(1)}V`
               : 'N/A'}
           </span>
         </p>
         <p>
-          <strong>Battery Voltage:</strong>{' '}
-          <span className={getBatteryClass(drone.Battery_Voltage)}>
-            {drone.Battery_Voltage !== undefined
-              ? `${drone.Battery_Voltage}V`
+          <strong>GPS Quality</strong>
+          <span className={getHdopVdopClass(drone.Hdop, drone.Vdop)}>
+            {drone.Hdop !== undefined && drone.Vdop !== undefined
+              ? `${drone.Hdop.toFixed(1)}/${drone.Vdop.toFixed(1)}`
               : 'N/A'}
           </span>
         </p>
+        <p>
+          <strong>Last Update</strong>
+          {drone.Timestamp ? new Date(drone.Timestamp).toLocaleTimeString() : 'N/A'}
+        </p>
+      </div>
 
-        {/* Drone-critical commands */}
-        <div className="drone-critical-commands-section">
-          <DroneCriticalCommands droneId={drone.hw_ID} />
-        </div>
+      {/* Critical commands section at bottom */}
+      <div className="drone-critical-commands-section">
+        <DroneCriticalCommands droneId={drone.hw_ID} />
       </div>
 
       {/* Expanded details */}

@@ -99,37 +99,47 @@ class LocalMavlinkController:
         Process the HEARTBEAT message and update flight mode and system status.
         Follows MAVLink/PX4 standards for proper flight mode handling.
         """
+        # Store previous values for change detection
+        prev_custom_mode = self.drone_config.custom_mode
+        prev_armed = self.drone_config.is_armed
+
         # Store MAVLink HEARTBEAT fields according to specification
         self.drone_config.base_mode = msg.base_mode      # MAV_MODE flags (armed, custom mode enabled, etc.)
         self.drone_config.custom_mode = msg.custom_mode  # PX4-specific flight mode
         self.drone_config.system_status = msg.system_status  # MAV_STATE (STANDBY, ACTIVE, etc.)
-        
+
         # Extract arming status from base_mode flags
         self.drone_config.is_armed = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
-        
+
         # Update pre-arm readiness based on system status and sensor health
         self._update_pre_arm_status()
-        
-        # Log with flight mode interpretation for debugging
+
+        # Get flight mode name for logging
         mode_name = self._get_flight_mode_name(self.drone_config.custom_mode)
-        self.log_debug(f"HEARTBEAT: base_mode={self.drone_config.base_mode}, "
-                      f"custom_mode={self.drone_config.custom_mode} ({mode_name}), "
-                      f"system_status={self.drone_config.system_status}, "
-                      f"armed={self.drone_config.is_armed}, "
-                      f"ready_to_arm={self.drone_config.is_ready_to_arm}")
 
-        # Log flight mode changes for debugging
-        if self.drone_config.custom_mode != 0:
-            self.log_info(f"Flight mode: {mode_name} (custom_mode={self.drone_config.custom_mode})")
+        # Always log HEARTBEAT reception for debugging
+        self.log_info(f"HEARTBEAT: custom_mode={self.drone_config.custom_mode} ({mode_name}), "
+                     f"base_mode={self.drone_config.base_mode}, armed={self.drone_config.is_armed}")
 
-        # Special logging for problematic modes
-        if self.drone_config.custom_mode in [33816576, 100925440]:
-            self.log_info(f"✓ Custom flight mode: {mode_name}")
-        elif mode_name.startswith('Unknown') and self.drone_config.custom_mode != 0:
+        # Log flight mode changes
+        if self.drone_config.custom_mode != prev_custom_mode:
+            self.log_info(f"🔄 Flight mode changed: {prev_custom_mode} → {self.drone_config.custom_mode} ({mode_name})")
+
+        # Log arming changes
+        if self.drone_config.is_armed != prev_armed:
+            self.log_info(f"🔄 Arming changed: {prev_armed} → {self.drone_config.is_armed}")
+
+        # Special attention to custom modes and offboard
+        if self.drone_config.custom_mode == 393216:
+            self.log_info(f"🚁 OFFBOARD mode active: {self.drone_config.custom_mode}")
+        elif self.drone_config.custom_mode in [33816576, 100925440]:
+            self.log_info(f"🚁 Custom mode active: {mode_name} ({self.drone_config.custom_mode})")
+        elif self.drone_config.custom_mode == 0:
+            self.log_warning(f"⚠️ Flight mode is 0 - possible issue with HEARTBEAT or mode initialization")
+        elif mode_name.startswith('Unknown'):
             main_mode = self.drone_config.custom_mode >> 16
             sub_mode = self.drone_config.custom_mode & 0xFFFF
             self.log_warning(f"⚠️ Unknown flight mode: {self.drone_config.custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
-            self.log_warning(f"   Add to flight_modes mapping: {self.drone_config.custom_mode}: '{mode_name}'")
                       
     def _update_pre_arm_status(self):
         """
