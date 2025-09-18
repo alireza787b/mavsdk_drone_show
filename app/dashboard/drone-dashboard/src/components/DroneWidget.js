@@ -3,7 +3,7 @@ import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle } from 'react-icons/
 import { Tooltip } from 'react-tooltip'; // For hover tooltips
 import DroneDetail from './DroneDetail';            // Existing detail component
 import DroneCriticalCommands from './DroneCriticalCommands'; // Existing commands
-import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady } from '../utilities/flightModeUtils';
+import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
 import '../styles/DroneWidget.css';
@@ -56,21 +56,20 @@ const DroneWidget = ({
   const friendlyMissionName = getFriendlyMissionName(drone.lastMission);
   const missionStatusClass = getMissionStatusClass(drone.lastMission);
 
-  // Example utility to assign color class for HDOP/VDOP
+  // Utility functions for status indicators
   const getHdopVdopClass = (hdop, vdop) => {
     if (hdop === undefined || vdop === undefined) return '';
     const avgDop = (hdop + vdop) / 2;
-    if (avgDop < 0.8) return 'green';
-    if (avgDop <= 1.0) return 'yellow';
-    return 'red';
+    if (avgDop <= 1.0) return 'good';
+    if (avgDop <= 2.0) return 'warning';
+    return 'critical';
   };
 
-  // Example utility to assign color class for battery
   const getBatteryClass = (voltage) => {
     if (voltage === undefined) return '';
-    if (voltage >= 16) return 'green';
-    if (voltage >= 14.8) return 'yellow';
-    return 'red';
+    if (voltage >= 15.5) return 'good';
+    if (voltage >= 14.5) return 'warning';
+    return 'critical';
   };
 
   // For position ID vs. auto-detected
@@ -193,56 +192,57 @@ const DroneWidget = ({
         </div>
       </div>
 
-      {/* Main info block */}
+      {/* Main info grid */}
       <div className="drone-info">
-        <p>
-          <strong>Flight Mode</strong>
-          {flightModeTitle}
-        </p>
-        <p>
+        <div className="info-row primary">
+          <strong>Mode</strong>
+          <span className={`flight-mode-badge ${getFlightModeCategory(flightModeValue)}`}>
+            {flightModeTitle}
+          </span>
+        </div>
+
+        <div className="info-row">
           <strong>Mission</strong>
           <span className={`mission-badge ${missionStatusClass}`}>
             {friendlyMissionName}
           </span>
-        </p>
-        <p>
-          <strong>System Status</strong>
-          {systemStatusName}
-        </p>
-        <p>
-          <strong>Mission State</strong>
+        </div>
+
+        <div className="info-row">
+          <strong>State</strong>
           <span className={`mission-state-badge ${
             missionExecuting ? 'executing' : missionReady ? 'ready' : 'idle'
           }`}>
             {missionStateName}
           </span>
-        </p>
-        <p>
-          <strong>Altitude</strong>
-          {drone.Position_Alt !== undefined
-            ? `${drone.Position_Alt.toFixed(1)}m`
-            : 'N/A'}
-        </p>
-        <p>
+        </div>
+
+        <div className="info-row">
+          <strong>Alt</strong>
+          <span className="value">
+            {drone.Position_Alt !== undefined
+              ? `${drone.Position_Alt.toFixed(1)}m`
+              : 'N/A'}
+          </span>
+        </div>
+
+        <div className="info-row">
           <strong>Battery</strong>
-          <span className={getBatteryClass(drone.Battery_Voltage)}>
+          <span className={`value ${getBatteryClass(drone.Battery_Voltage)}`}>
             {drone.Battery_Voltage !== undefined
               ? `${drone.Battery_Voltage.toFixed(1)}V`
               : 'N/A'}
           </span>
-        </p>
-        <p>
-          <strong>GPS Quality</strong>
-          <span className={getHdopVdopClass(drone.Hdop, drone.Vdop)}>
+        </div>
+
+        <div className="info-row">
+          <strong>GPS</strong>
+          <span className={`value ${getHdopVdopClass(drone.Hdop, drone.Vdop)}`}>
             {drone.Hdop !== undefined && drone.Vdop !== undefined
               ? `${drone.Hdop.toFixed(1)}/${drone.Vdop.toFixed(1)}`
               : 'N/A'}
           </span>
-        </p>
-        <p>
-          <strong>Last Update</strong>
-          {drone.Timestamp ? new Date(drone.Timestamp).toLocaleTimeString() : 'N/A'}
-        </p>
+        </div>
       </div>
 
       {/* Critical commands section at bottom */}

@@ -1,11 +1,12 @@
 /* app/dashboard/drone-dashboard/src/styles/Overview.css */
 .drone-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
-    padding: 0 16px;
-    max-width: 1400px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    padding: 0 20px;
+    max-width: 1600px;
     margin: 0 auto;
+    align-items: start;
 }
 
 .drone-card {
@@ -19,16 +20,38 @@
 }
 
 @media (max-width: 1200px) {
-    .drone-card {
-        width: calc(50% - 20px);
-        /* 2 cards per row on medium screens */
+    .drone-list {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+        padding: 0 16px;
+    }
+
+    .mission-control {
+        flex-direction: column;
+        gap: 12px;
     }
 }
 
 @media (max-width: 768px) {
-    .drone-card {
-        width: 100%;
-        /* 1 card per row on smaller screens */
+    .drone-list {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 0 12px;
+    }
+
+    .overview-container {
+        padding: 16px;
+    }
+
+    .connected-drones-header {
+        font-size: 1.4em;
+        margin: 16px 0 20px 0;
+        padding: 16px;
+    }
+
+    .mission-trigger-section {
+        padding: 16px;
+        margin-bottom: 20px;
     }
 }
 
@@ -67,17 +90,20 @@
 }
 
 .mission-trigger-section {
-    padding: 20px;
-    background-color: #f7f7f7;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 30px;
+    border: 1px solid #e5e7eb;
 }
 
 .mission-control {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
     align-items: center;
+    justify-content: center;
 }
 
 .mission-label,
@@ -88,10 +114,17 @@
 
 .mission-dropdown,
 .delay-input {
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    transition: border-color 0.3s;
+    padding: 12px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-size: 0.95em;
+    background: #ffffff;
+}
+
+.mission-dropdown:hover,
+.delay-input:hover {
+    border-color: #3b82f6;
 }
 
 .mission-dropdown:focus,
@@ -101,12 +134,16 @@
 }
 
 .mission-button {
-    padding: 10px 15px;
-    margin: 5px;
+    padding: 12px 20px;
+    margin: 4px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.3s, box-shadow 0.2s;
+    transition: all 0.2s ease;
+    font-weight: 600;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .mission-button:hover {
@@ -165,13 +202,20 @@
 .overview-container {
     padding: 20px;
     min-height: 100vh;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
 }
 
 .connected-drones-header {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    font-size: 1.8em;
-    font-weight: bold;
+    margin: 20px 0 30px 0;
+    font-size: 1.6em;
+    font-weight: 600;
+    color: #1f2937;
+    text-align: center;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #3b82f6;
 }
 
 .notification {

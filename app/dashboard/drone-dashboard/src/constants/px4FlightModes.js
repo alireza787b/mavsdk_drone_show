@@ -70,7 +70,13 @@ export const PX4_FLIGHT_MODES = {
   262150: 'Land',          // AUTO_LAND (4 << 16 | 6)
   262151: 'RTGS',          // AUTO_RTGS (4 << 16 | 7)
   262152: 'Follow Target', // AUTO_FOLLOW_TARGET (4 << 16 | 8)
-  262153: 'Precision Land' // AUTO_PRECLAND (4 << 16 | 9)
+  262153: 'Precision Land', // AUTO_PRECLAND (4 << 16 | 9)
+
+  // Extended PX4 modes observed in field
+  50593792: 'Hold',        // Special Hold mode (773 << 16)
+  84148224: 'Return',      // Special Return mode (1284 << 16)
+  33816576: 'Takeoff',     // Custom takeoff (516 << 16)
+  100925440: 'Land'        // Custom land (1540 << 16)
 };
 
 /**
@@ -144,6 +150,17 @@ export const getFlightModeName = (customMode) => {
       return 'Stabilized';
     case PX4_MAIN_MODES.RATTITUDE:
       return 'Rattitude';
+
+    // Handle extended modes observed in field
+    case 773:
+      return 'Hold';
+    case 1284:
+      return 'Return';
+    case 516:
+      return 'Takeoff';
+    case 1540:
+      return 'Land';
+
     default:
       return `Unknown (${mode})`;
   }
