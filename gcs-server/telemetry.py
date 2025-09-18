@@ -19,6 +19,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 from params import Params
 from enums import Mission, State
 from config import load_config
+from heartbeat import last_heartbeats, last_heartbeats_lock
 
 # Import the new logging system
 from logging_config import (
@@ -151,6 +152,12 @@ def poll_telemetry(drone):
             if response.status_code == 200:
                 telemetry_data = response.json()
 
+                # Get heartbeat data for this drone
+                heartbeat_data = {}
+                with last_heartbeats_lock:
+                    if drone_id in last_heartbeats:
+                        heartbeat_data = last_heartbeats[drone_id].copy()
+
                 # Update telemetry data with thread-safe access
                 with data_lock:
                     telemetry_data_all_drones[drone_id] = {
@@ -177,6 +184,13 @@ def poll_telemetry(drone):
                         'Is_Ready_To_Arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
                         'Hdop': telemetry_data.get('hdop', 99.99),
                         'Vdop': telemetry_data.get('vdop', 99.99),
+                        'Gps_Fix_Type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status
+                        'Satellites_Visible': telemetry_data.get('satellites_visible', 0),  # Number of satellites
+                        'IP': telemetry_data.get('ip', 'N/A'),  # Drone IP address from config
+                        # Heartbeat data
+                        'Heartbeat_Last_Seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp
+                        'Heartbeat_Network_Info': heartbeat_data.get('network_info', {}),  # Network connectivity info
+                        'Heartbeat_First_Seen': heartbeat_data.get('first_seen', 0),  # First heartbeat time
                     }
                     last_telemetry_time[drone_id] = time.time()
 
