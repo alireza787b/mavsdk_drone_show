@@ -255,7 +255,7 @@ class Params:
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
     
     # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
-    INITIAL_CLIMB_MODE = "LOCAL_NED"  
+    INITIAL_CLIMB_MODE = "BODY_VELOCITY"  
 
     # Feedforward Control Settings
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
