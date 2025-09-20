@@ -13,7 +13,7 @@ import time
 import traceback
 import zipfile
 import requests
-from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
+from flask import Flask, jsonify, request, send_file, send_from_directory, current_app, make_response
 import pandas as pd
 from datetime import datetime
 
@@ -364,7 +364,7 @@ def setup_routes(app):
     # SHOW MANAGEMENT ENDPOINTS (preserving ALL original functionality)
     # ========================================================================
     
-    @app.route('/import-show', methods=['POST'])
+    @app.route('/import-show', methods=['POST', 'OPTIONS'])
     def import_show():
         """
         Endpoint to handle the uploading and processing of drone show files:
@@ -374,8 +374,16 @@ def setup_routes(app):
           4) Calls run_formation_process.
           5) Optionally pushes changes to Git.
         """
-        log_system_event(f"📤 Show import requested: {file.filename}", "INFO", "show")
+        # Handle preflight OPTIONS request for CORS
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add('Access-Control-Allow-Headers', "*")
+            response.headers.add('Access-Control-Allow-Methods', "*")
+            return response
+
         file = request.files.get('file')
+        log_system_event(f"📤 Show import requested: {file.filename if file else 'No file'}", "INFO", "show")
         if not file or file.filename == '':
             log_system_warning("No file part or empty filename", "show")
             return error_response('No file part or empty filename', 400)
