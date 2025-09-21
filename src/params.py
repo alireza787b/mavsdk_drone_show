@@ -253,9 +253,15 @@ class Params:
     INITIAL_CLIMB_ALTITUDE_THRESHOLD = 5.0  # Altitude threshold for initial climb phase
     INITIAL_CLIMB_TIME_THRESHOLD = 5.0      # Time threshold for initial climb phase
     INITIAL_CLIMB_VZ_DEFAULT = 1.0  # m/s
-    
-    # Possible values: "BODY_VELOCITY" or "LOCAL_NED"
-    INITIAL_CLIMB_MODE = "LOCAL_NED"  
+
+    # Initial Climb Mode Configuration:
+    # "BODY_VELOCITY" - Safer, proven mode that sends velocity commands (0,0,-climb_speed)
+    #                   Drone hovers in place while climbing vertically
+    # "LOCAL_NED"     - Position-based mode that maintains current NED position + climb offset
+    #                   Fixed in v2.6.1 to use current position instead of trajectory origin
+    #
+    # RECOMMENDATION: Use "BODY_VELOCITY" for most applications (safer, more reliable)
+    INITIAL_CLIMB_MODE = "BODY_VELOCITY"  # Changed from "LOCAL_NED" - safer default  
 
     # Feedforward Control Settings
     FEEDFORWARD_VELOCITY_ENABLED = False        # Enable feedforward velocity setpoints
