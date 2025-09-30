@@ -1,0 +1,293 @@
+@import './DesignTokens.css';
+
+/* Base Theme Toggle Styles */
+.theme-toggle-simple,
+.theme-toggle-cycle,
+.theme-toggle-button,
+.theme-toggle-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: var(--transition-all);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle-simple:hover,
+.theme-toggle-cycle:hover,
+.theme-toggle-button:hover,
+.theme-toggle-trigger:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-border);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-dark-sm);
+}
+
+.theme-toggle-simple:active,
+.theme-toggle-cycle:active,
+.theme-toggle-button:active,
+.theme-toggle-trigger:active {
+  transform: translateY(0);
+}
+
+/* Theme Icons */
+.theme-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  transition: var(--transition-base);
+  flex-shrink: 0;
+}
+
+.theme-toggle-simple .theme-icon,
+.theme-toggle-cycle .theme-icon,
+.theme-toggle-button .theme-icon {
+  color: var(--color-primary);
+}
+
+.theme-toggle-simple:hover .theme-icon,
+.theme-toggle-cycle:hover .theme-icon,
+.theme-toggle-button:hover .theme-icon {
+  color: var(--color-primary-hover);
+  transform: scale(1.1);
+}
+
+/* Theme Labels */
+.theme-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  transition: var(--transition-base);
+  white-space: nowrap;
+}
+
+/* Simple Variant */
+.theme-toggle-simple {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--border-radius-full);
+  padding: var(--spacing-sm);
+}
+
+/* Cycle Variant */
+.theme-toggle-cycle {
+  min-width: 80px;
+  padding: var(--spacing-sm) var(--spacing-base);
+}
+
+/* Button Variant */
+.theme-toggle-button {
+  min-width: 100px;
+  padding: var(--spacing-sm) var(--spacing-base);
+}
+
+/* Dropdown Variant */
+.theme-toggle-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.theme-toggle-trigger {
+  min-width: 120px;
+  padding: var(--spacing-sm) var(--spacing-base);
+  justify-content: space-between;
+}
+
+.dropdown-arrow {
+  width: 12px;
+  height: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  transition: var(--transition-base);
+  margin-left: var(--spacing-xs);
+}
+
+.dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* Dropdown Menu */
+.theme-dropdown-menu {
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  left: 0;
+  right: 0;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-dark-lg);
+  z-index: var(--z-dropdown);
+  overflow: hidden;
+  animation: dropdownSlide 0.2s var(--ease-out-cubic);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Theme Options */
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: var(--transition-base);
+  text-align: left;
+}
+
+.theme-option:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-primary);
+}
+
+.theme-option.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.option-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.option-label {
+  flex: 1;
+}
+
+.check-icon {
+  width: 12px;
+  height: 12px;
+  font-size: 12px;
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+/* Sidebar Integration */
+.sidebar-theme-toggle {
+  width: 100%;
+  margin-top: auto;
+  border-radius: var(--border-radius-base);
+}
+
+.sidebar-theme-toggle .theme-toggle-cycle,
+.sidebar-theme-toggle .theme-toggle-button {
+  width: 100%;
+  justify-content: flex-start;
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-quaternary);
+}
+
+.sidebar-theme-toggle .theme-icon {
+  margin-right: var(--spacing-sm);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .theme-toggle-dropdown {
+    position: static;
+  }
+
+  .theme-dropdown-menu {
+    position: fixed;
+    top: auto;
+    bottom: var(--spacing-base);
+    left: var(--spacing-base);
+    right: var(--spacing-base);
+    max-width: 300px;
+    margin: 0 auto;
+  }
+
+  .theme-toggle-button,
+  .theme-toggle-trigger {
+    min-width: auto;
+    flex: 1;
+  }
+
+  .theme-label {
+    display: none;
+  }
+}
+
+/* Dark Theme Specific Adjustments */
+[data-theme="dark"] .theme-dropdown-menu {
+  background: var(--color-bg-primary);
+  border-color: var(--color-border-secondary);
+}
+
+[data-theme="dark"] .theme-option:hover {
+  background: var(--color-bg-quaternary);
+}
+
+/* Light Theme Specific Adjustments */
+[data-theme="light"] .theme-dropdown-menu {
+  background: #ffffff;
+  border-color: #e0e0e0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .theme-option:hover {
+  background: #f8f9fa;
+}
+
+/* Accessibility */
+.theme-toggle-simple:focus-visible,
+.theme-toggle-cycle:focus-visible,
+.theme-toggle-button:focus-visible,
+.theme-toggle-trigger:focus-visible,
+.theme-option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Animation for theme changes */
+.theme-changing {
+  animation: themeChange 0.3s ease;
+}
+
+@keyframes themeChange {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .theme-toggle-simple,
+  .theme-toggle-cycle,
+  .theme-toggle-button,
+  .theme-toggle-trigger {
+    border-width: 2px;
+  }
+
+  .theme-dropdown-menu {
+    border-width: 2px;
+  }
+}

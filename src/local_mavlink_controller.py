@@ -44,6 +44,16 @@ class LocalMavlinkController:
         if self.debug_enabled:
             logging.debug(message)
 
+    def log_info(self, message):
+        """Logs an info message if debugging is enabled."""
+        if self.debug_enabled:
+            logging.info(message)
+
+    def log_warning(self, message):
+        """Logs a warning message if debugging is enabled."""
+        if self.debug_enabled:
+            logging.warning(message)
+
     def mavlink_monitor(self):
         """
         Continuously monitor for incoming Mavlink messages and process them.
@@ -89,24 +99,64 @@ class LocalMavlinkController:
         Process the HEARTBEAT message and update flight mode and system status.
         Follows MAVLink/PX4 standards for proper flight mode handling.
         """
+        # Store previous values for change detection
+        prev_custom_mode = self.drone_config.custom_mode
+        prev_armed = self.drone_config.is_armed
+
         # Store MAVLink HEARTBEAT fields according to specification
         self.drone_config.base_mode = msg.base_mode      # MAV_MODE flags (armed, custom mode enabled, etc.)
         self.drone_config.custom_mode = msg.custom_mode  # PX4-specific flight mode
         self.drone_config.system_status = msg.system_status  # MAV_STATE (STANDBY, ACTIVE, etc.)
-        
-        # Extract arming status from base_mode flags
-        self.drone_config.is_armed = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
-        
+
+        # Extract arming status from base_mode flags (raw MAVLink value)
+        mavlink_armed_flag = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
+
+        # Enhanced arming detection for SITL and real operations
+        # In SITL, the armed flag can be misleading, so we cross-reference with flight mode and system status
+        if mavlink_armed_flag:
+            # If MAVLink says armed, verify with flight mode and system status
+            if (self.drone_config.custom_mode == 0 and
+                self.drone_config.system_status == mavutil.mavlink.MAV_STATE_ACTIVE):
+                # Special case: SITL shows armed flag but custom_mode=0 (Initializing)
+                # This typically means the system is ready but not actually armed for flight
+                self.drone_config.is_armed = False
+                self.log_debug(f"⚠️ SITL Armed flag detected but flight mode is Initializing - treating as disarmed")
+            else:
+                # Normal case: armed flag set and flight mode is valid
+                self.drone_config.is_armed = True
+        else:
+            # MAVLink says disarmed
+            self.drone_config.is_armed = False
+
         # Update pre-arm readiness based on system status and sensor health
         self._update_pre_arm_status()
-        
-        # Log with flight mode interpretation for debugging
+
+        # Get flight mode name for logging
         mode_name = self._get_flight_mode_name(self.drone_config.custom_mode)
-        self.log_debug(f"HEARTBEAT: base_mode={self.drone_config.base_mode}, "
-                      f"custom_mode={self.drone_config.custom_mode} ({mode_name}), "
-                      f"system_status={self.drone_config.system_status}, "
-                      f"armed={self.drone_config.is_armed}, "
-                      f"ready_to_arm={self.drone_config.is_ready_to_arm}")
+
+        # Always log HEARTBEAT reception for debugging
+        self.log_info(f"HEARTBEAT: custom_mode={self.drone_config.custom_mode} ({mode_name}), "
+                     f"base_mode={self.drone_config.base_mode}, armed={self.drone_config.is_armed}")
+
+        # Log flight mode changes
+        if self.drone_config.custom_mode != prev_custom_mode:
+            self.log_info(f"🔄 Flight mode changed: {prev_custom_mode} → {self.drone_config.custom_mode} ({mode_name})")
+
+        # Log arming changes
+        if self.drone_config.is_armed != prev_armed:
+            self.log_info(f"🔄 Arming changed: {prev_armed} → {self.drone_config.is_armed}")
+
+        # Special attention to custom modes and offboard
+        if self.drone_config.custom_mode == 393216:
+            self.log_info(f"🚁 OFFBOARD mode active: {self.drone_config.custom_mode}")
+        elif self.drone_config.custom_mode in [33816576, 100925440]:
+            self.log_info(f"🚁 Custom mode active: {mode_name} ({self.drone_config.custom_mode})")
+        elif self.drone_config.custom_mode == 0:
+            self.log_warning(f"⚠️ Flight mode is 0 - possible issue with HEARTBEAT or mode initialization")
+        elif mode_name.startswith('Unknown'):
+            main_mode = self.drone_config.custom_mode >> 16
+            sub_mode = self.drone_config.custom_mode & 0xFFFF
+            self.log_warning(f"⚠️ Unknown flight mode: {self.drone_config.custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
                       
     def _update_pre_arm_status(self):
         """
@@ -128,7 +178,10 @@ class LocalMavlinkController:
         
         # Magnetometer is required but less critical
         mag_ready = self.drone_config.is_magnetometer_calibration_ok
-        
+
+        # GPS fix status check
+        gps_fix_ok = getattr(self.drone_config, 'gps_fix_type', 0) >= 3  # Require 3D fix or better
+
         # GPS requirements depend on flight mode
         gps_dependent_modes = [
             196608,  # Position mode (POSCTL)
@@ -194,9 +247,53 @@ class LocalMavlinkController:
             262154: 'VTOL Takeoff',
             196609: 'Orbit',
             196610: 'Position Slow',
-            50593792: 'Hold (GPS-less)'  # Special Hold mode variant
+            50593792: 'Hold (GPS-less)',  # Special Hold mode variant
+
+            # Additional Offboard mode variations (PX4 sub-modes)
+            393217: 'Offboard',  # OFFBOARD with sub-mode 1
+            393218: 'Offboard',  # OFFBOARD with sub-mode 2
+            393219: 'Offboard',  # OFFBOARD with sub-mode 3
+            393220: 'Offboard',  # OFFBOARD with sub-mode 4
+
+            # Custom/Extended flight modes (observed in field)
+            33816576: 'Takeoff',   # Custom takeoff mode (516 << 16)
+            100925440: 'Land'      # Custom land mode (1540 << 16)
         }
-        return flight_modes.get(custom_mode, f'Unknown({custom_mode})')
+        # Simple fallback for unknown modes
+        if custom_mode not in flight_modes:
+            main_mode = (custom_mode >> 16) & 0xFFFF
+            sub_mode = custom_mode & 0xFFFF
+
+            # Try intelligent detection for common patterns
+            if main_mode == 6:
+                return 'Offboard'
+            elif main_mode == 516:
+                return 'Takeoff'
+            elif main_mode == 1540:
+                return 'Land'
+            elif main_mode == 4:
+                # Auto modes
+                auto_sub_modes = {
+                    1: 'Ready', 2: 'Takeoff', 3: 'Hold',
+                    4: 'Mission', 5: 'Return', 6: 'Land'
+                }
+                return auto_sub_modes.get(sub_mode, f'Auto({sub_mode})')
+            elif main_mode == 1:
+                return 'Manual'
+            elif main_mode == 2:
+                return 'Altitude'
+            elif main_mode == 3:
+                return 'Position'
+            elif main_mode == 5:
+                return 'Acro'
+            elif main_mode == 7:
+                return 'Stabilized'
+
+            # Log unknown modes for debugging
+            self.log_warning(f"Unknown flight mode: {custom_mode} (Main: {main_mode}, Sub: {sub_mode})")
+            return f'Unknown({custom_mode})'
+
+        return flight_modes[custom_mode]
 
     def process_sys_status(self, msg):
         """
@@ -211,12 +308,18 @@ class LocalMavlinkController:
 
     def process_gps_raw_int(self, msg):
         """
-        Process the GPS_RAW_INT message and update GPS data including HDOP and VDOP.
+        Process the GPS_RAW_INT message and update GPS data including HDOP, VDOP, and fix status.
         """
         # Update GPS data including HDOP and VDOP (if available)
         self.drone_config.hdop = msg.eph / 1E2  # Horizontal dilution of precision
         self.drone_config.vdop = msg.epv / 1E2  # Vertical dilution of precision (if applicable)
-        self.log_debug(f"Updated GPS HDOP to: {self.drone_config.hdop}, VDOP to: {self.drone_config.vdop}")
+
+        # Update GPS fix status
+        # GPS fix type: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
+        self.drone_config.gps_fix_type = getattr(msg, 'fix_type', 0)
+        self.drone_config.satellites_visible = getattr(msg, 'satellites_visible', 0)
+
+        self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}")
 
     def process_attitude(self, msg):
         """

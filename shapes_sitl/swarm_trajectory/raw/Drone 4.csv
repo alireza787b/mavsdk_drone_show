@@ -1,0 +1,5 @@
+Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode
+Waypoint 1,35.72378046,51.27736015,1370.00,10.0,7.9,64.8,auto
+Waypoint 2,35.72493058,51.28036834,1370.00,48.0,5.9,171.5,auto
+Waypoint 3,35.72049799,51.28118899,2100.00,198.0,2.7,200.0,manual
+Waypoint 4,35.72403652,51.27562394,2600.00,500.0,2.7,0.0,auto

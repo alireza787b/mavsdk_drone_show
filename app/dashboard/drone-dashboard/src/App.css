@@ -47,18 +47,32 @@
   }
 }
 
+/* Global Body Styles - Theme Aware */
 body {
-  font-family: 'Roboto', sans-serif;
+  font-family: var(--font-family-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  margin: 0;
+  padding: 0;
+  transition: var(--transition-all);
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-family-primary);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
 }
 
-.app-container {
+/* Remove default margins that can cause layout issues */
+* {
+  box-sizing: border-box;
+}
 
-   /* margin-left: 10px; */
-  /* width: 82%; */
+#root {
+  min-height: 100vh;
+  background: var(--color-bg-primary);
 }
 
 /* .content {
@@ -74,14 +88,52 @@ h1, h2, h3, h4, h5, h6 {
 } */
 
 
-/* Layout */
+/* Layout - Professional Sidebar Integration */
 .app-container {
   display: flex;
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: var(--transition-all);
 }
 
 .content {
   flex: 1;
-  padding: 20px;
+  padding: var(--spacing-lg);
+  min-height: 100vh;
+  background: var(--color-bg-primary);
+  transition: var(--transition-all);
+  overflow-x: hidden;
+}
+
+/* Dynamic sidebar spacing - responsive to sidebar state */
+.content.sidebar-expanded {
+  margin-left: 280px; /* Space for expanded sidebar */
+}
+
+.content.sidebar-collapsed {
+  margin-left: 72px; /* Space for collapsed sidebar */
+}
+
+/* Responsive sidebar spacing */
+@media (max-width: 768px) {
+  .content.sidebar-expanded {
+    margin-left: 72px; /* Always collapsed spacing on mobile */
+    padding: var(--spacing-base);
+  }
+
+  .content.sidebar-collapsed {
+    margin-left: 72px; /* Consistent collapsed spacing */
+    padding: var(--spacing-base);
+  }
+}
+
+@media (max-width: 480px) {
+  .content.sidebar-expanded,
+  .content.sidebar-collapsed {
+    margin-left: 60px;
+    padding: var(--spacing-sm);
+  }
 }
 
 

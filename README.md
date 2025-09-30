@@ -28,11 +28,15 @@ In short, MDS 3 is **one package** that can be used for:
 
 ## Demo Videos
 
-- **V2 Drone Show & SITL Setup**  
-  100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2  
+- **MDS 3.0 Complete Feature Showcase**
+  3D Drone Swarms in Action | Mission Planning + Autonomous Clustered Formation using MDS 3
+  [![MDS 3.0 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
+
+- **V2 Drone Show & SITL Setup**
+  100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2
   [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
-- **Smart Swarm Mode Demo**  
+- **Smart Swarm Mode Demo**
   [![Smart Swarm Mode Demo](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
 
 
@@ -118,33 +122,78 @@ In short, MDS 3 is **one package** that can be used for:
   - Enhanced React GUI, Flask backend, robust drone-show scripts, Docker SITL.  
   - [100-Drone SITL Test Video](https://www.youtube.com/watch?v=VsNs3kFKEvU)  
 
-- **Version 3.0 (Jun 2025)**  
-  - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).  
-  - **Global Mode Setpoints** for unified offline & live missions.  
-  - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).  
-  - **Stable Startup Sequence** (three-way handshake, “OK-to-Start”).  
-  - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).  
-  - **Unified All-in-One System** for both drone shows and live swarm.  
-  - **Smart Swarm Clustered Leader–Follower Video**  
-  [![Smart Swarm Clustered Leader–Follower](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
+- **Version 3.0 (June 2025)**
+  - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).
+  - **Global Mode Setpoints** for unified offline & live missions.
+  - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).
+  - **Stable Startup Sequence** (three-way handshake, "OK-to-Start").
+  - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).
+  - **Unified All-in-One System** for both drone shows and live swarm.
+
+- **Version 3.5 (September 2025)**
+  - **Professional React Dashboard** with expert portal-based UI/UX using React Portal architecture.
+  - **3D Trajectory Planning** with interactive waypoint creation, terrain elevation, and speed optimization.
+  - **Enhanced Mobile Responsiveness** with touch-friendly interface and responsive design.
+  - **Smart Swarm Trajectory Processing** with cluster leader management and dynamic formation reshaping.
+  - **Expert Tab Navigation** with professional mission operations interface.
+  - **Advanced UI/UX Improvements** with modal overlays, responsive design, and touch-friendly controls.
+  - **Bug Fixes & Performance** improvements for production deployment.
+  - **Complete Feature Demo Video**
+  [![MDS 3.5 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
 
 ---
 
 ## Getting Started
 
+### Quick Start Guide
+
 All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/sitl_demo_docker.md):
 
 
 
-> **Note:** That document covers:  
-> - Docker image pull/load commands  
-> - `setup_environment.sh` and `create_dockers.sh` usage  
-> - Network, MAVLink Router, Netbird VPN setup  
-> - React dashboard startup (`linux_dashboard_start.sh --sitl`)  
-> - How to upload offline trajectories or launch live swarm missions  
-> - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)  
+> **Note:** The main guide covers:
+> - Docker image pull/load commands
+> - `setup_environment.sh` and `create_dockers.sh` usage
+> - Network, MAVLink Router, Netbird VPN setup
+> - React dashboard startup (`linux_dashboard_start.sh --sitl`)
+> - How to upload offline trajectories or launch live swarm missions
+> - **3D Trajectory Planning Setup**: For full terrain visualization and elevation features, add your free Mapbox access token to `.env` (see `.env.bak` for reference)
+
+### Advanced SITL Configuration
+
+For custom repositories or production SITL deployments:
+
+📖 **[Advanced SITL Guide](docs/advanced_sitl.md)** - Simple copy-paste commands for custom configuration
+
+> **⚠️ Advanced configuration requires good understanding of Git, Docker, and Linux**
+
+### Real Hardware Deployment
+
+**⚠️ IMPORTANT:** Deploying MDS on real drones and hardware requires:
+- Deep understanding of flight control systems, safety protocols, and aviation regulations
+- Extensive testing in controlled environments before any real-world use
+- Professional drone operation knowledge and certifications
+- Additional hardware setup, networking, and safety configurations
+
+**For real hardware deployment assistance, see the Contact section below.**
 
 
+
+---
+
+## 🏢 Commercial Support & Custom Implementation
+
+**The basic SITL demo is designed for evaluation and learning.** For companies and organizations requiring production deployments, custom features, or hardware implementation:
+
+**Services Available:**
+- ✈️ **Custom SITL Features** - Specialized simulation scenarios and advanced functionality
+- 🚁 **Hardware Implementation** - Real drone deployment with safety protocols and regulatory compliance
+- 🏢 **Enterprise Integration** - Custom APIs, cloud integration, fleet management systems
+- 📊 **Performance Optimization** - Large-scale swarm optimization and mission planning
+- 🔧 **Training & Support** - Team training and ongoing technical support
+- 🎯 **Custom Mission Types** - Specialized applications beyond standard formations
+
+**Professional implementation contracts available for real-world deployments.**
 
 ---
 

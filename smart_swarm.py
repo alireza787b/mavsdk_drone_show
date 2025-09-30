@@ -109,6 +109,8 @@ from smart_swarm_src.utils import (
     lla_to_ned
 )
 
+from drone_show_src.utils import configure_logging
+
 # ----------------------------- #
 #        Data Structures        #
 # ----------------------------- #
@@ -168,44 +170,45 @@ def parse_float(field_value, default=0.0):
         logger.warning(f"parse_float: Invalid or missing value '{field_value}', using default={default}")
         return default
 
-def configure_logging():
-    """
-    Configures logging for the script, ensuring logs are written to a per-session file
-    and displayed on the console. It also limits the number of log files.
-    """
-    # Create logs directory if it doesn't exist
-    logs_directory = os.path.join("..", "logs", "smart_swarm_logs")
-    os.makedirs(logs_directory, exist_ok=True)
-
-    # Configure the root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
-
-    # Create formatter
-    formatter = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-
-    # Create console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # Adjust as needed
-    console_handler.setFormatter(formatter)
-
-    # Create file handler with per-session log file
-    session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"smart_swarm_{session_time}.log"
-    log_file = os.path.join(logs_directory, log_filename)
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    # Add handlers to the root logger
-    root_logger.addHandler(console_handler)
-    root_logger.addHandler(file_handler)
-
-    # Limit the number of log files TODO!
-    #limit_log_files(logs_directory, MAX_LOG_FILES)
+# Legacy configure_logging function - now using shared one from drone_show_src.utils
+# def configure_logging():
+#     """
+#     Configures logging for the script, ensuring logs are written to a per-session file
+#     and displayed on the console. It also limits the number of log files.
+#     """
+#     # Create logs directory if it doesn't exist
+#     logs_directory = os.path.join("..", "logs", "smart_swarm_logs")
+#     os.makedirs(logs_directory, exist_ok=True)
+#
+#     # Configure the root logger
+#     root_logger = logging.getLogger()
+#     root_logger.setLevel(logging.DEBUG)
+#
+#     # Create formatter
+#     formatter = logging.Formatter(
+#         fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+#         datefmt="%Y-%m-%d %H:%M:%S"
+#     )
+#
+#     # Create console handler
+#     console_handler = logging.StreamHandler(sys.stdout)
+#     console_handler.setLevel(logging.DEBUG)  # Adjust as needed
+#     console_handler.setFormatter(formatter)
+#
+#     # Create file handler with per-session log file
+#     session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+#     log_filename = f"smart_swarm_{session_time}.log"
+#     log_file = os.path.join(logs_directory, log_filename)
+#     file_handler = logging.FileHandler(log_file)
+#     file_handler.setLevel(logging.DEBUG)
+#     file_handler.setFormatter(formatter)
+#
+#     # Add handlers to the root logger
+#     root_logger.addHandler(console_handler)
+#     root_logger.addHandler(file_handler)
+#
+#     # Limit the number of log files TODO!
+#     #limit_log_files(logs_directory, MAX_LOG_FILES)
 
 def read_hw_id() -> int:
     """
@@ -1274,7 +1277,7 @@ def main():
     Main function to run the smart swarm mode.
     """
     # Configure logging
-    configure_logging()
+    configure_logging("smart_swarm")
 
     # Parse command-line arguments if needed
     parser = argparse.ArgumentParser(description='Smart Swarm Mode')

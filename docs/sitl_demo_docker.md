@@ -3,15 +3,23 @@
 
 ## Introduction
 
-Welcome to the MDS Simulation Server Setup Guide. This document provides a complete, all-in-one framework for setting up and running either:
+Welcome to the MDS Simulation Server Setup Guide. This document provides a **basic demonstration setup** for evaluation and learning purposes.
+
+> **🎯 This guide is for DEMO and EVALUATION only**
+>
+> For production deployments, custom features, or real hardware implementation:
+> - **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
+> - **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)
+
+This document provides a complete, all-in-one framework for setting up and running either:
 - **Decentralized Drone Shows** (offline, pre-planned trajectories), and
 - **Live, Cooperative Swarm Missions** (real-time, leader–follower clustering with dynamic role changes).
 
-MDS 3 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released June 2025). It supports:
-- **Offline Choreography Modes:** Preload “ShowMode” trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.  
+MDS 3.5 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released September 2025). It supports:
+- **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
 - **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
 
-In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in. Both drone-show artists and swarm-mission engineers will find this guide relevant for taking advantage of MDS 3’s unified feature set.
+In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission—with failsafe checks, global setpoints, and robust startup sequences baked in. Both drone-show artists and swarm-mission engineers will find this guide relevant for taking advantage of MDS 3.5's unified feature set.
 
 For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutorial playlist linked in the [GitHub repository](https://github.com/alireza787b/mavsdk_drone_show).
 
@@ -138,30 +146,13 @@ This custom image is a plug-and-play solution built on Ubuntu 22.04. It includes
 
 Moreover, it has an auto hardware ID detection and instance creation system for automated drone instance creation.
 
-#### Customizing the Image (Optional for advanced users)
+#### Need Custom Repository or Advanced Configuration?
 
-If you wish to customize this image, you'll need to load it into a Docker container and access its terminal bash for modifications. Follow these steps:
+The default setup works perfectly for demos and testing. For advanced users who need custom repositories or production deployments:
 
-1. Load the image into a Docker container (for example, name it **"my-drone"**).
- ```bash
-   sudo docker run -it --name my-drone drone-template:latest /bin/bash
-   ```
-2. Fork the `mavsdk_drone_show` repository.
-3. Change the upstream and branch settings of the  `mavsdk_drone_show`  repository in container home directory based on your own forked repository.
-	*	Forking the `mavsdk_drone_show` GitHub repo is required only if you are planning to customize the code and shows.
-	*	If you need help for your custom projects, contact me on [LinkedIn](https://www.linkedin.com/in/alireza787b/) or [Email](mailto:p30planets@gmail.com).
+📖 **[Advanced SITL Configuration Guide](advanced_sitl.md)** - Custom repository setup with simple copy-paste commands
 
-4. Once all modifications are complete, commit the changes to the Docker image using:
- ```bash
-docker commit -m "Updated custom drone image" my-drone drone-template:v3.1
-docker tag drone-template:v3.1 drone-template:latest
-```
-If you also want to export the image to a file run:
- ```bash
-docker save -o ~/drone-template_v3.tar drone-template:v3.1 
-```
-
-This will save your customizations into the Docker image. You can now proceed to use this customized image for your drone instances.
+> **⚠️ Note:** Advanced configuration requires good understanding of Git, Docker, and Linux. Contact [p30planets@gmail.com](mailto:p30planets@gmail.com) for help.
 
 ### Portainer Installation (Optional but Highly Recommended)
 
@@ -443,7 +434,7 @@ While SITL simulations are great for testing, they are not a substitute for real
 
 We are committed to regularly updating this project to make it a reliable product soon. Thank you for your interest, and happy flying!
 
-## Enhancements in Version 3 (Released June 2025)
+## Enhancements in Version 3.5 (Released September 2025)
 
 With the switch from Version 2 to Version 3, we have fully re-enabled and hardened the smart swarm’s Leader–Follower mode, and overhauled the drone-show workflow. Details:
 

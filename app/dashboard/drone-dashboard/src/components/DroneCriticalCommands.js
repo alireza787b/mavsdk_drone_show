@@ -23,25 +23,25 @@ const DroneCriticalCommands = ({ droneId }) => {
   const CRITICAL_COMMANDS = [
     {
       actionType: DRONE_ACTION_TYPES.HOLD, // numeric 102
-      icon: <FaHandPaper style={{ color: '#4caf50' }} />, // green-ish
+      icon: <FaHandPaper style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
       label: 'Hold',
       isDanger: false,
     },
     {
       actionType: DRONE_ACTION_TYPES.LAND, // numeric 101
-      icon: <FaPlaneArrival style={{ color: '#008cba' }} />, // blue-ish
+      icon: <FaPlaneArrival style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
       label: 'Land',
       isDanger: false,
     },
     {
       actionType: DRONE_ACTION_TYPES.RETURN_RTL, // numeric 104
-      icon: <FaHome style={{ color: '#ff9800' }} />, // orange
+      icon: <FaHome style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
       label: 'Return',
       isDanger: false,
     },
     {
       actionType: DRONE_ACTION_TYPES.KILL_TERMINATE, // numeric 105
-      icon: <FaSkull style={{ color: '#f44336' }} />, // red
+      icon: <FaSkull style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
       label: 'Kill',
       isDanger: true,
     },

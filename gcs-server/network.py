@@ -1,4 +1,9 @@
 # gcs-server/network_status.py
+#
+# NOTE: Network info functionality has been moved to heartbeat.py for optimization.
+# This file contains the original polling implementation but is no longer used.
+# Network info is now efficiently delivered via heartbeat messages every 10 seconds.
+#
 
 import threading
 import time

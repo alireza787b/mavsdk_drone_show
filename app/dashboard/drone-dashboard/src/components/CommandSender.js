@@ -6,6 +6,8 @@ import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import { sendDroneCommand } from '../services/droneApiService';
 import { toast } from 'react-toastify';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faRocket, faCog } from '@fortawesome/free-solid-svg-icons';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -135,19 +137,23 @@ const CommandSender = ({ drones }) => {
         )}
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation with Expert UI/UX Icons */}
       <div className="tab-bar">
         <button
           className={`tab-button ${activeTab === 'missionTrigger' ? 'active' : ''}`}
           onClick={() => setActiveTab('missionTrigger')}
+          title="Mission Trigger - Schedule and execute complex mission operations"
         >
-          Mission Trigger
+          <FontAwesomeIcon icon={faRocket} className="tab-icon" />
+          <span className="tab-text">Mission Trigger</span>
         </button>
         <button
           className={`tab-button ${activeTab === 'actions' ? 'active' : ''}`}
           onClick={() => setActiveTab('actions')}
+          title="Actions - Execute immediate flight control and system commands"
         >
-          Actions
+          <FontAwesomeIcon icon={faCog} className="tab-icon" />
+          <span className="tab-text">Actions</span>
         </button>
       </div>
 

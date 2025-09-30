@@ -1,9 +1,44 @@
-.current-time{
-    color: rgb(139, 161, 183);
-    font-size: 1em;
-    font-weight: 400;
-    text-align: left;
-    margin-left: auto;
-    padding: 10px;
+@import './DesignTokens.css';
 
+/* Clean Timestamp Display for GCS-Drone Sync */
+.current-time {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-family-mono);
+  line-height: 1.1;
+}
+
+.time-display-main {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  letter-spacing: 0.3px;
+}
+
+.timestamp {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  opacity: 0.9;
+}
+
+/* Sidebar integration */
+.time-display .current-time {
+  flex: 1;
+  text-align: left;
+}
+
+/* Tooltip styling for collapsed state */
+.nav-tooltip .current-time {
+  text-align: center;
+  gap: 2px;
+}
+
+.nav-tooltip .time-display-main {
+  font-size: 10px;
+}
+
+.nav-tooltip .timestamp {
+  font-size: 9px;
 }

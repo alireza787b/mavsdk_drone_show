@@ -1,6 +1,7 @@
 // src/components/InitialLaunchPlot.js
 import React from 'react';
 import Plot from 'react-plotly.js';
+import { useTheme } from '../hooks/useTheme';
 
 function InitialLaunchPlot({
   drones,
@@ -8,6 +9,18 @@ function InitialLaunchPlot({
   deviationData,
   forwardHeading = 0, // incoming heading from the parent
 }) {
+  const { isDark } = useTheme();
+
+  // Theme-aware colors
+  const themeColors = {
+    background: isDark ? '#1a1a1a' : '#f8f9fa',
+    paper: isDark ? '#1a1a1a' : '#f8f9fa',
+    text: isDark ? '#e9ecef' : '#343a40',
+    grid: isDark ? '#495057' : '#dee2e6',
+    title: isDark ? '#f8f9fa' : '#212529',
+    axisTitle: isDark ? '#adb5bd' : '#6c757d',
+  };
+
   // --------------------------------------------------------------
   // Group drones by position (pos_id) for overlap offset
   // --------------------------------------------------------------
@@ -117,7 +130,7 @@ function InitialLaunchPlot({
             },
           },
           textfont: {
-            color: 'white',
+            color: isDark ? '#ffffff' : '#000000',
             size: 10,
             family: 'Arial',
           },
@@ -136,25 +149,52 @@ function InitialLaunchPlot({
         },
       ]}
       layout={{
-        title: `Initial Launch Positions (Heading = ${forwardHeading}°)`,
+        title: {
+          text: `Initial Launch Positions (Heading = ${forwardHeading}°)`,
+          font: {
+            color: themeColors.title,
+            size: 16,
+          },
+        },
         xaxis: {
-          title: '← West  |  East →',
+          title: {
+            text: '← West  |  East →',
+            font: {
+              color: themeColors.axisTitle,
+            },
+          },
           showgrid: true,
           zeroline: true,
+          gridcolor: themeColors.grid,
+          tickfont: {
+            color: themeColors.text,
+          },
         },
         yaxis: {
-          title: '← South | North →',
+          title: {
+            text: '← South | North →',
+            font: {
+              color: themeColors.axisTitle,
+            },
+          },
           showgrid: true,
           zeroline: true,
+          gridcolor: themeColors.grid,
+          tickfont: {
+            color: themeColors.text,
+          },
         },
         hovermode: 'closest',
-        plot_bgcolor: '#f7f7f7',
-        paper_bgcolor: '#f7f7f7',
+        plot_bgcolor: themeColors.background,
+        paper_bgcolor: themeColors.paper,
+        font: {
+          color: themeColors.text,
+        },
         margin: {
-          l: 50,
-          r: 50,
-          t: 50,
-          b: 50,
+          l: 60,
+          r: 40,
+          t: 60,
+          b: 60,
         },
       }}
       onClick={(data) => {

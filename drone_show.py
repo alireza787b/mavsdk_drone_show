@@ -311,6 +311,62 @@ def adjust_waypoints(
     return adjusted_waypoints
 
 
+async def get_current_ned_position(drone: System) -> PositionNedYaw:
+    """
+    Get current drone position in NED coordinates relative to takeoff.
+
+    This function tries multiple methods to get the current NED position:
+    1. MAVSDK telemetry (most reliable)
+    2. Local API fallback
+    3. Zero position fallback (safest)
+
+    Args:
+        drone (System): MAVSDK drone system instance
+
+    Returns:
+        PositionNedYaw: Current position in NED coordinates with zero yaw
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Method 1: Try MAVSDK telemetry first (most reliable)
+        logger.debug("Attempting to get current NED position via MAVSDK telemetry")
+        async for position_ned in drone.telemetry.position_velocity_ned():
+            current_pos = PositionNedYaw(
+                position_ned.position.north_m,
+                position_ned.position.east_m,
+                position_ned.position.down_m,
+                0.0  # Yaw not needed for position hold
+            )
+            logger.debug(f"Current NED position via telemetry: N={current_pos.north_m:.2f}, "
+                        f"E={current_pos.east_m:.2f}, D={current_pos.down_m:.2f}")
+            return current_pos
+    except Exception as e:
+        logger.warning(f"MAVSDK telemetry position failed: {e}")
+
+    try:
+        # Method 2: Fallback to local API
+        logger.debug("Attempting to get current NED position via local API")
+        response = requests.get(
+            f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+            timeout=1
+        )
+        if response.status_code == 200:
+            ned_data = response.json()
+            current_pos = PositionNedYaw(
+                ned_data['x'], ned_data['y'], ned_data['z'], 0.0
+            )
+            logger.debug(f"Current NED position via API: N={current_pos.north_m:.2f}, "
+                        f"E={current_pos.east_m:.2f}, D={current_pos.down_m:.2f}")
+            return current_pos
+    except Exception as e:
+        logger.warning(f"Local API position request failed: {e}")
+
+    # Method 3: Ultimate fallback - return zero position (safest for position hold)
+    logger.warning("Could not get current NED position, using (0,0,0) - drone will hover at takeoff position")
+    return PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+
+
 def read_trajectory_file(
     filename: str,
     auto_launch_position: bool = False,
@@ -565,6 +621,7 @@ async def perform_trajectory(
                     in_initial_climb = under_alt or under_time
                     if not in_initial_climb:
                         initial_climb_completed = True
+                        logger.info(f"=== INITIAL CLIMB COMPLETED === after {time_in_climb:.1f}s, switching to CSV trajectory following")
                 else:
                     in_initial_climb = False
 
@@ -572,6 +629,16 @@ async def perform_trajectory(
                 led_controller.set_color(ledr, ledg, ledb)
 
                 if in_initial_climb:
+                    # Enhanced logging for initial climb start (once per flight)
+                    if waypoint_index == 0 and time_in_climb < 1.0:
+                        logger.info(f"=== INITIAL CLIMB STARTED ===")
+                        logger.info(f"Mode: {Params.INITIAL_CLIMB_MODE}")
+                        logger.info(f"Target altitude: {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m")
+                        logger.info(f"Climb speed: {Params.INITIAL_CLIMB_VZ_DEFAULT} m/s")
+                        logger.info(f"Initial trajectory waypoint: N={px:.2f}, E={py:.2f}, D={pz:.2f}")
+                        if Params.INITIAL_CLIMB_MODE == "LOCAL_NED":
+                            logger.info("Using FIXED LOCAL_NED mode - drone will hover at current position during climb")
+
                     # BODY-frame climb or LOCAL-NED climb
                     if Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY":
                         vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
@@ -581,14 +648,36 @@ async def perform_trajectory(
                         await drone.offboard.set_velocity_body(
                             VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                         )
+                        logger.debug(f"Initial climb: BODY_VELOCITY mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
                     else:
+                        # LOCAL_NED climb - FIXED: Use current position + vertical climb offset
                         if initial_climb_yaw is None:
                             async for e in drone.telemetry.attitude_euler():
                                 initial_climb_yaw = e.yaw_deg
                                 break
-                        await drone.offboard.set_position_ned(
-                            PositionNedYaw(px, py, pz, initial_climb_yaw)
+
+                        # Get current NED position to hover in place during climb
+                        current_ned_position = await get_current_ned_position(drone)
+
+                        # Calculate climb height based on time and speed
+                        climb_height = min(
+                            time_in_climb * Params.INITIAL_CLIMB_VZ_DEFAULT,
+                            Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
                         )
+
+                        # CRITICAL FIX: Send position command relative to current position, not trajectory origin
+                        climb_target = PositionNedYaw(
+                            current_ned_position.north_m,      # Stay at current North position
+                            current_ned_position.east_m,       # Stay at current East position
+                            current_ned_position.down_m - climb_height,  # Climb up (negative Down)
+                            initial_climb_yaw
+                        )
+
+                        await drone.offboard.set_position_ned(climb_target)
+
+                        logger.debug(f"Initial climb: LOCAL_NED mode, target_N={climb_target.north_m:.2f}, "
+                                   f"target_E={climb_target.east_m:.2f}, target_D={climb_target.down_m:.2f}, "
+                                   f"climb_height={climb_height:.2f}m, t={time_in_climb:.1f}s")
                     waypoint_index += 1
                     continue
 
@@ -1441,7 +1530,7 @@ def main():
     Main function to run the drone.
     """
     # Configure logging
-    configure_logging()
+    configure_logging("drone_show")
     logger = logging.getLogger(__name__)
 
     parser = argparse.ArgumentParser(description='Drone Show Script')

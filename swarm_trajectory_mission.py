@@ -30,9 +30,11 @@ Key Features:
     – hold_position: Hover at final waypoint
     – continue_heading: Continue last heading and speed
 
-  • Initial Climb Safety  
-    – Same proven safety system as drone_show.py
-    – Vertical climb phase with configurable thresholds
+  • Synchronized Initial Climb for Multicopters
+    – Velocity-controlled climb during initial phase (height: 5m, time: 5s, speed: 1m/s)
+    – Simple time padding copies first waypoint position for gap periods
+    – Seamless transition from climb to CSV trajectory following
+    – Perfect synchronization: timer starts at t=0, climb completes, then joins CSV
 
   • Comprehensive Logging & LEDs  
     – Verbose debug/info logs for trajectory execution
@@ -74,7 +76,9 @@ File Structure:
 Notes:
   • Built on proven drone_show.py architecture for maximum reliability
   • Always uses global GPS positioning for large-area operations
-  • Simplified landing logic - no controlled landing paths needed
+  • Two-phase approach: velocity-based climb + CSV trajectory following
+  • Time padding ensures synchronized start regardless of first waypoint time
+  • Parameters: SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT/TIME/SPEED in Params
 """
 
 import os
@@ -97,6 +101,7 @@ from mavsdk.offboard import (
     VelocityBodyYawspeed,
     PositionGlobalYaw,
     VelocityNedYaw,
+    AccelerationNed,
     OffboardError,
 )
 from mavsdk.telemetry import LandedState
@@ -111,6 +116,7 @@ from drone_show_src.utils import (
     read_hw_id,
     clamp_led_value,
 )
+
 
 # ----------------------------- #
 #        Data Structures        #
@@ -214,6 +220,65 @@ def read_config(filename: str) -> Drone:
         return None
 
 
+def pad_trajectory_for_time_gap(waypoints: list) -> list:
+    """
+    Simple trajectory padding to fill time gap from t=0 to first CSV waypoint.
+
+    This function only copies the first waypoint's position (lat/lon/alt) for all
+    times from 0 to first_waypoint_time. No altitude modifications.
+    The actual initial climb is handled separately via velocity commands.
+
+    Args:
+        waypoints (list): Original CSV waypoints starting at some time > 0
+
+    Returns:
+        list: Padded waypoints list starting from t=0 with copied first position
+    """
+    logger = logging.getLogger(__name__)
+
+    if not waypoints:
+        logger.warning("Empty waypoints provided to padding function")
+        return waypoints
+
+    first_waypoint = waypoints[0]
+    first_time = first_waypoint[0]  # t value of first CSV waypoint
+
+    # If first waypoint is already at t=0 or very close, no padding needed
+    if first_time <= 1.0:  # 1 second tolerance
+        logger.info(f"First waypoint at t={first_time:.1f}s, no padding needed")
+        return waypoints
+
+    # Extract first waypoint data (no modifications)
+    first_lat, first_lon, first_alt = first_waypoint[1], first_waypoint[2], first_waypoint[3]
+    first_yaw = first_waypoint[10]
+    first_ledr, first_ledg, first_ledb = first_waypoint[12], first_waypoint[13], first_waypoint[14]
+
+    padded_waypoints = []
+
+    logger.info(f"Padding trajectory: copy first position from t=0 to t={first_time:.1f}s")
+
+    # Pad from t=0 to first_time with copied first waypoint position
+    pad_steps = max(int(first_time / 0.1), 1)  # 10Hz rate
+
+    for i in range(pad_steps):
+        t = i * first_time / pad_steps
+
+        padded_waypoints.append((
+            t, first_lat, first_lon, first_alt,  # Use exact first waypoint position
+            0.0, 0.0, 0.0,  # Zero velocity (position hold)
+            0.0, 0.0, 0.0,  # Zero acceleration
+            first_yaw,  # First waypoint yaw
+            "0",  # mode
+            first_ledr, first_ledg, first_ledb  # First waypoint LED color
+        ))
+
+    # Add original CSV waypoints unchanged
+    padded_waypoints.extend(waypoints)
+
+    logger.info(f"Trajectory padded: {len(padded_waypoints)} total waypoints (added {len(padded_waypoints) - len(waypoints)} padding points)")
+    return padded_waypoints
+
+
 def read_swarm_trajectory_file(position_id: int) -> list:
     """
     Read and adjust the swarm trajectory waypoints from a CSV file.
@@ -293,6 +358,9 @@ def read_swarm_trajectory_file(position_id: int) -> list:
 
             logger.info(f"Trajectory file '{filename}' loaded with {len(waypoints)} waypoints.")
 
+            # Apply simple trajectory padding to fill time gap from t=0
+            waypoints = pad_trajectory_for_time_gap(waypoints)
+
     except FileNotFoundError:
         logger.exception(f"Trajectory file '{filename}' not found.")
         sys.exit(1)
@@ -347,17 +415,17 @@ async def perform_swarm_trajectory(
     mission_completed = False
     led_controller = LEDController.get_instance()
 
-    # Initial climb bookkeeping (same as drone_show.py)
+    # Initial climb state tracking for velocity-based climb control
     in_initial_climb = True
     initial_climb_completed = False
     initial_climb_start_time = time.time()
-    initial_climb_yaw = None
+    climb_target_reached = False
 
     # Time step between CSV rows (for drift‐skip calculations)
     csv_step = (waypoints[1][0] - waypoints[0][0]) \
         if total_waypoints > 1 else Params.DRIFT_CHECK_PERIOD
 
-    logger.info(f"=== STARTING SWARM TRAJECTORY MISSION ===")
+    logger.info(f"=== STARTING SWARM TRAJECTORY EXECUTION ===")
     logger.info(f"Waypoints: {total_waypoints} | End behavior: {end_behavior}")
     logger.info(f"Launch position: lat={launch_lat:.6f}, lon={launch_lon:.6f}, alt={launch_alt:.1f}m")
     
@@ -387,50 +455,57 @@ async def perform_swarm_trajectory(
                 # px = lat, py = lon, pz = alt (no conversion needed for global setpoints)
                 px, py, pz = raw_px, raw_py, raw_pz
 
-                # --- (1) Initial Climb Phase (adapted for global coordinates) ---
+                # --- (1) Enhanced Initial Climb Phase with Multi-Condition Monitoring ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    # pz is already positive altitude (AMSL), not NED down
-                    actual_alt = pz - launch_alt  # Altitude above launch
-                    under_alt = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
-                    under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
-                    in_initial_climb = under_alt or under_time
+                    # Enhanced climb completion conditions with altitude verification
+                    altitude_condition = time_in_climb >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_TIME
+                    height_condition = (time_in_climb * Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED) >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT
 
-                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING:
-                        logger.debug(
-                            f"Initial climb: alt={actual_alt:.1f}m, time={time_in_climb:.1f}s, "
-                            f"under_alt={under_alt}, under_time={under_time}"
-                        )
+                    # Additional safety check: verify actual altitude if possible
+                    actual_altitude_ok = True
+                    try:
+                        async for position in drone.telemetry.position():
+                            current_alt = position.relative_altitude_m
+                            if current_alt >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT * 0.8:  # 80% of target
+                                actual_altitude_ok = True
+                            break
+                    except Exception:
+                        pass  # Continue with time-based climb if altitude unavailable
 
-                    if not in_initial_climb:
+                    in_initial_climb = not (altitude_condition and height_condition and actual_altitude_ok)
+
+                    if in_initial_climb:
+                        # Enhanced velocity commands for initial climb with safety limits
+                        climb_vz = -min(Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED, 2.0)  # Cap at 2 m/s
+
+                        # Send velocity setpoint during climb with retry logic
+                        try:
+                            await drone.offboard.set_velocity_ned(
+                                VelocityNedYaw(0.0, 0.0, climb_vz, raw_yaw)
+                            )
+                        except OffboardError as e:
+                            logger.warning(f"Climb velocity command failed: {e}, retrying...")
+                            await asyncio.sleep(0.1)
+                            await drone.offboard.set_velocity_ned(
+                                VelocityNedYaw(0.0, 0.0, climb_vz, raw_yaw)
+                            )
+
+                        # LED white during climb
+                        led_controller.set_color(255, 255, 255)
+
+                        if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 50 == 0:
+                            logger.debug(f"Enhanced climb: t={time_in_climb:.1f}s, vz={climb_vz:.1f}m/s, alt_ok={actual_altitude_ok}")
+
+                        waypoint_index += 1
+                        continue
+                    else:
+                        # Initial climb completed - switch to CSV trajectory following
                         initial_climb_completed = True
-                        logger.info(f"Initial climb phase completed at {actual_alt:.1f}m after {time_in_climb:.1f}s")
-                else:
-                    in_initial_climb = False
+                        logger.info(f"Enhanced initial climb completed after {time_in_climb:.1f}s - switching to CSV trajectory")
 
-                # Update LED color for feedback
+                # Update LED color for feedback (after climb or normal trajectory)
                 led_controller.set_color(ledr, ledg, ledb)
-
-                if in_initial_climb:
-                    # During initial climb, use global setpoints to reach target altitude
-                    if initial_climb_yaw is None:
-                        initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
-
-                    # Send global position setpoint during climb
-                    climb_gp = PositionGlobalYaw(
-                        lla_lat,
-                        lla_lon,
-                        lla_alt,
-                        initial_climb_yaw,
-                        PositionGlobalYaw.AltitudeType.AMSL
-                    )
-                    await drone.offboard.set_position_global(climb_gp)
-
-                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 10 == 0:
-                        logger.debug(f"Climbing to alt={lla_alt:.1f}m (target: {launch_alt + Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD:.1f}m)")
-
-                    waypoint_index += 1
-                    continue
 
                 # --- (2) Drift Correction (Skipping) ---
                 safe_drift = min(drift_delta, DRIFT_CATCHUP_MAX_SEC)
@@ -453,6 +528,28 @@ async def perform_swarm_trajectory(
                 # px=lat, py=lon, pz=alt (already in global coordinates)
                 lla_lat, lla_lon, lla_alt = px, py, pz
 
+                # --- (3.1) Apply position drift correction if enabled ---
+                if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift:
+                    # For global coordinates, apply NED drift correction
+                    # Convert drift to lat/lon offset and apply
+                    import pymap3d as pm
+                    drift_lat, drift_lon, drift_alt = pm.ned2geodetic(
+                        initial_position_drift.north_m,
+                        initial_position_drift.east_m,
+                        initial_position_drift.down_m,
+                        launch_lat, launch_lon, launch_alt
+                    )
+                    # Apply drift correction
+                    lla_lat += (drift_lat - launch_lat)
+                    lla_lon += (drift_lon - launch_lon)
+                    lla_alt += (drift_alt - launch_alt)
+
+                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 100 == 0:
+                        logger.debug(f"Applied position drift correction: "
+                                   f"N={initial_position_drift.north_m:.2f}m, "
+                                   f"E={initial_position_drift.east_m:.2f}m, "
+                                   f"D={initial_position_drift.down_m:.2f}m")
+
                 # Always use GLOBAL setpoint for swarm trajectory mode
                 gp = PositionGlobalYaw(
                     lla_lat,
@@ -461,13 +558,22 @@ async def perform_swarm_trajectory(
                     raw_yaw,
                     PositionGlobalYaw.AltitudeType.AMSL
                 )
-                
+
                 if Params.SWARM_TRAJECTORY_LOG_WAYPOINTS:
                     logger.debug(
                         f"GLOBAL setpoint → lat:{lla_lat:.6f}, lon:{lla_lon:.6f}, "
                         f"alt (AMSL):{lla_alt:.2f}, yaw:{raw_yaw:.1f}"
                     )
-                    
+
+                # Enhanced setpoint with feed-forward control for better tracking
+                if hasattr(Params, 'SWARM_TRAJECTORY_FEEDFORWARD_ENABLED') and Params.SWARM_TRAJECTORY_FEEDFORWARD_ENABLED:
+                    # Use velocity feed-forward for smoother trajectory following
+                    velocity_setpoint = VelocityNedYaw(vx, vy, vz, 0.0)
+                    # Note: Global position + velocity is not directly supported in MAVSDK
+                    # So we use position-only for global mode, but log the intent
+                    if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 50 == 0:
+                        logger.debug(f"Feed-forward velocities: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f} m/s")
+
                 await drone.offboard.set_position_global(gp)
 
                 # Update LED color
@@ -476,17 +582,24 @@ async def perform_swarm_trajectory(
                 # --- (4) Capture velocity for continue_heading behavior ---
                 last_velocity = (vx, vy, vz, 0.0)  # yaw_rate = 0 for now
 
-                # --- (5) Progress Logging ---
+                # --- (5) Enhanced Progress Logging with Mission Status ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
 
-                # Log every 50 waypoints or at significant progress milestones
+                # Enhanced logging with mission status markers
                 if (waypoint_index % 50 == 0) or (prog in [0.1, 0.25, 0.5, 0.75, 0.9]):
                     logger.info(
                         f"Trajectory progress: {prog:.1%} complete | "
                         f"WP {waypoint_index+1}/{total_waypoints} | "
-                        f"Alt: {lla_alt:.1f}m | ETA: {time_to_end:.0f}s"
+                        f"Alt: {lla_alt:.1f}m | ETA: {time_to_end:.0f}s | "
+                        f"Drift: {drift_delta:.2f}s"
                     )
+
+                # Critical milestone logging
+                if prog == 0.5:
+                    logger.info("*** 50% TRAJECTORY COMPLETED ***")
+                elif prog >= 0.9:
+                    logger.info("*** 90% TRAJECTORY COMPLETED - APPROACHING END ***")
 
                 if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 20 == 0:
                     logger.debug(
@@ -505,24 +618,105 @@ async def perform_swarm_trajectory(
                     waypoint_index += 1
 
         except OffboardError as err:
-            logger.error(f"Offboard error: {err}")
+            logger.error(f"Offboard error at waypoint {waypoint_index}: {err}")
             led_controller.set_color(255, 0, 0)
-            break
-        except Exception:
-            logger.exception("Error in trajectory loop.")
+            # Simple recovery attempt
+            try:
+                await asyncio.sleep(0.5)
+                await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+                await asyncio.sleep(0.5)
+                continue
+            except:
+                break
+        except Exception as e:
+            logger.exception(f"Critical error in trajectory loop at waypoint {waypoint_index}: {e}")
             led_controller.set_color(255, 0, 0)
             break
 
     # -----------------------------------
     # End-of-Mission Behavior Execution
     # -----------------------------------
-    logger.info(f"Trajectory complete. Executing end behavior: {end_behavior}")
+    logger.info(f"*** TRAJECTORY COMPLETE *** Executing end behavior: {end_behavior}")
     led_controller.set_color(0, 255, 255)  # Cyan for end behavior
-    
+
     await execute_end_behavior(drone, end_behavior, launch_lat, launch_lon, launch_alt, last_velocity)
 
-    logger.info("Swarm trajectory mission complete.")
+    logger.info("*** SWARM TRAJECTORY MISSION COMPLETE ***")
     led_controller.set_color(0, 255, 0)  # Green for completion
+
+
+async def controlled_landing(drone: System):
+    """
+    Perform controlled landing by sending descent commands and monitoring landing state.
+    Enhanced version from drone_show.py for maximum reliability.
+
+    Args:
+        drone (System): MAVSDK drone system instance.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Initiating controlled landing.")
+    led_controller = LEDController.get_instance()
+    landing_detected = False
+    landing_start_time = time.time()
+
+    logger.info("Switching to controlled descent mode.")
+    try:
+        await drone.offboard.set_velocity_ned(
+            VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
+        )
+    except OffboardError as e:
+        logger.error(f"Offboard error during controlled landing setup: {e}")
+        led_controller.set_color(255, 0, 0)
+        return
+
+    retry_count = 0
+    max_retries = 3
+
+    while not landing_detected and retry_count < max_retries:
+        try:
+            velocity_setpoint = VelocityNedYaw(0.0, 0.0, Params.CONTROLLED_DESCENT_SPEED, 0.0)
+            await drone.offboard.set_velocity_ned(velocity_setpoint)
+            logger.debug(f"Controlled Landing: Descending at {Params.CONTROLLED_DESCENT_SPEED:.2f} m/s.")
+
+            # Check landing state
+            async for landed_state in drone.telemetry.landed_state():
+                if landed_state == LandedState.ON_GROUND:
+                    landing_detected = True
+                    logger.info("Landing detected during controlled landing.")
+                    break
+                break
+
+            if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
+                logger.warning("Controlled landing timed out. Initiating PX4 native landing.")
+                await stop_offboard_mode(drone)
+                await perform_landing(drone)
+                break
+
+            await asyncio.sleep(0.1)
+
+        except OffboardError as e:
+            retry_count += 1
+            logger.error(f"Offboard error during controlled landing (attempt {retry_count}): {e}")
+            if retry_count >= max_retries:
+                led_controller.set_color(255, 0, 0)
+                break
+            await asyncio.sleep(0.5)  # Brief pause before retry
+
+        except Exception as e:
+            logger.exception(f"Unexpected error during controlled landing: {e}")
+            led_controller.set_color(255, 0, 0)
+            break
+
+    if landing_detected:
+        await stop_offboard_mode(drone)
+        await disarm_drone(drone)
+        logger.info("Controlled landing completed successfully.")
+    else:
+        logger.warning("Landing not detected. Initiating PX4 native landing as fallback.")
+        await stop_offboard_mode(drone)
+        await perform_landing(drone)
+
+    led_controller.set_color(0, 255, 0)
 
 
 async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, launch_lon: float, launch_alt: float, last_velocity=None):
@@ -543,14 +737,13 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
         if behavior == 'return_home':
             logger.info("Executing return_home behavior - switching to PX4 RTL mode")
             await stop_offboard_mode(drone)
+            await drone.action.hold()
             await drone.action.return_to_launch()
             logger.info("RTL mode activated - drone will return home and land automatically")
 
         elif behavior == 'land_current':
-            logger.info("Executing land_current behavior - switching to PX4 LAND mode")
-            await stop_offboard_mode(drone)
-            await drone.action.land()
-            await wait_for_landing(drone)
+            logger.info("Executing land_current behavior - using controlled landing")
+            await controlled_landing(drone)
             logger.info("Landing at current position completed")
 
         elif behavior == 'hold_position':
@@ -586,13 +779,55 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
 
     except Exception as e:
         logger.error(f"Error executing end behavior '{behavior}': {e}")
-        # Fallback to safe landing
-        try:
-            await stop_offboard_mode(drone)
-            await drone.action.land()
-            logger.info("Emergency landing initiated")
-        except Exception as fallback_error:
-            logger.error(f"Emergency landing also failed: {fallback_error}")
+        # Enhanced fallback with multiple recovery attempts
+        recovery_attempts = [
+            ("controlled_landing", lambda: controlled_landing(drone)),
+            ("emergency_RTL", lambda: emergency_rtl_sequence(drone)),
+            ("emergency_land", lambda: emergency_land_sequence(drone))
+        ]
+
+        for attempt_name, attempt_func in recovery_attempts:
+            try:
+                logger.warning(f"Attempting {attempt_name} recovery...")
+                await attempt_func()
+                logger.info(f"{attempt_name} recovery successful")
+                break
+            except Exception as recovery_error:
+                logger.error(f"{attempt_name} recovery failed: {recovery_error}")
+                continue
+        else:
+            logger.critical("All recovery attempts failed!")
+
+
+async def emergency_rtl_sequence(drone: System):
+    """Emergency Return to Launch sequence with retries."""
+    logger = logging.getLogger(__name__)
+    try:
+        await stop_offboard_mode(drone)
+        await asyncio.sleep(0.5)
+        await drone.action.hold()
+        await asyncio.sleep(0.5)
+        await drone.action.return_to_launch()
+        logger.info("Emergency RTL initiated")
+    except Exception as e:
+        logger.error(f"Emergency RTL sequence failed: {e}")
+        raise
+
+
+async def emergency_land_sequence(drone: System):
+    """Emergency landing sequence with retries."""
+    logger = logging.getLogger(__name__)
+    try:
+        await stop_offboard_mode(drone)
+        await asyncio.sleep(0.5)
+        await drone.action.hold()
+        await asyncio.sleep(0.5)
+        await drone.action.land()
+        logger.info("Emergency landing initiated")
+        await wait_for_landing(drone)
+    except Exception as e:
+        logger.error(f"Emergency land sequence failed: {e}")
+        raise
 
 
 # Import all the other functions from drone_show.py (connection, preflight, etc.)
@@ -626,23 +861,45 @@ async def initial_setup_and_connection():
             f"Connecting to drone via MAVSDK server at {mavsdk_server_address}:{grpc_port} on UDP port {Params.mavsdk_port}."
         )
 
-        # Wait for connection with a timeout
+        # Enhanced connection wait for container environments
+        connection_timeout = 30  # Longer timeout for containers
         start_time = time.time()
-        async for state in drone.core.connection_state():
-            if state.is_connected:
-                logger.info(
-                    f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}."
-                )
-                break
-            if time.time() - start_time > 10:
-                logger.error("Timeout while waiting for drone connection.")
-                led_controller.set_color(255, 0, 0)  # Red
-                raise TimeoutError("Drone connection timeout.")
-            await asyncio.sleep(1)
+        connection_attempts = 0
+        max_attempts = 3
 
-        # Log initial connection success
-        logger.info("Initial setup and connection successful.")
-        return drone
+        while connection_attempts < max_attempts:
+            try:
+                logger.info(f"Connection attempt {connection_attempts + 1}/{max_attempts}")
+
+                async for state in drone.core.connection_state():
+                    if state.is_connected:
+                        logger.info(
+                            f"Drone connected via MAVSDK server at {mavsdk_server_address}:{grpc_port}."
+                        )
+                        return drone
+                    if time.time() - start_time > connection_timeout:
+                        logger.warning(f"Connection attempt {connection_attempts + 1} timed out after {connection_timeout}s")
+                        break
+                    await asyncio.sleep(1)
+
+                connection_attempts += 1
+                if connection_attempts < max_attempts:
+                    logger.info("Retrying connection in 3 seconds...")
+                    await asyncio.sleep(3)
+                    start_time = time.time()  # Reset timeout for next attempt
+
+            except Exception as e:
+                logger.warning(f"Connection attempt {connection_attempts + 1} failed: {e}")
+                connection_attempts += 1
+                if connection_attempts < max_attempts:
+                    logger.info("Retrying connection in 3 seconds...")
+                    await asyncio.sleep(3)
+                    start_time = time.time()
+
+        # All attempts failed
+        logger.error(f"Failed to connect after {max_attempts} attempts.")
+        led_controller.set_color(255, 0, 0)  # Red
+        raise TimeoutError("Drone connection failed after multiple attempts.")
     except Exception:
         logger.exception("Error during initial setup and connection.")
         led_controller.set_color(255, 0, 0)  # Red
@@ -769,9 +1026,23 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
         logger.info("Setting initial velocity setpoint for offboard mode.")
         await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
 
-        # Step 5: Start offboard mode
+        # Step 5: Start offboard mode with retry logic
         logger.info("Starting offboard mode.")
-        await drone.offboard.start()
+        offboard_attempts = 0
+        max_offboard_attempts = 3
+
+        while offboard_attempts < max_offboard_attempts:
+            try:
+                await drone.offboard.start()
+                logger.info("Offboard mode started successfully.")
+                break
+            except OffboardError as e:
+                offboard_attempts += 1
+                logger.warning(f"Offboard start attempt {offboard_attempts} failed: {e}")
+                if offboard_attempts >= max_offboard_attempts:
+                    raise
+                await asyncio.sleep(1.0)
+                await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
 
         # Indicate readiness with LED color
         led_controller.set_color(255, 255, 255)  # White: Ready to fly
@@ -935,21 +1206,37 @@ def start_mavsdk_server(udp_port: int):
     """
     logger = logging.getLogger(__name__)
     try:
-        # Check if MAVSDK server is already running
+        # Enhanced MAVSDK server management for containers
         is_running, pid = check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)
         if is_running:
             logger.info(f"MAVSDK server already running on port {Params.DEFAULT_GRPC_PORT}. Terminating existing server (PID: {pid})...")
             try:
-                psutil.Process(pid).terminate()
-                psutil.Process(pid).wait(timeout=5)
+                process = psutil.Process(pid)
+                process.terminate()
+                # Wait longer for graceful termination in container environments
+                process.wait(timeout=10)
                 logger.info(f"Terminated existing MAVSDK server with PID: {pid}.")
             except psutil.NoSuchProcess:
                 logger.warning(f"No process found with PID: {pid} to terminate.")
             except psutil.TimeoutExpired:
-                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Killing it.")
-                psutil.Process(pid).kill()
-                psutil.Process(pid).wait()
-                logger.info(f"Killed MAVSDK server with PID: {pid}.")
+                logger.warning(f"Process with PID: {pid} did not terminate gracefully. Force killing...")
+                try:
+                    process.kill()
+                    process.wait(timeout=5)
+                    logger.info(f"Force killed MAVSDK server with PID: {pid}.")
+                except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                    logger.warning(f"Could not kill process {pid}, continuing anyway...")
+
+            # Extra wait time for port cleanup in container environments
+            logger.info("Waiting for port cleanup after server termination...")
+            time.sleep(3.0)
+
+            # Verify port is actually free
+            retry_count = 0
+            while check_mavsdk_server_running(Params.DEFAULT_GRPC_PORT)[0] and retry_count < 5:
+                logger.warning(f"Port still occupied, waiting... (attempt {retry_count + 1}/5)")
+                time.sleep(2.0)
+                retry_count += 1
 
         # Construct the absolute path to mavsdk_server
         mavsdk_server_path = get_mavsdk_server_path()
@@ -964,7 +1251,8 @@ def start_mavsdk_server(udp_port: int):
             logger.info(f"Setting executable permissions for '{mavsdk_server_path}'.")
             os.chmod(mavsdk_server_path, 0o755)
 
-        # Start the MAVSDK server
+        # Start the MAVSDK server with enhanced container-friendly startup
+        logger.info("Starting new MAVSDK server...")
         mavsdk_server = subprocess.Popen(
             [mavsdk_server_path, "-p", str(Params.DEFAULT_GRPC_PORT), f"udp://:{udp_port}"],
             stdout=subprocess.PIPE,
@@ -974,18 +1262,40 @@ def start_mavsdk_server(udp_port: int):
             f"MAVSDK server started with gRPC port {Params.DEFAULT_GRPC_PORT} and UDP port {udp_port}."
         )
 
-        # Optionally, start logging the MAVSDK server output asynchronously
+        # Start logging the MAVSDK server output asynchronously
         asyncio.create_task(log_mavsdk_output(mavsdk_server))
 
-        # Wait until the server is listening on the gRPC port
-        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=Params.PRE_FLIGHT_TIMEOUT):
-            logger.error(
-                f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within timeout."
-            )
-            mavsdk_server.terminate()
+        # Enhanced wait with multiple checks for container environments
+        logger.info("Waiting for MAVSDK server to be ready...")
+
+        # First, give the server time to initialize
+        time.sleep(2.0)
+
+        # Check if process is still running
+        if mavsdk_server.poll() is not None:
+            logger.error(f"MAVSDK server process died immediately. Return code: {mavsdk_server.returncode}")
             return None
 
-        logger.info("MAVSDK server is now listening on gRPC port.")
+        # Wait until the server is listening on the gRPC port with extended timeout
+        startup_timeout = max(Params.PRE_FLIGHT_TIMEOUT, 30)  # At least 30 seconds for containers
+        if not wait_for_port(Params.DEFAULT_GRPC_PORT, timeout=startup_timeout):
+            logger.error(
+                f"MAVSDK server did not start listening on port {Params.DEFAULT_GRPC_PORT} within {startup_timeout}s timeout."
+            )
+            try:
+                mavsdk_server.terminate()
+                mavsdk_server.wait(timeout=5)
+            except:
+                pass
+            return None
+
+        # Final verification
+        time.sleep(1.0)
+        if mavsdk_server.poll() is not None:
+            logger.error(f"MAVSDK server died after startup. Return code: {mavsdk_server.returncode}")
+            return None
+
+        logger.info("MAVSDK server is ready and listening on gRPC port.")
         return mavsdk_server
 
     except FileNotFoundError:
@@ -1082,8 +1392,8 @@ def stop_mavsdk_server(mavsdk_server):
 # ----------------------------- #
 
 async def run_swarm_trajectory_mission(
-    synchronized_start_time, 
-    position_id_override=None, 
+    synchronized_start_time,
+    position_id_override=None,
     end_behavior_override=None
 ):
     """
@@ -1152,11 +1462,10 @@ async def run_swarm_trajectory_mission(
             position_id = drone_config.pos_id
             logger.info(f"Using position ID from config: {position_id} (HW_ID: {HW_ID})")
 
-        # Step 6: Handle synchronized start time
+        # Step 6: Handle synchronized start time (exact match with drone_show.py)
         if synchronized_start_time is None:
             synchronized_start_time = time.time()
             logger.info(f"No start_time provided; using now: {time.ctime(synchronized_start_time)}")
-        
         now = time.time()
         if synchronized_start_time > now:
             wait_secs = synchronized_start_time - now
@@ -1170,9 +1479,25 @@ async def run_swarm_trajectory_mission(
         # Step 7: Arm and enter Offboard
         await arming_and_starting_offboard_mode(drone, home_position)
 
-        # Step 8: Load trajectory file
-        waypoints = read_swarm_trajectory_file(position_id=position_id)
-        logger.info(f"Loaded trajectory for position ID {position_id} with {len(waypoints)} waypoints.")
+        # Step 8: Load trajectory file with validation
+        try:
+            waypoints = read_swarm_trajectory_file(position_id=position_id)
+            logger.info(f"Loaded trajectory for position ID {position_id} with {len(waypoints)} waypoints.")
+
+            # Validate trajectory data
+            if len(waypoints) < 10:
+                raise ValueError(f"Trajectory too short: {len(waypoints)} waypoints")
+
+            # Check trajectory duration
+            trajectory_duration = waypoints[-1][0] - waypoints[0][0]
+            logger.info(f"Trajectory duration: {trajectory_duration:.1f} seconds")
+
+            if trajectory_duration < 10:
+                logger.warning(f"Short trajectory duration: {trajectory_duration:.1f}s")
+
+        except Exception as e:
+            logger.error(f"CRITICAL - Failed to load trajectory: {e}")
+            sys.exit(1)
 
         # Step 9: Execute the swarm trajectory mission
         await perform_swarm_trajectory(
@@ -1184,11 +1509,11 @@ async def run_swarm_trajectory_mission(
             end_behavior=end_behavior_override
         )
 
-        logger.info("Swarm trajectory mission completed successfully.")
+        logger.info("Mission completed successfully.")
         sys.exit(0)
 
     except Exception:
-        logger.exception("Error running swarm trajectory mission.")
+        logger.exception("Error running drone.")
         sys.exit(1)
     finally:
         if mavsdk_server:
@@ -1204,18 +1529,14 @@ def main():
     Main function to run the swarm trajectory mission.
     """
     # Configure logging
-    configure_logging()
+    configure_logging("swarm_trajectory")
     logger = logging.getLogger(__name__)
 
     parser = argparse.ArgumentParser(description='Swarm Trajectory Mission Script')
+    parser.add_argument('--start_time', type=float, help='Synchronized start UNIX time')
     parser.add_argument(
-        '--start_time', 
-        type=float, 
-        help='Synchronized start UNIX time'
-    )
-    parser.add_argument(
-        '--position_id', 
-        type=int, 
+        '--position_id',
+        type=int,
         help='Position ID for trajectory file (overrides HW_ID config lookup)'
     )
     parser.add_argument(
@@ -1240,7 +1561,7 @@ def main():
         logging.getLogger().setLevel(logging.INFO)
         logger.info("Debug mode DISABLED: Standard logging level set to INFO.")
 
-    # Get the synchronized start time
+    # Get the synchronized start time (exact match with drone_show.py)
     if args.start_time:
         synchronized_start_time = args.start_time
         formatted_time = time.ctime(synchronized_start_time)

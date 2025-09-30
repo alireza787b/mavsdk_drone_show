@@ -1,309 +1,686 @@
+/* Professional Theme-Aware Drone Show Swarm Dashboard Widget */
+@import './DesignTokens.css';
+
 .drone-widget {
-    border: 2px solid #ccc;
-    padding: 16px;
-    margin: 16px;
-    border-radius: 8px;
-    background-color: #fff;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    /* Prevent content overflow */
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-base);
+    padding: var(--spacing-base);
+    margin: 0;
+    min-height: 200px;
+    max-width: 380px;
+    width: 100%;
+    position: relative;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(4px);
 }
-
-
-/* Drone Readiness States - Following QGroundControl Standards */
-
-/* Ready to Arm - Green Border */
-.drone-widget.ready-to-arm {
-    border-color: #28a745;
-    box-shadow: inset 0 0 10px rgba(40, 167, 69, 0.2), 0 2px 8px rgba(40, 167, 69, 0.15);
-}
-
-/* Not Ready to Arm - Red Border */
-.drone-widget.not-ready-to-arm {
-    border-color: #dc3545;
-    box-shadow: inset 0 0 10px rgba(220, 53, 69, 0.2), 0 2px 8px rgba(220, 53, 69, 0.15);
-}
-
-/* Armed State - Blue Border Highlight */
-.drone-widget.armed {
-    border-top: 4px solid #007bff;
-}
-
-/* Disarmed State - Gray Border */
-.drone-widget.disarmed {
-    border-top: 4px solid #6c757d;
-}
-
-
-/* Hover Effect */
 
 .drone-widget:hover {
-    background-color: #f9f9f9;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary-border);
+    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary));
 }
 
+/* Expert Readiness State Indicators with Professional Color Coding */
+.drone-widget.ready-to-arm {
+    border-left: 4px solid var(--color-success);
+    --widget-accent: var(--color-success);
+}
 
-/* Expanded State */
+.drone-widget.not-ready-to-arm {
+    border-left: 4px solid var(--color-danger);
+    --widget-accent: var(--color-danger);
+}
 
+.drone-widget.armed {
+    border-top: 3px solid var(--color-primary);
+    box-shadow: var(--shadow-base), 0 0 0 1px var(--color-primary-light);
+}
+
+.drone-widget.disarmed {
+    border-top: 3px solid var(--color-text-tertiary);
+}
+
+/* Mission State Visual Indicators with Enhanced Feedback */
+.drone-widget.mission-ready {
+    border-right: 3px solid var(--color-warning);
+    position: relative;
+}
+
+.drone-widget.mission-ready::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--color-warning), transparent);
+    opacity: 0.3;
+}
+
+.drone-widget.mission-executing {
+    border-right: 3px solid var(--color-info);
+    animation: mission-pulse 2s infinite;
+    position: relative;
+}
+
+.drone-widget.mission-executing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--color-info), transparent);
+    animation: mission-flow 3s infinite;
+}
+
+@keyframes mission-pulse {
+    0%, 100% {
+        box-shadow: var(--shadow-base);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-info-light);
+        transform: scale(1.01);
+    }
+}
+
+@keyframes mission-flow {
+    0% { opacity: 0.3; transform: translateY(100%); }
+    50% { opacity: 0.6; }
+    100% { opacity: 0.3; transform: translateY(-100%); }
+}
+
+/* Simple expanded state for visual feedback only */
 .drone-widget.expanded {
-    background-color: #f0f0f0;
+    background: linear-gradient(135deg, var(--color-primary-light), var(--color-bg-tertiary));
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-primary-light);
+    transform: scale(1.02);
+    transition: var(--transition-all);
+    z-index: 1;
 }
 
-
-/* Header / Title */
-
+/* Professional Header Section with Enhanced Typography */
 .drone-widget h3 {
-    cursor: pointer;
     display: flex;
     align-items: center;
-    margin-bottom: 12px;
-    font-size: 1.2em;
-    font-weight: 500;
-    transition: color 0.3s ease;
+    justify-content: space-between;
+    margin: 0 0 var(--spacing-base) 0;
+    padding: 0 0 var(--spacing-sm) 0;
+    border-bottom: 2px solid var(--color-border-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: var(--transition-all);
+    position: relative;
+    font-family: var(--font-family-primary);
 }
 
+.drone-widget h3::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
+    transition: var(--transition-base);
+}
 
-/* Status Indicator (Active vs. Stale) */
+.drone-widget h3:hover {
+    color: var(--color-primary);
+}
 
+.drone-widget h3:hover::after {
+    width: 40%;
+}
+
+.drone-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Enhanced Connection Status Indicator for Field Operations */
 .status-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    margin-right: 10px;
-    transition: background-color 0.3s ease;
+    flex-shrink: 0;
+    position: relative;
+    border: 2px solid var(--color-bg-primary);
 }
 
 .status-indicator.active {
-    background-color: green;
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px var(--color-success-light), 0 0 8px var(--color-success-light);
+    animation: pulse-success 2s infinite;
 }
 
 .status-indicator.stale {
-    background-color: red;
+    background: var(--color-danger);
+    box-shadow: 0 0 0 2px var(--color-danger-light);
+    animation: pulse-warning 1.5s infinite;
 }
 
-/* Arming Status Section - QGroundControl Style */
-
-.arming-status-section {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    padding: 12px;
-    margin: 8px 0;
-    font-size: 0.9em;
+@keyframes pulse-success {
+    0%, 100% {
+        box-shadow: 0 0 0 2px var(--color-success-light), 0 0 4px var(--color-success-light);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 4px var(--color-success-light), 0 0 12px var(--color-success-light);
+        transform: scale(1.1);
+    }
 }
 
-.status-row {
+@keyframes pulse-warning {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
+
+/* Critical Status Section with Enhanced Field Visibility */
+.critical-status {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-base);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: var(--font-family-primary);
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-all);
+    position: relative;
+    overflow: hidden;
+}
+
+.status-badge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: var(--transition-base);
+}
+
+.status-badge:hover::before {
+    left: 100%;
+}
+
+.status-badge.armed {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    color: var(--color-text-primary);
+    border-color: var(--color-primary-border);
+}
+
+.status-badge.disarmed {
+    background: linear-gradient(135deg, var(--color-text-tertiary), var(--color-text-muted));
+    color: var(--color-text-primary);
+    border-color: var(--color-border-primary);
+}
+
+.status-badge.ready {
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
+    border-color: var(--color-success-border);
+}
+
+.status-badge.not-ready {
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
+    color: var(--color-text-primary);
+    border-color: var(--color-danger-border);
+    animation: pulse-critical 2s infinite;
+}
+
+@keyframes pulse-critical {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: var(--shadow-sm);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md), 0 0 0 2px var(--color-danger-light);
+    }
+}
+
+/* Optimized Main Data Grid for Field Operations */
+.drone-data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    flex: 1;
+}
+
+.data-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border-secondary);
+    transition: var(--transition-base);
+}
+
+.data-item:hover {
+    background: var(--color-bg-quaternary);
+    border-color: var(--color-border-primary);
+    transform: translateY(-1px);
+}
+
+.data-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: var(--font-family-primary);
+}
+
+.data-value {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    line-height: var(--line-height-tight);
+    font-family: var(--font-family-mono);
+}
+
+/* Full-width items */
+.data-item.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Position ID Section with Enhanced Theme Support */
+.position-section {
+    grid-column: 1 / -1;
+    background: var(--color-bg-quaternary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    padding: var(--spacing-xs);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 4px 0;
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family-primary);
+    margin-bottom: var(--spacing-sm);
 }
 
-.status-label {
-    color: #495057;
+.position-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-medium);
 }
 
-/* Status Indicators for Arming Status */
-.status-indicator.armed {
-    background-color: #007bff;
-    color: white;
+/* Status-based styling with Theme Awareness */
+.data-value.good {
+    color: var(--color-success);
+    text-shadow: 0 1px 2px var(--color-success-light);
+}
+
+.data-value.warning {
+    color: var(--color-warning);
+    text-shadow: 0 1px 2px var(--color-warning-light);
+}
+
+.data-value.critical {
+    color: var(--color-danger);
+    text-shadow: 0 1px 2px var(--color-danger-light);
+    animation: pulse-alert 2s infinite;
+}
+
+@keyframes pulse-alert {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
+/* Mode and Mission Badges with Professional Styling */
+.mode-badge {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-base);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-all);
+    font-family: var(--font-family-primary);
+}
+
+.mode-badge.manual {
+    background: linear-gradient(135deg, var(--color-info-light), var(--color-info));
+    color: var(--color-text-primary);
+    border-color: var(--color-info-border);
+}
+
+.mode-badge.auto {
+    background: linear-gradient(135deg, var(--color-success-light), var(--color-success));
+    color: var(--color-text-primary);
+    border-color: var(--color-success-border);
+}
+
+.mode-badge.offboard {
+    background: linear-gradient(135deg, var(--color-warning-light), var(--color-warning));
+    color: var(--color-text-primary);
+    border-color: var(--color-warning-border);
+}
+
+.mode-badge.unknown {
+    background: linear-gradient(135deg, var(--color-bg-quaternary), var(--color-text-tertiary));
+    color: var(--color-text-primary);
+    border-color: var(--color-border-primary);
+}
+
+.mission-badge {
     padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75em;
-    font-weight: bold;
-}
-
-.status-indicator.disarmed {
-    background-color: #6c757d;
+    border-radius: 10px;
+    font-size: 0.7em;
+    font-weight: 500;
     color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75em;
-    font-weight: bold;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.status-indicator.ready {
-    background-color: #28a745;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75em;
-    font-weight: bold;
+.mission-badge.mission-none {
+    background: #6b7280;
 }
 
-.status-indicator.not-ready {
-    background-color: #dc3545;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75em;
-    font-weight: bold;
+.mission-badge.mission-performance {
+    background: #8b5cf6;
 }
 
-/* Mission State Indicators - Separate from PX4 Arming */
+.mission-badge.mission-flight {
+    background: #06b6d4;
+}
+
+.mission-badge.mission-test {
+    background: #f59e0b;
+    color: #1f2937;
+}
+
+.mission-badge.mission-system {
+    background: #3b82f6;
+}
+
+.mission-badge.mission-emergency {
+    background: #ef4444;
+    animation: pulse-emergency 1.5s infinite;
+}
+
+.mission-badge.mission-default {
+    background: #10b981;
+}
+
+@keyframes pulse-emergency {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
 
 .mission-state-badge {
-    display: inline-block;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 10px;
-    font-weight: bold;
+    font-size: 0.7em;
+    font-weight: 500;
     color: white;
-    margin-left: 8px;
-    font-size: 0.75em;
-    transition: all 0.3s ease;
+    text-transform: capitalize;
 }
 
 .mission-state-badge.idle {
-    background-color: #6c757d; /* Gray - no mission */
-    box-shadow: 0 0 6px rgba(108, 117, 125, 0.3);
+    background: #6b7280;
 }
 
 .mission-state-badge.ready {
-    background-color: #fd7e14; /* Orange - mission loaded, waiting for trigger */
-    box-shadow: 0 0 6px rgba(253, 126, 20, 0.3);
+    background: #f59e0b;
     animation: pulse-orange 2s infinite;
 }
 
 .mission-state-badge.executing {
-    background-color: #20c997; /* Teal - mission executing */
-    box-shadow: 0 0 6px rgba(32, 201, 151, 0.3);
-    animation: pulse-teal 1s infinite;
+    background: #06b6d4;
+    animation: pulse-teal 1.5s infinite;
 }
-
-/* Mission State Widget Border Indicators */
-
-.drone-widget.mission-ready {
-    border-left: 4px solid #fd7e14; /* Orange left border */
-}
-
-.drone-widget.mission-executing {
-    border-left: 4px solid #20c997; /* Teal left border */
-}
-
-/* Pulse animations for mission states */
 
 @keyframes pulse-orange {
-    0%, 100% { box-shadow: 0 0 6px rgba(253, 126, 20, 0.3); }
-    50% { box-shadow: 0 0 12px rgba(253, 126, 20, 0.6); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 @keyframes pulse-teal {
-    0%, 100% { box-shadow: 0 0 6px rgba(32, 201, 151, 0.3); }
-    50% { box-shadow: 0 0 12px rgba(32, 201, 151, 0.6); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
-
-/* Drone Info block */
-
-.drone-info {
-    margin-bottom: 12px;
-    font-size: 0.95em;
-    line-height: 1.5;
-}
-
-.drone-info p {
-    margin: 6px 0;
-}
-
-
-/* HDOP/VDOP / Battery color classes */
-
-.green {
-    color: green;
-}
-
-.yellow {
-    color: #ffc107;
-}
-
-.red {
-    color: red;
-}
-
-
-/* Single Position ID row styling */
-
-.drone-posid-section {
-    margin-top: 8px;
-}
-
-.single-posid-row {
+/* GPS Fix Status */
+.gps-status {
     display: flex;
     align-items: center;
-    margin: 6px 0;
+    gap: 4px;
 }
 
+.gps-fix-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
 
-/* Icons for position ID match/mismatch/no detection */
+.gps-fix-indicator.no-fix {
+    background: #ef4444;
+}
 
+.gps-fix-indicator.fix-2d {
+    background: #f59e0b;
+}
+
+.gps-fix-indicator.fix-3d {
+    background: #10b981;
+}
+
+.gps-fix-indicator.dgps {
+    background: #06b6d4;
+}
+
+.gps-fix-indicator.rtk {
+    background: #8b5cf6;
+    animation: rtk-pulse 1s infinite;
+}
+
+@keyframes rtk-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+}
+
+/* Last Update Indicator */
+.last-update {
+    font-size: 0.65em;
+    color: #9ca3af;
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px solid rgba(229, 231, 235, 0.5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.update-time {
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.drone-ip {
+    font-family: var(--font-family-mono);
+    font-size: 0.9em;
+    color: var(--color-primary);
+    background: var(--color-bg-quaternary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-primary-border);
+    font-weight: var(--font-weight-bold);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 1px 3px var(--color-shadow-light);
+    transition: var(--transition-base);
+}
+
+/* Action Commands Section */
+.drone-critical-commands-section {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Expanded Details Content */
+.details-content {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-primary);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--border-radius-base);
+    margin-left: calc(-1 * var(--spacing-lg));
+    margin-right: calc(-1 * var(--spacing-lg));
+    margin-bottom: calc(-1 * var(--spacing-lg));
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(2px);
+    transition: var(--transition-all);
+}
+
+/* Position ID Icons */
 .posid-warning-icon {
-    color: #ff9800;
-    /* orange-ish */
-    font-size: 1.1em;
+    color: #f59e0b;
+    font-size: 1em;
+    cursor: pointer;
 }
 
 .posid-match-icon {
-    font-size: 1.1em;
-    /* color: green; set inline where used */
+    color: #10b981;
+    font-size: 1em;
 }
 
 .posid-info-icon {
-    font-size: 1.1em;
-    /* color: gray; set inline where used */
+    color: #6b7280;
+    font-size: 1em;
 }
 
-
-/* Drone-critical commands section */
-
-.drone-critical-commands-section {
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    /* spacing */
-}
-
-
-/* Expanded details content */
-
-.details-content {
-    margin-top: 16px;
-}
-
-
-/* Focus states for better accessibility */
-
-.drone-widget:focus-within {
-    border-color: #007bff;
-    box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
-}
-
-
-/* Responsive adjustments */
-
+/* Enhanced Responsive Design for Field Operations */
 @media (max-width: 768px) {
     .drone-widget {
-        padding: 12px;
-        margin: 12px;
+        max-width: 100%;
+        min-height: 200px;
+        padding: var(--spacing-base);
     }
-    .drone-info {
-        font-size: 0.9em;
+
+    .drone-data-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
     }
+
+    .data-item.full-width {
+        grid-column: 1;
+    }
+
+    .data-item {
+        padding: var(--spacing-sm);
+    }
+
+    .critical-status {
+        margin-bottom: var(--spacing-sm);
+        gap: var(--spacing-xs);
+    }
+
     .drone-widget h3 {
-        font-size: 1.1em;
+        font-size: var(--font-size-base);
+        margin-bottom: var(--spacing-sm);
     }
-    .single-posid-row {
-        font-size: 0.9em;
+
+    .last-update {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+
+    .position-section {
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-sm);
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
     }
 }
 
+@media (max-width: 480px) {
+    .drone-widget {
+        padding: 10px;
+        min-height: 160px;
+    }
 
-/* Tooltip styling overrides (optional) */
+    .data-label {
+        font-size: 0.65em;
+    }
 
-.__react_component_tooltip {
-    font-size: 0.85em;
-    padding: 8px;
-    border-radius: 4px;
+    .data-value {
+        font-size: 0.8em;
+    }
+
+    .mode-badge,
+    .mission-badge,
+    .mission-state-badge {
+        font-size: 0.65em;
+        padding: 1px 6px;
+    }
+
+    .critical-status {
+        gap: 4px;
+    }
+
+    .status-badge {
+        font-size: 0.6em;
+        padding: 1px 4px;
+    }
+
+    .drone-ip {
+        font-size: 0.8em;
+    }
 }

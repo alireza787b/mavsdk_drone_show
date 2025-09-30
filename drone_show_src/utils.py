@@ -37,70 +37,59 @@ def calculate_ned_origin(current_gps, ned_position):
     return lat_origin, lon_origin, alt_origin
 
 
-def configure_logging():
+def configure_logging(mission_type="drone_show"):
     """
-    Configures logging for the script, ensuring logs are written to a per-session file
-    and displayed on the console. It also limits the number of log files to MAX_LOG_FILES.
+    Configures simple logging - ONE log file per mission type only.
+    No archives, no redundancy, just clean current mission logs.
+
+    Args:
+        mission_type (str): Type of mission (drone_show, swarm_trajectory, smart_swarm)
     """
     # Check if the root logger already has handlers configured
     if logging.getLogger().hasHandlers():
         return
 
     # Create logs directory if it doesn't exist
-    logs_directory = os.path.join("..", "logs", "offboard_mission_logs")
+    logs_directory = os.path.join("logs")
     os.makedirs(logs_directory, exist_ok=True)
 
     # Configure the root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
-    # Create formatter
+    # Create detailed formatter with timestamps and step-by-step info
     formatter = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        fmt="%(asctime)s.%(msecs)03d [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # Adjust as needed
+    console_handler.setLevel(logging.INFO)  # Less verbose on console
     console_handler.setFormatter(formatter)
 
-    # Create file handler with per-session log file
-    session_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"offboard_mission_{session_time}.log"
+    # Create ONE log file per mission type (overwrites each run)
+    log_filename = f"last_{mission_type}.log"
     log_file = os.path.join(logs_directory, log_filename)
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
+
+    # Overwrite previous mission log
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.DEBUG)  # Full detail in file
     file_handler.setFormatter(formatter)
 
     # Add handlers to the root logger
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # Limit the number of log files
-    limit_log_files(logs_directory, Params.MAX_LOG_FILES)
-
-def limit_log_files(logs_directory, max_files):
-    """
-    Limits the number of log files in the specified directory to the max_files.
-    Deletes the oldest files when the limit is exceeded.
-
-    Args:
-        logs_directory (str): Path to the logs directory.
-        max_files (int): Maximum number of log files to keep.
-    """
+    # Log the mission start with full details
     logger = logging.getLogger(__name__)
-    try:
-        log_files = [os.path.join(logs_directory, f) for f in os.listdir(logs_directory) if os.path.isfile(os.path.join(logs_directory, f))]
-        if len(log_files) > max_files:
-            # Sort files by creation time
-            log_files.sort(key=os.path.getctime)
-            files_to_delete = log_files[:len(log_files) - max_files]
-            for file_path in files_to_delete:
-                os.remove(file_path)
-                logger.info(f"Deleted old log file: {file_path}")
-    except Exception:
-        logger.exception("Error limiting log files")
+    logger.info(f"=== {mission_type.upper()} MISSION STARTED ===")
+    logger.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+    logger.info(f"Log file: {log_file}")
+    logger.info(f"Mission type: {mission_type}")
+    logger.info("=" * 60)
+
+# Legacy limit_log_files function removed - no more archives, just simple one-log-per-mission
 
 def read_hw_id() -> int:
     """

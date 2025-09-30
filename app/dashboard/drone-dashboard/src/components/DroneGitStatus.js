@@ -14,13 +14,33 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
-  if (!gitStatus) {
-    return <div className="git-status git-loading">Git status not available.</div>;
+  // Handle missing git status gracefully
+  if (!gitStatus || !gitStatus.branch) {
+    return (
+      <div className="git-status-card">
+        <div className="git-status-header">
+          <div className="status-indicator">
+            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon offline" title="Git Status Unavailable" />
+          </div>
+          <div className="git-basic-info">
+            <span className="branch-name">Git Unavailable</span>
+            <span className="commit-hash">N/A</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const isInSync = gcsGitStatus ? gitStatus.commit === gcsGitStatus.commit : false;
+  const isInSync = gcsGitStatus && gitStatus.commit && gcsGitStatus.commit
+    ? gitStatus.commit === gcsGitStatus.commit
+    : false;
 
   const handleCopyCommit = async () => {
+    if (!gitStatus.commit) {
+      console.warn('No commit hash to copy');
+      return;
+    }
+
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(gitStatus.commit);
@@ -61,18 +81,18 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
           )}
         </div>
         <div className="git-basic-info">
-          <span className="branch-name" title={`Branch: ${gitStatus.branch}`}>
-            {gitStatus.branch}
+          <span className="branch-name" title={`Branch: ${gitStatus.branch || 'N/A'}`}>
+            {gitStatus.branch || 'N/A'}
           </span>
           <span
             className="commit-hash"
-            onClick={handleCopyCommit}
-            title="Click to copy full commit hash"
-            aria-label="Commit hash, click to copy"
+            onClick={gitStatus.commit ? handleCopyCommit : undefined}
+            title={gitStatus.commit ? "Click to copy full commit hash" : "No commit hash available"}
+            aria-label={gitStatus.commit ? "Commit hash, click to copy" : "No commit hash available"}
+            style={gitStatus.commit ? { cursor: 'pointer' } : { cursor: 'default', opacity: 0.6 }}
           >
-            {/* Use the new shortCommitHash variable */}
             {shortCommitHash}
-            <FontAwesomeIcon icon={faCopy} className="copy-icon" />
+            {gitStatus.commit && <FontAwesomeIcon icon={faCopy} className="copy-icon" />}
             {copySuccess && <span className="copy-tooltip">Copied!</span>}
           </span>
         </div>
@@ -92,26 +112,32 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
       {isExpanded && (
         <div id={`git-details-${droneName}`} className="git-status-details">
           <div className="detail-row">
-            <span className="detail-label">Full Commit Hash:</span>
-            <span className="detail-value">{gitStatus.commit}</span>
+            <span className="detail-label">Full Hash</span>
+            <span className="detail-value commit">{gitStatus.commit || 'N/A'}</span>
           </div>
           <div className="detail-row">
-            <span className="detail-label">Commit Message:</span>
-            <span className="detail-value">{gitStatus.commit_message}</span>
+            <span className="detail-label">Message</span>
+            <span className="detail-value message">{gitStatus.commit_message || 'N/A'}</span>
           </div>
           <div className="detail-row">
-            <span className="detail-label">Commit Date:</span>
-            <span className="detail-value">{new Date(gitStatus.commit_date).toLocaleString()}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Author:</span>
+            <span className="detail-label">Date</span>
             <span className="detail-value">
-              {gitStatus.author_name} &lt;{gitStatus.author_email}&gt;
+              {gitStatus.commit_date
+                ? new Date(gitStatus.commit_date).toLocaleString()
+                : 'N/A'}
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Author</span>
+            <span className="detail-value">
+              {gitStatus.author_name && gitStatus.author_email
+                ? `${gitStatus.author_name} <${gitStatus.author_email}>`
+                : 'N/A'}
             </span>
           </div>
           {gitStatus.uncommitted_changes && gitStatus.uncommitted_changes.length > 0 && (
             <div className="detail-row">
-              <span className="detail-label">Uncommitted Changes:</span>
+              <span className="detail-label">Changes</span>
               <ul className="changes-list">
                 {gitStatus.uncommitted_changes.map((change, index) => (
                   <li key={index}>{change}</li>

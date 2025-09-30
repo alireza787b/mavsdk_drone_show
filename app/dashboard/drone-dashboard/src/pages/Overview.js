@@ -1,18 +1,21 @@
 // src/pages/Overview.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
 import CommandSender from '../components/CommandSender';
 import DroneWidget from '../components/DroneWidget';
+import ExpandedDronePortal from '../components/ExpandedDronePortal';
 import { getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
   const [drones, setDrones] = useState([]);
   const [expandedDrone, setExpandedDrone] = useState(null);
+  const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
   const [incompleteDrones, setIncompleteDrones] = useState([]);
+  const droneRefs = useRef({});
 
   useEffect(() => {
     const url = getTelemetryURL();
@@ -61,9 +64,21 @@ const Overview = ({ setSelectedDrone }) => {
   const toggleDroneDetails = (drone) => {
     if (expandedDrone && expandedDrone.hw_ID === drone.hw_ID) {
       setExpandedDrone(null);
+      setOriginRect(null);
     } else {
+      // Get the position of the clicked drone widget for animation
+      const droneElement = droneRefs.current[drone.hw_ID];
+      if (droneElement) {
+        const rect = droneElement.getBoundingClientRect();
+        setOriginRect(rect);
+      }
       setExpandedDrone(drone);
     }
+  };
+
+  const closeExpandedDrone = () => {
+    setExpandedDrone(null);
+    setOriginRect(null);
   };
 
   return (
@@ -80,15 +95,27 @@ const Overview = ({ setSelectedDrone }) => {
       <div className="drone-list">
         {drones.length === 0 && !error && <p>No valid drone data available.</p>}
         {drones.map((drone) => (
-          <DroneWidget
-            drone={drone}
-            isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
-            toggleDroneDetails={toggleDroneDetails}
-            setSelectedDrone={setSelectedDrone}
+          <div
             key={drone.hw_ID}
-          />
+            ref={(el) => droneRefs.current[drone.hw_ID] = el}
+          >
+            <DroneWidget
+              drone={drone}
+              isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
+              toggleDroneDetails={toggleDroneDetails}
+              setSelectedDrone={setSelectedDrone}
+            />
+          </div>
         ))}
       </div>
+
+      {/* Expanded Drone Portal */}
+      <ExpandedDronePortal
+        drone={expandedDrone}
+        isOpen={!!expandedDrone}
+        onClose={closeExpandedDrone}
+        originRect={originRect}
+      />
     </div>
   );
 };

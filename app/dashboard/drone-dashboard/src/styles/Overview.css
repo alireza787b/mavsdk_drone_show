@@ -1,57 +1,228 @@
-/* app/dashboard/drone-dashboard/src/styles/Overview.css */
-.drone-list {
+@import './DesignTokens.css';
+
+/* Theme-Aware Overview Styles */
+.overview-container {
+    min-height: 100vh;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    padding: var(--spacing-lg);
+    transition: var(--transition-all);
+}
+
+.overview-header {
+    text-align: center;
+    margin-bottom: var(--spacing-2xl);
+    padding: var(--spacing-xl);
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-base);
+}
+
+.overview-header h1 {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--spacing-base);
+}
+
+.connected-drones-header {
+    margin: var(--spacing-xs) 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    text-align: center;
+    padding: var(--spacing-sm) var(--spacing-base);
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border-radius: var(--border-radius-base);
+    box-shadow: var(--shadow-base);
+    border: 1px solid var(--color-border-primary);
+    border-left: 4px solid var(--color-primary);
+}
+
+/* Mission Control Section */
+.mission-trigger-section {
+    padding: var(--spacing-base);
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-base);
+    margin-bottom: var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    backdrop-filter: blur(8px);
+}
+
+.mission-control {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: var(--spacing-base);
+    align-items: center;
     justify-content: center;
-    /* Centering the drone cards for better visual appeal */
 }
+
+.mission-label,
+.delay-label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin-right: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+}
+
+.mission-dropdown,
+.delay-input {
+    padding: var(--spacing-sm) var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    transition: var(--transition-all);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    min-width: 150px;
+}
+
+.mission-dropdown:hover,
+.delay-input:hover {
+    border-color: var(--color-primary-border);
+    background: var(--color-bg-quaternary);
+}
+
+.mission-dropdown:focus,
+.delay-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-border);
+}
+
+.mission-button {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    margin: var(--spacing-xs);
+    border: none;
+    border-radius: var(--border-radius-base);
+    cursor: pointer;
+    transition: var(--transition-all);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.mission-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: var(--transition-base);
+}
+
+.mission-button:hover::before {
+    left: 100%;
+}
+
+.mission-button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.send-command {
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
+}
+
+.send-command:hover {
+    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+}
+
+.cancel-mission {
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
+    color: var(--color-text-primary);
+}
+
+.cancel-mission:hover {
+    background: linear-gradient(135deg, #c62828, var(--color-danger));
+}
+
+/* Drone Grid with Dynamic Layout */
+.drone-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: var(--spacing-base);
+    padding: 0;
+    margin: 0;
+    align-items: start;
+    transition: var(--transition-all);
+}
+
+/* No special grid changes needed - portal handles expansion */
 
 .drone-card {
-    background-color: #f5f5f5;
-    padding: 15px;
-    border-radius: 8px;
-    width: calc(33.333% - 20px);
-    /* 3 cards per row with a gap of 20px */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.3s, transform 0.2s, box-shadow 0.2s;
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-base);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
+    position: relative;
+    overflow: hidden;
+    width: 100%;
 }
 
-@media (max-width: 1200px) {
-    .drone-card {
-        width: calc(50% - 20px);
-        /* 2 cards per row on medium screens */
-    }
+/* Enhanced expanded drone card styling */
+.drone-card.expanded {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-2xl);
+    border: 2px solid var(--color-primary-border);
+    z-index: 10;
+    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
 }
 
-@media (max-width: 768px) {
-    .drone-card {
-        width: 100%;
-        /* 1 card per row on smaller screens */
-    }
+.drone-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
+    opacity: 0;
+    transition: var(--transition-base);
+}
+
+.drone-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary-border);
+}
+
+.drone-card:hover::before {
+    opacity: 1;
 }
 
 .drone-card h3 {
     cursor: pointer;
-    font-size: 1.2em;
-    margin-bottom: 10px;
-    transition: color 0.3s;
-}
-
-.drone-card:hover {
-    background-color: #eaeaea;
-    transform: translateY(-5px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-base);
+    transition: var(--transition-base);
 }
 
 .drone-card h3:hover {
-    color: #333;
+    color: var(--color-primary);
 }
 
 .drone-actions {
-    margin-top: 15px;
+    margin-top: var(--spacing-base);
     display: flex;
     justify-content: space-between;
+    gap: var(--spacing-sm);
 }
 
 .drone-card .details-content {
@@ -65,128 +236,48 @@
     overflow-y: auto;
 }
 
-.mission-trigger-section {
-    padding: 20px;
-    background-color: #f7f7f7;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-}
-
-.mission-control {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.mission-label,
-.delay-label {
-    font-weight: bold;
-    margin-right: 10px;
-}
-
-.mission-dropdown,
-.delay-input {
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    transition: border-color 0.3s;
-}
-
-.mission-dropdown:focus,
-.delay-input:focus {
-    border-color: #007bff;
-    /* Adding focus state */
-}
-
-.mission-button {
-    padding: 10px 15px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.3s, box-shadow 0.2s;
-}
-
-.mission-button:hover {
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-}
-
-.send-command {
-    background-color: #4CAF50;
-    color: white;
-}
-
-.send-command:hover {
-    background-color: #45a049;
-}
-
-.cancel-mission {
-    background-color: #f44336;
-    color: white;
-}
-
-.cancel-mission:hover {
-    background-color: #da190b;
+/* Notifications */
+.notification {
+    background: linear-gradient(135deg, var(--color-warning), #f57c00);
+    color: var(--color-text-primary);
+    padding: var(--spacing-base) var(--spacing-lg);
+    border-radius: var(--border-radius-base);
+    box-shadow: var(--shadow-base);
+    text-align: center;
+    font-weight: var(--font-weight-semibold);
+    position: fixed;
+    top: var(--spacing-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--z-tooltip);
+    animation: slideDown 0.5s ease-in-out, fadeOut 3s ease-in 2.5s forwards;
+    border: 1px solid var(--color-warning-border);
 }
 
 .confirmation-toast {
-    padding: 10px;
-    background-color: #4CAF50;
-    color: white;
-    border-radius: 5px;
-    margin-top: 20px;
+    padding: var(--spacing-base);
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
+    border-radius: var(--border-radius-base);
+    margin-top: var(--spacing-lg);
     text-align: center;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-base);
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    z-index: var(--z-tooltip);
     animation: fadeIn 0.5s, fadeOut 3s ease-in 2.5s forwards;
+    border: 1px solid var(--color-success-border);
 }
 
+/* Animations */
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeOut {
-    to {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-}
-
-.overview-container {
-    padding: 20px;
-    min-height: 100vh;
-}
-
-.connected-drones-header {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    font-size: 1.8em;
-    font-weight: bold;
-}
-
-.notification {
-    background-color: #ff9800;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 5px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    font-weight: bold;
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    animation: slideDown 0.5s ease-in-out, fadeOut 3s ease-in 2.5s forwards;
+    to { opacity: 0; transform: translateY(-20px); }
 }
 
 @keyframes slideDown {
@@ -197,5 +288,78 @@
     to {
         opacity: 1;
         transform: translateY(0) translateX(-50%);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .drone-list {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+
+    .mission-control {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .overview-container {
+        padding: var(--spacing-base);
+    }
+}
+
+@media (max-width: 768px) {
+    .drone-list {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+
+    .drone-widget.expanded {
+        transform: scale(1);
+        margin: var(--spacing-xs) 0;
+    }
+
+    .overview-container {
+        padding: var(--spacing-sm);
+    }
+
+    .connected-drones-header {
+        font-size: var(--font-size-xl);
+        padding: var(--spacing-base);
+    }
+
+    .mission-trigger-section {
+        padding: var(--spacing-base);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .mission-control {
+        gap: var(--spacing-xs);
+    }
+
+    .mission-button {
+        width: 100%;
+        margin: var(--spacing-xs) 0;
+    }
+
+    .notification,
+    .confirmation-toast {
+        left: var(--spacing-sm);
+        right: var(--spacing-sm);
+        transform: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .drone-card {
+        padding: var(--spacing-base);
+    }
+
+    .mission-dropdown,
+    .delay-input {
+        width: 100%;
+        min-width: auto;
     }
 }

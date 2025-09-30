@@ -321,14 +321,42 @@ const MissionConfig = () => {
         openOriginModal={() => setShowOriginModal(true)}
       />
 
-      {/* 
-        --------------------------------------------------------
-         Heading Slider: Shared for both plots
-        --------------------------------------------------------
-      */}
-      <div style={{ margin: '1rem 0' }}>
-        <label htmlFor="headingSlider" style={{ marginRight: '10px' }}>
-          Forward Heading (°): {forwardHeading}
+      {/* Drone Stats Summary */}
+      {configData.length > 0 && (
+        <div className="drone-stats-summary">
+          <div className="stat-item">
+            <span className="stat-number">{configData.length}</span>
+            <span className="stat-label">Total Drones</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">
+              {Object.keys(heartbeats).filter(id => {
+                const hb = heartbeats[id];
+                const age = hb?.timestamp ? Math.floor((Date.now() - hb.timestamp) / 1000) : null;
+                return age !== null && age < 20;
+              }).length}
+            </span>
+            <span className="stat-label">Online</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">
+              {configData.filter(drone => drone.isNew).length}
+            </span>
+            <span className="stat-label">New</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">
+              {originAvailable ? '✓' : '✗'}
+            </span>
+            <span className="stat-label">Origin Set</span>
+          </div>
+        </div>
+      )}
+
+      {/* Heading Controls */}
+      <div className="heading-controls">
+        <label htmlFor="headingSlider">
+          Forward Heading: {forwardHeading}°
         </label>
         <input
           id="headingSlider"
@@ -337,13 +365,10 @@ const MissionConfig = () => {
           max={359}
           value={forwardHeading}
           onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
-          style={{ width: '50%' }}
         />
         <button
-          style={{ marginLeft: '20px' }}
           onClick={() => {
-            // Example placeholder for saving heading to server
-            toast.info(`TODO: Save heading=${forwardHeading} to server (placeholder).`);
+            toast.info(`TODO: Save heading=${forwardHeading}° to server (placeholder).`);
           }}
         >
           Save Heading to Server
@@ -352,9 +377,9 @@ const MissionConfig = () => {
 
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
-        <div className="drone-cards">
+        <div className="drone-cards slide-in-left">
           {sortedConfigData.length > 0 ? (
-            sortedConfigData.map((drone) => (
+            sortedConfigData.map((drone, index) => (
               <DroneConfigCard
                 key={drone.hw_id}
                 drone={drone}
@@ -369,6 +394,7 @@ const MissionConfig = () => {
                 networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
                 heartbeatData={heartbeats[drone.hw_id] || null}
                 positionIdMapping={positionIdMapping}
+                style={{ animationDelay: `${index * 0.1}s` }}
               />
             ))
           ) : (
@@ -376,27 +402,19 @@ const MissionConfig = () => {
           )}
         </div>
 
-        <div className="initial-launch-plot">
-          {/* 
-            Plotly-based top-down drone layout 
-            with real-time heading rotation 
-          */}
+        <div className="initial-launch-plot slide-in-right">
           <InitialLaunchPlot
             drones={configData}
             onDroneClick={setEditingDroneId}
             deviationData={deviationData}
-            forwardHeading={forwardHeading}  // <-- Pass heading here
+            forwardHeading={forwardHeading}
           />
 
-          {/* 
-            Leaflet-based map for real-world lat/lon display 
-            that also uses the heading to adjust bearing 
-          */}
           <DronePositionMap
             originLat={origin.lat}
             originLon={origin.lon}
             drones={configData}
-            forwardHeading={forwardHeading}  // <-- Pass heading here
+            forwardHeading={forwardHeading}
           />
         </div>
       </div>

@@ -29,9 +29,38 @@
 
 set -euo pipefail
 
-# Configuration variables
+# =============================================================================
+# REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
+# =============================================================================
+# This HTTPS git update script now supports environment variable override for
+# advanced deployments while maintaining 100% backward compatibility.
+#
+# FOR NORMAL USERS (99%):
+#   - No action required - defaults work identically to previous versions
+#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git
+#   - Simply run: bash update_repo_https.sh [branch]
+#
+# FOR ADVANCED USERS (Custom Forks):
+#   - Set environment variable before running this script:
+#     export MDS_REPO_URL="https://github.com/yourcompany/your-fork.git"
+#   - The script will use your custom repository URL
+#   - Note: Only HTTPS URLs work with this script (no SSH keys needed)
+#
+# EXAMPLES:
+#   # Normal usage (no environment variables):
+#   bash update_repo_https.sh main-candidate
+#
+#   # Advanced usage with custom repository:
+#   export MDS_REPO_URL="https://github.com/company/fork.git"
+#   bash update_repo_https.sh production
+#
+# ENVIRONMENT VARIABLES SUPPORTED:
+#   MDS_REPO_URL  - Git repository URL (HTTPS format only for this script)
+# =============================================================================
+
+# Configuration variables (with environment variable override support)
 REPO_DIR="${HOME}/mavsdk_drone_show"        # Modify this path as needed
-GIT_URL="https://github.com/alireza787b/mavsdk_drone_show.git"  # HTTPS URL for the repo
+GIT_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"  # HTTPS URL for the repo
 LOG_FILE="${REPO_DIR}/update_repo.log"
 
 # Maximum number of retries for network operations

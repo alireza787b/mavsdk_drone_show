@@ -199,14 +199,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
    * Render the Position ID section with logic for no heartbeat, mismatch, etc.
    */
   const renderPositionIdInfo = () => {
-    // 0) If there's no heartbeat data at all => just show config pos_id in a neutral block
+    // 0) If there's no heartbeat data at all => just show config pos_id in a neutral status
     if (noHeartbeatData) {
       return (
-        <div className="position-id-block neutral-block">
-          <strong>Position ID (Config):</strong> {configStr || 'N/A'}
-          <span className="tooltip-text">
-            (No heartbeat data available yet...)
-          </span>
+        <div className="position-status match">
+          <div className="position-values">
+            <div className="position-value">Config: {configStr || 'N/A'}</div>
+          </div>
+          <small>No heartbeat data available yet</small>
         </div>
       );
     }
@@ -214,16 +214,18 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     // 1) ALL MATCH => single line, green check
     if (allMatch) {
       return (
-        <div className="position-id-block success-block">
-          <strong>Position ID:</strong> {configStr}{' '}
+        <div className="position-status match">
+          <span>All Position IDs Match: {configStr}</span>
           <FontAwesomeIcon
             icon={faCheckCircle}
             className="status-icon all-good"
             title="All three match: Config, Assigned, and Auto-detected"
           />
-          <span className="tooltip-text">
-            (Config={configStr}, Assigned={assignedStr}, Auto={autoStr})
-          </span>
+          <div className="position-values">
+            <div className="position-value">Config: {configStr}</div>
+            <div className="position-value">Assigned: {assignedStr}</div>
+            <div className="position-value">Auto: {autoStr}</div>
+          </div>
         </div>
       );
     }
@@ -231,16 +233,18 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     // 2) config=assigned, but no auto detection => single line, with a yellow icon
     if (configAssignedMatchNoAuto) {
       return (
-        <div className="position-id-block partial-match-block">
-          <strong>Position ID:</strong> {configStr}{' '}
+        <div className="position-status partial">
+          <span>Config & Assigned Match: {configStr}</span>
           <FontAwesomeIcon
             icon={faExclamationTriangle}
             className="status-icon stale"
             title="No auto-detection available. Config & assigned match."
           />
-          <span className="tooltip-text">
-            (Auto-detected pos_id missing; Config={configStr}, Assigned={assignedStr})
-          </span>
+          <div className="position-values">
+            <div className="position-value">Config: {configStr}</div>
+            <div className="position-value">Assigned: {assignedStr}</div>
+          </div>
+          <small>Auto-detection not available</small>
         </div>
       );
     }
@@ -248,54 +252,46 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     // 3) ANY mismatch => show each ID, highlight differences, show accept buttons
     if (anyMismatch) {
       return (
-        <div className="position-id-block mismatch-block">
-    <strong>Position ID(s):</strong> <br />
-    <span title="First make sure your latest changes are saved to the server and drones are on same commit ID and synced.">
-      Please ensure synchronization before proceeding.
-    </span>
-    <div className="mismatch-row">
-      <span title="Configured position ID in the system">
-        <em>Config:</em> {configStr || 'N/A'}
-      </span>
-      <span title="Position ID assigned by the drone's heartbeat">
-        <em>Assigned (HB):</em> {assignedStr || 'N/A'}
-      </span>
-      <span title="Auto-detected position ID from the drone's heartbeat">
-        <em>Auto-detected (HB):</em> {autoStr || 'N/A'}
-      </span>
-    </div>
+        <div className="position-status mismatch">
+          <span>Position ID Mismatch Detected</span>
+          <small>Please ensure synchronization before proceeding</small>
+          <div className="position-values">
+            <div className="position-value">Config: {configStr || 'N/A'}</div>
+            <div className="position-value">Assigned (HB): {assignedStr || 'N/A'}</div>
+            <div className="position-value">Auto-detected (HB): {autoStr || 'N/A'}</div>
+          </div>
 
-          {/* If auto != config, show Accept from Auto */}
-          {autoStr && autoStr !== '0' && autoStr !== configStr && (
-            <button
-              type="button"
-              className="accept-button"
-              onClick={() => onAcceptConfigFromAuto?.(autoStr)}
-              title="Accept auto-detected position ID"
-              aria-label="Accept auto-detected position ID"
-            >
-              <FontAwesomeIcon icon={faCircle} />
-              Accept Auto ({autoStr})
-            </button>
-          )}
-          {/* If assigned != config, show Accept from HB assigned */}
-          {assignedStr && assignedStr !== configStr && (
-            <button
-              type="button"
-              className="accept-button accept-assigned-btn"
-              onClick={() => onAcceptConfigFromHb?.(assignedStr)}
-              title="Accept assigned (heartbeat) position ID"
-              aria-label="Accept assigned (heartbeat) position ID"
-            >
-              <FontAwesomeIcon icon={faCircle} />
-              Accept Assigned ({assignedStr})
-            </button>
-          )}
+          <div className="accept-buttons">
+            {/* If auto != config, show Accept from Auto */}
+            {autoStr && autoStr !== '0' && autoStr !== configStr && (
+              <button
+                type="button"
+                className="accept-button"
+                onClick={() => onAcceptConfigFromAuto?.(autoStr)}
+                title="Accept auto-detected position ID"
+                aria-label="Accept auto-detected position ID"
+              >
+                <FontAwesomeIcon icon={faCheckCircle} />
+                Accept Auto ({autoStr})
+              </button>
+            )}
+            {/* If assigned != config, show Accept from HB assigned */}
+            {assignedStr && assignedStr !== configStr && (
+              <button
+                type="button"
+                className="accept-button accept-assigned-btn"
+                onClick={() => onAcceptConfigFromHb?.(assignedStr)}
+                title="Accept assigned (heartbeat) position ID"
+                aria-label="Accept assigned (heartbeat) position ID"
+              >
+                <FontAwesomeIcon icon={faCheckCircle} />
+                Accept Assigned ({assignedStr})
+              </button>
+            )}
+          </div>
 
           {noAutoDetection && (
-            <div className="no-auto-message">
-              Auto-detection is not available.
-            </div>
+            <small>Auto-detection is not available</small>
           )}
         </div>
       );
@@ -303,9 +299,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
     // Fallback: show config if none of the above scenarios match
     return (
-      <p>
-        <strong>Position ID:</strong> {configStr || 'N/A'}
-      </p>
+      <div className="position-status match">
+        <span>Position ID: {configStr || 'N/A'}</span>
+      </div>
     );
   };
 
@@ -317,93 +313,132 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         </div>
       )}
 
-      {/* Heartbeat Info */}
-      <div className="heartbeat-info">
-        <strong>Heartbeat:</strong> {getHeartbeatIcon()} {heartbeatStatus}
-        {heartbeatAgeSec !== null && <span> ({heartbeatAgeSec}s ago)</span>}
+      {/* Card Header */}
+      <div className="drone-card-header">
+        <div className="drone-id-section">
+          <h3 className="drone-title">Drone {drone.hw_id}</h3>
+          <div className="drone-subtitle">
+            <span className="drone-hardware-id">Hardware ID: {drone.hw_id}</span>
+            <span className="drone-position-id">Position ID: {drone.pos_id}</span>
+          </div>
+        </div>
+        <div className="card-actions">
+          <div className={`status-badge ${heartbeatStatus.toLowerCase().replace(/[^a-z]/g, '')}`}>
+            {getHeartbeatIcon()}
+            <span className="status-text">{heartbeatStatus}</span>
+            {heartbeatAgeSec !== null && <span className="status-time">({heartbeatAgeSec}s)</span>}
+          </div>
+        </div>
       </div>
 
-      {/* IP + mismatch check */}
-      <p>
-        <strong>IP:</strong>{' '}
-        <span
-          className={ipMismatch ? 'mismatch-text' : ''}
-          title={ipMismatch ? 'IP mismatch with heartbeat IP' : undefined}
-        >
-          {drone.ip}
-          {ipMismatch && heartbeatIP && (
-            <FontAwesomeIcon
-              icon={faExclamationCircle}
-              className="warning-icon"
-              title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-              aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-            />
-          )}
-        </span>
-      </p>
+      {/* Main Content */}
+      <div className="drone-content">
 
-      
+        {/* Basic Information */}
+        <div className="info-section">
+          <div className="info-row">
+            <span className="info-label">IP Address</span>
+            <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
+              {drone.ip}
+              {ipMismatch && heartbeatIP && (
+                <FontAwesomeIcon
+                  icon={faExclamationCircle}
+                  title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
+                  aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
+                />
+              )}
+            </span>
+          </div>
 
-      {/* Drone's assigned (config) hardware ID */}
-      <p>
-        <strong>Hardware ID:</strong> {drone.hw_id}{' '}
-        <FontAwesomeIcon
-          icon={faQuestionCircle}
-          className="info-icon"
-          title="Hardware ID is a unique ID physically attached to this drone."
-          aria-label="Hardware ID Info"
-        />
-      </p>
+          <div className="info-row">
+            <span className="info-label">MAVLink Port</span>
+            <span className="info-value">{drone.mavlink_port}</span>
+          </div>
 
-      {/* Render position ID block(s) */}
-      {renderPositionIdInfo()}
+          <div className="info-row">
+            <span className="info-label">Debug Port</span>
+            <span className="info-value">{drone.debug_port}</span>
+          </div>
 
-      {/* Drone's basic config fields */}
-      <p>
-        <strong>MavLink Port:</strong> {drone.mavlink_port}
-      </p>
-      <p>
-        <strong>Debug Port:</strong> {drone.debug_port}
-      </p>
-      <p>
-        <strong>GCS IP:</strong> {drone.gcs_ip}
-      </p>
-      <p>
-        <strong>Initial Launch Position:</strong> ({drone.x}, {drone.y})
-      </p>
+          <div className="info-row">
+            <span className="info-label">GCS IP</span>
+            <span className="info-value">{drone.gcs_ip}</span>
+          </div>
 
-      {/* If we have network info, show it */}
-      {networkInfo ? (
-        <div className="network-info" aria-label="Network Information">
-          <p>
-            <strong>Network Status:</strong> {networkInfo?.wifi?.ssid || 'N/A'}
-          </p>
-          <p>
-            <strong>Signal Strength:</strong>{' '}
-            {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}{' '}
-            {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
-          </p>
-          <p>
-            <strong>Ethernet:</strong> {networkInfo?.ethernet?.interface || 'N/A'}
-          </p>
+          <div className="info-row">
+            <span className="info-label">Launch Position</span>
+            <span className="info-value">({drone.x}, {drone.y})</span>
+          </div>
         </div>
-      ) : (
-        <p>
-          <strong>Network Info:</strong> Not available
-        </p>
-      )}
 
-      {/* Git Info for this drone */}
-      <DroneGitStatus
-        gitStatus={gitStatus}
-        gcsGitStatus={gcsGitStatus}
-        droneName={`Drone ${drone.hw_id}`}
-      />
+        {/* Position ID Section */}
+        <div className="position-section">
+          <div className="position-header">Position ID Status</div>
+          <div className="position-content">
+            {renderPositionIdInfo()}
+          </div>
+        </div>
+
+      {/* Network Information Section */}
+      <div className="network-section">
+        <div className="network-header">
+          <FontAwesomeIcon icon={faSignal} />
+          Network Information
+        </div>
+        <div className="network-content">
+          {networkInfo ? (
+            <>
+              <div className="network-row">
+                <span className="network-label">Wi-Fi Network:</span>
+                <span className="network-value">
+                  {networkInfo?.wifi?.ssid || 'N/A'}
+                  <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
+                    {networkInfo?.wifi?.ssid ? 'Connected' : 'Disconnected'}
+                  </span>
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Signal:</span>
+                <span className="network-value">
+                  {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
+                  {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Ethernet:</span>
+                <span className="network-value">
+                  {networkInfo?.ethernet?.interface || 'N/A'}
+                  <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
+                    {networkInfo?.ethernet?.interface ? 'Active' : 'Unknown'}
+                  </span>
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="network-row">
+              <span className="network-label">Status:</span>
+              <span className="network-value">
+                Network data unavailable
+                <span className="network-status unknown">Offline</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+        {/* Git Info for this drone */}
+        <DroneGitStatus
+          gitStatus={gitStatus}
+          gcsGitStatus={gcsGitStatus}
+          droneName={`Drone ${drone.hw_id}`}
+        />
+
+      </div>
 
       {/* Edit / Remove action buttons */}
-      <div className="card-buttons">
+      <div className="button-group">
         <button
-          className="edit-drone"
+          className="action-button secondary"
           onClick={onEdit}
           title="Edit drone configuration"
           aria-label="Edit drone configuration"
@@ -411,7 +446,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <FontAwesomeIcon icon={faEdit} /> Edit
         </button>
         <button
-          className="remove-drone"
+          className="action-button danger"
           onClick={onRemove}
           title="Remove this drone"
           aria-label="Remove this drone"
@@ -571,251 +606,272 @@ const DroneEditForm = memo(function DroneEditForm({
         </div>
       )}
 
-      {/* Hardware ID Field */}
-      <label>
-        Hardware ID:
-        <select
-          name="hw_id"
-          value={droneData.hw_id}
-          onChange={handleGenericChange}
-          title="Select Hardware ID"
-          aria-label="Select Hardware ID"
-        >
-          {hwIdOptions.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
-        {errors.hw_id && <span className="error-message">{errors.hw_id}</span>}
-      </label>
-
-      {/* IP + mismatch acceptance */}
-      <label>
-        IP Address:
-        <div className="input-with-icon">
-          <input
-            type="text"
-            name="ip"
-            value={droneData.ip}
-            onChange={handleGenericChange}
-            placeholder="Enter IP Address"
-            aria-label="IP Address"
-            style={ipMismatch ? { borderColor: 'red' } : {}}
-          />
-          {ipMismatch && (
-            <FontAwesomeIcon
-              icon={faExclamationCircle}
-              className="warning-icon"
-              title={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
-              aria-label={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
-            />
-          )}
+      <div className="drone-edit-form">
+        <div className="form-header">
+          <h3>Edit Drone {droneData.hw_id}</h3>
         </div>
-        {errors.ip && <span className="error-message">{errors.ip}</span>}
-        {ipMismatch && heartbeatIP && (
-          <div className="mismatch-message">
-            IP mismatch with heartbeat: {heartbeatIP}
-            <button
-              type="button"
-              className="accept-button"
-              onClick={onAcceptIp}
-              title="Accept heartbeat IP"
-              aria-label="Accept heartbeat IP"
-            >
-              <FontAwesomeIcon icon={faCircle} /> Accept
-            </button>
-          </div>
-        )}
-      </label>
 
-      {/* MavLink Port */}
-      <label>
-        MavLink Port:
-        <input
-          type="text"
-          name="mavlink_port"
-          value={droneData.mavlink_port}
-          onChange={handleGenericChange}
-          placeholder="Enter MavLink Port"
-          aria-label="MavLink Port"
-        />
-        {errors.mavlink_port && (
-          <span className="error-message">{errors.mavlink_port}</span>
-        )}
-      </label>
+        {/* Form Section */}
+        <div className="form-section">
 
-      {/* Debug Port */}
-      <label>
-        Debug Port:
-        <input
-          type="text"
-          name="debug_port"
-          value={droneData.debug_port}
-          onChange={handleGenericChange}
-          placeholder="Enter Debug Port"
-          aria-label="Debug Port"
-        />
-        {errors.debug_port && (
-          <span className="error-message">{errors.debug_port}</span>
-        )}
-      </label>
+        {/* Hardware ID Field */}
+        <div className="form-field">
+          <label className="form-label">Hardware ID</label>
+          <select
+            name="hw_id"
+            value={droneData.hw_id}
+            onChange={handleGenericChange}
+            className="form-select"
+            title="Select Hardware ID"
+            aria-label="Select Hardware ID"
+          >
+            {hwIdOptions.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          {errors.hw_id && <span className="error-message">{errors.hw_id}</span>}
+        </div>
 
-      {/* GCS IP */}
-      <label>
-        GCS IP:
-        <input
-          type="text"
-          name="gcs_ip"
-          value={droneData.gcs_ip}
-          onChange={handleGenericChange}
-          placeholder="Enter GCS IP"
-          aria-label="GCS IP"
-        />
-        {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
-      </label>
-
-      {/* X, Y */}
-      <label>
-        Initial X:
-        <input
-          type="text"
-          name="x"
-          value={droneData.x}
-          onChange={handleGenericChange}
-          placeholder="Enter X Coordinate"
-          aria-label="X Coordinate"
-        />
-        {errors.x && <span className="error-message">{errors.x}</span>}
-      </label>
-
-      <label>
-        Initial Y:
-        <input
-          type="text"
-          name="y"
-          value={droneData.y}
-          onChange={handleGenericChange}
-          placeholder="Enter Y Coordinate"
-          aria-label="Y Coordinate"
-        />
-        {errors.y && <span className="error-message">{errors.y}</span>}
-      </label>
-
-      {/* Position ID with toggle for custom vs. existing */}
-      <label>
-        Position ID:
-        <div className="input-with-icon">
-          {isCustomPosId ? (
-            // A text field for entering a brand-new pos_id
+        {/* IP + mismatch acceptance */}
+        <div className="form-field">
+          <label className="form-label">IP Address</label>
+          <div className="input-with-icon">
             <input
               type="text"
-              name="pos_id"
-              value={customPosId}
-              placeholder="Enter new Position ID"
-              onChange={(e) => {
-                const newPos = e.target.value;
-                setCustomPosId(newPos);
-                setDroneData((prev) => ({
-                  ...prev,
-                  pos_id: newPos,
-                  x: 0,
-                  y: 0,
-                }));
-              }}
-              aria-label="Custom Position ID"
+              name="ip"
+              value={droneData.ip}
+              onChange={handleGenericChange}
+              className="form-input"
+              placeholder="Enter IP Address"
+              aria-label="IP Address"
+              style={ipMismatch ? { borderColor: 'var(--color-danger)' } : {}}
             />
-          ) : (
-            // A dropdown listing all known pos_ids from config
-            <select
-              name="pos_id"
-              value={droneData.pos_id}
-              onChange={handlePosSelectChange}
-              aria-label="Select Position ID"
-            >
-              {allPosIds.map((pid) => (
-                <option key={pid} value={pid}>
-                  {pid}
-                </option>
-              ))}
-            </select>
+            {ipMismatch && (
+              <FontAwesomeIcon
+                icon={faExclamationCircle}
+                className="warning-icon"
+                title={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
+                aria-label={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
+              />
+            )}
+          </div>
+          {errors.ip && <span className="error-message">{errors.ip}</span>}
+          {ipMismatch && heartbeatIP && (
+            <div className="mismatch-message">
+              IP mismatch with heartbeat: {heartbeatIP}
+              <button
+                type="button"
+                className="action-button success"
+                onClick={onAcceptIp}
+                title="Accept heartbeat IP"
+                aria-label="Accept heartbeat IP"
+              >
+                <FontAwesomeIcon icon={faCheckCircle} /> Accept
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* MavLink Port */}
+        <div className="form-field">
+          <label className="form-label">MavLink Port</label>
+          <input
+            type="text"
+            name="mavlink_port"
+            value={droneData.mavlink_port}
+            onChange={handleGenericChange}
+            className="form-input"
+            placeholder="Enter MavLink Port"
+            aria-label="MavLink Port"
+          />
+          {errors.mavlink_port && (
+            <span className="error-message">{errors.mavlink_port}</span>
+          )}
+        </div>
+
+        {/* Debug Port */}
+        <div className="form-field">
+          <label className="form-label">Debug Port</label>
+          <input
+            type="text"
+            name="debug_port"
+            value={droneData.debug_port}
+            onChange={handleGenericChange}
+            className="form-input"
+            placeholder="Enter Debug Port"
+            aria-label="Debug Port"
+          />
+          {errors.debug_port && (
+            <span className="error-message">{errors.debug_port}</span>
+          )}
+        </div>
+
+        {/* GCS IP */}
+        <div className="form-field">
+          <label className="form-label">GCS IP</label>
+          <input
+            type="text"
+            name="gcs_ip"
+            value={droneData.gcs_ip}
+            onChange={handleGenericChange}
+            className="form-input"
+            placeholder="Enter GCS IP"
+            aria-label="GCS IP"
+          />
+          {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
+        </div>
+
+        {/* X, Y */}
+        <div className="form-field">
+          <label className="form-label">Initial X</label>
+          <input
+            type="text"
+            name="x"
+            value={droneData.x}
+            onChange={handleGenericChange}
+            className="form-input"
+            placeholder="Enter X Coordinate"
+            aria-label="X Coordinate"
+          />
+          {errors.x && <span className="error-message">{errors.x}</span>}
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Initial Y</label>
+          <input
+            type="text"
+            name="y"
+            value={droneData.y}
+            onChange={handleGenericChange}
+            className="form-input"
+            placeholder="Enter Y Coordinate"
+            aria-label="Y Coordinate"
+          />
+          {errors.y && <span className="error-message">{errors.y}</span>}
+        </div>
+
+        {/* Position ID with toggle for custom vs. existing */}
+        <div className="form-field">
+          <label className="form-label">Position ID</label>
+          <div className="input-with-icon">
+            {isCustomPosId ? (
+              // A text field for entering a brand-new pos_id
+              <input
+                type="text"
+                name="pos_id"
+                value={customPosId}
+                className="form-input"
+                placeholder="Enter new Position ID"
+                onChange={(e) => {
+                  const newPos = e.target.value;
+                  setCustomPosId(newPos);
+                  setDroneData((prev) => ({
+                    ...prev,
+                    pos_id: newPos,
+                    x: 0,
+                    y: 0,
+                  }));
+                }}
+                aria-label="Custom Position ID"
+              />
+            ) : (
+              // A dropdown listing all known pos_ids from config
+              <select
+                name="pos_id"
+                value={droneData.pos_id}
+                onChange={handlePosSelectChange}
+                className="form-select"
+                aria-label="Select Position ID"
+              >
+                {allPosIds.map((pid) => (
+                  <option key={pid} value={pid}>
+                    {pid}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Toggle to switch between dropdown and custom input */}
+            <div className="toggle-container">
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={isCustomPosId}
+                  onChange={() => {
+                    setIsCustomPosId((prev) => !prev);
+                    if (!isCustomPosId) setCustomPosId('');
+                  }}
+                />
+                <span className="slider round"></span>
+              </label>
+              <span className="toggle-label">
+                {isCustomPosId
+                  ? 'Enter New Position ID'
+                  : 'Select Existing Position ID'}
+              </span>
+            </div>
+          </div>
+          {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
+        </div>
+
+        {/* If assigned pos_id != config pos_id, allow accept */}
+        {assignedPosId &&
+          assignedPosId !== droneData.pos_id &&
+          assignedPosId !== '0' && (
+            <div className="mismatch-message">
+              Heartbeat assigned pos_id ({assignedPosId}) differs from current config
+              <button
+                type="button"
+                className="action-button success"
+                onClick={onAcceptPos}
+                title="Accept heartbeat assigned Pos ID"
+                aria-label="Accept heartbeat assigned Pos ID"
+              >
+                <FontAwesomeIcon icon={faCheckCircle} /> Accept
+              </button>
+            </div>
           )}
 
-          {/* Toggle to switch between dropdown and custom input */}
-          <div className="toggle-container">
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={isCustomPosId}
-                onChange={() => {
-                  setIsCustomPosId((prev) => !prev);
-                  if (!isCustomPosId) setCustomPosId('');
-                }}
-              />
-              <span className="slider round"></span>
-            </label>
-            <span className="toggle-label">
-              {isCustomPosId
-                ? 'Enter New Position ID'
-                : 'Select Existing Position ID'}
-            </span>
-          </div>
-        </div>
-        {errors.pos_id && <span className="error-message">{errors.pos_id}</span>}
-      </label>
-
-      {/* If assigned pos_id != config pos_id, allow accept */}
-      {assignedPosId &&
-        assignedPosId !== droneData.pos_id &&
-        assignedPosId !== '0' && (
+        {/* If auto-detected pos_id != config pos_id, allow accept */}
+        {autoPosId && autoPosId !== '0' && autoPosId !== droneData.pos_id && (
           <div className="mismatch-message">
-            Heartbeat assigned pos_id ({assignedPosId}) differs from current config
+            Auto-detected pos_id ({autoPosId}) differs from current config
             <button
               type="button"
-              className="accept-button"
-              onClick={onAcceptPos}
-              title="Accept heartbeat assigned Pos ID"
-              aria-label="Accept heartbeat assigned Pos ID"
+              className="action-button success"
+              onClick={onAcceptPosAuto}
+              title="Accept auto-detected Pos ID"
+              aria-label="Accept auto-detected Pos ID"
             >
-              <FontAwesomeIcon icon={faCircle} /> Accept
+              <FontAwesomeIcon icon={faCheckCircle} /> Accept Auto
             </button>
           </div>
         )}
 
-      {/* If auto-detected pos_id != config pos_id, allow accept */}
-      {autoPosId && autoPosId !== '0' && autoPosId !== droneData.pos_id && (
-        <div className="mismatch-message">
-          Auto-detected pos_id ({autoPosId}) differs from current config
+        </div>
+
+        {/* Save / Cancel buttons */}
+        <div className="button-group">
           <button
-            type="button"
-            className="accept-button"
-            onClick={onAcceptPosAuto}
-            title="Accept auto-detected Pos ID"
-            aria-label="Accept auto-detected Pos ID"
+            className="action-button success"
+            onClick={onSave}
+            title="Save changes"
+            aria-label="Save changes"
           >
-            <FontAwesomeIcon icon={faCircle} /> Accept Auto
+            <FontAwesomeIcon icon={faSave} /> Save
+          </button>
+          <button
+            className="action-button secondary"
+            onClick={onCancel}
+            title="Cancel editing"
+            aria-label="Cancel editing"
+          >
+            <FontAwesomeIcon icon={faTimes} /> Cancel
           </button>
         </div>
-      )}
 
-      {/* Save / Cancel buttons */}
-      <div className="card-buttons">
-        <button
-          className="save-drone"
-          onClick={onSave}
-          title="Save changes"
-          aria-label="Save changes"
-        >
-          <FontAwesomeIcon icon={faSave} /> Save
-        </button>
-        <button
-          className="cancel-edit"
-          onClick={onCancel}
-          title="Cancel editing"
-          aria-label="Cancel editing"
-        >
-          <FontAwesomeIcon icon={faTimes} /> Cancel
-        </button>
       </div>
     </>
   );
@@ -879,7 +935,17 @@ export default function DroneConfigCard({
 
   // Additional highlight if mismatch or newly detected
   const hasAnyMismatch = ipMismatch || drone.isNew;
-  const cardExtraClass = hasAnyMismatch ? ' mismatch-drone' : '';
+
+  // Status class for visual distinction
+  const getStatusClass = () => {
+    if (hasAnyMismatch) return ' mismatch-drone';
+    if (heartbeatStatus === 'Online (Recent)') return ' status-online';
+    if (heartbeatStatus === 'Stale (>20s)') return ' status-stale';
+    if (heartbeatStatus === 'Offline (>60s)') return ' status-offline';
+    return ' status-unknown';
+  };
+
+  const cardExtraClass = getStatusClass();
 
   /**
    * Validate local fields, then call `saveChanges` if no errors.

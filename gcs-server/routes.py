@@ -13,7 +13,7 @@ import time
 import traceback
 import zipfile
 import requests
-from flask import Flask, jsonify, request, send_file, send_from_directory, current_app
+from flask import Flask, jsonify, request, send_file, send_from_directory, current_app, make_response
 import pandas as pd
 from datetime import datetime
 
@@ -25,8 +25,7 @@ from utils import allowed_file, clear_show_directories, git_operations, zip_dire
 from params import Params
 from get_elevation import get_elevation
 from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
-from network import get_network_info_for_all_drones
-from heartbeat import handle_heartbeat_post, get_all_heartbeats
+from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
 # Import new logging system with fallback
@@ -365,7 +364,7 @@ def setup_routes(app):
     # SHOW MANAGEMENT ENDPOINTS (preserving ALL original functionality)
     # ========================================================================
     
-    @app.route('/import-show', methods=['POST'])
+    @app.route('/import-show', methods=['POST', 'OPTIONS'])
     def import_show():
         """
         Endpoint to handle the uploading and processing of drone show files:
@@ -375,8 +374,16 @@ def setup_routes(app):
           4) Calls run_formation_process.
           5) Optionally pushes changes to Git.
         """
-        log_system_event(f"📤 Show import requested: {file.filename}", "INFO", "show")
+        # Handle preflight OPTIONS request for CORS
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add('Access-Control-Allow-Headers', "*")
+            response.headers.add('Access-Control-Allow-Methods', "*")
+            return response
+
         file = request.files.get('file')
+        log_system_event(f"📤 Show import requested: {file.filename if file else 'No file'}", "INFO", "show")
         if not file or file.filename == '':
             log_system_warning("No file part or empty filename", "show")
             return error_response('No file part or empty filename', 400)
@@ -909,11 +916,14 @@ def setup_routes(app):
     def get_network_info():
         """
         Endpoint to get network information for all drones.
-        Each drone is queried individually, and the results are aggregated into a single JSON response.
+        Now efficiently sourced from heartbeat data instead of separate polling.
         """
-        # network_info, status_code = get_network_info_for_all_drones()
-        # return jsonify(network_info), status_code
-        pass
+        try:
+            network_info_list, status_code = get_network_info_from_heartbeats()
+            return jsonify(network_info_list), status_code
+        except Exception as e:
+            log_system_error(f"Error getting network info from heartbeats: {e}", "network")
+            return jsonify([]), 200  # Return empty array to prevent UI errors
 
     @app.route('/drone-heartbeat', methods=['POST'])
     def drone_heartbeat():
