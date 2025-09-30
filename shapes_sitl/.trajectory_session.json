@@ -1,10 +1,11 @@
 {
-  "session_id": "20250917_072238",
-  "timestamp": "2025-09-17T07:22:38.976480",
-  "swarm_fingerprint": "ac112b54158833fb488e1e1a9415c8db",
+  "session_id": "20250930_070920",
+  "timestamp": "2025-09-30T07:09:20.611272",
+  "swarm_fingerprint": "31ac10084c86b54389d3df181b6daf0a",
   "processed_leaders": [
-    1
+    1,
+    4
   ],
-  "total_drones": 22,
+  "total_drones": 5,
   "parameters_hash": "5d3283303a32264a0740e7a155940824"
 }
