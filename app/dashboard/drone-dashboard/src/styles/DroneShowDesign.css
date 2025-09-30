@@ -1,0 +1,317 @@
+@import './DesignTokens.css';
+
+/* Theme-Aware Drone Show Design Styles */
+.swarm-design-container {
+    min-height: 100vh;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    padding: var(--spacing-lg);
+    transition: var(--transition-all);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: var(--spacing-2xl);
+}
+
+/* Form Container */
+.swarm-design-container form {
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-2xl);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(8px);
+    max-width: 600px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.swarm-design-container form::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
+}
+
+/* Form Title */
+.swarm-design-container form::after {
+    content: 'Drone Show Design Upload';
+    position: absolute;
+    top: var(--spacing-lg);
+    left: var(--spacing-2xl);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--spacing-lg);
+}
+
+/* Form spacing to account for title */
+.swarm-design-container form {
+    padding-top: var(--spacing-3xl);
+}
+
+/* Label Styling */
+.swarm-design-container label {
+    display: block;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.swarm-design-container label:first-of-type {
+    margin-top: 0;
+}
+
+/* Textarea Styling */
+.swarm-design-container textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-primary);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    transition: var(--transition-all);
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.swarm-design-container textarea:hover {
+    border-color: var(--color-primary-border);
+    background: var(--color-bg-quaternary);
+}
+
+.swarm-design-container textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-border);
+    background: var(--color-bg-quaternary);
+}
+
+.swarm-design-container textarea::placeholder {
+    color: var(--color-text-tertiary);
+    font-style: italic;
+}
+
+/* File Input Styling */
+.swarm-design-container input[type="file"] {
+    width: 100%;
+    padding: var(--spacing-base);
+    border: 2px dashed var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-primary);
+    font-size: var(--font-size-base);
+    transition: var(--transition-all);
+    cursor: pointer;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.swarm-design-container input[type="file"]:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+    transform: translateY(-1px);
+}
+
+.swarm-design-container input[type="file"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-border);
+}
+
+/* File input drag and drop styling */
+.swarm-design-container input[type="file"]::file-selector-button {
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+    color: var(--color-text-primary);
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-base);
+    border-radius: var(--border-radius-sm);
+    margin-right: var(--spacing-base);
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    transition: var(--transition-all);
+}
+
+.swarm-design-container input[type="file"]::file-selector-button:hover {
+    background: linear-gradient(135deg, var(--brand-secondary), var(--color-primary));
+    transform: translateY(-1px);
+}
+
+/* Submit Button Styling */
+.swarm-design-container button[type="submit"] {
+    width: 100%;
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
+    border: none;
+    padding: var(--spacing-base) var(--spacing-lg);
+    border-radius: var(--border-radius-base);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-family-primary);
+    cursor: pointer;
+    transition: var(--transition-all);
+    margin-top: var(--spacing-xl);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.swarm-design-container button[type="submit"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: var(--transition-base);
+}
+
+.swarm-design-container button[type="submit"]:hover::before {
+    left: 100%;
+}
+
+.swarm-design-container button[type="submit"]:hover {
+    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.swarm-design-container button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+.swarm-design-container button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Form Field Groups */
+.form-field-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.form-field-group:last-of-type {
+    margin-bottom: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .swarm-design-container {
+        padding: var(--spacing-base);
+        padding-top: var(--spacing-lg);
+    }
+
+    .swarm-design-container form {
+        padding: var(--spacing-lg);
+        padding-top: var(--spacing-2xl);
+        max-width: 100%;
+    }
+
+    .swarm-design-container form::after {
+        font-size: var(--font-size-lg);
+        top: var(--spacing-base);
+        left: var(--spacing-lg);
+    }
+
+    .swarm-design-container textarea {
+        min-height: 100px;
+    }
+}
+
+@media (max-width: 480px) {
+    .swarm-design-container {
+        padding: var(--spacing-sm);
+    }
+
+    .swarm-design-container form {
+        padding: var(--spacing-base);
+        padding-top: var(--spacing-xl);
+    }
+
+    .swarm-design-container form::after {
+        font-size: var(--font-size-base);
+        top: var(--spacing-sm);
+        left: var(--spacing-base);
+    }
+
+    .swarm-design-container label {
+        font-size: var(--font-size-sm);
+    }
+
+    .swarm-design-container textarea,
+    .swarm-design-container input[type="file"],
+    .swarm-design-container button[type="submit"] {
+        font-size: var(--font-size-sm);
+    }
+
+    .swarm-design-container textarea {
+        min-height: 80px;
+        padding: var(--spacing-sm);
+    }
+
+    .swarm-design-container button[type="submit"] {
+        padding: var(--spacing-sm) var(--spacing-base);
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .swarm-design-container form,
+    .swarm-design-container textarea,
+    .swarm-design-container input[type="file"],
+    .swarm-design-container button[type="submit"],
+    .swarm-design-container button[type="submit"]::before {
+        transition: none;
+    }
+
+    .swarm-design-container input[type="file"]:hover,
+    .swarm-design-container button[type="submit"]:hover {
+        transform: none;
+    }
+}
+
+/* Focus states for accessibility */
+.swarm-design-container textarea:focus-visible,
+.swarm-design-container input[type="file"]:focus-visible,
+.swarm-design-container button[type="submit"]:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .swarm-design-container form {
+        border-width: 2px;
+    }
+
+    .swarm-design-container textarea,
+    .swarm-design-container input[type="file"] {
+        border-width: 2px;
+    }
+
+    .swarm-design-container button[type="submit"] {
+        border: 2px solid var(--color-success);
+    }
+}

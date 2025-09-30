@@ -4,8 +4,60 @@ import Plot from 'react-plotly.js';
 
 import '../styles/SwarmPlots.css';
 
+// Theme-aware color scheme
+const getThemeColors = () => {
+    const rootStyles = getComputedStyle(document.documentElement);
+    return {
+        bg: rootStyles.getPropertyValue('--color-bg-primary').trim(),
+        paper: rootStyles.getPropertyValue('--color-bg-secondary').trim(),
+        text: rootStyles.getPropertyValue('--color-text-primary').trim(),
+        grid: rootStyles.getPropertyValue('--color-border-primary').trim(),
+        primary: rootStyles.getPropertyValue('--color-primary').trim(),
+        success: rootStyles.getPropertyValue('--color-success').trim(),
+        warning: rootStyles.getPropertyValue('--color-warning').trim(),
+        info: rootStyles.getPropertyValue('--color-info').trim(),
+    };
+};
+
+// Theme-aware plot layout
+const getBaseLayout = (colors, is3D = false) => ({
+    plot_bgcolor: colors.bg,
+    paper_bgcolor: colors.bg,
+    font: {
+        color: colors.text,
+        family: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+        size: 11
+    },
+    margin: { l: 50, r: 20, t: 20, b: 50 },
+    showlegend: false,
+    autosize: true,
+    responsive: true,
+    xaxis: {
+        gridcolor: colors.grid,
+        zerolinecolor: colors.grid,
+        tickfont: { color: colors.text, size: 10 },
+        titlefont: { color: colors.text, size: 12 }
+    },
+    yaxis: {
+        gridcolor: colors.grid,
+        zerolinecolor: colors.grid,
+        tickfont: { color: colors.text, size: 10 },
+        titlefont: { color: colors.text, size: 12 }
+    }
+});
+
+// Plot configuration for responsive behavior
+const plotConfig = {
+    responsive: true,
+    displayModeBar: false,
+    staticPlot: false,
+    scrollZoom: false
+};
+
 
 function ThreeDPlot({ data, swarmData }) {
+    const colors = getThemeColors();
+
     const plotData = [
         {
             x: data.map(d => d.x),
@@ -13,191 +65,260 @@ function ThreeDPlot({ data, swarmData }) {
             z: data.map(d => d.z),
             mode: 'markers+text',
             marker: {
-                size: 15,
+                size: 12,
                 color: data.map(d => {
-                    if (d.follow === '0') return '#4caf50';  // Color for top leaders
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return '#ffcc00';  // Color for followers
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return '#2196f3';  // Color for intermediate leaders
-                    else return '#ffcc00';  // Default color for followers
+                    if (d.follow === '0') return colors.success;
+                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
+                    else return colors.warning;
                 }),
-                opacity: 0.9,
+                opacity: 0.8,
+                line: { color: colors.text, width: 1 }
             },
             type: 'scatter3d',
             text: data.map(d => d.hw_id.toString()),
             textposition: 'middle center',
             textfont: {
-                color: 'white', 
-                size: 16,  // Increased font size
-                family: 'Arial, sans-serif',
-                weight: 'bold'  // Bold font
+                color: colors.text,
+                size: 10,
+                family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return 'Top Leader';
-                return `Follows Drone ${d.follow}`;
+                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
         }
     ];
-    
 
     const layout = {
-        margin: {
-            l: 0,
-            r: 0,
-            b: 0,
-            t: 0
-        },
-        scene: { 
+        ...getBaseLayout(colors, true),
+        scene: {
+            bgcolor: colors.bg,
+            camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } },
             xaxis: {
-                title: 'East'
+                title: { text: 'East (m)', font: { color: colors.text, size: 11 } },
+                gridcolor: colors.grid,
+                tickfont: { color: colors.text, size: 9 }
             },
             yaxis: {
-                title: 'North'
+                title: { text: 'North (m)', font: { color: colors.text, size: 11 } },
+                gridcolor: colors.grid,
+                tickfont: { color: colors.text, size: 9 }
             },
             zaxis: {
-                title: 'Altitude'
+                title: { text: 'Altitude (m)', font: { color: colors.text, size: 11 } },
+                gridcolor: colors.grid,
+                tickfont: { color: colors.text, size: 9 }
             }
         }
     };
 
-    return <Plot data={plotData} layout={layout} />;
+    return (
+        <div className="plot-wrapper plot-3d">
+            <div className="plot-title">3D Formation View</div>
+            <div className="plot-content">
+                <Plot
+                    data={plotData}
+                    layout={layout}
+                    config={plotConfig}
+                    style={{ width: '100%', height: '100%' }}
+                    useResizeHandler={true}
+                />
+            </div>
+        </div>
+    );
 }
 
 
 function NorthEastPlot({ data, swarmData }) {
+    const colors = getThemeColors();
+
     const plotData = [
         {
             x: data.map(d => d.x),
             y: data.map(d => d.y),
             mode: 'markers+text',
             marker: {
-                size: 20,
+                size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return '#4caf50'; 
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return '#ffcc00';  
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return '#2196f3'; 
-                    else return '#ffcc00'; 
+                    if (d.follow === '0') return colors.success;
+                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
+                    else return colors.warning;
                 }),
-                opacity: 0.9,
+                opacity: 0.8,
+                line: { color: colors.text, width: 1 }
             },
             text: data.map(d => d.hw_id.toString()),
             textposition: 'middle center',
             textfont: {
-                color: 'white', 
-                size: 16,  
-                family: 'Arial, sans-serif',
-                weight: 'bold'
+                color: colors.text,
+                size: 9,
+                family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return 'Top Leader';
-                return `Follows Drone ${d.follow}`;
+                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
         }
     ];
 
     const layout = {
+        ...getBaseLayout(colors),
         xaxis: {
-            title: 'East'
+            ...getBaseLayout(colors).xaxis,
+            title: { text: 'East (m)', font: { color: colors.text, size: 12 } }
         },
         yaxis: {
-            title: 'North'
+            ...getBaseLayout(colors).yaxis,
+            title: { text: 'North (m)', font: { color: colors.text, size: 12 } }
         },
-        hovermode: 'closest'  // Important for synchronized hovering
+        hovermode: 'closest'
     };
 
-    return <Plot data={plotData} layout={layout} />;
+    return (
+        <div className="plot-wrapper">
+            <div className="plot-title">North-East View</div>
+            <div className="plot-content">
+                <Plot
+                    data={plotData}
+                    layout={layout}
+                    config={plotConfig}
+                    style={{ width: '100%', height: '100%' }}
+                    useResizeHandler={true}
+                />
+            </div>
+        </div>
+    );
 }
 
 
 function EastAltitudePlot({ data, swarmData }) {
+    const colors = getThemeColors();
+
     const plotData = [
         {
             x: data.map(d => d.x),
-            y: data.map(d => d.y),
+            y: data.map(d => d.z),
             mode: 'markers+text',
             marker: {
-                size: 20,
+                size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return '#4caf50'; 
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return '#ffcc00';  
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return '#2196f3'; 
-                    else return '#ffcc00'; 
+                    if (d.follow === '0') return colors.success;
+                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
+                    else return colors.warning;
                 }),
-                opacity: 0.9,
+                opacity: 0.8,
+                line: { color: colors.text, width: 1 }
             },
             text: data.map(d => d.hw_id.toString()),
             textposition: 'middle center',
             textfont: {
-                color: 'white', 
-                size: 16,  
-                family: 'Arial, sans-serif',
-                weight: 'bold'
+                color: colors.text,
+                size: 9,
+                family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return 'Top Leader';
-                return `Follows Drone ${d.follow}`;
+                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
         }
     ];
 
     const layout = {
+        ...getBaseLayout(colors),
         xaxis: {
-            title: 'East'
+            ...getBaseLayout(colors).xaxis,
+            title: { text: 'East (m)', font: { color: colors.text, size: 12 } }
         },
         yaxis: {
-            title: 'Altitude'
+            ...getBaseLayout(colors).yaxis,
+            title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } }
         },
-        hovermode: 'closest'  // Important for synchronized hovering
+        hovermode: 'closest'
     };
 
-    return <Plot data={plotData} layout={layout} />;
+    return (
+        <div className="plot-wrapper">
+            <div className="plot-title">East-Altitude View</div>
+            <div className="plot-content">
+                <Plot
+                    data={plotData}
+                    layout={layout}
+                    config={plotConfig}
+                    style={{ width: '100%', height: '100%' }}
+                    useResizeHandler={true}
+                />
+            </div>
+        </div>
+    );
 }
 
 function NorthAltitudePlot({ data, swarmData }) {
+    const colors = getThemeColors();
+
     const plotData = [
         {
-            x: data.map(d => d.x),
-            y: data.map(d => d.y),
+            x: data.map(d => d.y),
+            y: data.map(d => d.z),
             mode: 'markers+text',
             marker: {
-                size: 20,
+                size: 14,
                 color: data.map(d => {
-                    if (d.follow === '0') return '#4caf50'; 
-                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return '#ffcc00';  
-                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return '#2196f3'; 
-                    else return '#ffcc00'; 
+                    if (d.follow === '0') return colors.success;
+                    else if (swarmData.some(drone => drone.follow === d.hw_id) && d.follow !== '0') return colors.warning;
+                    else if (swarmData.some(drone => drone.hw_id === d.follow)) return colors.info;
+                    else return colors.warning;
                 }),
-                opacity: 0.9,
+                opacity: 0.8,
+                line: { color: colors.text, width: 1 }
             },
             text: data.map(d => d.hw_id.toString()),
             textposition: 'middle center',
             textfont: {
-                color: 'white', 
-                size: 16,  
-                family: 'Arial, sans-serif',
-                weight: 'bold'
+                color: colors.text,
+                size: 9,
+                family: 'Inter, sans-serif'
             },
             hovertext: data.map(d => {
-                if (d.follow === '0') return 'Top Leader';
-                return `Follows Drone ${d.follow}`;
+                if (d.follow === '0') return `Top Leader: ${d.hw_id}`;
+                return `Drone ${d.hw_id} → Follows ${d.follow}`;
             }),
             hoverinfo: 'text',
         }
     ];
 
     const layout = {
+        ...getBaseLayout(colors),
         xaxis: {
-            title: 'North'
+            ...getBaseLayout(colors).xaxis,
+            title: { text: 'North (m)', font: { color: colors.text, size: 12 } }
         },
         yaxis: {
-            title: 'Altitude'
+            ...getBaseLayout(colors).yaxis,
+            title: { text: 'Altitude (m)', font: { color: colors.text, size: 12 } }
         },
-        hovermode: 'closest'  // Important for synchronized hovering
+        hovermode: 'closest'
     };
 
-    return <Plot data={plotData} layout={layout} />;
+    return (
+        <div className="plot-wrapper">
+            <div className="plot-title">North-Altitude View</div>
+            <div className="plot-content">
+                <Plot
+                    data={plotData}
+                    layout={layout}
+                    config={plotConfig}
+                    style={{ width: '100%', height: '100%' }}
+                    useResizeHandler={true}
+                />
+            </div>
+        </div>
+    );
 }
 
 
@@ -307,7 +428,7 @@ function SwarmPlots({ swarmData }) {
                     ))}
                 </select>
             </div>
-            <div>
+            <div className="plots-grid">
                 <ThreeDPlot data={processedData} swarmData={swarmData} />
                 <NorthEastPlot data={processedData} swarmData={swarmData} />
                 <EastAltitudePlot data={processedData} swarmData={swarmData} />

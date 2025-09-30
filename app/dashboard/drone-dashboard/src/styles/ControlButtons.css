@@ -1,128 +1,231 @@
-/* src/styles/ControlButtons.css */
+@import './DesignTokens.css';
 
+/* Control Buttons Container */
 .control-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-    gap: 1rem;
-    /* Added gap for better spacing */
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-base) var(--spacing-lg);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    gap: var(--spacing-lg);
+    box-shadow: var(--shadow-dark-base);
+    backdrop-filter: blur(8px);
+    min-height: 60px;
 }
 
-
-/* 
-    Group the buttons in two main sections:
-    - .primary-actions 
-    - .secondary-actions
-*/
-
+/* Action Groups */
 .primary-actions,
 .secondary-actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--spacing-sm);
+}
+
+.primary-actions {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.primary-actions::-webkit-scrollbar {
+    display: none;
+}
+
+.secondary-actions {
+    justify-content: flex-end;
+    flex-shrink: 0;
 }
 
 
-/* General button styling */
-
-button {
+/* General Button Styling */
+.control-buttons button {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.6rem 1rem;
-    border: none;
-    border-radius: 4px;
-    background-color: #2563eb;
-    /* Default blue */
-    color: #fff;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-base);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-base);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    color: var(--color-primary-text);
     cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.3s, transform 0.1s;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-family-primary);
+    transition: var(--transition-all);
+    min-height: var(--button-height-base);
+    position: relative;
+    overflow: hidden;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: var(--shadow-dark-sm);
 }
 
-button:hover {
-    background-color: #1d4ed8;
+.control-buttons button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: var(--transition-base);
+}
+
+.control-buttons button:hover {
     transform: translateY(-2px);
+    box-shadow: var(--shadow-dark-md);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
-button:active {
+.control-buttons button:hover::before {
+    left: 100%;
+}
+
+.control-buttons button:active {
     transform: translateY(0);
+    box-shadow: var(--shadow-dark-sm);
 }
 
-button:disabled {
-    opacity: 0.6;
+.control-buttons button:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.control-buttons button:disabled::before {
+    display: none;
+}
+
+/* Icon Sizing */
+.control-buttons button svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
 }
 
 
-/* Specific button color overrides */
-
-.file-upload-btn {
-    background-color: #f59e0b;
-    /* Amber */
+/* Button Variants */
+.control-buttons .save {
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
 }
 
-.file-upload-btn:hover {
-    background-color: #d97706;
+.control-buttons .save:hover {
+    background: linear-gradient(135deg, #2e7d32, var(--color-success));
 }
 
-.export-config {
-    background-color: #10b981;
-    /* Green */
+.control-buttons .add {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    color: var(--color-primary-text);
 }
 
-.export-config:hover {
-    background-color: #059669;
+.control-buttons .add:hover {
+    background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary));
 }
 
-.revert {
-    background-color: #ef4444;
-    /* Red */
+.control-buttons .set-origin {
+    background: linear-gradient(135deg, var(--color-info), #1976d2);
+    color: var(--color-text-primary);
 }
 
-.revert:hover {
-    background-color: #dc2626;
+.control-buttons .set-origin:hover {
+    background: linear-gradient(135deg, #1976d2, var(--color-info));
 }
 
-.add {
-    background-color: #22c55e;
-    /* Emerald */
+.control-buttons .file-upload-btn {
+    background: linear-gradient(135deg, var(--color-warning), #f57c00);
+    color: var(--color-text-inverse);
 }
 
-.add:hover {
-    background-color: #16a34a;
+.control-buttons .file-upload-btn:hover {
+    background: linear-gradient(135deg, #f57c00, var(--color-warning));
 }
 
-.set-origin {
-    background-color: #6b7280;
-    /* Gray */
+.control-buttons .export-config {
+    background: linear-gradient(135deg, #4caf50, var(--color-success));
+    color: var(--color-text-primary);
 }
 
-.set-origin:hover {
-    background-color: #4b5563;
+.control-buttons .export-config:hover {
+    background: linear-gradient(135deg, var(--color-success), #4caf50);
 }
 
-.save {
-    background-color: #2563eb;
-    /* Blue */
+.control-buttons .revert {
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
+    color: var(--color-text-primary);
 }
 
-.save:hover {
-    background-color: #1d4ed8;
+.control-buttons .revert:hover {
+    background: linear-gradient(135deg, #c62828, var(--color-danger));
 }
 
-@media (max-width: 600px) {
+/* Responsive Design */
+@media (max-width: 1200px) {
     .control-buttons {
-        flex-direction: column;
+        padding: var(--spacing-base);
+        gap: var(--spacing-base);
+        min-height: 56px;
     }
+
+    .control-buttons button {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        font-size: var(--font-size-xs);
+        min-height: 36px;
+    }
+}
+
+@media (max-width: 768px) {
+    .control-buttons {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm);
+        min-height: auto;
+    }
+
+    .primary-actions {
+        order: 1;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: var(--spacing-xs);
+    }
+
+    .secondary-actions {
+        order: 2;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: var(--spacing-xs);
+    }
+
+    .control-buttons button {
+        flex: 0 0 auto;
+        min-width: 100px;
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .control-buttons {
+        padding: var(--spacing-sm);
+    }
+
     .primary-actions,
     .secondary-actions {
-        justify-content: center;
-    }
-    button {
+        flex-direction: column;
+        gap: var(--spacing-xs);
         width: 100%;
-        margin-bottom: 0.5rem;
+    }
+
+    .control-buttons button {
+        width: 100%;
+        min-width: auto;
+        justify-content: center;
     }
 }

@@ -11,7 +11,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   font-family: var(--font-family-primary);
 }
 
@@ -250,7 +250,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-base) var(--spacing-lg);
-  background: var(--color-text-primary);
+  background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border-light);
   box-shadow: var(--shadow-base);
   z-index: var(--z-sticky);
@@ -265,7 +265,7 @@
 
 .header-left h1 {
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
 }
@@ -334,7 +334,7 @@
   align-items: center;
   text-align: center;
   padding: var(--spacing-sm) var(--spacing-base);
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   border-radius: var(--border-radius-md);
   border: 1px solid var(--color-border-light);
 }
@@ -350,7 +350,7 @@
 .trajectory-stats .stat-value {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   margin-top: var(--spacing-xs);
   font-family: var(--font-family-mono);
 }
@@ -369,7 +369,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--color-text-primary);
+  background: var(--color-bg-secondary);
 }
 
 /* =============================================== */
@@ -472,7 +472,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
 }
 
 .map-instruction-overlay {
@@ -579,7 +579,7 @@
 
 .waypoint-panel {
   width: var(--panel-width-base);
-  background: var(--color-text-primary);
+  background: var(--color-bg-secondary);
   border-left: 1px solid var(--color-border-light);
   display: flex;
   flex-direction: column;
@@ -593,14 +593,14 @@
   align-items: center;
   margin: 0;
   padding: var(--spacing-base);
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   border-bottom: 1px solid var(--color-border-light);
 }
 
 .waypoint-panel-header h3 {
   margin: 0;
   font-size: var(--font-size-md);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -644,7 +644,7 @@
 }
 
 .waypoint-item:hover {
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
 }
 
 .waypoint-item.selected {
@@ -683,7 +683,7 @@
 }
 
 .waypoint-header strong {
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
 }
@@ -762,7 +762,7 @@
 }
 
 .detail-value {
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-normal);
   text-align: right;
   font-family: var(--font-family-mono);
@@ -803,8 +803,8 @@
   padding: var(--spacing-xs);
   border: 2px solid var(--color-primary);
   border-radius: var(--border-radius-sm);
-  background: var(--color-text-primary);
-  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   font-size: var(--font-size-sm);
   font-family: var(--font-family-mono);
   transition: var(--transition-base);
@@ -969,7 +969,7 @@
 
 .elevation-item span {
   font-family: var(--font-family-mono);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
 }
@@ -1039,7 +1039,7 @@
 }
 
 .summary-value {
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
   font-family: var(--font-family-mono);
 }
@@ -1054,14 +1054,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   padding: var(--spacing-xl);
 }
 
 .trajectory-fallback-content,
 .error-content {
   max-width: 800px;
-  background: var(--color-text-primary);
+  background: var(--color-bg-secondary);
   padding: var(--spacing-2xl);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-lg);
@@ -1071,7 +1071,7 @@
 
 .trajectory-fallback-content h2,
 .error-content h2 {
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   margin-bottom: var(--spacing-base);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
@@ -1107,7 +1107,7 @@
 }
 
 .alternative-tools {
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   border-left: 4px solid var(--color-text-tertiary);
 }
 
@@ -1140,7 +1140,7 @@
   padding: var(--spacing-sm) 0;
   position: relative;
   padding-left: var(--spacing-lg);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   line-height: var(--line-height-normal);
 }
 
@@ -1166,7 +1166,7 @@
 }
 
 .setup-instructions code {
-  background: var(--color-bg-light);
+  background: var(--color-bg-primary);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--border-radius-sm);
   font-family: var(--font-family-mono);
@@ -1198,8 +1198,8 @@
   border-radius: var(--border-radius-sm);
   flex: 1;
   min-width: 120px;
-  background: var(--color-text-primary);
-  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   font-size: var(--font-size-base);
 }
 
@@ -1274,14 +1274,14 @@
   padding: var(--spacing-md);
   border-radius: var(--border-radius-base);
   box-shadow: var(--shadow-lg);
-  background: var(--color-text-primary);
-  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .mapboxgl-ctrl-attrib {
   font-size: var(--font-size-xs);
   background: rgba(255, 255, 255, 0.8);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
 }
 
 /* =============================================== */

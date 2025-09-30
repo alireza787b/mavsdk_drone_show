@@ -1,67 +1,154 @@
+@import './DesignTokens.css';
+
+/* Theme-Aware Drone Actions Styles */
 .drone-actions-container {
     display: flex;
     flex-direction: column;
-    gap: 30px;
-    padding: 20px;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    transition: var(--transition-all);
 }
 
-
 /* Action Group Styles */
-
 .action-group {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 20px;
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-base);
+    backdrop-filter: blur(8px);
+    transition: var(--transition-all);
+    position: relative;
+}
+
+.action-group::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    opacity: 0.8;
+}
+
+/* Color coding for action groups */
+.action-group:nth-child(1)::before {
+    background: linear-gradient(90deg, var(--color-success), #2e7d32);
+}
+
+.action-group:nth-child(2)::before {
+    background: linear-gradient(90deg, var(--color-info), #1976d2);
+}
+
+.action-group:nth-child(3)::before {
+    background: linear-gradient(90deg, var(--color-warning), #f57c00);
+}
+
+.action-group:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary-border);
 }
 
 .action-group h2 {
-    margin-bottom: 15px;
-    font-size: 20px;
-    color: #333;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 10px;
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    border-bottom: 2px solid var(--color-border-primary);
+    padding-bottom: var(--spacing-base);
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .action-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-lg);
+    align-items: stretch;
+    margin-top: var(--spacing-lg);
 }
 
 .takeoff-section {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--spacing-base);
+    background: var(--color-bg-tertiary);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+    flex-wrap: wrap;
 }
 
 .takeoff-section label {
-    font-weight: bold;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
 }
 
 .altitude-input {
-    width: 80px;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    min-width: 80px;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-quaternary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    transition: var(--transition-base);
+}
+
+.altitude-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-border);
 }
 
 .action-button {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background-color: #2196F3;
-    color: white;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+    color: var(--color-text-primary);
     border: none;
-    padding: 12px 20px;
-    border-radius: 6px;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-radius: var(--border-radius-lg);
     cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s, transform 0.2s;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: var(--transition-all);
+    position: relative;
+    overflow: hidden;
+    min-height: 56px;
+    box-shadow: var(--shadow-base);
+    backdrop-filter: blur(4px);
+}
+
+.action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: var(--transition-base);
 }
 
 .action-button:hover {
-    background-color: #1976D2;
     transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.action-button:hover::before {
+    left: 100%;
 }
 
 .action-button:active {
@@ -69,121 +156,157 @@
 }
 
 .action-icon {
-    font-size: 20px;
+    font-size: var(--font-size-lg);
+    opacity: 0.9;
 }
 
 
-/* Specific Button Styles */
+/* Specific Button Styles - Theme Aware */
 
 .takeoff-button {
-    background-color: #4CAF50;
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
 }
 
 .takeoff-button:hover {
-    background-color: #45A049;
+    background: linear-gradient(135deg, #2e7d32, var(--color-success));
 }
 
 .land-button {
-    background-color: #F44336;
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
 }
 
 .land-button:hover {
-    background-color: #D32F2F;
+    background: linear-gradient(135deg, #c62828, var(--color-danger));
 }
 
 .hold-button {
-    background-color: #FFC107;
-    color: #000;
+    background: linear-gradient(135deg, var(--color-warning), #f57c00);
+    color: var(--color-text-primary);
 }
 
 .hold-button:hover {
-    background-color: #FFA000;
+    background: linear-gradient(135deg, #f57c00, var(--color-warning));
 }
 
 .test-button {
-    background-color: #9C27B0;
+    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
 }
 
 .test-button:hover {
-    background-color: #7B1FA2;
+    background: linear-gradient(135deg, #7b1fa2, #9c27b0);
 }
 
 .test-led-button {
-    background-color: #673AB7;
+    background: linear-gradient(135deg, #673ab7, #5e35b1);
 }
 
 .test-led-button:hover {
-    background-color: #5E35B1;
+    background: linear-gradient(135deg, #5e35b1, #673ab7);
 }
 
 .disarm-button {
-    background-color: #F44336;
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
 }
 
 .disarm-button:hover {
-    background-color: #D32F2F;
+    background: linear-gradient(135deg, #c62828, var(--color-danger));
 }
 
 .reboot-fc-button {
-    background-color: #FF9800;
+    background: linear-gradient(135deg, #ff9800, #fb8c00);
 }
 
 .reboot-fc-button:hover {
-    background-color: #FB8C00;
+    background: linear-gradient(135deg, #fb8c00, #ff9800);
 }
 
 .reboot-sys-button {
-    background-color: #FF5722;
+    background: linear-gradient(135deg, #ff5722, #e64a19);
 }
 
 .reboot-sys-button:hover {
-    background-color: #E64A19;
+    background: linear-gradient(135deg, #e64a19, #ff5722);
 }
 
 .update-code-button {
-    background-color: #3F51B5;
+    background: linear-gradient(135deg, var(--color-info), #1976d2);
 }
 
 .update-code-button:hover {
-    background-color: #3949AB;
+    background: linear-gradient(135deg, #1976d2, var(--color-info));
+}
+
+.rtl-button {
+    background: linear-gradient(135deg, var(--color-info), #1976d2);
+}
+
+.rtl-button:hover {
+    background: linear-gradient(135deg, #1976d2, var(--color-info));
+}
+
+.hover-test-button {
+    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
+}
+
+.hover-test-button:hover {
+    background: linear-gradient(135deg, var(--brand-secondary), var(--color-primary));
+}
+
+.init-sysid-button {
+    background: linear-gradient(135deg, #6f42c1, #5a2d91);
+}
+
+.init-sysid-button:hover {
+    background: linear-gradient(135deg, #5a2d91, #6f42c1);
+}
+
+.apply-params-button {
+    background: linear-gradient(135deg, #795548, #5d4037);
+}
+
+.apply-params-button:hover {
+    background: linear-gradient(135deg, #5d4037, #795548);
 }
 
 
 /* Emergency Kill Button - Special Styling */
 
 .kill-button {
-    background-color: #DC3545;
-    color: white;
-    border: 2px solid #BD2130;
-    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
-    animation: pulse 2s infinite;
+    background: linear-gradient(135deg, var(--color-danger), #bd2130) !important;
+    color: var(--color-text-primary) !important;
+    border: 2px solid var(--color-danger-border);
+    box-shadow: 0 0 0 2px var(--color-danger-light);
+    animation: dangerPulse 2s infinite;
+    position: relative;
+    font-weight: var(--font-weight-bold);
 }
 
 .kill-button::before {
     content: '⚠️';
-    margin-right: 8px;
+    margin-right: var(--spacing-sm);
+    font-size: var(--font-size-lg);
 }
 
 .kill-button:hover {
-    background-color: #BD2130;
+    background: linear-gradient(135deg, #bd2130, var(--color-danger)) !important;
     transform: scale(1.05);
-    box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.3);
+    box-shadow: 0 0 0 4px var(--color-danger-light);
 }
 
-@keyframes pulse {
+@keyframes dangerPulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+        box-shadow: 0 0 0 0 var(--color-danger-light);
     }
     70% {
-        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        box-shadow: 0 0 0 10px transparent;
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+        box-shadow: 0 0 0 0 transparent;
     }
 }
 
 
-/* Modal Styles */
+/* Modal Styles - Theme Aware */
 
 .modal-overlay {
     position: fixed;
@@ -191,67 +314,182 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background: var(--color-overlay);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
+    backdrop-filter: blur(4px);
 }
 
 .modal-content {
-    background-color: #ffffff;
-    padding: 25px;
-    border-radius: 8px;
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    color: var(--color-text-primary);
+    padding: var(--spacing-2xl);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-xl);
     width: 90%;
-    max-width: 400px;
+    max-width: 450px;
     text-align: center;
+    backdrop-filter: blur(8px);
+}
+
+.modal-content h3 {
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-lg);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+}
+
+.modal-content p {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-xl);
+    line-height: var(--line-height-normal);
 }
 
 .modal-actions {
     display: flex;
     justify-content: space-around;
-    margin-top: 20px;
+    gap: var(--spacing-base);
+    margin-top: var(--spacing-xl);
 }
 
 .confirm-button {
-    background-color: #4CAF50;
-    color: white;
+    background: linear-gradient(135deg, var(--color-success), #2e7d32);
+    color: var(--color-text-primary);
     border: none;
-    padding: 10px 20px;
-    border-radius: 6px;
+    padding: var(--spacing-base) var(--spacing-lg);
+    border-radius: var(--border-radius-base);
     cursor: pointer;
-    transition: background-color 0.3s;
+    font-weight: var(--font-weight-semibold);
+    transition: var(--transition-all);
+    min-width: 100px;
 }
 
 .confirm-button:hover {
-    background-color: #45A049;
+    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
 .cancel-button {
-    background-color: #F44336;
-    color: white;
+    background: linear-gradient(135deg, var(--color-danger), #c62828);
+    color: var(--color-text-primary);
     border: none;
-    padding: 10px 20px;
-    border-radius: 6px;
+    padding: var(--spacing-base) var(--spacing-lg);
+    border-radius: var(--border-radius-base);
     cursor: pointer;
-    transition: background-color 0.3s;
+    font-weight: var(--font-weight-semibold);
+    transition: var(--transition-all);
+    min-width: 100px;
 }
 
 .cancel-button:hover {
-    background-color: #D32F2F;
+    background: linear-gradient(135deg, #c62828, var(--color-danger));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
 
 /* Responsive Design */
 
+@media (max-width: 1200px) {
+    .action-buttons {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--spacing-base);
+    }
+
+    .drone-actions-container {
+        padding: var(--spacing-base);
+    }
+
+    .action-button {
+        min-height: 52px;
+        padding: var(--spacing-base) var(--spacing-lg);
+    }
+}
+
 @media (max-width: 768px) {
     .action-buttons {
-        flex-direction: column;
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
     }
+
     .action-button {
         width: 100%;
+        padding: var(--spacing-lg) var(--spacing-xl);
+        font-size: var(--font-size-base);
+        min-height: 60px;
     }
+
     .action-icon {
-        font-size: 18px;
+        font-size: var(--font-size-base);
     }
+
+    .takeoff-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .altitude-input {
+        width: 100%;
+    }
+
+    .modal-content {
+        padding: var(--spacing-lg);
+        margin: var(--spacing-base);
+    }
+
+    .modal-actions {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .confirm-button,
+    .cancel-button {
+        width: 100%;
+        padding: var(--spacing-lg);
+    }
+}
+
+@media (max-width: 480px) {
+    .drone-actions-container {
+        padding: var(--spacing-sm);
+        gap: var(--spacing-lg);
+    }
+
+    .action-group {
+        padding: var(--spacing-base);
+    }
+
+    .action-group h2 {
+        font-size: var(--font-size-lg);
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .action-button:hover,
+    .action-group:hover {
+        transform: none;
+    }
+
+    .kill-button {
+        animation: none;
+    }
+
+    * {
+        transition: none !important;
+    }
+}
+
+/* Focus states for accessibility */
+.action-button:focus-visible,
+.altitude-input:focus-visible,
+.confirm-button:focus-visible,
+.cancel-button:focus-visible {
+    outline: 2px solid var(--color-primary) !important;
+    outline-offset: 2px !important;
 }

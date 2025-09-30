@@ -2,6 +2,9 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
+// Import theme system
+import { ThemeProvider } from './contexts/ThemeContext';
+
 // Import design tokens first
 import './styles/DesignTokens.css';
 
@@ -31,16 +34,21 @@ import './App.css';
 /**
  * Main Application Component
  * Clean routing with Mapbox-based trajectory planning
- * Now includes unified design system
+ * Now includes unified design system with dynamic sidebar
  */
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 768);
 
   return (
-    <Router>
+    <ThemeProvider>
+      <Router>
       <div className="app-container">
-        <SidebarMenu />
-        <div className="content">
+        <SidebarMenu
+          collapsed={sidebarCollapsed}
+          onToggle={setSidebarCollapsed}
+        />
+        <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
           <Routes>
             {/* Main drone management routes */}
             <Route path="/drone-show-design" element={<DroneShowDesign />} />
@@ -76,7 +84,8 @@ const App = () => {
         bodyClassName="toast-body"
         progressClassName="toast-progress"
       />
-    </Router>
+      </Router>
+    </ThemeProvider>
   );
 };
 

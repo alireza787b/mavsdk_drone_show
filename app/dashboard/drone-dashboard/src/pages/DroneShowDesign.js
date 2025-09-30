@@ -1,7 +1,7 @@
 //app/dashboard/drone-dashboard/src/pages/DroneShowDesign.js
 import React, { useState } from 'react';
 import PropTypes from 'prop-types'; // Import PropTypes for validation
-import '../styles/SwarmDesign.css'; // Import the provided CSS file
+import '../styles/DroneShowDesign.css';
 
 const DroneShowDesign = () => {
   const [description, setDescription] = useState('');

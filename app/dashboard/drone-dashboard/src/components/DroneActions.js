@@ -189,8 +189,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
           {/* Init SysID */}
           <button
-            className="action-button"
-            style={{ backgroundColor: '#6f42c1' }}
+            className="action-button init-sysid-button"
             onClick={() => handleActionClick('INIT_SYSID')}
           >
             <FaToolbox className="action-icon" />
@@ -199,8 +198,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
 
           {/* Apply Common Params (auto reboot) */}
           <button
-            className="action-button"
-            style={{ backgroundColor: '#795548' }}
+            className="action-button apply-params-button"
             onClick={() =>
               handleActionClick('APPLY_COMMON_PARAMS', { reboot_after: true })
             }

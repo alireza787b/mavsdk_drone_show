@@ -174,77 +174,85 @@ const SwarmDesign = () => {
 
     return (
         <div className="swarm-design-container">
-            <div className="control-buttons">
-                {/* Update Swarm and Commit Changes Buttons */}
-                <div className="button-group">
-                    <button
-                        className="btn update"
-                        onClick={() => confirmAndSave(false)}
-                        disabled={saving}
-                    >
-                        <FaSyncAlt /> Update Swarm
-                    </button>
-                    <button
-                        className="btn commit"
-                        onClick={() => confirmAndSave(true)}
-                        disabled={saving}
-                    >
-                        <FaCloudUploadAlt /> Commit Changes
-                    </button>
-                    <button
-                        className="btn revert"
-                        onClick={handleRevert}
-                        disabled={saving}
-                    >
-                        Revert
-                    </button>
-                </div>
-
-                <div className="button-group">
-                    <label className="btn import">
-                        Import CSV
-                        <input
-                            type="file"
-                            accept=".csv"
-                            onChange={handleCSVImport}
-                        />
-                    </label>
-                    <button
-                        className="btn export"
-                        onClick={handleCSVExport}
-                        disabled={saving}
-                    >
-                        Export CSV
-                    </button>
-                </div>
+            {/* Clean Full-Width Button Bar */}
+            <div className="top-button-bar">
+                <button
+                    className="top-btn update"
+                    onClick={() => confirmAndSave(false)}
+                    disabled={saving}
+                >
+                    <FaSyncAlt /> Update Swarm
+                </button>
+                <button
+                    className="top-btn commit"
+                    onClick={() => confirmAndSave(true)}
+                    disabled={saving}
+                >
+                    <FaCloudUploadAlt /> Commit Changes
+                </button>
+                <label className="top-btn import">
+                    Import CSV
+                    <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCSVImport}
+                    />
+                </label>
+                <button
+                    className="top-btn export"
+                    onClick={handleCSVExport}
+                    disabled={saving}
+                >
+                    Export CSV
+                </button>
+                <button
+                    className="top-btn revert"
+                    onClick={handleRevert}
+                    disabled={saving}
+                >
+                    Revert
+                </button>
             </div>
 
             
 
-            <div className="main-content">
-                {/* Drone Cards */}
-                <div className="left-panel">
-                    {swarmData.length ? swarmData.map(drone => (
-                        <DroneCard
-                            key={drone.hw_id}
-                            drone={drone}
-                            allDrones={swarmData}
-                            onSaveChanges={handleSaveChanges}
-                            isSelected={selectedDroneId === drone.hw_id}
-                        />
-                    )) : <p>No data available for swarm configuration.</p>}
+            {/* Two-Column Layout */}
+            <div className="two-column-layout">
+                {/* Left Column: Drone List and Fields */}
+                <div className="left-column">
+                    <h3>Drone Configuration ({swarmData.length} drones)</h3>
+                    <div className="drone-list">
+                        {swarmData.length ? swarmData.map(drone => (
+                            <DroneCard
+                                key={drone.hw_id}
+                                drone={drone}
+                                allDrones={swarmData}
+                                onSaveChanges={handleSaveChanges}
+                                isSelected={selectedDroneId === drone.hw_id}
+                            />
+                        )) : (
+                            <div className="empty-state">
+                                <p>No data available for swarm configuration.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Graph */}
-                <div className="right-panel">
-                    <DroneGraph
-                        swarmData={swarmData}
-                        onSelectDrone={setSelectedDroneId}
-                    />
+                {/* Right Column: Graph View */}
+                <div className="right-column">
+                    <h3>Formation Preview</h3>
+                    <div className="graph-view">
+                        <DroneGraph
+                            swarmData={swarmData}
+                            onSelectDrone={setSelectedDroneId}
+                        />
+                    </div>
                 </div>
             </div>
 
-            <div className="swarm-plots-container">
+            {/* Separate Bottom Section: Clustered Plots */}
+            <div className="plots-section">
+                <h3>Formation Analysis & Plots</h3>
                 <SwarmPlots swarmData={swarmData} />
             </div>
             {(changes.added.length || changes.removed.length) && (

@@ -1,25 +1,301 @@
+@import './DesignTokens.css';
+
+/* Professional Theme-Aware Swarm Plots Layout */
 .swarm-plots-container {
-    padding: 20px;
-    background-color: #f7f7f7; /* light gray background */
-    margin-top: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: var(--spacing-lg);
+    background: var(--color-bg-secondary);
+    margin-top: var(--spacing-lg);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-base);
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-family-primary);
+    position: relative;
 }
 
+.swarm-plots-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+}
+
+/* Professional Cluster Selection */
 .cluster-selection {
     display: flex;
     align-items: center;
-    margin-bottom: 20px;
+    justify-content: center;
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary));
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-sm);
 }
 
 .cluster-selection label {
-    margin-right: 10px;
-    font-weight: bold;
+    margin-right: var(--spacing-base);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
 }
 
 .cluster-selection select {
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
+    padding: var(--spacing-base) var(--spacing-lg);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    font-size: var(--font-size-base);
+    font-family: var(--font-family-primary);
+    font-weight: var(--font-weight-medium);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: var(--transition-all);
+    min-width: 300px;
+    box-shadow: var(--shadow-sm);
+}
+
+.cluster-selection select:hover {
+    border-color: var(--color-primary-border);
+    background: var(--color-bg-quaternary);
+    box-shadow: var(--shadow-md);
+}
+
+.cluster-selection select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* Professional Grid Layout for Plots */
+.plots-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xl);
+    margin-top: var(--spacing-xl);
+}
+
+/* Individual Plot Containers */
+.plot-wrapper {
+    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-tertiary));
+    border: 2px solid var(--color-border-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    transition: var(--transition-all);
+    position: relative;
+    overflow: hidden;
+    height: 500px; /* Fixed height for consistency */
+    display: flex;
+    flex-direction: column;
+}
+
+.plot-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+}
+
+.plot-wrapper:hover {
+    border-color: var(--color-primary-border);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+/* Plot Titles */
+.plot-title {
+    text-align: center;
+    margin-bottom: var(--spacing-base);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    padding: var(--spacing-sm) var(--spacing-base);
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-quaternary));
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+}
+
+/* Plot Content Container */
+.plot-content {
+    flex: 1;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    padding: var(--spacing-xs);
+    overflow: hidden;
+    position: relative;
+    height: calc(100% - 60px); /* Account for title height */
+}
+
+/* Plotly.js Container Styling */
+.plot-content .js-plotly-plot {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.plot-content .plotly {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.plot-content .main-svg {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Loading State */
+.plot-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.plot-loading::before {
+    content: '📊';
+    font-size: var(--font-size-2xl);
+    margin-right: var(--spacing-sm);
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+    .plots-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+    }
+
+    .plot-wrapper {
+        height: 450px;
+    }
+}
+
+@media (max-width: 768px) {
+    .swarm-plots-container {
+        padding: var(--spacing-base);
+        margin-top: var(--spacing-base);
+    }
+
+    .cluster-selection {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-base);
+    }
+
+    .cluster-selection label {
+        margin-right: 0;
+        text-align: center;
+        font-size: var(--font-size-base);
+    }
+
+    .cluster-selection select {
+        min-width: 100%;
+        font-size: var(--font-size-sm);
+    }
+
+    .plots-grid {
+        gap: var(--spacing-base);
+    }
+
+    .plot-wrapper {
+        height: 350px;
+        padding: var(--spacing-base);
+    }
+
+    .plot-title {
+        font-size: var(--font-size-base);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .swarm-plots-container {
+        padding: var(--spacing-sm);
+    }
+
+    .cluster-selection {
+        padding: var(--spacing-sm);
+    }
+
+    .plot-wrapper {
+        height: 300px;
+        padding: var(--spacing-sm);
+    }
+
+    .plot-title {
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-xs);
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .plot-content {
+        height: calc(100% - 40px);
+    }
+}
+
+/* Special Layout for 3D Plot */
+.plot-wrapper.plot-3d {
+    grid-column: 1 / -1; /* Full width for 3D plot */
+    height: 600px;
+}
+
+@media (max-width: 1400px) {
+    .plot-wrapper.plot-3d {
+        height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    .plot-wrapper.plot-3d {
+        height: 400px;
+    }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .cluster-selection select,
+    .plot-wrapper {
+        transition: none;
+    }
+
+    .plot-wrapper:hover {
+        transform: none;
+    }
+}
+
+/* Focus states for accessibility */
+.cluster-selection select:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .swarm-plots-container,
+    .cluster-selection,
+    .plot-wrapper,
+    .plot-content {
+        border-width: 3px;
+    }
+
+    .cluster-selection select {
+        border-width: 2px;
+    }
+
+    .plot-title {
+        border-width: 2px;
+    }
 }
