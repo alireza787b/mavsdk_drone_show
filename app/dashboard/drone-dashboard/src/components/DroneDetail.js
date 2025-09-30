@@ -418,7 +418,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   );
 
   return (
-    <div className="drone-detail">
+    <div className={`drone-detail ${isAccordionView ? 'expanded-detail' : ''}`}>
       {!isAccordionView && (
         <div className="detail-header">
           <h1>

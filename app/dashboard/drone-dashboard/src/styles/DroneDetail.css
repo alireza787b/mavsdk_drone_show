@@ -1,18 +1,46 @@
 @import './DesignTokens.css';
 
-/* Professional Theme-Aware Drone Detail Component */
+/* Professional Theme-Aware Drone Detail Component with Dynamic Width */
 .drone-detail {
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-xl);
     overflow: hidden;
     font-family: var(--font-family-primary);
+    width: 100%;
     max-width: 1400px;
     margin: 0 auto;
-    transition: var(--transition-all);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid var(--color-border-primary);
     backdrop-filter: blur(8px);
     position: relative;
+}
+
+/* Dynamic Width Expansion for Accordion View with Enhanced Effect */
+.drone-detail.expanded-detail {
+    max-width: 95vw;
+    transform: scale(1.03);
+    box-shadow: var(--shadow-2xl);
+    border: 2px solid var(--color-primary-border);
+}
+
+@media (min-width: 1600px) {
+    .drone-detail.expanded-detail {
+        max-width: 90vw;
+    }
+}
+
+@media (min-width: 1920px) {
+    .drone-detail.expanded-detail {
+        max-width: 85vw;
+    }
+}
+
+@media (max-width: 768px) {
+    .drone-detail.expanded-detail {
+        max-width: 100%;
+        transform: scale(1);
+    }
 }
 
 .drone-detail::before {
@@ -26,10 +54,7 @@
     z-index: 1;
 }
 
-.drone-detail:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-2xl);
-}
+/* Removed overall hover effect - too annoying when expanded */
 
 /* Header Styles - Professional Theme-Aware */
 .detail-header {
@@ -118,15 +143,20 @@
     }
 }
 
-/* Tab Navigation - Clean Professional Design */
+/* Tab Navigation - Enhanced Professional Design */
 .tab-navigation {
     display: flex;
     background: var(--color-bg-tertiary);
     border-bottom: 2px solid var(--color-border-primary);
-    padding: 0 var(--spacing-2xl);
+    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
+    padding: 0;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    min-height: 52px;
+    align-items: stretch;
+    box-shadow: var(--shadow-sm);
+    gap: 1px;
 }
 
 .tab-navigation::-webkit-scrollbar {
@@ -143,12 +173,19 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    justify-content: center;
+    gap: var(--spacing-base);
     transition: var(--transition-all);
     border-bottom: 3px solid transparent;
+    min-height: 52px;
+    flex: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
     position: relative;
     white-space: nowrap;
     font-family: var(--font-family-primary);
+    min-width: 120px;
+    height: 100%;
 }
 
 .tab-button::before {
@@ -180,36 +217,56 @@
 }
 
 .tab-button svg {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-xl);
+    transition: var(--transition-all);
+    opacity: 0.8;
+}
+
+.tab-button:hover svg {
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+.tab-button.active svg {
+    opacity: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 /* Content Area - Optimized Compact Layout */
 .detail-content {
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base);
     background: var(--color-bg-primary);
-    min-height: 400px;
+    min-height: 300px;
 }
 
-/* Status Dashboard - Compact Efficient Grid */
+/* Status Dashboard - Optimized Compact Grid */
 .status-dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: var(--spacing-base);
     margin-bottom: var(--spacing-lg);
+}
+
+/* Special handling for accordion view to maximize space */
+.expanded-detail .status-dashboard {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-base);
 }
 
 .status-card {
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
-    padding: var(--spacing-base);
+    padding: var(--spacing-sm) var(--spacing-base);
     display: flex;
     align-items: center;
-    gap: var(--spacing-base);
+    gap: var(--spacing-sm);
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
     backdrop-filter: blur(8px);
+    min-height: 60px;
 }
 
 .status-card::before {
@@ -224,15 +281,7 @@
     transition: var(--transition-base);
 }
 
-.status-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-    border-color: var(--color-primary-border);
-}
-
-.status-card:hover::before {
-    opacity: 1;
-}
+/* Removed status card hover effect - too annoying when expanded */
 
 .status-icon {
     font-size: var(--font-size-xl);
@@ -241,11 +290,13 @@
     justify-content: center;
     width: 48px;
     height: 48px;
-    background: var(--color-bg-quaternary);
+    background: linear-gradient(135deg, var(--color-bg-quaternary), var(--color-bg-tertiary));
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
     color: var(--color-primary);
     flex-shrink: 0;
+    box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .status-info {
@@ -265,9 +316,17 @@
 .status-value {
     font-size: var(--font-size-xl);
     font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
+    color: var(--color-primary);
     margin-bottom: var(--spacing-xs);
     word-break: break-word;
+    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
+    padding: var(--spacing-sm) var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 2px solid var(--color-primary-border);
+    font-family: var(--font-family-mono);
+    box-shadow: inset 0 1px 3px var(--color-shadow-light), 0 2px 8px var(--color-shadow-base);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: var(--transition-all);
 }
 
 .status-value.armed {
@@ -289,11 +348,17 @@
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base);
     margin-bottom: var(--spacing-base);
     backdrop-filter: blur(8px);
     position: relative;
     overflow: hidden;
+}
+
+/* Enhanced spacing for accordion view */
+.expanded-detail .detail-section {
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-base) var(--spacing-lg);
 }
 
 .detail-section::before {
@@ -308,12 +373,13 @@
 }
 
 .detail-section h3 {
-    margin: 0 0 var(--spacing-base) 0;
+    margin: 0 0 var(--spacing-sm) 0;
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
     color: var(--color-text-primary);
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: var(--spacing-sm);
     padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--color-border-primary);
@@ -321,6 +387,15 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    text-align: left !important;
+    direction: ltr;
+}
+
+/* Ensure all section headers are left-aligned */
+.drone-detail h3,
+.detail-section > h3 {
+    text-align: left !important;
+    justify-content: flex-start !important;
 }
 
 .detail-section h3 svg {
@@ -332,24 +407,32 @@
     background-clip: initial;
 }
 
-/* Detail Grid - Compact Efficient Layout */
+/* Detail Grid - Optimized for Full Content Display */
 .detail-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-sm);
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--spacing-base);
+}
+
+/* Enhanced spacing for accordion view to prevent text cut-off */
+.expanded-detail .detail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--spacing-lg);
 }
 
 .detail-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm) var(--spacing-base);
+    padding: var(--spacing-base) var(--spacing-lg);
     background: var(--color-bg-tertiary);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
     border-left: 3px solid var(--color-border-primary);
     transition: var(--transition-all);
-    min-height: 48px;
+    min-height: 52px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .detail-item:hover {
@@ -368,17 +451,32 @@
 }
 
 .detail-item span {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     font-weight: var(--font-weight-bold);
-    color: var(--color-text-secondary);
+    color: var(--color-primary);
     text-align: right;
     font-family: var(--font-family-mono);
-    background: var(--color-bg-quaternary);
-    padding: var(--spacing-xs);
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--color-border-primary);
-    margin-left: var(--spacing-sm);
-    min-width: 100px;
+    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
+    padding: var(--spacing-sm) var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 2px solid var(--color-primary-border);
+    margin-left: var(--spacing-base);
+    min-width: 140px;
+    max-width: 250px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 3px var(--color-shadow-light), 0 2px 8px var(--color-shadow-base);
+    transition: var(--transition-base);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.detail-item span:hover {
+    background: var(--color-bg-secondary);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary);
+    box-shadow: 0 2px 8px var(--color-shadow-base);
 }
 
 /* Flight Mode Styling - Theme Aware */
@@ -504,8 +602,8 @@
     }
 
     .detail-grid {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: var(--spacing-sm);
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: var(--spacing-base);
     }
 }
 
@@ -652,8 +750,6 @@
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
-    .drone-detail:hover,
-    .status-card:hover,
     .detail-item:hover {
         transform: none;
     }

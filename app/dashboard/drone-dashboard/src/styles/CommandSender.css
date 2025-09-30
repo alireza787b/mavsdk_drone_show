@@ -40,15 +40,16 @@
 .tab-bar {
     display: flex;
     border-bottom: 2px solid var(--color-border-primary);
-    margin-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
     background: var(--color-bg-tertiary);
     border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .tab-button {
     flex: 1;
-    padding: var(--spacing-base) var(--spacing-lg);
+    padding: var(--spacing-lg) var(--spacing-xl);
     background: var(--color-bg-tertiary);
     color: var(--color-text-secondary);
     border: none;
@@ -62,8 +63,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--spacing-sm);
-    min-height: 48px;
+    gap: var(--spacing-base);
+    min-height: 56px;
+    border-right: 1px solid var(--color-border-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .tab-button::before {
@@ -81,6 +85,7 @@
     background: var(--color-bg-quaternary);
     color: var(--color-text-primary);
     transform: translateY(-1px);
+    box-shadow: inset 0 2px 4px var(--color-shadow-light);
 }
 
 .tab-button:hover::before {
@@ -96,9 +101,11 @@
 
 /* Tab Icon Styles */
 .tab-icon {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-xl);
     flex-shrink: 0;
-    transition: var(--transition-base);
+    transition: var(--transition-all);
+    color: inherit;
+    opacity: 0.8;
 }
 
 .tab-text {
@@ -107,11 +114,14 @@
 }
 
 .tab-button:hover .tab-icon {
-    transform: scale(1.1);
+    transform: scale(1.15);
+    opacity: 1;
 }
 
 .tab-button.active .tab-icon {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    opacity: 1;
+    color: #ffffff;
 }
 
 .tab-content {
@@ -471,14 +481,18 @@
 
 @media (max-width: 768px) {
     .command-sender-container {
-        padding: var(--spacing-lg);
+        padding: var(--spacing-base);
+    }
+
+    .tab-bar {
+        margin-bottom: var(--spacing-base);
     }
 
     .tab-button {
-        padding: var(--spacing-sm) var(--spacing-base);
+        padding: var(--spacing-xs) var(--spacing-sm);
         font-size: var(--font-size-sm);
         gap: var(--spacing-xs);
-        min-height: 44px;
+        min-height: 40px;
     }
 
     .tab-text {

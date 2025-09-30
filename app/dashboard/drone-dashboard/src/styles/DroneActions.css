@@ -157,35 +157,59 @@
 
 .action-icon {
     font-size: var(--font-size-lg);
-    opacity: 0.9;
+    opacity: 1;
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) brightness(1.1);
+    transition: var(--transition-all);
 }
 
 
 /* Specific Button Styles - Theme Aware */
 
 .takeoff-button {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-}
-
-.takeoff-button:hover {
-    background: linear-gradient(135deg, #2e7d32, var(--color-success));
-}
-
-.land-button {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-}
-
-.land-button:hover {
-    background: linear-gradient(135deg, #c62828, var(--color-danger));
-}
-
-.hold-button {
-    background: linear-gradient(135deg, var(--color-warning), #f57c00);
+    background: linear-gradient(135deg, #388e3c, #2e7d32);
     color: var(--color-text-primary);
 }
 
+.takeoff-button .action-icon {
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) brightness(1.2);
+}
+
+.takeoff-button:hover {
+    background: linear-gradient(135deg, #2e7d32, #388e3c);
+}
+
+.land-button {
+    background: linear-gradient(135deg, #d32f2f, #b71c1c);
+    color: var(--color-text-primary);
+}
+
+.land-button .action-icon {
+    color: #ffffff !important;
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8)) brightness(1.3) contrast(1.2);
+}
+
+.land-button:hover {
+    background: linear-gradient(135deg, #b71c1c, #d32f2f);
+}
+
+.hold-button {
+    background: linear-gradient(135deg, #1976d2, #0d47a1);
+    color: var(--color-text-primary);
+}
+
+.hold-button .action-icon {
+    color: #ffffff !important;
+    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8)) brightness(1.3) contrast(1.2);
+}
+
 .hold-button:hover {
-    background: linear-gradient(135deg, #f57c00, var(--color-warning));
+    background: linear-gradient(135deg, #0d47a1, #1976d2);
 }
 
 .test-button {
@@ -425,6 +449,9 @@
 
     .action-icon {
         font-size: var(--font-size-base);
+        color: rgba(255, 255, 255, 1) !important;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
     }
 
     .takeoff-section {

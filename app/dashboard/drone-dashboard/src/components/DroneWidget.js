@@ -1,7 +1,6 @@
 import React from 'react';
 import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaSatellite } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
-import DroneDetail from './DroneDetail';
 import DroneCriticalCommands from './DroneCriticalCommands';
 import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
@@ -27,6 +26,7 @@ const DroneWidget = ({
     const interval = setInterval(forceUpdate, 1000);
     return () => clearInterval(interval);
   }, []);
+
 
   // Flight mode and system status (using correct field names)
   const flightModeValue = drone.Flight_Mode || 0;
@@ -143,7 +143,10 @@ const DroneWidget = ({
       }`}
     >
       {/* Header */}
-      <h3 onClick={() => toggleDroneDetails(drone)}>
+      <h3 onClick={(e) => {
+        e.stopPropagation();
+        toggleDroneDetails(drone);
+      }}>
         <div className="drone-header">
           <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
           <span>Drone {drone.hw_ID || 'Unknown'}</span>
@@ -292,12 +295,6 @@ const DroneWidget = ({
         <DroneCriticalCommands droneId={drone.hw_ID} />
       </div>
 
-      {/* Expanded Details */}
-      {isExpanded && (
-        <div className="details-content">
-          <DroneDetail drone={drone} isAccordionView />
-        </div>
-      )}
     </div>
   );
 };

@@ -30,14 +30,14 @@
 }
 
 .connected-drones-header {
-    margin: var(--spacing-lg) 0 var(--spacing-xl) 0;
-    font-size: var(--font-size-2xl);
+    margin: var(--spacing-xs) 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
     text-align: center;
-    padding: var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-base);
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
-    border-radius: var(--border-radius-lg);
+    border-radius: var(--border-radius-base);
     box-shadow: var(--shadow-base);
     border: 1px solid var(--color-border-primary);
     border-left: 4px solid var(--color-primary);
@@ -45,11 +45,11 @@
 
 /* Mission Control Section */
 .mission-trigger-section {
-    padding: var(--spacing-xl);
+    padding: var(--spacing-base);
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-base);
-    margin-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-base);
     border: 1px solid var(--color-border-primary);
     backdrop-filter: blur(8px);
 }
@@ -148,15 +148,18 @@
     background: linear-gradient(135deg, #c62828, var(--color-danger));
 }
 
-/* Drone Grid */
+/* Drone Grid with Dynamic Layout */
 .drone-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-    gap: var(--spacing-lg);
+    gap: var(--spacing-base);
     padding: 0;
     margin: 0;
     align-items: start;
+    transition: var(--transition-all);
 }
+
+/* No special grid changes needed - portal handles expansion */
 
 .drone-card {
     background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
@@ -164,10 +167,20 @@
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-base);
-    transition: var(--transition-all);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     backdrop-filter: blur(8px);
     position: relative;
     overflow: hidden;
+    width: 100%;
+}
+
+/* Enhanced expanded drone card styling */
+.drone-card.expanded {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-2xl);
+    border: 2px solid var(--color-primary-border);
+    z-index: 10;
+    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
 }
 
 .drone-card::before {
@@ -281,9 +294,10 @@
 /* Responsive Design */
 @media (max-width: 1200px) {
     .drone-list {
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: var(--spacing-base);
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: var(--spacing-sm);
     }
+
 
     .mission-control {
         flex-direction: column;
@@ -298,7 +312,13 @@
 @media (max-width: 768px) {
     .drone-list {
         grid-template-columns: 1fr;
-        gap: var(--spacing-base);
+        gap: var(--spacing-sm);
+    }
+
+
+    .drone-widget.expanded {
+        transform: scale(1);
+        margin: var(--spacing-xs) 0;
     }
 
     .overview-container {

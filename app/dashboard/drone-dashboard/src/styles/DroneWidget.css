@@ -6,13 +6,13 @@
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-base);
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base);
     margin: 0;
-    min-height: 220px;
-    max-width: 320px;
+    min-height: 200px;
+    max-width: 380px;
     width: 100%;
     position: relative;
-    transition: var(--transition-all);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(4px);
@@ -96,12 +96,14 @@
     100% { opacity: 0.3; transform: translateY(-100%); }
 }
 
-/* Expanded State with Enhanced Visual Feedback */
+/* Simple expanded state for visual feedback only */
 .drone-widget.expanded {
     background: linear-gradient(135deg, var(--color-primary-light), var(--color-bg-tertiary));
     border-color: var(--color-primary);
     box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-primary-light);
     transform: scale(1.02);
+    transition: var(--transition-all);
+    z-index: 1;
 }
 
 /* Professional Header Section with Enhanced Typography */
@@ -193,8 +195,8 @@
 /* Critical Status Section with Enhanced Field Visibility */
 .critical-status {
     display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-base);
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
     flex-wrap: wrap;
 }
 
@@ -270,8 +272,8 @@
 .drone-data-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-sm) var(--spacing-base);
-    margin-bottom: var(--spacing-base);
+    gap: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
     flex: 1;
 }
 
@@ -320,7 +322,7 @@
     background: var(--color-bg-quaternary);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -545,12 +547,17 @@
 }
 
 .drone-ip {
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-family-mono);
     font-size: 0.9em;
-    color: #9ca3af;
-    background: rgba(243, 244, 246, 0.5);
-    padding: 1px 4px;
-    border-radius: 3px;
+    color: var(--color-primary);
+    background: var(--color-bg-quaternary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-primary-border);
+    font-weight: var(--font-weight-bold);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 1px 3px var(--color-shadow-light);
+    transition: var(--transition-base);
 }
 
 /* Action Commands Section */
@@ -565,13 +572,17 @@
 
 /* Expanded Details Content */
 .details-content {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #e5e7eb;
-    background: rgba(248, 250, 252, 0.5);
-    border-radius: 6px;
-    padding: 12px;
-    margin: 12px -16px -16px -16px;
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-primary);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--border-radius-base);
+    margin-left: calc(-1 * var(--spacing-lg));
+    margin-right: calc(-1 * var(--spacing-lg));
+    margin-bottom: calc(-1 * var(--spacing-lg));
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(2px);
+    transition: var(--transition-all);
 }
 
 /* Position ID Icons */
