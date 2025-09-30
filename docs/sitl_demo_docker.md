@@ -15,7 +15,7 @@ This document provides a complete, all-in-one framework for setting up and runni
 - **Decentralized Drone Shows** (offline, pre-planned trajectories), and
 - **Live, Cooperative Swarm Missions** (real-time, leader–follower clustering with dynamic role changes).
 
-MDS 3 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released June 2025). It supports:
+MDS 3 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository (released September 2025). It supports:
 - **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
 - **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
 
@@ -433,7 +433,7 @@ While SITL simulations are great for testing, they are not a substitute for real
 
 We are committed to regularly updating this project to make it a reliable product soon. Thank you for your interest, and happy flying!
 
-## Enhancements in Version 3 (Released June 2025)
+## Enhancements in Version 3 (Released September 2025)
 
 With the switch from Version 2 to Version 3, we have fully re-enabled and hardened the smart swarm’s Leader–Follower mode, and overhauled the drone-show workflow. Details:
 

@@ -28,11 +28,15 @@ In short, MDS 3 is **one package** that can be used for:
 
 ## Demo Videos
 
-- **V2 Drone Show & SITL Setup**  
-  100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2  
+- **MDS 3.0 Complete Feature Showcase**
+  3D Drone Swarms in Action | Mission Planning + Autonomous Clustered Formation using MDS 3
+  [![MDS 3.0 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
+
+- **V2 Drone Show & SITL Setup**
+  100-Drone SITL Test in Clustered Cloud Servers | MDS Mavsdk Drone Show Version 2
   [![100-Drone SITL Test](https://img.youtube.com/vi/VsNs3kFKEvU/maxresdefault.jpg)](https://www.youtube.com/watch?v=VsNs3kFKEvU)
 
-- **Smart Swarm Mode Demo**  
+- **Smart Swarm Mode Demo**
   [![Smart Swarm Mode Demo](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
 
 
@@ -118,15 +122,20 @@ In short, MDS 3 is **one package** that can be used for:
   - Enhanced React GUI, Flask backend, robust drone-show scripts, Docker SITL.  
   - [100-Drone SITL Test Video](https://www.youtube.com/watch?v=VsNs3kFKEvU)  
 
-- **Version 3.0 (Jun 2025)**  
-  - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).  
-  - **Global Mode Setpoints** for unified offline & live missions.  
-  - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).  
-  - **Stable Startup Sequence** (three-way handshake, “OK-to-Start”).  
-  - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).  
-  - **Unified All-in-One System** for both drone shows and live swarm.  
-  - **Smart Swarm Clustered Leader–Follower Video**  
-  [![Smart Swarm Clustered Leader–Follower](https://img.youtube.com/vi/qRXE3LTd40c/maxresdefault.jpg)](https://youtu.be/qRXE3LTd40c)
+- **Version 3.0 (September 2025)**
+  - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).
+  - **Global Mode Setpoints** for unified offline & live missions.
+  - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).
+  - **Stable Startup Sequence** (three-way handshake, "OK-to-Start").
+  - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).
+  - **Unified All-in-One System** for both drone shows and live swarm.
+  - **Professional React Dashboard** with expert portal-based UI/UX using React Portal architecture.
+  - **3D Trajectory Planning** with interactive waypoint creation, terrain elevation, and speed optimization.
+  - **Enhanced Mobile Responsiveness** with touch-friendly interface and responsive design.
+  - **Smart Swarm Trajectory Processing** with cluster leader management and dynamic formation reshaping.
+  - **Expert Tab Navigation** with professional mission operations interface.
+  - **Complete Feature Demo Video**
+  [![MDS 3.0 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
 
 ---
 
