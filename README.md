@@ -122,20 +122,24 @@ In short, MDS 3 is **one package** that can be used for:
   - Enhanced React GUI, Flask backend, robust drone-show scripts, Docker SITL.  
   - [100-Drone SITL Test Video](https://www.youtube.com/watch?v=VsNs3kFKEvU)  
 
-- **Version 3.0 (September 2025)**
+- **Version 3.0 (June 2025)**
   - **Smart Swarm Leader–Follower** fully operational (leader failover, auto re-election, seamless follower sync).
   - **Global Mode Setpoints** for unified offline & live missions.
   - **Enhanced Failsafe Checks** (preflight health checks, in-flight monitoring).
   - **Stable Startup Sequence** (three-way handshake, "OK-to-Start").
   - **Robustness & Bug Fixes** (race conditions, emergency-land reliability, network buffer tuning).
   - **Unified All-in-One System** for both drone shows and live swarm.
+
+- **Version 3.5 (September 2025)**
   - **Professional React Dashboard** with expert portal-based UI/UX using React Portal architecture.
   - **3D Trajectory Planning** with interactive waypoint creation, terrain elevation, and speed optimization.
   - **Enhanced Mobile Responsiveness** with touch-friendly interface and responsive design.
   - **Smart Swarm Trajectory Processing** with cluster leader management and dynamic formation reshaping.
   - **Expert Tab Navigation** with professional mission operations interface.
+  - **Advanced UI/UX Improvements** with modal overlays, responsive design, and touch-friendly controls.
+  - **Bug Fixes & Performance** improvements for production deployment.
   - **Complete Feature Demo Video**
-  [![MDS 3.0 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
+  [![MDS 3.5 Complete Feature Showcase](https://img.youtube.com/vi/mta2ARQKWRQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=mta2ARQKWRQ)
 
 ---
 
