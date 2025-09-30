@@ -171,9 +171,7 @@ For custom repositories or production SITL deployments:
 - Professional drone operation knowledge and certifications
 - Additional hardware setup, networking, and safety configurations
 
-**For real hardware deployment assistance, contact:**
-- **Email:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
-- **LinkedIn:** [Alireza Ghaderi](https://www.linkedin.com/in/alireza787b/)  
+**For real hardware deployment assistance, see the Contact section below.**
 
 
 
