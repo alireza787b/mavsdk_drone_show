@@ -48,9 +48,9 @@ IFS=$'\n\t'
 # =============================================================================
 
 # Default Values (with environment variable override support)
-DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${MDS_BRANCH:-main}"
 DEFAULT_MANAGEMENT_URL="https://nb1.joomtalk.ir"
-DEFAULT_REPO_URL="${MDS_REPO_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
+DEFAULT_REPO_URL="${MDS_REPO_URL:-git@github.com:the-mak-00/mavsdk_drone_show.git}"
 DEFAULT_SSH_KEY_PATH="$HOME/.ssh/id_rsa_git_deploy"
 REPO_DIR="$HOME/mavsdk_drone_show"
 
@@ -70,11 +70,11 @@ usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  -b, --branch NAME           Specify Git branch name (default: main-candidate)
+  -b, --branch NAME           Specify Git branch name (default: main)
   -d, --drone-id ID           Specify Drone ID (e.g., 1, 2) [Required]
   -k, --netbird-key KEY       Specify Netbird Setup Key [Required unless --skip-netbird is used]
   -u, --management-url URL    Specify Netbird Management URL (default: https://nb1.joomtalk.ir)
-      --repo-url URL          Specify Git repository URL (default: git@github.com:alireza787b/mavsdk_drone_show.git)
+      --repo-url URL          Specify Git repository URL (default: git@github.com:the-mak-00/mavsdk_drone_show.git)
       --ssh-key-path PATH     Specify SSH private key path for GitHub access (default: ~/.ssh/id_rsa_git_deploy)
       --skip-netbird          Skip Netbird setup steps
       --skip-mavsdk           Skip MAVSDK server setup

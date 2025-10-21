@@ -79,7 +79,7 @@ OVERWRITE_IP=""
 # Repository Configuration: Environment Variable Support (MDS v3.1+)
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
-BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
+BRANCH_NAME="${MDS_BRANCH:-main}"
 
 # ===========================================
 # LOGGING FUNCTIONS
@@ -117,7 +117,7 @@ NETWORK OPTIONS:
   --overwrite-ip <IP>   : Override server IP in environment
 
 REPOSITORY OPTIONS:
-  -b <branch>           : Specify git branch (default: from MDS_BRANCH env var or main-candidate)
+  -b <branch>           : Specify git branch (default: from MDS_BRANCH env var or main)
 
 HELP:
   -h                    : Display this help message

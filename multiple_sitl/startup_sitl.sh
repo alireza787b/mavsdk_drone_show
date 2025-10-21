@@ -29,7 +29,7 @@ set -euo pipefail
 #
 # FOR NORMAL USERS (99%):
 #   - No action required - defaults work identically to previous versions
-#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main-candidate
+#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main
 #   - Simply run: bash create_dockers.sh <number_of_drones>
 #
 # FOR ADVANCED USERS (Custom Forks):
@@ -59,8 +59,8 @@ set -euo pipefail
 
 # GitHub Repository Details (with environment variable override support)
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
-GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main}"
+GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/the-mak-00/mavsdk_drone_show.git}"
 
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv

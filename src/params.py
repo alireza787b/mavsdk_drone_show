@@ -58,10 +58,10 @@ class Params:
     #   MDS_BRANCH    - Git branch name
     # ===================================================================================
     GIT_AUTO_PUSH = True
-    GIT_REPO_URL = os.environ.get('MDS_REPO_URL', 'git@github.com:alireza787b/mavsdk_drone_show.git')
-    GIT_BRANCH = os.environ.get('MDS_BRANCH', 'main-candidate')
+    GIT_REPO_URL = os.environ.get('MDS_REPO_URL', 'git@github.com:the-mak-00/mavsdk_drone_show.git')
+    GIT_BRANCH = os.environ.get('MDS_BRANCH', 'main')
     
-    connectivity_check_ip = "100.96.32.75"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
+    connectivity_check_ip = "8.8.8.8"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
     connectivity_check_port = 5000        # Default port to ping eg. 80 for the gcs backend port
     connectivity_check_interval = 10    # Interval in seconds between connectivity checks
 
@@ -163,7 +163,7 @@ class Params:
     extra_devices = [
         f"127.0.0.1:{local_mavlink_port}",
         f"127.0.0.1:{local_mavlink2rest_port}",
-        "100.96.64.247:14550", # GCS PC
+        "192.168.145.101:14550", # GCS PC
     ]  # Extra devices for MAVLink routing
 
     hard_reboot_command_enabled = True  # Allow hard reboot commands (ensure root privileges)
