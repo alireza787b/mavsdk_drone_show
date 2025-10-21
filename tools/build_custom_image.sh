@@ -42,8 +42,8 @@ SCRIPT_VERSION="1.0.0"
 # 2. Command line arguments (highest priority)
 # 3. Default values (fallback)
 
-DEFAULT_REPO_URL="${MDS_REPO_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
-DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
+DEFAULT_REPO_URL="${MDS_REPO_URL:-git@github.com:the-mak-00/mavsdk_drone_show.git}"
+DEFAULT_BRANCH="${MDS_BRANCH:-main}"
 DEFAULT_IMAGE_NAME="${MDS_DOCKER_IMAGE:-drone-template:custom}"
 BASE_IMAGE="drone-template:latest"
 

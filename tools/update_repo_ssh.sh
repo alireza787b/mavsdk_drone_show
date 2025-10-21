@@ -34,12 +34,12 @@ NETWORK_TIMEOUT="${NETWORK_TIMEOUT:-30}"
 
 # Branch configuration
 SITL_BRANCH="${SITL_BRANCH:-docker-sitl-2}"
-REAL_BRANCH="${REAL_BRANCH:-main-candidate}"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main-candidate}"
+REAL_BRANCH="${REAL_BRANCH:-main}"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 
 # Repository URLs
-DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
-DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-git@github.com:the-mak-00/mavsdk_drone_show.git"
+DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-https://github.com/the-mak-00/mavsdk_drone_show.git}"
 
 # Recovery strategy: "graceful" or "aggressive"
 RECOVERY_STRATEGY="${RECOVERY_STRATEGY:-graceful}"

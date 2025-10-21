@@ -3,7 +3,7 @@
 """
 ===========================================================================
  Project: MavSDK Drone Show (smart_swarm)
- Repository: https://github.com/alireza787b/mavsdk_drone_show
+ Repository: https://github.com/the-mak-00/mavsdk_drone_show
  
  Description:
    This project implements a smart swarm control system using MAVSDK, designed

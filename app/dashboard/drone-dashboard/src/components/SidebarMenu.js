@@ -162,7 +162,7 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
             <div className="social-expanded">
               <span className="copyright">© {new Date().getFullYear()} MDS by Alireza787b</span>
               <div className="social-icons">
-                <a href="https://github.com/alireza787b/mavsdk_drone_show" target="_blank" rel="noopener noreferrer">
+                <a href="https://github.com/the-mak-00/mavsdk_drone_show" target="_blank" rel="noopener noreferrer">
                   <FaGithub />
                 </a>
                 <a href="https://linkedin.com/in/alireza787b" target="_blank" rel="noopener noreferrer">
@@ -173,7 +173,7 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
           ) : (
             <div className="social-collapsed">
               <a
-                href="https://github.com/alireza787b/mavsdk_drone_show"
+                href="https://github.com/the-mak-00/mavsdk_drone_show"
                 target="_blank"
                 rel="noopener noreferrer"
                 title="GitHub Repository"
