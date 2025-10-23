@@ -14,6 +14,46 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Error trap handler for better error reporting
+error_handler() {
+    local line_num=$1
+    local last_command="$BASH_COMMAND"
+
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
+    echo "║  ✗ SETUP FAILED                                                            ║"
+    echo "╚════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Error Details:"
+    echo "  Line Number: $line_num"
+    echo "  Command: $last_command"
+    if [[ -n "${CURRENT_STEP:-}" && -n "${TOTAL_STEPS:-}" ]]; then
+        echo "  Failed at Step: $CURRENT_STEP/$TOTAL_STEPS"
+    fi
+    echo ""
+    if [[ -n "${LOG_FILE:-}" ]]; then
+        echo "Log File: $LOG_FILE"
+    fi
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Review the error message above"
+    echo "  2. Check Python compatibility: docs/PYTHON_COMPATIBILITY.md"
+    echo "  3. Try skipping problematic steps:"
+    echo "       --skip-netbird    Skip Netbird VPN setup"
+    echo "       --skip-mavsdk     Skip MAVSDK download"
+    echo "       --skip-gpio       Skip GPIO configuration"
+    echo "  4. Run with verbose output: bash -x raspberry_setup.sh [options]"
+    echo ""
+    echo "Get Help:"
+    echo "  • GitHub: https://github.com/alireza787b/mavsdk_drone_show/issues"
+    echo "  • Email: p30planets@gmail.com"
+    echo ""
+
+    exit 1
+}
+
+trap 'error_handler $LINENO' ERR
+
 # =============================================================================
 # REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
 # =============================================================================
@@ -520,33 +560,546 @@ setup_netbird() {
 }
 
 # =============================================================================
+# PROFESSIONAL UX: Progress Tracking & Logging Functions (MDS v3.5.1+)
+# =============================================================================
+
+# Global variables for progress tracking
+TOTAL_STEPS=16
+CURRENT_STEP=0
+
+# Function: Log step with progress indicator
+log_step() {
+    ((CURRENT_STEP++))
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    printf "║  Step %2d/%-2d: %-45s║\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$1"
+    echo "╚════════════════════════════════════════════════════════════╝"
+}
+
+# Function: Log progress within a step
+log_progress() {
+    echo "  → $1"
+}
+
+# Function: Log success
+log_success() {
+    echo "  ✓ $1"
+}
+
+# Function: Log warning
+log_warn() {
+    echo "  ⚠ WARNING: $1"
+}
+
+# Function: Log error message
+log_error() {
+    echo "  ✗ ERROR: $1"
+}
+
+# =============================================================================
+# HEALTH CHECKS: Pre-flight System Validation
+# =============================================================================
+run_health_checks() {
+    log_step "Running pre-flight system health checks"
+
+    local warnings=0
+    local errors=0
+
+    # Check 1: Disk Space
+    log_progress "Checking disk space..."
+    local free_gb=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+    if [[ $free_gb -lt 1 ]]; then
+        log_error "Insufficient disk space: ${free_gb}GB (need at least 1GB)"
+        ((errors++))
+    elif [[ $free_gb -lt 2 ]]; then
+        log_warn "Low disk space: ${free_gb}GB (recommend >2GB)"
+        ((warnings++))
+    else
+        log_success "Disk space: ${free_gb}GB available"
+    fi
+
+    # Check 2: Internet Connectivity
+    log_progress "Checking internet connectivity..."
+    if ping -c 1 -W 2 8.8.8.8 &>/dev/null; then
+        log_success "Internet: Connected"
+    else
+        log_error "No internet connectivity (required for installation)"
+        ((errors++))
+    fi
+
+    # Check 3: DNS Resolution
+    log_progress "Checking DNS resolution..."
+    if ping -c 1 -W 2 github.com &>/dev/null; then
+        log_success "DNS: Working"
+    else
+        log_warn "DNS resolution issues detected"
+        ((warnings++))
+    fi
+
+    # Check 4: User permissions
+    log_progress "Checking user permissions..."
+    if [[ "$USER" == "root" ]]; then
+        log_warn "Running as root (not recommended)"
+        ((warnings++))
+    else
+        log_success "Running as user: $USER"
+    fi
+
+    # Check 5: Sudo access
+    log_progress "Checking sudo access..."
+    if sudo -n true 2>/dev/null; then
+        log_success "Sudo: Available (passwordless)"
+    elif sudo true 2>/dev/null; then
+        log_success "Sudo: Available"
+    else
+        log_error "Sudo access required but not available"
+        ((errors++))
+    fi
+
+    # Summary
+    echo ""
+    if [[ $errors -gt 0 ]]; then
+        echo "  ✗ Health check FAILED: $errors error(s), $warnings warning(s)"
+        echo ""
+        read -p "  Continue anyway? (not recommended) [y/N]: " continue_anyway
+        if [[ "$continue_anyway" != "y" && "$continue_anyway" != "Y" ]]; then
+            echo "  Setup cancelled by user."
+            exit 1
+        fi
+    elif [[ $warnings -gt 0 ]]; then
+        echo "  ⚠ Health check passed with $warnings warning(s)"
+        read -p "  Continue? [Y/n]: " continue_with_warnings
+        if [[ "$continue_with_warnings" == "n" || "$continue_with_warnings" == "N" ]]; then
+            echo "  Setup cancelled by user."
+            exit 1
+        fi
+    else
+        log_success "All health checks passed"
+    fi
+    echo ""
+}
+
+# =============================================================================
+# MAVLINK ROUTER: Installation Function
+# =============================================================================
+install_mavlink_router() {
+    log_step "Checking MAVLink Router installation"
+
+    if command -v mavlink-routerd &> /dev/null; then
+        log_success "MAVLink Router already installed"
+        log_progress "Version: $(mavlink-routerd --version 2>&1 | head -1)"
+        return 0
+    fi
+
+    log_warn "MAVLink Router not found - installing..."
+
+    local MAVLINK_DIR="$HOME/mavlink-anywhere"
+
+    # Clone repository
+    if [[ ! -d "$MAVLINK_DIR" ]]; then
+        log_progress "Cloning mavlink-anywhere repository..."
+        if git clone https://github.com/alireza787b/mavlink-anywhere.git "$MAVLINK_DIR"; then
+            log_success "Repository cloned"
+        else
+            log_error "Failed to clone mavlink-anywhere repository"
+            return 1
+        fi
+    else
+        log_progress "Repository exists, updating..."
+        cd "$MAVLINK_DIR"
+        git pull origin main || log_warn "Could not update repository"
+    fi
+
+    # Run installation script
+    if [[ -f "$MAVLINK_DIR/install_mavlink_router.sh" ]]; then
+        log_progress "Running installation script..."
+        cd "$MAVLINK_DIR"
+        if sudo bash install_mavlink_router.sh; then
+            log_success "Installation script completed"
+        else
+            log_error "Installation script failed"
+            return 1
+        fi
+    else
+        log_error "Installation script not found: $MAVLINK_DIR/install_mavlink_router.sh"
+        return 1
+    fi
+
+    # Verify installation
+    if command -v mavlink-routerd &> /dev/null; then
+        log_success "MAVLink Router installed successfully"
+        log_progress "Version: $(mavlink-routerd --version 2>&1 | head -1)"
+    else
+        log_error "MAVLink Router installation verification failed"
+        return 1
+    fi
+
+    cd "$REPO_DIR"
+}
+
+# =============================================================================
+# SERVICE MANAGEMENT: Enhanced Setup with Verification
+# =============================================================================
+setup_and_enable_service() {
+    local service_name="$1"
+    local install_script="$2"
+    local service_file="$3"
+
+    log_progress "Setting up $service_name..."
+
+    # Run installation script
+    if [[ -f "$install_script" ]]; then
+        if sudo bash "$install_script" &>/dev/null; then
+            log_success "Installation script completed"
+        else
+            log_warn "Installation script had issues: $install_script"
+            return 1
+        fi
+    else
+        log_error "Installation script not found: $install_script"
+        return 1
+    fi
+
+    # Reload systemd
+    sudo systemctl daemon-reload
+
+    # Enable service
+    if sudo systemctl enable "$service_file" &>/dev/null; then
+        log_success "$service_name enabled for boot"
+    else
+        log_warn "Could not enable $service_file"
+    fi
+}
+
+# =============================================================================
+# NETWORK INFORMATION: Gathering Functions for Final Report
+# =============================================================================
+
+# Get all network interfaces and IPs
+get_network_info() {
+    local output=""
+    local iface_list=""
+    local ip_list=""
+
+    # Get all active interfaces (except lo)
+    while IFS= read -r line; do
+        local iface=$(echo "$line" | awk '{print $2}' | tr -d ':')
+        if [[ "$iface" != "lo" ]]; then
+            local ip=$(ip -4 addr show "$iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+            if [[ -n "$ip" ]]; then
+                iface_list="${iface_list}${iface} "
+                ip_list="${ip_list}${ip} "
+            fi
+        fi
+    done < <(ip -o link show | grep -v "lo:")
+
+    echo "${iface_list}|${ip_list}"
+}
+
+# Get Netbird VPN IP and interface
+get_netbird_ip() {
+    if command -v netbird &>/dev/null && netbird status &>/dev/null; then
+        # Netbird interface is usually 'wt0' or similar
+        local netbird_iface=$(ip -o link show | grep -E "wt[0-9]|nb[0-9]" | awk '{print $2}' | tr -d ':' | head -1)
+        if [[ -n "$netbird_iface" ]]; then
+            local netbird_ip=$(ip -4 addr show "$netbird_iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+            if [[ -n "$netbird_ip" ]]; then
+                echo "$netbird_ip|$netbird_iface"
+                return 0
+            fi
+        fi
+    fi
+    echo "|"
+}
+
+# Get hostname information
+get_hostname_info() {
+    local hostname=$(hostname)
+    local fqdn=$(hostname -f 2>/dev/null || echo "$hostname")
+    local mdns="${hostname}.local"
+    echo "$hostname|$fqdn|$mdns"
+}
+
+# =============================================================================
+# NETWORK REPORT: Critical Information Before Reboot
+# =============================================================================
+print_network_connection_info() {
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                   NETWORK CONNECTION INFORMATION                           ║"
+    echo "║                      >> SAVE THIS BEFORE REBOOT <<                         ║"
+    echo "╚════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # Get hostname information
+    IFS='|' read -r hostname fqdn mdns <<< "$(get_hostname_info)"
+    echo "Device Identity:"
+    echo "  • Hostname: $hostname"
+    echo "  • FQDN: $fqdn"
+    echo "  • mDNS: $mdns"
+    echo ""
+
+    # Get network interfaces
+    echo "Network Interfaces:"
+    IFS='|' read -r iface_list ip_list <<< "$(get_network_info)"
+
+    if [[ -n "$iface_list" ]]; then
+        IFS=' ' read -ra ifaces <<< "$iface_list"
+        IFS=' ' read -ra ips <<< "$ip_list"
+
+        for i in "${!ifaces[@]}"; do
+            local iface="${ifaces[$i]}"
+            local ip="${ips[$i]}"
+
+            # Determine interface type
+            local type="Unknown"
+            case "$iface" in
+                eth*|enp*|eno*) type="Ethernet" ;;
+                wlan*|wlp*) type="WiFi" ;;
+                usb*) type="USB" ;;
+            esac
+
+            echo "  • $iface ($type): $ip"
+        done
+    else
+        echo "  ⚠ No network interfaces detected"
+    fi
+    echo ""
+
+    # Get Netbird information
+    if [[ "$SKIP_NETBIRD" == false ]]; then
+        IFS='|' read -r netbird_ip netbird_iface <<< "$(get_netbird_ip)"
+        if [[ -n "$netbird_ip" ]]; then
+            echo "Netbird VPN:"
+            echo "  • Interface: $netbird_iface"
+            echo "  • VPN IP: $netbird_ip"
+            echo "  • Management: ${MANAGEMENT_URL:-Not set}"
+            local netbird_status=$(netbird status 2>/dev/null | head -1 || echo "Unknown")
+            echo "  • Status: $netbird_status"
+        else
+            echo "Netbird VPN:"
+            echo "  ⚠ Netbird configured but VPN IP not detected yet"
+            echo "  ⚠ Will be available after reboot and service start"
+        fi
+        echo ""
+    fi
+
+    # Connection recommendations
+    echo "How to Reconnect After Reboot:"
+    echo ""
+
+    if [[ "$SKIP_NETBIRD" == false ]]; then
+        if [[ -n "$netbird_ip" ]]; then
+            echo "  🔹 RECOMMENDED: Use Netbird VPN IP"
+            echo "     ssh droneshow@$netbird_ip"
+            echo "     or"
+            echo "     ssh droneshow@$hostname  (via Netbird DNS if configured)"
+        else
+            echo "  🔹 RECOMMENDED: Use Netbird (will be active after reboot)"
+            echo "     Check Netbird admin panel for VPN IP"
+            echo "     or use hostname: ssh droneshow@$hostname"
+        fi
+        echo ""
+    fi
+
+    if [[ -n "$iface_list" ]]; then
+        echo "  🔸 ALTERNATIVE: Use Local Network"
+        IFS=' ' read -ra ips <<< "$ip_list"
+        for ip in "${ips[@]}"; do
+            echo "     ssh droneshow@$ip"
+        done
+        echo "     or"
+        echo "     ssh droneshow@$mdns"
+        echo ""
+    fi
+
+    echo "  USERNAME: droneshow"
+    echo "  DRONE ID: $DRONE_ID"
+    echo ""
+
+    # Warning about SSH disruption
+    if [[ -n "$SSH_CLIENT" || -n "$SSH_CONNECTION" ]]; then
+        echo "⚠ IMPORTANT: You are connected via SSH"
+        echo "  • Your current session WILL disconnect during reboot"
+        echo "  • Wait 60-90 seconds for system to fully restart"
+        echo "  • All services will auto-start after boot"
+        echo "  • Use the connection information above to reconnect"
+        echo ""
+    fi
+
+    # Save to file for reference
+    local info_file="$HOME/mds_network_info.txt"
+    {
+        echo "MDS Setup - Network Connection Information"
+        echo "Generated: $(date)"
+        echo "=========================================="
+        echo ""
+        echo "Hostname: $hostname"
+        echo "mDNS: $mdns"
+        echo "Drone ID: $DRONE_ID"
+        echo ""
+        echo "Network Interfaces:"
+        if [[ -n "$iface_list" ]]; then
+            IFS=' ' read -ra ifaces <<< "$iface_list"
+            IFS=' ' read -ra ips <<< "$ip_list"
+            for i in "${!ifaces[@]}"; do
+                echo "  ${ifaces[$i]}: ${ips[$i]}"
+            done
+        fi
+        echo ""
+        if [[ "$SKIP_NETBIRD" == false ]]; then
+            if [[ -n "$netbird_ip" ]]; then
+                echo "Netbird VPN: $netbird_ip ($netbird_iface)"
+            else
+                echo "Netbird VPN: Configured (IP will be available after reboot)"
+            fi
+            echo "Management: ${MANAGEMENT_URL:-Not set}"
+        fi
+        echo ""
+        echo "SSH Connection Commands:"
+        if [[ "$SKIP_NETBIRD" == false && -n "$netbird_ip" ]]; then
+            echo "  ssh droneshow@$netbird_ip  # Via Netbird VPN"
+        fi
+        if [[ -n "$iface_list" ]]; then
+            IFS=' ' read -ra ips <<< "$ip_list"
+            for ip in "${ips[@]}"; do
+                echo "  ssh droneshow@$ip  # Via local network"
+            done
+            echo "  ssh droneshow@$mdns  # Via mDNS"
+        fi
+    } > "$info_file"
+
+    echo "📋 Network info saved to: $info_file"
+    echo ""
+}
+
+# =============================================================================
+# FINAL SUMMARY: Complete Status Report Before Reboot
+# =============================================================================
+print_setup_summary() {
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                      SETUP COMPLETE - FINAL REPORT                         ║"
+    echo "╚════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # System Configuration
+    echo "System Configuration:"
+    echo "  • Drone ID: $DRONE_ID"
+    echo "  • Hostname: drone$DRONE_ID"
+    echo "  • Repository: $REPO_URL"
+    echo "  • Branch: $BRANCH_NAME"
+    echo "  • Python: $(python3 --version 2>&1 | awk '{print $2}')"
+    echo ""
+
+    # Services Status
+    echo "Services Configured (will auto-start on boot):"
+    local services=(
+        "coordinator.service"
+        "led_indicator.service"
+        "wifi-manager.service"
+        "git_sync_mds.service"
+    )
+
+    for service in "${services[@]}"; do
+        if systemctl is-enabled "$service" &>/dev/null; then
+            echo "  ✓ $service"
+        else
+            echo "  ⚠ $service (not enabled)"
+        fi
+    done
+    echo ""
+
+    # Components Installed
+    echo "Components Installed:"
+    echo "  • Python venv: $REPO_DIR/venv"
+
+    if command -v mavlink-routerd &>/dev/null; then
+        local version=$(mavlink-routerd --version 2>&1 | head -1 || echo "unknown")
+        echo "  ✓ MAVLink Router: $version"
+    else
+        echo "  ⚠ MAVLink Router: Not installed"
+    fi
+
+    if [[ "$SKIP_MAVSDK" == false ]]; then
+        if [[ -f "$REPO_DIR/mavsdk_server" ]]; then
+            echo "  ✓ MAVSDK Server: Installed"
+        else
+            echo "  ⚠ MAVSDK Server: Not found"
+        fi
+    fi
+
+    if [[ "$SKIP_NETBIRD" == false ]]; then
+        if command -v netbird &>/dev/null; then
+            local version=$(netbird version 2>&1 | head -1 || echo "unknown")
+            echo "  ✓ Netbird VPN: $version"
+        else
+            echo "  ⚠ Netbird: Not detected"
+        fi
+    fi
+    echo ""
+
+    # Log file location
+    if [[ -n "${LOG_FILE:-}" ]]; then
+        echo "Setup Log: $LOG_FILE"
+    fi
+    echo "Network Info: $HOME/mds_network_info.txt"
+    echo ""
+
+    # Now show detailed network information
+    print_network_connection_info
+
+    # Verification steps
+    echo "After Reboot - Verification Steps:"
+    echo "  1. Wait 60-90 seconds for full system boot"
+    echo "  2. Reconnect via SSH (see connection info above)"
+    echo "  3. Check coordinator status:"
+    echo "       systemctl status coordinator.service"
+    echo "  4. View coordinator logs:"
+    echo "       journalctl -u coordinator.service -f"
+    echo "  5. Check all services:"
+    echo "       systemctl status led_indicator wifi-manager git_sync_mds"
+    echo ""
+
+    # Final countdown
+    echo "╔════════════════════════════════════════════════════════════════════════════╗"
+    echo "║  System will reboot in 15 seconds...                                      ║"
+    echo "║  Press Ctrl+C now to cancel reboot and review settings                    ║"
+    echo "╚════════════════════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    for i in {15..1}; do
+        printf "  Rebooting in %2d seconds...  \r" $i
+        sleep 1
+    done
+    echo ""
+}
+
+# =============================================================================
 # NEW FUNCTION: Setup Python Virtual Environment
 # =============================================================================
 setup_python_venv() {
-    echo
-    echo "------------------------------------------------------"
-    echo "Setting up Python virtual environment in $REPO_DIR..."
-    echo "------------------------------------------------------"
+    log_step "Setting up Python virtual environment"
 
     # Check if python3 is available
     if ! command -v python3 &> /dev/null; then
-        echo "Python3 not found. Installing python3..."
+        log_warn "Python3 not found - installing..."
         sudo apt-get update
         sudo apt-get install -y python3
     fi
 
     # Check Python version (MDS requires Python 3.11-3.13)
-    echo "Checking Python version compatibility..."
+    log_progress "Checking Python version compatibility..."
     PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
     PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
     PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
 
-    echo "Detected Python version: $PYTHON_VERSION"
+    log_progress "Detected Python version: $PYTHON_VERSION"
 
     if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 11 ]]; then
-        echo "=========================================="
-        echo "ERROR: Incompatible Python Version"
-        echo "=========================================="
+        echo ""
+        log_error "Incompatible Python Version"
+        echo ""
         echo "MAVSDK Drone Show requires Python 3.11 or newer."
         echo "You have Python $PYTHON_VERSION"
         echo ""
@@ -555,42 +1108,37 @@ setup_python_venv() {
         echo "  2. Install Python 3.11+ manually"
         echo ""
         echo "For support, see: docs/PYTHON_COMPATIBILITY.md"
-        echo "=========================================="
         exit 1
     elif [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -gt 13 ]]; then
-        echo "=========================================="
-        echo "WARNING: Untested Python Version"
-        echo "=========================================="
-        echo "You have Python $PYTHON_VERSION"
-        echo "MDS has been tested with Python 3.11-3.13."
-        echo "Python 3.14+ may work but is not officially supported yet."
-        echo ""
-        read -p "Continue anyway? (y/n): " continue_install
+        log_warn "Untested Python Version: $PYTHON_VERSION"
+        echo "  MDS has been tested with Python 3.11-3.13."
+        echo "  Python 3.14+ may work but is not officially supported yet."
+        read -p "  Continue anyway? (y/n): " continue_install
         if [[ "$continue_install" != "y" && "$continue_install" != "Y" ]]; then
             echo "Installation cancelled."
             exit 1
         fi
-        echo "=========================================="
     fi
 
-    echo "Python version $PYTHON_VERSION - Compatible ✓"
+    log_success "Python $PYTHON_VERSION - Compatible"
 
     # Check if python3-venv is installed
     if ! dpkg -s python3-venv &> /dev/null; then
-        echo "python3-venv not installed. Installing it..."
-        sudo apt-get update
-        sudo apt-get install -y python3-venv
+        log_progress "Installing python3-venv..."
+        sudo apt-get update &>/dev/null
+        sudo apt-get install -y python3-venv &>/dev/null
     fi
+
     # Check if python3-pip is installed
     if ! dpkg -s python3-pip &> /dev/null; then
-        echo "python3-pip not installed. Installing it..."
-        sudo apt-get update
-        sudo apt-get install -y python3-pip
+        log_progress "Installing python3-pip..."
+        sudo apt-get update &>/dev/null
+        sudo apt-get install -y python3-pip &>/dev/null
     fi
 
     # Install system dependencies required for Python scientific packages
-    echo "Installing system dependencies for Python packages (numpy, pandas, lxml, etc.)..."
-    sudo apt-get update
+    log_progress "Installing system dependencies for Python packages..."
+    sudo apt-get update &>/dev/null
     sudo apt-get install -y \
         python3-dev \
         build-essential \
@@ -600,14 +1148,13 @@ setup_python_venv() {
         libxml2-dev \
         libxslt-dev \
         liblapack-dev \
-        gfortran
-    echo "System dependencies installed successfully ✓"
+        gfortran &>/dev/null
+    log_success "System dependencies installed"
 
     # Check if git-repair is installed
     if ! dpkg -s git-repair &> /dev/null; then
-        echo "git-repair not installed. Installing it..."
-        sudo apt-get update
-        sudo apt-get install -y git-repair
+        log_progress "Installing git-repair..."
+        sudo apt-get install -y git-repair &>/dev/null
     fi
 
     # Move to repository directory (already cloned by setup_git)
@@ -615,35 +1162,38 @@ setup_python_venv() {
 
     # Check if venv folder exists
     if [[ -d "venv" ]]; then
-        echo "Existing virtual environment detected. Activating..."
+        log_progress "Using existing virtual environment"
     else
-        echo "No existing 'venv' found. Creating a new virtual environment..."
+        log_progress "Creating new virtual environment..."
         python3 -m venv venv
+        log_success "Virtual environment created"
     fi
 
-    echo "Activating the virtual environment..."
+    log_progress "Activating virtual environment..."
     # shellcheck disable=SC1091
     source venv/bin/activate
 
-    echo "Upgrading pip and installing required packages..."
-    pip install --upgrade pip
+    log_progress "Upgrading pip..."
+    pip install --upgrade pip &>/dev/null
 
     if [[ -f "requirements.txt" ]]; then
-        echo "Installing Python packages from requirements.txt..."
-        echo "This may take several minutes on Raspberry Pi..."
+        log_progress "Installing Python packages (this may take 5-10 minutes)..."
         # Use --no-cache-dir to avoid cache issues during backup/restore
         # but DO install dependencies (removed dangerous --no-deps flag)
-        pip install --no-cache-dir -r requirements.txt
-        echo "Python packages installed successfully ✓"
+        if pip install --no-cache-dir -r requirements.txt; then
+            log_success "All Python packages installed successfully"
+        else
+            log_error "Some packages failed to install"
+            log_warn "Check the log for details"
+        fi
     else
-        echo "WARNING: requirements.txt not found. Skipping pip install from file."
+        log_warn "requirements.txt not found - skipping pip install"
     fi
 
-    echo "Deactivating virtual environment to avoid conflicts with the rest of the script."
+    log_progress "Deactivating virtual environment..."
     deactivate
 
-    echo "Python virtual environment setup is complete."
-    echo
+    log_success "Python environment setup complete"
 }
 
 # =============================================================================
@@ -695,7 +1245,14 @@ validate_inputs
 SCRIPT_PATH="$(realpath "$0")"
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
-echo "Starting setup for the Drone Swarm System..."
+echo ""
+echo "╔════════════════════════════════════════════════════════════════════════════╗"
+echo "║            MAVSDK Drone Show - Hardware Setup Script v3.5.1               ║"
+echo "╚════════════════════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Run pre-flight health checks
+run_health_checks
 
 # Handle Hardware ID (HWID) File and real.mode
 
@@ -752,26 +1309,47 @@ echo
 echo "Git repository setup complete."
 echo
 
-# ----------------------------------------------------------------------
-# CALL OUR NEW VIRTUAL ENV SETUP FUNCTION (if desired, no skip flag for it)
-# ----------------------------------------------------------------------
+# Setup Python Virtual Environment
 setup_python_venv
 
-# Setup led_indicator Service
-setup_led_indicator_service
+# Install MAVLink Router
+install_mavlink_router || log_warn "MAVLink Router installation had issues (non-critical)"
 
-# Setup Wifi-Manager Service
-setup_wifi_manager_service
+# Setup Services with Verification and Enable for Boot
+log_step "Installing and enabling system services"
 
-# Setup git_sync_msc Service
-setup_git_sync_mds_service
+setup_and_enable_service "LED Indicator" \
+    "$REPO_DIR/tools/led_indicator/install_led_indicator.sh" \
+    "led_indicator.service"
 
-# Setup Coordinator Service
-setup_coordinator_service
+setup_and_enable_service "Wifi Manager" \
+    "$REPO_DIR/tools/wifi-manager/update_wifi-manager_service.sh" \
+    "wifi-manager.service"
+
+setup_and_enable_service "Git Sync MDS" \
+    "$REPO_DIR/tools/git_sync_mds/install_git_sync_mds.sh" \
+    "git_sync_mds.service"
+
+setup_and_enable_service "Coordinator" \
+    "$REPO_DIR/tools/update_service.sh" \
+    "coordinator.service"
+
+echo ""
 
 # Check and Download MAVSDK Server unless skipped
 if [[ "$SKIP_MAVSDK" == false ]]; then
-    check_download_mavsdk
+    log_step "Checking MAVSDK Server"
+    if [[ ! -f "$REPO_DIR/mavsdk_server" ]]; then
+        log_progress "MAVSDK server not found, downloading..."
+        if [[ -f "$REPO_DIR/tools/download_mavsdk_server.sh" ]]; then
+            sudo bash "$REPO_DIR/tools/download_mavsdk_server.sh"
+            log_success "MAVSDK server downloaded"
+        else
+            log_error "Download script not found"
+        fi
+    else
+        log_success "MAVSDK server already present"
+    fi
 fi
 
 # Proceed with Netbird setup unless skipped
@@ -779,10 +1357,8 @@ if [[ "$SKIP_NETBIRD" == false ]]; then
     setup_netbird
 fi
 
-echo "Setup Finished..."
-echo "Initiating Reboot..."
+# Print comprehensive final summary with network information
+print_setup_summary
+
+# Reboot
 sudo reboot
-
-
-echo
-echo "Setup complete! The system is now configured for Drone ID $DRONE_ID."
