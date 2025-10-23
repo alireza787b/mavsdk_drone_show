@@ -1,5 +1,4 @@
 aiogrpc==1.8
-asyncio==3.4.3
 blinker==1.8.2
 certifi==2024.7.4
 charset-normalizer==3.3.2
@@ -23,9 +22,9 @@ mavsdk
 NavPy==1.0
 numpy==2.1.0
 packaging==24.1
-pandas==2.2.2
+pandas==2.3.3
 pillow==10.4.0
-protobuf==3.20.1
+protobuf==5.29.4
 psutil==6.0.0
 pymavlink==2.4.41
 pyparsing==3.1.2

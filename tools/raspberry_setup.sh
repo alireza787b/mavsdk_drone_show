@@ -535,6 +535,46 @@ setup_python_venv() {
         sudo apt-get install -y python3
     fi
 
+    # Check Python version (MDS requires Python 3.11-3.13)
+    echo "Checking Python version compatibility..."
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+    PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+
+    echo "Detected Python version: $PYTHON_VERSION"
+
+    if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 11 ]]; then
+        echo "=========================================="
+        echo "ERROR: Incompatible Python Version"
+        echo "=========================================="
+        echo "MAVSDK Drone Show requires Python 3.11 or newer."
+        echo "You have Python $PYTHON_VERSION"
+        echo ""
+        echo "Solutions:"
+        echo "  1. Upgrade to latest Raspberry Pi OS (includes Python 3.13)"
+        echo "  2. Install Python 3.11+ manually"
+        echo ""
+        echo "For support, see: docs/PYTHON_COMPATIBILITY.md"
+        echo "=========================================="
+        exit 1
+    elif [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -gt 13 ]]; then
+        echo "=========================================="
+        echo "WARNING: Untested Python Version"
+        echo "=========================================="
+        echo "You have Python $PYTHON_VERSION"
+        echo "MDS has been tested with Python 3.11-3.13."
+        echo "Python 3.14+ may work but is not officially supported yet."
+        echo ""
+        read -p "Continue anyway? (y/n): " continue_install
+        if [[ "$continue_install" != "y" && "$continue_install" != "Y" ]]; then
+            echo "Installation cancelled."
+            exit 1
+        fi
+        echo "=========================================="
+    fi
+
+    echo "Python version $PYTHON_VERSION - Compatible ✓"
+
     # Check if python3-venv is installed
     if ! dpkg -s python3-venv &> /dev/null; then
         echo "python3-venv not installed. Installing it..."
@@ -547,6 +587,21 @@ setup_python_venv() {
         sudo apt-get update
         sudo apt-get install -y python3-pip
     fi
+
+    # Install system dependencies required for Python scientific packages
+    echo "Installing system dependencies for Python packages (numpy, pandas, lxml, etc.)..."
+    sudo apt-get update
+    sudo apt-get install -y \
+        python3-dev \
+        build-essential \
+        libgfortran5 \
+        libopenblas-dev \
+        libatlas-base-dev \
+        libxml2-dev \
+        libxslt-dev \
+        liblapack-dev \
+        gfortran
+    echo "System dependencies installed successfully ✓"
 
     # Check if git-repair is installed
     if ! dpkg -s git-repair &> /dev/null; then
@@ -573,13 +628,15 @@ setup_python_venv() {
     echo "Upgrading pip and installing required packages..."
     pip install --upgrade pip
 
-    #temporary disable hash check so if restore from backup wont fail...
-
     if [[ -f "requirements.txt" ]]; then
-        echo "Installing from requirements.txt..."
-        pip install --no-deps -r requirements.txt
+        echo "Installing Python packages from requirements.txt..."
+        echo "This may take several minutes on Raspberry Pi..."
+        # Use --no-cache-dir to avoid cache issues during backup/restore
+        # but DO install dependencies (removed dangerous --no-deps flag)
+        pip install --no-cache-dir -r requirements.txt
+        echo "Python packages installed successfully ✓"
     else
-        echo "requirements.txt not found. Skipping pip install from file."
+        echo "WARNING: requirements.txt not found. Skipping pip install from file."
     fi
 
     echo "Deactivating virtual environment to avoid conflicts with the rest of the script."

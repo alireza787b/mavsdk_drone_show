@@ -181,3 +181,4 @@ yarn-error.log*
 
 app/dashboard/drone-dashboard/.env
 *.ZoneIdentifier
+.claude/settings.local.json

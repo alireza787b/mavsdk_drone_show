@@ -145,6 +145,10 @@ In short, MDS 3 is **one package** that can be used for:
 
 ## Getting Started
 
+### Python Requirements
+
+**MAVSDK Drone Show requires Python 3.11, 3.12, or 3.13.** The latest Raspberry Pi OS includes Python 3.13 and is fully supported. See [docs/PYTHON_COMPATIBILITY.md](docs/PYTHON_COMPATIBILITY.md) for details and troubleshooting.
+
 ### Quick Start Guide
 
 All the detailed setup instructions—downloading the Docker image, creating SITL instances, running both Drone-Show and Smart Swarm modes—live available in [docs/sitl_demo_docker.md](https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/sitl_demo_docker.md):
