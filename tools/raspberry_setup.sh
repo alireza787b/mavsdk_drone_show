@@ -1254,32 +1254,6 @@ echo ""
 # Run pre-flight health checks
 run_health_checks
 
-# Handle Hardware ID (HWID) File and real.mode
-
-# Define the directory containing HWID and real.mode files
-hwid_dir="$REPO_DIR"
-
-# Define the HWID file path based on Drone ID
-hwid_file="$hwid_dir/${DRONE_ID}.hwID"
-
-# Define the real.mode file path
-real_mode_file="$hwid_dir/real.mode"
-
-# Remove any existing HWID files for this drone
-find "$hwid_dir" -name "*.hwID" -type f -exec rm -f {} \;
-
-# Create the new HWID file
-touch "$hwid_file"
-echo "Hardware ID file created/updated at: $hwid_file"
-
-# Check if real.mode exists; if not, create an empty real.mode file
-if [[ ! -f "$real_mode_file" ]]; then
-    touch "$real_mode_file"
-    echo "real.mode file did not exist and has been created at: $real_mode_file"
-else
-    echo "real.mode file already exists at: $real_mode_file"
-fi
-
 # Configure Hostname
 configure_hostname
 
@@ -1308,6 +1282,32 @@ setup_git "$@"
 echo
 echo "Git repository setup complete."
 echo
+
+# Handle Hardware ID (HWID) File and real.mode
+
+# Define the directory containing HWID and real.mode files
+hwid_dir="$REPO_DIR"
+
+# Define the HWID file path based on Drone ID
+hwid_file="$hwid_dir/${DRONE_ID}.hwID"
+
+# Define the real.mode file path
+real_mode_file="$hwid_dir/real.mode"
+
+# Remove any existing HWID files for this drone
+find "$hwid_dir" -name "*.hwID" -type f -exec rm -f {} \;
+
+# Create the new HWID file
+touch "$hwid_file"
+echo "Hardware ID file created/updated at: $hwid_file"
+
+# Check if real.mode exists; if not, create an empty real.mode file
+if [[ ! -f "$real_mode_file" ]]; then
+    touch "$real_mode_file"
+    echo "real.mode file did not exist and has been created at: $real_mode_file"
+else
+    echo "real.mode file already exists at: $real_mode_file"
+fi
 
 # Setup Python Virtual Environment
 setup_python_venv
