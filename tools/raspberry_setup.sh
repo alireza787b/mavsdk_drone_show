@@ -1252,7 +1252,8 @@ echo "╚═══════════════════════�
 echo ""
 
 # Run pre-flight health checks
-run_health_checks
+# TEMPORARILY DISABLED: Causing script to exit on some systems
+# run_health_checks
 
 # Configure Hostname
 configure_hostname
