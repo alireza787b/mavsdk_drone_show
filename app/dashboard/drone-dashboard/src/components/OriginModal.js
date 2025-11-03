@@ -125,8 +125,9 @@ const OriginModal = ({
       return {
         current_lat: 0,
         current_lon: 0,
-        intended_east: parseFloat(drone.x) || 0,
-        intended_north: parseFloat(drone.y) || 0,
+        // CRITICAL FIX: x = North, y = East (matches config.csv schema)
+        intended_north: parseFloat(drone.x) || 0,  // x is North
+        intended_east: parseFloat(drone.y) || 0,   // y is East
         isValid: false,
       };
     }
@@ -134,8 +135,9 @@ const OriginModal = ({
     return {
       current_lat: lat,
       current_lon: lon,
-      intended_east: parseFloat(drone.x) || 0,
-      intended_north: parseFloat(drone.y) || 0,
+      // CRITICAL FIX: x = North, y = East (matches config.csv schema)
+      intended_north: parseFloat(drone.x) || 0,  // x is North
+      intended_east: parseFloat(drone.y) || 0,   // y is East
       isValid: true,
     };
   };

@@ -13,6 +13,8 @@ import time
 import traceback
 import zipfile
 import requests
+import math
+import pymap3d as pm
 from flask import Flask, jsonify, request, send_file, send_from_directory, current_app, make_response
 import pandas as pd
 from datetime import datetime
@@ -759,28 +761,69 @@ def setup_routes(app):
 
     @app.route('/set-origin', methods=['POST'])
     def set_origin():
+        """
+        Set origin coordinates with optional altitude support.
+
+        Request body:
+          - lat: float (required) - Latitude in decimal degrees
+          - lon: float (required) - Longitude in decimal degrees
+          - alt: float (optional) - MSL altitude in meters
+          - alt_source: str (optional) - 'manual' | 'drone' | 'elevation_api'
+        """
         data = request.get_json()
         lat = data.get('lat')
         lon = data.get('lon')
+
         if lat is None or lon is None:
             log_system_error("Latitude and longitude are required", "origin")
             return jsonify({'status': 'error', 'message': 'Latitude and longitude are required'}), 400
+
         try:
-            save_origin({'lat': lat, 'lon': lon})
-            log_system_event("Origin coordinates saved", "INFO", "origin")
-            return jsonify({'status': 'success', 'message': 'Origin saved'})
+            # Save with altitude support (v2 schema) - save_origin handles defaults
+            save_origin(data)
+
+            alt = data.get('alt', 0)
+            alt_source = data.get('alt_source', 'manual')
+
+            log_system_event(
+                f"Origin set to lat={lat}, lon={lon}, alt={alt}m (source: {alt_source})",
+                "INFO", "origin"
+            )
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Origin saved',
+                'data': {
+                    'lat': float(lat),
+                    'lon': float(lon),
+                    'alt': float(alt),
+                    'alt_source': alt_source
+                }
+            })
+
         except Exception as e:
             log_system_error(f"Error saving origin: {e}", "origin")
             return jsonify({'status': 'error', 'message': 'Error saving origin'}), 500
 
     @app.route('/get-origin', methods=['GET'])
     def get_origin():
+        """
+        Get origin coordinates (v2 schema with altitude).
+
+        Returns:
+          - lat: float or empty string
+          - lon: float or empty string
+          - alt: float (default 0)
+          - alt_source: str
+          - timestamp: ISO string
+          - version: int
+        """
         try:
-            data = load_origin()
-            if data['lat'] and data['lon']:
-                return jsonify(data)
-            else:
-                return jsonify({'lat': None, 'lon': None})
+            data = load_origin()  # Now returns v2 schema with altitude
+
+            # Return complete v2 schema (backwards compatible)
+            return jsonify(data)
+
         except Exception as e:
             log_system_error(f"Error loading origin: {e}", "origin")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
@@ -788,36 +831,275 @@ def setup_routes(app):
     @app.route('/get-position-deviations', methods=['GET'])
     def get_position_deviations():
         """
-        Endpoint to calculate the position deviations for all drones.
+        Calculate position deviations for all drones with comprehensive status reporting.
+
+        Compares expected positions (from config + origin) with current GPS positions.
+
+        Returns:
+          - Per-drone deviation data with GPS quality indicators
+          - Summary statistics
+          - Status classifications (ok/warning/error/no_telemetry)
         """
         try:
-            # Step 1: Get the origin coordinates
+            # Load origin
             origin = load_origin()
             if not origin or 'lat' not in origin or 'lon' not in origin or not origin['lat'] or not origin['lon']:
-                return jsonify({"error": "Origin coordinates not set on GCS"}), 400
+                return jsonify({
+                    "status": "error",
+                    "error": "Origin coordinates not set on GCS"
+                }), 400
+
             origin_lat = float(origin['lat'])
             origin_lon = float(origin['lon'])
+            origin_alt = float(origin.get('alt', 0))
 
-            # Step 2: Get the drones' configuration
+            # Load drone config
             drones_config = load_config()
             if not drones_config:
-                return jsonify({"error": "No drones configuration found"}), 500
+                return jsonify({
+                    "status": "error",
+                    "error": "No drones configuration found"
+                }), 500
 
-            # Step 3: Get telemetry data with thread-safe access
+            # Get telemetry data (thread-safe)
             with data_lock:
                 telemetry_data_copy = telemetry_data_all_drones.copy()
 
-            # Step 4: Calculate deviations
-            deviations = calculate_position_deviations(
-                telemetry_data_copy, drones_config, origin_lat, origin_lon
-            )
+            # Calculate deviations with enhanced data structure
+            deviations = {}
+            summary_stats = {
+                'total_drones': len(drones_config),
+                'online': 0,
+                'within_threshold': 0,
+                'warnings': 0,
+                'errors': 0,
+                'no_telemetry': 0,
+                'best_deviation': float('inf'),
+                'worst_deviation': 0,
+                'total_deviation_sum': 0
+            }
 
-            # Step 5: Return deviations
-            return jsonify(deviations), 200
+            threshold_warning = Params.acceptable_deviation  # e.g., 2.0m
+            threshold_error = threshold_warning * 2.5  # e.g., 5.0m
+
+            for drone in drones_config:
+                hw_id = drone.get('hw_id')
+                if not hw_id:
+                    continue
+
+                # Get expected position from config (x=North, y=East)
+                try:
+                    expected_north = float(drone.get('x', 0))
+                    expected_east = float(drone.get('y', 0))
+                except (TypeError, ValueError):
+                    deviations[hw_id] = {
+                        "status": "error",
+                        "message": "Invalid config position data"
+                    }
+                    summary_stats['errors'] += 1
+                    continue
+
+                # Calculate expected GPS position
+                try:
+                    expected_lat, expected_lon, expected_alt = pm.ned2geodetic(
+                        expected_north, expected_east, 0,
+                        origin_lat, origin_lon, origin_alt
+                    )
+                except Exception as e:
+                    deviations[hw_id] = {
+                        "status": "error",
+                        "message": f"Coordinate conversion error: {str(e)}"
+                    }
+                    summary_stats['errors'] += 1
+                    continue
+
+                # Get current position from telemetry
+                drone_telemetry = telemetry_data_copy.get(hw_id, {})
+                current_lat = drone_telemetry.get('Position_Lat')
+                current_lon = drone_telemetry.get('Position_Long')
+                current_alt = drone_telemetry.get('Position_Alt')
+
+                # Check if telemetry available
+                if current_lat is None or current_lon is None:
+                    deviations[hw_id] = {
+                        "hw_id": hw_id,
+                        "pos_id": drone.get('pos_id', hw_id),
+                        "expected": {
+                            "lat": expected_lat,
+                            "lon": expected_lon,
+                            "north": expected_north,
+                            "east": expected_east
+                        },
+                        "current": None,
+                        "deviation": None,
+                        "status": "no_telemetry",
+                        "message": "No GPS data available"
+                    }
+                    summary_stats['no_telemetry'] += 1
+                    continue
+
+                # Parse telemetry values
+                try:
+                    current_lat = float(current_lat)
+                    current_lon = float(current_lon)
+                    current_alt = float(current_alt) if current_alt is not None else None
+                except (TypeError, ValueError):
+                    deviations[hw_id] = {
+                        "hw_id": hw_id,
+                        "pos_id": drone.get('pos_id', hw_id),
+                        "expected": {
+                            "lat": expected_lat,
+                            "lon": expected_lon,
+                            "north": expected_north,
+                            "east": expected_east
+                        },
+                        "current": None,
+                        "deviation": None,
+                        "status": "error",
+                        "message": "Invalid telemetry data"
+                    }
+                    summary_stats['errors'] += 1
+                    continue
+
+                # Convert current GPS to NED
+                try:
+                    current_north, current_east, current_down = pm.geodetic2ned(
+                        current_lat, current_lon, current_alt or origin_alt,
+                        origin_lat, origin_lon, origin_alt
+                    )
+                except Exception as e:
+                    deviations[hw_id] = {
+                        "hw_id": hw_id,
+                        "pos_id": drone.get('pos_id', hw_id),
+                        "status": "error",
+                        "message": f"NED conversion error: {str(e)}"
+                    }
+                    summary_stats['errors'] += 1
+                    continue
+
+                # Calculate deviations
+                deviation_north = current_north - expected_north
+                deviation_east = current_east - expected_east
+                deviation_horizontal = math.sqrt(deviation_north**2 + deviation_east**2)
+
+                deviation_vertical = abs(current_down) if current_alt is not None else 0
+                deviation_total_3d = math.sqrt(deviation_north**2 + deviation_east**2 + deviation_vertical**2)
+
+                # Determine GPS quality
+                satellites = drone_telemetry.get('Satellites', 0)
+                hdop = drone_telemetry.get('HDOP', 99)
+
+                try:
+                    satellites = int(satellites)
+                    hdop = float(hdop)
+                except:
+                    satellites = 0
+                    hdop = 99
+
+                # GPS quality classification
+                if satellites >= 10 and hdop < 1.5:
+                    gps_quality = 'excellent'
+                elif satellites >= 8 and hdop < 2.0:
+                    gps_quality = 'good'
+                elif satellites >= 6 and hdop < 5.0:
+                    gps_quality = 'fair'
+                elif satellites >= 4:
+                    gps_quality = 'poor'
+                else:
+                    gps_quality = 'no_fix'
+
+                # Determine status
+                within_threshold = deviation_horizontal <= threshold_warning
+
+                if gps_quality in ['no_fix', 'poor']:
+                    status = 'warning'
+                    message = f"Poor GPS quality ({gps_quality})"
+                    summary_stats['warnings'] += 1
+                elif deviation_horizontal > threshold_error:
+                    status = 'error'
+                    message = f"Deviation exceeds error threshold ({deviation_horizontal:.2f}m > {threshold_error}m)"
+                    summary_stats['errors'] += 1
+                elif deviation_horizontal > threshold_warning:
+                    status = 'warning'
+                    message = f"Deviation exceeds warning threshold ({deviation_horizontal:.2f}m > {threshold_warning}m)"
+                    summary_stats['warnings'] += 1
+                else:
+                    status = 'ok'
+                    message = "Position within acceptable range"
+                    summary_stats['within_threshold'] += 1
+
+                summary_stats['online'] += 1
+                summary_stats['total_deviation_sum'] += deviation_horizontal
+                summary_stats['best_deviation'] = min(summary_stats['best_deviation'], deviation_horizontal)
+                summary_stats['worst_deviation'] = max(summary_stats['worst_deviation'], deviation_horizontal)
+
+                # Build complete deviation data
+                deviations[hw_id] = {
+                    "hw_id": hw_id,
+                    "pos_id": drone.get('pos_id', hw_id),
+                    "expected": {
+                        "lat": expected_lat,
+                        "lon": expected_lon,
+                        "north": expected_north,
+                        "east": expected_east
+                    },
+                    "current": {
+                        "lat": current_lat,
+                        "lon": current_lon,
+                        "alt": current_alt,
+                        "north": current_north,
+                        "east": current_east,
+                        "timestamp": drone_telemetry.get('timestamp'),
+                        "gps_quality": gps_quality,
+                        "satellites": satellites,
+                        "hdop": hdop
+                    },
+                    "deviation": {
+                        "north": deviation_north,
+                        "east": deviation_east,
+                        "horizontal": deviation_horizontal,
+                        "vertical": deviation_vertical,
+                        "total_3d": deviation_total_3d,
+                        "within_threshold": within_threshold,
+                        "threshold_meters": threshold_warning
+                    },
+                    "status": status,
+                    "message": message
+                }
+
+            # Calculate average deviation
+            if summary_stats['online'] > 0:
+                summary_stats['average_deviation'] = summary_stats['total_deviation_sum'] / summary_stats['online']
+            else:
+                summary_stats['average_deviation'] = 0
+
+            # Reset best if no valid measurements
+            if summary_stats['best_deviation'] == float('inf'):
+                summary_stats['best_deviation'] = 0
+
+            del summary_stats['total_deviation_sum']  # Remove internal counter
+
+            # Return comprehensive response
+            response = {
+                "status": "success",
+                "origin": {
+                    "lat": origin_lat,
+                    "lon": origin_lon,
+                    "alt": origin_alt,
+                    "timestamp": origin.get('timestamp')
+                },
+                "deviations": deviations,
+                "summary": summary_stats
+            }
+
+            return jsonify(response), 200
 
         except Exception as e:
             log_system_error(f"Error in get_position_deviations: {e}", "origin")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({
+                "status": "error",
+                "error": str(e)
+            }), 500
 
     @app.route('/compute-origin', methods=['POST'])
     def compute_origin():
@@ -860,6 +1142,135 @@ def setup_routes(app):
         except Exception as e:
             log_system_error(f"Error in compute_origin endpoint: {e}", "origin")
             return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/get-desired-launch-positions', methods=['GET'])
+    def get_desired_launch_positions():
+        """
+        Calculate GPS coordinates for each drone's desired launch position.
+
+        Query Parameters:
+          - heading: float (optional, 0-359 degrees, default 0)
+          - format: str (optional, 'json'|'csv'|'kml', default 'json')
+
+        Returns:
+          JSON response with origin, drone positions, and formation metadata
+        """
+        try:
+            # Load origin
+            origin_data = load_origin()
+            if not origin_data.get('lat') or not origin_data.get('lon'):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Origin not set. Please set origin coordinates first.'
+                }), 400
+
+            origin_lat = float(origin_data['lat'])
+            origin_lon = float(origin_data['lon'])
+            origin_alt = float(origin_data.get('alt', 0))
+
+            # Get optional heading parameter
+            heading = float(request.args.get('heading', 0))
+            heading = heading % 360  # Normalize to 0-359
+
+            # Load drone config
+            config = load_config()
+            if not config:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No drone configuration found'
+                }), 404
+
+            # Calculate positions
+            drones_data = []
+            formation_extent = {
+                'max_north': float('-inf'),
+                'max_east': float('-inf'),
+                'max_south': float('inf'),
+                'max_west': float('inf')
+            }
+
+            for drone in config:
+                hw_id = drone.get('hw_id')
+                pos_id = drone.get('pos_id', hw_id)
+
+                # Get config x, y (x=North, y=East as per coordinate system)
+                config_north = float(drone.get('x', 0))
+                config_east = float(drone.get('y', 0))
+
+                # Apply heading rotation if specified
+                if heading != 0:
+                    # Rotate coordinates clockwise by heading angle
+                    heading_rad = math.radians(heading)
+                    rotated_north = config_north * math.cos(heading_rad) - config_east * math.sin(heading_rad)
+                    rotated_east = config_north * math.sin(heading_rad) + config_east * math.cos(heading_rad)
+                    config_north = rotated_north
+                    config_east = rotated_east
+
+                # Update formation extent
+                formation_extent['max_north'] = max(formation_extent['max_north'], config_north)
+                formation_extent['max_east'] = max(formation_extent['max_east'], config_east)
+                formation_extent['max_south'] = min(formation_extent['max_south'], config_north)
+                formation_extent['max_west'] = min(formation_extent['max_west'], config_east)
+
+                # Convert NED to LLA using pymap3d
+                # pymap3d.ned2geodetic(north, east, down, lat0, lon0, alt0)
+                launch_lat, launch_lon, launch_alt = pm.ned2geodetic(
+                    config_north,
+                    config_east,
+                    0,  # down = 0 (at origin altitude)
+                    origin_lat,
+                    origin_lon,
+                    origin_alt
+                )
+
+                # Calculate distance and bearing for metadata
+                distance = math.sqrt(config_north**2 + config_east**2)
+                bearing = math.degrees(math.atan2(config_east, config_north)) % 360
+
+                drones_data.append({
+                    'hw_id': hw_id,
+                    'pos_id': pos_id,
+                    'config_north': config_north,
+                    'config_east': config_east,
+                    'launch_lat': launch_lat,
+                    'launch_lon': launch_lon,
+                    'launch_alt_msl': launch_alt,
+                    'distance_from_origin': distance,
+                    'bearing_from_origin': bearing
+                })
+
+            # Calculate formation diameter
+            north_span = formation_extent['max_north'] - formation_extent['max_south']
+            east_span = formation_extent['max_east'] - formation_extent['max_west']
+            diameter = math.sqrt(north_span**2 + east_span**2)
+            formation_extent['diameter'] = diameter
+
+            # Prepare response
+            response = {
+                'status': 'success',
+                'origin': {
+                    'lat': origin_lat,
+                    'lon': origin_lon,
+                    'alt': origin_alt,
+                    'heading': heading
+                },
+                'drones': drones_data,
+                'metadata': {
+                    'total_drones': len(drones_data),
+                    'formation_extent': formation_extent,
+                    'timestamp': datetime.now().isoformat()
+                }
+            }
+
+            log_system_event(f"Calculated {len(drones_data)} launch positions (heading={heading}°)", "INFO", "origin")
+            return jsonify(response), 200
+
+        except Exception as e:
+            log_system_error(f"Error in get_desired_launch_positions: {e}", "origin")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
 
     # ========================================================================
     # GIT STATUS ENDPOINTS (preserving original)
