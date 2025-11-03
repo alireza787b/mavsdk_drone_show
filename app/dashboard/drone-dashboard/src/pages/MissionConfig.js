@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import '../styles/MissionConfig.css';
 
 // Components
-import InitialLaunchPlot from '../components/InitialLaunchPlot';
+import PositionTabs from '../components/PositionTabs';
 import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import MissionLayout from '../components/MissionLayout';
@@ -248,6 +248,27 @@ const MissionConfig = () => {
   };
 
   // -----------------------------------------------------
+  // Manual refresh for position deviations
+  // -----------------------------------------------------
+  const handleManualRefresh = () => {
+    if (!originAvailable) {
+      toast.warning('Origin must be set before fetching position deviations.');
+      return;
+    }
+
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    axios
+      .get(`${backendURL}/get-position-deviations`)
+      .then((response) => {
+        setDeviationData(response.data);
+      })
+      .catch((error) => {
+        console.error('Error fetching position deviations:', error);
+        toast.error('Failed to refresh position data.');
+      });
+  };
+
+  // -----------------------------------------------------
   // File ops & config save
   // -----------------------------------------------------
   const handleFileChangeWrapper = (e) => {
@@ -403,11 +424,13 @@ const MissionConfig = () => {
         </div>
 
         <div className="initial-launch-plot slide-in-right">
-          <InitialLaunchPlot
+          <PositionTabs
             drones={configData}
-            onDroneClick={setEditingDroneId}
             deviationData={deviationData}
+            origin={origin}
             forwardHeading={forwardHeading}
+            onDroneClick={setEditingDroneId}
+            onRefresh={handleManualRefresh}
           />
 
           <DronePositionMap

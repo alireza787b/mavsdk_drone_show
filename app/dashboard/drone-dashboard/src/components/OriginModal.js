@@ -35,6 +35,10 @@ const OriginModal = ({
   const [selectedDroneId, setSelectedDroneId] = useState('');
   const [errors, setErrors] = useState({});
 
+  // Altitude support (optional)
+  const [altitude, setAltitude] = useState('');
+  const [altitudeSource, setAltitudeSource] = useState('manual');
+
   // A flag to ensure we auto-compute only once when a drone is first picked.
   const [hasAutoComputed, setHasAutoComputed] = useState(false);
 
@@ -51,9 +55,16 @@ const OriginModal = ({
         setCoordinateInput(`${currentOrigin.lat}, ${currentOrigin.lon}`);
         setSelectedLatLon({ lat: currentOrigin.lat, lon: currentOrigin.lon });
         setOriginMethod('manual');
+        // Load altitude if available
+        if (currentOrigin.alt !== undefined && currentOrigin.alt !== null) {
+          setAltitude(currentOrigin.alt.toString());
+          setAltitudeSource(currentOrigin.alt_source || 'manual');
+        }
       } else {
         setCoordinateInput('');
         setSelectedLatLon(null);
+        setAltitude('');
+        setAltitudeSource('manual');
       }
 
       // Reset states
@@ -192,18 +203,29 @@ const OriginModal = ({
   // ------------------------------------------
   const handleSubmit = () => {
     if (originMethod === 'manual') {
+      let originData;
+
       if (selectedLatLon) {
-        onSubmit({ lat: selectedLatLon.lat, lon: selectedLatLon.lon });
-        toast.success('Origin set successfully.');
-        onClose();
+        originData = {
+          lat: selectedLatLon.lat,
+          lon: selectedLatLon.lon
+        };
       } else {
         const validated = validateManualInput();
-        if (validated) {
-          onSubmit(validated);
-          toast.success('Origin set successfully.');
-          onClose();
-        }
+        if (!validated) return;
+        originData = validated;
       }
+
+      // Add altitude if provided
+      if (altitude && altitude.trim() !== '') {
+        originData.alt = parseFloat(altitude);
+        originData.alt_source = 'manual';
+      }
+
+      onSubmit(originData);
+      toast.success('Origin set successfully.');
+      onClose();
+
     } else {
       // Drone-based
       if (!selectedDroneId) {
@@ -212,7 +234,18 @@ const OriginModal = ({
       }
       if (origin) {
         // We have a computed origin => finalize
-        onSubmit(origin);
+        // Add altitude from drone telemetry if available
+        const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
+        const tData = telemetryData[selectedDrone?.hw_id] || {};
+        const droneAlt = tData.absolute_altitude_m || tData.Position_Alt;
+
+        const originData = { ...origin };
+        if (droneAlt && !isNaN(parseFloat(droneAlt))) {
+          originData.alt = parseFloat(droneAlt);
+          originData.alt_source = 'drone';
+        }
+
+        onSubmit(originData);
         toast.success('Origin set successfully.');
         onClose();
       } else {
@@ -271,6 +304,20 @@ const OriginModal = ({
             </label>
             {errors.input && <span className="error-message">{errors.input}</span>}
 
+            <label style={{marginTop: '1rem'}}>
+              Altitude MSL (optional, meters):
+              <input
+                type="number"
+                step="0.1"
+                value={altitude}
+                onChange={(e) => setAltitude(e.target.value)}
+                placeholder="Ground level (default: 0m)"
+              />
+            </label>
+            <small className="help-text" style={{display: 'block', marginTop: '0.25rem', color: '#666'}}>
+              Mean Sea Level altitude in meters. Leave blank for ground level (0m).
+            </small>
+
             <p className="or-text">OR</p>
             <MapSelector
               onSelect={setSelectedLatLon}
@@ -314,6 +361,14 @@ const OriginModal = ({
                 <p><strong>Computed Origin:</strong></p>
                 <p>Latitude: {origin.lat.toFixed(8)}</p>
                 <p>Longitude: {origin.lon.toFixed(8)}</p>
+                {selectedDroneId && (() => {
+                  const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
+                  const tData = telemetryData[selectedDrone?.hw_id] || {};
+                  const droneAlt = tData.absolute_altitude_m || tData.Position_Alt;
+                  return droneAlt && !isNaN(parseFloat(droneAlt)) ? (
+                    <p>Altitude: {parseFloat(droneAlt).toFixed(1)}m MSL (from drone)</p>
+                  ) : null;
+                })()}
               </div>
             )}
 
