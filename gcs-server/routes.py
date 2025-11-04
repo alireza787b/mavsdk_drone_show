@@ -404,10 +404,25 @@ def setup_routes(app):
                 zip_ref.extractall(skybrush_dir)
             os.remove(zip_path)
 
-            # 4) Process formation
+            # 4) Process formation with enhanced logging
             log_system_event(f"⚙️ Processing show files from {skybrush_dir}", "INFO", "show")
+
+            # Count input files before processing
+            input_files = [f for f in os.listdir(skybrush_dir) if f.endswith('.csv')]
+            input_count = len(input_files)
+            log_system_event(f"📊 Input: {input_count} drone CSV files detected", "INFO", "show")
+
             output = run_formation_process(BASE_DIR)
-            log_system_event(f"✅ Show processing completed: {output[:100]}{'...' if len(output) > 100 else ''}", "INFO", "show")
+
+            # Verify processing results
+            processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
+            processed_count = len(processed_files)
+
+            if processed_count == input_count:
+                log_system_event(f"✅ Show processing completed successfully: {processed_count}/{input_count} drones processed", "INFO", "show")
+            else:
+                log_system_error(f"⚠️ Processing mismatch: {processed_count}/{input_count} drones processed", "show")
+                # Continue anyway but log the issue
 
             # 5) Calculate comprehensive metrics (new feature)
             comprehensive_metrics = None
@@ -445,19 +460,32 @@ def setup_routes(app):
                     log_system_error(f"Git operations failed: {git_result.get('message')}", "show")
                 
                 response_data = {
-                    'success': True, 
-                    'message': output, 
-                    'git_info': git_result
+                    'success': True,
+                    'message': output,
+                    'git_info': git_result,
+                    'processing_stats': {
+                        'input_count': input_count,
+                        'processed_count': processed_count,
+                        'validation_passed': processed_count == input_count
+                    }
                 }
                 if comprehensive_metrics:
                     response_data['comprehensive_metrics'] = comprehensive_metrics
-                
+
                 return jsonify(response_data)
             else:
-                response_data = {'success': True, 'message': output}
+                response_data = {
+                    'success': True,
+                    'message': output,
+                    'processing_stats': {
+                        'input_count': input_count,
+                        'processed_count': processed_count,
+                        'validation_passed': processed_count == input_count
+                    }
+                }
                 if comprehensive_metrics:
                     response_data['comprehensive_metrics'] = comprehensive_metrics
-                
+
                 return jsonify(response_data)
         except Exception as e:
             log_system_error(f"Unexpected error during show import: {traceback.format_exc()}", "show")

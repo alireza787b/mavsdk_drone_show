@@ -74,7 +74,7 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
 def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
     """
     3D path visualization in a North–East–Up frame.
-    
+
     We read from the 'processed' folder, which now stores NED columns:
       px = north, py = east, pz = down
 
@@ -88,7 +88,9 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
       2) Create a combined 3D plot overlaying all drone paths.
       3) Axes are labeled as (North (m), East (m), Up (m)) with indicative arrows.
     """
-    logging.info("[plot_drone_paths] Generating 3D path visuals...")
+    logging.info("[plot_drone_paths] ============================================")
+    logging.info("[plot_drone_paths] Starting 3D visualization generation...")
+    logging.info("[plot_drone_paths] ============================================")
 
     if high_quality:
         setup_matplotlib_style()
@@ -101,8 +103,11 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
 
     processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
     if not processed_files:
-        logging.warning("[plot_drone_paths] No processed CSV files found.")
-        return
+        logging.error("[plot_drone_paths] ❌ ERROR: No processed CSV files found.")
+        raise RuntimeError("Cannot generate plots: No processed CSV files found")
+
+    logging.info(f"[plot_drone_paths] ✅ Found {len(processed_files)} processed file(s).")
+    logging.info(f"[plot_drone_paths] Input files: {sorted(processed_files)}")
 
     # Color mapping
     num_drones    = len(processed_files)
@@ -213,5 +218,31 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
     if show_plots:
         plt.show()
     plt.close(fig_c)
+
+    # ====================================================================
+    # CRITICAL VALIDATION: Verify all plots were generated
+    # ====================================================================
+    expected_plot_count = len(processed_files) + 1  # Individual plots + combined
+    actual_plots = [f for f in os.listdir(plots_dir) if f.endswith('.jpg')]
+    actual_plot_count = len(actual_plots)
+
+    logging.info("[plot_drone_paths] ============================================")
+    logging.info("[plot_drone_paths] Plot Generation Summary:")
+    logging.info(f"[plot_drone_paths]   Processed files:  {len(processed_files)}")
+    logging.info(f"[plot_drone_paths]   Expected plots:   {expected_plot_count} ({len(processed_files)} individual + 1 combined)")
+    logging.info(f"[plot_drone_paths]   Generated plots:  {actual_plot_count}")
+
+    if actual_plot_count == expected_plot_count:
+        logging.info(f"[plot_drone_paths] ✅ SUCCESS: All {expected_plot_count} plots generated correctly!")
+        logging.info(f"[plot_drone_paths] Generated files: {sorted(actual_plots)}")
+    else:
+        missing_count = expected_plot_count - actual_plot_count
+        logging.error(f"[plot_drone_paths] ⚠️ WARNING: {missing_count} plot(s) missing!")
+        logging.error(f"[plot_drone_paths] Expected {expected_plot_count} but found {actual_plot_count}")
+
+        # Raise warning but don't fail the entire process
+        logging.warning("[plot_drone_paths] Plot generation incomplete - some visualizations may be missing")
+
+    logging.info("[plot_drone_paths] ============================================")
 
     logging.info("[plot_drone_paths] All plots generated (N–E–Up).")
