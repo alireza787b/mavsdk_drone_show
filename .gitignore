@@ -34,8 +34,10 @@ MANIFEST
 shapes/plots/*.jpg
 shapes/trajectory/
 shapes_sitl/trajectory/
-shapes/swarm/processed/
-shapes_sitl/swarm/processed/
+# CRITICAL: DO NOT ignore processed directories - these contain mission-critical drone trajectory files
+# that must be version controlled for safety, traceability, and team collaboration
+# shapes/swarm/processed/
+# shapes_sitl/swarm/processed/
 
 
 

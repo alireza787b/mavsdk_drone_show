@@ -454,11 +454,68 @@ def setup_routes(app):
                     BASE_DIR,
                     f"Update from upload: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {file.filename}"
                 )
+
+                # ====================================================================
+                # CRITICAL VERIFICATION: Check git tracking status
+                # ====================================================================
+                git_tracking_stats = {
+                    'committed_count': 0,
+                    'ignored_count': 0,
+                    'untracked_files': [],
+                    'tracking_complete': False
+                }
+
+                try:
+                    from git import Repo
+                    repo = Repo(BASE_DIR)
+
+                    # Get tracked processed files
+                    tracked_processed = repo.git.ls_files('shapes/swarm/processed').split('\n') if repo.git.ls_files('shapes/swarm/processed') else []
+                    tracked_processed = [f for f in tracked_processed if f.endswith('.csv')]
+
+                    # Get filesystem processed files
+                    filesystem_processed = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
+
+                    git_tracking_stats['committed_count'] = len(tracked_processed)
+                    git_tracking_stats['ignored_count'] = len(filesystem_processed) - len(tracked_processed)
+
+                    # Identify untracked files
+                    tracked_basenames = {os.path.basename(f) for f in tracked_processed}
+                    filesystem_basenames = set(filesystem_processed)
+                    untracked = filesystem_basenames - tracked_basenames
+
+                    if untracked:
+                        git_tracking_stats['untracked_files'] = sorted(list(untracked))
+                        log_system_warning(
+                            f"⚠️ Git tracking incomplete: {len(untracked)} processed files NOT tracked: {untracked}",
+                            "show"
+                        )
+                    else:
+                        git_tracking_stats['tracking_complete'] = True
+
+                except Exception as track_error:
+                    log_system_warning(f"Could not verify git tracking: {track_error}", "show")
+
                 if git_result.get('success'):
-                    log_system_event("Git operations successful.", "INFO", "show")
+                    if git_tracking_stats['tracking_complete']:
+                        log_system_event(f"✅ Git operations successful. {git_tracking_stats['committed_count']} drone files tracked.", "INFO", "show")
+                    else:
+                        log_system_warning(f"⚠️ Git succeeded but {git_tracking_stats['ignored_count']} files not tracked!", "show")
                 else:
                     log_system_error(f"Git operations failed: {git_result.get('message')}", "show")
                 
+                # Calculate show health status
+                show_health_status = "healthy"
+                health_issues = []
+
+                if processed_count != input_count:
+                    show_health_status = "error"
+                    health_issues.append(f"Processing incomplete: {processed_count}/{input_count} drones")
+
+                if not git_tracking_stats['tracking_complete']:
+                    show_health_status = "warning" if show_health_status == "healthy" else "error"
+                    health_issues.append(f"{git_tracking_stats['ignored_count']} files not tracked in git")
+
                 response_data = {
                     'success': True,
                     'message': output,
@@ -467,6 +524,11 @@ def setup_routes(app):
                         'input_count': input_count,
                         'processed_count': processed_count,
                         'validation_passed': processed_count == input_count
+                    },
+                    'git_tracking_stats': git_tracking_stats,
+                    'show_health': {
+                        'status': show_health_status,
+                        'issues': health_issues
                     }
                 }
                 if comprehensive_metrics:
@@ -474,6 +536,10 @@ def setup_routes(app):
 
                 return jsonify(response_data)
             else:
+                # No git push, but still validate processing
+                show_health_status = "healthy" if processed_count == input_count else "error"
+                health_issues = [] if processed_count == input_count else [f"Processing incomplete: {processed_count}/{input_count} drones"]
+
                 response_data = {
                     'success': True,
                     'message': output,
@@ -481,6 +547,10 @@ def setup_routes(app):
                         'input_count': input_count,
                         'processed_count': processed_count,
                         'validation_passed': processed_count == input_count
+                    },
+                    'show_health': {
+                        'status': show_health_status,
+                        'issues': health_issues
                     }
                 }
                 if comprehensive_metrics:

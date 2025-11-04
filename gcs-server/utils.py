@@ -82,8 +82,37 @@ def git_operations(base_dir, commit_message):
         if repo.is_dirty(untracked_files=True):
             logging.info("Staging changes...")
             repo.git.add('--all')
+
             logging.info("Committing changes...")
-            repo.index.commit(commit_message)
+            commit_obj = repo.index.commit(commit_message)
+
+            # ====================================================================
+            # CRITICAL VERIFICATION: Check what was actually committed
+            # ====================================================================
+            try:
+                committed_files = list(commit_obj.stats.files.keys())
+                file_count = len(committed_files)
+
+                logging.info(f"✅ Git commit successful: {file_count} file(s) committed")
+
+                # Log first 10 files for verification
+                for filepath in committed_files[:10]:
+                    logging.info(f"  ✓ {filepath}")
+                if file_count > 10:
+                    logging.info(f"  ... and {file_count - 10} more file(s)")
+
+                # Check for critical drone show files
+                processed_committed = [f for f in committed_files if 'swarm/processed/' in f and f.endswith('.csv')]
+                skybrush_committed = [f for f in committed_files if 'swarm/skybrush/' in f and f.endswith('.csv')]
+
+                if processed_committed:
+                    logging.info(f"📊 Committed {len(processed_committed)} processed drone file(s)")
+                if skybrush_committed:
+                    logging.info(f"📂 Committed {len(skybrush_committed)} raw drone file(s)")
+
+            except Exception as verify_error:
+                logging.warning(f"Could not verify committed files: {verify_error}")
+                # Don't fail the entire operation, just log the warning
 
         # Pull latest changes with rebase
         logging.info("Rebasing local changes on top of remote changes...")
