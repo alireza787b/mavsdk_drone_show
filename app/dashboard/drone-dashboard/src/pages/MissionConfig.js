@@ -9,6 +9,7 @@ import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
+import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import axios from 'axios';
 
@@ -42,6 +43,10 @@ const MissionConfig = () => {
   const [originAvailable, setOriginAvailable] = useState(false);
   const [showOriginModal, setShowOriginModal] = useState(false);
 
+  // GCS Configuration
+  const [showGcsConfigModal, setShowGcsConfigModal] = useState(false);
+  const [gcsConfig, setGcsConfig] = useState({ gcs_ip: null });
+
   // Deviations
   const [deviationData, setDeviationData] = useState({});
 
@@ -61,6 +66,7 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   const { data: configDataFetched } = useFetch('/get-config-data');
   const { data: originDataFetched } = useFetch('/get-origin');
+  const { data: gcsConfigFetched } = useFetch('/get-gcs-config', null);
   const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
   const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
   const { data: gcsGitStatusFetched } = useFetch('/get-gcs-git-status', 30000);
@@ -141,6 +147,12 @@ const MissionConfig = () => {
     }
   }, [heartbeatsFetched]);
 
+  useEffect(() => {
+    if (gcsConfigFetched && gcsConfigFetched.gcs_ip) {
+      setGcsConfig(gcsConfigFetched);
+    }
+  }, [gcsConfigFetched]);
+
   // -----------------------------------------------------
   // Detect & add "new" drones by heartbeat
   // -----------------------------------------------------
@@ -158,8 +170,8 @@ const MissionConfig = () => {
           x: '0',
           y: '0',
           mavlink_port: (14550 + parseInt(hbHwId, 10)).toString(),
-          debug_port: (13540 + parseInt(hbHwId, 10)).toString(),
-          gcs_ip: configData.length > 0 ? configData[0].gcs_ip : '',
+          serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
+          baudrate: '57600',           // Standard baudrate
           isNew: true,
         });
       }
@@ -196,9 +208,6 @@ const MissionConfig = () => {
     const newHwId = availableHwIds[0]?.toString() || maxHwId.toString();
     if (!newHwId) return;
 
-    const allSameGcsIp = configData.every(
-      (drone) => drone.gcs_ip === configData[0]?.gcs_ip
-    );
     const commonSubnet = configData.length > 0
       ? configData[0].ip.split('.').slice(0, -1).join('.') + '.'
       : '';
@@ -207,8 +216,6 @@ const MissionConfig = () => {
       hw_id: newHwId,
       ip: commonSubnet,
       mavlink_port: (14550 + parseInt(newHwId, 10)).toString(),
-      debug_port: (13540 + parseInt(newHwId, 10)).toString(),
-      gcs_ip: allSameGcsIp ? configData[0].gcs_ip : '',
       x: '0',
       y: '0',
       pos_id: newHwId,
@@ -247,6 +254,43 @@ const MissionConfig = () => {
         console.error('Error saving origin to backend:', error);
         toast.error('Failed to save origin to server.');
       });
+  };
+
+  // -----------------------------------------------------
+  // GCS Configuration Modal submission
+  // -----------------------------------------------------
+  const handleGcsConfigSubmit = async (newGcsConfig) => {
+    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+
+    try {
+      const response = await axios.post(`${backendURL}/save-gcs-config`, newGcsConfig);
+
+      if (response.data.success) {
+        setGcsConfig(newGcsConfig);
+        setShowGcsConfigModal(false);
+
+        // Show success message with warnings
+        toast.success(response.data.message || 'GCS IP updated successfully');
+
+        if (response.data.warnings && response.data.warnings.length > 0) {
+          response.data.warnings.forEach(warning => {
+            toast.warning(warning, { autoClose: 8000 });
+          });
+        }
+
+        if (response.data.git_status) {
+          toast.info(`Git: ${response.data.git_status}`, { autoClose: 5000 });
+        }
+      } else {
+        toast.error(response.data.message || 'Failed to update GCS IP');
+      }
+    } catch (error) {
+      console.error('Error saving GCS configuration:', error);
+      toast.error(
+        error.response?.data?.message ||
+        'Failed to save GCS configuration to server.'
+      );
+    }
   };
 
   // -----------------------------------------------------
@@ -312,6 +356,7 @@ const MissionConfig = () => {
         handleFileChange={handleFileChangeWrapper}
         exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
+        openGcsConfigModal={() => setShowGcsConfigModal(true)}
         configData={configData}
         setConfigData={setConfigData}
         loading={loading}
@@ -335,6 +380,16 @@ const MissionConfig = () => {
           telemetryData={telemetryDataFetched || {}}
           configData={configData}
           currentOrigin={origin}
+        />
+      )}
+
+      {/* GCS Configuration Modal */}
+      {showGcsConfigModal && (
+        <GcsConfigModal
+          isOpen={showGcsConfigModal}
+          onClose={() => setShowGcsConfigModal(false)}
+          onSubmit={handleGcsConfigSubmit}
+          currentGcsIp={gcsConfig.gcs_ip}
         />
       )}
 

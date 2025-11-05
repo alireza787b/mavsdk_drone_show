@@ -1371,6 +1371,123 @@ def setup_routes(app):
             }), 500
 
     # ========================================================================
+    # GCS CONFIGURATION ENDPOINTS
+    # ========================================================================
+
+    @app.route('/get-gcs-config', methods=['GET'])
+    def get_gcs_config():
+        """
+        Get current GCS IP configuration from Params.
+
+        Returns:
+            JSON with current GCS_IP and related settings
+        """
+        try:
+            from src.params import Params
+
+            return jsonify({
+                'status': 'success',
+                'data': {
+                    'gcs_ip': Params.GCS_IP,
+                    'gcs_flask_port': Params.GCS_FLASK_PORT,
+                    'git_auto_push': Params.GIT_AUTO_PUSH,
+                    'git_branch': Params.GIT_BRANCH,
+                    'simulation_mode': Params.sim_mode
+                },
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            log_system_error(f"Error loading GCS config: {e}", "config")
+            return jsonify({
+                'status': 'error',
+                'message': f"Error loading GCS config: {e}"
+            }), 500
+
+    @app.route('/save-gcs-config', methods=['POST'])
+    def save_gcs_config():
+        """
+        Update GCS IP in src/params.py and commit to git.
+
+        Request body:
+            - gcs_ip: string (required) - New GCS IP address
+
+        Returns:
+            JSON with success/error and git info
+        """
+        try:
+            data = request.get_json()
+            new_gcs_ip = data.get('gcs_ip')
+
+            if not new_gcs_ip:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'gcs_ip is required'
+                }), 400
+
+            log_system_event(f"GCS IP update requested: {new_gcs_ip}", "INFO", "config")
+
+            # Update params.py file
+            from gcs_config_updater import update_gcs_ip_in_params
+            update_result = update_gcs_ip_in_params(new_gcs_ip)
+
+            if not update_result.get('success'):
+                return jsonify({
+                    'status': 'error',
+                    'message': update_result.get('error')
+                }), 400
+
+            # Check if no change was made
+            if update_result.get('no_change'):
+                log_system_event(f"GCS IP unchanged: {new_gcs_ip}", "INFO", "config")
+                return jsonify({
+                    'status': 'success',
+                    'message': 'GCS IP is already set to this value',
+                    'data': {
+                        'old_ip': update_result.get('old_ip'),
+                        'new_ip': new_gcs_ip
+                    },
+                    'no_change': True
+                }), 200
+
+            log_system_event(f"✅ GCS IP updated in params.py: {new_gcs_ip}", "INFO", "config")
+
+            # Git commit and push
+            git_info = None
+            if Params.GIT_AUTO_PUSH:
+                log_system_event("Git auto-push enabled. Committing GCS config changes.", "INFO", "config")
+                git_result = git_operations(
+                    BASE_DIR,
+                    f"Update GCS IP configuration to {new_gcs_ip}: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                if git_result.get('success'):
+                    log_system_event("Git operations successful.", "INFO", "config")
+                else:
+                    log_system_error(f"Git operations failed: {git_result.get('message')}", "config")
+                git_info = git_result
+
+            response_data = {
+                'status': 'success',
+                'message': 'GCS IP configuration updated successfully',
+                'data': {
+                    'old_ip': update_result.get('old_ip'),
+                    'new_ip': new_gcs_ip
+                },
+                'warning': '⚠️  All drones and GCS must be restarted to apply changes'
+            }
+
+            if git_info:
+                response_data['git_info'] = git_info
+
+            return jsonify(response_data), 200
+
+        except Exception as e:
+            log_system_error(f"Error saving GCS config: {e}", "config")
+            return jsonify({
+                'status': 'error',
+                'message': f"Error saving GCS config: {e}"
+            }), 500
+
+    # ========================================================================
     # GIT STATUS ENDPOINTS (preserving original)
     # ========================================================================
     

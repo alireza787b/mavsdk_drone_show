@@ -196,8 +196,8 @@ def read_config(filename=Params.config_csv_name):
                         'y': float(row.get('y', 0.0)),
                         'ip': row.get('ip', ''),
                         'udp_port': int(row.get('mavlink_port', UDP_PORT)),
-                        'grpc_port': int(row.get('debug_port', GRPC_PORT)),
-                        'gcs_ip': row.get('gcs_ip', ''),
+                        'grpc_port': 50040 + hw_id,  # Standard GRPC port calculation
+                        # Note: gcs_ip removed - now centralized in Params.GCS_IP
                     }
                     logger.info(f"Drone configuration: {drone_config}")
                     return drone_config

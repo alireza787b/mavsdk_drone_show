@@ -356,16 +356,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
 
           <div className="info-row">
-            <span className="info-label">Debug Port</span>
-            <span className="info-value">{drone.debug_port}</span>
-          </div>
-
-          <div className="info-row">
-            <span className="info-label">GCS IP</span>
-            <span className="info-value">{drone.gcs_ip}</span>
-          </div>
-
-          <div className="info-row">
             <span className="info-label">Serial Port</span>
             <span className="info-value">{drone.serial_port || '/dev/ttyS0'}</span>
           </div>
@@ -684,53 +674,21 @@ const DroneEditForm = memo(function DroneEditForm({
           )}
         </div>
 
-        {/* MavLink Port */}
+        {/* MAVLink Port */}
         <div className="form-field">
-          <label className="form-label">MavLink Port</label>
+          <label className="form-label">MAVLink Port</label>
           <input
             type="text"
             name="mavlink_port"
             value={droneData.mavlink_port}
             onChange={handleGenericChange}
             className="form-input"
-            placeholder="Enter MavLink Port"
-            aria-label="MavLink Port"
+            placeholder="Enter MAVLink Port"
+            aria-label="MAVLink Port"
           />
           {errors.mavlink_port && (
             <span className="error-message">{errors.mavlink_port}</span>
           )}
-        </div>
-
-        {/* Debug Port */}
-        <div className="form-field">
-          <label className="form-label">Debug Port</label>
-          <input
-            type="text"
-            name="debug_port"
-            value={droneData.debug_port}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter Debug Port"
-            aria-label="Debug Port"
-          />
-          {errors.debug_port && (
-            <span className="error-message">{errors.debug_port}</span>
-          )}
-        </div>
-
-        {/* GCS IP */}
-        <div className="form-field">
-          <label className="form-label">GCS IP</label>
-          <input
-            type="text"
-            name="gcs_ip"
-            value={droneData.gcs_ip}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter GCS IP"
-            aria-label="GCS IP"
-          />
-          {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
         </div>
 
         {/* Serial Port */}
@@ -738,8 +696,18 @@ const DroneEditForm = memo(function DroneEditForm({
           <label className="form-label">Serial Port</label>
           <select
             name="serial_port"
-            value={droneData.serial_port || '/dev/ttyS0'}
-            onChange={handleGenericChange}
+            value={
+              ['/dev/ttyS0', '/dev/ttyAMA0', '/dev/ttyTHS1', 'N/A'].includes(droneData.serial_port)
+                ? droneData.serial_port
+                : 'CUSTOM'
+            }
+            onChange={(e) => {
+              if (e.target.value === 'CUSTOM') {
+                setDroneData({ ...droneData, serial_port: '' });
+              } else {
+                setDroneData({ ...droneData, serial_port: e.target.value });
+              }
+            }}
             className="form-input"
             aria-label="Serial Port"
           >
@@ -747,17 +715,44 @@ const DroneEditForm = memo(function DroneEditForm({
             <option value="/dev/ttyAMA0">/dev/ttyAMA0 (Raspberry Pi 5)</option>
             <option value="/dev/ttyTHS1">/dev/ttyTHS1 (Jetson)</option>
             <option value="N/A">N/A (SITL/Simulation)</option>
+            <option value="CUSTOM">Custom...</option>
           </select>
           {errors.serial_port && <span className="error-message">{errors.serial_port}</span>}
         </div>
+
+        {/* Custom Serial Port Input */}
+        {!['/dev/ttyS0', '/dev/ttyAMA0', '/dev/ttyTHS1', 'N/A'].includes(droneData.serial_port) && (
+          <div className="form-field">
+            <label className="form-label">Custom Serial Port</label>
+            <input
+              type="text"
+              name="serial_port"
+              value={droneData.serial_port || ''}
+              onChange={handleGenericChange}
+              className="form-input"
+              placeholder="e.g., /dev/ttyUSB0"
+              aria-label="Custom Serial Port"
+            />
+          </div>
+        )}
 
         {/* Baudrate */}
         <div className="form-field">
           <label className="form-label">Baudrate</label>
           <select
             name="baudrate"
-            value={droneData.baudrate || '57600'}
-            onChange={handleGenericChange}
+            value={
+              ['9600', '57600', '115200', '921600', 'N/A'].includes(droneData.baudrate)
+                ? droneData.baudrate
+                : 'CUSTOM'
+            }
+            onChange={(e) => {
+              if (e.target.value === 'CUSTOM') {
+                setDroneData({ ...droneData, baudrate: '' });
+              } else {
+                setDroneData({ ...droneData, baudrate: e.target.value });
+              }
+            }}
             className="form-input"
             aria-label="Baudrate"
           >
@@ -766,9 +761,26 @@ const DroneEditForm = memo(function DroneEditForm({
             <option value="115200">115200 (High Speed)</option>
             <option value="921600">921600 (Very High Speed)</option>
             <option value="N/A">N/A (SITL/Simulation)</option>
+            <option value="CUSTOM">Custom...</option>
           </select>
           {errors.baudrate && <span className="error-message">{errors.baudrate}</span>}
         </div>
+
+        {/* Custom Baudrate Input */}
+        {!['9600', '57600', '115200', '921600', 'N/A'].includes(droneData.baudrate) && (
+          <div className="form-field">
+            <label className="form-label">Custom Baudrate</label>
+            <input
+              type="text"
+              name="baudrate"
+              value={droneData.baudrate || ''}
+              onChange={handleGenericChange}
+              className="form-input"
+              placeholder="e.g., 38400"
+              aria-label="Custom Baudrate"
+            />
+          </div>
+        )}
 
         {/* X, Y */}
         <div className="form-field">
@@ -1008,12 +1020,6 @@ export default function DroneConfigCard({
     }
     if (!droneData.mavlink_port) {
       validationErrors.mavlink_port = 'MavLink Port is required.';
-    }
-    if (!droneData.debug_port) {
-      validationErrors.debug_port = 'Debug Port is required.';
-    }
-    if (!droneData.gcs_ip) {
-      validationErrors.gcs_ip = 'GCS IP is required.';
     }
     // Basic numeric check for x, y
     if (droneData.x === undefined || isNaN(droneData.x)) {

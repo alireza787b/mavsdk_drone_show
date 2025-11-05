@@ -322,12 +322,12 @@ class FlaskHandler:
     def _get_origin_from_gcs(self):
         """Fetches the origin coordinates from the GCS."""
         try:
-            gcs_ip = self.drone_config.config.get('gcs_ip')
+            gcs_ip = self.params.GCS_IP  # Use centralized GCS IP from Params
             if not gcs_ip:
-                logging.error("GCS IP not set in drone configuration")
+                logging.error("GCS IP not configured in Params")
                 return None
 
-            gcs_port = self.params.flask_telem_socket_port
+            gcs_port = self.params.GCS_FLASK_PORT
             gcs_url = f"http://{gcs_ip}:{gcs_port}"
 
             response = requests.get(f"{gcs_url}/get-origin", timeout=5)

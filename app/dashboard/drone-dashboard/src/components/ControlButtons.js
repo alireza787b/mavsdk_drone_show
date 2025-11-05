@@ -10,13 +10,14 @@ import {
   faFileCsv,
   faUndo,
   faMapMarkerAlt,
+  faServer,
 } from '@fortawesome/free-solid-svg-icons';
 import { CircularProgress } from '@mui/material';
 
 /**
  * ControlButtons
- * 
- * Provides top-level actions: Save, Add Drone, Set Origin, Import, Export, Revert
+ *
+ * Provides top-level actions: Save, Add Drone, Set Origin, Configure GCS, Import, Export, Revert
  * with a consistent UI/UX approach.
  */
 const ControlButtons = ({
@@ -26,6 +27,7 @@ const ControlButtons = ({
   handleFileChange,
   exportConfig,
   openOriginModal,
+  openGcsConfigModal,
   configData,
   setConfigData,
   loading,
@@ -72,6 +74,12 @@ const ControlButtons = ({
         <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
           <FontAwesomeIcon icon={faMapMarkerAlt} />
           Set Origin
+        </button>
+
+        {/* Configure GCS */}
+        <button className="configure-gcs" onClick={openGcsConfigModal} title="Configure GCS Server IP">
+          <FontAwesomeIcon icon={faServer} />
+          Configure GCS
         </button>
       </div>
 
@@ -121,6 +129,7 @@ ControlButtons.propTypes = {
   handleFileChange: PropTypes.func.isRequired,
   exportConfig: PropTypes.func.isRequired,
   openOriginModal: PropTypes.func.isRequired,
+  openGcsConfigModal: PropTypes.func.isRequired,
   configData: PropTypes.array.isRequired,
   setConfigData: PropTypes.func.isRequired,
   loading: PropTypes.bool.isRequired,
