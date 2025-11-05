@@ -71,9 +71,15 @@ class Params:
     #   - Flask API communication
     #   - Origin coordinate fetching
     #
-    # IMPORTANT: Change this to your GCS computer's IP address
+    # Mode-specific GCS IP configuration:
+    #   - SITL: Uses Docker gateway (172.18.0.1)
+    #   - Real: Uses Tailscale/physical network IP
     # ===================================================================================
-    GCS_IP = "100.96.32.75"                # GCS IP address (★ CHANGE THIS FOR YOUR SETUP ★)
+    if sim_mode:
+        GCS_IP = "172.18.0.1"              # SITL: Docker gateway IP
+    else:
+        GCS_IP = "100.96.32.75"            # Real mode: GCS IP (★ CHANGE THIS FOR YOUR SETUP ★)
+
     GCS_FLASK_PORT = 5000                  # GCS Flask backend port
     connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
     connectivity_check_port = GCS_FLASK_PORT

@@ -148,8 +148,8 @@ const MissionConfig = () => {
   }, [heartbeatsFetched]);
 
   useEffect(() => {
-    if (gcsConfigFetched && gcsConfigFetched.gcs_ip) {
-      setGcsConfig(gcsConfigFetched);
+    if (gcsConfigFetched?.data?.gcs_ip) {
+      setGcsConfig(gcsConfigFetched.data);
     }
   }, [gcsConfigFetched]);
 
