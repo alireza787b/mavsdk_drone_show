@@ -212,6 +212,8 @@ const MissionConfig = () => {
       x: '0',
       y: '0',
       pos_id: newHwId,
+      serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
+      baudrate: '57600',           // Standard baudrate
       isNew: true,
     };
 

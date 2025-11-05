@@ -14,7 +14,7 @@ SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
 logger = logging.getLogger(__name__)
 
 # Define the expected column order
-CONFIG_COLUMNS = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip']
+CONFIG_COLUMNS = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip', 'serial_port', 'baudrate']
 SWARM_COLUMNS = ['hw_id' , 'follow' , 'offset_n' , 'offset_e' , 'offset_alt' , 'body_coord']
 
 

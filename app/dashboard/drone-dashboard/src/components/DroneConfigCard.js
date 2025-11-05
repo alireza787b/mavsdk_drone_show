@@ -366,6 +366,16 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
 
           <div className="info-row">
+            <span className="info-label">Serial Port</span>
+            <span className="info-value">{drone.serial_port || '/dev/ttyS0'}</span>
+          </div>
+
+          <div className="info-row">
+            <span className="info-label">Baudrate</span>
+            <span className="info-value">{drone.baudrate || '57600'}</span>
+          </div>
+
+          <div className="info-row">
             <span className="info-label">Launch Position</span>
             <span className="info-value">({drone.x}, {drone.y})</span>
           </div>
@@ -721,6 +731,43 @@ const DroneEditForm = memo(function DroneEditForm({
             aria-label="GCS IP"
           />
           {errors.gcs_ip && <span className="error-message">{errors.gcs_ip}</span>}
+        </div>
+
+        {/* Serial Port */}
+        <div className="form-field">
+          <label className="form-label">Serial Port</label>
+          <select
+            name="serial_port"
+            value={droneData.serial_port || '/dev/ttyS0'}
+            onChange={handleGenericChange}
+            className="form-input"
+            aria-label="Serial Port"
+          >
+            <option value="/dev/ttyS0">/dev/ttyS0 (Raspberry Pi 4)</option>
+            <option value="/dev/ttyAMA0">/dev/ttyAMA0 (Raspberry Pi 5)</option>
+            <option value="/dev/ttyTHS1">/dev/ttyTHS1 (Jetson)</option>
+            <option value="N/A">N/A (SITL/Simulation)</option>
+          </select>
+          {errors.serial_port && <span className="error-message">{errors.serial_port}</span>}
+        </div>
+
+        {/* Baudrate */}
+        <div className="form-field">
+          <label className="form-label">Baudrate</label>
+          <select
+            name="baudrate"
+            value={droneData.baudrate || '57600'}
+            onChange={handleGenericChange}
+            className="form-input"
+            aria-label="Baudrate"
+          >
+            <option value="9600">9600</option>
+            <option value="57600">57600 (Standard)</option>
+            <option value="115200">115200 (High Speed)</option>
+            <option value="921600">921600 (Very High Speed)</option>
+            <option value="N/A">N/A (SITL/Simulation)</option>
+          </select>
+          {errors.baudrate && <span className="error-message">{errors.baudrate}</span>}
         </div>
 
         {/* X, Y */}

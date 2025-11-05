@@ -209,3 +209,38 @@ class DroneConfig:
         """
         yaw_degrees = math.degrees(yaw_radians)
         return yaw_degrees if yaw_degrees >= 0 else yaw_degrees + 360
+
+    def get_serial_port(self):
+        """
+        Get the serial port configuration for this drone's hardware.
+        Falls back to Params default if not specified in config.csv.
+
+        Returns:
+            str: Serial port device path (e.g., '/dev/ttyS0', '/dev/ttyAMA0', 'N/A' for SITL)
+        """
+        if self.config and 'serial_port' in self.config:
+            serial_port = self.config['serial_port']
+            # Handle SITL mode or empty values
+            if serial_port and serial_port.upper() not in ['N/A', 'NONE', '']:
+                return serial_port
+        # Fallback to global Params default
+        return Params.serial_mavlink_port
+
+    def get_baudrate(self):
+        """
+        Get the baudrate configuration for this drone's hardware.
+        Falls back to Params default if not specified in config.csv.
+
+        Returns:
+            int: Baudrate for serial connection (e.g., 57600, 115200, 921600)
+        """
+        if self.config and 'baudrate' in self.config:
+            baudrate = self.config['baudrate']
+            # Handle SITL mode or empty values
+            if baudrate and str(baudrate).upper() not in ['N/A', 'NONE', '']:
+                try:
+                    return int(baudrate)
+                except (ValueError, TypeError):
+                    logging.warning(f"Invalid baudrate '{baudrate}' in config, using default: {Params.serial_baudrate}")
+        # Fallback to global Params default
+        return Params.serial_baudrate

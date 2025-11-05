@@ -6,8 +6,8 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
-    // Define the expected structure
-    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip'];
+    // Define the expected structure (updated to include hardware-specific config)
+    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'debug_port', 'gcs_ip', 'serial_port', 'baudrate'];
 
     // Clean and transform the configData
     const cleanedConfigData = configData.map(drone => {
@@ -86,13 +86,30 @@ export const handleFileChange = (event, setConfigData) => {
 export const parseCSV = (data) => {
     const rows = data.trim().split('\n').filter(row => row.trim() !== ''); // Trim to remove possible whitespace and filter out empty rows
     const drones = [];
-    if (rows[0].trim() !== "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip") {
-        console.log("CSV Header Mismatch!");
+
+    // Support both old (8 columns) and new (10 columns) formats for backward compatibility
+    const header = rows[0].trim();
+    const isOldFormat = header === "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip";
+    const isNewFormat = header === "hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate";
+
+    if (!isOldFormat && !isNewFormat) {
+        console.log("CSV Header Mismatch! Expected either 8-column (legacy) or 10-column (new with serial_port, baudrate) format.");
+        toast.error("Invalid CSV format. Please check the header row.");
         return null; // Invalid CSV structure
     }
+
+    // Notify user if old format detected
+    if (isOldFormat) {
+        toast.info("Legacy CSV format detected. Serial port and baudrate will be set to defaults (/dev/ttyS0, 57600).", {
+            autoClose: 5000
+        });
+    }
+
     for (let i = 1; i < rows.length; i++) {
         const columns = rows[i].split(',').map(cell => cell.trim()); // Trim each cell value
-        if (columns.length === 8) {
+
+        if (isOldFormat && columns.length === 8) {
+            // Auto-upgrade old format with default values
             const drone = {
                 hw_id: columns[0],
                 pos_id: columns[1],
@@ -101,11 +118,29 @@ export const parseCSV = (data) => {
                 ip: columns[4],
                 mavlink_port: columns[5],
                 debug_port: columns[6],
-                gcs_ip: columns[7]
+                gcs_ip: columns[7],
+                serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
+                baudrate: '57600'            // Standard baudrate
+            };
+            drones.push(drone);
+        } else if (isNewFormat && columns.length === 10) {
+            // New format with all columns
+            const drone = {
+                hw_id: columns[0],
+                pos_id: columns[1],
+                x: columns[2],
+                y: columns[3],
+                ip: columns[4],
+                mavlink_port: columns[5],
+                debug_port: columns[6],
+                gcs_ip: columns[7],
+                serial_port: columns[8],
+                baudrate: columns[9]
             };
             drones.push(drone);
         } else {
-            console.log(`Row ${i} has incorrect number of columns.`);
+            console.log(`Row ${i} has incorrect number of columns (expected ${isOldFormat ? 8 : 10}, got ${columns.length}).`);
+            toast.error(`Row ${i} has incorrect number of columns.`);
             return null; // Invalid row structure
         }
     }
@@ -126,8 +161,19 @@ export const validateDrones = (drones) => {
 };
 
 export const exportConfig = (configData) => {
-    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port,debug_port,gcs_ip"];
-    const csvRows = configData.map(drone => [drone.hw_id, drone.pos_id, drone.x, drone.y, drone.ip, drone.mavlink_port, drone.debug_port, drone.gcs_ip].join(","));
+    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "debug_port", "gcs_ip", "serial_port", "baudrate"];
+    const csvRows = configData.map(drone => [
+        drone.hw_id,
+        drone.pos_id,
+        drone.x,
+        drone.y,
+        drone.ip,
+        drone.mavlink_port,
+        drone.debug_port,
+        drone.gcs_ip,
+        drone.serial_port || '/dev/ttyS0',  // Default if missing
+        drone.baudrate || '57600'            // Default if missing
+    ].join(","));
     const csvData = [header.join(",")].concat(csvRows).join("\n");
 
     const blob = new Blob([csvData], { type: "text/csv" });
