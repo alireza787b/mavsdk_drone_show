@@ -9,6 +9,7 @@ const GcsConfigModal = ({ isOpen, onClose, onSubmit, currentGcsIp }) => {
   const [gcsIp, setGcsIp] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [updateEnvFile, setUpdateEnvFile] = useState(true); // Default checked
 
   // Initialize modal with current IP
   useEffect(() => {
@@ -59,7 +60,10 @@ const GcsConfigModal = ({ isOpen, onClose, onSubmit, currentGcsIp }) => {
 
     // Submit new IP
     setLoading(true);
-    onSubmit({ gcs_ip: gcsIp.trim() })
+    onSubmit({
+      gcs_ip: gcsIp.trim(),
+      update_env_file: updateEnvFile
+    })
       .finally(() => {
         setLoading(false);
       });
@@ -92,6 +96,25 @@ const GcsConfigModal = ({ isOpen, onClose, onSubmit, currentGcsIp }) => {
             <p><strong>Current IP:</strong> {currentGcsIp}</p>
           </div>
 
+          {/* .env Update Option */}
+          <div className="checkbox-container">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={updateEnvFile}
+                onChange={(e) => setUpdateEnvFile(e.target.checked)}
+                disabled={loading}
+              />
+              <span>Also update dashboard .env file (REACT_APP_SERVER_URL)</span>
+            </label>
+            <p className="checkbox-hint">
+              <small>
+                Only enable this if this server IS the GCS. If you're running the dashboard
+                on a different machine, leave unchecked.
+              </small>
+            </p>
+          </div>
+
           <div className="warning-box">
             <FontAwesomeIcon icon={faExclamationTriangle} />
             <div>
@@ -99,6 +122,9 @@ const GcsConfigModal = ({ isOpen, onClose, onSubmit, currentGcsIp }) => {
               <ul>
                 <li>All drones must be restarted to apply this change</li>
                 <li>GCS server must be restarted after save</li>
+                {updateEnvFile && (
+                  <li>Dashboard must be rebuilt (npm run build) for .env changes to take effect</li>
+                )}
                 <li>Changes will be committed to git repository</li>
                 <li>Ensure the new IP is correct before saving</li>
               </ul>

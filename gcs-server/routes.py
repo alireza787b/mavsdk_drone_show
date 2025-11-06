@@ -1417,6 +1417,7 @@ def setup_routes(app):
         try:
             data = request.get_json()
             new_gcs_ip = data.get('gcs_ip')
+            update_env_file = data.get('update_env_file', False)
 
             if not new_gcs_ip:
                 return jsonify({
@@ -1424,7 +1425,7 @@ def setup_routes(app):
                     'message': 'gcs_ip is required'
                 }), 400
 
-            log_system_event(f"GCS IP update requested: {new_gcs_ip}", "INFO", "config")
+            log_system_event(f"GCS IP update requested: {new_gcs_ip} (update_env: {update_env_file})", "INFO", "config")
 
             # Update params.py file
             from gcs_config_updater import update_gcs_ip_in_params
@@ -1451,6 +1452,18 @@ def setup_routes(app):
 
             log_system_event(f"✅ GCS IP updated in params.py: {new_gcs_ip}", "INFO", "config")
 
+            # Update .env file if requested
+            env_update_result = None
+            if update_env_file:
+                log_system_event("Updating dashboard .env file", "INFO", "config")
+                from env_updater import update_dashboard_env
+                env_update_result = update_dashboard_env(new_gcs_ip)
+
+                if env_update_result.get('success'):
+                    log_system_event(f"✅ Dashboard .env updated: {env_update_result.get('new_url')}", "INFO", "config")
+                else:
+                    log_system_error(f".env update failed: {env_update_result.get('error')}", "config")
+
             # Git commit and push
             git_info = None
             if Params.GIT_AUTO_PUSH:
@@ -1472,11 +1485,26 @@ def setup_routes(app):
                     'old_ip': update_result.get('old_ip'),
                     'new_ip': new_gcs_ip
                 },
-                'warning': '⚠️  All drones and GCS must be restarted to apply changes'
+                'warnings': []
             }
+
+            # Add warnings
+            if env_update_result:
+                if env_update_result.get('success') and not env_update_result.get('no_change'):
+                    response_data['warnings'].append(
+                        '⚠️  Dashboard .env file updated. Run "npm run build" in app/dashboard/drone-dashboard to apply changes.'
+                    )
+                elif not env_update_result.get('success'):
+                    response_data['warnings'].append(
+                        f'⚠️  Failed to update .env file: {env_update_result.get("error")}'
+                    )
+
+            response_data['warnings'].append('⚠️  All drones and GCS must be restarted to apply changes')
 
             if git_info:
                 response_data['git_info'] = git_info
+                if git_info.get('success'):
+                    response_data['git_status'] = f"Committed: {git_info.get('message', 'Changes committed')}"
 
             return jsonify(response_data), 200
 

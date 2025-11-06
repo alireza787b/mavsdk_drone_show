@@ -48,18 +48,18 @@ const ControlButtons = ({
         <button
           className="save"
           onClick={handleSaveChangesToServer}
-          title="Save all changes"
+          title="Save configuration and commit to git repository"
           disabled={loading}
         >
           {loading ? (
             <>
               <CircularProgress size={20} color="inherit" />
-              &nbsp;Saving...
+              &nbsp;Saving & Committing...
             </>
           ) : (
             <>
               <FontAwesomeIcon icon={faSave} />
-              Save Changes
+              Save & Commit to Git
             </>
           )}
         </button>

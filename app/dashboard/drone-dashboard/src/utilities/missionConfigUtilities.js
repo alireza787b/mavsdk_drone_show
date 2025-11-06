@@ -38,14 +38,46 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
     try {
         setLoading(true); // Set loading state to true
+
+        // Show initiating toast
+        toast.info('Saving configuration...', { autoClose: 2000 });
+
         const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
-        toast.success(response.data.message);
+
+        // Success toast with git info
+        if (response.data.git_info) {
+            if (response.data.git_info.success) {
+                toast.success(
+                    `Configuration saved and committed to git successfully!`,
+                    { autoClose: 5000 }
+                );
+            } else {
+                toast.warning(
+                    `Configuration saved, but git commit failed: ${response.data.git_info.message}`,
+                    { autoClose: 8000 }
+                );
+            }
+        } else {
+            toast.success(
+                response.data.message || 'Configuration saved successfully',
+                { autoClose: 4000 }
+            );
+        }
+
     } catch (error) {
         console.error('Error saving updated config data:', error);
+
+        // Enhanced error toast
         if (error.response && error.response.data.message) {
-            toast.error(error.response.data.message);
+            toast.error(
+                `Save failed: ${error.response.data.message}`,
+                { autoClose: 10000 }
+            );
         } else {
-            toast.error('Error saving data.');
+            toast.error(
+                `Error saving configuration: ${error.message || 'Unknown error'}`,
+                { autoClose: 10000 }
+            );
         }
     } finally {
         setLoading(false); // Set loading state to false

@@ -78,7 +78,12 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
           {origin.lat !== null && origin.lon !== null && (
             <div className="current-origin">
               <p>
-                <strong>Origin:</strong> Lat: {origin.lat}, Lon: {origin.lon}
+                <strong>Origin:</strong>
+              </p>
+              <p className="coordinates">
+                <span className="coord-label">Lat:</span> <span className="coord-value">{Number(origin.lat).toFixed(6)}</span>
+                <br />
+                <span className="coord-label">Lon:</span> <span className="coord-value">{Number(origin.lon).toFixed(6)}</span>
               </p>
             </div>
           )}

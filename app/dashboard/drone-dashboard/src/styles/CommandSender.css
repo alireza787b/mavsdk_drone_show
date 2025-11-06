@@ -341,19 +341,23 @@
     50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
 }
 
-/* Modal Styles */
+/* Modal Styles - Enhanced viewport centering */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
     background: var(--color-overlay);
-    z-index: var(--z-modal);
+    z-index: 9999 !important;
     display: flex;
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(4px);
+    overflow: auto;
 }
 
 .modal-content {
@@ -365,9 +369,12 @@
     box-shadow: var(--shadow-xl);
     width: 90%;
     max-width: 450px;
+    max-height: 80vh;
+    overflow-y: auto;
     text-align: center;
     backdrop-filter: blur(8px);
     position: relative;
+    margin: auto;
 }
 
 .modal-content::before {
