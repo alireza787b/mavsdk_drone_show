@@ -3,7 +3,7 @@
 **All-in-One Drone Show & Smart Swarm Framework for PX4**
 
 [![Version](https://img.shields.io/badge/version-3.6-blue.svg)](CHANGELOG.md)
-[![License](https://img.shields.io/badge/license-CC%20BY--SA%204.0-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 
 MDS is a unified platform for PX4-based drone performances and intelligent swarm missions. Whether you want to run pre-planned, decentralized drone shows using SkyBrush outputs or orchestrate live, collaborative swarms with leader–follower clustering, MDS has you covered.
@@ -218,20 +218,48 @@ Major updates in this version:
 
 ---
 
-## 🏢 Commercial Support & Custom Implementation
+## 🏢 Licensing & Commercial Use
 
-**The basic SITL demo is designed for evaluation and learning.** For companies and organizations requiring production deployments, custom features, or hardware implementation:
+**MDS uses dual licensing to support everyone - from students to enterprises.**
 
-### Services Available
+### Free Licenses
 
-- ✈️ **Custom SITL Features** - Specialized simulation scenarios and advanced functionality
-- 🚁 **Hardware Implementation** - Real drone deployment with safety protocols and regulatory compliance
-- 🏢 **Enterprise Integration** - Custom APIs, cloud integration, fleet management systems
-- 📊 **Performance Optimization** - Large-scale swarm optimization and mission planning
-- 🔧 **Training & Support** - Team training and ongoing technical support
-- 🎯 **Custom Mission Types** - Specialized applications beyond standard formations
+✅ **PolyForm Noncommercial** - For education, research, non-profits
+- Students, teachers, researchers
+- Non-profit organizations
+- Personal hobbyist projects
+- Unlimited drones for non-commercial use
 
-**Professional implementation contracts available for real-world deployments.**
+✅ **PolyForm Small Business** - For small commercial operations
+- **FREE if ALL apply:**
+  - < 100 employees/contractors
+  - < $1M USD annual revenue
+  - **< 10 drones per operation**
+- Perfect for startups and small businesses
+
+📄 **[See LICENSE for full details →](LICENSE)**
+
+### Commercial License (Large Operations)
+
+📄 **Required if ANY apply:**
+- 100+ employees, OR
+- $1M+ revenue, OR
+- **10+ drones in operation**
+
+**[Commercial licensing information →](LICENSE-COMMERCIAL.md)**
+
+### Professional Services
+
+Whether you need a license or implementation support:
+
+- 💼 **Commercial Licensing** - Flexible terms for large-scale use
+- ✈️ **Custom Development** - Specialized features
+- 🚁 **Hardware Implementation** - Real drone deployment
+- 🏢 **Enterprise Integration** - Custom APIs and systems
+- 📊 **Performance Optimization** - Large swarm operations
+- 🔧 **Training & Support** - Professional assistance
+
+**Contact:** [p30planets@gmail.com](mailto:p30planets@gmail.com)
 
 ---
 
@@ -271,6 +299,19 @@ Using offboard mode or live swarm control on real drones carries significant ris
 
 **The maintainers assume no liability for damage, injury, or legal consequences resulting from use of this software.**
 
+**📄 [Read full legal disclaimer →](DISCLAIMER.md)**
+
+### Ethical Use Statement
+
+This software is developed for peaceful, educational, and research purposes. While we cannot enforce all uses, we strongly encourage ethical applications that:
+
+- Prioritize safety and regulatory compliance
+- Advance education and knowledge
+- Respect human rights and dignity
+- Consider the societal impact of drone technology
+
+**By using this software, you accept full responsibility for your actions and their consequences.**
+
 ---
 
 ## Additional Resources
@@ -297,15 +338,32 @@ Using offboard mode or live swarm control on real drones carries significant ris
 
 © 2025 Alireza Ghaderi
 
-Licensed under **[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)** (Creative Commons Attribution-ShareAlike 4.0 International)
+### Dual Licensing
 
-You are free to:
-- **Share** - copy and redistribute the material
-- **Adapt** - remix, transform, and build upon the material
+This software is available under multiple licenses to support different users:
 
-Under the following terms:
-- **Attribution** - give appropriate credit and link to the original repository
-- **ShareAlike** - distribute your contributions under the same license
+**📄 [LICENSE](LICENSE)** - Main license file with decision guide
+
+**Free Licenses:**
+- **[PolyForm Noncommercial](LICENSE-NONCOMMERCIAL.md)** - Education, research, non-profits
+- **[PolyForm Small Business](LICENSE-SMALL-BUSINESS.md)** - Small commercial (< 10 drones, < 100 employees, < $1M revenue)
+
+**Commercial License:**
+- **[Commercial Licensing](LICENSE-COMMERCIAL.md)** - Large operations (10+ drones, 100+ employees, or $1M+ revenue)
+
+### Key Terms
+
+**Attribution Required:** All uses must credit the original project
+
+**Free Small Commercial:** Operations with < 10 drones, < 100 employees, and < $1M revenue can use for FREE
+
+**Large Commercial:** Contact p30planets@gmail.com for licensing
+
+### Legal
+
+**📄 [Full License Details →](LICENSE)**
+**📄 [Legal Disclaimer →](DISCLAIMER.md)**
+**📄 [Ethical Use Statement →](ETHICAL-USE.md)**
 
 ---
 

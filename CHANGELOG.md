@@ -200,4 +200,4 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
-© 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0
+© 2025 Alireza Ghaderi | Licensed under CC BY-NC-SA 4.0

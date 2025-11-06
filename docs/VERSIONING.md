@@ -463,4 +463,4 @@ If you have questions about versioning or the release process:
 
 **Document Version:** 1.0 (November 2025)
 
-© 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0
+© 2025 Alireza Ghaderi | Licensed under CC BY-NC-SA 4.0

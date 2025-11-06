@@ -1,0 +1,148 @@
+# MAVSDK Drone Show - License
+
+Copyright (c) 2025 Alireza Ghaderi
+
+This software is available under multiple licenses to support different use cases.
+
+---
+
+## License Options
+
+You may use this software under any ONE of the following licenses that applies to your use case:
+
+### 1. Non-Commercial Use
+**License:** PolyForm Noncommercial License 1.0.0
+**File:** [LICENSE-NONCOMMERCIAL.md](LICENSE-NONCOMMERCIAL.md)
+
+**For:** Students, researchers, educators, hobbyists, and non-profit organizations.
+
+✅ Free to use
+✅ Unlimited drones
+✅ Requires attribution
+❌ No commercial use
+
+### 2. Small Commercial Use
+**License:** PolyForm Small Business License 1.0.0 with Drone Count Restriction
+**File:** [LICENSE-SMALL-BUSINESS.md](LICENSE-SMALL-BUSINESS.md)
+
+**For:** Small businesses and commercial operations.
+
+✅ **Free to use if ALL of the following apply:**
+- Fewer than 100 total employees and independent contractors
+- Less than $1,000,000 USD total revenue in prior tax year (inflation-adjusted)
+- **Drone operations use fewer than 10 drones**
+
+✅ Requires attribution
+❌ If any threshold exceeded → commercial license required
+
+### 3. Large Commercial Use
+**License:** Custom Commercial License (negotiated)
+**Information:** [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)
+
+**Required if:**
+- 100+ employees/contractors, OR
+- $1,000,000+ annual revenue, OR
+- **10+ drones in operation**, OR
+- Any enterprise/large-scale use
+
+📧 **Contact:** p30planets@gmail.com
+
+---
+
+## Quick Decision Guide
+
+**I'm a student/researcher:**
+→ Use PolyForm Noncommercial ([LICENSE-NONCOMMERCIAL.md](LICENSE-NONCOMMERCIAL.md))
+
+**I'm a hobbyist/maker:**
+→ Use PolyForm Noncommercial ([LICENSE-NONCOMMERCIAL.md](LICENSE-NONCOMMERCIAL.md))
+
+**I run a small drone business (< 10 drones):**
+→ Check if you meet Small Business thresholds ([LICENSE-SMALL-BUSINESS.md](LICENSE-SMALL-BUSINESS.md))
+→ If yes: Free to use
+→ If no: Contact for commercial license
+
+**I run drone shows with 10+ drones:**
+→ Contact for commercial license ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md))
+
+**I'm a large enterprise:**
+→ Contact for commercial license ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md))
+
+**Still unsure?**
+→ Email p30planets@gmail.com with your use case
+
+---
+
+## Attribution Requirements
+
+**All uses require attribution.**
+
+**Minimum Required Attribution:**
+```
+This software uses MAVSDK Drone Show
+Copyright (c) 2025 Alireza Ghaderi
+https://github.com/alireza787b/mavsdk_drone_show
+```
+
+**Where attribution must appear:**
+- In application "About" or "Credits" section (visible to users)
+- In documentation and README files
+- In derivative works
+
+---
+
+## Warranty and Liability
+
+**THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.**
+
+The software comes with no warranties or guarantees. The copyright holder is not liable for any damages arising from use of this software.
+
+**📄 See [DISCLAIMER.md](DISCLAIMER.md) for full legal disclaimer and safety warnings.**
+
+**⚠️ IMPORTANT:** Drone operations carry significant safety risks. Users are solely responsible for safe operation and compliance with all applicable laws and regulations.
+
+---
+
+## Third-Party Components
+
+This software incorporates third-party open source components with their own licenses.
+
+**📄 See [NOTICE](NOTICE) file for full list and attributions.**
+
+---
+
+## Ethical Use
+
+This software was developed for peaceful, educational, and constructive purposes.
+
+**📄 See [ETHICAL-USE.md](ETHICAL-USE.md) for our ethical use statement.**
+
+While we encourage responsible use, this statement is advisory and not legally binding.
+
+---
+
+## Questions?
+
+**Licensing questions:**
+📧 Email: p30planets@gmail.com
+🌐 GitHub: https://github.com/alireza787b/mavsdk_drone_show
+
+**Commercial licensing inquiries:**
+📄 See [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) for process and options
+
+---
+
+## Summary
+
+- **Free for education, research, non-profit:** PolyForm Noncommercial
+- **Free for small commercial (< 10 drones):** PolyForm Small Business (if under thresholds)
+- **Large commercial (>= 10 drones):** Custom commercial license required
+- **Attribution:** Always required
+- **Liability:** No warranty, use at your own risk
+
+---
+
+**Last Updated:** November 2025
+**Version:** 3.6
+
+© 2025 Alireza Ghaderi. All rights reserved.

@@ -11,7 +11,7 @@
  */
 
 export const VERSION = '3.6';
-export const GIT_COMMIT = 'b4afd706';
+export const GIT_COMMIT = 'eb063f01';
 export const GIT_BRANCH = 'main-candidate';
 export const VERSION_DISPLAY = `v${VERSION} (${GIT_COMMIT})`;
 

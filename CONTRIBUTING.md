@@ -333,7 +333,7 @@ Contributors will be recognized:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project (CC BY-SA 4.0).
+By contributing, you agree that your contributions will be licensed under the same license as the project (CC BY-NC-SA 4.0 for non-commercial use).
 
 ---
 
@@ -343,4 +343,4 @@ Your contributions help make drone swarm technology more accessible and robust f
 
 ---
 
-© 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0
+© 2025 Alireza Ghaderi | Licensed under CC BY-NC-SA 4.0

@@ -1,4 +1,12 @@
 # smart_swarm/smart_swarm.py
+# Copyright (c) 2025 Alireza Ghaderi
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
+#
+# This file is part of MAVSDK Drone Show
+# https://github.com/alireza787b/mavsdk_drone_show
+#
+# Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+# For commercial licensing, contact: p30planets@gmail.com
 
 """
 ===========================================================================
