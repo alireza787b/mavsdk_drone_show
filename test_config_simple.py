@@ -35,10 +35,10 @@ try:
         print(f"  Header: {', '.join(header)}")
 
         expected_columns = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port',
-                          'debug_port', 'gcs_ip', 'serial_port', 'baudrate']
+                          'serial_port', 'baudrate']
 
         if header == expected_columns:
-            print("✓ Header matches expected 10-column structure")
+            print("✓ Header matches expected 8-column structure")
         else:
             print(f"✗ ERROR: Header mismatch!")
             print(f"  Expected: {expected_columns}")
@@ -159,8 +159,8 @@ print("✓ ALL SIMPLE BACKEND TESTS PASSED!")
 print("=" * 80)
 print("\nSummary:")
 print("  ✓ CONFIG_COLUMNS updated in gcs-server/config.py")
-print("  ✓ config.csv has correct 10-column structure")
-print("  ✓ config_sitl.csv has correct 10-column structure")
+print("  ✓ config.csv has correct 8-column structure (no debug_port, gcs_ip)")
+print("  ✓ config_sitl.csv has correct 8-column structure")
 print("  ✓ SITL uses N/A for hardware-specific fields")
 print("  ✓ functions/read_config.py updated")
 print("  ✓ src/drone_config.py has accessor methods")

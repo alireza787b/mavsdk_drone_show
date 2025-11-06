@@ -19,7 +19,7 @@ class MavlinkManager:
             else:
                 if self.params.serial_mavlink:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via serial...")
-                    mavlink_source = f"{self.params.serial_mavlink_port}:{self.params.serial_baudrate}"
+                    mavlink_source = f"{self.drone_config.get_serial_port()}:{self.drone_config.get_baudrate()}"
                 else:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via UDP...")
                     mavlink_source = f"127.0.0.1:{self.params.hw_udp_port}"
