@@ -21,6 +21,7 @@ import ThemeToggle from './ThemeToggle';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
 import GitInfo from './GitInfo';
+import { VERSION_DISPLAY } from '../version';
 
 const SidebarMenu = ({ collapsed, onToggle }) => {
   const { isDark } = useTheme();
@@ -68,7 +69,7 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
               <span className="brand-icon">🚁</span>
               <div className="brand-text">
                 <h3>Swarm Control</h3>
-                <span className="version">v3.0</span>
+                <span className="version">{VERSION_DISPLAY}</span>
               </div>
             </div>
           </div>
