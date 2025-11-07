@@ -309,10 +309,63 @@ const ImportSection = ({ setUploadCount }) => {
         try {
           const result = JSON.parse(xhr.responseText);
           if (result.success) {
-            // Set completion state
+            // Parse validation data from backend
+            const processingStats = result.processing_stats || {};
+            const gitTrackingStats = result.git_tracking_stats || {};
+            const showHealth = result.show_health || { status: 'unknown', issues: [] };
+
+            let successMessage = 'All processing completed successfully!';
+            let hasWarnings = false;
+
+            // Build detailed validation status
+            const validationDetails = [];
+
+            if (processingStats.input_count && processingStats.processed_count) {
+              if (processingStats.validation_passed) {
+                validationDetails.push({
+                  step: `✅ ${processingStats.processed_count} drones processed successfully`,
+                  completed: true
+                });
+              } else {
+                validationDetails.push({
+                  step: `⚠️ Only ${processingStats.processed_count}/${processingStats.input_count} drones processed`,
+                  completed: false
+                });
+                hasWarnings = true;
+              }
+            }
+
+            if (gitTrackingStats.committed_count !== undefined) {
+              if (gitTrackingStats.tracking_complete) {
+                validationDetails.push({
+                  step: `✅ All ${gitTrackingStats.committed_count} files tracked in git`,
+                  completed: true
+                });
+              } else {
+                validationDetails.push({
+                  step: `⚠️ Only ${gitTrackingStats.committed_count} files tracked (${gitTrackingStats.ignored_count} missing)`,
+                  completed: false
+                });
+                if (gitTrackingStats.untracked_files && gitTrackingStats.untracked_files.length > 0) {
+                  validationDetails.push({
+                    step: `Missing from git: ${gitTrackingStats.untracked_files.join(', ')}`,
+                    completed: false
+                  });
+                }
+                hasWarnings = true;
+              }
+            }
+
+            if (hasWarnings || showHealth.status === 'warning') {
+              successMessage = '⚠️ Processing completed with warnings - see details below';
+            } else if (showHealth.status === 'error') {
+              successMessage = '❌ Processing completed with errors - see details below';
+            }
+
+            // Set completion state with validation info
             setProcessingProgress({
               overall: 100,
-              stage: 'All processing completed successfully!',
+              stage: successMessage,
               details: [
                 { step: 'Extracting ZIP file', completed: true },
                 { step: 'Converting coordinates (Blender → NED)', completed: true },
@@ -321,10 +374,11 @@ const ImportSection = ({ setUploadCount }) => {
                 { step: 'Generating 3D visualizations', completed: true },
                 { step: 'Updating configuration', completed: true },
                 { step: 'Backend processing and analysis', completed: true },
-                { step: 'Deploying to cloud repository', completed: true }
+                { step: 'Deploying to cloud repository', completed: true },
+                ...validationDetails
               ]
             });
-            
+
             setIsProcessingCompleted(true);
             setIsUploading(false);
           } else {

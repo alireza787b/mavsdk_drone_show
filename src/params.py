@@ -60,10 +60,30 @@ class Params:
     GIT_AUTO_PUSH = True
     GIT_REPO_URL = os.environ.get('MDS_REPO_URL', 'git@github.com:alireza787b/mavsdk_drone_show.git')
     GIT_BRANCH = os.environ.get('MDS_BRANCH', 'main-candidate')
-    
-    connectivity_check_ip = "100.96.32.75"  # Default IP to ping eg. 8.8.8.8 for the gcs IP
-    connectivity_check_port = 5000        # Default port to ping eg. 80 for the gcs backend port
-    connectivity_check_interval = 10    # Interval in seconds between connectivity checks
+
+    # ===================================================================================
+    # GCS (Ground Control Station) CONFIGURATION
+    # ===================================================================================
+    # Central GCS IP address used by all drones for:
+    #   - Heartbeat sending
+    #   - MAVLink routing
+    #   - Telemetry reporting
+    #   - Flask API communication
+    #   - Origin coordinate fetching
+    #
+    # Mode-specific GCS IP configuration:
+    #   - SITL: Uses Docker gateway (172.18.0.1)
+    #   - Real: Uses Tailscale/physical network IP
+    # ===================================================================================
+    if sim_mode:
+        GCS_IP = "172.18.0.1"              # SITL: Docker gateway IP
+    else:
+        GCS_IP = "100.96.32.75"            # Real mode: GCS IP (★ CHANGE THIS FOR YOUR SETUP ★)
+
+    GCS_FLASK_PORT = 5000                  # GCS Flask backend port
+    connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
+    connectivity_check_port = GCS_FLASK_PORT
+    connectivity_check_interval = 10       # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
     if sim_mode:

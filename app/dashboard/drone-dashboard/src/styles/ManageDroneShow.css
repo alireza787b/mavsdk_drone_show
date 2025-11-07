@@ -952,3 +952,85 @@
         border: 2px solid var(--color-primary);
     }
 }
+
+/* ========================================================================
+   DARK MODE FIXES - VisualizationSection Components
+   ======================================================================== */
+
+/* Upload Info Box - Dark Mode Compatible */
+.upload-info-box {
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary)) !important;
+    border: 1px solid var(--color-border-primary) !important;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition-all);
+}
+
+.upload-info-title {
+    color: var(--color-text-primary) !important;
+    font-weight: var(--font-weight-bold) !important;
+}
+
+.upload-info-subtitle {
+    color: var(--color-text-secondary) !important;
+}
+
+/* Metric Cards - Dark Mode Compatible */
+.metric-card {
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary)) !important;
+    border: 2px solid var(--color-border-primary) !important;
+    border-radius: var(--border-radius-lg) !important;
+    transition: all 0.3s ease !important;
+    box-shadow: var(--shadow-base) !important;
+}
+
+.metric-card:hover {
+    box-shadow: 0 8px 25px rgba(0, 86, 179, 0.15) !important;
+    border-color: var(--color-primary-border) !important;
+    transform: translateY(-2px);
+}
+
+/* Dark mode hover effect */
+[data-theme="dark"] .metric-card:hover {
+    box-shadow: 0 8px 25px rgba(100, 181, 246, 0.2) !important;
+}
+
+.metric-icon {
+    opacity: 0.9;
+    filter: drop-shadow(0 2px 4px var(--color-shadow-light));
+}
+
+.metric-icon.primary {
+    color: var(--color-primary) !important;
+}
+
+.metric-icon.secondary {
+    color: var(--brand-secondary) !important;
+}
+
+.metric-icon.success {
+    color: var(--color-success) !important;
+}
+
+.metric-icon.warning {
+    color: var(--color-warning) !important;
+}
+
+.metric-icon.info {
+    color: var(--color-info) !important;
+}
+
+.metric-label {
+    color: var(--color-text-secondary) !important;
+    font-weight: var(--font-weight-semibold) !important;
+}
+
+.metric-value {
+    color: var(--color-text-primary) !important;
+    font-weight: var(--font-weight-bold) !important;
+}
+
+/* Metric detail text (e.g., "Drone 3 at 45s") - Dark Mode Compatible */
+.metric-detail {
+    color: var(--color-text-secondary) !important;
+    font-weight: var(--font-weight-medium) !important;
+}

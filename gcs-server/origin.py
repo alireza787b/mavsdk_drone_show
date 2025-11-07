@@ -4,6 +4,7 @@ import math
 import os
 import json
 import logging
+from datetime import datetime
 from params import Params
 from pyproj import Proj, Transformer
 from scipy.optimize import minimize
@@ -22,35 +23,78 @@ if not os.path.exists(os.path.dirname(origin_file_path)):
 
 def save_origin(data):
     """
-    Save the origin coordinates to a JSON file.
+    Save the origin coordinates to a JSON file (v2 schema with altitude support).
 
-    :param data: Dictionary containing 'lat' and 'lon'.
+    Schema v2:
+      - lat: float (required) - Latitude in decimal degrees
+      - lon: float (required) - Longitude in decimal degrees
+      - alt: float (optional, default 0) - MSL altitude in meters
+      - alt_source: str (optional) - 'manual' | 'drone' | 'elevation_api'
+      - timestamp: ISO datetime string
+      - version: int (schema version)
+
+    :param data: Dictionary containing origin data
     """
     try:
+        # Build v2 schema with backwards compatibility
+        origin_data = {
+            'lat': float(data.get('lat')),
+            'lon': float(data.get('lon')),
+            'alt': float(data.get('alt', 0)),  # Default to 0 for backwards compat
+            'alt_source': data.get('alt_source', 'manual'),
+            'timestamp': datetime.now().isoformat(),
+            'version': 2
+        }
+
         with open(origin_file_path, 'w') as f:
-            json.dump(data, f)
-        logger.info("Origin coordinates saved successfully.")
+            json.dump(origin_data, f, indent=2)
+
+        logger.info(f"Origin coordinates saved successfully: lat={origin_data['lat']}, "
+                   f"lon={origin_data['lon']}, alt={origin_data['alt']}m")
     except Exception as e:
         logger.error(f"Error saving origin coordinates: {e}")
+        raise
 
 def load_origin():
     """
-    Load the origin coordinates from a JSON file.
+    Load the origin coordinates from a JSON file with backwards compatibility.
 
-    :return: Dictionary containing 'lat' and 'lon'.
+    Automatically migrates v1 format (lat/lon only) to v2 (with altitude).
+
+    :return: Dictionary containing origin data in v2 format
     """
     if os.path.exists(origin_file_path):
         try:
             with open(origin_file_path, 'r') as f:
                 data = json.load(f)
+
+            # Check version and migrate if needed
+            if 'version' not in data or data.get('version') == 1:
+                # Migrate from v1 to v2
+                logger.info("Migrating origin data from v1 to v2 schema")
+                data = {
+                    'lat': data.get('lat', ''),
+                    'lon': data.get('lon', ''),
+                    'alt': 0,  # Old format assumed ground level
+                    'alt_source': 'manual',
+                    'timestamp': datetime.now().isoformat(),
+                    'version': 2
+                }
+                # Save migrated data
+                try:
+                    save_origin(data)
+                except:
+                    pass  # Don't fail if save fails during migration
+
             logger.info("Origin coordinates loaded successfully.")
             return data
+
         except Exception as e:
             logger.error(f"Error loading origin coordinates: {e}")
-            return {'lat': '', 'lon': ''}
+            return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
     else:
         logger.warning("Origin file does not exist. Returning default values.")
-        return {'lat': '', 'lon': ''}
+        return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
 
 def _latlon_to_ne(lat, lon, origin_lat, origin_lon):
     """Converts lat/lon to north-east coordinates relative to the origin."""
@@ -87,9 +131,10 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
             continue
 
         # Get initial positions from config
+        # Note: config.csv schema is x=North, y=East (NED coordinate system)
         try:
-            initial_north = float(drone.get('x', 0))  # 'x' is East
-            initial_east = float(drone.get('y', 0))  # 'y' is North
+            initial_north = float(drone.get('x', 0))  # x column = North coordinate
+            initial_east = float(drone.get('y', 0))   # y column = East coordinate
         except (TypeError, ValueError):
             deviations[hw_id] = {
                 "error": "Invalid initial position in configuration"

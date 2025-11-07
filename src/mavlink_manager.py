@@ -19,7 +19,7 @@ class MavlinkManager:
             else:
                 if self.params.serial_mavlink:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via serial...")
-                    mavlink_source = f"{self.params.serial_mavlink_port}:{self.params.serial_baudrate}"
+                    mavlink_source = f"{self.drone_config.get_serial_port()}:{self.drone_config.get_baudrate()}"
                 else:
                     logging.info("Real mode is enabled. Connecting to Pixhawk via UDP...")
                     mavlink_source = f"127.0.0.1:{self.params.hw_udp_port}"
@@ -35,9 +35,9 @@ class MavlinkManager:
                 endpoints.append(f"-e 127.0.0.1:{self.params.mavsdk_port}")
 
             if self.params.shared_gcs_port:
-                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{self.params.gcs_mavlink_port}")
+                endpoints.append(f"-e {self.params.GCS_IP}:{self.params.gcs_mavlink_port}")
             else:
-                endpoints.append(f"-e {self.drone_config.config['gcs_ip']}:{int(self.drone_config.config['mavlink_port'])}")
+                endpoints.append(f"-e {self.params.GCS_IP}:{int(self.drone_config.config['mavlink_port'])}")
 
             mavlink_router_cmd = "mavlink-routerd " + ' '.join(endpoints) + ' ' + mavlink_source
             logging.info(f"Starting MAVLink router with command: {mavlink_router_cmd}")

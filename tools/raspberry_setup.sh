@@ -535,6 +535,40 @@ setup_python_venv() {
         sudo apt-get install -y python3
     fi
 
+    # Check Python version (MDS requires Python 3.11-3.13)
+    echo "Checking Python version compatibility..."
+    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+    PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+
+    echo "Detected Python version: $PYTHON_VERSION"
+
+    if [[ $PYTHON_MAJOR -lt 3 ]] || [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -lt 11 ]]; then
+        echo ""
+        echo "ERROR: Incompatible Python Version"
+        echo ""
+        echo "MAVSDK Drone Show requires Python 3.11 or newer."
+        echo "You have Python $PYTHON_VERSION"
+        echo ""
+        echo "Solutions:"
+        echo "  1. Upgrade to latest Raspberry Pi OS (includes Python 3.13)"
+        echo "  2. Install Python 3.11+ manually"
+        echo ""
+        echo "For support, see: docs/PYTHON_COMPATIBILITY.md"
+        exit 1
+    elif [[ $PYTHON_MAJOR -eq 3 && $PYTHON_MINOR -gt 13 ]]; then
+        echo "WARNING: Untested Python Version: $PYTHON_VERSION"
+        echo "  MDS has been tested with Python 3.11-3.13."
+        echo "  Python 3.14+ may work but is not officially supported yet."
+        read -p "  Continue anyway? (y/n): " continue_install
+        if [[ "$continue_install" != "y" && "$continue_install" != "Y" ]]; then
+            echo "Installation cancelled."
+            exit 1
+        fi
+    else
+        echo "Python $PYTHON_VERSION - Compatible"
+    fi
+
     # Check if python3-venv is installed
     if ! dpkg -s python3-venv &> /dev/null; then
         echo "python3-venv not installed. Installing it..."
@@ -570,14 +604,14 @@ setup_python_venv() {
     # shellcheck disable=SC1091
     source venv/bin/activate
 
-    echo "Upgrading pip and installing required packages..."
-    pip install --upgrade pip
-
-    #temporary disable hash check so if restore from backup wont fail...
+    echo "Upgrading pip..."
+    pip install --upgrade pip 2>&1 | grep -v "Requirement already satisfied" || true
 
     if [[ -f "requirements.txt" ]]; then
-        echo "Installing from requirements.txt..."
-        pip install --no-deps -r requirements.txt
+        echo "Installing Python packages from requirements.txt (this may take 5-10 minutes)..."
+        # Install WITH dependencies (removed dangerous --no-deps flag)
+        pip install -r requirements.txt 2>&1 | grep -E "(Successfully installed|ERROR|error)" || true
+        echo "Python packages installation complete."
     else
         echo "requirements.txt not found. Skipping pip install from file."
     fi
@@ -638,33 +672,13 @@ validate_inputs
 SCRIPT_PATH="$(realpath "$0")"
 INITIAL_HASH=$(md5sum "$SCRIPT_PATH" | cut -d ' ' -f 1)
 
+echo
+echo "╔════════════════════════════════════════════════════════════════════════════╗"
+echo "║            MAVSDK Drone Show - Hardware Setup Script v3.5.2               ║"
+echo "╚════════════════════════════════════════════════════════════════════════════╝"
+echo
+
 echo "Starting setup for the Drone Swarm System..."
-
-# Handle Hardware ID (HWID) File and real.mode
-
-# Define the directory containing HWID and real.mode files
-hwid_dir="$REPO_DIR"
-
-# Define the HWID file path based on Drone ID
-hwid_file="$hwid_dir/${DRONE_ID}.hwID"
-
-# Define the real.mode file path
-real_mode_file="$hwid_dir/real.mode"
-
-# Remove any existing HWID files for this drone
-find "$hwid_dir" -name "*.hwID" -type f -exec rm -f {} \;
-
-# Create the new HWID file
-touch "$hwid_file"
-echo "Hardware ID file created/updated at: $hwid_file"
-
-# Check if real.mode exists; if not, create an empty real.mode file
-if [[ ! -f "$real_mode_file" ]]; then
-    touch "$real_mode_file"
-    echo "real.mode file did not exist and has been created at: $real_mode_file"
-else
-    echo "real.mode file already exists at: $real_mode_file"
-fi
 
 # Configure Hostname
 configure_hostname
@@ -695,6 +709,34 @@ echo
 echo "Git repository setup complete."
 echo
 
+# Handle Hardware ID (HWID) File and real.mode
+# (MOVED HERE - after repo is cloned to avoid errors)
+echo "Setting up hardware ID files..."
+
+# Define the directory containing HWID and real.mode files
+hwid_dir="$REPO_DIR"
+
+# Define the HWID file path based on Drone ID
+hwid_file="$hwid_dir/${DRONE_ID}.hwID"
+
+# Define the real.mode file path
+real_mode_file="$hwid_dir/real.mode"
+
+# Remove any existing HWID files for this drone
+find "$hwid_dir" -name "*.hwID" -type f -exec rm -f {} \; 2>/dev/null || true
+
+# Create the new HWID file
+touch "$hwid_file"
+echo "Hardware ID file created/updated at: $hwid_file"
+
+# Check if real.mode exists; if not, create an empty real.mode file
+if [[ ! -f "$real_mode_file" ]]; then
+    touch "$real_mode_file"
+    echo "real.mode file did not exist and has been created at: $real_mode_file"
+else
+    echo "real.mode file already exists at: $real_mode_file"
+fi
+
 # ----------------------------------------------------------------------
 # CALL OUR NEW VIRTUAL ENV SETUP FUNCTION (if desired, no skip flag for it)
 # ----------------------------------------------------------------------
@@ -722,10 +764,21 @@ if [[ "$SKIP_NETBIRD" == false ]]; then
     setup_netbird
 fi
 
-echo "Setup Finished..."
-echo "Initiating Reboot..."
-sudo reboot
+echo
+echo "╔════════════════════════════════════════════════════════════════════════════╗"
+echo "║                         SETUP COMPLETE!                                    ║"
+echo "╚════════════════════════════════════════════════════════════════════════════╝"
+echo
+echo "System is now configured for Drone ID $DRONE_ID"
+echo "The system will reboot in 10 seconds..."
+echo "Press Ctrl+C to cancel reboot"
+echo
 
+for i in {10..1}; do
+    printf "Rebooting in %2d seconds...\r" $i
+    sleep 1
+done
 
 echo
-echo "Setup complete! The system is now configured for Drone ID $DRONE_ID."
+echo "Initiating reboot..."
+sudo reboot

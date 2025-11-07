@@ -55,14 +55,9 @@ class DroneCommunicator:
     def _initialize_socket(self) -> socket.socket:
         """Initialize and return a UDP socket for telemetry."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
-        sock.setblocking(False)
-        return sock
-
-    def _initialize_socket(self) -> socket.socket:
-        """Initialize and return a UDP socket for telemetry."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(('0.0.0.0', int(self.drone_config.config['debug_port'])))
+        # Use per-drone mavlink_port for UDP telemetry binding
+        udp_port = int(self.drone_config.config.get('mavlink_port', 14550))
+        sock.bind(('0.0.0.0', udp_port))
         sock.setblocking(False)
         return sock
 
@@ -296,8 +291,8 @@ class DroneCommunicator:
 
     def send_drone_state(self) -> None:
         """Continuously send drone state as telemetry."""
-        udp_ip = self.drone_config.config['gcs_ip']
-        udp_port = int(self.drone_config.config['debug_port'])
+        udp_ip = Params.GCS_IP  # Use centralized GCS IP from Params
+        udp_port = Params.flask_telem_socket_port  # Default port for UDP telemetry
 
         while not self.stop_flag.is_set():
             drone_state = self.get_drone_state()
@@ -336,7 +331,7 @@ class DroneCommunicator:
         nodes = self.get_nodes()
         for node in nodes:
             if int(node["hw_id"]) != sender_hw_id:
-                self.executor.submit(self.send_telem, packet, node["ip"], int(node["debug_port"]))
+                self.executor.submit(self.send_telem, packet, node["ip"], int(node["mavlink_port"]))
 
     def read_packets(self) -> None:
         """Continuously read incoming packets and process them."""

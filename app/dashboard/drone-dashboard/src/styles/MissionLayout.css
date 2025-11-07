@@ -108,7 +108,7 @@
     flex-shrink: 0;
 }
 
-/* Origin Status Display */
+/* Origin Status Display - Fixed for coordinate overflow */
 .current-origin {
     background: var(--color-success-light);
     border: 1px solid var(--color-success-border);
@@ -116,16 +116,39 @@
     padding: var(--spacing-sm) var(--spacing-base);
     border-radius: var(--border-radius-sm);
     box-shadow: var(--shadow-sm);
-    max-width: 300px;
+    min-width: 220px;
+    max-width: 100%; /* Removed fixed 300px for responsiveness */
 }
 
 .current-origin p {
     margin: 0;
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
-    font-family: var(--font-family-mono);
     font-weight: var(--font-weight-medium);
-    white-space: nowrap;
+}
+
+.current-origin p:first-child {
+    font-family: var(--font-family-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.current-origin .coordinates {
+    font-family: var(--font-family-mono);
+    line-height: 1.5;
+}
+
+.current-origin .coord-label {
+    color: var(--color-success);
+    font-family: var(--font-family-primary);
+    font-weight: var(--font-weight-semibold);
+    display: inline-block;
+    min-width: 32px;
+}
+
+.current-origin .coord-value {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.5px;
 }
 
 .current-origin strong {

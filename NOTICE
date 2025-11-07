@@ -1,0 +1,234 @@
+# MAVSDK Drone Show - Third-Party Licenses and Attributions
+
+This file contains required notices and attributions for third-party software included in or used by MAVSDK Drone Show.
+
+© 2025 Alireza Ghaderi
+Licensed under CC BY-NC-SA 4.0 for non-commercial use
+
+---
+
+## Core Dependencies
+
+### PX4 Autopilot
+- **License:** BSD-3-Clause
+- **Copyright:** PX4 Development Team
+- **URL:** https://px4.io/
+- **Description:** Open-source flight control software
+- **License Text:** https://github.com/PX4/PX4-Autopilot/blob/main/LICENSE
+
+### MAVSDK
+- **License:** BSD-3-Clause
+- **Copyright:** MAVSDK Development Team
+- **URL:** https://mavsdk.mavlink.io/
+- **Description:** MAVLink SDK for drones
+- **License Text:** https://github.com/mavlink/MAVSDK/blob/main/LICENSE.md
+
+### MAVLink
+- **License:** BSD-3-Clause (Permissive)
+- **Copyright:** Dronecode Foundation
+- **URL:** https://mavlink.io/
+- **Description:** Lightweight messaging protocol for drones
+- **License Text:** https://github.com/mavlink/mavlink/blob/master/COPYING
+
+### MAVLink2REST
+- **License:** MIT / Apache-2.0
+- **Copyright:** MAVLink Contributors
+- **URL:** https://github.com/mavlink/mavlink2rest
+- **Description:** REST API for MAVLink messages
+
+---
+
+## Python Dependencies
+
+### pandas
+- **License:** BSD-3-Clause
+- **URL:** https://pandas.pydata.org/
+- **Description:** Data analysis and manipulation library
+
+### protobuf
+- **License:** BSD-3-Clause
+- **Copyright:** Google Inc.
+- **URL:** https://developers.google.com/protocol-buffers
+- **Description:** Protocol Buffers - Google's data interchange format
+
+### numpy
+- **License:** BSD-3-Clause
+- **URL:** https://numpy.org/
+- **Description:** Scientific computing package
+
+### navpy
+- **License:** MIT
+- **URL:** https://github.com/NavPy/NavPy
+- **Description:** Navigation and geodetic library
+
+### Flask
+- **License:** BSD-3-Clause
+- **Copyright:** Pallets
+- **URL:** https://flask.palletsprojects.com/
+- **Description:** Lightweight web framework
+
+### aiohttp
+- **License:** Apache-2.0
+- **URL:** https://docs.aiohttp.org/
+- **Description:** Asynchronous HTTP client/server
+
+---
+
+## JavaScript/React Dependencies
+
+### React
+- **License:** MIT
+- **Copyright:** Meta Platforms, Inc.
+- **URL:** https://reactjs.org/
+- **Description:** JavaScript library for building user interfaces
+
+### Material-UI (@mui/material)
+- **License:** MIT
+- **Copyright:** Material-UI Team
+- **URL:** https://mui.com/
+- **Description:** React component library implementing Material Design
+
+### Mapbox GL JS
+- **License:** Custom (Mapbox GL JS v2.x - free tier available)
+- **Copyright:** Mapbox, Inc.
+- **URL:** https://docs.mapbox.com/mapbox-gl-js/
+- **Description:** Interactive maps library
+- **Note:** Requires Mapbox access token for full functionality
+
+### Leaflet
+- **License:** BSD-2-Clause
+- **Copyright:** Vladimir Agafonkin
+- **URL:** https://leafletjs.com/
+- **Description:** Open-source JavaScript library for mobile-friendly interactive maps
+
+### React Router
+- **License:** MIT
+- **Copyright:** Remix Software Inc.
+- **URL:** https://reactrouter.com/
+- **Description:** Routing library for React
+
+### Axios
+- **License:** MIT
+- **Copyright:** Matt Zabriskie
+- **URL:** https://axios-http.com/
+- **Description:** Promise-based HTTP client
+
+### Three.js
+- **License:** MIT
+- **Copyright:** three.js authors
+- **URL:** https://threejs.org/
+- **Description:** 3D graphics library
+
+### React-Toastify
+- **License:** MIT
+- **URL:** https://fkhadra.github.io/react-toastify/
+- **Description:** Notification library for React
+
+### Turf.js
+- **License:** MIT
+- **Copyright:** Turf Authors
+- **URL:** https://turfjs.org/
+- **Description:** Advanced geospatial analysis
+
+### PapaParse
+- **License:** MIT
+- **Copyright:** Matthew Holt
+- **URL:** https://www.papaparse.com/
+- **Description:** Fast CSV parser
+
+---
+
+## Development Dependencies
+
+### Create React App
+- **License:** MIT
+- **Copyright:** Facebook, Inc.
+- **URL:** https://create-react-app.dev/
+- **Description:** React application bootstrapping tool
+
+### ESLint
+- **License:** MIT
+- **Copyright:** OpenJS Foundation and ESLint contributors
+- **URL:** https://eslint.org/
+- **Description:** JavaScript linting utility
+
+---
+
+## Docker Base Images
+
+### Ubuntu
+- **License:** Various (primarily GPL and compatible)
+- **Copyright:** Canonical Ltd. and Ubuntu contributors
+- **URL:** https://ubuntu.com/
+- **Description:** Base operating system for Docker containers
+
+---
+
+## License Compatibility
+
+MAVSDK Drone Show is licensed under CC BY-NC-SA 4.0 for non-commercial use. The third-party components listed above have compatible licenses (BSD, MIT, Apache-2.0) that permit their use in this project.
+
+### Note on Commercial Use
+
+If you obtain a commercial license for MAVSDK Drone Show, you remain responsible for compliance with the licenses of all third-party dependencies listed above. Most dependencies (BSD, MIT, Apache) permit commercial use with proper attribution.
+
+Some components may have specific requirements:
+- **Mapbox GL JS:** Requires Mapbox account and may have usage-based pricing
+- **PX4 Autopilot:** BSD-3-Clause permits commercial use with attribution
+
+Consult the license terms of each component for full details.
+
+---
+
+## Acknowledgments
+
+MAVSDK Drone Show builds upon the excellent work of the open-source drone community, particularly:
+
+- The PX4 Development Team for their robust flight control software
+- The MAVSDK Team for their comprehensive drone SDK
+- The Dronecode Foundation for MAVLink protocol
+- The React and JavaScript open-source communities
+- All contributors to the dependencies listed above
+
+We are grateful for their contributions to open-source software.
+
+---
+
+## How to Review Licenses
+
+### Python Dependencies
+Full list of Python dependencies and their licenses:
+```bash
+pip-licenses --format=markdown --output-file=python-licenses.txt
+```
+
+### JavaScript Dependencies
+Full list of npm dependencies and their licenses:
+```bash
+cd app/dashboard/drone-dashboard
+npm list --depth=0
+npx license-checker --summary
+```
+
+---
+
+## Updates
+
+This NOTICE file is updated when significant third-party dependencies are added or changed. For the most current dependency list, check:
+- **Python:** `requirements.txt`
+- **JavaScript:** `app/dashboard/drone-dashboard/package.json`
+
+---
+
+## Questions?
+
+If you have questions about third-party licenses or need clarification about license compatibility:
+
+**Contact:** p30planets@gmail.com
+
+---
+
+**Last Updated:** November 2025
+**Project Version:** 3.6
+
+© 2025 Alireza Ghaderi

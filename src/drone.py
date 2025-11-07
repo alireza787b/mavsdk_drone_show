@@ -10,8 +10,7 @@ class Drone:
         self.y = config.y
         self.ip = config.ip
         self.mavlink_port = config.mavlink_port
-        self.debug_port = config.debug_port
-        self.gcs_ip = config.gcs_ip
+        # Note: debug_port and gcs_ip removed - now centralized in Params.py
         self.grpc_port = 50040 + int(self.hw_id)
         self.drone = System(mavsdk_server_address="127.0.0.1", port=self.grpc_port)
         self.waypoints = []

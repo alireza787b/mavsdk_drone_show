@@ -464,24 +464,18 @@ const VisualizationSection = ({ uploadCount }) => {
       
       {/* Show File Information */}
       {comprehensiveMetrics?.show_info && (
-        <Box sx={{ 
-          bgcolor: '#f8f9fa', 
-          border: '1px solid #dee2e6', 
-          borderRadius: 1, 
-          p: 2, 
-          mb: 3 
-        }}>
+        <Box className="upload-info-box" sx={{ borderRadius: 1, p: 2, mb: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
             <Box>
-              <Typography variant="subtitle2" sx={{ color: '#0056b3', fontWeight: 'bold' }}>
+              <Typography variant="subtitle2" className="upload-info-title">
                 📁 Current Show: {comprehensiveMetrics.show_info.filename}
               </Typography>
-              <Typography variant="caption" color="textSecondary">
+              <Typography variant="caption" className="upload-info-subtitle">
                 Uploaded: {new Date(comprehensiveMetrics.show_info.uploaded_at).toLocaleString()}
               </Typography>
             </Box>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" color="textSecondary">
+              <Typography variant="caption" className="upload-info-subtitle">
                 Processed: {new Date(comprehensiveMetrics.show_info.processed_at).toLocaleString()}
               </Typography>
             </Box>
@@ -492,13 +486,13 @@ const VisualizationSection = ({ uploadCount }) => {
       {/* Essential Metrics - Always Visible - 3 cards per row on large screens */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <AccessTimeIcon color="primary" sx={{ fontSize: 48, mb: 2 }} />
-              <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600 }}>
+              <AccessTimeIcon className="metric-icon primary" sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="subtitle1" className="metric-label" gutterBottom>
                 Duration
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatDuration()}
               </Typography>
             </CardContent>
@@ -506,13 +500,13 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <TheatersIcon color="secondary" sx={{ fontSize: 48, mb: 2 }} />
-              <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600 }}>
+              <TheatersIcon className="metric-icon secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="subtitle1" className="metric-label" gutterBottom>
                 Drone Count
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {showDetails.droneCount || 'N/A'}
               </Typography>
             </CardContent>
@@ -520,19 +514,19 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <HeightIcon color="success" sx={{ fontSize: 48, mb: 2 }} />
+              <HeightIcon className="metric-icon success" sx={{ fontSize: 48, mb: 2 }} />
               <Tooltip title="Maximum altitude reached during the entire show">
-                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                   Max Altitude <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatMaxAltitude()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.max_altitude_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
+                <Typography variant="caption" className="metric-detail" sx={{ display: 'block' }}>
                   Drone {comprehensiveMetrics.basic_metrics.max_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_altitude_details.time_s}s
                 </Typography>
               )}
@@ -541,19 +535,19 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <HeightIcon color="warning" sx={{ fontSize: 48, mb: 2, transform: 'rotate(180deg)' }} />
+              <HeightIcon className="metric-icon warning" sx={{ fontSize: 48, mb: 2, transform: 'rotate(180deg)' }} />
               <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing within 20m)">
-                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                   Min Altitude <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatMinAltitude()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.min_altitude_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
+                <Typography variant="caption" className="metric-detail" sx={{ display: 'block' }}>
                   Drone {comprehensiveMetrics.basic_metrics.min_altitude_details.drone_id} at {comprehensiveMetrics.basic_metrics.min_altitude_details.time_s}s
                 </Typography>
               )}
@@ -562,19 +556,19 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <SpeedIcon color="info" sx={{ fontSize: 48, mb: 2 }} />
+              <SpeedIcon className="metric-icon info" sx={{ fontSize: 48, mb: 2 }} />
               <Tooltip title="Maximum velocity reached by any drone during the show">
-                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                   Max Speed <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatMaxSpeed()}
               </Typography>
               {comprehensiveMetrics?.performance_metrics?.max_velocity_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
+                <Typography variant="caption" className="metric-detail" sx={{ display: 'block' }}>
                   Drone {comprehensiveMetrics.performance_metrics.max_velocity_details.drone_id} at {comprehensiveMetrics.performance_metrics.max_velocity_details.time_s}s
                 </Typography>
               )}
@@ -583,19 +577,19 @@ const VisualizationSection = ({ uploadCount }) => {
         </Grid>
 
         <Grid item xs={12} sm={6} lg={4}>
-          <Card variant="outlined" sx={{ height: '100%', border: '2px solid #e9ecef', borderRadius: 2, transition: 'all 0.3s ease', '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' } }}>
+          <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <TimelineIcon color="secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <TimelineIcon className="metric-icon secondary" sx={{ fontSize: 48, mb: 2 }} />
               <Tooltip title="Maximum 3D distance any drone traveled from its launch position during the show">
-                <Typography variant="subtitle1" color="textSecondary" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
                   Max Distance <HelpIcon sx={{ fontSize: 18 }} />
                 </Typography>
               </Tooltip>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+              <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
                 {formatMaxDistance()}
               </Typography>
               {comprehensiveMetrics?.basic_metrics?.max_distance_details && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontWeight: 500 }}>
+                <Typography variant="caption" className="metric-detail" sx={{ display: 'block' }}>
                   Drone {comprehensiveMetrics.basic_metrics.max_distance_details.drone_id} at {comprehensiveMetrics.basic_metrics.max_distance_details.time_s}s
                 </Typography>
               )}

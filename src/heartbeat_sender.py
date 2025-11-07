@@ -19,8 +19,8 @@ class HeartbeatSender:
     def __init__(self, drone_config: DroneConfig):
         self.drone_config = drone_config
         self.interval = Params.heartbeat_interval
-        self.gcs_ip = self.drone_config.config.get('gcs_ip', None)
-        self.gcs_port = Params.flask_telem_socket_port  # or a separate param if you prefer
+        self.gcs_ip = Params.GCS_IP  # Use centralized GCS IP from Params
+        self.gcs_port = Params.GCS_FLASK_PORT
         self.running = False
         self.thread = None
 
@@ -29,7 +29,7 @@ class HeartbeatSender:
         Start the heartbeat thread.
         """
         if not self.gcs_ip:
-            logging.warning("GCS IP not found in drone config. Heartbeat will not start.")
+            logging.warning("GCS IP not configured in Params. Heartbeat will not start.")
             return
 
         if self.running:

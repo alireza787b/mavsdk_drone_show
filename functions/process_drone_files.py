@@ -44,7 +44,7 @@ def process_drone_files(
     smoothing: bool = True
 ) -> List[str]:
     """
-    Process and interpolate (x,y,z) + LED data from original Blender NWU CSVs in 'skybrush_dir', 
+    Process and interpolate (x,y,z) + LED data from original Blender NWU CSVs in 'skybrush_dir',
     then output them in NED format to 'processed_dir'.
 
     The steps:
@@ -70,7 +70,9 @@ def process_drone_files(
     Returns:
         List[str]: List of file paths for the processed CSVs.
     """
-    logging.info("[process_drone_files] Starting processing pipeline...")
+    logging.info("[process_drone_files] ============================================")
+    logging.info("[process_drone_files] Starting drone show processing pipeline...")
+    logging.info("[process_drone_files] ============================================")
     ensure_directory_exists(skybrush_dir)
     ensure_directory_exists(processed_dir)
 
@@ -79,7 +81,11 @@ def process_drone_files(
 
     processed_files = []
     csv_files = [f for f in os.listdir(skybrush_dir) if f.endswith(".csv")]
-    logging.info(f"[process_drone_files] Found {len(csv_files)} CSV file(s) in '{skybrush_dir}'.")
+    logging.info(f"[process_drone_files] ✅ Found {len(csv_files)} CSV file(s) in '{skybrush_dir}'.")
+
+    # List all files for verification
+    if csv_files:
+        logging.info(f"[process_drone_files] Raw input files: {sorted(csv_files)}")
 
     interpolation_methods = {
         'cubic': CubicSpline,
@@ -164,7 +170,39 @@ def process_drone_files(
             logging.info(f"[process_drone_files] Processed and saved NED CSV: {out_path}")
 
         except Exception as e:
-            logging.error(f"[process_drone_files] Error processing {filename}: {e}", exc_info=True)
+            logging.error(f"[process_drone_files] ❌ ERROR processing {filename}: {e}", exc_info=True)
 
-    logging.info(f"[process_drone_files] Completed processing {len(processed_files)} file(s).")
+    # ====================================================================
+    # CRITICAL VALIDATION: Verify all input files were processed
+    # ====================================================================
+    input_count = len(csv_files)
+    output_count = len(processed_files)
+
+    logging.info(f"[process_drone_files] ============================================")
+    logging.info(f"[process_drone_files] Processing Summary:")
+    logging.info(f"[process_drone_files]   Input files:  {input_count}")
+    logging.info(f"[process_drone_files]   Output files: {output_count}")
+
+    if output_count == input_count:
+        logging.info(f"[process_drone_files] ✅ SUCCESS: All {input_count} drones processed correctly!")
+        logging.info(f"[process_drone_files] Processed files: {[os.path.basename(f) for f in processed_files]}")
+    else:
+        missing_count = input_count - output_count
+        logging.error(f"[process_drone_files] ⚠️ WARNING: {missing_count} file(s) failed to process!")
+
+        # Identify which files failed
+        input_basenames = {f.replace('.csv', '') for f in csv_files}
+        output_basenames = {os.path.basename(f).replace('.csv', '') for f in processed_files}
+        failed_files = input_basenames - output_basenames
+
+        if failed_files:
+            logging.error(f"[process_drone_files] Failed files: {sorted(failed_files)}")
+
+        # Raise an exception to prevent silent failures
+        raise RuntimeError(
+            f"Processing incomplete: {output_count}/{input_count} files processed successfully. "
+            f"Failed files: {sorted(failed_files)}"
+        )
+
+    logging.info(f"[process_drone_files] ============================================")
     return processed_files

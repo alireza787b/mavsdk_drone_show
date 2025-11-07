@@ -34,8 +34,10 @@ MANIFEST
 shapes/plots/*.jpg
 shapes/trajectory/
 shapes_sitl/trajectory/
-shapes/swarm/processed/
-shapes_sitl/swarm/processed/
+# CRITICAL: DO NOT ignore processed directories - these contain mission-critical drone trajectory files
+# that must be version controlled for safety, traceability, and team collaboration
+# shapes/swarm/processed/
+# shapes_sitl/swarm/processed/
 
 
 
@@ -119,6 +121,12 @@ venv.bak/
 *.swp
 *~
 
+# Backup files
+*.backup
+*.bak
+*_bak.py
+*_old.py
+
 # Logs
 logs/
 *.log
@@ -127,6 +135,8 @@ gcs-server/logs/
 # Test and optimization files
 test_logging_optimizations.py
 cached_files.txt
+/test_config*.py
+/offboard_multiple*.py
 
 # Local configuration files
 /local_config.yml
@@ -135,6 +145,7 @@ cached_files.txt
 
 # Specific binary and hardware ID files that should not be committed
 /mavsdk_server
+/mavsdk_server*
 /*.hwID
 /real.mode
 
@@ -142,6 +153,10 @@ cached_files.txt
 
 # Node modules
 node_modules/
+
+# Empty npm artifact files
+react-scripts
+drone-dashboard@*
 
 # Production files
 dist/
@@ -181,3 +196,4 @@ yarn-error.log*
 
 app/dashboard/drone-dashboard/.env
 *.ZoneIdentifier
+.claude/settings.local.json
