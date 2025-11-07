@@ -122,6 +122,9 @@ We welcome:
 ### 2. Creating the PR
 
 1. **Commit your changes**
+
+   **⚠️ IMPORTANT:** We use [Conventional Commits](https://www.conventionalcommits.org/) for automated versioning!
+
    ```bash
    git add .
    git commit -m "feat: add new feature X"
@@ -129,13 +132,70 @@ We welcome:
    git commit -m "fix: resolve issue with Y"
    ```
 
-   **Commit message format:**
-   - `feat:` - New feature
-   - `fix:` - Bug fix
-   - `docs:` - Documentation changes
-   - `refactor:` - Code refactoring
-   - `test:` - Test additions/changes
-   - `chore:` - Build/tooling changes
+   **Commit Message Format:**
+   ```
+   <type>[optional scope]: <description>
+
+   [optional body]
+
+   [optional footer]
+   ```
+
+   **Types and Version Impact:**
+
+   | Type | Version Change | Example |
+   |------|----------------|---------|
+   | `feat:` | ↑ **Minor** (3.7 → 3.8) | `feat: add trajectory editor` |
+   | `fix:` | ↑ **Minor** (3.7 → 3.8) | `fix: resolve GPS timeout` |
+   | `feat!:` | ↑ **Major** (3.7 → 4.0) | `feat!: breaking API change` |
+   | `docs:` | No change | `docs: update README` |
+   | `refactor:` | No change | `refactor: restructure code` |
+   | `test:` | No change | `test: add unit tests` |
+   | `chore:` | No change | `chore: cleanup files` |
+   | `style:` | No change | `style: fix formatting` |
+   | `perf:` | No change | `perf: optimize algorithm` |
+   | `ci:` | No change | `ci: update workflow` |
+
+   **With Scope (Recommended):**
+   ```bash
+   feat(dashboard): add dark mode
+   fix(api): resolve timeout issue
+   docs(install): update Docker guide
+   ```
+
+   **Breaking Changes:**
+   ```bash
+   feat!: remove deprecated API
+
+   BREAKING CHANGE: Old /v1/api endpoint removed.
+   Migrate to /v2/api instead.
+   ```
+
+   **Good Examples:**
+   ```bash
+   ✅ feat: add swarm trajectory smoother
+   ✅ fix: resolve modal centering UX issue
+   ✅ docs: update installation guide
+   ✅ chore: cleanup deprecated files
+   ✅ feat(gcs): implement real-time telemetry
+   ✅ fix(dashboard): resolve WebSocket timeout
+   ```
+
+   **Bad Examples:**
+   ```bash
+   ❌ Updated files              # No type, too vague
+   ❌ Fixed bug                  # No description
+   ❌ feat added feature         # Missing colon
+   ❌ FIX: Bug                   # Uppercase type
+   ```
+
+   **Why This Matters:**
+   - ✅ PR validation automatically checks format
+   - ✅ Version bumps happen automatically on merge
+   - ✅ Release notes are auto-generated
+   - ✅ CHANGELOG updates automatically
+
+   See [docs/VERSIONING.md](docs/VERSIONING.md) for complete details.
 
 2. **Push to your fork**
    ```bash
