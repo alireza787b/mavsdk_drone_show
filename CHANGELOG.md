@@ -7,6 +7,47 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [3.7] - 2025-11-07
+
+### Added
+- **Comprehensive Project Cleanup**: Removed 14 unnecessary files and directories from root
+  - Removed backup files: `config.csv.backup`, `config_sitl.csv.backup`
+  - Removed old code backups: `drone_show_bak.py`, `smart_swarm_old.py`
+  - Removed test/experimental scripts: `offboard_multiple_from_csv.py`, `test_config_*.py`
+  - Removed empty npm artifacts: `drone-dashboard@1.0.0`, `react-scripts`
+  - Removed misplaced `package-lock.json` from root (React is in `app/dashboard/drone-dashboard/`)
+- **.gitignore Enhancements**: Added patterns to prevent future clutter
+  - Backup files: `*.backup`, `*.bak`, `*_bak.py`, `*_old.py`
+  - Binary executables: `mavsdk_server*`
+  - Empty npm artifacts: `react-scripts`, `drone-dashboard@*`
+  - Test scripts in root: `/test_config*.py`, `/offboard_multiple*.py`
+- **PolyForm Dual Licensing**: Professional open-source licensing framework
+  - PolyForm Noncommercial 1.0.0 for education, research, non-profits
+  - PolyForm Small Business 1.0.0 for small commercial operations (< 10 drones, < $1M revenue, < 100 employees)
+  - Custom commercial licensing for large operations
+  - Comprehensive legal protection: LICENSE, DISCLAIMER.md, NOTICE, ETHICAL-USE.md
+
+### Fixed
+- **Critical UX Issue - Modal Dialog Centering**: Confirmation dialogs now properly center in viewport
+  - Implemented React Portal for modal rendering (CommandSender.js)
+  - Modal now renders to `document.body` instead of inline in container
+  - Users no longer need to scroll to find confirmation dialogs - major UX improvement
+- **React Console Warnings Resolved**:
+  - Removed 6 debug `console.log()` statements from `missionConfigUtilities.js`
+  - Fixed "assign before export" warning in `version.js` by refactoring export pattern
+  - Updated `tools/version_sync.py` to generate ESLint-compliant JavaScript exports
+  - Kept appropriate `console.error()` statements for error handling
+
+### Changed
+- **JavaScript Export Pattern**: Modernized version.js and auto-generation script
+  - Declare constants first, then export (ESLint best practice)
+  - Updated `tools/version_sync.py` template to generate compliant code
+- **Legal Documentation Structure**: Confirmed LICENSE files correctly placed in root per industry standards
+  - LICENSE, NOTICE, DISCLAIMER.md remain in root (GitHub/Apache/Google best practice)
+  - Dual licensing structure clearly documented for easy discovery
+
+---
+
 ## [3.6] - 2025-11-06
 
 ### Added

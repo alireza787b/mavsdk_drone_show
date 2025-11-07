@@ -18,8 +18,6 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         return cleanedDrone;
     });
 
-    console.log('Cleaned ConfigData being sent to server:', JSON.stringify(cleanedConfigData, null, 2)); // Log cleaned data
-
     const hwIds = cleanedConfigData.map(drone => parseInt(drone.hw_id));
     const missingIds = [];
     const maxId = Math.max(...hwIds);
@@ -124,9 +122,6 @@ export const parseCSV = (data) => {
     const header = rows[0].trim();
 
     if (header !== expectedHeader) {
-        console.log("CSV Header Mismatch!");
-        console.log(`Expected: ${expectedHeader}`);
-        console.log(`Got: ${header}`);
         toast.error("Invalid CSV format. Expected 8 columns: hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate");
         return null;
     }
@@ -147,8 +142,7 @@ export const parseCSV = (data) => {
             };
             drones.push(drone);
         } else {
-            console.log(`Row ${i} has incorrect number of columns (expected 8, got ${columns.length}).`);
-            toast.error(`Row ${i} has incorrect number of columns.`);
+            toast.error(`Row ${i} has incorrect number of columns (expected 8, got ${columns.length}).`);
             return null;
         }
     }
@@ -160,7 +154,6 @@ export const validateDrones = (drones) => {
         for (const key in drone) {
             if (!drone[key]) {
                 alert(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
-                console.log(`Empty field detected for Drone ID ${drone.hw_id}, field: ${key}.`);
                 return false;
             }
         }

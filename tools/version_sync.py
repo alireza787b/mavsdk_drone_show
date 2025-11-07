@@ -154,10 +154,12 @@ def generate_version_js(version):
  * 3. Rebuild the frontend: npm run build
  */
 
-export const VERSION = '{version}';
-export const GIT_COMMIT = '{git_hash}';
-export const GIT_BRANCH = '{git_branch}';
-export const VERSION_DISPLAY = `v${{VERSION}} (${{GIT_COMMIT}})`;
+const VERSION = '{version}';
+const GIT_COMMIT = '{git_hash}';
+const GIT_BRANCH = '{git_branch}';
+const VERSION_DISPLAY = `v${{VERSION}} (${{GIT_COMMIT}})`;
+
+export {{ VERSION, GIT_COMMIT, GIT_BRANCH, VERSION_DISPLAY }};
 
 export default {{
   VERSION,

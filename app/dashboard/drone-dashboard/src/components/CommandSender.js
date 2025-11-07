@@ -1,6 +1,7 @@
 // src/components/CommandSender.js
 
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
@@ -173,8 +174,8 @@ const CommandSender = ({ drones }) => {
         )}
       </div>
 
-      {/* Confirmation Modal */}
-      {modalOpen && (
+      {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
+      {modalOpen && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={handleCancelSendCommand}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Confirm Command</h3>
@@ -188,7 +189,8 @@ const CommandSender = ({ drones }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Loading Spinner */}

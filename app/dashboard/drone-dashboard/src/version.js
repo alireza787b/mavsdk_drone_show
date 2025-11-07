@@ -10,10 +10,12 @@
  * 3. Rebuild the frontend: npm run build
  */
 
-export const VERSION = '3.6';
-export const GIT_COMMIT = 'eb063f01';
-export const GIT_BRANCH = 'main-candidate';
-export const VERSION_DISPLAY = `v${VERSION} (${GIT_COMMIT})`;
+const VERSION = '3.7';
+const GIT_COMMIT = '439b04c7';
+const GIT_BRANCH = 'main-candidate';
+const VERSION_DISPLAY = `v${VERSION} (${GIT_COMMIT})`;
+
+export { VERSION, GIT_COMMIT, GIT_BRANCH, VERSION_DISPLAY };
 
 export default {
   VERSION,
