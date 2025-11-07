@@ -16,6 +16,8 @@ const MissionDetails = ({
   onSliderToggle,
   autoGlobalOrigin,
   onAutoGlobalOriginChange,
+  useGlobalSetpoints,
+  onUseGlobalSetpointsChange,
   onSend,
   onBack,
 }) => {
@@ -37,8 +39,43 @@ const MissionDetails = ({
         </div>
       )}
 
-      {/* Phase 2: Auto Global Origin Checkbox (only for DRONE_SHOW_FROM_CSV) */}
-      {missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && (
+      {/* Mode Selection: Local vs Global */}
+      <div className="mode-selection-section">
+        <h3 className="mode-selection-title">Control Mode</h3>
+        <div className="mode-toggle-container">
+          <label className={`mode-option ${!useGlobalSetpoints ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="controlMode"
+              checked={!useGlobalSetpoints}
+              onChange={() => onUseGlobalSetpointsChange(false)}
+              className="mode-radio"
+            />
+            <div className="mode-content">
+              <span className="mode-icon">🧭</span>
+              <span className="mode-label">LOCAL Mode</span>
+              <span className="mode-description">NED feedforward, no GPS required</span>
+            </div>
+          </label>
+          <label className={`mode-option ${useGlobalSetpoints ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="controlMode"
+              checked={useGlobalSetpoints}
+              onChange={() => onUseGlobalSetpointsChange(true)}
+              className="mode-radio"
+            />
+            <div className="mode-content">
+              <span className="mode-icon">🌍</span>
+              <span className="mode-label">GLOBAL Mode</span>
+              <span className="mode-description">GPS-based positioning</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Phase 2: Auto Global Origin Checkbox (only for DRONE_SHOW_FROM_CSV + GLOBAL mode) */}
+      {missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && useGlobalSetpoints && (
         <div className="phase2-origin-section">
           <div className="origin-checkbox-container">
             <label className="origin-checkbox-label">

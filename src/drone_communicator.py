@@ -121,22 +121,54 @@ class DroneCommunicator:
             - hw_id (str): Hardware ID.
             - pos_id (str): Position ID.
             - state (str): Drone state.
+            - origin (dict): Phase 2 origin data (lat, lon, alt)
+            - auto_global_origin (bool): Phase 2 mode flag
         """
         logging.info(f"Received command data: {command_data}")
 
         try:
             mission = int(command_data["missionType"])
             trigger_time = command_data["triggerTime"]
-            
+
         except KeyError as e:
             logging.error(f"Missing required field in command data: {e}")
             return
+
+        # Phase 2: Save origin from command if present
+        if command_data.get('auto_global_origin') and 'origin' in command_data:
+            try:
+                from pathlib import Path
+                import json
+
+                origin_data = command_data['origin']
+                cache_dir = Path.home() / '.mavsdk_drone_show'
+                cache_dir.mkdir(parents=True, exist_ok=True)
+
+                origin_file = cache_dir / 'command_origin.json'
+                with open(origin_file, 'w') as f:
+                    json.dump(origin_data, f, indent=2)
+
+                logging.info(f"🌍 Phase 2: Saved origin from command to {origin_file}")
+                logging.info(f"   Origin: lat={origin_data.get('lat', 'N/A'):.6f}, "
+                           f"lon={origin_data.get('lon', 'N/A'):.6f}, "
+                           f"alt={origin_data.get('alt', 'N/A'):.1f}m")
+            except Exception as e:
+                logging.error(f"Failed to save command origin: {e}")
 
         hw_id = command_data.get("hw_id", self.drone_config.hw_id)
         pos_id = command_data.get("pos_id", self.drone_config.pos_id)
         state = command_data.get("state", self.drone_config.state)
         state = 1 #for now hardcoded to armed (received command)
         self._update_drone_config(hw_id, pos_id, state, trigger_time)
+
+        # Phase 2: Store flags in drone_config (None means use Params defaults later)
+        self.drone_config.auto_global_origin = command_data.get('auto_global_origin', None)
+        self.drone_config.use_global_setpoints = command_data.get('use_global_setpoints', None)
+
+        if self.drone_config.auto_global_origin is not None:
+            logging.info(f"🌍 Phase 2: auto_global_origin={self.drone_config.auto_global_origin}")
+        if self.drone_config.use_global_setpoints is not None:
+            logging.info(f"🌍 Phase 2: use_global_setpoints={self.drone_config.use_global_setpoints}")
 
         try:
             self._process_mission_command(mission, command_data)

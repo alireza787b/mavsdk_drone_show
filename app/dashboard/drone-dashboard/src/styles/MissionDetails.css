@@ -495,6 +495,92 @@
 }
 
 /* ======================================= */
+/* Mode Selection: Local vs Global        */
+/* ======================================= */
+
+.mode-selection-section {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+}
+
+.mode-selection-title {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-base);
+    text-align: center;
+}
+
+.mode-toggle-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-base);
+}
+
+.mode-option {
+    position: relative;
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 2px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.mode-option:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.mode-option.active {
+    border-color: var(--color-primary);
+    background: linear-gradient(135deg, var(--color-primary-light), var(--color-bg-tertiary));
+    box-shadow: 0 0 12px rgba(var(--color-primary-rgb), 0.3);
+}
+
+.mode-radio {
+    margin-right: var(--spacing-sm);
+    cursor: pointer;
+}
+
+.mode-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    flex: 1;
+}
+
+.mode-icon {
+    font-size: var(--font-size-2xl);
+}
+
+.mode-label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+}
+
+.mode-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-normal);
+}
+
+/* Responsive adjustments for mode selection */
+@media (max-width: 768px) {
+    .mode-toggle-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ======================================= */
 /* Phase 2: Auto Global Origin UI Styles  */
 /* ======================================= */
 

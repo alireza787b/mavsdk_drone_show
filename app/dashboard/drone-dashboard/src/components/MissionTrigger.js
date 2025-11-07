@@ -13,6 +13,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
   const [selectedTime, setSelectedTime] = useState('');
   const [notification, setNotification] = useState(null);
   const [autoGlobalOrigin, setAutoGlobalOrigin] = useState(true); // Phase 2: Default enabled for precision
+  const [useGlobalSetpoints, setUseGlobalSetpoints] = useState(true); // Default to GLOBAL mode
 
   useEffect(() => {
     const now = new Date();
@@ -62,6 +63,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
       missionType: selectedMission,
       triggerTime: triggerTime,
       auto_global_origin: autoGlobalOrigin, // Phase 2: Include origin mode flag
+      use_global_setpoints: useGlobalSetpoints, // Phase 2: Include Local/Global mode flag
     };
     onSendCommand(commandData);
   };
@@ -125,6 +127,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
           onSliderToggle={setUseSlider}
           autoGlobalOrigin={autoGlobalOrigin}
           onAutoGlobalOriginChange={setAutoGlobalOrigin}
+          useGlobalSetpoints={useGlobalSetpoints}
+          onUseGlobalSetpointsChange={setUseGlobalSetpoints}
           onSend={handleSend}
           onBack={handleBack}
         />

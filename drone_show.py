@@ -570,13 +570,14 @@ async def perform_trajectory(
     launch_lon: float,
     launch_alt: float,
     effective_auto_origin_mode=False,
-    origin_source=None
+    origin_source=None,
+    use_global_setpoints=True
 ):
     """
     Executes the trajectory with an initial vertical climb phase to prevent abrupt movements,
     and handles time-drift corrections after the initial climb is complete.
 
-    Now supports both local NED and global LLA setpoints, chosen by Params.USE_GLOBAL_SETPOINTS.
+    Now supports both local NED and global LLA setpoints, chosen by use_global_setpoints parameter.
 
     Phase 2 Enhancement:
         When effective_auto_origin_mode=True and origin_source in ['gcs', 'cache']:
@@ -592,6 +593,7 @@ async def perform_trajectory(
         launch_lat, launch_lon, launch_alt: Origin coordinates for NED→LLA conversion
         effective_auto_origin_mode: True if Phase 2 auto origin correction is enabled
         origin_source: Source of origin ('gcs', 'cache', 'launch_position', 'current_position')
+        use_global_setpoints: True for GLOBAL mode (GPS), False for LOCAL mode (NED)
     """
     global drift_delta, initial_position_drift
     logger = logging.getLogger(__name__)
@@ -812,7 +814,7 @@ async def perform_trajectory(
                         logger.info(f"   Now following corrected trajectory from shared drone show origin")
 
                 # --- (4) Global vs. Local Branching ---
-                if Params.USE_GLOBAL_SETPOINTS:
+                if use_global_setpoints:
                     # Send GLOBAL setpoint (lat, lon, alt, yaw)
                     gp = PositionGlobalYaw(
                     lla_lat,
@@ -1740,7 +1742,7 @@ def stop_mavsdk_server(mavsdk_server):
 # ----------------------------- #
 
 
-async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_position=False, auto_global_origin=None):
+async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_position=False, auto_global_origin=None, use_global_setpoints=None, mission_type=None):
     """
     Run the drone with the provided configurations.
 
@@ -1751,6 +1753,10 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         auto_global_origin (bool or None): Phase 2: Enable auto global origin correction mode.
                                             If None, uses Params.AUTO_GLOBAL_ORIGIN_MODE.
                                             CLI/UI override takes precedence.
+        use_global_setpoints (bool or None): Enable GLOBAL mode (True) or LOCAL mode (False).
+                                            If None, uses Params.USE_GLOBAL_SETPOINTS.
+        mission_type (int or None): Mission type (1=DRONE_SHOW_FROM_CSV, 3=CUSTOM_CSV, 106=HOVER_TEST).
+                                    Required for Phase 2 strict filtering.
     """
     logger = logging.getLogger(__name__)
     mavsdk_server = None
@@ -1773,28 +1779,55 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         # Step 3: Pre-flight Checks
         home_position = await pre_flight_checks(drone)
 
-        # Step 3.5: PHASE 2 - Determine effective AUTO_GLOBAL_ORIGIN_MODE
-        # Priority: CLI/UI argument > Params.AUTO_GLOBAL_ORIGIN_MODE
-        # Note: auto_launch_position argument passed to this function is used later
-        # for trajectory loading, not for origin mode decision
+        # Step 3.5: PHASE 2 - Determine effective modes
+        # Priority: CLI/UI argument > Params defaults
+
+        # Determine effective USE_GLOBAL_SETPOINTS (LOCAL vs GLOBAL mode)
+        if use_global_setpoints is not None:
+            effective_use_global_setpoints = use_global_setpoints
+            logger.info(f"Using CLI/UI override: USE_GLOBAL_SETPOINTS = {effective_use_global_setpoints}")
+        elif hasattr(Params, 'USE_GLOBAL_SETPOINTS'):
+            effective_use_global_setpoints = Params.USE_GLOBAL_SETPOINTS
+            logger.info(f"Using params.py default: USE_GLOBAL_SETPOINTS = {effective_use_global_setpoints}")
+        else:
+            effective_use_global_setpoints = True  # Default to GLOBAL
+            logger.warning("USE_GLOBAL_SETPOINTS not defined in params.py, defaulting to True")
+
+        # Determine effective AUTO_GLOBAL_ORIGIN_MODE (Phase 2 auto-correction)
         if auto_global_origin is not None:
-            # CLI/UI override provided
             effective_auto_origin_mode = auto_global_origin
             logger.info(f"Using CLI/UI override: AUTO_GLOBAL_ORIGIN_MODE = {effective_auto_origin_mode}")
         elif hasattr(Params, 'AUTO_GLOBAL_ORIGIN_MODE'):
-            # Use params.py default
             effective_auto_origin_mode = Params.AUTO_GLOBAL_ORIGIN_MODE
             logger.info(f"Using params.py default: AUTO_GLOBAL_ORIGIN_MODE = {effective_auto_origin_mode}")
         else:
-            # Fallback to False if not defined
             effective_auto_origin_mode = False
             logger.warning("AUTO_GLOBAL_ORIGIN_MODE not defined in params.py, defaulting to False")
+
+        # Mission type logging
+        if mission_type is not None:
+            mission_type_name = {1: "DRONE_SHOW_FROM_CSV", 3: "CUSTOM_CSV", 106: "HOVER_TEST"}.get(mission_type, f"UNKNOWN({mission_type})")
+            logger.info(f"Mission type: {mission_type_name} ({mission_type})")
+        else:
+            logger.warning("Mission type not provided - Phase 2 filtering cannot be enforced")
 
         # Origin source tracking variable
         origin_source = None
 
+        # --- PHASE 2: STRICT FILTERING ---
+        # Phase 2 ONLY applies to DRONE_SHOW_FROM_CSV (mission_type=1) in GLOBAL mode
+        if effective_auto_origin_mode and effective_use_global_setpoints:
+            if mission_type != 1:
+                logger.warning("=" * 70)
+                logger.warning("⚠️  PHASE 2 RESTRICTION: Auto Global Origin Correction is ONLY")
+                logger.warning("    supported for DRONE_SHOW_FROM_CSV missions (mission_type=1).")
+                logger.warning(f"    Current mission type: {mission_type}")
+                logger.warning("    Disabling Phase 2 auto-correction for this mission.")
+                logger.warning("=" * 70)
+                effective_auto_origin_mode = False
+
         # --- PHASE 2: ORIGIN FETCH AND VALIDATION ---
-        if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
+        if effective_auto_origin_mode and effective_use_global_setpoints:
             logger.info("=" * 70)
             logger.info("🌍 AUTO GLOBAL ORIGIN MODE: ENABLED (Phase 2)")
             logger.info("=" * 70)
@@ -1849,7 +1882,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
 
         else:
             # LEGACY MODE: Manual operator placement (v3.7 behavior)
-            if not Params.USE_GLOBAL_SETPOINTS:
+            if not effective_use_global_setpoints:
                 logger.info("=" * 70)
                 logger.info("🧭 LOCAL NED MODE (No GPS origin required)")
                 logger.info("=" * 70)
@@ -1904,11 +1937,24 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 'shapes_sitl' if Params.sim_mode else 'shapes',
                 custom_csv
             )
-            # PHASE 2: In auto origin mode, don't zero out waypoints
+
+            # --- WAYPOINT ZEROING DECISION TREE ---
+            # LOCAL mode: Always zero waypoints (use feedforward control)
+            # GLOBAL manual: Always zero waypoints (traditional GPS origin)
+            # GLOBAL Phase 2: NO zeroing (absolute offsets from shared origin)
             effective_auto_launch = auto_launch_position
-            if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
-                effective_auto_launch = False  # Don't zero waypoints in Phase 2 mode
-                logger.info("Phase 2 mode: Loading CSV without zeroing waypoints")
+            if not effective_use_global_setpoints:
+                # LOCAL mode: Always zero (use first waypoint as origin)
+                effective_auto_launch = True
+                logger.info("LOCAL mode: Will zero first waypoint (feedforward control)")
+            elif effective_auto_origin_mode:
+                # GLOBAL Phase 2: NO zeroing (absolute waypoints)
+                effective_auto_launch = False
+                logger.info("GLOBAL Phase 2: Loading waypoints as absolute offsets (no zeroing)")
+            else:
+                # GLOBAL manual: Zero waypoints (traditional behavior)
+                effective_auto_launch = True if auto_launch_position else False
+                logger.info(f"GLOBAL manual: Zeroing waypoints (auto_launch={effective_auto_launch})")
 
             waypoints = read_trajectory_file(
                 filename=trajectory_filename,
@@ -1935,17 +1981,28 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 f"Drone {position_id}.csv"
             )
 
-            # PHASE 2: Determine effective auto_launch_position flag
-            # In Phase 2 mode, we don't zero waypoints (they're already relative to origin)
+            # --- WAYPOINT ZEROING DECISION TREE ---
+            # LOCAL mode: Always zero waypoints (use feedforward control)
+            # GLOBAL manual: Always zero waypoints (traditional GPS origin)
+            # GLOBAL Phase 2: NO zeroing (absolute offsets from shared origin)
             effective_auto_launch = auto_launch_position
-            if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
-                effective_auto_launch = False  # Don't zero waypoints in Phase 2 mode
-                logger.info("Phase 2 mode: Loading trajectory without waypoint zeroing")
-                logger.info(f"Waypoints will be used as absolute offsets from drone show origin")
+            if not effective_use_global_setpoints:
+                # LOCAL mode: Always zero using config offsets
+                effective_auto_launch = False  # Use config offsets (initial_x, initial_y)
+                logger.info(f"LOCAL mode: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
+            elif effective_auto_origin_mode:
+                # GLOBAL Phase 2: NO zeroing (absolute waypoints)
+                effective_auto_launch = False
+                logger.info("GLOBAL Phase 2: Loading trajectory without waypoint zeroing")
+                logger.info(f"Waypoints used as absolute offsets from drone show origin")
             elif auto_launch_position:
-                logger.info("Traditional mode: Zeroing first waypoint")
+                # GLOBAL manual with auto_launch: Zero first waypoint
+                effective_auto_launch = True
+                logger.info("GLOBAL manual: Zeroing first waypoint")
             else:
-                logger.info(f"Traditional mode: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
+                # GLOBAL manual with config offsets: Subtract config offsets
+                effective_auto_launch = False
+                logger.info(f"GLOBAL manual: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
 
             waypoints = read_trajectory_file(
                 filename=trajectory_filename,
@@ -1963,7 +2020,8 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             synchronized_start_time,
             launch_lat, launch_lon, launch_alt,
             effective_auto_origin_mode=effective_auto_origin_mode,
-            origin_source=origin_source
+            origin_source=origin_source,
+            use_global_setpoints=effective_use_global_setpoints
         )
 
         logger.info("Mission completed successfully.")
@@ -2010,6 +2068,20 @@ def main():
         const=True,
         default=None,
         help='Phase 2: Enable (True) or disable (False) auto global origin correction mode. Overrides Params.AUTO_GLOBAL_ORIGIN_MODE.',
+    )
+    parser.add_argument(
+        '--use_global_setpoints',
+        type=str2bool,
+        nargs='?',
+        const=True,
+        default=None,
+        help='Enable (True) for GLOBAL mode with GPS, disable (False) for LOCAL mode without GPS. Overrides Params.USE_GLOBAL_SETPOINTS.',
+    )
+    parser.add_argument(
+        '--mission_type',
+        type=int,
+        default=None,
+        help='Mission type: 1=DRONE_SHOW_FROM_CSV, 3=CUSTOM_CSV, 106=HOVER_TEST. Required for Phase 2 filtering.',
     )
     parser.add_argument(
         '--debug',
@@ -2069,6 +2141,31 @@ def main():
             f"as '--auto_global_origin' was not provided."
         )
 
+    # Determine if LOCAL/GLOBAL mode is set
+    if args.use_global_setpoints is not None:
+        use_global_setpoints = args.use_global_setpoints
+        logger.info(f"Command-line argument '--use_global_setpoints' set to {use_global_setpoints}.")
+    else:
+        use_global_setpoints = getattr(Params, 'USE_GLOBAL_SETPOINTS', True)
+        logger.info(
+            f"Using Params.USE_GLOBAL_SETPOINTS = {use_global_setpoints} "
+            f"as '--use_global_setpoints' was not provided."
+        )
+
+    # Display mode configuration
+    if use_global_setpoints:
+        logger.info("Mode: GLOBAL (GPS-based positioning)")
+    else:
+        logger.info("Mode: LOCAL (NED feedforward control, no GPS required)")
+
+    # Get mission type
+    mission_type = args.mission_type
+    if mission_type is not None:
+        mission_name = {1: "DRONE_SHOW_FROM_CSV", 3: "CUSTOM_CSV", 106: "HOVER_TEST"}.get(mission_type, f"UNKNOWN({mission_type})")
+        logger.info(f"Mission Type: {mission_name} ({mission_type})")
+    else:
+        logger.warning("Mission type not provided - Phase 2 filtering will not be enforced")
+
     # Display Phase 2 configuration
     if auto_global_origin:
         logger.info("=" * 70)
@@ -2087,6 +2184,8 @@ def main():
                 custom_csv=args.custom_csv,
                 auto_launch_position=auto_launch_position,
                 auto_global_origin=auto_global_origin,
+                use_global_setpoints=use_global_setpoints,
+                mission_type=mission_type,
             )
         )
     except Exception:

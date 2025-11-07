@@ -31,6 +31,10 @@ class DroneConfig:
         self.last_mission = 0
         self.trigger_time = 0                 # Time of the last trigger event
         self.drone_setup = None
+
+        # Phase 2: Auto Global Origin Correction flags
+        self.auto_global_origin = None        # Phase 2 auto-correction mode (None means use Params default)
+        self.use_global_setpoints = None      # Local/Global mode (None means use Params default)
         self.position = {'lat': 0, 'long': 0, 'alt': 0}  # Initial position (lat, long, alt)
         self.velocity = {'north': 0, 'east': 0, 'down': 0} # Initial velocity components
         self.yaw = 0                          # Yaw angle in degrees
