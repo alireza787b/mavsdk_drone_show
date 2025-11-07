@@ -14,6 +14,8 @@ const MissionDetails = ({
   onTimeDelayChange,
   onTimePickerChange,
   onSliderToggle,
+  autoGlobalOrigin,
+  onAutoGlobalOriginChange,
   onSend,
   onBack,
 }) => {
@@ -32,6 +34,41 @@ const MissionDetails = ({
         <div className="mission-preview">
           <h3>Mission Preview:</h3>
           <img src={missionImageSrc} alt={label} className="mission-image" />
+        </div>
+      )}
+
+      {/* Phase 2: Auto Global Origin Checkbox (only for DRONE_SHOW_FROM_CSV) */}
+      {missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV && (
+        <div className="phase2-origin-section">
+          <div className="origin-checkbox-container">
+            <label className="origin-checkbox-label">
+              <input
+                type="checkbox"
+                checked={autoGlobalOrigin}
+                onChange={(e) => onAutoGlobalOriginChange(e.target.checked)}
+                className="origin-checkbox"
+              />
+              <span className="checkbox-text">
+                🌍 Auto Global Origin Correction (Phase 2)
+              </span>
+            </label>
+          </div>
+
+          {autoGlobalOrigin && (
+            <div className="origin-warning">
+              <div className="warning-icon">⚠️</div>
+              <div className="warning-content">
+                <strong>Important Requirements:</strong>
+                <ul>
+                  <li>✓ Ensure the <strong>origin is set</strong> in the GCS dashboard</li>
+                  <li>✓ Drones must have <strong>network connectivity</strong> to fetch origin</li>
+                  <li>✓ Place drones <strong>approximately</strong> (±10m tolerance OK)</li>
+                  <li>✓ System will <strong>auto-correct</strong> positions after initial climb</li>
+                  <li>⚠️ Flight will abort if drone >20m from expected position</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

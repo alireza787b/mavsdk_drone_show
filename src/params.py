@@ -231,7 +231,28 @@ class Params:
     netbird_ip_prefix = "100."
     
     REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
-    
+
+    # Phase 2: Auto Global Origin Correction Mode
+    # When enabled, drones fetch shared origin from GCS and apply intelligent position correction
+    # Default: True for new deployments (maximum precision)
+    # Set to False to use legacy operator-placement mode (v3.7 behavior)
+    AUTO_GLOBAL_ORIGIN_MODE = True
+
+    # Safety threshold: Abort flight if drone position deviates more than this from expected position
+    # Default: 20.0 meters (catches major operator placement errors)
+    ORIGIN_DEVIATION_ABORT_THRESHOLD_M = 20.0
+
+    # Duration of smooth transition from current position to corrected trajectory after initial climb
+    # Default: 3.0 seconds (prevents abrupt movements)
+    BLEND_TRANSITION_DURATION_SEC = 3.0
+
+    # Warn if cached origin is older than this (in seconds)
+    # Default: 3600 seconds (1 hour)
+    ORIGIN_CACHE_STALENESS_WARNING_SEC = 3600
+
+    # Timeout for fetching origin from GCS server
+    # Default: 5.0 seconds
+    ORIGIN_FETCH_TIMEOUT_SEC = 5.0
 
     # Smart Swarm Parameters
     CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz

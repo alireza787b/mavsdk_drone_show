@@ -14,65 +14,54 @@ Drone Show Script (`drone_show.py`)
 ----------------------------------------
 Author: Alireza Ghaderi
 Date: 2025-01-29
-Version: 3.8.0 (Phase 2: Auto Global Origin Correction)
-Previous Version Backup: drone_show_v3.7_backup.py
+Version: 2.6.0
 ----------------------------------------
 
 Description:
     Orchestrates an offboard drone show by executing time-synchronized trajectories with optional
-    local (NED) or global (LLH) setpoints. Integrates with MAVSDK for flight control, pymap3d for
+    local (NED) or global (LLH) setpoints. Integrates with MAVSDK for flight control, navpy for
     coordinate transforms, and an LED controller for real-time status indication.
 
 Key Features:
-  • Dual Setpoint Modes
-    – Local NED: `PositionNedYaw` for body-relative control.
+  • Dual Setpoint Modes  
+    – Local NED: `PositionNedYaw` for body-relative control.  
     – Global LLH: `PositionGlobalYaw` using GPS-derived LLA when `Params.USE_GLOBAL_SETPOINTS` is True.
 
-  • 🆕 PHASE 2: Auto Global Origin Correction (NEW in v3.8)
-    – Fetch shared drone show origin from GCS server with triple fallback (GCS → cache → current position)
-    – Position validation: Abort if drone placement deviates >20m from expected position
-    – Smooth position blending: Transition from current position to corrected trajectory after initial climb
-    – Allows approximate operator placement (±5-10m tolerance) with intelligent auto-correction
-    – Enable via: `--auto_global_origin True` or `Params.AUTO_GLOBAL_ORIGIN_MODE = True`
-
-  • Initial Climb Safety
+  • Initial Climb Safety  
     – Vertical climb phase with configurable thresholds (altitude, duration, and mode) to avoid abrupt maneuvers.
 
-  • Drift Compensation
+  • Drift Compensation  
     – Time-drift catch-up allowing waypoint skipping and feed-forward velocity/acceleration in NED mode.
 
-  • Auto / Manual Launch Position
+  • Auto / Manual Launch Position  
     – Auto-extract first waypoint origin or shift by preconfigured NED offsets.
 
-  • Controlled vs. Native Landing
+  • Controlled vs. Native Landing  
     – Selects between PX4 native landing or a custom descent based on final altitude and mission progress.
 
-  • Comprehensive Logging & LEDs
+  • Comprehensive Logging & LEDs  
     – Verbose debug/info logs and LED color changes reflecting initialization, pre-flight, in-flight, and error states.
 
 Usage:
     python drone_show.py
-        [--start_time START_TIME]               # UNIX timestamp to synchronize launch
-        [--custom_csv CUSTOM_CSV]               # Trajectory file name (e.g., active.csv)
-        [--auto_launch_position {True,False}]   # Override Params.AUTO_LAUNCH_POSITION
-        [--auto_global_origin {True,False}]     # 🆕 Phase 2: Enable/disable auto origin correction
-        [--debug]                               # Enable DEBUG log level
+        [--start_time START_TIME]          # UNIX timestamp to synchronize launch
+        [--custom_csv CUSTOM_CSV]          # Trajectory file name (e.g., active.csv)
+        [--auto_launch_position {True,False}]  # Override Params.AUTO_LAUNCH_POSITION
+        [--debug]                          # Enable DEBUG log level
 
 Command Line Arguments:
   --start_time              UNIX epoch time to delay mission start (default: now)
   --custom_csv              Custom CSV file under `shapes[_sitl]/`
   --auto_launch_position    Force enable/disable automatic origin extraction
-  --auto_global_origin      🆕 Phase 2: Force enable/disable auto global origin correction mode
   --debug                   Turn on detailed (DEBUG) logging
 
 Dependencies:
-  • Python 3.7+
-  • MAVSDK (`pip install mavsdk`)
-  • psutil (`pip install psutil`)
-  • tenacity (`pip install tenacity`)
-  • pymap3d (`pip install pymap3d`) - replaces navpy for coordinate transforms
+  • Python 3.7+  
+  • MAVSDK (`pip install mavsdk`)  
+  • psutil (`pip install psutil`)  
+  • tenacity (`pip install tenacity`)  
+  • navpy (`pip install navpy`)  
   • requests, asyncio, argparse, logging, csv, socket
-  • 🆕 src.origin_cache - Phase 2 origin caching system
 
 LED Status Indicators:
   • Blue      — Initialization  
@@ -92,7 +81,6 @@ import sys
 import time
 import asyncio
 import csv
-import json
 import subprocess
 import logging
 import socket
@@ -119,7 +107,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
 from src.params import Params
-from src import origin_cache  # Phase 2: Origin caching system
 
 from drone_show_src.utils import (
     configure_logging,
@@ -568,30 +555,13 @@ async def perform_trajectory(
     start_time: float,
     launch_lat: float,
     launch_lon: float,
-    launch_alt: float,
-    effective_auto_origin_mode=False,
-    origin_source=None
+    launch_alt: float
 ):
     """
     Executes the trajectory with an initial vertical climb phase to prevent abrupt movements,
     and handles time-drift corrections after the initial climb is complete.
 
     Now supports both local NED and global LLA setpoints, chosen by Params.USE_GLOBAL_SETPOINTS.
-
-    Phase 2 Enhancement:
-        When effective_auto_origin_mode=True and origin_source in ['gcs', 'cache']:
-        - Applies smooth position blending after initial climb
-        - Transitions from current position to corrected trajectory over BLEND_TRANSITION_DURATION_SEC
-        - Interpolates in LLA space for global setpoints
-
-    Args:
-        drone: MAVSDK System instance
-        waypoints: List of trajectory waypoints
-        home_position: Home position dict (may be unused)
-        start_time: Mission start time (UNIX timestamp)
-        launch_lat, launch_lon, launch_alt: Origin coordinates for NED→LLA conversion
-        effective_auto_origin_mode: True if Phase 2 auto origin correction is enabled
-        origin_source: Source of origin ('gcs', 'cache', 'launch_position', 'current_position')
     """
     global drift_delta, initial_position_drift
     logger = logging.getLogger(__name__)
@@ -610,20 +580,6 @@ async def perform_trajectory(
     initial_climb_completed  = False
     initial_climb_start_time = time.time()
     initial_climb_yaw        = None
-
-    # Phase 2: Position blending bookkeeping
-    blend_active = False
-    blend_start_time = None
-    blend_start_lat = None
-    blend_start_lon = None
-    blend_start_alt = None
-    blending_enabled = effective_auto_origin_mode and origin_source in ['command', 'gcs', 'cache']
-
-    if blending_enabled:
-        logger.info(f"🔀 Phase 2 blending enabled (origin source: {origin_source})")
-        logger.info(f"   Blend duration: {Params.BLEND_TRANSITION_DURATION_SEC}s")
-    else:
-        logger.info(f"🔀 Phase 2 blending disabled (origin source: {origin_source})")
 
     # Time step between CSV rows (for drift‐skip calculations)
     csv_step = (waypoints[1][0] - waypoints[0][0]) \
@@ -675,24 +631,6 @@ async def perform_trajectory(
                     if not in_initial_climb:
                         initial_climb_completed = True
                         logger.info(f"=== INITIAL CLIMB COMPLETED === after {time_in_climb:.1f}s, switching to CSV trajectory following")
-
-                        # PHASE 2: Initiate position blending
-                        if blending_enabled:
-                            # Capture current position at end of climb
-                            async for pos in drone.telemetry.position():
-                                blend_start_lat = pos.latitude_deg
-                                blend_start_lon = pos.longitude_deg
-                                blend_start_alt = pos.absolute_altitude_m
-                                break
-
-                            blend_start_time = time.time()
-                            blend_active = True
-
-                            logger.info(f"🔀 === POSITION BLENDING INITIATED ===")
-                            logger.info(f"   Start position: lat={blend_start_lat:.6f}°, lon={blend_start_lon:.6f}°, alt={blend_start_alt:.1f}m")
-                            logger.info(f"   Blend duration: {Params.BLEND_TRANSITION_DURATION_SEC}s")
-                            logger.info(f"   Target: First corrected waypoint from trajectory")
-
                 else:
                     in_initial_climb = False
 
@@ -775,41 +713,11 @@ async def perform_trajectory(
 
                 # --- (3) Compute Altitude & Convert NED → LLA ---
                 current_alt_sp = -pz
-                # Use PyMap3D's ned2geodetic (positional args):
+                # Use PyMap3D’s ned2geodetic (positional args):
                 lla_lat, lla_lon, lla_alt = pm.ned2geodetic(
                     px, py, pz,
                     launch_lat, launch_lon, launch_alt
                 )  # :contentReference[oaicite:15]{index=15}
-
-                # --- (3.5) PHASE 2: Apply Position Blending ---
-                if blend_active:
-                    # Calculate blend progress (alpha: 0.0 → 1.0)
-                    elapsed_blend = now - blend_start_time
-
-                    if elapsed_blend < Params.BLEND_TRANSITION_DURATION_SEC:
-                        # Still blending: interpolate in LLA space
-                        alpha = elapsed_blend / Params.BLEND_TRANSITION_DURATION_SEC
-
-                        # Linear interpolation for each coordinate
-                        blended_lat = blend_start_lat + alpha * (lla_lat - blend_start_lat)
-                        blended_lon = blend_start_lon + alpha * (lla_lon - blend_start_lon)
-                        blended_alt = blend_start_alt + alpha * (lla_alt - blend_start_alt)
-
-                        logger.debug(
-                            f"🔀 Blending: α={alpha:.2f}, "
-                            f"lat={blended_lat:.6f}°, lon={blended_lon:.6f}°, alt={blended_alt:.1f}m"
-                        )
-
-                        # Use blended position
-                        lla_lat = blended_lat
-                        lla_lon = blended_lon
-                        lla_alt = blended_alt
-
-                    else:
-                        # Blending complete
-                        blend_active = False
-                        logger.info(f"✅ === POSITION BLENDING COMPLETED === after {elapsed_blend:.1f}s")
-                        logger.info(f"   Now following corrected trajectory from shared drone show origin")
 
                 # --- (4) Global vs. Local Branching ---
                 if Params.USE_GLOBAL_SETPOINTS:
@@ -1038,246 +946,6 @@ async def initial_setup_and_connection():
         led_controller.set_color(255, 0, 0)  # Red
         raise
 
-
-# ----------------------------- #
-#  Phase 2: Origin Management   #
-# ----------------------------- #
-
-async def fetch_origin_with_fallback(drone: System):
-    """
-    Fetch drone show origin with multi-level fallback mechanism (Phase 2).
-
-    Priority order:
-    1. Try loading from command origin (sent with mission command from GCS)
-    2. Try fetching from GCS server (network fetch)
-    3. Try loading from local cache (previous fetch)
-    4. Use current drone position (last resort with warning)
-
-    Args:
-        drone: MAVSDK System instance
-
-    Returns:
-        dict: Origin data with keys:
-              - lat: float (latitude in degrees)
-              - lon: float (longitude in degrees)
-              - alt: float (altitude MSL in meters)
-              - source: str ('command', 'gcs', 'cache', or 'current_position')
-
-    Raises:
-        ValueError: If all fetch attempts fail
-    """
-    logger = logging.getLogger(__name__)
-    led = LEDController.get_instance()
-
-    # Attempt 1: Check for origin sent with command (highest priority)
-    # This is the most reliable as it's embedded in the mission command from GCS
-    try:
-        command_origin_file = origin_cache.CACHE_DIR / 'command_origin.json'
-        if command_origin_file.exists():
-            logger.info("🌍 Checking for origin from mission command...")
-            with open(command_origin_file, 'r') as f:
-                command_origin = json.load(f)
-
-            if all(key in command_origin for key in ['lat', 'lon', 'alt']):
-                logger.info(f"✅ Origin found in mission command")
-                logger.info(f"   Latitude:  {command_origin['lat']:.6f}°")
-                logger.info(f"   Longitude: {command_origin['lon']:.6f}°")
-                logger.info(f"   Altitude:  {command_origin['alt']:.1f}m MSL")
-                logger.info(f"   Source:    {command_origin.get('source', 'command')}")
-
-                # Update main cache for future use
-                origin_cache.save_origin_to_cache(command_origin)
-
-                # Clean up command origin file after use
-                command_origin_file.unlink()
-
-                return {
-                    'lat': float(command_origin['lat']),
-                    'lon': float(command_origin['lon']),
-                    'alt': float(command_origin['alt']),
-                    'source': 'command'
-                }
-    except Exception as e:
-        logger.debug(f"No command origin found: {e}")
-
-    # Attempt 2: Fetch from GCS server
-    try:
-        logger.info("🌍 Fetching drone show origin from GCS...")
-        gcs_url = f"http://{Params.GCS_IP}:5000/get-origin-for-drone"
-
-        response = requests.get(
-            gcs_url,
-            timeout=Params.ORIGIN_FETCH_TIMEOUT_SEC
-        )
-
-        if response.status_code == 200:
-            data = response.json()
-            logger.info(f"✅ Origin fetched from GCS successfully")
-            logger.info(f"   Latitude:  {data['lat']:.6f}°")
-            logger.info(f"   Longitude: {data['lon']:.6f}°")
-            logger.info(f"   Altitude:  {data['alt']:.1f}m MSL")
-            logger.info(f"   Source:    {data.get('source', 'unknown')}")
-
-            # Save to cache for future use
-            origin_cache.save_origin_to_cache(data)
-
-            return {
-                'lat': float(data['lat']),
-                'lon': float(data['lon']),
-                'alt': float(data['alt']),
-                'source': 'gcs'
-            }
-        else:
-            logger.warning(f"❌ GCS returned error: {response.status_code}")
-            if response.status_code == 404:
-                logger.warning("   Origin not set in GCS")
-
-    except requests.exceptions.Timeout:
-        logger.warning(f"❌ GCS origin fetch timeout after {Params.ORIGIN_FETCH_TIMEOUT_SEC}s")
-    except requests.exceptions.ConnectionError:
-        logger.warning(f"❌ Cannot connect to GCS at {Params.GCS_IP}:5000")
-    except Exception as e:
-        logger.warning(f"❌ GCS origin fetch failed: {e}")
-
-    # Attempt 2: Load from local cache
-    try:
-        logger.info("🔄 Attempting to load origin from local cache...")
-        cached = origin_cache.load_origin_from_cache()
-
-        if cached:
-            age_sec = origin_cache.get_cache_age_seconds()
-
-            if age_sec is not None:
-                age_min = age_sec / 60
-                if age_sec < Params.ORIGIN_CACHE_STALENESS_WARNING_SEC:
-                    logger.info(f"✅ Using cached origin (age: {age_min:.1f} minutes)")
-                else:
-                    logger.warning(f"⚠️  Using STALE cached origin (age: {age_min:.1f} minutes)")
-                    logger.warning(f"   Consider setting fresh origin in GCS")
-
-            logger.info(f"   Latitude:  {cached['lat']:.6f}°")
-            logger.info(f"   Longitude: {cached['lon']:.6f}°")
-            logger.info(f"   Altitude:  {cached['alt']:.1f}m MSL")
-
-            led.set_color(255, 255, 0)  # Yellow = using cache
-
-            return {
-                'lat': float(cached['lat']),
-                'lon': float(cached['lon']),
-                'alt': float(cached['alt']),
-                'source': 'cache'
-            }
-    except Exception as e:
-        logger.warning(f"❌ Cache load failed: {e}")
-
-    # Attempt 3: Use current position (last resort)
-    try:
-        logger.warning("⚠️⚠️⚠️ FALLBACK TO CURRENT POSITION - Origin not available!")
-        logger.warning("   This means the drone will use its current GPS position as origin.")
-        logger.warning("   Formation accuracy will depend on operator placement precision.")
-
-        led.set_color(255, 165, 0)  # Orange = fallback mode
-
-        async for pos in drone.telemetry.position():
-            current_lat = pos.latitude_deg
-            current_lon = pos.longitude_deg
-            current_alt = pos.absolute_altitude_m
-
-            logger.warning(f"   Using current position as origin:")
-            logger.warning(f"   Latitude:  {current_lat:.6f}°")
-            logger.warning(f"   Longitude: {current_lon:.6f}°")
-            logger.warning(f"   Altitude:  {current_alt:.1f}m MSL")
-
-            return {
-                'lat': current_lat,
-                'lon': current_lon,
-                'alt': current_alt,
-                'source': 'current_position'
-            }
-
-    except Exception as e:
-        logger.error(f"❌ Failed to get current position: {e}")
-        raise ValueError("All origin fetch attempts failed. Cannot proceed with flight.")
-
-
-async def validate_drone_position(drone: System, origin: dict, config: dict):
-    """
-    Validate that drone's current position is within acceptable range of expected position.
-
-    This safety check prevents flight if the drone is placed too far from where it should be
-    according to config.csv offsets from the shared origin.
-
-    Args:
-        drone: MAVSDK System instance
-        origin: Origin dict with lat, lon, alt keys
-        config: Drone config dict with x (North) and y (East) offsets
-
-    Returns:
-        float: Horizontal deviation distance in meters
-
-    Raises:
-        ValueError: If deviation exceeds ORIGIN_DEVIATION_ABORT_THRESHOLD_M
-    """
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Get current GPS position
-        async for pos in drone.telemetry.position():
-            current_lat = pos.latitude_deg
-            current_lon = pos.longitude_deg
-            current_alt = pos.absolute_altitude_m
-            break
-
-        # Calculate expected position based on config offsets from origin
-        # config['x'] = North offset, config['y'] = East offset (NED system)
-        expected_lat, expected_lon, expected_alt = pm.ned2geodetic(
-            config['x'],  # North offset
-            config['y'],  # East offset
-            0,            # Use origin altitude as reference
-            origin['lat'],
-            origin['lon'],
-            origin['alt']
-        )
-
-        # Calculate horizontal deviation (North and East components)
-        ned_deviation = pm.geodetic2ned(
-            current_lat, current_lon, 0,
-            expected_lat, expected_lon, 0
-        )
-
-        # Calculate horizontal distance (ignore vertical for now)
-        horizontal_deviation_m = (ned_deviation[0]**2 + ned_deviation[1]**2)**0.5
-
-        # Log validation results
-        logger.info("📍 Position Validation:")
-        logger.info(f"   Expected position:  lat={expected_lat:.6f}°, lon={expected_lon:.6f}°")
-        logger.info(f"   Current position:   lat={current_lat:.6f}°, lon={current_lon:.6f}°")
-        logger.info(f"   Horizontal deviation: {horizontal_deviation_m:.2f}m")
-        logger.info(f"   North offset:       {ned_deviation[0]:.2f}m")
-        logger.info(f"   East offset:        {ned_deviation[1]:.2f}m")
-        logger.info(f"   Safety threshold:   {Params.ORIGIN_DEVIATION_ABORT_THRESHOLD_M:.1f}m")
-
-        # Check against threshold
-        if horizontal_deviation_m > Params.ORIGIN_DEVIATION_ABORT_THRESHOLD_M:
-            logger.error("❌ POSITION VALIDATION FAILED!")
-            logger.error(f"   Deviation {horizontal_deviation_m:.1f}m exceeds threshold {Params.ORIGIN_DEVIATION_ABORT_THRESHOLD_M:.1f}m")
-            logger.error(f"   This indicates the drone is placed in the wrong location.")
-            logger.error(f"   Expected config offset: North={config['x']:.1f}m, East={config['y']:.1f}m")
-            logger.error(f"   Please reposition the drone closer to the expected location.")
-            raise ValueError(
-                f"Position deviation {horizontal_deviation_m:.1f}m exceeds "
-                f"safety threshold {Params.ORIGIN_DEVIATION_ABORT_THRESHOLD_M:.1f}m"
-            )
-
-        logger.info(f"✅ Position validation PASSED: {horizontal_deviation_m:.2f}m deviation (within {Params.ORIGIN_DEVIATION_ABORT_THRESHOLD_M:.1f}m threshold)")
-        return horizontal_deviation_m
-
-    except ValueError:
-        # Re-raise validation failures
-        raise
-    except Exception as e:
-        logger.error(f"❌ Position validation error: {e}")
-        raise ValueError(f"Position validation failed: {e}")
 
 
 async def pre_flight_checks(drone: System):
@@ -1740,7 +1408,7 @@ def stop_mavsdk_server(mavsdk_server):
 # ----------------------------- #
 
 
-async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_position=False, auto_global_origin=None):
+async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_position=False):
     """
     Run the drone with the provided configurations.
 
@@ -1748,9 +1416,6 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         synchronized_start_time (float): Synchronized start time (UNIX timestamp).
         custom_csv (str): Name of the custom trajectory CSV file.
         auto_launch_position (bool): Flag to enable automated initial position extraction.
-        auto_global_origin (bool or None): Phase 2: Enable auto global origin correction mode.
-                                            If None, uses Params.AUTO_GLOBAL_ORIGIN_MODE.
-                                            CLI/UI override takes precedence.
     """
     logger = logging.getLogger(__name__)
     mavsdk_server = None
@@ -1773,113 +1438,22 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         # Step 3: Pre-flight Checks
         home_position = await pre_flight_checks(drone)
 
-        # Step 3.5: PHASE 2 - Determine effective AUTO_GLOBAL_ORIGIN_MODE
-        # Priority: CLI/UI argument > Params.AUTO_GLOBAL_ORIGIN_MODE
-        # Note: auto_launch_position argument passed to this function is used later
-        # for trajectory loading, not for origin mode decision
-        if auto_global_origin is not None:
-            # CLI/UI override provided
-            effective_auto_origin_mode = auto_global_origin
-            logger.info(f"Using CLI/UI override: AUTO_GLOBAL_ORIGIN_MODE = {effective_auto_origin_mode}")
-        elif hasattr(Params, 'AUTO_GLOBAL_ORIGIN_MODE'):
-            # Use params.py default
-            effective_auto_origin_mode = Params.AUTO_GLOBAL_ORIGIN_MODE
-            logger.info(f"Using params.py default: AUTO_GLOBAL_ORIGIN_MODE = {effective_auto_origin_mode}")
-        else:
-            # Fallback to False if not defined
-            effective_auto_origin_mode = False
-            logger.warning("AUTO_GLOBAL_ORIGIN_MODE not defined in params.py, defaulting to False")
-
-        # Origin source tracking variable
-        origin_source = None
-
-        # --- PHASE 2: ORIGIN FETCH AND VALIDATION ---
-        if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
-            logger.info("=" * 70)
-            logger.info("🌍 AUTO GLOBAL ORIGIN MODE: ENABLED (Phase 2)")
-            logger.info("=" * 70)
-            logger.info("This mode uses shared drone show origin from GCS for precise formation.")
-            logger.info("Drones can be placed approximately; system auto-corrects after initial climb.")
-
-            # Read drone config early (needed for position validation)
-            HW_ID = read_hw_id()
-            if HW_ID is None:
-                logger.error("Failed to read HW ID; cannot validate position.")
-                sys.exit(1)
-
-            drone_config = read_config(CONFIG_CSV_NAME)
-            if drone_config is None:
-                logger.error("Drone config not found; cannot validate position.")
-                sys.exit(1)
-
-            logger.info(f"Drone HW_ID={HW_ID}, Position ID={drone_config.pos_id}")
-            logger.info(f"Expected offset from origin: North={drone_config.initial_x:.1f}m, East={drone_config.initial_y:.1f}m")
-
-            # Fetch shared origin with fallback
-            try:
-                origin_data = await fetch_origin_with_fallback(drone)
-                launch_lat = origin_data['lat']
-                launch_lon = origin_data['lon']
-                launch_alt = origin_data['alt']
-                origin_source = origin_data['source']
-
-                logger.info(f"✅ Using drone show origin (source: {origin_source})")
-
-                # Validate drone position (abort if too far from expected)
-                if origin_source in ['command', 'gcs', 'cache']:
-                    # Only validate if we have a proper origin (not current_position fallback)
-                    try:
-                        deviation = await validate_drone_position(
-                            drone,
-                            origin_data,
-                            {'x': drone_config.initial_x, 'y': drone_config.initial_y}
-                        )
-                        logger.info(f"✅ Position validation passed with {deviation:.2f}m deviation")
-                    except ValueError as e:
-                        logger.error(f"❌ Position validation failed: {e}")
-                        logger.error("ABORTING FLIGHT FOR SAFETY")
-                        sys.exit(1)
-                else:
-                    logger.warning("⚠️  Skipping position validation (using current position as fallback origin)")
-
-            except Exception as e:
-                logger.error(f"❌ Failed to fetch origin: {e}")
-                logger.error("Cannot proceed with Phase 2 mode. Consider disabling AUTO_GLOBAL_ORIGIN_MODE.")
-                sys.exit(1)
-
-        else:
-            # LEGACY MODE: Manual operator placement (v3.7 behavior)
-            if not Params.USE_GLOBAL_SETPOINTS:
-                logger.info("=" * 70)
-                logger.info("🧭 LOCAL NED MODE (No GPS origin required)")
-                logger.info("=" * 70)
-            else:
-                logger.info("=" * 70)
-                logger.info("🌍 GLOBAL MODE: Manual Placement (v3.7 behavior)")
-                logger.info("=" * 70)
-                logger.info("Using drone's current GPS position as origin.")
-                logger.info("Ensure drones are placed accurately at intended positions.")
-
-            # Capture current position as launch origin (traditional method)
-            launch_lat = launch_lon = launch_alt = None
-            logger.info("Capturing launch position from telemetry...")
-            async for pos in drone.telemetry.position():
-                launch_lat = pos.latitude_deg
-                launch_lon = pos.longitude_deg
-                launch_alt = pos.absolute_altitude_m
-                logger.info(
-                    f"Launch position captured: "
-                    f"lat={launch_lat:.6f}, lon={launch_lon:.6f}, alt={launch_alt:.2f}m"
-                )
-                break
-
-            if launch_lat is None:
-                logger.error("Failed to capture launch position from telemetry.")
-                sys.exit(1)
-
-            origin_source = 'launch_position'
-
-        logger.info("=" * 70)
+        # --- Capture precise launch position from telemetry ---
+        launch_lat = launch_lon = launch_alt = None
+        logger.info("Capturing launch position (lat/lon/alt) from telemetry...")
+        start = time.time()
+        async for pos in drone.telemetry.position():
+            launch_lat = pos.latitude_deg
+            launch_lon = pos.longitude_deg
+            launch_alt = pos.absolute_altitude_m
+            logger.info(
+                f"Launch position captured: "
+                f"lat={launch_lat:.6f}, lon={launch_lon:.6f}, alt={launch_alt:.2f}m"
+            )
+            break
+        if launch_lat is None:
+            logger.error("Failed to capture launch position from telemetry within timeout.")
+            sys.exit(1)
 
         # Step 4: Handle synchronized start time
         if synchronized_start_time is None:
@@ -1904,29 +1478,20 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 'shapes_sitl' if Params.sim_mode else 'shapes',
                 custom_csv
             )
-            # PHASE 2: In auto origin mode, don't zero out waypoints
-            effective_auto_launch = auto_launch_position
-            if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
-                effective_auto_launch = False  # Don't zero waypoints in Phase 2 mode
-                logger.info("Phase 2 mode: Loading CSV without zeroing waypoints")
-
             waypoints = read_trajectory_file(
                 filename=trajectory_filename,
-                auto_launch_position=effective_auto_launch
+                auto_launch_position=auto_launch_position
             )
             logger.info(f"Loaded custom CSV '{custom_csv}'.")
         else:
-            # Read HW_ID and config if not already loaded (Phase 2 loads them earlier)
-            if not ('HW_ID' in locals() and 'drone_config' in locals()):
-                HW_ID = read_hw_id()
-                if HW_ID is None:
-                    logger.error("Failed to read HW ID; exiting.")
-                    sys.exit(1)
-                drone_config = read_config(CONFIG_CSV_NAME)
-                if drone_config is None:
-                    logger.error("Drone config not found; exiting.")
-                    sys.exit(1)
-
+            HW_ID = read_hw_id()
+            if HW_ID is None:
+                logger.error("Failed to read HW ID; exiting.")
+                sys.exit(1)
+            drone_config = read_config(CONFIG_CSV_NAME)
+            if drone_config is None:
+                logger.error("Drone config not found; exiting.")
+                sys.exit(1)
             position_id = drone_config.pos_id
             trajectory_filename = os.path.join(
                 'shapes_sitl' if Params.sim_mode else 'shapes',
@@ -1934,26 +1499,13 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 'processed',
                 f"Drone {position_id}.csv"
             )
-
-            # PHASE 2: Determine effective auto_launch_position flag
-            # In Phase 2 mode, we don't zero waypoints (they're already relative to origin)
-            effective_auto_launch = auto_launch_position
-            if effective_auto_origin_mode and Params.USE_GLOBAL_SETPOINTS:
-                effective_auto_launch = False  # Don't zero waypoints in Phase 2 mode
-                logger.info("Phase 2 mode: Loading trajectory without waypoint zeroing")
-                logger.info(f"Waypoints will be used as absolute offsets from drone show origin")
-            elif auto_launch_position:
-                logger.info("Traditional mode: Zeroing first waypoint")
-            else:
-                logger.info(f"Traditional mode: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
-
             waypoints = read_trajectory_file(
                 filename=trajectory_filename,
-                auto_launch_position=effective_auto_launch,
+                auto_launch_position=auto_launch_position,
                 initial_x=drone_config.initial_x,
                 initial_y=drone_config.initial_y
             )
-            logger.info(f"Loaded trajectory for Drone {position_id} ({len(waypoints)} waypoints).")
+            logger.info(f"Loaded trajectory for Drone {position_id}.")
 
         # Step 7: Execute the show trajectory (now with global reference)
         await perform_trajectory(
@@ -1961,9 +1513,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             waypoints,
             home_position,
             synchronized_start_time,
-            launch_lat, launch_lon, launch_alt,
-            effective_auto_origin_mode=effective_auto_origin_mode,
-            origin_source=origin_source
+            launch_lat, launch_lon, launch_alt
         )
 
         logger.info("Mission completed successfully.")
@@ -2002,14 +1552,6 @@ def main():
         const=True,
         default=None,
         help='Explicitly enable (True) or disable (False) automated initial position extraction from trajectory CSV.',
-    )
-    parser.add_argument(
-        '--auto_global_origin',
-        type=str2bool,
-        nargs='?',
-        const=True,
-        default=None,
-        help='Phase 2: Enable (True) or disable (False) auto global origin correction mode. Overrides Params.AUTO_GLOBAL_ORIGIN_MODE.',
     )
     parser.add_argument(
         '--debug',
@@ -2058,35 +1600,12 @@ def main():
         logger.info("Initial Position: Auto Launch Position is DISABLED.")
         logger.info("Positions will be shifted by config's initial_x and initial_y in NED.")
 
-    # Determine if Phase 2 auto global origin mode is enabled
-    if args.auto_global_origin is not None:
-        auto_global_origin = args.auto_global_origin
-        logger.info(f"Command-line argument '--auto_global_origin' set to {auto_global_origin}.")
-    else:
-        auto_global_origin = getattr(Params, 'AUTO_GLOBAL_ORIGIN_MODE', False)
-        logger.info(
-            f"Using Params.AUTO_GLOBAL_ORIGIN_MODE = {auto_global_origin} "
-            f"as '--auto_global_origin' was not provided."
-        )
-
-    # Display Phase 2 configuration
-    if auto_global_origin:
-        logger.info("=" * 70)
-        logger.info("🌍 PHASE 2: Auto Global Origin Correction is ENABLED")
-        logger.info("=" * 70)
-        logger.info("Drones will fetch shared origin from GCS and auto-correct positions.")
-        logger.info("This allows approximate operator placement with intelligent correction.")
-    else:
-        logger.info("🌍 PHASE 2: Auto Global Origin Correction is DISABLED")
-        logger.info("Using traditional launch position capture (v3.7 behavior).")
-
     try:
         asyncio.run(
             run_drone(
                 synchronized_start_time,
                 custom_csv=args.custom_csv,
                 auto_launch_position=auto_launch_position,
-                auto_global_origin=auto_global_origin,
             )
         )
     except Exception:

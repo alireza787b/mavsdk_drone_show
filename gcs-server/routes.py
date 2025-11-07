@@ -178,6 +178,8 @@ def setup_routes(app):
     def submit_command():
         """
         Endpoint to receive commands from the frontend and process them asynchronously.
+
+        Phase 2 Enhancement: If auto_global_origin is True, include origin data in command payload.
         """
         command_data = request.get_json()
         if not command_data:
@@ -185,6 +187,32 @@ def setup_routes(app):
 
         # Extract target_drones from command_data if provided
         target_drones = command_data.pop('target_drones', None)
+
+        # Phase 2: Include origin data if auto_global_origin is enabled
+        auto_global_origin = command_data.get('auto_global_origin', False)
+        if auto_global_origin:
+            # Fetch current origin from GCS
+            try:
+                origin = load_origin()
+                if origin and origin.get('lat') and origin.get('lon'):
+                    command_data['origin'] = {
+                        'lat': float(origin['lat']),
+                        'lon': float(origin['lon']),
+                        'alt': float(origin.get('alt', 0)),
+                        'timestamp': origin.get('timestamp', ''),
+                        'source': origin.get('alt_source', 'gcs')
+                    }
+                    log_system_event(
+                        f"🌍 Phase 2: Including origin in command (lat={origin['lat']:.6f}, lon={origin['lon']:.6f})",
+                        "INFO", "command"
+                    )
+                else:
+                    log_system_event(
+                        "⚠️ Phase 2: auto_global_origin=True but origin not set! Drones will fetch from GCS.",
+                        "WARNING", "command"
+                    )
+            except Exception as e:
+                log_system_error(f"Phase 2: Failed to load origin for command: {e}", "command")
 
         # Professional command logging
         if target_drones:
@@ -925,6 +953,69 @@ def setup_routes(app):
         except Exception as e:
             log_system_error(f"Error loading origin: {e}", "origin")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
+
+    @app.route('/get-origin-for-drone', methods=['GET'])
+    def get_origin_for_drone():
+        """
+        Lightweight endpoint for drones to fetch origin before flight (Phase 2).
+
+        This endpoint is optimized for drone pre-flight origin fetching during
+        Phase 2 Auto Global Origin Correction mode. Returns minimal data required
+        for coordinate transformation with clear error handling.
+
+        Returns:
+            Success (200):
+                {
+                    "lat": float,           # Latitude in degrees
+                    "lon": float,           # Longitude in degrees
+                    "alt": float,           # Altitude MSL in meters
+                    "timestamp": str,       # ISO 8601 timestamp
+                    "source": str           # Origin source: "manual", "drone", "elevation_api"
+                }
+
+            Error (404):
+                {
+                    "error": str,           # Error message
+                    "message": str          # Detailed explanation
+                }
+
+        Usage:
+            Drones call this endpoint during run_drone() before arming to fetch
+            the shared drone show origin. Falls back to cache if unavailable.
+        """
+        try:
+            # Load origin using existing origin management function
+            origin = load_origin()
+
+            # Validate origin is set
+            if not origin or 'lat' not in origin or 'lon' not in origin:
+                return jsonify({
+                    'error': 'Origin not set',
+                    'message': 'Drone show origin has not been configured in GCS. Use dashboard to set origin.'
+                }), 404
+
+            # Validate coordinates are not empty
+            if not origin['lat'] or not origin['lon']:
+                return jsonify({
+                    'error': 'Origin incomplete',
+                    'message': 'Origin coordinates are empty. Please reconfigure origin in GCS.'
+                }), 404
+
+            # Return minimal data required for drone coordinate transformation
+            return jsonify({
+                'lat': float(origin['lat']),
+                'lon': float(origin['lon']),
+                'alt': float(origin.get('alt', 0)),  # Default to 0 if altitude not set
+                'timestamp': origin.get('timestamp', ''),
+                'source': origin.get('alt_source', 'unknown')
+            }), 200
+
+        except Exception as e:
+            log_system_error(f"Error in get-origin-for-drone: {e}", "origin")
+            return jsonify({
+                'error': 'Server error',
+                'message': f'Failed to retrieve origin: {str(e)}'
+            }), 500
 
     @app.route('/get-position-deviations', methods=['GET'])
     def get_position_deviations():

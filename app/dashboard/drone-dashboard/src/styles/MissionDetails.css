@@ -493,4 +493,181 @@
         border: 1px solid var(--color-border-primary);
     }
 }
-  
+
+/* ======================================= */
+/* Phase 2: Auto Global Origin UI Styles  */
+/* ======================================= */
+
+.phase2-origin-section {
+    margin-bottom: var(--spacing-xl);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.origin-checkbox-container {
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-secondary));
+    border: 2px solid var(--color-primary-border);
+    border-radius: var(--border-radius-base);
+    margin-bottom: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    transition: var(--transition-all);
+}
+
+.origin-checkbox-container:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.origin-checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.origin-checkbox {
+    width: 20px;
+    height: 20px;
+    margin-right: var(--spacing-base);
+    cursor: pointer;
+    accent-color: var(--color-primary);
+    transform: scale(1.2);
+}
+
+.checkbox-text {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-family-primary);
+}
+
+.origin-warning {
+    display: flex;
+    gap: var(--spacing-base);
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 152, 0, 0.05));
+    border: 2px solid rgba(255, 193, 7, 0.5);
+    border-left: 4px solid #ffc107;
+    border-radius: var(--border-radius-base);
+    animation: slideIn 0.3s ease-out;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.2);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.warning-icon {
+    font-size: var(--font-size-2xl);
+    flex-shrink: 0;
+    animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+.warning-content {
+    flex-grow: 1;
+}
+
+.warning-content strong {
+    display: block;
+    color: #ff9800;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--spacing-sm);
+    font-family: var(--font-family-primary);
+}
+
+.warning-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.warning-content li {
+    padding: var(--spacing-xs) 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+}
+
+.warning-content li::before {
+    content: '';
+    flex-shrink: 0;
+    width: 4px;
+    height: 4px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    margin-top: 8px;
+}
+
+/* Responsive adjustments for Phase 2 UI */
+@media (max-width: 768px) {
+    .phase2-origin-section {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .origin-checkbox-container {
+        padding: var(--spacing-base);
+    }
+
+    .origin-warning {
+        flex-direction: column;
+        padding: var(--spacing-base);
+    }
+
+    .warning-icon {
+        font-size: var(--font-size-xl);
+    }
+
+    .warning-content strong {
+        font-size: var(--font-size-sm);
+    }
+
+    .warning-content li {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* Focus state for accessibility */
+.origin-checkbox:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.origin-checkbox-label:has(.origin-checkbox:focus-visible) {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--border-radius-sm);
+}
