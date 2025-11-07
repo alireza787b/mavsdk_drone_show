@@ -1,0 +1,132 @@
+name: Automated Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Manual version (e.g., 3.8) or leave empty for auto'
+        required: false
+        default: ''
+      bump_type:
+        description: 'Auto bump type if version empty'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - minor
+          - major
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for commit analysis
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install gitpython
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(cat VERSION)
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "📌 Current version: $CURRENT_VERSION"
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "🎯 Using manual version: ${{ github.event.inputs.version }}"
+            python3 tools/bump_version.py --manual "${{ github.event.inputs.version }}"
+          else
+            echo "🤖 Auto-detecting version bump from commits"
+            python3 tools/bump_version.py --type "${{ github.event.inputs.bump_type || 'auto' }}"
+          fi
+
+          NEW_VERSION=$(cat VERSION)
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ New version: $NEW_VERSION"
+
+      - name: Check if version changed
+        id: version_check
+        run: |
+          OLD_VERSION="${{ steps.current_version.outputs.version }}"
+          NEW_VERSION="${{ steps.bump_version.outputs.version }}"
+
+          if [ "$OLD_VERSION" == "$NEW_VERSION" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "⏭️  No version change needed"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "🎉 Version changed: $OLD_VERSION → $NEW_VERSION"
+          fi
+
+      - name: Generate release notes
+        if: steps.version_check.outputs.changed == 'true'
+        id: release_notes
+        run: |
+          python3 tools/generate_release_notes.py > release_notes.md
+          echo "✅ Release notes generated"
+
+      - name: Commit version bump
+        if: steps.version_check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md src/__init__.py app/dashboard/drone-dashboard/package.json app/dashboard/drone-dashboard/src/version.js
+          git commit -m "chore: bump version to ${{ steps.bump_version.outputs.version }}
+
+🤖 Automated version bump
+
+Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          git push
+
+      - name: Create Git tag
+        if: steps.version_check.outputs.changed == 'true'
+        run: |
+          git tag -a "v${{ steps.bump_version.outputs.version }}" -m "Release v${{ steps.bump_version.outputs.version }}"
+          git push origin "v${{ steps.bump_version.outputs.version }}"
+          echo "🏷️  Created tag: v${{ steps.bump_version.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.version_check.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.bump_version.outputs.version }}
+          name: v${{ steps.bump_version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        if: steps.version_check.outputs.changed == 'true'
+        run: |
+          echo "## ✅ Release Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ steps.bump_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`v${{ steps.bump_version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 [View Release](https://github.com/${{ github.repository }}/releases/tag/v${{ steps.bump_version.outputs.version }})" >> $GITHUB_STEP_SUMMARY

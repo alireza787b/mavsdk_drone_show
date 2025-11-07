@@ -4,17 +4,189 @@
 
 ---
 
-## Table of Contents
+## 🚀 Quick Start (Automated Workflow)
 
+**For most developers:** The versioning is now **fully automated**! Just follow these simple steps:
+
+### 1. Write Good Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```bash
+feat: add new trajectory smoother        # Bumps minor version
+fix: resolve modal centering issue       # Bumps minor version
+docs: update installation guide          # No version bump
+chore: cleanup deprecated files          # No version bump
+feat!: breaking API change               # Bumps major version
+```
+
+### 2. Create Pull Request
+
+- PR is automatically validated
+- Bot comments with predicted version change
+- Example: "Current: 3.7 → After merge: 3.8"
+
+### 3. Merge to Main
+
+**That's it!** When you merge:
+- ✅ Version automatically bumps based on commits
+- ✅ CHANGELOG.md updated automatically
+- ✅ Git tag created (e.g., `v3.8`)
+- ✅ GitHub Release created with auto-generated notes
+- ✅ All files synchronized (Python, JS, package.json)
+
+### Manual Override (if needed)
+
+Go to **Actions → Automated Release → Run workflow**:
+- Enter custom version: `3.9`
+- Or select bump type: `major` / `minor`
+
+---
+
+## 📋 Table of Contents
+
+- [🚀 Quick Start (Automated Workflow)](#-quick-start-automated-workflow)
+- [Automated Release System](#automated-release-system)
+- [Commit Message Standard](#commit-message-standard)
 - [Version Numbering Scheme](#version-numbering-scheme)
 - [Single Source of Truth](#single-source-of-truth)
 - [Version Synchronization](#version-synchronization)
-- [How to Bump Versions](#how-to-bump-versions)
+- [Manual Versioning (Legacy)](#manual-versioning-legacy)
 - [Release Workflow](#release-workflow)
 - [Where Versions Appear](#where-versions-appear)
 - [Manual Override](#manual-override)
 - [Best Practices](#best-practices)
 - [Examples](#examples)
+
+---
+
+## Automated Release System
+
+### How It Works
+
+```
+┌─────────────┐
+│   Commits   │  Use conventional commit messages
+└──────┬──────┘
+       │
+       ↓
+┌─────────────┐
+│  PR Created │  Bot validates commits & predicts version
+└──────┬──────┘
+       │
+       ↓
+┌─────────────┐
+│ Merge to    │  Triggers automated release workflow
+│    main     │
+└──────┬──────┘
+       │
+       ↓
+┌─────────────┐
+│  Automated  │  • Analyzes commits
+│   Release   │  • Bumps version (major/minor)
+│   Workflow  │  • Updates CHANGELOG.md
+└──────┬──────┘  • Syncs all files
+       │         • Creates git tag
+       ↓         • Creates GitHub Release
+┌─────────────┐
+│   Released  │  Version v3.8 is live!
+└─────────────┘
+```
+
+### Components
+
+**GitHub Actions Workflows:**
+- `.github/workflows/release.yml` - Automated release on merge to main
+- `.github/workflows/pr-validation.yml` - PR validation and version prediction
+
+**Automation Scripts:**
+- `tools/bump_version.py` - Smart version bumper (analyzes commits)
+- `tools/generate_release_notes.py` - Auto-generates release notes
+- `tools/validate_commits.py` - Validates commit message format
+- `tools/version_sync.py` - Synchronizes version across all files
+
+### When Does It Run?
+
+**Automatically:** When you push/merge to `main` branch
+**Manually:** Actions → Automated Release → Run workflow (for manual override)
+
+**Note:** Only runs if commits are found (skips doc-only changes)
+
+---
+
+## Commit Message Standard
+
+### Format
+
+```
+<type>[optional scope][optional !]: <description>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types (for version bumping)
+
+| Type | Version Impact | Example |
+|------|---------------|---------|
+| `feat:` | ↑ **Minor** (3.7 → 3.8) | `feat: add trajectory editor` |
+| `fix:` | ↑ **Minor** (3.7 → 3.8) | `fix: resolve GPS timeout` |
+| `feat!:` | ↑ **Major** (3.7 → 4.0) | `feat!: breaking API change` |
+| `fix!:` | ↑ **Major** (3.7 → 4.0) | `fix!: breaking config format` |
+| `docs:` | → No change | `docs: update README` |
+| `chore:` | → No change | `chore: cleanup code` |
+| `refactor:` | → No change | `refactor: restructure code` |
+| `test:` | → No change | `test: add unit tests` |
+| `style:` | → No change | `style: fix formatting` |
+| `perf:` | → No change | `perf: optimize rendering` |
+
+### With Scope (optional)
+
+```bash
+feat(dashboard): add dark mode toggle
+fix(api): resolve timeout issue
+docs(install): update Docker instructions
+```
+
+### Breaking Changes
+
+Use `!` suffix or `BREAKING CHANGE:` in commit body:
+
+```bash
+feat!: remove deprecated API endpoints
+
+BREAKING CHANGE: The /v1/legacy endpoint has been removed.
+Users must migrate to /v2/api.
+```
+
+### Examples (Good)
+
+```bash
+✅ feat: add swarm trajectory smoother
+✅ fix: resolve modal centering UX issue
+✅ docs: update installation guide with Docker
+✅ chore: cleanup deprecated files
+✅ feat(dashboard): implement real-time telemetry
+✅ fix(gcs): resolve connection timeout bug
+✅ refactor: restructure component hierarchy
+```
+
+### Examples (Bad)
+
+```bash
+❌ Updated files                 # Too vague, no type
+❌ Fixed bug                     # No description
+❌ feat added new feature        # Missing colon
+❌ FIX: Bug in code              # Uppercase type
+❌ feature: new thing            # Wrong type name
+```
+
+### Validation
+
+PR validation automatically checks commit messages. Invalid commits will be flagged with suggestions.
+
+**Learn more:** [Conventional Commits](https://www.conventionalcommits.org/)
 
 ---
 
@@ -82,7 +254,12 @@ python tools/version_sync.py
 
 ---
 
-## How to Bump Versions
+## Manual Versioning (Legacy)
+
+**Note:** With the new automated workflow, manual versioning is rarely needed. Use this only for:
+- Testing automation scripts
+- Custom forks without GitHub Actions
+- Emergency overrides
 
 ### Step-by-Step Process
 
