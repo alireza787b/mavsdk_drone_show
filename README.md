@@ -198,6 +198,7 @@ All project documentation is organized in the `docs/` folder:
 - **[Python Compatibility](docs/guides/python-compatibility.md)** - Python version requirements
 - **[Swarm Trajectory Feature](docs/features/swarm-trajectory.md)** - Smart swarm capabilities
 - **[Origin System](docs/features/origin-system.md)** - Coordinate system implementation
+- **[Control Modes and Coordinates](docs/control-modes-and-coordinates.md)** - Comprehensive control modes, coordinate systems, and Phase 2 reference
 
 ---
 

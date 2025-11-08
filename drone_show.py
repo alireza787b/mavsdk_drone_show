@@ -769,9 +769,10 @@ async def perform_trajectory(
                         velocity_cmd = VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                         await drone.offboard.set_velocity_body(velocity_cmd)
 
-                        # Debug: Print setpoint being sent (every iteration for debugging)
-                        climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
-                        logger.info(f"🚁 SETPOINT SENT: {climb_mode_label} | vx=0.0, vy=0.0, vz={-vz_climb:.2f} m/s (DOWN={vz_climb:.2f}), yaw_rate=0.0 | t={time_in_climb:.2f}s | alt={actual_alt:.2f}m")
+                        # Log climb progress periodically (every 1 second)
+                        if waypoint_index % 100 == 0:
+                            climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
+                            logger.info(f"🚁 CLIMBING: {climb_mode_label} | vz={-vz_climb:.2f} m/s | t={time_in_climb:.2f}s | alt={actual_alt:.2f}m")
 
                     # Keep waypoint_index advancing for swarm synchronization
                     # Setpoints overridden with climb commands, but timeline continues
@@ -851,17 +852,21 @@ async def perform_trajectory(
                     PositionGlobalYaw.AltitudeType.AMSL
                     )
                     #Other Options: RELATIVE , AMSL , TAKEOFF
-                    logger.info(
-                        f"🌍 SETPOINT SENT: GLOBAL | lat:{lla_lat:.6f}°, lon:{lla_lon:.6f}°, "
-                        f"alt (AMSL):{lla_alt:.2f}m, yaw:{raw_yaw:.1f}°"
-                    )
+                    # Log periodically (every 5 seconds) to reduce verbosity
+                    if waypoint_index % 500 == 0:
+                        logger.info(
+                            f"🌍 GLOBAL | lat:{lla_lat:.6f}°, lon:{lla_lon:.6f}°, "
+                            f"alt:{lla_alt:.2f}m, yaw:{raw_yaw:.1f}° | WP:{waypoint_index}/{total_waypoints}"
+                        )
                     await drone.offboard.set_position_global(gp)
                 else:
                     # Local NED setpoint
                     ln = PositionNedYaw(px, py, pz, raw_yaw)
-                    logger.info(
-                        f"📍 SETPOINT SENT: LOCAL NED | N:{px:.2f}m, E:{py:.2f}m, D:{pz:.2f}m (alt:{-pz:.2f}m), yaw:{raw_yaw:.1f}°"
-                    )
+                    # Log periodically (every 5 seconds) to reduce verbosity
+                    if waypoint_index % 500 == 0:
+                        logger.info(
+                            f"📍 LOCAL | N:{px:.2f}m, E:{py:.2f}m, D:{pz:.2f}m (alt:{-pz:.2f}m), yaw:{raw_yaw:.1f}° | WP:{waypoint_index}/{total_waypoints}"
+                        )
 
                     # Decide feedforward mode
                     if Params.FEEDFORWARD_VELOCITY_ENABLED and Params.FEEDFORWARD_ACCELERATION_ENABLED:

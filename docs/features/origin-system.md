@@ -1968,6 +1968,14 @@ async def validate_correction_safety(position_error: dict,
 
 ---
 
+## See Also
+
+For comprehensive information about the completed Phase 2 implementation and control modes:
+
+- **[Control Modes and Coordinates](../control-modes-and-coordinates.md)** - Complete reference for control modes, coordinate systems, Phase 2 auto-correction implementation, initial climb behavior, time synchronization, and troubleshooting
+
+---
+
 ## Final Notes
 
 This guide represents the complete knowledge transfer from Phase 1 (origin system implementation) to Phase 2 (drone_show.py integration). The next AI working on this project should:
