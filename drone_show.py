@@ -668,12 +668,15 @@ async def perform_trajectory(
                 # --- (1) Initial Climb Phase ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    # Use time threshold only for initial climb completion
-                    # This ensures climb commands are sent immediately without telemetry overhead
-                    in_initial_climb = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
+                    # Check BOTH altitude AND time (v3.7 behavior)
+                    # This ensures drone actually climbs before completing initial climb phase
+                    actual_alt = -pz  # Current waypoint altitude (increases as waypoints advance)
+                    under_alt = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
+                    under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
+                    in_initial_climb = under_alt or under_time
                     if not in_initial_climb:
                         initial_climb_completed = True
-                        logger.info(f"=== INITIAL CLIMB COMPLETED === after {time_in_climb:.1f}s, switching to CSV trajectory following")
+                        logger.info(f"=== INITIAL CLIMB COMPLETED === after {time_in_climb:.1f}s at altitude {actual_alt:.1f}m, switching to CSV trajectory following")
 
                         # PHASE 2: Initiate position blending
                         if blending_enabled:
