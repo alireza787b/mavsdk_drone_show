@@ -562,9 +562,9 @@ async def perform_trajectory(
     waypoints: list,
     home_position,
     start_time: float,
-    launch_lat: float,
-    launch_lon: float,
-    launch_alt: float,
+    origin_lat: float,
+    origin_lon: float,
+    origin_alt: float,
     effective_auto_origin_mode=False,
     origin_source=None,
     use_global_setpoints=True
@@ -586,7 +586,7 @@ async def perform_trajectory(
         waypoints: List of trajectory waypoints
         home_position: Home position dict (may be unused)
         start_time: Mission start time (UNIX timestamp)
-        launch_lat, launch_lon, launch_alt: Origin coordinates for NED→LLA conversion
+        origin_lat, origin_lon, origin_alt: Shared drone show origin coordinates (0,0,0) in NED for GPS conversion
         effective_auto_origin_mode: True if Phase 2 auto origin correction is enabled
         origin_source: Source of origin ('gcs', 'cache', 'launch_position', 'current_position')
         use_global_setpoints: True for GLOBAL mode (GPS), False for LOCAL mode (NED)
@@ -708,7 +708,7 @@ async def perform_trajectory(
                             # Convert first waypoint NED to GPS (this is our blend target)
                             blend_end_lat, blend_end_lon, blend_end_alt = pm.ned2geodetic(
                                 px_0, py_0, pz_0,
-                                launch_lat, launch_lon, launch_alt
+                                origin_lat, origin_lon, origin_alt
                             )
 
                             blend_start_time = time.time()
@@ -788,7 +788,7 @@ async def perform_trajectory(
                 # Use PyMap3D's ned2geodetic (positional args):
                 lla_lat, lla_lon, lla_alt = pm.ned2geodetic(
                     px, py, pz,
-                    launch_lat, launch_lon, launch_alt
+                    origin_lat, origin_lon, origin_alt
                 )  # :contentReference[oaicite:15]{index=15}
 
                 # --- (3.5) PHASE 2: Apply Position Blending ---
@@ -1861,9 +1861,9 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             # Fetch shared origin with fallback
             try:
                 origin_data = await fetch_origin_with_fallback(drone)
-                launch_lat = origin_data['lat']
-                launch_lon = origin_data['lon']
-                launch_alt = origin_data['alt']
+                origin_lat = origin_data['lat']
+                origin_lon = origin_data['lon']
+                origin_alt = origin_data['alt']
                 origin_source = origin_data['source']
 
                 logger.info(f"✅ Using drone show origin (source: {origin_source})")
@@ -1904,19 +1904,19 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 logger.info("Ensure drones are placed accurately at intended positions.")
 
             # Capture current position as launch origin (traditional method)
-            launch_lat = launch_lon = launch_alt = None
+            origin_lat = origin_lon = origin_alt = None
             logger.info("Capturing launch position from telemetry...")
             async for pos in drone.telemetry.position():
-                launch_lat = pos.latitude_deg
-                launch_lon = pos.longitude_deg
-                launch_alt = pos.absolute_altitude_m
+                origin_lat = pos.latitude_deg
+                origin_lon = pos.longitude_deg
+                origin_alt = pos.absolute_altitude_m
                 logger.info(
                     f"Launch position captured: "
-                    f"lat={launch_lat:.6f}, lon={launch_lon:.6f}, alt={launch_alt:.2f}m"
+                    f"lat={origin_lat:.6f}, lon={origin_lon:.6f}, alt={origin_alt:.2f}m"
                 )
                 break
 
-            if launch_lat is None:
+            if origin_lat is None:
                 logger.error("Failed to capture launch position from telemetry.")
                 sys.exit(1)
 
@@ -2028,7 +2028,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             waypoints,
             home_position,
             synchronized_start_time,
-            launch_lat, launch_lon, launch_alt,
+            origin_lat, origin_lon, origin_alt,
             effective_auto_origin_mode=effective_auto_origin_mode,
             origin_source=origin_source,
             use_global_setpoints=effective_use_global_setpoints
