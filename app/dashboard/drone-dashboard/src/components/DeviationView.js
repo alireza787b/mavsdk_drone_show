@@ -141,6 +141,25 @@ const DeviationView = ({
     'no_telemetry': '#95a5a6'
   };
 
+  // Thresholds for deviation-based coloring (matches backend logic)
+  // Border color should reflect actual deviation, not GPS quality warnings
+  const thresholdWarning = 3.0;  // acceptable_deviation from Params
+  const thresholdError = 7.5;    // threshold_warning * 2.5
+
+  // Get border color based on actual deviation value
+  const getBorderColorByDeviation = (deviationValue) => {
+    if (deviationValue === undefined || deviationValue === null) {
+      return statusColors.no_telemetry;
+    }
+    if (deviationValue <= thresholdWarning) {
+      return statusColors.ok;      // Green: deviation is acceptable
+    } else if (deviationValue <= thresholdError) {
+      return statusColors.warning; // Yellow: deviation exceeds warning threshold
+    } else {
+      return statusColors.error;   // Red: deviation exceeds error threshold
+    }
+  };
+
   // Build traces from deviation data
   if (deviationData?.deviations) {
     drones.forEach(drone => {
@@ -172,10 +191,15 @@ const DeviationView = ({
         currentTrace.y.push(currentNorth);
         currentTrace.text.push('');
 
-        // Status-based color (for circle-open markers, line.color controls border)
-        const statusColor = statusColors[deviation.status] || statusColors.no_telemetry;
-        currentTrace.marker.color.push(statusColor);
-        currentTrace.marker.line.color.push(statusColor);
+        // Get deviation value for color calculation
+        const deviationValue = deviation.deviation?.horizontal;
+        
+        // Border color based on ACTUAL deviation, not backend status
+        // (Backend status may be 'warning' due to GPS quality, but we want
+        // border color to reflect position accuracy)
+        const borderColor = getBorderColorByDeviation(deviationValue);
+        currentTrace.marker.color.push(borderColor);
+        currentTrace.marker.line.color.push(borderColor);
 
         currentTrace.customdata.push({
           hw_id,
