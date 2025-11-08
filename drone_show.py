@@ -539,7 +539,10 @@ def read_trajectory_file(
                 logger.info(f"Trajectory file '{filename}' read successfully with {len(waypoints)} waypoints.")
 
                 # Now shift the entire path so that the first point is (0,0,0) in NED by subtracting (initial_x, initial_y, 0).
+                logger.info(f"⚠️  ADJUSTING WAYPOINTS: Subtracting initial_x={initial_x:.2f}, initial_y={initial_y:.2f}, init_d={init_d:.2f}")
+                logger.info(f"   First waypoint BEFORE adjust: ({waypoints[0][1]:.2f}, {waypoints[0][2]:.2f}, {waypoints[0][3]:.2f})")
                 waypoints = adjust_waypoints(waypoints, initial_x, initial_y, init_d)
+                logger.info(f"   First waypoint AFTER adjust: ({waypoints[0][1]:.2f}, {waypoints[0][2]:.2f}, {waypoints[0][3]:.2f})")
                 logger.info(
                     f"Trajectory waypoints adjusted using config initial positions "
                     f"(N={initial_x}, E={initial_y}, D={init_d})."
@@ -687,17 +690,22 @@ async def perform_trajectory(
                                 blend_start_alt = pos.absolute_altitude_m
                                 break
 
-                            # PHASE 2 FIX: Capture first waypoint (index 0) as blend target
-                            # Reset waypoint index to start from beginning of trajectory
-                            waypoint_index = 0
-                            first_waypoint = waypoints[0]
+                            # PHASE 2 FIX: Use CURRENT waypoint as blend target
+                            # waypoint_index has advanced during climb to maintain timeline sync
+                            # Do NOT reset - we need to continue from current position in timeline
+                            logger.info(f"🔍 BLEND DEBUG: waypoint_index={waypoint_index}, time_in_climb={time_in_climb:.2f}s")
 
-                            # Unpack first waypoint
+                            current_waypoint = waypoints[waypoint_index]
+
+                            # Unpack current waypoint (timeline position after climb)
                             (t_wp_0, px_0, py_0, pz_0,
                              vx_0, vy_0, vz_0,
                              ax_0, ay_0, az_0,
                              yaw_0, mode_0,
-                             ledr_0, ledg_0, ledb_0) = first_waypoint
+                             ledr_0, ledg_0, ledb_0) = current_waypoint
+
+                            logger.info(f"🔍 BLEND TARGET: idx={waypoint_index}, t={t_wp_0:.2f}s")
+                            logger.info(f"🔍 NED coords: px={px_0:.2f}, py={py_0:.2f}, pz={pz_0:.2f}")
 
                             # Apply drift correction to first waypoint if needed
                             if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift and not effective_auto_origin_mode:
@@ -705,20 +713,25 @@ async def perform_trajectory(
                                 py_0 += initial_position_drift.east_m
                                 pz_0 += initial_position_drift.down_m
 
-                            # Convert first waypoint NED to GPS (this is our blend target)
+                            # Convert current waypoint NED to GPS (this is our blend target)
                             blend_end_lat, blend_end_lon, blend_end_alt = pm.ned2geodetic(
                                 px_0, py_0, pz_0,
                                 origin_lat, origin_lon, origin_alt
                             )
+
+                            logger.info(f"🔍 GPS CONVERSION:")
+                            logger.info(f"   Input NED: ({px_0:.2f}, {py_0:.2f}, {pz_0:.2f})")
+                            logger.info(f"   Origin: ({origin_lat:.8f}, {origin_lon:.8f}, {origin_alt:.2f})")
+                            logger.info(f"   Output: ({blend_end_lat:.8f}, {blend_end_lon:.8f}, {blend_end_alt:.2f})")
 
                             blend_start_time = time.time()
                             blend_active = True
 
                             logger.info(f"🔀 === POSITION BLENDING INITIATED ===")
                             logger.info(f"   Start position: lat={blend_start_lat:.6f}°, lon={blend_start_lon:.6f}°, alt={blend_start_alt:.1f}m")
-                            logger.info(f"   Target position (waypoint 0): lat={blend_end_lat:.6f}°, lon={blend_end_lon:.6f}°, alt={blend_end_alt:.1f}m")
+                            logger.info(f"   Target (waypoint {waypoint_index} at t={t_wp_0:.2f}s): lat={blend_end_lat:.6f}°, lon={blend_end_lon:.6f}°, alt={blend_end_alt:.1f}m")
                             logger.info(f"   Blend duration: {Params.BLEND_TRANSITION_DURATION_SEC}s")
-                            logger.info(f"   Waypoint index reset to 0")
+                            logger.info(f"   Timeline synchronized: waypoint {waypoint_index}")
 
                 else:
                     in_initial_climb = False
@@ -804,8 +817,8 @@ async def perform_trajectory(
                         # Still blending: interpolate in LLA space
                         alpha = elapsed_blend / Params.BLEND_TRANSITION_DURATION_SEC
 
-                        # PHASE 2 FIX: Use fixed blend target (waypoint 0) instead of current waypoint
-                        # Linear interpolation from start position to first waypoint
+                        # PHASE 2 FIX: Use fixed blend target (set at blend initiation)
+                        # Linear interpolation from start position to timeline-synchronized waypoint
                         blended_lat = blend_start_lat + alpha * (blend_end_lat - blend_start_lat)
                         blended_lon = blend_start_lon + alpha * (blend_end_lon - blend_start_lon)
                         blended_alt = blend_start_alt + alpha * (blend_end_alt - blend_start_alt)
@@ -813,7 +826,7 @@ async def perform_trajectory(
                         logger.debug(
                             f"🔀 Blending: α={alpha:.2f}, "
                             f"lat={blended_lat:.6f}°, lon={blended_lon:.6f}°, alt={blended_alt:.1f}m "
-                            f"(target: waypoint 0)"
+                            f"(target: timeline-synced waypoint)"
                         )
 
                         # Use blended position
@@ -2005,9 +2018,9 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 effective_auto_launch = False  # Use config offsets (initial_x, initial_y)
                 logger.info(f"LOCAL mode: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
             elif effective_auto_origin_mode:
-                # GLOBAL Phase 2: NO zeroing (absolute waypoints)
+                # GLOBAL Phase 2: NO adjustment (absolute waypoints)
                 effective_auto_launch = False
-                logger.info("GLOBAL Phase 2: Loading trajectory without waypoint zeroing")
+                logger.info("GLOBAL Phase 2: Loading trajectory without waypoint adjustment")
                 logger.info(f"Waypoints used as absolute offsets from drone show origin")
             elif auto_launch_position:
                 # GLOBAL manual with auto_launch: Zero first waypoint
@@ -2018,12 +2031,23 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 effective_auto_launch = False
                 logger.info(f"GLOBAL manual: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
 
-            waypoints = read_trajectory_file(
-                filename=trajectory_filename,
-                auto_launch_position=effective_auto_launch,
-                initial_x=drone_config.initial_x,
-                initial_y=drone_config.initial_y
-            )
+            # Load waypoints with appropriate adjustment
+            if effective_auto_origin_mode:
+                # Phase 2: No adjustment (pass zeros to prevent subtraction)
+                waypoints = read_trajectory_file(
+                    filename=trajectory_filename,
+                    auto_launch_position=False,
+                    initial_x=0.0,
+                    initial_y=0.0
+                )
+            else:
+                # Manual modes: Use config offsets or auto_launch
+                waypoints = read_trajectory_file(
+                    filename=trajectory_filename,
+                    auto_launch_position=effective_auto_launch,
+                    initial_x=drone_config.initial_x,
+                    initial_y=drone_config.initial_y
+                )
             logger.info(f"Loaded trajectory for Drone {position_id} ({len(waypoints)} waypoints).")
 
         # Step 7: Execute the show trajectory (now with global reference)
