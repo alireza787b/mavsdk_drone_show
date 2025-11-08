@@ -1396,7 +1396,8 @@ async def pre_flight_checks(drone: System):
             return gps_origin
 
         else:
-            logger.info("Skipping global position check per configuration")
+            logger.info("Skipping GPS health checks (REQUIRE_GLOBAL_POSITION=False)")
+            logger.info("This is normal for LOCAL mode or non-GPS operations")
             led_controller.set_color(0, 255, 0)
             return None
 
@@ -2041,12 +2042,13 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                     initial_y=0.0
                 )
             else:
-                # Manual modes: Use config offsets or auto_launch
+                # LOCAL and GLOBAL manual: Extract from CSV, pass zeros to prevent config interference
+                # auto_launch_position=True will extract CSV first row and zero it
                 waypoints = read_trajectory_file(
                     filename=trajectory_filename,
                     auto_launch_position=effective_auto_launch,
-                    initial_x=drone_config.initial_x,
-                    initial_y=drone_config.initial_y
+                    initial_x=0.0,  # Don't use config values - rely on CSV first row extraction
+                    initial_y=0.0
                 )
             logger.info(f"Loaded trajectory for Drone {position_id} ({len(waypoints)} waypoints).")
 

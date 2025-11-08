@@ -229,8 +229,13 @@ class Params:
     gcs_heartbeat_endpoint = "/drone-heartbeat"
 
     netbird_ip_prefix = "100."
-    
-    REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
+
+    # GPS 3D Fix Requirement
+    # When True, waits for GPS 3D fix and home position before starting mission
+    # When False, skips GPS health checks (useful for LOCAL mode or future non-GPS modes)
+    # Default: False (allows LOCAL mode operation without GPS)
+    # Note: GLOBAL mode requires GPS regardless of this setting
+    REQUIRE_GLOBAL_POSITION: bool = False
 
     # Phase 2: Auto Global Origin Correction Mode
     # When enabled, drones fetch shared origin from GCS and apply intelligent position correction
