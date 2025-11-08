@@ -735,7 +735,7 @@ async def perform_trajectory(
                         logger.info(f"Target altitude: {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m")
                         logger.info(f"Climb speed: {Params.INITIAL_CLIMB_VZ_DEFAULT} m/s")
                         logger.info(f"Initial trajectory waypoint: N={px:.2f}, E={py:.2f}, D={pz:.2f}")
-                        logger.info(f"Waypoint index will stay at 0 during climb (not advancing)")
+                        logger.info(f"Waypoint index advances for sync, setpoints overridden with climb")
 
                     # BODY-frame climb or LOCAL-NED climb
                     # PHASE 2 FIX: Force BODY_VELOCITY mode in Phase 2 to climb straight UP
@@ -746,7 +746,9 @@ async def perform_trajectory(
                     )
 
                     if use_body_velocity_climb:
-                        vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
+                        # Always use configured climb speed during initial climb phase
+                        # Ignore CSV vz values which may contain numerical noise
+                        vz_climb = Params.INITIAL_CLIMB_VZ_DEFAULT
                         if initial_climb_yaw is None:
                             initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
 
@@ -758,9 +760,9 @@ async def perform_trajectory(
                         climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
                         logger.info(f"🚁 SETPOINT SENT: {climb_mode_label} | vx=0.0, vy=0.0, vz={-vz_climb:.2f} m/s (DOWN={vz_climb:.2f}), yaw_rate=0.0 | t={time_in_climb:.2f}s | alt={actual_alt:.2f}m")
 
-                    # FIX: Don't increment waypoint_index during climb - causes timing issues
-                    # Use fixed loop rate instead to ensure commands sent every iteration
-                    await asyncio.sleep(0.05)  # 20 Hz loop rate
+                    # Keep waypoint_index advancing for swarm synchronization
+                    # Setpoints overridden with climb commands, but timeline continues
+                    waypoint_index += 1
                     continue
 
                 # --- (2) Drift Correction (Skipping) ---
