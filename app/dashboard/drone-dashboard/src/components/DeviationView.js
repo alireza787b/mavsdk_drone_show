@@ -148,15 +148,21 @@ const DeviationView = ({
 
   // Get border color based on actual deviation value
   const getBorderColorByDeviation = (deviationValue) => {
-    if (deviationValue === undefined || deviationValue === null) {
+    // Handle missing or invalid deviation values
+    if (deviationValue === undefined || deviationValue === null || isNaN(deviationValue)) {
       return statusColors.no_telemetry;
     }
-    if (deviationValue <= thresholdWarning) {
-      return statusColors.ok;      // Green: deviation is acceptable
-    } else if (deviationValue <= thresholdError) {
-      return statusColors.warning; // Yellow: deviation exceeds warning threshold
+    
+    // Convert to number if it's a string
+    const dev = typeof deviationValue === 'string' ? parseFloat(deviationValue) : deviationValue;
+    
+    // Border color reflects actual position accuracy
+    if (dev <= thresholdWarning) {
+      return statusColors.ok;      // Green: deviation is acceptable (≤ 3.0m)
+    } else if (dev <= thresholdError) {
+      return statusColors.warning; // Yellow: deviation exceeds warning threshold (3.0m < x ≤ 7.5m)
     } else {
-      return statusColors.error;   // Red: deviation exceeds error threshold
+      return statusColors.error;   // Red: deviation exceeds error threshold (> 7.5m)
     }
   };
 
