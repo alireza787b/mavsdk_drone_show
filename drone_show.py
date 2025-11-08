@@ -2009,27 +2009,22 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
             )
 
             # --- WAYPOINT ZEROING DECISION TREE ---
-            # LOCAL mode: Always zero waypoints (use feedforward control)
-            # GLOBAL manual: Always zero waypoints (traditional GPS origin)
-            # GLOBAL Phase 2: NO zeroing (absolute offsets from shared origin)
-            effective_auto_launch = auto_launch_position
+            # LOCAL mode: Extract launch position from trajectory CSV first row
+            # GLOBAL manual: Extract launch position from trajectory CSV first row
+            # GLOBAL Phase 2: NO adjustment (absolute offsets from shared origin)
             if not effective_use_global_setpoints:
-                # LOCAL mode: Always zero using config offsets
-                effective_auto_launch = False  # Use config offsets (initial_x, initial_y)
-                logger.info(f"LOCAL mode: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
+                # LOCAL mode: Extract from CSV first row
+                effective_auto_launch = True
+                logger.info("LOCAL mode: Extracting launch position from trajectory CSV first row")
             elif effective_auto_origin_mode:
                 # GLOBAL Phase 2: NO adjustment (absolute waypoints)
                 effective_auto_launch = False
                 logger.info("GLOBAL Phase 2: Loading trajectory without waypoint adjustment")
                 logger.info(f"Waypoints used as absolute offsets from drone show origin")
-            elif auto_launch_position:
-                # GLOBAL manual with auto_launch: Zero first waypoint
-                effective_auto_launch = True
-                logger.info("GLOBAL manual: Zeroing first waypoint")
             else:
-                # GLOBAL manual with config offsets: Subtract config offsets
-                effective_auto_launch = False
-                logger.info(f"GLOBAL manual: Subtracting config offsets (N={drone_config.initial_x}m, E={drone_config.initial_y}m)")
+                # GLOBAL manual: Extract from CSV first row
+                effective_auto_launch = True
+                logger.info("GLOBAL manual: Extracting launch position from trajectory CSV first row")
 
             # Load waypoints with appropriate adjustment
             if effective_auto_origin_mode:
