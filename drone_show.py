@@ -685,13 +685,38 @@ async def perform_trajectory(
                                 blend_start_alt = pos.absolute_altitude_m
                                 break
 
+                            # PHASE 2 FIX: Capture first waypoint (index 0) as blend target
+                            # Reset waypoint index to start from beginning of trajectory
+                            waypoint_index = 0
+                            first_waypoint = waypoints[0]
+
+                            # Unpack first waypoint
+                            (t_wp_0, px_0, py_0, pz_0,
+                             vx_0, vy_0, vz_0,
+                             ax_0, ay_0, az_0,
+                             yaw_0, mode_0,
+                             ledr_0, ledg_0, ledb_0) = first_waypoint
+
+                            # Apply drift correction to first waypoint if needed
+                            if Params.ENABLE_INITIAL_POSITION_CORRECTION and initial_position_drift and not effective_auto_origin_mode:
+                                px_0 += initial_position_drift.north_m
+                                py_0 += initial_position_drift.east_m
+                                pz_0 += initial_position_drift.down_m
+
+                            # Convert first waypoint NED to GPS (this is our blend target)
+                            blend_end_lat, blend_end_lon, blend_end_alt = pm.ned2geodetic(
+                                px_0, py_0, pz_0,
+                                launch_lat, launch_lon, launch_alt
+                            )
+
                             blend_start_time = time.time()
                             blend_active = True
 
                             logger.info(f"🔀 === POSITION BLENDING INITIATED ===")
                             logger.info(f"   Start position: lat={blend_start_lat:.6f}°, lon={blend_start_lon:.6f}°, alt={blend_start_alt:.1f}m")
+                            logger.info(f"   Target position (waypoint 0): lat={blend_end_lat:.6f}°, lon={blend_end_lon:.6f}°, alt={blend_end_alt:.1f}m")
                             logger.info(f"   Blend duration: {Params.BLEND_TRANSITION_DURATION_SEC}s")
-                            logger.info(f"   Target: First corrected waypoint from trajectory")
+                            logger.info(f"   Waypoint index reset to 0")
 
                 else:
                     in_initial_climb = False
@@ -711,7 +736,14 @@ async def perform_trajectory(
                             logger.info("Using FIXED LOCAL_NED mode - drone will hover at current position during climb")
 
                     # BODY-frame climb or LOCAL-NED climb
-                    if Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY":
+                    # PHASE 2 FIX: Force BODY_VELOCITY mode in Phase 2 to climb straight UP
+                    # without holding GPS position (which may be incorrect due to placement error)
+                    use_body_velocity_climb = (
+                        Params.INITIAL_CLIMB_MODE == "BODY_VELOCITY" or
+                        effective_auto_origin_mode
+                    )
+
+                    if use_body_velocity_climb:
                         vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
                         if initial_climb_yaw is None:
                             initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
@@ -719,7 +751,8 @@ async def perform_trajectory(
                         await drone.offboard.set_velocity_body(
                             VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                         )
-                        logger.debug(f"Initial climb: BODY_VELOCITY mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
+                        climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
+                        logger.debug(f"Initial climb: {climb_mode_label} mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
                     else:
                         # LOCAL_NED climb - Use correct reference frame based on mode
                         if initial_climb_yaw is None:
@@ -817,14 +850,16 @@ async def perform_trajectory(
                         # Still blending: interpolate in LLA space
                         alpha = elapsed_blend / Params.BLEND_TRANSITION_DURATION_SEC
 
-                        # Linear interpolation for each coordinate
-                        blended_lat = blend_start_lat + alpha * (lla_lat - blend_start_lat)
-                        blended_lon = blend_start_lon + alpha * (lla_lon - blend_start_lon)
-                        blended_alt = blend_start_alt + alpha * (lla_alt - blend_start_alt)
+                        # PHASE 2 FIX: Use fixed blend target (waypoint 0) instead of current waypoint
+                        # Linear interpolation from start position to first waypoint
+                        blended_lat = blend_start_lat + alpha * (blend_end_lat - blend_start_lat)
+                        blended_lon = blend_start_lon + alpha * (blend_end_lon - blend_start_lon)
+                        blended_alt = blend_start_alt + alpha * (blend_end_alt - blend_start_alt)
 
                         logger.debug(
                             f"🔀 Blending: α={alpha:.2f}, "
-                            f"lat={blended_lat:.6f}°, lon={blended_lon:.6f}°, alt={blended_alt:.1f}m"
+                            f"lat={blended_lat:.6f}°, lon={blended_lon:.6f}°, alt={blended_alt:.1f}m "
+                            f"(target: waypoint 0)"
                         )
 
                         # Use blended position
