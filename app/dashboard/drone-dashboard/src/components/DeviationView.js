@@ -108,7 +108,7 @@ const DeviationView = ({
       size: 24,
       color: [],
       symbol: 'circle-open',
-      line: { width: 4 }
+      line: { width: 4, color: [] }
     },
     hovertemplate:
       '<b>Current Position</b><br>' +
@@ -139,6 +139,31 @@ const DeviationView = ({
     'warning': '#f39c12',
     'error': '#e74c3c',
     'no_telemetry': '#95a5a6'
+  };
+
+  // Thresholds for deviation-based coloring (matches backend logic)
+  // Border color should reflect actual deviation, not GPS quality warnings
+  const thresholdWarning = 3.0;  // acceptable_deviation from Params
+  const thresholdError = 7.5;    // threshold_warning * 2.5
+
+  // Get border color based on actual deviation value
+  const getBorderColorByDeviation = (deviationValue) => {
+    // Handle missing or invalid deviation values
+    if (deviationValue === undefined || deviationValue === null || isNaN(deviationValue)) {
+      return statusColors.no_telemetry;
+    }
+    
+    // Convert to number if it's a string
+    const dev = typeof deviationValue === 'string' ? parseFloat(deviationValue) : deviationValue;
+    
+    // Border color reflects actual position accuracy
+    if (dev <= thresholdWarning) {
+      return statusColors.ok;      // Green: deviation is acceptable (≤ 3.0m)
+    } else if (dev <= thresholdError) {
+      return statusColors.warning; // Yellow: deviation exceeds warning threshold (3.0m < x ≤ 7.5m)
+    } else {
+      return statusColors.error;   // Red: deviation exceeds error threshold (> 7.5m)
+    }
   };
 
   // Build traces from deviation data
@@ -172,10 +197,15 @@ const DeviationView = ({
         currentTrace.y.push(currentNorth);
         currentTrace.text.push('');
 
-        // Status-based color
-        currentTrace.marker.color.push(
-          statusColors[deviation.status] || statusColors.no_telemetry
-        );
+        // Get deviation value for color calculation
+        const deviationValue = deviation.deviation?.horizontal;
+        
+        // Border color based on ACTUAL deviation, not backend status
+        // (Backend status may be 'warning' due to GPS quality, but we want
+        // border color to reflect position accuracy)
+        const borderColor = getBorderColorByDeviation(deviationValue);
+        currentTrace.marker.color.push(borderColor);
+        currentTrace.marker.line.color.push(borderColor);
 
         currentTrace.customdata.push({
           hw_id,
