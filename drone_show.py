@@ -752,62 +752,10 @@ async def perform_trajectory(
                         )
                         climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
                         logger.debug(f"Initial climb: {climb_mode_label} mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
-                    else:
-                        # LOCAL_NED climb - Use correct reference frame based on mode
-                        if initial_climb_yaw is None:
-                            async for e in drone.telemetry.attitude_euler():
-                                initial_climb_yaw = e.yaw_deg
-                                break
 
-                        # Calculate climb height based on time and speed
-                        climb_height = min(
-                            time_in_climb * Params.INITIAL_CLIMB_VZ_DEFAULT,
-                            Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
-                        )
-
-                        # PHASE 2 FIX: In global mode, calculate position from GPS relative to shared origin
-                        if use_global_setpoints:
-                            # Get current GPS position
-                            async for pos in drone.telemetry.position():
-                                current_gps_lat = pos.latitude_deg
-                                current_gps_lon = pos.longitude_deg
-                                current_gps_alt = pos.absolute_altitude_m
-                                break
-
-                            # Convert current GPS to NED relative to shared origin
-                            current_n, current_e, current_d = pm.geodetic2ned(
-                                current_gps_lat, current_gps_lon, current_gps_alt,
-                                launch_lat, launch_lon, launch_alt
-                            )
-
-                            # Send NED position command relative to shared origin
-                            climb_target = PositionNedYaw(
-                                current_n,                      # Current North position from shared origin
-                                current_e,                      # Current East position from shared origin
-                                current_d - climb_height,       # Climb up (negative Down)
-                                initial_climb_yaw
-                            )
-
-                            logger.debug(f"Initial climb: GLOBAL_NED mode, GPS→NED relative to shared origin, "
-                                       f"target_N={climb_target.north_m:.2f}, target_E={climb_target.east_m:.2f}, "
-                                       f"target_D={climb_target.down_m:.2f}, climb_height={climb_height:.2f}m, t={time_in_climb:.1f}s")
-                        else:
-                            # LOCAL mode: Use local NED position (original behavior)
-                            current_ned_position = await get_current_ned_position(drone)
-
-                            climb_target = PositionNedYaw(
-                                current_ned_position.north_m,   # Stay at current North position
-                                current_ned_position.east_m,    # Stay at current East position
-                                current_ned_position.down_m - climb_height,  # Climb up (negative Down)
-                                initial_climb_yaw
-                            )
-
-                            logger.debug(f"Initial climb: LOCAL_NED mode, target_N={climb_target.north_m:.2f}, "
-                                       f"target_E={climb_target.east_m:.2f}, target_D={climb_target.down_m:.2f}, "
-                                       f"climb_height={climb_height:.2f}m, t={time_in_climb:.1f}s")
-
-                        await drone.offboard.set_position_ned(climb_target)
-                    waypoint_index += 1
+                    # FIX: Don't increment waypoint_index during climb - causes timing issues
+                    # Use fixed loop rate instead to ensure commands sent every iteration
+                    await asyncio.sleep(0.05)  # 20 Hz loop rate
                     continue
 
                 # --- (2) Drift Correction (Skipping) ---
