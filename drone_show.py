@@ -728,14 +728,14 @@ async def perform_trajectory(
 
                 if in_initial_climb:
                     # Enhanced logging for initial climb start (once per flight)
-                    if waypoint_index == 0 and time_in_climb < 1.0:
+                    # Only print when first entering climb (time < 0.1s to print once)
+                    if time_in_climb < 0.1:
                         logger.info(f"=== INITIAL CLIMB STARTED ===")
                         logger.info(f"Mode: {Params.INITIAL_CLIMB_MODE}")
                         logger.info(f"Target altitude: {Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD}m")
                         logger.info(f"Climb speed: {Params.INITIAL_CLIMB_VZ_DEFAULT} m/s")
                         logger.info(f"Initial trajectory waypoint: N={px:.2f}, E={py:.2f}, D={pz:.2f}")
-                        if Params.INITIAL_CLIMB_MODE == "LOCAL_NED":
-                            logger.info("Using FIXED LOCAL_NED mode - drone will hover at current position during climb")
+                        logger.info(f"Waypoint index will stay at 0 during climb (not advancing)")
 
                     # BODY-frame climb or LOCAL-NED climb
                     # PHASE 2 FIX: Force BODY_VELOCITY mode in Phase 2 to climb straight UP
@@ -749,12 +749,14 @@ async def perform_trajectory(
                         vz_climb = vz if abs(vz) > 1e-6 else Params.INITIAL_CLIMB_VZ_DEFAULT
                         if initial_climb_yaw is None:
                             initial_climb_yaw = raw_yaw if isinstance(raw_yaw, float) else 0.0
+
                         # Send body‐frame velocity setpoint
-                        await drone.offboard.set_velocity_body(
-                            VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
-                        )
+                        velocity_cmd = VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
+                        await drone.offboard.set_velocity_body(velocity_cmd)
+
+                        # Debug: Print setpoint being sent (every iteration for debugging)
                         climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
-                        logger.debug(f"Initial climb: {climb_mode_label} mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
+                        logger.info(f"🚁 SETPOINT SENT: {climb_mode_label} | vx=0.0, vy=0.0, vz={-vz_climb:.2f} m/s (DOWN={vz_climb:.2f}), yaw_rate=0.0 | t={time_in_climb:.2f}s | alt={actual_alt:.2f}m")
 
                     # FIX: Don't increment waypoint_index during climb - causes timing issues
                     # Use fixed loop rate instead to ensure commands sent every iteration
@@ -834,16 +836,16 @@ async def perform_trajectory(
                     PositionGlobalYaw.AltitudeType.AMSL
                     )
                     #Other Options: RELATIVE , AMSL , TAKEOFF
-                    logger.debug(
-                        f"GLOBAL setpoint → lat:{lla_lat:.6f}, lon:{lla_lon:.6f}, "
-                        f"alt (AMSL):{lla_alt:.2f}, yaw:{raw_yaw:.1f}"
+                    logger.info(
+                        f"🌍 SETPOINT SENT: GLOBAL | lat:{lla_lat:.6f}°, lon:{lla_lon:.6f}°, "
+                        f"alt (AMSL):{lla_alt:.2f}m, yaw:{raw_yaw:.1f}°"
                     )
                     await drone.offboard.set_position_global(gp)
                 else:
                     # Local NED setpoint
                     ln = PositionNedYaw(px, py, pz, raw_yaw)
-                    logger.debug(
-                        f"LOCAL NED setpoint → N:{px:.2f}, E:{py:.2f}, D:{pz:.2f}"
+                    logger.info(
+                        f"📍 SETPOINT SENT: LOCAL NED | N:{px:.2f}m, E:{py:.2f}m, D:{pz:.2f}m (alt:{-pz:.2f}m), yaw:{raw_yaw:.1f}°"
                     )
 
                     # Decide feedforward mode
