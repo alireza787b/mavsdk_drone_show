@@ -108,7 +108,7 @@ const DeviationView = ({
       size: 24,
       color: [],
       symbol: 'circle-open',
-      line: { width: 4 }
+      line: { width: 4, color: [] }
     },
     hovertemplate:
       '<b>Current Position</b><br>' +
@@ -172,10 +172,10 @@ const DeviationView = ({
         currentTrace.y.push(currentNorth);
         currentTrace.text.push('');
 
-        // Status-based color
-        currentTrace.marker.color.push(
-          statusColors[deviation.status] || statusColors.no_telemetry
-        );
+        // Status-based color (for circle-open markers, line.color controls border)
+        const statusColor = statusColors[deviation.status] || statusColors.no_telemetry;
+        currentTrace.marker.color.push(statusColor);
+        currentTrace.marker.line.color.push(statusColor);
 
         currentTrace.customdata.push({
           hw_id,
