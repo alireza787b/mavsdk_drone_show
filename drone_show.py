@@ -668,19 +668,9 @@ async def perform_trajectory(
                 # --- (1) Initial Climb Phase ---
                 time_in_climb = now - initial_climb_start_time
                 if not initial_climb_completed:
-                    # FIX: Get actual drone altitude from telemetry, not CSV waypoint altitude
-                    actual_alt = None
-                    async for pos in drone.telemetry.position():
-                        actual_alt = pos.relative_altitude_m
-                        break
-
-                    if actual_alt is None:
-                        # Fallback if telemetry unavailable
-                        actual_alt = -pz
-
-                    under_alt  = actual_alt < Params.INITIAL_CLIMB_ALTITUDE_THRESHOLD
-                    under_time = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
-                    in_initial_climb = under_alt or under_time
+                    # Use time threshold only for initial climb completion
+                    # This ensures climb commands are sent immediately without telemetry overhead
+                    in_initial_climb = time_in_climb < Params.INITIAL_CLIMB_TIME_THRESHOLD
                     if not in_initial_climb:
                         initial_climb_completed = True
                         logger.info(f"=== INITIAL CLIMB COMPLETED === after {time_in_climb:.1f}s, switching to CSV trajectory following")
@@ -761,7 +751,7 @@ async def perform_trajectory(
                             VelocityBodyYawspeed(0.0, 0.0, -vz_climb, 0.0)
                         )
                         climb_mode_label = "BODY_VELOCITY (Phase 2 forced)" if effective_auto_origin_mode else "BODY_VELOCITY"
-                        logger.debug(f"Initial climb: {climb_mode_label} mode, vz={-vz_climb:.2f} m/s, alt={actual_alt:.2f}m, t={time_in_climb:.1f}s")
+                        logger.debug(f"Initial climb: {climb_mode_label} mode, vz={-vz_climb:.2f} m/s, t={time_in_climb:.1f}s")
                     else:
                         # LOCAL_NED climb - Use correct reference frame based on mode
                         if initial_climb_yaw is None:
@@ -800,8 +790,7 @@ async def perform_trajectory(
 
                             logger.debug(f"Initial climb: GLOBAL_NED mode, GPS→NED relative to shared origin, "
                                        f"target_N={climb_target.north_m:.2f}, target_E={climb_target.east_m:.2f}, "
-                                       f"target_D={climb_target.down_m:.2f}, climb_height={climb_height:.2f}m, "
-                                       f"alt={actual_alt:.2f}m, t={time_in_climb:.1f}s")
+                                       f"target_D={climb_target.down_m:.2f}, climb_height={climb_height:.2f}m, t={time_in_climb:.1f}s")
                         else:
                             # LOCAL mode: Use local NED position (original behavior)
                             current_ned_position = await get_current_ned_position(drone)
@@ -815,7 +804,7 @@ async def perform_trajectory(
 
                             logger.debug(f"Initial climb: LOCAL_NED mode, target_N={climb_target.north_m:.2f}, "
                                        f"target_E={climb_target.east_m:.2f}, target_D={climb_target.down_m:.2f}, "
-                                       f"climb_height={climb_height:.2f}m, alt={actual_alt:.2f}m, t={time_in_climb:.1f}s")
+                                       f"climb_height={climb_height:.2f}m, t={time_in_climb:.1f}s")
 
                         await drone.offboard.set_position_ned(climb_target)
                     waypoint_index += 1
