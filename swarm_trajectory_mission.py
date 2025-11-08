@@ -124,7 +124,7 @@ from drone_show_src.utils import (
 
 Drone = namedtuple(
     "Drone",
-    "hw_id pos_id initial_x initial_y ip mavlink_port debug_port gcs_ip",
+    "hw_id pos_id initial_x initial_y ip mavlink_port",
 )
 
 # ----------------------------- #
@@ -193,8 +193,6 @@ def read_config(filename: str) -> Drone:
                         initial_y = float(row["y"])  # East
                         ip = row["ip"]
                         mavlink_port = int(row["mavlink_port"])
-                        debug_port = int(row["debug_port"])
-                        gcs_ip = row["gcs_ip"]
 
                         drone = Drone(
                             hw_id,
@@ -203,8 +201,6 @@ def read_config(filename: str) -> Drone:
                             initial_y,
                             ip,
                             mavlink_port,
-                            debug_port,
-                            gcs_ip,
                         )
                         logger.info(f"Drone configuration found: {drone}")
                         return drone

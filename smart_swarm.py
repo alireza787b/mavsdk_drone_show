@@ -124,7 +124,7 @@ from drone_show_src.utils import configure_logging
 # ----------------------------- #
 
 DroneConfig = namedtuple(
-    "DroneConfig", "hw_id pos_id x y ip mavlink_port debug_port gcs_ip"
+    "DroneConfig", "hw_id pos_id x y ip mavlink_port"
 )
 
 SwarmConfig = namedtuple(
@@ -263,8 +263,6 @@ def read_config_csv(filename: str):
                         'y': float(row["y"]),
                         'ip': row["ip"],
                         'mavlink_port': int(row["mavlink_port"]),
-                        'debug_port': int(row["debug_port"]),
-                        'gcs_ip': row["gcs_ip"],
                     }
                 except ValueError as ve:
                     logger.error(f"Invalid data type in config file row: {row}. Error: {ve}")
@@ -497,7 +495,7 @@ async def update_swarm_config_periodically(drone):
     If a role change is detected (e.g., switching from follower to leader or vice versa),
     it starts or cancels follower-specific tasks accordingly.
 
-    NOTE: Requires DRONE_CONFIG[HW_ID]['gcs_ip'] and Params.flask_telem_socket_port to be set.
+    NOTE: Requires Params.GCS_IP and Params.flask_telem_socket_port to be set.
     """
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
@@ -505,14 +503,14 @@ async def update_swarm_config_periodically(drone):
 
     logger = logging.getLogger(__name__)
 
-    # Resolve the GCS endpoint for this drone
+    # Resolve the GCS endpoint using centralized GCS IP from Params
     str_HW_ID = str(HW_ID)
     drone_cfg = DRONE_CONFIG.get(str_HW_ID)
-    if not drone_cfg or 'gcs_ip' not in drone_cfg:
-        logger.error(f"[Periodic Update] Cannot resolve GCS IP for HW_ID={HW_ID}")
+    if not drone_cfg:
+        logger.error(f"[Periodic Update] Cannot resolve drone config for HW_ID={HW_ID}")
         return
 
-    gcs_ip = drone_cfg['gcs_ip']
+    gcs_ip = Params.GCS_IP
     state_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/get-swarm-data"
 
     # Shared session for connection reuse
@@ -811,7 +809,7 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
     """
     logger = logging.getLogger(__name__)
 
-    gcs_ip = DRONE_CONFIG[str(HW_ID)]['gcs_ip']
+    gcs_ip = Params.GCS_IP
     notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/request-new-leader"
 
     current = SWARM_CONFIG.get(str(HW_ID))
