@@ -46,6 +46,91 @@ const MissionDetails = ({
   const deviationSummary = deviationData?.summary || null;
   const deviations = deviationData?.deviations || {};
   
+  // Thresholds for placement status (matches backend)
+  const thresholdWarning = 3.0;  // acceptable_deviation
+  const thresholdError = 7.5;    // threshold_warning * 2.5
+  
+  // Analyze warnings to categorize them
+  const analyzeWarnings = () => {
+    if (!deviationSummary || !deviationSummary.warnings) {
+      return { placementWarnings: 0, gpsWarnings: 0, warningDetails: [] };
+    }
+    
+    const placementWarnings = [];
+    const gpsWarnings = [];
+    const warningDetails = [];
+    
+    Object.entries(deviations).forEach(([hw_id, dev]) => {
+      if (dev.status === 'warning' || dev.status === 'error') {
+        const devValue = dev.deviation?.horizontal || 0;
+        const message = dev.message || '';
+        
+        // Check if warning is due to GPS quality or placement
+        const messageLower = message.toLowerCase();
+        const isGpsWarning = messageLower.includes('gps') || 
+                             messageLower.includes('poor') ||
+                             messageLower.includes('quality') ||
+                             messageLower.includes('satellite') ||
+                             messageLower.includes('hdop');
+        
+        // If deviation is excellent (<= threshold) but status is warning, it's GPS related
+        const isExcellentPlacement = devValue <= thresholdWarning;
+        
+        if (isGpsWarning || (isExcellentPlacement && dev.status === 'warning')) {
+          gpsWarnings.push({ hw_id, message, deviation: devValue });
+          warningDetails.push({
+            hw_id,
+            type: 'gps',
+            message: message || 'GPS quality issue',
+            deviation: devValue
+          });
+        } else if (devValue > thresholdWarning) {
+          // Placement warning - deviation exceeds threshold
+          placementWarnings.push({ hw_id, message, deviation: devValue });
+          warningDetails.push({
+            hw_id,
+            type: 'placement',
+            message: message || `Deviation ${devValue.toFixed(2)}m exceeds threshold`,
+            deviation: devValue
+          });
+        } else {
+          // Unknown warning type, but deviation is good - treat as GPS
+          gpsWarnings.push({ hw_id, message, deviation: devValue });
+          warningDetails.push({
+            hw_id,
+            type: 'gps',
+            message: message || 'Non-placement issue detected',
+            deviation: devValue
+          });
+        }
+      }
+    });
+    
+    return {
+      placementWarnings: placementWarnings.length,
+      gpsWarnings: gpsWarnings.length,
+      warningDetails
+    };
+  };
+  
+  const warningAnalysis = analyzeWarnings();
+  
+  // Get placement status based on actual deviation
+  const getPlacementStatus = () => {
+    if (!deviationSummary || !deviationSummary.worst_deviation) return null;
+    const worst = deviationSummary.worst_deviation;
+    
+    if (worst <= thresholdWarning) {
+      return { status: 'excellent', color: '#4caf50', icon: '✅', text: 'Excellent' };
+    } else if (worst <= thresholdError) {
+      return { status: 'warning', color: '#ff9800', icon: '⚠️', text: 'Warning' };
+    } else {
+      return { status: 'error', color: '#f44336', icon: '❌', text: 'Error' };
+    }
+  };
+  
+  const placementStatus = getPlacementStatus();
+  
   // Find drones with worst deviation (with tolerance for floating point comparison)
   const getWorstDeviationDrones = () => {
     if (!deviationSummary || !deviationSummary.worst_deviation) return [];
@@ -209,40 +294,114 @@ const MissionDetails = ({
                       <div className="deviation-summary-compact">
                         {deviationSummary && deviationSummary.online > 0 ? (
                           <>
-                            <div className="deviation-stat">
-                              <span className="deviation-label">Avg Deviation:</span>
-                              <span className="deviation-value">{deviationSummary.average_deviation?.toFixed(2) || '0.00'}m</span>
-                            </div>
-                            <div className="deviation-stat">
-                              <span className="deviation-label">Worst:</span>
-                              <span className="deviation-value">
-                                {deviationSummary.worst_deviation?.toFixed(2) || '0.00'}m
-                                {worstDeviationDrones.length > 0 && (
-                                  <span className="deviation-drones"> (Drone{worstDeviationDrones.length > 1 ? 's' : ''} {worstDeviationDrones.join(', ')})</span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="deviation-stat">
-                              <span className="deviation-label">Online:</span>
-                              <span className="deviation-value">{deviationSummary.online} drone{deviationSummary.online !== 1 ? 's' : ''}</span>
-                            </div>
-                            {deviationSummary.warnings > 0 && (
-                              <div className="deviation-stat warning-stat">
-                                <span className="deviation-label">⚠️ Warnings:</span>
-                                <span className="deviation-value warning-value">{deviationSummary.warnings}</span>
+                            {/* Placement Status - Most prominent */}
+                            {placementStatus && (
+                              <div className="deviation-stat placement-status-header" style={{ borderLeft: `4px solid ${placementStatus.color}`, backgroundColor: `${placementStatus.color}15` }}>
+                                <span className="deviation-label">Placement Accuracy:</span>
+                                <span className="deviation-value placement-status-value" style={{ color: placementStatus.color, fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)' }}>
+                                  {placementStatus.icon} {placementStatus.text}
+                                </span>
                               </div>
                             )}
-                            {deviationSummary.errors > 0 && (
-                              <div className="deviation-stat error-stat">
-                                <span className="deviation-label">❌ Errors:</span>
-                                <span className="deviation-value error-value">{deviationSummary.errors}</span>
+                            
+                            {/* Metrics Section */}
+                            <div className="deviation-metrics-section">
+                              <div className="deviation-stat">
+                                <span className="deviation-label">Average Deviation:</span>
+                                <span className="deviation-value">{deviationSummary.average_deviation?.toFixed(2) || '0.00'}m</span>
                               </div>
+                              <div className="deviation-stat">
+                                <span className="deviation-label">Worst Deviation:</span>
+                                <span className="deviation-value">
+                                  {deviationSummary.worst_deviation?.toFixed(2) || '0.00'}m
+                                  {worstDeviationDrones.length > 0 && (
+                                    <span className="deviation-drones"> (Drone{worstDeviationDrones.length > 1 ? 's' : ''} {worstDeviationDrones.join(', ')})</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="deviation-stat">
+                                <span className="deviation-label">Drones Online:</span>
+                                <span className="deviation-value">{deviationSummary.online} drone{deviationSummary.online !== 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+                            
+                            {/* Status Summary - Only show if there are issues */}
+                            {(warningAnalysis.gpsWarnings > 0 || warningAnalysis.placementWarnings > 0 || deviationSummary.errors > 0) && (
+                              <div className="deviation-issues-section">
+                                <div className="deviation-section-title">Status Issues:</div>
+                                
+                                {/* GPS Warnings (if any) */}
+                                {warningAnalysis.gpsWarnings > 0 && (
+                                  <div className="deviation-stat gps-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
+                                    <span className="deviation-label">📡 GPS Quality:</span>
+                                    <span className="deviation-value gps-warning-value">
+                                      {warningAnalysis.gpsWarnings} warning{warningAnalysis.gpsWarnings !== 1 ? 's' : ''}
+                                      <span className="warning-info-note"> (not affecting placement)</span>
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {/* Placement Warnings (only if deviation is actually bad) */}
+                                {warningAnalysis.placementWarnings > 0 && (
+                                  <div className="deviation-stat placement-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
+                                    <span className="deviation-label">⚠️ Placement:</span>
+                                    <span className="deviation-value placement-warning-value">
+                                      {warningAnalysis.placementWarnings} drone{warningAnalysis.placementWarnings !== 1 ? 's' : ''} needs adjustment
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {/* Errors */}
+                                {deviationSummary.errors > 0 && (
+                                  <div className="deviation-stat error-stat" title={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
+                                    <span className="deviation-label">❌ Critical:</span>
+                                    <span className="deviation-value error-value">
+                                      {deviationSummary.errors} error{deviationSummary.errors !== 1 ? 's' : ''} detected
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* All Good Message */}
+                            {warningAnalysis.gpsWarnings === 0 && warningAnalysis.placementWarnings === 0 && deviationSummary.errors === 0 && placementStatus?.status === 'excellent' && (
+                              <div className="deviation-all-good">
+                                <span className="all-good-icon">✅</span>
+                                <span className="all-good-text">All drones are properly positioned and ready for launch</span>
+                              </div>
+                            )}
+                            
+                            {/* Warning details expandable - Only show if there are warnings/errors */}
+                            {warningAnalysis.warningDetails.length > 0 && (
+                              <details className="warning-details">
+                                <summary className="warning-details-summary">
+                                  {warningAnalysis.warningDetails.length === 1 
+                                    ? 'View warning details' 
+                                    : `View ${warningAnalysis.warningDetails.length} warning details`}
+                                </summary>
+                                <div className="warning-details-content">
+                                  {warningAnalysis.warningDetails.map((warning, idx) => (
+                                    <div key={idx} className="warning-detail-item">
+                                      <div className="warning-detail-header">
+                                        <strong>Drone {warning.hw_id}</strong>
+                                        <span className={`warning-type-badge ${warning.type}-badge`}>
+                                          {warning.type === 'gps' ? 'GPS' : 'Placement'}
+                                        </span>
+                                      </div>
+                                      <div className="warning-detail-message">{warning.message}</div>
+                                      {warning.deviation !== undefined && (
+                                        <div className="warning-deviation">Deviation: {warning.deviation.toFixed(2)}m</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
                             )}
                           </>
                         ) : (
                           <div className="deviation-stat">
                             <span className="deviation-label">Status:</span>
-                            <span className="deviation-value">No drones online</span>
+                            <span className="deviation-value">Waiting for drone telemetry...</span>
                           </div>
                         )}
                       </div>

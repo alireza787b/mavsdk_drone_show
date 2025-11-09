@@ -1174,35 +1174,61 @@ def setup_routes(app):
                 deviation_vertical = abs(current_down) if current_alt is not None else 0
                 deviation_total_3d = math.sqrt(deviation_north**2 + deviation_east**2 + deviation_vertical**2)
 
-                # Determine GPS quality
-                satellites = drone_telemetry.get('Satellites', 0)
-                hdop = drone_telemetry.get('HDOP', 99)
+                # Determine GPS quality - check fix_type first (most reliable indicator)
+                gps_fix_type = drone_telemetry.get('Gps_Fix_Type', drone_telemetry.get('gps_fix_type', 0))
+                satellites = drone_telemetry.get('Satellites', drone_telemetry.get('Satellites_Visible', 0))
+                hdop = drone_telemetry.get('HDOP', drone_telemetry.get('Hdop', 99))
 
                 try:
+                    gps_fix_type = int(gps_fix_type)
                     satellites = int(satellites)
                     hdop = float(hdop)
                 except:
+                    gps_fix_type = 0
                     satellites = 0
                     hdop = 99
 
-                # GPS quality classification
-                if satellites >= 10 and hdop < 1.5:
+                # GPS quality classification - prioritize fix_type (MAVLink standard)
+                # Fix types: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
+                if gps_fix_type >= 6:
+                    # RTK Fixed - best quality
                     gps_quality = 'excellent'
-                elif satellites >= 8 and hdop < 2.0:
+                elif gps_fix_type >= 5:
+                    # RTK Float - excellent
+                    gps_quality = 'excellent'
+                elif gps_fix_type >= 4:
+                    # DGPS - very good
                     gps_quality = 'good'
-                elif satellites >= 6 and hdop < 5.0:
-                    gps_quality = 'fair'
-                elif satellites >= 4:
+                elif gps_fix_type >= 3:
+                    # 3D Fix - good quality (use satellites/HDOP to refine)
+                    if satellites >= 10 and hdop < 1.5:
+                        gps_quality = 'excellent'
+                    elif satellites >= 8 and hdop < 2.0:
+                        gps_quality = 'good'
+                    elif satellites >= 6 and hdop < 5.0:
+                        gps_quality = 'fair'
+                    else:
+                        # 3D fix but lower satellite count or higher HDOP - still acceptable
+                        gps_quality = 'fair'
+                elif gps_fix_type >= 2:
+                    # 2D Fix - poor (no altitude)
                     gps_quality = 'poor'
+                elif gps_fix_type >= 1:
+                    # No Fix - GPS connected but no position
+                    gps_quality = 'no_fix'
                 else:
+                    # No GPS (0) - no GPS hardware
                     gps_quality = 'no_fix'
 
                 # Determine status
                 within_threshold = deviation_horizontal <= threshold_warning
 
+                # Only warn if GPS quality is actually poor (2D fix or worse)
+                # 3D fix and above should not trigger warnings based on GPS alone
                 if gps_quality in ['no_fix', 'poor']:
                     status = 'warning'
-                    message = f"Poor GPS quality ({gps_quality})"
+                    fix_type_name = {0: 'No GPS', 1: 'No Fix', 2: '2D Fix', 3: '3D Fix', 4: 'DGPS', 5: 'RTK Float', 6: 'RTK Fixed'}.get(gps_fix_type, f'Fix Type {gps_fix_type}')
+                    message = f"GPS quality issue: {fix_type_name} (quality: {gps_quality})"
                     summary_stats['warnings'] += 1
                 elif deviation_horizontal > threshold_error:
                     status = 'error'
