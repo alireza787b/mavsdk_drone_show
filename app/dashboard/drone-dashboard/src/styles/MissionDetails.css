@@ -581,10 +581,62 @@
 }
 
 /* ======================================= */
-/* Phase 2: Auto Global Origin UI Styles  */
+/* Mode Guidance Sections                  */
 /* ======================================= */
 
-.phase2-origin-section {
+.mode-guidance-section {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1), rgba(25, 118, 210, 0.05));
+    border: 2px solid rgba(33, 150, 243, 0.3);
+    border-left: 4px solid #2196f3;
+    border-radius: var(--border-radius-base);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.guidance-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-base);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+}
+
+.guidance-icon {
+    font-size: var(--font-size-lg);
+}
+
+.guidance-content ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.guidance-content li {
+    padding: var(--spacing-xs) 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+}
+
+.guidance-content li::before {
+    content: '•';
+    flex-shrink: 0;
+    color: #2196f3;
+    font-weight: var(--font-weight-bold);
+    margin-top: 2px;
+}
+
+/* ======================================= */
+/* Auto Global Origin UI Styles            */
+/* ======================================= */
+
+.auto-origin-section {
     margin-bottom: var(--spacing-xl);
     animation: fadeIn 0.3s ease-in-out;
 }
@@ -709,19 +761,126 @@
 }
 
 .warning-content li::before {
-    content: '';
+    content: '•';
     flex-shrink: 0;
-    width: 4px;
-    height: 4px;
-    background: var(--color-primary);
-    border-radius: 50%;
-    margin-top: 8px;
+    color: #ff9800;
+    font-weight: var(--font-weight-bold);
+    margin-top: 2px;
 }
 
-/* Responsive adjustments for Phase 2 UI */
+.warning-content p {
+    margin: var(--spacing-sm) 0 0 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
+.origin-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: var(--font-weight-semibold);
+    margin-left: var(--spacing-xs);
+    border-bottom: 1px solid var(--color-primary);
+    transition: var(--transition-base);
+}
+
+.origin-link:hover {
+    color: var(--color-primary-hover);
+    border-bottom-color: var(--color-primary-hover);
+}
+
+.origin-missing {
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.1), rgba(211, 47, 47, 0.05));
+    border-color: rgba(244, 67, 54, 0.5);
+    border-left-color: #f44336;
+}
+
+.origin-missing .warning-content strong {
+    color: #f44336;
+}
+
+/* Origin confirmation display */
+.origin-confirmation {
+    margin: var(--spacing-base) 0;
+    padding: var(--spacing-base);
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    border-radius: var(--border-radius-sm);
+}
+
+.origin-info-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+}
+
+.origin-label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.origin-coords {
+    color: #4caf50;
+    font-family: 'Courier New', monospace;
+    font-weight: var(--font-weight-medium);
+}
+
+/* Deviation summary compact display */
+.deviation-summary-compact {
+    margin: var(--spacing-base) 0;
+    padding: var(--spacing-base);
+    background: rgba(33, 150, 243, 0.1);
+    border: 1px solid rgba(33, 150, 243, 0.3);
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.deviation-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs) 0;
+}
+
+.deviation-label {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+}
+
+.deviation-value {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    font-family: 'Courier New', monospace;
+}
+
+.deviation-drones {
+    font-weight: var(--font-weight-normal);
+    color: var(--color-text-secondary);
+    font-family: var(--font-family-primary);
+    margin-left: var(--spacing-xs);
+}
+
+.deviation-stat.warning-stat .deviation-value {
+    color: #ff9800;
+}
+
+.deviation-stat.error-stat .deviation-value {
+    color: #f44336;
+}
+
+/* Responsive adjustments for Auto Origin UI */
 @media (max-width: 768px) {
-    .phase2-origin-section {
+    .auto-origin-section {
         margin-bottom: var(--spacing-lg);
+    }
+    
+    .mode-guidance-section {
+        margin-bottom: var(--spacing-lg);
+        padding: var(--spacing-base);
     }
 
     .origin-checkbox-container {
