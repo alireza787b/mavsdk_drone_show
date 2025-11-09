@@ -64,10 +64,29 @@ class LEDController:
     def set_color(r: int, g: int, b: int):
         """
         Sets all LEDs to the specified RGB color.
+        RGB values are clamped to 0-255 range and converted to integers for robustness.
+
+        Args:
+            r: Red component (0-255, will be clamped)
+            g: Green component (0-255, will be clamped)
+            b: Blue component (0-255, will be clamped)
         """
         #in sim_mode we have no LED
         if Params.sim_mode:
             return
+
+        # Robust value clamping and type conversion
+        # Handle float values from CSV (e.g., 255.0) and clamp to valid range
+        try:
+            r = int(max(0, min(255, float(r))))
+            g = int(max(0, min(255, float(g))))
+            b = int(max(0, min(255, float(b))))
+        except (ValueError, TypeError) as e:
+            # Fallback to safe values if conversion fails
+            instance = LEDController.get_instance()
+            instance.logger.warning(f"LED color conversion error: {e}, using safe defaults (0,0,0)")
+            r, g, b = 0, 0, 0
+
         with LEDController._lock:
             instance = LEDController.get_instance()
             if instance.strip is None:

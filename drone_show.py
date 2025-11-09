@@ -75,10 +75,11 @@ Dependencies:
   • 🆕 src.origin_cache - Phase 2 origin caching system
 
 LED Status Indicators:
-  • Blue      — Initialization  
-  • Yellow    — Pre-flight checks  
-  • White     — Offboard armed & ready  
-  • Green     — Mission complete / standby  
+  • Blue      — Initialization
+  • Yellow    — Pre-flight checks
+  • Green     — Arming in progress
+  • CSV RGB   — Synchronized show LEDs during trajectory (ledr, ledg, ledb from waypoints)
+  • Green     — Mission complete / standby
   • Red       — Error or disarmed  
 
 Notes:
@@ -1452,9 +1453,9 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
         logger.info("Starting offboard mode.")
         await drone.offboard.start()
 
-        # Indicate readiness with LED color
-        led_controller.set_color(255, 255, 255)  # White: Ready to fly
-        logger.info("LED set to white: Drone is ready to fly.")
+        # LED control will be managed by CSV waypoints during trajectory execution
+        # Don't set status LED here as it interferes with synchronized show LEDs
+        logger.info("Offboard mode started. LED control transferred to trajectory CSV colors.")
 
     except OffboardError as error:
         # Handle specific Offboard mode errors
