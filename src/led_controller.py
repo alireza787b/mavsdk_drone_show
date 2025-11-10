@@ -117,37 +117,40 @@ class LEDController:
                     )
                 except Exception as e:
                     self.logger.warning(f"rpi_ws281x initialization failed: {e}")
-                    # Don't raise - let it try Pi5Neo below if available
+                    # Don't raise - try Pi5Neo as emergency fallback
                     if LED_LIBRARY == 'rpi_ws281x':
-                        # Try to import and use Pi5Neo as emergency fallback
                         try:
-                            from Pi5Neo import Pi5Neo as Pi5NeoClass
+                            # Emergency fallback: Import and use Pi5Neo
+                            from Pi5Neo import Pi5Neo
                             self.logger.info("Attempting Pi5Neo as emergency fallback...")
-                            self.strip = Pi5NeoClass(
+                            # Pi5Neo constructor: Pi5Neo(spi_device, num_leds, spi_speed_khz)
+                            self.strip = Pi5Neo(
                                 '/dev/spidev0.0',
                                 Params.led_count,
-                                Params.led_brightness
+                                800  # SPI speed in kHz (not brightness!)
                             )
                             self.led_library = 'Pi5Neo'
                             self.logger.info(
-                                f"LEDController initialized: {Params.led_count} LEDs on SPI0 "
-                                f"using Pi5Neo (emergency fallback)"
+                                f"✅ LEDController initialized: {Params.led_count} LEDs on SPI0 "
+                                f"using Pi5Neo (emergency fallback from Pi 4)"
                             )
                         except Exception as e2:
                             self.logger.error(f"Emergency Pi5Neo fallback also failed: {e2}")
+                            self.logger.warning("LED support disabled - system will continue normally")
                             self.strip = None
 
             elif LED_LIBRARY == 'Pi5Neo':
                 # Method 2: Raspberry Pi 5 (SPI-based)
+                # Pi5Neo constructor: Pi5Neo(spi_device, num_leds, spi_speed_khz)
                 self.strip = Pi5Neo(
                     '/dev/spidev0.0',
                     Params.led_count,
-                    Params.led_brightness
+                    800  # SPI speed in kHz (WS2812 standard frequency)
                 )
                 self.led_library = 'Pi5Neo'
                 self.logger.info(
-                    f"LEDController initialized: {Params.led_count} LEDs on SPI0 "
-                    f"using Pi5Neo (Pi 5 method)"
+                    f"✅ LEDController initialized: {Params.led_count} LEDs on SPI0 "
+                    f"using Pi5Neo (Pi 5 direct)"
                 )
 
         except Exception as e:
