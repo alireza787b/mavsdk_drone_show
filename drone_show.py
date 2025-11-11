@@ -726,6 +726,22 @@ async def perform_trajectory(
                             logger.info(f"   Origin: ({origin_lat:.8f}, {origin_lon:.8f}, {origin_alt:.2f})")
                             logger.info(f"   Output: ({blend_end_lat:.8f}, {blend_end_lon:.8f}, {blend_end_alt:.2f})")
 
+                            # SAFETY: Prevent sinking during blend phase
+                            # Clamp target altitude to never be below current altitude minus safety margin
+                            altitude_delta = blend_end_alt - blend_start_alt
+                            min_safe_altitude = blend_start_alt - Params.MIN_BLEND_ALTITUDE_MARGIN_M
+
+                            if blend_end_alt < min_safe_altitude:
+                                original_blend_end_alt = blend_end_alt
+                                blend_end_alt = blend_start_alt + Params.MIN_BLEND_ALTITUDE_MARGIN_M
+                                logger.warning(f"⚠️  ALTITUDE SAFETY: Blend target clamped to prevent sinking")
+                                logger.warning(f"   Original target altitude: {original_blend_end_alt:.2f}m")
+                                logger.warning(f"   Clamped target altitude:  {blend_end_alt:.2f}m")
+                                logger.warning(f"   Altitude delta: {altitude_delta:.2f}m → {blend_end_alt - blend_start_alt:.2f}m")
+                                logger.warning(f"   Reason: Target was {blend_start_alt - original_blend_end_alt:.2f}m below current altitude")
+                            else:
+                                logger.info(f"✅ ALTITUDE SAFETY: Blend target OK (delta: {altitude_delta:+.2f}m)")
+
                             blend_start_time = time.time()
                             blend_active = True
 
@@ -825,6 +841,12 @@ async def perform_trajectory(
                         blended_lat = blend_start_lat + alpha * (blend_end_lat - blend_start_lat)
                         blended_lon = blend_start_lon + alpha * (blend_end_lon - blend_start_lon)
                         blended_alt = blend_start_alt + alpha * (blend_end_alt - blend_start_alt)
+
+                        # RUNTIME SAFETY: Double-check altitude never sinks below start
+                        # This catches any edge cases that might slip through initial clamping
+                        if blended_alt < blend_start_alt:
+                            logger.warning(f"⚠️  RUNTIME SAFETY: Clamping blended altitude {blended_alt:.2f}m → {blend_start_alt:.2f}m")
+                            blended_alt = blend_start_alt
 
                         logger.debug(
                             f"🔀 Blending: α={alpha:.2f}, "

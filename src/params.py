@@ -251,6 +251,12 @@ class Params:
     # Default: 3.0 seconds (prevents abrupt movements)
     BLEND_TRANSITION_DURATION_SEC = 3.0
 
+    # Minimum altitude safety margin during blend phase (Phase 2)
+    # Prevents sinking by ensuring blend target altitude is never below current altitude minus this margin
+    # Set to 0.0 to allow descent, or positive value to force upward bias during blend
+    # Default: 0.5 meters (ensures slight upward movement, preventing any sinking)
+    MIN_BLEND_ALTITUDE_MARGIN_M = 0.5
+
     # Warn if cached origin is older than this (in seconds)
     # Default: 3600 seconds (1 hour)
     ORIGIN_CACHE_STALENESS_WARNING_SEC = 3600
