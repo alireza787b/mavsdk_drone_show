@@ -629,17 +629,21 @@ const DroneEditForm = memo(function DroneEditForm({
           <label className="form-label">Hardware ID</label>
           <select
             name="hw_id"
-            value={droneData.hw_id || ''}
+            value={droneData.hw_id ? String(droneData.hw_id) : ''}
             onChange={handleGenericChange}
             className="form-select"
             title="Select Hardware ID"
             aria-label="Select Hardware ID"
           >
-            {hwIdOptions.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
+            {hwIdOptions && hwIdOptions.length > 0 ? (
+              hwIdOptions.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))
+            ) : (
+              <option value="">No options available</option>
+            )}
           </select>
           {errors.hw_id && <span className="error-message">{errors.hw_id}</span>}
         </div>
@@ -981,8 +985,8 @@ export default function DroneConfigCard({
       };
     }
     return {
-      hw_id: droneObj.hw_id || '',
-      pos_id: droneObj.pos_id || '',
+      hw_id: droneObj.hw_id ? String(droneObj.hw_id) : '',
+      pos_id: droneObj.pos_id ? String(droneObj.pos_id) : '',
       ip: droneObj.ip || '',
       mavlink_port: droneObj.mavlink_port || '',
       serial_port: droneObj.serial_port || '/dev/ttyS0',
