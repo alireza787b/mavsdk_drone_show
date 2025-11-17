@@ -1001,6 +1001,19 @@ export default function DroneConfigCard({
   const [droneData, setDroneData] = useState(getCompleteFormData(drone));
   const [errors, setErrors] = useState({});
 
+  // Ensure the dropdown includes current hw_id + available hw_ids
+  const hwIdOptionsForEdit = React.useMemo(() => {
+    const currentHwId = String(drone.hw_id);
+    const options = [...(availableHwIds || [])];
+
+    // Always include the current hw_id in options (so user can keep it)
+    if (!options.includes(currentHwId)) {
+      options.unshift(currentHwId);
+    }
+
+    return options.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  }, [drone.hw_id, availableHwIds]);
+
   // Reset local form when toggling edit mode
   useEffect(() => {
     if (isEditing) {
@@ -1124,7 +1137,7 @@ export default function DroneConfigCard({
             setDroneData(getCompleteFormData(drone));
             setErrors({});
           }}
-          hwIdOptions={availableHwIds}
+          hwIdOptions={hwIdOptionsForEdit}
           configData={configData}
           setDroneData={setDroneData}
         />
