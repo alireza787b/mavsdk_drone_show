@@ -31,22 +31,27 @@ class VTOLSpec:
     """VTOL/Quadplane aircraft specifications - differential thrust control only"""
     wingspan_m: float = 2.0
     wing_area_m2: float = None  # Will be calculated
-    aspect_ratio: float = 7.0  # Conservative for quadplane
-    cd0: float = 0.15  # HIGH drag - exposed motors, props, no streamlining
-    k: float = 0.08  # Higher induced drag factor
-    cl_max: float = 1.2  # Conservative - not optimized airfoil
-    cl_cruise: float = 0.5  # Lower cruise CL for safety
+    aspect_ratio: float = 7.0  # Typical for efficient quadplane
+    cd0: float = 0.08  # Parasite drag - exposed motors, moderate design (research: 0.04-0.10)
+    oswald_efficiency: float = 0.75  # Oswald efficiency factor (research: 0.75-0.85)
+    k: float = None  # Induced drag factor - will be calculated
+    cl_max: float = 1.2  # Maximum lift coefficient - conservative
+    cl_cruise: float = 0.5  # Cruise lift coefficient
     prop_efficiency_hover: float = 0.65  # Propeller efficiency in hover
-    prop_efficiency_cruise: float = 0.45  # LOW - props not optimized for forward flight
+    prop_efficiency_cruise: float = 0.55  # Cruise efficiency (hover props in forward flight)
     motor_efficiency: float = 0.85  # Motor efficiency
-    control_power_watts: float = 40.0  # Constant power for stability/control authority
-    max_safe_speed_ms: float = 22.0  # Maximum safe cruise speed (conservative)
+    control_power_watts: float = 20.0  # Constant power for stability in forward flight
+    max_safe_speed_ms: float = 22.0  # Maximum safe cruise speed (structural limit)
     air_density: float = 1.225  # kg/m³ at sea level
 
     def __post_init__(self):
         if self.wing_area_m2 is None:
             # Calculate wing area from wingspan and aspect ratio
             self.wing_area_m2 = (self.wingspan_m ** 2) / self.aspect_ratio
+
+        if self.k is None:
+            # Calculate induced drag factor: K = 1/(π × AR × e)
+            self.k = 1.0 / (math.pi * self.aspect_ratio * self.oswald_efficiency)
 
 @dataclass
 class CalibrationData:
@@ -107,20 +112,25 @@ class VTOLPerformanceCalculator:
         v_stall = math.sqrt((2 * W) / (rho * S * CL_max))
         return v_stall
 
-    def calculate_cruise_speed(self, weight_kg: float) -> float:
+    def calculate_minimum_power_speed(self, weight_kg: float) -> float:
         """
-        Calculate optimal cruise speed for quadplane
-        Limited by control authority and structural considerations
-        Must stay well below max safe speed
+        Calculate speed for minimum power (best endurance)
+        This occurs at: V_mp = sqrt((2*W/S) / (rho * sqrt(3*CD0*K)))
+        Typically around 1.32 × V_stall
         """
         v_stall = self.calculate_stall_speed(weight_kg)
+        # Minimum power speed for best endurance
+        v_mp = v_stall * math.sqrt(3.0 * self.vtol.k / self.vtol.cd0)
 
-        # For quadplane: cruise at 1.4x stall for safety margin
-        # But never exceed max safe speed
-        v_optimal = 1.4 * v_stall
-        v_safe = min(v_optimal, self.vtol.max_safe_speed_ms * 0.85)  # 85% of max for endurance
+        # Limit to safe cruise speed
+        return min(v_mp, self.vtol.max_safe_speed_ms * 0.85)
 
-        return v_safe
+    def calculate_cruise_speed(self, weight_kg: float) -> float:
+        """
+        Calculate optimal cruise speed for best endurance
+        This is the minimum power speed
+        """
+        return self.calculate_minimum_power_speed(weight_kg)
 
     def calculate_max_cruise_speed(self, weight_kg: float) -> float:
         """Calculate maximum safe cruise speed for quadplane"""
@@ -245,8 +255,11 @@ class VTOLPerformanceCalculator:
         orbit_endurance_25 = self.calculate_orbit_endurance(weight_kg, 25.0)
         turn_rate_25 = self.calculate_turn_rate(v_cruise, 25.0)
 
-        # Best range cruise (higher speed, but capped at max safe)
-        v_best_range = min(1.5 * v_stall, self.vtol.max_safe_speed_ms)
+        # Best range cruise (minimum drag speed = maximum L/D)
+        # Occurs at: V_md = sqrt((2*W/S) / (rho * sqrt(CD0*K)))
+        # Typically 1.32 × minimum power speed or 1.73 × stall speed
+        v_best_range = v_stall * math.sqrt(self.vtol.k / self.vtol.cd0)
+        v_best_range = min(v_best_range, self.vtol.max_safe_speed_ms)
         best_range_current = self.calculate_cruise_current(weight_kg, v_best_range)
         best_range_endurance = self.calculate_endurance(best_range_current)
         best_range_distance = v_best_range * (best_range_endurance * 60.0) / 1000.0  # km
@@ -304,6 +317,7 @@ class VTOLPerformanceCalculator:
             'wing_loading_kgm2': weight_kg / self.vtol.wing_area_m2,
             'wing_loading_nm2': (weight_kg * 9.81) / self.vtol.wing_area_m2,
             'lift_to_drag_ratio': 1.0 / (self.vtol.cd0 + self.vtol.k * self.vtol.cl_cruise**2),
+            'max_ld_ratio': 0.5 / math.sqrt(self.vtol.cd0 * self.vtol.k),  # Maximum L/D at optimal CL
         }
 
 def print_performance_table(perf: Dict, title: str):
@@ -318,7 +332,8 @@ def print_performance_table(perf: Dict, title: str):
             ('Total Weight', f"{perf['weight_n']:.2f} N"),
             ('Wing Loading', f"{perf['wing_loading_kgm2']:.2f} kg/m²"),
             ('Wing Loading', f"{perf['wing_loading_nm2']:.2f} N/m²"),
-            ('Lift-to-Drag Ratio', f"{perf['lift_to_drag_ratio']:.2f}"),
+            ('Lift-to-Drag Ratio (Cruise)', f"{perf['lift_to_drag_ratio']:.2f}"),
+            ('Maximum L/D Ratio', f"{perf['max_ld_ratio']:.2f}"),
         ]),
 
         ("SPEED PERFORMANCE", [
@@ -387,7 +402,8 @@ def print_comparison_table(perf_6kg: Dict, perf_8kg: Dict):
         ("WEIGHT & LOADING", [
             ('Total Weight (kg)', 'weight_kg', '{:.2f}'),
             ('Wing Loading (kg/m²)', 'wing_loading_kgm2', '{:.2f}'),
-            ('L/D Ratio', 'lift_to_drag_ratio', '{:.2f}'),
+            ('L/D Ratio (Cruise)', 'lift_to_drag_ratio', '{:.2f}'),
+            ('Maximum L/D Ratio', 'max_ld_ratio', '{:.2f}'),
         ]),
         ("SPEED (m/s | km/h)", [
             ('Stall Speed', 'stall_speed', '{:.2f} | {:.1f}'),
@@ -456,17 +472,18 @@ def main():
     )
 
     # VTOL/Quadplane specifications (differential thrust control)
+    # Values based on research papers and aerodynamic theory
     vtol = VTOLSpec(
         wingspan_m=2.0,
         aspect_ratio=7.0,
-        cd0=0.15,  # High drag - exposed motors/props
-        k=0.08,  # Higher induced drag
-        cl_max=1.2,  # Conservative
-        cl_cruise=0.5,  # Lower cruise CL
-        prop_efficiency_hover=0.65,
-        prop_efficiency_cruise=0.45,  # Low - props not optimized for forward flight
-        motor_efficiency=0.85,
-        control_power_watts=40.0,  # Constant control authority requirement
+        cd0=0.08,  # Parasite drag (research: 0.04-0.10 for quadplanes)
+        oswald_efficiency=0.75,  # Oswald efficiency factor (research: 0.75-0.85)
+        cl_max=1.2,  # Conservative maximum lift coefficient
+        cl_cruise=0.5,  # Typical cruise lift coefficient
+        prop_efficiency_hover=0.65,  # Hover propeller efficiency
+        prop_efficiency_cruise=0.55,  # Forward flight efficiency (hover props)
+        motor_efficiency=0.85,  # Motor efficiency
+        control_power_watts=20.0,  # Constant control power (lower in forward flight)
         max_safe_speed_ms=22.0  # Conservative maximum safe speed
     )
 
@@ -491,18 +508,21 @@ def main():
     print_comparison_table(perf_6kg, perf_8kg)
 
     print(f"\n{'='*100}")
-    print("NOTES:")
+    print("CALCULATION BASIS:")
     print("-" * 100)
-    print("• CONSERVATIVE ESTIMATES for quadplane with differential thrust control")
+    print("• Aerodynamic theory with validated parameters from research literature")
+    print("• CD0 = 0.08 (typical for quadplane with exposed motors, research range: 0.04-0.10)")
+    print("• Oswald efficiency e = 0.75 (research validated for simple wings)")
+    print("• K = 1/(π×AR×e) = 0.061 (induced drag factor)")
+    print("• Hover calibrated from real flight data: 5.2kg @ 12.5min")
+    print("• Cruise power: P = (Drag × Velocity) / (η_prop × η_motor) + P_control")
+    print("• Minimum power speed: V_mp = V_stall × sqrt(3K/CD0) for best endurance")
+    print("• Best range speed: V_md = V_stall × sqrt(K/CD0) for maximum L/D")
+    print("• Propeller efficiency in cruise: 55% (hover props in forward flight)")
+    print("• Constant 20W control power for stability in forward flight")
+    print("• 85% battery usable capacity safety margin")
+    print("• Sea level standard atmosphere (ρ = 1.225 kg/m³)")
     print("• NO control surfaces - all control via differential motor thrust")
-    print("• Hover performance calibrated from real flight data (5.2kg @ 12.5min)")
-    print("• High drag coefficient (0.15) accounts for exposed motors/props")
-    print("• Low prop efficiency in cruise (45%) - props optimized for hover, not cruise")
-    print("• Includes constant 40W control power requirement for stability")
-    print("• Maximum safe cruise speed limited to 22 m/s for structural/control safety")
-    print("• 15° bank angle recommended for normal loiter operations")
-    print("• All values include 85% battery usable capacity safety margin")
-    print("• Performance assumes sea level standard atmosphere (ρ = 1.225 kg/m³)")
     print(f"{'='*100}\n")
 
 if __name__ == "__main__":
