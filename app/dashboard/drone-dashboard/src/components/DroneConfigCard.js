@@ -629,7 +629,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <label className="form-label">Hardware ID</label>
           <select
             name="hw_id"
-            value={droneData.hw_id}
+            value={droneData.hw_id || ''}
             onChange={handleGenericChange}
             className="form-select"
             title="Select Hardware ID"
@@ -651,7 +651,7 @@ const DroneEditForm = memo(function DroneEditForm({
             <input
               type="text"
               name="ip"
-              value={droneData.ip}
+              value={droneData.ip || ''}
               onChange={handleGenericChange}
               className="form-input"
               placeholder="Enter IP Address"
@@ -690,7 +690,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <input
             type="text"
             name="mavlink_port"
-            value={droneData.mavlink_port}
+            value={droneData.mavlink_port || ''}
             onChange={handleGenericChange}
             className="form-input"
             placeholder="Enter MAVLink Port"
@@ -798,7 +798,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <input
             type="text"
             name="x"
-            value={droneData.x}
+            value={droneData.x !== undefined && droneData.x !== null ? droneData.x : ''}
             onChange={handleGenericChange}
             className="form-input"
             placeholder="Enter X Coordinate"
@@ -812,7 +812,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <input
             type="text"
             name="y"
-            value={droneData.y}
+            value={droneData.y !== undefined && droneData.y !== null ? droneData.y : ''}
             onChange={handleGenericChange}
             className="form-input"
             placeholder="Enter Y Coordinate"
@@ -965,17 +965,45 @@ export default function DroneConfigCard({
 }) {
   const isEditing = editingDroneId === drone.hw_id;
 
+  // Helper function to ensure all required fields exist with defaults
+  const getCompleteFormData = (droneObj) => {
+    if (!droneObj) {
+      return {
+        hw_id: '',
+        pos_id: '',
+        ip: '',
+        mavlink_port: '',
+        serial_port: '/dev/ttyS0',
+        baudrate: '57600',
+        x: 0,
+        y: 0,
+        isNew: false
+      };
+    }
+    return {
+      hw_id: droneObj.hw_id || '',
+      pos_id: droneObj.pos_id || '',
+      ip: droneObj.ip || '',
+      mavlink_port: droneObj.mavlink_port || '',
+      serial_port: droneObj.serial_port || '/dev/ttyS0',
+      baudrate: droneObj.baudrate || '57600',
+      x: droneObj.x !== undefined ? droneObj.x : 0,
+      y: droneObj.y !== undefined ? droneObj.y : 0,
+      isNew: droneObj.isNew || false
+    };
+  };
+
   // Local state for the edit form
-  const [droneData, setDroneData] = useState({ ...drone });
+  const [droneData, setDroneData] = useState(getCompleteFormData(drone));
   const [errors, setErrors] = useState({});
 
   // Reset local form when toggling edit mode
   useEffect(() => {
     if (isEditing) {
-      setDroneData({ ...drone });
+      setDroneData(getCompleteFormData(drone));
       setErrors({});
     }
-  }, [isEditing, drone]);
+  }, [isEditing]);
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};
@@ -1089,7 +1117,7 @@ export default function DroneConfigCard({
           onSave={handleLocalSave}
           onCancel={() => {
             setEditingDroneId(null);
-            setDroneData({ ...drone });
+            setDroneData(getCompleteFormData(drone));
             setErrors({});
           }}
           hwIdOptions={availableHwIds}
