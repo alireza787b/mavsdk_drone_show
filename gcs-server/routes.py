@@ -22,7 +22,7 @@ from datetime import datetime
 # Import existing modules (preserving all original functionality)
 from telemetry import telemetry_data_all_drones, start_telemetry_polling, data_lock
 from command import send_commands_to_all, send_commands_to_selected
-from config import get_drone_git_status, get_gcs_git_report, load_config, save_config, load_swarm, save_swarm
+from config import get_drone_git_status, get_gcs_git_report, load_config, save_config, load_swarm, save_swarm, validate_and_process_config
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
 from get_elevation import get_elevation
@@ -281,6 +281,78 @@ def setup_routes(app):
     # CONFIGURATION ENDPOINTS (preserving original)
     # ========================================================================
     
+    @app.route('/get-trajectory-first-row', methods=['GET'])
+    def get_trajectory_first_row():
+        """
+        Get expected position (first row) from trajectory CSV file.
+        Used by auto-accept pos_id feature to fetch correct x,y coordinates.
+        """
+        try:
+            pos_id = request.args.get('pos_id')
+            if not pos_id:
+                return error_response("pos_id parameter required", 400)
+
+            pos_id = int(pos_id)
+            sim_mode = getattr(Params, 'sim_mode', False)
+
+            # Get expected position from trajectory CSV
+            north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+            if north is None or east is None:
+                return error_response(
+                    f"Trajectory file not found for pos_id={pos_id}",
+                    404
+                )
+
+            return jsonify({
+                "pos_id": pos_id,
+                "north": north,
+                "east": east,
+                "source": f"Drone {pos_id}.csv (first waypoint)"
+            })
+
+        except ValueError as e:
+            return error_response(f"Invalid pos_id: {e}", 400)
+        except Exception as e:
+            log_system_error(f"Error fetching trajectory coordinates: {e}", "config")
+            return error_response(f"Error fetching trajectory data: {e}")
+
+    @app.route('/validate-config', methods=['POST'])
+    def validate_config_route():
+        """
+        Validate configuration and process x,y coordinates from trajectory CSV.
+        Returns validation report WITHOUT saving to file.
+        Used by UI to show review dialog before final save.
+        """
+        config_data = request.get_json()
+        if not config_data:
+            return error_response("No configuration data provided", 400)
+
+        log_system_event("🔍 Configuration validation requested", "INFO", "config")
+
+        try:
+            # Validate config_data format
+            if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
+                raise ValueError("Invalid configuration data format")
+
+            # Validate and process config
+            sim_mode = getattr(Params, 'sim_mode', False)
+            report = validate_and_process_config(config_data, sim_mode)
+
+            log_system_event(
+                f"✅ Validation complete: {report['summary']['duplicates_count']} duplicates, "
+                f"{report['summary']['missing_trajectories_count']} missing trajectories, "
+                f"{report['summary']['role_swaps_count']} role swaps",
+                "INFO",
+                "config"
+            )
+
+            return jsonify(report)
+
+        except Exception as e:
+            log_system_error(f"Error validating configuration: {e}", "config")
+            return error_response(f"Error validating configuration: {e}")
+
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
         config_data = request.get_json()
@@ -294,8 +366,12 @@ def setup_routes(app):
             if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
                 raise ValueError("Invalid configuration data format")
 
-            # Save the configuration data
-            save_config(config_data)
+            # Process config with trajectory-based x,y updates
+            sim_mode = getattr(Params, 'sim_mode', False)
+            report = validate_and_process_config(config_data, sim_mode)
+
+            # Save the processed configuration (with trajectory-based x,y)
+            save_config(report['updated_config'])
             log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
             git_info = None

@@ -45,6 +45,54 @@
     font-size: var(--font-size-base);
 }
 
+/* Config Warning Banner */
+.config-warning-banner {
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-dark-base);
+}
+
+.config-warning-banner .warning-section {
+    padding: var(--spacing-base);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-weight: var(--font-weight-medium);
+}
+
+.config-warning-banner .collision-warning {
+    background: linear-gradient(135deg, #fee2e2, #fef2f2);
+    border-left: 4px solid #dc2626;
+    color: #991b1b;
+}
+
+.config-warning-banner .role-swap-info {
+    background: linear-gradient(135deg, #dbeafe, #eff6ff);
+    border-left: 4px solid #3b82f6;
+    color: #1e40af;
+}
+
+.config-warning-banner .duplicate-detail,
+.config-warning-banner .role-swap-detail {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.config-warning-banner .collision-warning .duplicate-detail {
+    border: 1px solid #fca5a5;
+    color: #7f1d1d;
+}
+
+.config-warning-banner .role-swap-info .role-swap-detail {
+    border: 1px solid #93c5fd;
+    color: #1e3a8a;
+}
+
 /* Heading Slider Section */
 .heading-controls {
     background: var(--color-bg-secondary);

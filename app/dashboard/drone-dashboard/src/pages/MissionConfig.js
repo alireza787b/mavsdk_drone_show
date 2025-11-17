@@ -11,6 +11,7 @@ import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
 import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
+import SaveReviewDialog from '../components/SaveReviewDialog';
 import axios from 'axios';
 
 // Hooks
@@ -22,9 +23,14 @@ import {
   handleRevertChanges,
   handleFileChange,
   exportConfig,
+  validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import { toast } from 'react-toastify';
 import { getBackendURL } from '../utilities/utilities';
+
+// Icons
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExclamationTriangle, faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
@@ -60,6 +66,10 @@ const MissionConfig = () => {
 
   // UI & Loading
   const [loading, setLoading] = useState(false);
+
+  // Save Review Dialog
+  const [showSaveReviewDialog, setShowSaveReviewDialog] = useState(false);
+  const [validationReport, setValidationReport] = useState(null);
 
   // -----------------------------------------------------
   // Data Fetching using custom hooks
@@ -326,9 +336,32 @@ const MissionConfig = () => {
     toast.info('All unsaved changes have been reverted.');
   };
 
-  const handleSaveChangesToServerWrapper = () => {
-    handleSaveChangesToServer(configData, setConfigData, setLoading);
-    toast.info('Saving changes to server...');
+  const handleSaveChangesToServerWrapper = async () => {
+    try {
+      // Step 1: Validate configuration and get report
+      const report = await validateConfigWithBackend(configData, setLoading);
+
+      // Step 2: Show review dialog with validation report
+      setValidationReport(report);
+      setShowSaveReviewDialog(true);
+
+    } catch (error) {
+      // Validation failed - error already shown by validateConfigWithBackend
+      console.error('Validation failed:', error);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    // User confirmed - proceed with actual save
+    setShowSaveReviewDialog(false);
+    await handleSaveChangesToServer(configData, setConfigData, setLoading);
+  };
+
+  const handleCancelSave = () => {
+    // User cancelled - close dialog
+    setShowSaveReviewDialog(false);
+    setValidationReport(null);
+    toast.info('Save cancelled');
   };
 
   const handleExportConfigWrapper = () => {
@@ -361,6 +394,47 @@ const MissionConfig = () => {
         setConfigData={setConfigData}
         loading={loading}
       />
+
+      {/* Warning Banner for Duplicate pos_id and Role Swaps */}
+      {(() => {
+        const roleSwaps = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
+        const posIdCounts = {};
+        configData.forEach(d => {
+          const posId = parseInt(d.pos_id);
+          if (!isNaN(posId)) {
+            posIdCounts[posId] = (posIdCounts[posId] || []).concat(parseInt(d.hw_id));
+          }
+        });
+        const duplicates = Object.entries(posIdCounts).filter(([_, hwIds]) => hwIds.length > 1);
+
+        return (roleSwaps.length > 0 || duplicates.length > 0) && (
+          <div className="config-warning-banner">
+            {duplicates.length > 0 && (
+              <div className="warning-section collision-warning">
+                <FontAwesomeIcon icon={faExclamationTriangle} />
+                <strong> COLLISION RISK:</strong> Duplicate pos_id detected!
+                {duplicates.map(([posId, hwIds]) => (
+                  <span key={posId} className="duplicate-detail">
+                    {' '}pos_id {posId} → drones {hwIds.join(', ')}
+                  </span>
+                ))}
+              </div>
+            )}
+            {roleSwaps.length > 0 && (
+              <div className="warning-section role-swap-info">
+                <FontAwesomeIcon icon={faExchangeAlt} />
+                <strong> {roleSwaps.length} Role Swap(s) Active:</strong>
+                {roleSwaps.slice(0, 3).map(d => (
+                  <span key={d.hw_id} className="role-swap-detail">
+                    {' '}Drone {d.hw_id}→Pos {d.pos_id}
+                  </span>
+                ))}
+                {roleSwaps.length > 3 && <span> and {roleSwaps.length - 3} more</span>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {!originAvailable && (
         <div className="origin-warning">
@@ -498,6 +572,14 @@ const MissionConfig = () => {
           />
         </div>
       </div>
+
+      {/* Save Review Dialog */}
+      <SaveReviewDialog
+        isOpen={showSaveReviewDialog}
+        validationReport={validationReport}
+        onConfirm={handleConfirmSave}
+        onCancel={handleCancelSave}
+      />
     </div>
   );
 };

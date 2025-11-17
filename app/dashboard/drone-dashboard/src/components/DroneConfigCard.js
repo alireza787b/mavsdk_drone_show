@@ -1,6 +1,9 @@
 import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
+import axios from 'axios';
+import { getBackendURL } from '../utilities/utilities';
+import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faEdit,
@@ -319,7 +322,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <h3 className="drone-title">Drone {drone.hw_id}</h3>
           <div className="drone-subtitle">
             <span className="drone-hardware-id">Hardware ID: {drone.hw_id}</span>
-            <span className="drone-position-id">Position ID: {drone.pos_id}</span>
+            <span className="drone-position-id">
+              Position ID: {drone.pos_id}
+              {parseInt(drone.hw_id) !== parseInt(drone.pos_id) && (
+                <span className="role-swap-badge" title={`This drone is flying Position ${drone.pos_id}'s show instead of its own`}>
+                  ⚠️ Role Swap
+                </span>
+              )}
+            </span>
           </div>
         </div>
         <div className="card-actions">
@@ -1102,13 +1112,51 @@ export default function DroneConfigCard({
           autoPosId={autoPosId}
           onEdit={() => setEditingDroneId(drone.hw_id)}
           onRemove={() => removeDrone(drone.hw_id)}
-          onAcceptConfigFromAuto={(detectedValue) => {
+          onAcceptConfigFromAuto={async (detectedValue) => {
             if (!detectedValue || detectedValue === '0') return;
-            saveChanges(drone.hw_id, { ...drone, pos_id: detectedValue });
+
+            // Fetch correct x,y from trajectory CSV
+            try {
+              const backendURL = getBackendURL();
+              const response = await axios.get(`${backendURL}/get-trajectory-first-row?pos_id=${detectedValue}`);
+              const { north, east } = response.data;
+
+              saveChanges(drone.hw_id, {
+                ...drone,
+                pos_id: detectedValue,
+                x: north,
+                y: east
+              });
+
+              toast.success(`Accepted auto-detected pos_id ${detectedValue} with trajectory coordinates`);
+            } catch (error) {
+              console.error('Error fetching trajectory coordinates:', error);
+              toast.warning(`Accepted pos_id ${detectedValue}, but could not fetch trajectory coordinates`);
+              saveChanges(drone.hw_id, { ...drone, pos_id: detectedValue });
+            }
           }}
-          onAcceptConfigFromHb={(hbValue) => {
+          onAcceptConfigFromHb={async (hbValue) => {
             if (!hbValue || hbValue === '0') return;
-            saveChanges(drone.hw_id, { ...drone, pos_id: hbValue });
+
+            // Fetch correct x,y from trajectory CSV
+            try {
+              const backendURL = getBackendURL();
+              const response = await axios.get(`${backendURL}/get-trajectory-first-row?pos_id=${hbValue}`);
+              const { north, east } = response.data;
+
+              saveChanges(drone.hw_id, {
+                ...drone,
+                pos_id: hbValue,
+                x: north,
+                y: east
+              });
+
+              toast.success(`Accepted assigned pos_id ${hbValue} with trajectory coordinates`);
+            } catch (error) {
+              console.error('Error fetching trajectory coordinates:', error);
+              toast.warning(`Accepted pos_id ${hbValue}, but could not fetch trajectory coordinates`);
+              saveChanges(drone.hw_id, { ...drone, pos_id: hbValue });
+            }
           }}
         />
       )}

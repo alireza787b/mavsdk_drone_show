@@ -6,6 +6,7 @@ import subprocess
 import requests
 from flask import Flask, jsonify, request
 from params import Params
+from collections import defaultdict
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE_PATH = os.path.join(BASE_DIR, Params.config_csv_name)
@@ -128,3 +129,156 @@ def get_drone_git_status(drone_uri):
     except Exception as e:
         logging.error(f"Error contacting drone {drone_uri}: {str(e)}")
         return {'error': f"Error contacting drone {drone_uri}: {str(e)}"}
+
+
+def validate_and_process_config(config_data, sim_mode=None):
+    """
+    Validate configuration and update x,y coordinates from trajectory CSV files.
+
+    This function:
+    1. Reads trajectory CSV first row for each pos_id
+    2. Updates x,y coordinates in config with trajectory values
+    3. Detects duplicate pos_id values
+    4. Identifies missing trajectory files
+    5. Tracks role swaps (hw_id ≠ pos_id)
+    6. Returns comprehensive validation report
+
+    Args:
+        config_data (list): List of drone config dictionaries
+        sim_mode (bool): Whether in simulation mode (affects trajectory path)
+
+    Returns:
+        dict: Validation report with updated_config, warnings, and changes
+    """
+    from origin import _get_expected_position_from_trajectory
+
+    # Detect sim_mode if not provided
+    if sim_mode is None:
+        sim_mode = getattr(Params, 'sim_mode', False)
+
+    # Initialize tracking structures
+    updated_config = []
+    warnings = {
+        "duplicates": [],
+        "missing_trajectories": [],
+        "role_swaps": []
+    }
+    changes = {
+        "pos_id_changes": [],
+        "xy_updates": []
+    }
+
+    # Track pos_id usage for duplicate detection
+    pos_id_usage = defaultdict(list)
+
+    # Load original config for comparison
+    original_config_list = load_config()
+    original_config = {int(d.get('hw_id')): d for d in original_config_list if d.get('hw_id')}
+
+    # Process each drone in new config
+    for drone in config_data:
+        try:
+            hw_id = int(drone.get('hw_id'))
+            pos_id = drone.get('pos_id')
+
+            if not pos_id:
+                # Fallback: if no pos_id, assume pos_id == hw_id
+                pos_id = hw_id
+                drone['pos_id'] = pos_id
+            else:
+                pos_id = int(pos_id)
+
+            # Track pos_id usage for duplicate detection
+            pos_id_usage[pos_id].append(hw_id)
+
+            # Track pos_id changes
+            if hw_id in original_config:
+                orig_pos_id = int(original_config[hw_id].get('pos_id', hw_id))
+                if orig_pos_id != pos_id:
+                    changes["pos_id_changes"].append({
+                        "hw_id": hw_id,
+                        "old_pos_id": orig_pos_id,
+                        "new_pos_id": pos_id
+                    })
+
+            # Track role swaps
+            if hw_id != pos_id:
+                warnings["role_swaps"].append({
+                    "hw_id": hw_id,
+                    "pos_id": pos_id
+                })
+
+            # Get expected position from trajectory CSV (single source of truth)
+            expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+            if expected_north is None or expected_east is None:
+                # Missing trajectory file
+                warnings["missing_trajectories"].append({
+                    "hw_id": hw_id,
+                    "pos_id": pos_id,
+                    "message": f"Trajectory file 'Drone {pos_id}.csv' not found"
+                })
+                # Keep existing x,y values
+                updated_drone = dict(drone)
+            else:
+                # Update x,y with trajectory values
+                old_x = float(drone.get('x', 0))
+                old_y = float(drone.get('y', 0))
+
+                # Track x,y changes
+                if abs(old_x - expected_north) > 0.01 or abs(old_y - expected_east) > 0.01:
+                    changes["xy_updates"].append({
+                        "hw_id": hw_id,
+                        "pos_id": pos_id,
+                        "old_x": old_x,
+                        "old_y": old_y,
+                        "new_x": expected_north,
+                        "new_y": expected_east
+                    })
+
+                # Create updated drone config
+                updated_drone = dict(drone)
+                updated_drone['x'] = expected_north
+                updated_drone['y'] = expected_east
+
+                logger.info(
+                    f"hw_id={hw_id}, pos_id={pos_id}: Updated x,y from trajectory CSV: "
+                    f"({old_x:.2f}, {old_y:.2f}) → ({expected_north:.2f}, {expected_east:.2f})"
+                )
+
+            updated_config.append(updated_drone)
+
+        except Exception as e:
+            logger.error(f"Error processing drone config: {e}")
+            # Keep original drone config on error
+            updated_config.append(dict(drone))
+
+    # Detect duplicate pos_id values
+    for pos_id, hw_ids in pos_id_usage.items():
+        if len(hw_ids) > 1:
+            warnings["duplicates"].append({
+                "pos_id": pos_id,
+                "hw_ids": hw_ids,
+                "message": f"COLLISION RISK: pos_id {pos_id} assigned to drones {hw_ids}"
+            })
+
+    # Build comprehensive report
+    report = {
+        "success": True,
+        "updated_config": updated_config,
+        "warnings": warnings,
+        "changes": changes,
+        "summary": {
+            "total_drones": len(updated_config),
+            "pos_id_changes_count": len(changes["pos_id_changes"]),
+            "xy_updates_count": len(changes["xy_updates"]),
+            "duplicates_count": len(warnings["duplicates"]),
+            "missing_trajectories_count": len(warnings["missing_trajectories"]),
+            "role_swaps_count": len(warnings["role_swaps"])
+        }
+    }
+
+    # Log summary
+    logger.info(f"Config validation complete: {report['summary']}")
+
+    return report

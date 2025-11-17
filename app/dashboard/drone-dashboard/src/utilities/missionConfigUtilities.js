@@ -5,6 +5,51 @@ import { convertToLatLon } from './geoutilities'; // Importing the convertToLatL
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+/**
+ * Validate configuration with backend before saving.
+ * Returns validation report for review dialog.
+ */
+export const validateConfigWithBackend = async (configData, setLoading) => {
+    // Define the expected structure
+    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+
+    // Clean and transform the configData
+    const cleanedConfigData = configData.map(drone => {
+        const cleanedDrone = {};
+        expectedFields.forEach(field => {
+            cleanedDrone[field] = drone[field] || '';
+        });
+        return cleanedDrone;
+    });
+
+    const backendURL = getBackendURL();
+
+    try {
+        setLoading(true);
+        toast.info('Validating configuration...', { autoClose: 2000 });
+
+        const response = await axios.post(`${backendURL}/validate-config`, cleanedConfigData);
+        return response.data; // Returns validation report
+
+    } catch (error) {
+        console.error('Error validating config data:', error);
+
+        if (error.response && error.response.data.message) {
+            toast.error(`Validation failed: ${error.response.data.message}`, { autoClose: 10000 });
+        } else {
+            toast.error(`Error validating configuration: ${error.message || 'Unknown error'}`, { autoClose: 10000 });
+        }
+
+        throw error; // Re-throw so caller knows validation failed
+    } finally {
+        setLoading(false);
+    }
+};
+
+/**
+ * Save configuration to server after validation.
+ * This is called AFTER user confirms in review dialog.
+ */
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
     // Define the expected structure (hardware-specific config, gcs_ip/debug_port removed)
     const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
@@ -41,6 +86,10 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         toast.info('Saving configuration...', { autoClose: 2000 });
 
         const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
+
+        // Reload config from server to get trajectory-updated x,y values
+        const refreshResponse = await axios.get(`${backendURL}/get-config-data`);
+        setConfigData(refreshResponse.data);
 
         // Success toast with git info
         if (response.data.git_info) {

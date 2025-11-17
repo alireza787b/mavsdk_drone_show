@@ -1,0 +1,269 @@
+/* src/styles/SaveReviewDialog.css */
+
+/* Overlay */
+.save-review-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+}
+
+/* Dialog */
+.save-review-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    width: 700px;
+    max-width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.save-review-dialog h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #1f2937;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.save-review-dialog h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #374151;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Review Sections */
+.review-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    border-radius: 6px;
+    border-left: 4px solid;
+}
+
+.error-section {
+    background-color: #fef2f2;
+    border-left-color: #dc2626;
+}
+
+.warning-section {
+    background-color: #fffbeb;
+    border-left-color: #f59e0b;
+}
+
+.info-section {
+    background-color: #eff6ff;
+    border-left-color: #3b82f6;
+}
+
+.changes-section {
+    background-color: #f9fafb;
+    border-left-color: #10b981;
+}
+
+/* Text Styles */
+.error-text {
+    color: #991b1b;
+    margin: 8px 0;
+    font-weight: 500;
+}
+
+.warning-text {
+    color: #92400e;
+    margin: 8px 0;
+    font-weight: 500;
+}
+
+.info-hint {
+    color: #374151;
+    font-size: 0.9rem;
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Lists */
+.error-list,
+.warning-list,
+.info-list {
+    margin: 12px 0;
+    padding-left: 24px;
+    color: #374151;
+}
+
+.error-list li {
+    color: #991b1b;
+    margin: 6px 0;
+}
+
+.warning-list li {
+    color: #92400e;
+    margin: 6px 0;
+}
+
+.info-list li {
+    color: #1e40af;
+    margin: 6px 0;
+}
+
+/* Acknowledgment Checkbox */
+.acknowledgment-checkbox {
+    margin-top: 12px;
+    padding: 12px;
+    background-color: #fff;
+    border: 2px solid #f59e0b;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.acknowledgment-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.acknowledgment-checkbox label {
+    cursor: pointer;
+    color: #92400e;
+    font-weight: 500;
+    margin: 0;
+}
+
+/* Changes Table */
+.changes-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 0.9rem;
+}
+
+.changes-table thead {
+    background-color: #f3f4f6;
+}
+
+.changes-table th {
+    padding: 8px;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid #d1d5db;
+}
+
+.changes-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #4b5563;
+}
+
+.changes-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.changes-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Summary */
+.review-summary {
+    margin: 20px 0;
+    padding: 12px;
+    background-color: #f3f4f6;
+    border-radius: 4px;
+    color: #374151;
+    font-size: 0.95rem;
+}
+
+.summary-warning {
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+/* Action Buttons */
+.review-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.confirm-button,
+.cancel-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.confirm-button {
+    background-color: #10b981;
+    color: #ffffff;
+}
+
+.confirm-button:hover:not(.disabled) {
+    background-color: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.confirm-button.disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.cancel-button {
+    background-color: #6b7280;
+    color: #ffffff;
+}
+
+.cancel-button:hover {
+    background-color: #4b5563;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+}
+
+/* Scrollbar Styling */
+.save-review-dialog::-webkit-scrollbar {
+    width: 8px;
+}
+
+.save-review-dialog::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.save-review-dialog::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.save-review-dialog::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
