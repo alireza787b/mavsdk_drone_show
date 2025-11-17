@@ -128,6 +128,7 @@ from drone_show_src.utils import (
     read_hw_id,
     clamp_led_value,
     global_to_local,
+    get_expected_position_from_trajectory,
 )
 
 # ----------------------------- #
@@ -1906,7 +1907,24 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                 sys.exit(1)
 
             logger.info(f"Drone HW_ID={HW_ID}, Position ID={drone_config.pos_id}")
-            logger.info(f"Expected offset from origin: North={drone_config.initial_x:.1f}m, East={drone_config.initial_y:.1f}m")
+
+            # CRITICAL FIX: Get expected position from trajectory CSV, not config.csv
+            # When hw_id ≠ pos_id, config x,y represents hw_id's physical position,
+            # but we need pos_id's trajectory starting position for validation
+            expected_north, expected_east = get_expected_position_from_trajectory(
+                drone_config.pos_id,
+                Params.sim_mode
+            )
+
+            if expected_north is None or expected_east is None:
+                logger.error(f"❌ Could not read trajectory file for pos_id={drone_config.pos_id}")
+                logger.error("Cannot validate position without trajectory data.")
+                sys.exit(1)
+
+            logger.info(
+                f"Expected position from trajectory (pos_id={drone_config.pos_id}): "
+                f"North={expected_north:.1f}m, East={expected_east:.1f}m"
+            )
 
             # Fetch shared origin with fallback
             try:
@@ -1925,7 +1943,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
                         deviation = await validate_drone_position(
                             drone,
                             origin_data,
-                            {'x': drone_config.initial_x, 'y': drone_config.initial_y}
+                            {'x': expected_north, 'y': expected_east}  # FIXED: Use trajectory position
                         )
                         logger.info(f"✅ Position validation passed with {deviation:.2f}m deviation")
                     except ValueError as e:

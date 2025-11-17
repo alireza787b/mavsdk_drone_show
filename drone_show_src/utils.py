@@ -5,6 +5,7 @@ import logging
 import logging.handlers
 from datetime import datetime
 import time
+import csv
 from mavsdk.system import System
 from src.params import Params
 
@@ -129,6 +130,79 @@ def clamp_led_value(value):
     except ValueError:
         logger.warning(f"Invalid LED value '{value}'. Defaulting to 0.")
         return 0  # Default to 0 if the value cannot be converted
+
+
+def get_expected_position_from_trajectory(pos_id, sim_mode=False):
+    """
+    Get the expected position (starting point) from a trajectory CSV file.
+
+    This function reads the first waypoint from the trajectory CSV file
+    corresponding to the given position ID. This is the single source of truth
+    for expected position, especially critical when hw_id ≠ pos_id.
+
+    Args:
+        pos_id (int): Position ID (determines which trajectory file to read)
+        sim_mode (bool): Whether in simulation mode (affects path: shapes vs shapes_sitl)
+
+    Returns:
+        tuple: (north, east) coordinates from first waypoint, or (None, None) on error
+
+    Example:
+        When hw_id=10 performs pos_id=1's show, this function reads
+        "Drone 1.csv" first row to get the expected starting position.
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Construct trajectory file path based on pos_id
+        base_dir = 'shapes_sitl' if sim_mode else 'shapes'
+        trajectory_file = os.path.join(
+            base_dir,
+            'swarm',
+            'processed',
+            f"Drone {pos_id}.csv"
+        )
+
+        # Check if file exists
+        if not os.path.exists(trajectory_file):
+            logger.error(f"Trajectory file not found: {trajectory_file}")
+            return None, None
+
+        # Read first waypoint from CSV
+        with open(trajectory_file, 'r') as f:
+            reader = csv.DictReader(f)
+            first_waypoint = next(reader, None)
+
+            if first_waypoint is None:
+                logger.error(f"Trajectory file is empty: {trajectory_file}")
+                return None, None
+
+            # Extract px (North) and py (East) from first waypoint
+            # These represent the canonical expected position for this pos_id
+            expected_north = float(first_waypoint.get('px', 0))
+            expected_east = float(first_waypoint.get('py', 0))
+
+            logger.debug(
+                f"Expected position for pos_id={pos_id}: "
+                f"North={expected_north:.2f}m, East={expected_east:.2f}m "
+                f"(from {trajectory_file})"
+            )
+
+            return expected_north, expected_east
+
+    except FileNotFoundError:
+        logger.error(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+        return None, None
+    except KeyError as e:
+        logger.error(f"Missing column in trajectory CSV: {e}")
+        return None, None
+    except ValueError as e:
+        logger.error(f"Invalid coordinate value in trajectory CSV: {e}")
+        return None, None
+    except Exception as e:
+        logger.error(f"Unexpected error reading trajectory file for pos_id={pos_id}: {e}")
+        return None, None
+
 
 def global_to_local(global_position, home_position):
     """

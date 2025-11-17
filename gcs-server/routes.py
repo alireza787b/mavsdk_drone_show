@@ -26,7 +26,7 @@ from config import get_drone_git_status, get_gcs_git_report, load_config, save_c
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
 from get_elevation import get_elevation
-from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
+from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations, _get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
@@ -1073,17 +1073,30 @@ def setup_routes(app):
 
             for drone in drones_config:
                 hw_id = drone.get('hw_id')
+                pos_id = drone.get('pos_id')
+
                 if not hw_id:
                     continue
 
-                # Get expected position from config (x=North, y=East)
-                try:
-                    expected_north = float(drone.get('x', 0))
-                    expected_east = float(drone.get('y', 0))
-                except (TypeError, ValueError):
+                # CRITICAL FIX: Use pos_id to get expected position from trajectory CSV
+                # When hw_id ≠ pos_id, the drone executes pos_id's trajectory, so expected
+                # position must come from trajectory file, NOT from config.csv x,y values
+                if not pos_id:
+                    # Fallback: if no pos_id defined, assume pos_id == hw_id
+                    pos_id = hw_id
+
+                # Detect simulation mode from Params
+                sim_mode = getattr(Params, 'sim_mode', False)
+
+                # Get expected position from trajectory CSV (single source of truth)
+                expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+                if expected_north is None or expected_east is None:
                     deviations[hw_id] = {
+                        "hw_id": hw_id,
+                        "pos_id": pos_id,
                         "status": "error",
-                        "message": "Invalid config position data"
+                        "message": f"Could not read trajectory file for pos_id={pos_id}"
                     }
                     summary_stats['errors'] += 1
                     continue
