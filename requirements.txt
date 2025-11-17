@@ -54,4 +54,4 @@ netifaces
 seaborn
 pymap3d
 nmcli
-pi5neo
+
