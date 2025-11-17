@@ -28,17 +28,19 @@ class BatterySpec:
 
 @dataclass
 class VTOLSpec:
-    """VTOL aircraft specifications"""
+    """VTOL/Quadplane aircraft specifications - differential thrust control only"""
     wingspan_m: float = 2.0
     wing_area_m2: float = None  # Will be calculated
-    aspect_ratio: float = 8.0  # Typical for fixed-wing
-    cd0: float = 0.035  # Zero-lift drag coefficient
-    k: float = 0.055  # Induced drag factor
-    cl_max: float = 1.4  # Maximum lift coefficient
-    cl_cruise: float = 0.6  # Cruise lift coefficient
+    aspect_ratio: float = 7.0  # Conservative for quadplane
+    cd0: float = 0.15  # HIGH drag - exposed motors, props, no streamlining
+    k: float = 0.08  # Higher induced drag factor
+    cl_max: float = 1.2  # Conservative - not optimized airfoil
+    cl_cruise: float = 0.5  # Lower cruise CL for safety
     prop_efficiency_hover: float = 0.65  # Propeller efficiency in hover
-    prop_efficiency_cruise: float = 0.75  # Propeller efficiency in cruise
+    prop_efficiency_cruise: float = 0.45  # LOW - props not optimized for forward flight
     motor_efficiency: float = 0.85  # Motor efficiency
+    control_power_watts: float = 40.0  # Constant power for stability/control authority
+    max_safe_speed_ms: float = 22.0  # Maximum safe cruise speed (conservative)
     air_density: float = 1.225  # kg/m³ at sea level
 
     def __post_init__(self):
@@ -107,22 +109,23 @@ class VTOLPerformanceCalculator:
 
     def calculate_cruise_speed(self, weight_kg: float) -> float:
         """
-        Calculate optimal cruise speed (best L/D speed)
-        V_cruise = sqrt((2 * W) / (rho * S * CL_cruise))
-        Typically 1.3-1.5 times stall speed for best endurance
+        Calculate optimal cruise speed for quadplane
+        Limited by control authority and structural considerations
+        Must stay well below max safe speed
         """
         v_stall = self.calculate_stall_speed(weight_kg)
 
-        # For best endurance: V = 1.32 * V_stall
-        # For best range: V = 1.5 * V_stall
-        # We use best endurance
-        return 1.32 * v_stall
+        # For quadplane: cruise at 1.4x stall for safety margin
+        # But never exceed max safe speed
+        v_optimal = 1.4 * v_stall
+        v_safe = min(v_optimal, self.vtol.max_safe_speed_ms * 0.85)  # 85% of max for endurance
+
+        return v_safe
 
     def calculate_max_cruise_speed(self, weight_kg: float) -> float:
-        """Calculate maximum safe cruise speed"""
-        v_stall = self.calculate_stall_speed(weight_kg)
-        # Maximum cruise typically 2.5-3x stall speed
-        return 2.5 * v_stall
+        """Calculate maximum safe cruise speed for quadplane"""
+        # Limited by control authority and structural limits
+        return self.vtol.max_safe_speed_ms
 
     def calculate_drag_power(self, weight_kg: float, speed_ms: float) -> float:
         """
@@ -149,10 +152,18 @@ class VTOLPerformanceCalculator:
         return drag_power
 
     def calculate_cruise_power(self, weight_kg: float, speed_ms: float) -> float:
-        """Calculate total cruise power including inefficiencies"""
+        """
+        Calculate total cruise power for quadplane
+        Includes drag power + constant control power requirement
+        """
         drag_power = self.calculate_drag_power(weight_kg, speed_ms)
         total_efficiency = self.vtol.prop_efficiency_cruise * self.vtol.motor_efficiency
-        return drag_power / total_efficiency
+        propulsion_power = drag_power / total_efficiency
+
+        # Add constant control power (motors always running for stability)
+        total_power = propulsion_power + self.vtol.control_power_watts
+
+        return total_power
 
     def calculate_cruise_current(self, weight_kg: float, speed_ms: float) -> float:
         """Calculate cruise current"""
@@ -234,8 +245,8 @@ class VTOLPerformanceCalculator:
         orbit_endurance_25 = self.calculate_orbit_endurance(weight_kg, 25.0)
         turn_rate_25 = self.calculate_turn_rate(v_cruise, 25.0)
 
-        # Best range cruise (higher speed)
-        v_best_range = 1.5 * v_stall
+        # Best range cruise (higher speed, but capped at max safe)
+        v_best_range = min(1.5 * v_stall, self.vtol.max_safe_speed_ms)
         best_range_current = self.calculate_cruise_current(weight_kg, v_best_range)
         best_range_endurance = self.calculate_endurance(best_range_current)
         best_range_distance = v_best_range * (best_range_endurance * 60.0) / 1000.0  # km
@@ -444,17 +455,19 @@ def main():
         usable_capacity_factor=0.85
     )
 
-    # VTOL specifications
+    # VTOL/Quadplane specifications (differential thrust control)
     vtol = VTOLSpec(
         wingspan_m=2.0,
-        aspect_ratio=8.0,
-        cd0=0.035,
-        k=0.055,
-        cl_max=1.4,
-        cl_cruise=0.6,
+        aspect_ratio=7.0,
+        cd0=0.15,  # High drag - exposed motors/props
+        k=0.08,  # Higher induced drag
+        cl_max=1.2,  # Conservative
+        cl_cruise=0.5,  # Lower cruise CL
         prop_efficiency_hover=0.65,
-        prop_efficiency_cruise=0.75,
-        motor_efficiency=0.85
+        prop_efficiency_cruise=0.45,  # Low - props not optimized for forward flight
+        motor_efficiency=0.85,
+        control_power_watts=40.0,  # Constant control authority requirement
+        max_safe_speed_ms=22.0  # Conservative maximum safe speed
     )
 
     # Calibration data
@@ -480,10 +493,13 @@ def main():
     print(f"\n{'='*100}")
     print("NOTES:")
     print("-" * 100)
-    print("• Calculations based on fundamental aerospace engineering principles")
+    print("• CONSERVATIVE ESTIMATES for quadplane with differential thrust control")
+    print("• NO control surfaces - all control via differential motor thrust")
     print("• Hover performance calibrated from real flight data (5.2kg @ 12.5min)")
-    print("• Cruise speed optimized for best endurance (1.32 × Vs)")
-    print("• Best range speed optimized for maximum distance (1.5 × Vs)")
+    print("• High drag coefficient (0.15) accounts for exposed motors/props")
+    print("• Low prop efficiency in cruise (45%) - props optimized for hover, not cruise")
+    print("• Includes constant 40W control power requirement for stability")
+    print("• Maximum safe cruise speed limited to 22 m/s for structural/control safety")
     print("• 15° bank angle recommended for normal loiter operations")
     print("• All values include 85% battery usable capacity safety margin")
     print("• Performance assumes sea level standard atmosphere (ρ = 1.225 kg/m³)")
