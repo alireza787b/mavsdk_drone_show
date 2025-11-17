@@ -1,12 +1,12 @@
 {
   "basic_metrics": {},
   "safety_metrics": {
-    "min_inter_drone_distance_m": 4.53,
+    "min_inter_drone_distance_m": 3.28,
     "min_distance_details": {
-      "time_s": 86.2,
-      "drone_1": "10",
-      "drone_2": "5",
-      "distance_m": 4.53
+      "time_s": 42.4,
+      "drone_1": "2",
+      "drone_2": "3",
+      "distance_m": 3.28
     },
     "collision_warnings_count": 0,
     "collision_warnings": [],
@@ -14,88 +14,88 @@
     "safety_status": "CAUTION"
   },
   "performance_metrics": {
-    "max_velocity_ms": 1.55,
-    "max_velocity_kmh": 5.6,
+    "max_velocity_ms": 3.95,
+    "max_velocity_kmh": 14.23,
     "max_velocity_details": {
-      "value": 1.55,
-      "drone_id": "5",
-      "time_s": 44.0
+      "value": 3.95,
+      "drone_id": "3",
+      "time_s": 49.7
     },
-    "max_acceleration_ms2": 0.55,
+    "max_acceleration_ms2": 3.16,
     "max_acceleration_details": {
-      "value": 0.55,
-      "drone_id": "10",
-      "time_s": 38.6
+      "value": 3.16,
+      "drone_id": "3",
+      "time_s": 50.7
     },
     "performance_status": "EXCELLENT",
     "per_drone_velocity": {
       "10": {
-        "max_velocity_ms": 1.55,
-        "avg_velocity_ms": 0.72,
+        "max_velocity_ms": 1.57,
+        "avg_velocity_ms": 0.7,
         "velocity_std_ms": 0.49
       },
       "8": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.58,
-        "velocity_std_ms": 0.48
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.52,
+        "velocity_std_ms": 0.52
       },
       "4": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.71,
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.64,
         "velocity_std_ms": 0.47
       },
       "2": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.71,
-        "velocity_std_ms": 0.47
-      },
-      "1": {
-        "max_velocity_ms": 1.55,
-        "avg_velocity_ms": 0.78,
-        "velocity_std_ms": 0.51
-      },
-      "7": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.63,
-        "velocity_std_ms": 0.46
-      },
-      "6": {
-        "max_velocity_ms": 1.55,
-        "avg_velocity_ms": 0.72,
-        "velocity_std_ms": 0.49
-      },
-      "3": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.67,
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.62,
         "velocity_std_ms": 0.48
       },
+      "1": {
+        "max_velocity_ms": 3.15,
+        "avg_velocity_ms": 0.8,
+        "velocity_std_ms": 0.54
+      },
+      "7": {
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.59,
+        "velocity_std_ms": 0.49
+      },
+      "6": {
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.7,
+        "velocity_std_ms": 0.44
+      },
+      "3": {
+        "max_velocity_ms": 3.95,
+        "avg_velocity_ms": 0.87,
+        "velocity_std_ms": 0.58
+      },
       "9": {
-        "max_velocity_ms": 1.48,
-        "avg_velocity_ms": 0.63,
-        "velocity_std_ms": 0.46
+        "max_velocity_ms": 1.49,
+        "avg_velocity_ms": 0.6,
+        "velocity_std_ms": 0.48
       },
       "5": {
-        "max_velocity_ms": 1.55,
-        "avg_velocity_ms": 0.78,
-        "velocity_std_ms": 0.51
+        "max_velocity_ms": 1.57,
+        "avg_velocity_ms": 0.72,
+        "velocity_std_ms": 0.49
       }
     }
   },
   "formation_metrics": {
     "formation_complexity": "COMPLEX",
-    "swarm_center_total_movement_m": 60.07
+    "swarm_center_total_movement_m": 63.64
   },
   "quality_metrics": {
-    "trajectory_smoothness_score": 0.997,
+    "trajectory_smoothness_score": 0.996,
     "overall_quality_rating": "EXCELLENT",
-    "quality_score": 0.997,
+    "quality_score": 0.996,
     "recommendations": [
       "Trajectory analysis completed successfully"
     ]
   },
   "show_info": {
-    "filename": "rect_30.zip",
-    "uploaded_at": "2025-11-17T15:16:02.747059",
-    "processed_at": "2025-11-17T15:16:02.751867"
+    "filename": "rect_2_30.zip",
+    "uploaded_at": "2025-11-17T18:51:18.274772",
+    "processed_at": "2025-11-17T18:51:18.274813"
   }
 }
