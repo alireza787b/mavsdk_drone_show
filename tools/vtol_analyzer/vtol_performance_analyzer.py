@@ -6,7 +6,7 @@ VTOL QUADPLANE PERFORMANCE ANALYZER
 Professional aerospace performance analysis tool for VTOL quadplane UAVs
 
 Author: Aerospace Performance Analysis System
-Version: 1.0.0
+Version: 2.0.0
 Date: 2025-01-19
 
 Based on:
@@ -34,10 +34,14 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     from matplotlib.figure import Figure
+    from mpl_toolkits.mplot3d import Axes3D
+    import numpy as np
     GUI_AVAILABLE = True
+    PLOTTING_3D_AVAILABLE = True
 except ImportError:
     GUI_AVAILABLE = False
-    print("Note: GUI libraries not available. Running in console mode only.")
+    PLOTTING_3D_AVAILABLE = False
+    print("Note: GUI/plotting libraries not available. Running in console mode only.")
 
 # ===========================================================================
 # CONFIGURATION PARAMETERS (USER EDITABLE)
@@ -1009,10 +1013,19 @@ class PlottingEngine:
                                   xytext=(0,10), ha='center', fontsize=8)
 
                 plt.tight_layout()
-                filename = f"{output_dir}/sensitivity_{param_name}.png"
-                plt.savefig(filename, dpi=150, bbox_inches='tight')
+
+                # Save as PNG (web viewing)
+                png_filename = f"{output_dir}/sensitivity_{param_name}.png"
+                plt.savefig(png_filename, dpi=150, bbox_inches='tight')
+
+                # Save as JPG (high resolution for reports)
+                jpg_filename = f"{output_dir}/sensitivity_{param_name}.jpg"
+                plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
+                           facecolor='white', format='jpeg', quality=95)
+
                 plt.close()
-                print(f"  Saved: {filename}")
+                print(f"  ✓ Saved PNG: {os.path.basename(png_filename)}")
+                print(f"  ✓ Saved JPG: {os.path.basename(jpg_filename)}")
 
         except ImportError:
             print("  matplotlib not available - skipping plot generation")
@@ -1094,13 +1107,295 @@ class PlottingEngine:
             ax.legend()
 
             plt.tight_layout()
-            filename = f"{output_dir}/performance_curves.png"
-            plt.savefig(filename, dpi=150, bbox_inches='tight')
+
+            # Save as PNG (web viewing)
+            png_filename = f"{output_dir}/performance_curves.png"
+            plt.savefig(png_filename, dpi=150, bbox_inches='tight')
+
+            # Save as JPG (high resolution for reports)
+            jpg_filename = f"{output_dir}/performance_curves.jpg"
+            plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
+                       facecolor='white', format='jpeg', quality=95)
+
             plt.close()
-            print(f"  Saved: {filename}")
+            print(f"  ✓ Saved PNG: {os.path.basename(png_filename)}")
+            print(f"  ✓ Saved JPG: {os.path.basename(jpg_filename)}")
 
         except ImportError as e:
             print(f"  Plotting library not available: {e}")
+
+
+# ===========================================================================
+# 3D SURFACE PLOT ENGINE
+# ===========================================================================
+
+class SurfacePlotEngine:
+    """
+    Advanced 3D surface plotting for multi-parameter performance analysis.
+
+    Enables visualization of performance metrics as functions of two parameters,
+    providing aerospace engineers with comprehensive design space exploration.
+    """
+
+    @staticmethod
+    def create_surface_plot(
+        config: AircraftConfiguration,
+        param_x_name: str,
+        param_x_range: List[float],
+        param_x_label: str,
+        param_y_name: str,
+        param_y_range: List[float],
+        param_y_label: str,
+        output_func: Callable,
+        output_label: str,
+        output_unit: str,
+        filename: str,
+        title: str = None,
+        cmap: str = 'viridis'
+    ):
+        """
+        Create 3D surface plot for two-parameter sensitivity analysis.
+
+        Args:
+            config: Base aircraft configuration
+            param_x_name: First parameter name (e.g., 'total_takeoff_weight_kg')
+            param_x_range: Range of first parameter values
+            param_x_label: Label for X-axis
+            param_y_name: Second parameter name (e.g., 'field_elevation_m')
+            param_y_range: Range of second parameter values
+            param_y_label: Label for Y-axis
+            output_func: Function to calculate output (takes PerformanceCalculator)
+            output_label: Label for Z-axis (output metric)
+            output_unit: Unit for Z-axis
+            filename: Output filename
+            title: Plot title (auto-generated if None)
+            cmap: Colormap name
+        """
+        try:
+            import numpy as np
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+            from matplotlib import cm
+
+            # Create meshgrid
+            X, Y = np.meshgrid(param_x_range, param_y_range)
+            Z = np.zeros_like(X)
+
+            # Calculate output for each parameter combination
+            for i, y_val in enumerate(param_y_range):
+                for j, x_val in enumerate(param_x_range):
+                    # Create modified config
+                    test_config = dataclasses.replace(config)
+                    setattr(test_config, param_x_name, x_val)
+                    setattr(test_config, param_y_name, y_val)
+                    test_config.__post_init__()
+
+                    # Calculate performance
+                    calc = PerformanceCalculator(test_config)
+                    Z[i, j] = output_func(calc)
+
+            # Create 3D surface plot
+            fig = plt.figure(figsize=(14, 10))
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Plot surface
+            surf = ax.plot_surface(X, Y, Z, cmap=cmap, alpha=0.9,
+                                  linewidth=0, antialiased=True,
+                                  edgecolor='none')
+
+            # Add contour lines on the bottom
+            ax.contour(X, Y, Z, zdir='z', offset=Z.min(),
+                      cmap=cmap, alpha=0.6, linewidths=1)
+
+            # Labels and title
+            ax.set_xlabel(param_x_label, fontsize=12, labelpad=10)
+            ax.set_ylabel(param_y_label, fontsize=12, labelpad=10)
+            z_label = f'{output_label} ({output_unit})' if output_unit else output_label
+            ax.set_zlabel(z_label, fontsize=12, labelpad=10)
+
+            if title is None:
+                title = f'{output_label} vs {param_x_label} and {param_y_label}'
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+
+            # Add colorbar
+            cbar = fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10)
+            cbar.set_label(z_label, rotation=270, labelpad=20)
+
+            # Optimize viewing angle
+            ax.view_init(elev=25, azim=45)
+
+            # Add grid
+            ax.grid(True, alpha=0.3)
+
+            # Tight layout
+            plt.tight_layout()
+
+            # Save as both PNG and JPG (high resolution)
+            base_filename = filename.replace('.png', '').replace('.jpg', '')
+
+            # Save PNG (for web viewing)
+            png_filename = f"{base_filename}.png"
+            plt.savefig(png_filename, dpi=200, bbox_inches='tight', facecolor='white')
+
+            # Save JPG (for reports/presentations)
+            jpg_filename = f"{base_filename}.jpg"
+            plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
+                       facecolor='white', format='jpeg', quality=95)
+
+            plt.close()
+
+            return png_filename, jpg_filename
+
+        except Exception as e:
+            print(f"  Error creating 3D surface plot: {e}")
+            return None, None
+
+    @staticmethod
+    def create_common_aerospace_3d_plots(config: AircraftConfiguration, output_dir: str = "output"):
+        """
+        Generate the most common 3D surface plots used in aerospace design.
+
+        These plots help designers understand:
+        - Performance envelope boundaries
+        - Trade-offs between design parameters
+        - Optimal operating conditions
+        - Sensitivity to environmental conditions
+        """
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+
+        print("\nGenerating 3D surface plots for aerospace design analysis...")
+
+        # Define common aerospace design surface plots
+        surface_plots = [
+            {
+                'name': 'hover_endurance_vs_weight_elevation',
+                'title': 'Hover Endurance: Weight vs Altitude',
+                'param_x': 'total_takeoff_weight_kg',
+                'param_x_range': np.linspace(4.0, 8.0, 15),
+                'param_x_label': 'Total Weight (kg)',
+                'param_y': 'field_elevation_m',
+                'param_y_range': np.linspace(0, 3000, 15),
+                'param_y_label': 'Field Elevation (m MSL)',
+                'output_func': lambda c: c.generate_performance_summary()['hover']['endurance_min'],
+                'output_label': 'Hover Endurance',
+                'output_unit': 'min',
+                'cmap': 'YlOrRd_r',
+            },
+            {
+                'name': 'cruise_endurance_vs_weight_wingspan',
+                'title': 'Cruise Endurance: Weight vs Wing Span',
+                'param_x': 'total_takeoff_weight_kg',
+                'param_x_range': np.linspace(4.0, 8.0, 15),
+                'param_x_label': 'Total Weight (kg)',
+                'param_y': 'wingspan_m',
+                'param_y_range': np.linspace(1.2, 2.6, 15),
+                'param_y_label': 'Wing Span (m)',
+                'output_func': lambda c: c.generate_performance_summary()['cruise']['endurance_min'],
+                'output_label': 'Cruise Endurance',
+                'output_unit': 'min',
+                'cmap': 'viridis',
+            },
+            {
+                'name': 'max_range_vs_weight_wingspan',
+                'title': 'Maximum Range: Weight vs Wing Span',
+                'param_x': 'total_takeoff_weight_kg',
+                'param_x_range': np.linspace(4.0, 8.0, 15),
+                'param_x_label': 'Total Weight (kg)',
+                'param_y': 'wingspan_m',
+                'param_y_range': np.linspace(1.2, 2.6, 15),
+                'param_y_label': 'Wing Span (m)',
+                'output_func': lambda c: c.generate_performance_summary()['best_range']['range_km'],
+                'output_label': 'Maximum Range',
+                'output_unit': 'km',
+                'cmap': 'plasma',
+            },
+            {
+                'name': 'stall_speed_vs_weight_wing_area',
+                'title': 'Stall Speed: Weight vs Wing Chord',
+                'param_x': 'total_takeoff_weight_kg',
+                'param_x_range': np.linspace(4.0, 8.0, 15),
+                'param_x_label': 'Total Weight (kg)',
+                'param_y': 'wing_chord_m',
+                'param_y_range': np.linspace(0.08, 0.20, 15),
+                'param_y_label': 'Wing Chord (m)',
+                'output_func': lambda c: c.generate_performance_summary()['speeds']['stall_kmh'],
+                'output_label': 'Stall Speed',
+                'output_unit': 'km/h',
+                'cmap': 'coolwarm',
+            },
+            {
+                'name': 'ld_ratio_vs_wingspan_chord',
+                'title': 'Max L/D Ratio: Wing Span vs Chord',
+                'param_x': 'wingspan_m',
+                'param_x_range': np.linspace(1.2, 2.6, 15),
+                'param_x_label': 'Wing Span (m)',
+                'param_y': 'wing_chord_m',
+                'param_y_range': np.linspace(0.08, 0.20, 15),
+                'param_y_label': 'Wing Chord (m)',
+                'output_func': lambda c: c.generate_performance_summary()['aerodynamics']['max_ld_ratio'],
+                'output_label': 'Max L/D Ratio',
+                'output_unit': '',
+                'cmap': 'RdYlGn',
+            },
+            {
+                'name': 'cruise_endurance_vs_elevation_wingspan',
+                'title': 'Cruise Endurance: Altitude vs Wing Span',
+                'param_x': 'field_elevation_m',
+                'param_x_range': np.linspace(0, 3000, 15),
+                'param_x_label': 'Field Elevation (m MSL)',
+                'param_y': 'wingspan_m',
+                'param_y_range': np.linspace(1.2, 2.6, 15),
+                'param_y_label': 'Wing Span (m)',
+                'output_func': lambda c: c.generate_performance_summary()['cruise']['endurance_min'],
+                'output_label': 'Cruise Endurance',
+                'output_unit': 'min',
+                'cmap': 'viridis',
+            },
+        ]
+
+        # Generate each surface plot
+        generated_plots = []
+        for i, plot_spec in enumerate(surface_plots, 1):
+            print(f"  [{i}/{len(surface_plots)}] Generating: {plot_spec['title']}...")
+
+            filename = os.path.join(output_dir, f"3d_{plot_spec['name']}")
+
+            try:
+                png_file, jpg_file = SurfacePlotEngine.create_surface_plot(
+                    config=config,
+                    param_x_name=plot_spec['param_x'],
+                    param_x_range=plot_spec['param_x_range'],
+                    param_x_label=plot_spec['param_x_label'],
+                    param_y_name=plot_spec['param_y'],
+                    param_y_range=plot_spec['param_y_range'],
+                    param_y_label=plot_spec['param_y_label'],
+                    output_func=plot_spec['output_func'],
+                    output_label=plot_spec['output_label'],
+                    output_unit=plot_spec['output_unit'],
+                    filename=filename,
+                    title=plot_spec['title'],
+                    cmap=plot_spec['cmap']
+                )
+
+                if png_file and jpg_file:
+                    generated_plots.append({
+                        'name': plot_spec['name'],
+                        'title': plot_spec['title'],
+                        'png': png_file,
+                        'jpg': jpg_file
+                    })
+                    print(f"      ✓ Saved PNG: {os.path.basename(png_file)}")
+                    print(f"      ✓ Saved JPG: {os.path.basename(jpg_file)}")
+
+            except Exception as e:
+                print(f"      ✗ Error: {e}")
+
+        print(f"\n  ✓ Generated {len(generated_plots)} 3D surface plots")
+        print(f"    - High-res JPG (300 dpi) for reports/presentations")
+        print(f"    - Web-optimized PNG (200 dpi) for viewing")
+
+        return generated_plots
 
 
 # ===========================================================================
@@ -1193,6 +1488,7 @@ class OutputManager:
         paths = {
             'base': base_dir,
             'plots': os.path.join(base_dir, 'plots'),
+            'plots_3d': os.path.join(base_dir, 'plots', '3d_surfaces'),
             'data': os.path.join(base_dir, 'data'),
             'reports': os.path.join(base_dir, 'reports'),
         }
@@ -1335,7 +1631,7 @@ class OutputManager:
         </div>
     </div>
 
-    <h2>🔬 Sensitivity Analysis</h2>
+    <h2>🔬 2D Sensitivity Analysis</h2>
     <div class="plot-grid">
         <div class="plot-card">
             <h3>Weight Sensitivity</h3>
@@ -1359,8 +1655,59 @@ class OutputManager:
         </div>
     </div>
 
+    <h2>🌐 3D Surface Plots - Multi-Parameter Analysis</h2>
+    <p style="color: #555; margin: 10px 0;">
+        Professional aerospace design surface plots showing performance as a function of two parameters.
+        <strong>High-resolution JPG versions (300 dpi) available in plots/3d_surfaces/ folder.</strong>
+    </p>
+    <div class="plot-grid">
+        <div class="plot-card">
+            <h3>Hover Endurance: Weight vs Altitude</h3>
+            <img src="plots/3d_surfaces/3d_hover_endurance_vs_weight_elevation.png" alt="Hover Endurance Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Shows how hover time varies with aircraft weight and operating altitude.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Cruise Endurance: Weight vs Wing Span</h3>
+            <img src="plots/3d_surfaces/3d_cruise_endurance_vs_weight_wingspan.png" alt="Cruise Endurance Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Optimal wing span selection for different weight configurations.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Maximum Range: Weight vs Wing Span</h3>
+            <img src="plots/3d_surfaces/3d_max_range_vs_weight_wingspan.png" alt="Maximum Range Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Design space for maximum range capability.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Stall Speed: Weight vs Wing Chord</h3>
+            <img src="plots/3d_surfaces/3d_stall_speed_vs_weight_wing_area.png" alt="Stall Speed Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Wing loading effects on minimum flight speed.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Max L/D Ratio: Wing Span vs Chord</h3>
+            <img src="plots/3d_surfaces/3d_ld_ratio_vs_wingspan_chord.png" alt="L/D Ratio Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Aerodynamic efficiency optimization landscape.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Cruise Endurance: Altitude vs Wing Span</h3>
+            <img src="plots/3d_surfaces/3d_cruise_endurance_vs_elevation_wingspan.png" alt="Altitude Endurance Surface">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                Performance envelope at different altitudes and wing configurations.
+            </p>
+        </div>
+    </div>
+
     <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; color: #7f8c8d; text-align: center;">
-        <p>Generated by VTOL Performance Analyzer v1.0 | Based on rigorous aerospace engineering principles</p>
+        <p>Generated by VTOL Performance Analyzer v2.0 | 3D Surface Plot Analysis</p>
+        <p>Based on rigorous aerospace engineering principles</p>
     </footer>
 </body>
 </html>
@@ -1406,15 +1753,28 @@ def run_full_analysis(config: AircraftConfiguration = None, base_dir: str = "out
 
     # Generate plots
     print("\n" + "-"*80)
-    print("GENERATING VISUALIZATIONS")
+    print("GENERATING 2D VISUALIZATIONS")
     print("-"*80)
     try:
         PlottingEngine.create_sensitivity_plots(config, paths['plots'])
         PlottingEngine.create_performance_curves(config, paths['plots'])
-        print("  ✓ All plots generated successfully")
+        print("  ✓ All 2D plots generated successfully")
     except Exception as e:
-        print(f"  ✗ Could not generate plots: {e}")
+        print(f"  ✗ Could not generate 2D plots: {e}")
         print("  → Install matplotlib and numpy: pip install matplotlib numpy")
+
+    # Generate 3D surface plots
+    print("\n" + "-"*80)
+    print("GENERATING 3D SURFACE PLOTS")
+    print("-"*80)
+    try:
+        generated_3d_plots = SurfacePlotEngine.create_common_aerospace_3d_plots(
+            config, paths['plots_3d']
+        )
+        print(f"  ✓ Generated {len(generated_3d_plots)} 3D surface plots")
+    except Exception as e:
+        print(f"  ✗ Could not generate 3D plots: {e}")
+        print("  → Ensure matplotlib and numpy are installed")
 
     # Export data
     print("\n" + "-"*80)
@@ -1458,10 +1818,12 @@ def run_full_analysis(config: AircraftConfiguration = None, base_dir: str = "out
     print(f" ✓ ANALYSIS COMPLETE ".center(80))
     print("="*80)
     print(f"\n  Output directory: {base_dir}/")
-    print(f"  - Plots:         {paths['plots']}/")
-    print(f"  - Data:          {paths['data']}/")
+    print(f"  - 2D Plots:      {paths['plots']}/")
+    print(f"  - 3D Surfaces:   {paths['plots_3d']}/")
+    print(f"  - Data Export:   {paths['data']}/")
     print(f"  - HTML Index:    {base_dir}/index.html\n")
     print("  💡 Tip: Open index.html in your browser for easy viewing")
+    print("  📊 High-res JPG files (300 dpi) available for reports/presentations")
     print("="*80 + "\n")
 
 
@@ -1478,7 +1840,7 @@ if __name__ == "__main__":
     import sys
 
     print("\n" + "="*80)
-    print(" VTOL QUADPLANE PERFORMANCE ANALYZER v1.0".center(80))
+    print(" VTOL QUADPLANE PERFORMANCE ANALYZER v2.0".center(80))
     print(" Professional Aerospace Performance Analysis Tool".center(80))
     print("="*80 + "\n")
 
@@ -1491,10 +1853,15 @@ if __name__ == "__main__":
         print("  --full      Run full analysis with plots and exports (default)")
         print("\nOutput:")
         print("  - Console report with all performance parameters")
-        print("  - Sensitivity analysis plots (PNG)")
-        print("  - Performance curves (PNG)")
+        print("  - 2D sensitivity analysis plots (PNG + JPG)")
+        print("  - 2D performance curves (PNG + JPG)")
+        print("  - 6 professional 3D surface plots (PNG + high-res JPG)")
         print("  - CSV data export")
+        print("  - Interactive HTML index")
         print("\nAll outputs saved to: output/")
+        print("  - 2D plots: output/plots/")
+        print("  - 3D plots: output/plots/3d_surfaces/")
+        print("  - Data: output/data/")
         print()
     else:
         # Run full analysis by default

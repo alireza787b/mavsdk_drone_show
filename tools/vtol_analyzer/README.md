@@ -1,8 +1,8 @@
 # VTOL Quadplane Performance Analyzer
 
-Professional aerospace performance analysis tool for VTOL quadplane UAVs.
+Professional aerospace performance analysis tool for VTOL quadplane UAVs with advanced 3D surface plotting.
 
-Version: 1.0.0
+Version: 2.0.0
 Author: Aerospace Performance Analysis System
 Date: 2025-01-19
 
@@ -27,10 +27,12 @@ This tool provides comprehensive performance analysis for VTOL quadplane aircraf
 - Performance curves generation
 
 ### 📈 Outputs
-- Detailed console report
-- Sensitivity analysis plots (PNG)
-- Performance curves (PNG)
+- Detailed console report with professional formatting
+- 2D sensitivity analysis plots (PNG + JPG)
+- 2D performance curves (PNG + JPG)
+- **NEW: 6 professional 3D surface plots** (PNG + high-res JPG)
 - CSV data export
+- Interactive HTML index for easy viewing
 
 ## Installation
 
@@ -164,9 +166,9 @@ BEST RANGE PERFORMANCE (Max L/D Speed)
   Maximum Range:           33.81 km
 ```
 
-## Sensitivity Analysis
+## 2D Sensitivity Analysis
 
-The tool automatically generates sensitivity analysis for:
+The tool automatically generates 2D sensitivity analysis for:
 
 1. **Total Weight** (4-8 kg)
    - Cruise speed
@@ -193,6 +195,84 @@ The tool automatically generates sensitivity analysis for:
    - Hover current
    - Cruise current
    - Hover endurance
+
+## 🌐 3D Surface Plots (NEW in v2.0)
+
+The tool now generates professional 3D surface plots for multi-parameter design space exploration. These plots are essential for aerospace design optimization and understanding parameter interactions.
+
+### Automatically Generated 3D Plots
+
+1. **Hover Endurance vs Weight & Altitude**
+   - Shows hover performance envelope
+   - Critical for high-altitude operations
+   - Identifies weight/altitude combinations
+
+2. **Cruise Endurance vs Weight & Wing Span**
+   - Optimal wing span selection
+   - Weight-dependent efficiency
+   - Design optimization landscape
+
+3. **Maximum Range vs Weight & Wing Span**
+   - Range capability envelope
+   - Mission planning support
+   - Design trade-off visualization
+
+4. **Stall Speed vs Weight & Wing Chord**
+   - Wing loading effects
+   - Safety margin analysis
+   - Low-speed flight envelope
+
+5. **Max L/D Ratio vs Wing Span & Chord**
+   - Aerodynamic efficiency optimization
+   - Aspect ratio trade-offs
+   - Performance sweet spots
+
+6. **Cruise Endurance vs Altitude & Wing Span**
+   - High-altitude performance
+   - Wing configuration effects
+   - Operating envelope boundaries
+
+### 3D Plot Features
+
+- **High-Resolution Output**:
+  - PNG (200 dpi) for web viewing
+  - JPG (300 dpi) for reports/presentations
+- **Professional Visualization**:
+  - Surface plots with contour projections
+  - Colormap-coded performance metrics
+  - Optimized viewing angles
+- **Design Space Exploration**:
+  - Visualize two-parameter interactions
+  - Identify optimal operating points
+  - Understand performance boundaries
+
+### Custom 3D Plots
+
+Create your own custom 3D surface plots:
+
+```python
+from vtol_performance_analyzer import *
+import numpy as np
+
+config = AircraftConfiguration()
+
+# Example: Cruise power vs weight and speed
+# (Custom implementation)
+SurfacePlotEngine.create_surface_plot(
+    config=config,
+    param_x_name='total_takeoff_weight_kg',
+    param_x_range=np.linspace(4.0, 8.0, 20),
+    param_x_label='Total Weight (kg)',
+    param_y_name='field_elevation_m',
+    param_y_range=np.linspace(0, 3000, 20),
+    param_y_label='Altitude (m MSL)',
+    output_func=lambda c: c.generate_performance_summary()['best_range']['range_km'],
+    output_label='Maximum Range',
+    output_unit='km',
+    filename='output/plots/3d_surfaces/custom_range_plot',
+    title='Custom Range Analysis'
+)
+```
 
 ## Theoretical Basis
 
@@ -226,11 +306,33 @@ The tool automatically generates sensitivity analysis for:
 ```
 vtol_analyzer/
 ├── README.md                           # This file
-├── vtol_performance_analyzer.py        # Main analysis tool
-└── output/                             # Output directory
-    ├── performance_data.csv            # Performance data export
-    ├── performance_curves.png          # Performance curves
-    └── sensitivity_*.png               # Sensitivity analysis plots
+├── vtol_performance_analyzer.py        # Main analysis tool (v2.0)
+├── requirements.txt                    # Python dependencies
+├── .gitignore                          # Git ignore patterns
+└── output/                             # Output directory (auto-generated)
+    ├── index.html                      # Interactive HTML index
+    ├── plots/                          # 2D visualization outputs
+    │   ├── performance_curves.png      # Performance curves (PNG)
+    │   ├── performance_curves.jpg      # Performance curves (JPG 300dpi)
+    │   ├── sensitivity_*.png           # Sensitivity plots (PNG)
+    │   ├── sensitivity_*.jpg           # Sensitivity plots (JPG 300dpi)
+    │   └── 3d_surfaces/                # 3D surface plots
+    │       ├── 3d_hover_endurance_vs_weight_elevation.png
+    │       ├── 3d_hover_endurance_vs_weight_elevation.jpg
+    │       ├── 3d_cruise_endurance_vs_weight_wingspan.png
+    │       ├── 3d_cruise_endurance_vs_weight_wingspan.jpg
+    │       ├── 3d_max_range_vs_weight_wingspan.png
+    │       ├── 3d_max_range_vs_weight_wingspan.jpg
+    │       ├── 3d_stall_speed_vs_weight_wing_area.png
+    │       ├── 3d_stall_speed_vs_weight_wing_area.jpg
+    │       ├── 3d_ld_ratio_vs_wingspan_chord.png
+    │       ├── 3d_ld_ratio_vs_wingspan_chord.jpg
+    │       ├── 3d_cruise_endurance_vs_elevation_wingspan.png
+    │       └── 3d_cruise_endurance_vs_elevation_wingspan.jpg
+    ├── data/                           # Data exports
+    │   ├── performance_data.csv        # Complete performance data
+    │   └── configuration.txt           # Aircraft configuration
+    └── reports/                        # Reserved for future reports
 ```
 
 ## Technical Validation
@@ -348,10 +450,27 @@ Part of the MAVSDK Drone Show project.
 
 ## Version History
 
+### v2.0.0 (2025-01-19)
+- **NEW: 3D Surface Plot Engine**
+  - 6 professional 3D surface plots for multi-parameter analysis
+  - Dual-format export: PNG (200 dpi) + JPG (300 dpi)
+  - Custom surface plot creation API
+- **Enhanced 2D Plots**
+  - All 2D plots now export in both PNG and high-res JPG
+  - Improved plot styling and annotations
+- **Improved Output Structure**
+  - Organized folder hierarchy: plots/3d_surfaces/
+  - Auto-backup of previous results
+  - Enhanced HTML index with 3D plot gallery
+- **Professional UI/UX**
+  - Clear progress indicators
+  - Comprehensive plot descriptions
+  - Optimized for aerospace design workflow
+
 ### v1.0.0 (2025-01-19)
 - Initial release
 - Complete performance analysis
-- Sensitivity analysis
+- 2D sensitivity analysis
 - CSV export
 - Performance curves generation
 

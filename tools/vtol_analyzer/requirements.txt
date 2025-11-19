@@ -1,15 +1,16 @@
-# VTOL Performance Analyzer - Required Dependencies
+# VTOL Performance Analyzer v2.0 - Required Dependencies
 # ========================================================
 #
 # CORE DEPENDENCIES (Required for full functionality):
 #
 
 # Plotting and Visualization
-matplotlib>=3.5.0          # For performance curves and sensitivity analysis plots
-numpy>=1.21.0              # For numerical calculations and plot data
+matplotlib>=3.5.0          # For 2D/3D plots, performance curves, and sensitivity analysis
+                           # Includes mpl_toolkits.mplot3d for 3D surface plots
+numpy>=1.21.0              # For numerical calculations, meshgrid, and plot data
 
 # Note: The tool will run in console-only mode without these,
-# but plots and sensitivity analysis will not be generated.
+# but 2D plots, 3D surface plots, and sensitivity analysis will not be generated.
 #
 # INSTALLATION:
 # -------------
