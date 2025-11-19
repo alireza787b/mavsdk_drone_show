@@ -1173,16 +1173,218 @@ class DataExporter:
 
 
 # ===========================================================================
+# OUTPUT MANAGEMENT
+# ===========================================================================
+
+class OutputManager:
+    """Manage output folder structure and cleanup"""
+
+    @staticmethod
+    def setup_output_structure(base_dir: str = "output") -> Dict[str, str]:
+        """
+        Create clean output folder structure.
+        Returns dictionary of output paths.
+        """
+        import os
+        import shutil
+        from datetime import datetime
+
+        # Define folder structure
+        paths = {
+            'base': base_dir,
+            'plots': os.path.join(base_dir, 'plots'),
+            'data': os.path.join(base_dir, 'data'),
+            'reports': os.path.join(base_dir, 'reports'),
+        }
+
+        # Clean and recreate directories
+        if os.path.exists(base_dir):
+            # Backup old results with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir = f"{base_dir}_backup_{timestamp}"
+
+            try:
+                shutil.move(base_dir, backup_dir)
+                print(f"  Previous results backed up to: {backup_dir}")
+            except Exception as e:
+                print(f"  Note: Could not backup previous results: {e}")
+                # If backup fails, just remove the directory
+                shutil.rmtree(base_dir, ignore_errors=True)
+
+        # Create fresh directories
+        for path in paths.values():
+            os.makedirs(path, exist_ok=True)
+
+        return paths
+
+    @staticmethod
+    def create_index_html(paths: Dict[str, str], config: AircraftConfiguration):
+        """Create simple HTML index for easy viewing"""
+        import os
+
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>VTOL Performance Analysis Results</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }}
+        h1 {{
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }}
+        h2 {{
+            color: #34495e;
+            margin-top: 30px;
+        }}
+        .config {{
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .config table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        .config td {{
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }}
+        .config td:first-child {{
+            font-weight: bold;
+            width: 40%;
+        }}
+        .plot-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }}
+        .plot-card {{
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .plot-card img {{
+            width: 100%;
+            height: auto;
+            border-radius: 3px;
+        }}
+        .plot-card h3 {{
+            margin-top: 0;
+            color: #2c3e50;
+        }}
+        .download-section {{
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }}
+        .download-section a {{
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }}
+        .download-section a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <h1>🚁 VTOL Quadplane Performance Analysis</h1>
+
+    <div class="download-section">
+        <h3>📊 Data Downloads</h3>
+        <ul>
+            <li><a href="data/performance_data.csv">Performance Data (CSV)</a></li>
+            <li><a href="data/configuration.txt">Configuration Details</a></li>
+        </ul>
+    </div>
+
+    <div class="config">
+        <h2>Aircraft Configuration</h2>
+        <table>
+            <tr><td>Total Weight</td><td>{config.total_takeoff_weight_kg} kg</td></tr>
+            <tr><td>Wing Span</td><td>{config.wingspan_m} m</td></tr>
+            <tr><td>Wing Chord</td><td>{config.wing_chord_m} m</td></tr>
+            <tr><td>Wing Area</td><td>{config.wing_area_m2:.3f} m²</td></tr>
+            <tr><td>Aspect Ratio</td><td>{config.aspect_ratio:.2f}</td></tr>
+            <tr><td>Wing Loading</td><td>{config.wing_loading_kgm2:.2f} kg/m²</td></tr>
+            <tr><td>Airfoil</td><td>{config.airfoil_name}</td></tr>
+            <tr><td>Motor</td><td>{config.motor_name} × {config.motor_count}</td></tr>
+            <tr><td>Propeller</td><td>{config.prop_diameter_inch:.0f}×{config.prop_pitch_inch:.0f} inch</td></tr>
+            <tr><td>Battery</td><td>{config.battery_cells}S {config.battery_capacity_mah:.0f}mAh</td></tr>
+            <tr><td>Field Elevation</td><td>{config.field_elevation_m:.0f} m MSL</td></tr>
+        </table>
+    </div>
+
+    <h2>📈 Performance Curves</h2>
+    <div class="plot-grid">
+        <div class="plot-card">
+            <h3>Complete Performance Analysis</h3>
+            <img src="plots/performance_curves.png" alt="Performance Curves">
+        </div>
+    </div>
+
+    <h2>🔬 Sensitivity Analysis</h2>
+    <div class="plot-grid">
+        <div class="plot-card">
+            <h3>Weight Sensitivity</h3>
+            <img src="plots/sensitivity_total_takeoff_weight_kg.png" alt="Weight Sensitivity">
+        </div>
+        <div class="plot-card">
+            <h3>Wing Span Sensitivity</h3>
+            <img src="plots/sensitivity_wingspan_m.png" alt="Wing Span Sensitivity">
+        </div>
+        <div class="plot-card">
+            <h3>Wing Chord Sensitivity</h3>
+            <img src="plots/sensitivity_wing_chord_m.png" alt="Wing Chord Sensitivity">
+        </div>
+        <div class="plot-card">
+            <h3>Altitude Sensitivity</h3>
+            <img src="plots/sensitivity_field_elevation_m.png" alt="Altitude Sensitivity">
+        </div>
+        <div class="plot-card">
+            <h3>Propeller Sensitivity</h3>
+            <img src="plots/sensitivity_prop_diameter_inch.png" alt="Propeller Sensitivity">
+        </div>
+    </div>
+
+    <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; color: #7f8c8d; text-align: center;">
+        <p>Generated by VTOL Performance Analyzer v1.0 | Based on rigorous aerospace engineering principles</p>
+    </footer>
+</body>
+</html>
+"""
+
+        index_path = os.path.join(paths['base'], 'index.html')
+        with open(index_path, 'w') as f:
+            f.write(html_content)
+
+        print(f"  Created HTML index: {index_path}")
+        print(f"  Open in browser to view all results")
+
+
+# ===========================================================================
 # COMPREHENSIVE ANALYSIS RUNNER
 # ===========================================================================
 
-def run_full_analysis(config: AircraftConfiguration = None, output_dir: str = "output"):
+def run_full_analysis(config: AircraftConfiguration = None, base_dir: str = "output"):
     """
     Run complete performance analysis with all outputs.
 
     Args:
         config: Aircraft configuration (uses default if None)
-        output_dir: Output directory for plots and data
+        base_dir: Base output directory for all results
     """
     if config is None:
         config = AircraftConfiguration()
@@ -1190,6 +1392,10 @@ def run_full_analysis(config: AircraftConfiguration = None, output_dir: str = "o
     print("\n" + "="*80)
     print(" COMPREHENSIVE VTOL PERFORMANCE ANALYSIS".center(80))
     print("="*80)
+    print("\nSetting up output structure...")
+
+    # Setup clean output structure
+    paths = OutputManager.setup_output_structure(base_dir)
 
     # Calculate performance
     calc = PerformanceCalculator(config)
@@ -1199,20 +1405,63 @@ def run_full_analysis(config: AircraftConfiguration = None, output_dir: str = "o
     ReportGenerator.print_performance_report(perf, config)
 
     # Generate plots
+    print("\n" + "-"*80)
+    print("GENERATING VISUALIZATIONS")
+    print("-"*80)
     try:
-        PlottingEngine.create_sensitivity_plots(config, output_dir)
-        PlottingEngine.create_performance_curves(config, output_dir)
+        PlottingEngine.create_sensitivity_plots(config, paths['plots'])
+        PlottingEngine.create_performance_curves(config, paths['plots'])
+        print("  ✓ All plots generated successfully")
     except Exception as e:
-        print(f"\nWarning: Could not generate plots: {e}")
+        print(f"  ✗ Could not generate plots: {e}")
+        print("  → Install matplotlib and numpy: pip install matplotlib numpy")
 
     # Export data
+    print("\n" + "-"*80)
+    print("EXPORTING DATA")
+    print("-"*80)
     try:
-        DataExporter.export_to_csv(config, output_dir)
+        DataExporter.export_to_csv(config, paths['data'])
+
+        # Save configuration as text file
+        config_file = paths['data'] + '/configuration.txt'
+        with open(config_file, 'w') as f:
+            f.write("VTOL QUADPLANE CONFIGURATION\n")
+            f.write("="*60 + "\n\n")
+            f.write(f"Total Weight: {config.total_takeoff_weight_kg} kg\n")
+            f.write(f"Wing Span: {config.wingspan_m} m\n")
+            f.write(f"Wing Chord: {config.wing_chord_m} m\n")
+            f.write(f"Wing Area: {config.wing_area_m2:.3f} m²\n")
+            f.write(f"Aspect Ratio: {config.aspect_ratio:.2f}\n")
+            f.write(f"Wing Loading: {config.wing_loading_kgm2:.2f} kg/m²\n")
+            f.write(f"Airfoil: {config.airfoil_name}\n")
+            f.write(f"Motor: {config.motor_name} × {config.motor_count}\n")
+            f.write(f"Propeller: {config.prop_diameter_inch:.0f}×{config.prop_pitch_inch:.0f} inch\n")
+            f.write(f"Battery: {config.battery_cells}S {config.battery_capacity_mah:.0f}mAh\n")
+            f.write(f"Field Elevation: {config.field_elevation_m:.0f} m MSL\n")
+
+        print(f"  ✓ Data exported to: {paths['data']}/")
     except Exception as e:
-        print(f"\nWarning: Could not export data: {e}")
+        print(f"  ✗ Could not export data: {e}")
+
+    # Create HTML index
+    print("\n" + "-"*80)
+    print("CREATING RESULTS INDEX")
+    print("-"*80)
+    try:
+        OutputManager.create_index_html(paths, config)
+        print("  ✓ HTML index created")
+    except Exception as e:
+        print(f"  ✗ Could not create HTML index: {e}")
 
     print("\n" + "="*80)
-    print(f" Analysis complete. Output saved to: {output_dir}/")
+    print(f" ✓ ANALYSIS COMPLETE ".center(80))
+    print("="*80)
+    print(f"\n  Output directory: {base_dir}/")
+    print(f"  - Plots:         {paths['plots']}/")
+    print(f"  - Data:          {paths['data']}/")
+    print(f"  - HTML Index:    {base_dir}/index.html\n")
+    print("  💡 Tip: Open index.html in your browser for easy viewing")
     print("="*80 + "\n")
 
 

@@ -1,0 +1,23 @@
+# VTOL Performance Analyzer - Required Dependencies
+# ========================================================
+#
+# CORE DEPENDENCIES (Required for full functionality):
+#
+
+# Plotting and Visualization
+matplotlib>=3.5.0          # For performance curves and sensitivity analysis plots
+numpy>=1.21.0              # For numerical calculations and plot data
+
+# Note: The tool will run in console-only mode without these,
+# but plots and sensitivity analysis will not be generated.
+#
+# INSTALLATION:
+# -------------
+# pip install -r requirements.txt
+#
+# OR install individually:
+# pip install matplotlib numpy
+#
+# OPTIONAL (for future enhancements):
+# scipy>=1.7.0             # For advanced numerical analysis
+# pandas>=1.3.0            # For data manipulation
