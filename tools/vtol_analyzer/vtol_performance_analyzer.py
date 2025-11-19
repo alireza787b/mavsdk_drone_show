@@ -25,7 +25,15 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Callable
 
-# Optional GUI imports
+# Try to import numpy first (needed for both 2D and 3D plotting)
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
+
+# Optional GUI and plotting imports
 try:
     import tkinter as tk
     from tkinter import ttk, messagebox
@@ -34,14 +42,22 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     from matplotlib.figure import Figure
-    from mpl_toolkits.mplot3d import Axes3D
-    import numpy as np
     GUI_AVAILABLE = True
-    PLOTTING_3D_AVAILABLE = True
+    PLOTTING_AVAILABLE = True
 except ImportError:
     GUI_AVAILABLE = False
-    PLOTTING_3D_AVAILABLE = False
+    PLOTTING_AVAILABLE = False
     print("Note: GUI/plotting libraries not available. Running in console mode only.")
+
+# Try to import 3D plotting tools
+try:
+    if PLOTTING_AVAILABLE and NUMPY_AVAILABLE:
+        from mpl_toolkits.mplot3d import Axes3D
+        PLOTTING_3D_AVAILABLE = True
+    else:
+        PLOTTING_3D_AVAILABLE = False
+except ImportError:
+    PLOTTING_3D_AVAILABLE = False
 
 # ===========================================================================
 # CONFIGURATION PARAMETERS (USER EDITABLE)
@@ -1021,7 +1037,7 @@ class PlottingEngine:
                 # Save as JPG (high resolution for reports)
                 jpg_filename = f"{output_dir}/sensitivity_{param_name}.jpg"
                 plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
-                           facecolor='white', format='jpeg', quality=95)
+                           facecolor='white', format='jpeg')
 
                 plt.close()
                 print(f"  ✓ Saved PNG: {os.path.basename(png_filename)}")
@@ -1115,7 +1131,7 @@ class PlottingEngine:
             # Save as JPG (high resolution for reports)
             jpg_filename = f"{output_dir}/performance_curves.jpg"
             plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
-                       facecolor='white', format='jpeg', quality=95)
+                       facecolor='white', format='jpeg')
 
             plt.close()
             print(f"  ✓ Saved PNG: {os.path.basename(png_filename)}")
@@ -1240,7 +1256,7 @@ class SurfacePlotEngine:
             # Save JPG (for reports/presentations)
             jpg_filename = f"{base_filename}.jpg"
             plt.savefig(jpg_filename, dpi=300, bbox_inches='tight',
-                       facecolor='white', format='jpeg', quality=95)
+                       facecolor='white', format='jpeg')
 
             plt.close()
 
