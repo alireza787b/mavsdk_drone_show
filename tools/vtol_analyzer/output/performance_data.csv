@@ -1,0 +1,32 @@
+VTOL Quadplane Performance Analysis
+
+Configuration Parameter,Value,Unit
+Total Weight,6.0,kg
+Wing Span,2.0,m
+Wing Chord,0.12,m
+Wing Area,0.24,m²
+Aspect Ratio,16.666666666666668,
+Wing Loading,25.0,kg/m²
+Field Elevation,1000.0,m MSL
+
+Performance Metric,Value,Unit
+Stall Speed,62.79911501940003,km/h
+Cruise Speed,75.35893802328003,km/h
+Best Range Speed,56.80022506214597,km/h
+
+Hover Power,961.0018283176114,W
+Hover Current,53.60788934357579,A
+Hover Endurance,10.464877593007278,min
+
+Cruise Power,129.48323119511946,W
+Cruise Current,23.773755731340653,A
+Cruise Endurance,23.59744948756416,min
+Cruise Range,29.637978890680476,km
+
+Best Range Current,15.709695348096133,A
+Best Range Endurance,35.71043152456727,min
+Maximum Range,33.80600912769622,km
+
+Max L/D Ratio,11.077836568159475,
+Turn Radius (15° bank),166.70287041680206,m
+Turn Rate (15° bank),7.1946856479274786,°/s
