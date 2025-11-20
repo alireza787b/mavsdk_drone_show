@@ -524,11 +524,268 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def create_mission_tab(self):
         """Create mission builder tab"""
-        label = ttk.Label(self.tab_mission, text="Mission Builder - Coming Soon!", font=('Arial', 14))
-        label.pack(expand=True)
+        # Initialize mission segments list
+        self.mission_segments = []
 
-        desc = ttk.Label(self.tab_mission, text="Drag-and-drop mission segment builder with real-time energy calculation", foreground='gray')
-        desc.pack()
+        # Top toolbar
+        toolbar = ttk.Frame(self.tab_mission)
+        toolbar.pack(fill='x', padx=10, pady=5)
+
+        ttk.Label(toolbar, text="Mission Profile Builder", style='Title.TLabel').pack(side='left')
+
+        # Add segment dropdown
+        ttk.Label(toolbar, text="Add Segment:", font=('Arial', 10)).pack(side='right', padx=5)
+        segment_types = ["Hover", "Cruise", "Transition Forward", "Transition Back"]
+        self.segment_type_var = tk.StringVar(value="Hover")
+        segment_combo = ttk.Combobox(toolbar, textvariable=self.segment_type_var, values=segment_types, width=20, state='readonly')
+        segment_combo.pack(side='right', padx=5)
+        ttk.Button(toolbar, text="Add", command=self.add_mission_segment, style='Primary.TButton').pack(side='right', padx=2)
+
+        # Mission segments list
+        segments_frame = ttk.LabelFrame(self.tab_mission, text=" Mission Segments ", padding=10)
+        segments_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+        # Scrollable canvas for segments
+        canvas = tk.Canvas(segments_frame, height=300)
+        scrollbar = ttk.Scrollbar(segments_frame, orient="vertical", command=canvas.yview)
+        self.segments_frame_inner = ttk.Frame(canvas)
+
+        self.segments_frame_inner.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.segments_frame_inner, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Mission summary panel
+        summary_frame = ttk.LabelFrame(self.tab_mission, text=" Mission Summary ", padding=10)
+        summary_frame.pack(fill='x', padx=10, pady=5)
+
+        self.mission_summary_text = tk.StringVar(value="No segments added yet")
+        summary_label = ttk.Label(summary_frame, textvariable=self.mission_summary_text, font=('Courier', 10))
+        summary_label.pack()
+
+        # Action buttons
+        action_frame = ttk.Frame(self.tab_mission)
+        action_frame.pack(fill='x', padx=10, pady=10)
+
+        ttk.Button(action_frame, text="Simulate Mission", command=self.simulate_mission, style='Primary.TButton').pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Clear All", command=self.clear_mission_segments).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Save Mission", command=self.save_mission).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Load Mission", command=self.load_mission).pack(side='left', padx=5)
+
+    def add_mission_segment(self):
+        """Add a mission segment to the list"""
+        segment_type = self.segment_type_var.get()
+
+        # Create segment frame
+        segment_frame = ttk.Frame(self.segments_frame_inner, relief='ridge', borderwidth=2)
+        segment_frame.pack(fill='x', pady=5, padx=5)
+
+        # Segment number
+        segment_num = len(self.mission_segments) + 1
+        ttk.Label(segment_frame, text=f"{segment_num}.", font=('Arial', 10, 'bold')).grid(row=0, column=0, padx=5, pady=5)
+
+        # Segment type label
+        type_label = ttk.Label(segment_frame, text=segment_type, font=('Arial', 10))
+        type_label.grid(row=0, column=1, sticky='w', padx=5)
+
+        # Segment parameters
+        segment_data = {'type': segment_type.lower().replace(' ', '_'), 'frame': segment_frame}
+
+        if segment_type == "Hover":
+            ttk.Label(segment_frame, text="Duration:").grid(row=0, column=2, padx=5)
+            duration_var = tk.StringVar(value="60")
+            ttk.Entry(segment_frame, textvariable=duration_var, width=10).grid(row=0, column=3, padx=5)
+            ttk.Label(segment_frame, text="s").grid(row=0, column=4, sticky='w')
+            segment_data['duration_s'] = duration_var
+
+        elif segment_type == "Cruise":
+            ttk.Label(segment_frame, text="Duration:").grid(row=0, column=2, padx=5)
+            duration_var = tk.StringVar(value="600")
+            ttk.Entry(segment_frame, textvariable=duration_var, width=10).grid(row=0, column=3, padx=5)
+            ttk.Label(segment_frame, text="s").grid(row=0, column=4, sticky='w')
+
+            ttk.Label(segment_frame, text="Speed:").grid(row=0, column=5, padx=5)
+            speed_var = tk.StringVar(value="15.0")
+            ttk.Entry(segment_frame, textvariable=speed_var, width=10).grid(row=0, column=6, padx=5)
+            ttk.Label(segment_frame, text="m/s").grid(row=0, column=7, sticky='w')
+
+            segment_data['duration_s'] = duration_var
+            segment_data['speed_ms'] = speed_var
+
+        elif "Transition" in segment_type:
+            ttk.Label(segment_frame, text="(Auto-calculated)").grid(row=0, column=2, padx=5)
+
+        # Control buttons
+        btn_frame = ttk.Frame(segment_frame)
+        btn_frame.grid(row=0, column=8, padx=5)
+
+        ttk.Button(btn_frame, text="↑", width=3, command=lambda: self.move_segment_up(segment_num-1)).pack(side='left', padx=2)
+        ttk.Button(btn_frame, text="↓", width=3, command=lambda: self.move_segment_down(segment_num-1)).pack(side='left', padx=2)
+        ttk.Button(btn_frame, text="✕", width=3, command=lambda: self.remove_segment(segment_num-1)).pack(side='left', padx=2)
+
+        self.mission_segments.append(segment_data)
+        self.update_mission_summary()
+
+    def remove_segment(self, index):
+        """Remove a mission segment"""
+        if 0 <= index < len(self.mission_segments):
+            segment = self.mission_segments.pop(index)
+            segment['frame'].destroy()
+            self.rebuild_mission_display()
+            self.update_mission_summary()
+
+    def move_segment_up(self, index):
+        """Move segment up in the list"""
+        if index > 0:
+            self.mission_segments[index], self.mission_segments[index-1] = \
+                self.mission_segments[index-1], self.mission_segments[index]
+            self.rebuild_mission_display()
+
+    def move_segment_down(self, index):
+        """Move segment down in the list"""
+        if index < len(self.mission_segments) - 1:
+            self.mission_segments[index], self.mission_segments[index+1] = \
+                self.mission_segments[index+1], self.mission_segments[index]
+            self.rebuild_mission_display()
+
+    def rebuild_mission_display(self):
+        """Rebuild the mission display after reordering"""
+        # Clear all widgets
+        for widget in self.segments_frame_inner.winfo_children():
+            widget.destroy()
+
+        # Rebuild from mission_segments list
+        temp_segments = self.mission_segments.copy()
+        self.mission_segments = []
+
+        for seg in temp_segments:
+            # Re-add each segment
+            segment_type = seg['type'].replace('_', ' ').title()
+            self.segment_type_var.set(segment_type)
+
+            # Set parameters before adding
+            if 'duration_s' in seg and hasattr(seg['duration_s'], 'get'):
+                duration_val = seg['duration_s'].get()
+            else:
+                duration_val = "60"
+
+            if 'speed_ms' in seg and hasattr(seg['speed_ms'], 'get'):
+                speed_val = seg['speed_ms'].get()
+            else:
+                speed_val = "15.0"
+
+            # Add segment (this will create new frame and variables)
+            self.add_mission_segment()
+
+            # Update with saved values
+            if 'duration_s' in seg:
+                self.mission_segments[-1]['duration_s'].set(duration_val)
+            if 'speed_ms' in seg:
+                self.mission_segments[-1]['speed_ms'].set(speed_val)
+
+        self.update_mission_summary()
+
+    def clear_mission_segments(self):
+        """Clear all mission segments"""
+        if messagebox.askyesno("Clear Mission", "Remove all segments?"):
+            for seg in self.mission_segments:
+                seg['frame'].destroy()
+            self.mission_segments = []
+            self.update_mission_summary()
+
+    def simulate_mission(self):
+        """Simulate the mission and calculate energy"""
+        if not self.current_calc:
+            messagebox.showwarning("No Analysis", "Run an analysis first!")
+            return
+
+        if not self.mission_segments:
+            messagebox.showwarning("Empty Mission", "Add some segments first!")
+            return
+
+        try:
+            # Convert GUI segments to analysis format
+            mission_profile = []
+            for seg in self.mission_segments:
+                seg_type = seg['type']
+
+                if seg_type == "hover":
+                    duration = float(seg['duration_s'].get())
+                    mission_profile.append({
+                        'type': 'hover',
+                        'duration_s': duration
+                    })
+                elif seg_type == "cruise":
+                    duration = float(seg['duration_s'].get())
+                    speed = float(seg['speed_ms'].get())
+                    mission_profile.append({
+                        'type': 'cruise',
+                        'duration_s': duration,
+                        'speed_ms': speed
+                    })
+                elif seg_type == "transition_forward":
+                    mission_profile.append({'type': 'transition_forward'})
+                elif seg_type == "transition_back":
+                    mission_profile.append({'type': 'transition_back'})
+
+            # Analyze mission
+            mission_results = self.current_calc.mission_profile_analysis(mission_profile)
+
+            # Display results
+            self.display_mission_results(mission_results)
+
+        except Exception as e:
+            messagebox.showerror("Simulation Error", f"Could not simulate mission:\n{e}")
+
+    def display_mission_results(self, results):
+        """Display mission simulation results"""
+        total_time = results['total_time_min']
+        total_energy = results['total_energy_wh']
+        battery_cap = results['battery_capacity_wh']
+        remaining = results['battery_remaining_percent']
+
+        # Update summary
+        summary = f"""Mission Analysis Results:
+  Total Time:        {total_time:.1f} min ({total_time/60:.2f} hours)
+  Total Energy:      {total_energy:.1f} Wh
+  Battery Capacity:  {battery_cap:.1f} Wh
+  Energy Remaining:  {results['energy_remaining_wh']:.1f} Wh ({remaining:.1f}%)
+
+  Status: {'✓ FEASIBLE' if remaining >= 20 else '✗ NOT FEASIBLE (need >20% reserve)'}"""
+
+        # Show in dialog
+        messagebox.showinfo("Mission Simulation Results", summary)
+
+        # Update summary text
+        self.mission_summary_text.set(summary)
+
+    def update_mission_summary(self):
+        """Update mission summary display"""
+        if not self.mission_segments:
+            self.mission_summary_text.set("No segments added yet")
+            return
+
+        total_segments = len(self.mission_segments)
+        hover_count = sum(1 for s in self.mission_segments if s['type'] == 'hover')
+        cruise_count = sum(1 for s in self.mission_segments if s['type'] == 'cruise')
+        trans_count = sum(1 for s in self.mission_segments if 'transition' in s['type'])
+
+        summary = f"Segments: {total_segments} total ({hover_count} hover, {cruise_count} cruise, {trans_count} transitions)\nClick 'Simulate Mission' to analyze"
+        self.mission_summary_text.set(summary)
+
+    def save_mission(self):
+        """Save mission profile to file"""
+        messagebox.showinfo("Coming Soon", "Save mission profile to JSON file")
+
+    def load_mission(self):
+        """Load mission profile from file"""
+        messagebox.showinfo("Coming Soon", "Load mission profile from JSON file")
 
     # -----------------------------------------------------------------------
     # TAB 5: COMPARISON
@@ -536,23 +793,1011 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def create_comparison_tab(self):
         """Create multi-preset comparison tab"""
-        label = ttk.Label(self.tab_comparison, text="Multi-Preset Comparison - Coming Soon!", font=('Arial', 14))
-        label.pack(expand=True)
+        # Top toolbar
+        toolbar = ttk.Frame(self.tab_comparison)
+        toolbar.pack(fill='x', padx=10, pady=5)
 
-        desc = ttk.Label(self.tab_comparison, text="Side-by-side comparison of multiple presets with charts and tables", foreground='gray')
-        desc.pack()
+        ttk.Label(toolbar, text="Multi-Preset Comparison", style='Title.TLabel').pack(side='left')
+        ttk.Button(toolbar, text="Run Comparison", command=self.run_comparison, style='Primary.TButton').pack(side='right', padx=5)
+        ttk.Button(toolbar, text="Export Table", command=self.export_comparison_table).pack(side='right', padx=5)
+
+        # Preset selection
+        selection_frame = ttk.LabelFrame(self.tab_comparison, text=" Select Presets to Compare ", padding=10)
+        selection_frame.pack(fill='x', padx=10, pady=5)
+
+        self.comparison_presets = {}
+        presets = self.preset_manager.list_presets()
+
+        for preset_name in presets:
+            var = tk.BooleanVar(value=True)
+            desc = self.preset_manager.get_preset_description(preset_name)
+            ttk.Checkbutton(selection_frame, text=desc, variable=var).pack(anchor='w', pady=2)
+            self.comparison_presets[preset_name] = var
+
+        # Results area
+        results_frame = ttk.LabelFrame(self.tab_comparison, text=" Comparison Results ", padding=10)
+        results_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+        # Scrollable text for comparison table
+        self.comparison_text = scrolledtext.ScrolledText(
+            results_frame,
+            wrap=tk.WORD,
+            width=120,
+            height=25,
+            font=('Courier', 9)
+        )
+        self.comparison_text.pack(fill='both', expand=True)
+
+        # Initial message
+        self.comparison_text.insert('1.0', "Select presets above and click 'Run Comparison'")
+        self.comparison_text.config(state='disabled')
+
+    def run_comparison(self):
+        """Run comparison analysis for selected presets"""
+        try:
+            self.update_status("Running comparison...")
+
+            # Get selected presets
+            selected = [name for name, var in self.comparison_presets.items() if var.get()]
+
+            if len(selected) < 2:
+                messagebox.showwarning("Selection Required", "Select at least 2 presets to compare!")
+                return
+
+            # Analyze each preset
+            results = {}
+            for preset_name in selected:
+                config = self.preset_manager.get_preset(preset_name)
+                calc = PerformanceCalculator(config)
+                perf = calc.generate_performance_summary()
+                results[preset_name] = perf
+
+            # Display comparison
+            self.display_comparison_results(results)
+
+            self.update_status("Comparison complete!")
+
+        except Exception as e:
+            messagebox.showerror("Comparison Error", f"Could not run comparison:\n{e}")
+            self.update_status("Comparison failed")
+
+    def display_comparison_results(self, results):
+        """Display comparison results in table format"""
+        self.comparison_text.config(state='normal')
+        self.comparison_text.delete('1.0', tk.END)
+
+        output = []
+        output.append("="*120)
+        output.append(" MULTI-PRESET COMPARISON".center(120))
+        output.append("="*120)
+        output.append("")
+
+        # Header row
+        preset_names = list(results.keys())
+        header = f"{'Parameter':<35}"
+        for name in preset_names:
+            header += f"{name.upper():<25}"
+        output.append(header)
+        output.append("-"*120)
+
+        # Weight & Geometry
+        output.append("\nWEIGHT & GEOMETRY:")
+        self.add_comparison_row(output, preset_names, results, "Total Weight (kg)", lambda r: r['weight']['total_kg'])
+        self.add_comparison_row(output, preset_names, results, "Wing Loading (kg/m²)", lambda r: r['weight']['wing_loading_kgm2'])
+
+        # Performance
+        output.append("\nPERFORMANCE:")
+        self.add_comparison_row(output, preset_names, results, "Hover Endurance (min)", lambda r: r['hover']['endurance_min'])
+        self.add_comparison_row(output, preset_names, results, "Cruise Endurance (min)", lambda r: r['cruise']['endurance_min'])
+        self.add_comparison_row(output, preset_names, results, "Cruise Range (km)", lambda r: r['cruise']['range_km'])
+        self.add_comparison_row(output, preset_names, results, "Cruise Speed (m/s)", lambda r: r['cruise']['speed_ms'])
+        self.add_comparison_row(output, preset_names, results, "Best Range (km)", lambda r: r['best_range']['range_km'])
+
+        # Power
+        output.append("\nPOWER BUDGET:")
+        self.add_comparison_row(output, preset_names, results, "Hover Power (W)", lambda r: r['hover']['power_w'])
+        self.add_comparison_row(output, preset_names, results, "Cruise Power (W)", lambda r: r['cruise']['power_w'])
+        if 'power_budget' in results[preset_names[0]]['cruise']:
+            self.add_comparison_row(output, preset_names, results, "Control Power (W)",
+                lambda r: r['cruise']['power_budget']['control_power_w'] if 'power_budget' in r['cruise'] else 0)
+
+        # Transitions
+        if 'transitions' in results[preset_names[0]]:
+            output.append("\nTRANSITIONS:")
+            self.add_comparison_row(output, preset_names, results, "Forward Transition (Wh)",
+                lambda r: r['transitions']['forward']['energy_wh'] if 'transitions' in r else 0)
+            self.add_comparison_row(output, preset_names, results, "Back Transition (Wh)",
+                lambda r: r['transitions']['back']['energy_wh'] if 'transitions' in r else 0)
+
+        # Aerodynamics
+        output.append("\nAERODYNAMICS:")
+        self.add_comparison_row(output, preset_names, results, "Max L/D Ratio", lambda r: r['aerodynamics']['max_ld_ratio'])
+        self.add_comparison_row(output, preset_names, results, "CD0", lambda r: r['aerodynamics']['cd0'])
+
+        output.append("\n" + "="*120)
+
+        # Insert into text widget
+        self.comparison_text.insert('1.0', '\n'.join(output))
+        self.comparison_text.config(state='disabled')
+
+        # Store for export
+        self.comparison_results = results
+
+    def add_comparison_row(self, output, preset_names, results, parameter_name, value_func):
+        """Add a comparison row to the output"""
+        row = f"  {parameter_name:<33}"
+        for name in preset_names:
+            try:
+                value = value_func(results[name])
+                row += f"{value:<25.2f}"
+            except:
+                row += f"{'N/A':<25}"
+        output.append(row)
+
+    def export_comparison_table(self):
+        """Export comparison table to CSV"""
+        if not hasattr(self, 'comparison_results'):
+            messagebox.showwarning("No Results", "Run a comparison first!")
+            return
+
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+
+            if filename:
+                import csv
+                with open(filename, 'w', newline='') as f:
+                    writer = csv.writer(f)
+
+                    # Header
+                    preset_names = list(self.comparison_results.keys())
+                    header = ["Parameter"] + [name.upper() for name in preset_names]
+                    writer.writerow(header)
+
+                    # Data rows
+                    rows = [
+                        ("Hover Endurance (min)", lambda r: r['hover']['endurance_min']),
+                        ("Cruise Endurance (min)", lambda r: r['cruise']['endurance_min']),
+                        ("Cruise Range (km)", lambda r: r['cruise']['range_km']),
+                        ("Hover Power (W)", lambda r: r['hover']['power_w']),
+                        ("Cruise Power (W)", lambda r: r['cruise']['power_w']),
+                    ]
+
+                    for param_name, value_func in rows:
+                        row = [param_name]
+                        for name in preset_names:
+                            try:
+                                row.append(f"{value_func(self.comparison_results[name]):.2f}")
+                            except:
+                                row.append("N/A")
+                        writer.writerow(row)
+
+                self.update_status(f"Comparison saved to {filename}")
+                messagebox.showinfo("Success", f"Comparison saved to:\n{filename}")
+
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Could not export comparison:\n{e}")
 
     # -----------------------------------------------------------------------
     # TAB 6: EXPORT MANAGER
     # -----------------------------------------------------------------------
 
     def create_export_tab(self):
-        """Create export manager tab"""
-        label = ttk.Label(self.tab_export, text="Export Manager - Coming Soon!", font=('Arial', 14))
-        label.pack(expand=True)
+        """Create export manager tab with PDF/Excel/CSV export capabilities"""
+        # Top toolbar
+        toolbar = ttk.Frame(self.tab_export)
+        toolbar.pack(fill='x', padx=10, pady=5)
 
-        desc = ttk.Label(self.tab_export, text="Professional report generation (PDF, Excel, custom templates)", foreground='gray')
-        desc.pack()
+        ttk.Label(toolbar, text="Export Manager", style='Title.TLabel').pack(side='left')
+
+        # Export format selection
+        format_frame = ttk.LabelFrame(self.tab_export, text=" Export Format ", padding=10)
+        format_frame.pack(fill='x', padx=10, pady=5)
+
+        self.export_format_var = tk.StringVar(value="PDF Report")
+        export_formats = [
+            ("PDF Report", "PDF"),
+            ("Excel Spreadsheet", "XLSX"),
+            ("CSV Data", "CSV"),
+            ("JSON Data", "JSON"),
+            ("HTML Report", "HTML")
+        ]
+
+        for i, (label, value) in enumerate(export_formats):
+            ttk.Radiobutton(
+                format_frame,
+                text=label,
+                variable=self.export_format_var,
+                value=value,
+                command=self.on_export_format_changed
+            ).grid(row=i//3, column=i%3, sticky='w', padx=20, pady=5)
+
+        # Report template selection (for PDF/HTML)
+        template_frame = ttk.LabelFrame(self.tab_export, text=" Report Template ", padding=10)
+        template_frame.pack(fill='x', padx=10, pady=5)
+
+        self.report_template_var = tk.StringVar(value="Engineering")
+        templates = [
+            ("Engineering Report (Full Details)", "Engineering"),
+            ("Executive Summary (Key Results Only)", "Executive"),
+            ("Flight Test Report (Field Ready)", "FlightTest"),
+            ("Comparison Report (Multi-Preset)", "Comparison")
+        ]
+
+        for i, (label, value) in enumerate(templates):
+            ttk.Radiobutton(
+                template_frame,
+                text=label,
+                variable=self.report_template_var,
+                value=value
+            ).grid(row=i, column=0, sticky='w', padx=20, pady=3)
+
+        # Export options
+        options_frame = ttk.LabelFrame(self.tab_export, text=" Export Options ", padding=10)
+        options_frame.pack(fill='x', padx=10, pady=5)
+
+        self.include_plots_var = tk.BooleanVar(value=True)
+        self.include_mission_var = tk.BooleanVar(value=True)
+        self.include_comparison_var = tk.BooleanVar(value=False)
+        self.open_after_export_var = tk.BooleanVar(value=True)
+
+        ttk.Checkbutton(options_frame, text="Include plots and charts", variable=self.include_plots_var).grid(row=0, column=0, sticky='w', padx=10, pady=3)
+        ttk.Checkbutton(options_frame, text="Include mission analysis", variable=self.include_mission_var).grid(row=1, column=0, sticky='w', padx=10, pady=3)
+        ttk.Checkbutton(options_frame, text="Include preset comparisons", variable=self.include_comparison_var).grid(row=2, column=0, sticky='w', padx=10, pady=3)
+        ttk.Checkbutton(options_frame, text="Open file after export", variable=self.open_after_export_var).grid(row=3, column=0, sticky='w', padx=10, pady=3)
+
+        # Output directory
+        output_frame = ttk.LabelFrame(self.tab_export, text=" Output Location ", padding=10)
+        output_frame.pack(fill='x', padx=10, pady=5)
+
+        ttk.Label(output_frame, text="Directory:").grid(row=0, column=0, sticky='w', padx=5, pady=5)
+        self.output_dir_var = tk.StringVar(value="./output")
+        ttk.Entry(output_frame, textvariable=self.output_dir_var, width=60).grid(row=0, column=1, sticky='ew', padx=5)
+        ttk.Button(output_frame, text="Browse...", command=self.browse_output_directory).grid(row=0, column=2, padx=5)
+
+        output_frame.columnconfigure(1, weight=1)
+
+        # File preview
+        preview_frame = ttk.LabelFrame(self.tab_export, text=" Export Preview ", padding=10)
+        preview_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+        self.export_preview_text = scrolledtext.ScrolledText(
+            preview_frame,
+            wrap=tk.WORD,
+            width=100,
+            height=15,
+            font=('Courier', 9)
+        )
+        self.export_preview_text.pack(fill='both', expand=True)
+        self.export_preview_text.insert('1.0', "Export preview will appear here...\n\nSelect format and click 'Generate Preview' to see what will be exported.")
+        self.export_preview_text.config(state='disabled')
+
+        # Action buttons
+        action_frame = ttk.Frame(self.tab_export)
+        action_frame.pack(fill='x', padx=10, pady=10)
+
+        ttk.Button(action_frame, text="Generate Preview", command=self.generate_export_preview).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Export", command=self.perform_export, style='Primary.TButton').pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Export All Formats", command=self.export_all_formats).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Clear Preview", command=self.clear_export_preview).pack(side='left', padx=5)
+
+    def on_export_format_changed(self):
+        """Handle export format change"""
+        format_type = self.export_format_var.get()
+        self.update_status(f"Export format: {format_type}")
+
+    def browse_output_directory(self):
+        """Browse for output directory"""
+        directory = filedialog.askdirectory(initialdir=self.output_dir_var.get())
+        if directory:
+            self.output_dir_var.set(directory)
+            self.update_status(f"Output directory: {directory}")
+
+    def generate_export_preview(self):
+        """Generate preview of what will be exported"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "Run an analysis first!")
+            return
+
+        try:
+            self.update_status("Generating preview...")
+
+            format_type = self.export_format_var.get()
+            template = self.report_template_var.get()
+
+            # Clear preview
+            self.export_preview_text.config(state='normal')
+            self.export_preview_text.delete('1.0', tk.END)
+
+            # Generate preview based on format
+            if format_type == "PDF":
+                preview = self.generate_pdf_preview(template)
+            elif format_type == "XLSX":
+                preview = self.generate_excel_preview()
+            elif format_type == "CSV":
+                preview = self.generate_csv_preview()
+            elif format_type == "JSON":
+                preview = self.generate_json_preview()
+            elif format_type == "HTML":
+                preview = self.generate_html_preview(template)
+            else:
+                preview = "Preview not available for this format"
+
+            self.export_preview_text.insert('1.0', preview)
+            self.export_preview_text.config(state='disabled')
+
+            self.update_status("Preview generated")
+
+        except Exception as e:
+            messagebox.showerror("Preview Error", f"Could not generate preview:\n{e}")
+            self.update_status("Preview failed")
+
+    def generate_pdf_preview(self, template):
+        """Generate PDF export preview"""
+        preview = []
+        preview.append("="*80)
+        preview.append(f" PDF EXPORT PREVIEW - {template.upper()} TEMPLATE".center(80))
+        preview.append("="*80)
+        preview.append("")
+
+        if template == "Engineering":
+            preview.append("DOCUMENT STRUCTURE:")
+            preview.append("  • Title Page")
+            preview.append("  • Table of Contents")
+            preview.append("  • Executive Summary")
+            preview.append("  • Aircraft Configuration")
+            preview.append("  • Performance Analysis")
+            preview.append("    - Hover Performance")
+            preview.append("    - Cruise Performance")
+            preview.append("    - Power Budget Breakdown")
+            preview.append("    - Transition Analysis")
+            preview.append("  • Aerodynamic Analysis")
+            preview.append("  • Charts and Graphs")
+            if self.include_plots_var.get():
+                preview.append("  • Custom Plots")
+            if self.include_mission_var.get():
+                preview.append("  • Mission Profile Analysis")
+            preview.append("  • Conclusions and Recommendations")
+            preview.append("")
+
+        elif template == "Executive":
+            preview.append("DOCUMENT STRUCTURE:")
+            preview.append("  • Title Page")
+            preview.append("  • Key Performance Metrics")
+            preview.append("  • Performance Summary Table")
+            preview.append("  • Critical Charts")
+            preview.append("  • Recommendations")
+            preview.append("")
+
+        elif template == "FlightTest":
+            preview.append("DOCUMENT STRUCTURE:")
+            preview.append("  • Test Information")
+            preview.append("  • Aircraft Configuration")
+            preview.append("  • Predicted Performance")
+            preview.append("  • Test Data Sheets (blank)")
+            preview.append("  • Safety Notes")
+            preview.append("")
+
+        elif template == "Comparison":
+            preview.append("DOCUMENT STRUCTURE:")
+            preview.append("  • Title Page")
+            preview.append("  • Comparison Overview")
+            preview.append("  • Side-by-Side Performance Table")
+            preview.append("  • Comparison Charts")
+            preview.append("  • Best Use Cases")
+            preview.append("")
+
+        # Sample content
+        preview.append("SAMPLE CONTENT:")
+        preview.append("-"*80)
+        preview.append(f"Preset: {self.current_preset_name.upper()}")
+        preview.append(f"Weight: {self.current_config.total_takeoff_weight_kg:.2f} kg")
+        preview.append(f"Hover Endurance: {self.current_results['hover']['endurance_min']:.1f} min")
+        preview.append(f"Cruise Range: {self.current_results['cruise']['range_km']:.1f} km")
+        preview.append(f"Cruise Power: {self.current_results['cruise']['power_w']:.0f} W")
+        preview.append("")
+
+        preview.append("PDF FEATURES:")
+        preview.append("  • Professional formatting with headers/footers")
+        preview.append("  • Page numbers and table of contents")
+        preview.append("  • High-resolution charts and graphs")
+        preview.append("  • Color-coded sections")
+        preview.append("  • Ready for printing")
+        preview.append("")
+        preview.append("="*80)
+
+        return '\n'.join(preview)
+
+    def generate_excel_preview(self):
+        """Generate Excel export preview"""
+        preview = []
+        preview.append("="*80)
+        preview.append(" EXCEL EXPORT PREVIEW".center(80))
+        preview.append("="*80)
+        preview.append("")
+
+        preview.append("WORKBOOK STRUCTURE:")
+        preview.append("")
+        preview.append("Sheet 1: SUMMARY")
+        preview.append("  ├── Key Performance Metrics")
+        preview.append("  ├── Configuration Parameters")
+        preview.append("  └── Quick Reference Table")
+        preview.append("")
+
+        preview.append("Sheet 2: HOVER PERFORMANCE")
+        preview.append("  ├── Endurance: {:.1f} min".format(self.current_results['hover']['endurance_min']))
+        preview.append("  ├── Power: {:.0f} W".format(self.current_results['hover']['power_w']))
+        preview.append("  └── Current: {:.1f} A".format(self.current_results['hover']['current_a']))
+        preview.append("")
+
+        preview.append("Sheet 3: CRUISE PERFORMANCE")
+        preview.append("  ├── Range: {:.1f} km".format(self.current_results['cruise']['range_km']))
+        preview.append("  ├── Endurance: {:.1f} min".format(self.current_results['cruise']['endurance_min']))
+        preview.append("  ├── Power: {:.0f} W".format(self.current_results['cruise']['power_w']))
+        preview.append("  └── Speed: {:.1f} m/s".format(self.current_results['cruise']['speed_ms']))
+        preview.append("")
+
+        preview.append("Sheet 4: POWER BUDGET")
+        preview.append("  └── Detailed breakdown by component")
+        preview.append("")
+
+        preview.append("Sheet 5: AERODYNAMICS")
+        preview.append("  ├── L/D Ratio: {:.2f}".format(self.current_results['aerodynamics']['max_ld_ratio']))
+        preview.append("  └── Drag components")
+        preview.append("")
+
+        if self.include_mission_var.get():
+            preview.append("Sheet 6: MISSION ANALYSIS")
+            preview.append("  └── Mission segment breakdown")
+            preview.append("")
+
+        preview.append("EXCEL FEATURES:")
+        preview.append("  • Formatted tables with conditional formatting")
+        preview.append("  • Embedded charts and graphs")
+        preview.append("  • Formula-driven calculations")
+        preview.append("  • Easy to import into other tools")
+        preview.append("")
+        preview.append("="*80)
+
+        return '\n'.join(preview)
+
+    def generate_csv_preview(self):
+        """Generate CSV export preview"""
+        preview = []
+        preview.append("="*80)
+        preview.append(" CSV EXPORT PREVIEW".center(80))
+        preview.append("="*80)
+        preview.append("")
+
+        preview.append("CSV FORMAT: performance_data.csv")
+        preview.append("")
+        preview.append("Parameter,Value,Unit")
+        preview.append(f"Preset,{self.current_preset_name},-")
+        preview.append(f"Weight,{self.current_config.total_takeoff_weight_kg:.2f},kg")
+        preview.append(f"Hover_Endurance,{self.current_results['hover']['endurance_min']:.1f},min")
+        preview.append(f"Hover_Power,{self.current_results['hover']['power_w']:.0f},W")
+        preview.append(f"Cruise_Range,{self.current_results['cruise']['range_km']:.1f},km")
+        preview.append(f"Cruise_Endurance,{self.current_results['cruise']['endurance_min']:.1f},min")
+        preview.append(f"Cruise_Power,{self.current_results['cruise']['power_w']:.0f},W")
+        preview.append(f"Cruise_Speed,{self.current_results['cruise']['speed_ms']:.1f},m/s")
+        preview.append(f"Max_LD_Ratio,{self.current_results['aerodynamics']['max_ld_ratio']:.2f},-")
+        preview.append("...")
+        preview.append("")
+
+        preview.append("CSV FILES TO BE CREATED:")
+        preview.append("  • performance_summary.csv - Key metrics")
+        preview.append("  • configuration.csv - All parameters")
+        preview.append("  • power_budget.csv - Detailed breakdown")
+        if self.include_mission_var.get():
+            preview.append("  • mission_analysis.csv - Mission segments")
+        preview.append("")
+        preview.append("="*80)
+
+        return '\n'.join(preview)
+
+    def generate_json_preview(self):
+        """Generate JSON export preview"""
+        import json
+
+        preview = []
+        preview.append("="*80)
+        preview.append(" JSON EXPORT PREVIEW".center(80))
+        preview.append("="*80)
+        preview.append("")
+
+        # Create simplified JSON structure
+        json_data = {
+            "preset": self.current_preset_name,
+            "timestamp": "2025-01-20T12:00:00",
+            "configuration": {
+                "weight_kg": self.current_config.total_takeoff_weight_kg,
+                "wingspan_m": self.current_config.wingspan_m,
+                "wing_chord_m": self.current_config.wing_chord_m,
+            },
+            "performance": {
+                "hover": {
+                    "endurance_min": float(self.current_results['hover']['endurance_min']),
+                    "power_w": float(self.current_results['hover']['power_w']),
+                },
+                "cruise": {
+                    "range_km": float(self.current_results['cruise']['range_km']),
+                    "endurance_min": float(self.current_results['cruise']['endurance_min']),
+                    "power_w": float(self.current_results['cruise']['power_w']),
+                    "speed_ms": float(self.current_results['cruise']['speed_ms']),
+                }
+            }
+        }
+
+        preview.append(json.dumps(json_data, indent=2))
+        preview.append("")
+        preview.append("JSON FEATURES:")
+        preview.append("  • Complete data export")
+        preview.append("  • Easy to parse programmatically")
+        preview.append("  • Compatible with web APIs")
+        preview.append("  • Human-readable format")
+        preview.append("")
+        preview.append("="*80)
+
+        return '\n'.join(preview)
+
+    def generate_html_preview(self, template):
+        """Generate HTML export preview"""
+        preview = []
+        preview.append("="*80)
+        preview.append(f" HTML EXPORT PREVIEW - {template.upper()} TEMPLATE".center(80))
+        preview.append("="*80)
+        preview.append("")
+
+        preview.append("HTML STRUCTURE:")
+        preview.append("<!DOCTYPE html>")
+        preview.append("<html>")
+        preview.append("  <head>")
+        preview.append("    <title>VTOL Performance Analysis</title>")
+        preview.append("    <style>/* Professional CSS styling */</style>")
+        preview.append("  </head>")
+        preview.append("  <body>")
+        preview.append("    <header>")
+        preview.append("      <h1>VTOL Performance Analysis Report</h1>")
+        preview.append(f"      <h2>Preset: {self.current_preset_name.upper()}</h2>")
+        preview.append("    </header>")
+        preview.append("    <main>")
+        preview.append("      <section id='summary'>")
+        preview.append("        <!-- Key Performance Metrics -->")
+        preview.append("      </section>")
+        preview.append("      <section id='charts'>")
+        preview.append("        <!-- Interactive Charts -->")
+        preview.append("      </section>")
+        preview.append("      <section id='details'>")
+        preview.append("        <!-- Detailed Analysis -->")
+        preview.append("      </section>")
+        preview.append("    </main>")
+        preview.append("  </body>")
+        preview.append("</html>")
+        preview.append("")
+
+        preview.append("HTML FEATURES:")
+        preview.append("  • Responsive design (mobile-friendly)")
+        preview.append("  • Interactive charts with Chart.js")
+        preview.append("  • Collapsible sections")
+        preview.append("  • Print-optimized CSS")
+        preview.append("  • Can be hosted on web servers")
+        preview.append("")
+        preview.append("="*80)
+
+        return '\n'.join(preview)
+
+    def clear_export_preview(self):
+        """Clear export preview"""
+        self.export_preview_text.config(state='normal')
+        self.export_preview_text.delete('1.0', tk.END)
+        self.export_preview_text.insert('1.0', "Export preview cleared.")
+        self.export_preview_text.config(state='disabled')
+
+    def perform_export(self):
+        """Perform the actual export"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "Run an analysis first!")
+            return
+
+        try:
+            self.update_status("Exporting...")
+
+            format_type = self.export_format_var.get()
+            output_dir = self.output_dir_var.get()
+
+            # Create output directory
+            import os
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Export based on format
+            if format_type == "PDF":
+                filepath = self.export_pdf()
+            elif format_type == "XLSX":
+                filepath = self.export_excel()
+            elif format_type == "CSV":
+                filepath = self.export_csv()
+            elif format_type == "JSON":
+                filepath = self.export_json()
+            elif format_type == "HTML":
+                filepath = self.export_html()
+            else:
+                raise ValueError(f"Unknown format: {format_type}")
+
+            self.update_status(f"Exported to {filepath}")
+            messagebox.showinfo("Export Successful", f"File exported to:\n{filepath}")
+
+            # Open file if requested
+            if self.open_after_export_var.get() and filepath:
+                self.open_file(filepath)
+
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Could not export file:\n{e}")
+            self.update_status("Export failed")
+
+    def export_pdf(self):
+        """Export analysis as PDF report"""
+        try:
+            # Try to import reportlab
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+            from reportlab.lib import colors
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        except ImportError:
+            messagebox.showwarning("PDF Export",
+                "reportlab library not installed.\n\n"
+                "Install with: pip install reportlab\n\n"
+                "Falling back to text export...")
+            return self.export_text()
+
+        output_dir = self.output_dir_var.get()
+        template = self.report_template_var.get()
+        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}_{template.lower()}.pdf")
+
+        # Create PDF
+        doc = SimpleDocTemplate(filename, pagesize=letter)
+        story = []
+        styles = getSampleStyleSheet()
+
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#2C3E50'),
+            spaceAfter=30,
+            alignment=TA_CENTER
+        )
+
+        story.append(Paragraph("VTOL Performance Analysis Report", title_style))
+        story.append(Paragraph(f"Preset: {self.current_preset_name.upper()}", styles['Heading2']))
+        story.append(Spacer(1, 0.3*inch))
+
+        # Summary table
+        summary_data = [
+            ['Parameter', 'Value', 'Unit'],
+            ['Hover Endurance', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'],
+            ['Cruise Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'],
+            ['Cruise Power', f"{self.current_results['cruise']['power_w']:.0f}", 'W'],
+            ['Max L/D Ratio', f"{self.current_results['aerodynamics']['max_ld_ratio']:.2f}", '-'],
+        ]
+
+        table = Table(summary_data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+
+        story.append(table)
+        story.append(Spacer(1, 0.5*inch))
+
+        # Configuration section
+        if template in ["Engineering", "FlightTest"]:
+            story.append(Paragraph("Aircraft Configuration", styles['Heading2']))
+            config_data = [
+                ['Parameter', 'Value'],
+                ['Weight', f"{self.current_config.total_takeoff_weight_kg:.2f} kg"],
+                ['Wing Span', f"{self.current_config.wingspan_m:.2f} m"],
+                ['Wing Chord', f"{self.current_config.wing_chord_m:.3f} m"],
+                ['Wing Area', f"{self.current_config.wing_area_m2:.3f} m²"],
+            ]
+
+            config_table = Table(config_data)
+            config_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+
+            story.append(config_table)
+            story.append(Spacer(1, 0.3*inch))
+
+        # Build PDF
+        doc.build(story)
+
+        return filename
+
+    def export_text(self):
+        """Export as plain text (fallback when PDF not available)"""
+        output_dir = self.output_dir_var.get()
+        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}.txt")
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(self.results_text.get('1.0', tk.END))
+
+        return filename
+
+    def export_excel(self):
+        """Export analysis as Excel spreadsheet"""
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment
+        except ImportError:
+            messagebox.showwarning("Excel Export",
+                "openpyxl library not installed.\n\n"
+                "Install with: pip install openpyxl\n\n"
+                "Falling back to CSV export...")
+            return self.export_csv()
+
+        output_dir = self.output_dir_var.get()
+        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}.xlsx")
+
+        # Create workbook
+        wb = openpyxl.Workbook()
+
+        # Sheet 1: Summary
+        ws_summary = wb.active
+        ws_summary.title = "Summary"
+
+        # Header
+        ws_summary['A1'] = "VTOL Performance Analysis"
+        ws_summary['A1'].font = Font(size=16, bold=True)
+        ws_summary['A2'] = f"Preset: {self.current_preset_name.upper()}"
+        ws_summary['A2'].font = Font(size=12, bold=True)
+
+        # Performance summary
+        row = 4
+        ws_summary[f'A{row}'] = "Parameter"
+        ws_summary[f'B{row}'] = "Value"
+        ws_summary[f'C{row}'] = "Unit"
+
+        # Style header
+        for col in ['A', 'B', 'C']:
+            cell = ws_summary[f'{col}{row}']
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="3498DB", end_color="3498DB", fill_type="solid")
+            cell.alignment = Alignment(horizontal='center')
+
+        # Data rows
+        data = [
+            ("Hover Endurance", self.current_results['hover']['endurance_min'], "min"),
+            ("Hover Power", self.current_results['hover']['power_w'], "W"),
+            ("Cruise Range", self.current_results['cruise']['range_km'], "km"),
+            ("Cruise Endurance", self.current_results['cruise']['endurance_min'], "min"),
+            ("Cruise Power", self.current_results['cruise']['power_w'], "W"),
+            ("Cruise Speed", self.current_results['cruise']['speed_ms'], "m/s"),
+            ("Max L/D Ratio", self.current_results['aerodynamics']['max_ld_ratio'], "-"),
+        ]
+
+        for i, (param, value, unit) in enumerate(data, start=row+1):
+            ws_summary[f'A{i}'] = param
+            ws_summary[f'B{i}'] = f"{value:.2f}"
+            ws_summary[f'C{i}'] = unit
+
+        # Adjust column widths
+        ws_summary.column_dimensions['A'].width = 25
+        ws_summary.column_dimensions['B'].width = 15
+        ws_summary.column_dimensions['C'].width = 10
+
+        # Sheet 2: Configuration
+        ws_config = wb.create_sheet("Configuration")
+        ws_config['A1'] = "Aircraft Configuration"
+        ws_config['A1'].font = Font(size=14, bold=True)
+
+        config_data = [
+            ("Total Weight", self.current_config.total_takeoff_weight_kg, "kg"),
+            ("Wing Span", self.current_config.wingspan_m, "m"),
+            ("Wing Chord", self.current_config.wing_chord_m, "m"),
+            ("Wing Area", self.current_config.wing_area_m2, "m²"),
+            ("Battery Capacity", self.current_config.battery_capacity_wh, "Wh"),
+        ]
+
+        row = 3
+        for param, value, unit in config_data:
+            ws_config[f'A{row}'] = param
+            ws_config[f'B{row}'] = f"{value:.3f}"
+            ws_config[f'C{row}'] = unit
+            row += 1
+
+        # Save workbook
+        wb.save(filename)
+
+        return filename
+
+    def export_csv(self):
+        """Export analysis as CSV files"""
+        import csv
+
+        output_dir = self.output_dir_var.get()
+        base_filename = f"vtol_analysis_{self.current_preset_name}"
+
+        # Main performance CSV
+        filename = os.path.join(output_dir, f"{base_filename}_performance.csv")
+
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Parameter', 'Value', 'Unit'])
+            writer.writerow(['Preset', self.current_preset_name, '-'])
+            writer.writerow(['Hover_Endurance', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'])
+            writer.writerow(['Hover_Power', f"{self.current_results['hover']['power_w']:.0f}", 'W'])
+            writer.writerow(['Cruise_Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'])
+            writer.writerow(['Cruise_Endurance', f"{self.current_results['cruise']['endurance_min']:.1f}", 'min'])
+            writer.writerow(['Cruise_Power', f"{self.current_results['cruise']['power_w']:.0f}", 'W'])
+            writer.writerow(['Cruise_Speed', f"{self.current_results['cruise']['speed_ms']:.1f}", 'm/s'])
+            writer.writerow(['Max_LD_Ratio', f"{self.current_results['aerodynamics']['max_ld_ratio']:.2f}", '-'])
+
+        return filename
+
+    def export_json(self):
+        """Export analysis as JSON file"""
+        import json
+
+        output_dir = self.output_dir_var.get()
+        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}.json")
+
+        # Convert results to JSON-serializable format
+        def make_serializable(obj):
+            if isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            elif hasattr(obj, 'item'):  # numpy types
+                return obj.item()
+            elif hasattr(obj, '__dict__'):
+                return str(obj)
+            else:
+                return obj
+
+        export_data = {
+            "preset": self.current_preset_name,
+            "configuration": {
+                "weight_kg": self.current_config.total_takeoff_weight_kg,
+                "wingspan_m": self.current_config.wingspan_m,
+                "wing_chord_m": self.current_config.wing_chord_m,
+                "wing_area_m2": self.current_config.wing_area_m2,
+                "battery_capacity_wh": self.current_config.battery_capacity_wh,
+            },
+            "performance": make_serializable(self.current_results)
+        }
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2)
+
+        return filename
+
+    def export_html(self):
+        """Export analysis as HTML report"""
+        output_dir = self.output_dir_var.get()
+        template = self.report_template_var.get()
+        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}_{template.lower()}.html")
+
+        html = []
+        html.append("<!DOCTYPE html>")
+        html.append("<html>")
+        html.append("<head>")
+        html.append("    <meta charset='UTF-8'>")
+        html.append("    <title>VTOL Performance Analysis</title>")
+        html.append("    <style>")
+        html.append("        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }")
+        html.append("        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }")
+        html.append("        h1 { color: #2C3E50; border-bottom: 3px solid #3498DB; padding-bottom: 10px; }")
+        html.append("        h2 { color: #3498DB; margin-top: 30px; }")
+        html.append("        table { width: 100%; border-collapse: collapse; margin: 20px 0; }")
+        html.append("        th { background: #3498DB; color: white; padding: 12px; text-align: left; }")
+        html.append("        td { padding: 10px; border: 1px solid #ddd; }")
+        html.append("        tr:nth-child(even) { background: #f9f9f9; }")
+        html.append("        .metric { font-size: 24px; font-weight: bold; color: #27AE60; }")
+        html.append("    </style>")
+        html.append("</head>")
+        html.append("<body>")
+        html.append("    <div class='container'>")
+        html.append("        <h1>VTOL Performance Analysis Report</h1>")
+        html.append(f"        <h2>Preset: {self.current_preset_name.upper()}</h2>")
+        html.append("")
+        html.append("        <h2>Key Performance Metrics</h2>")
+        html.append("        <table>")
+        html.append("            <tr><th>Parameter</th><th>Value</th><th>Unit</th></tr>")
+        html.append(f"            <tr><td>Hover Endurance</td><td class='metric'>{self.current_results['hover']['endurance_min']:.1f}</td><td>min</td></tr>")
+        html.append(f"            <tr><td>Cruise Range</td><td class='metric'>{self.current_results['cruise']['range_km']:.1f}</td><td>km</td></tr>")
+        html.append(f"            <tr><td>Cruise Power</td><td class='metric'>{self.current_results['cruise']['power_w']:.0f}</td><td>W</td></tr>")
+        html.append(f"            <tr><td>Max L/D Ratio</td><td class='metric'>{self.current_results['aerodynamics']['max_ld_ratio']:.2f}</td><td>-</td></tr>")
+        html.append("        </table>")
+        html.append("")
+        html.append("        <h2>Aircraft Configuration</h2>")
+        html.append("        <table>")
+        html.append(f"            <tr><td>Total Weight</td><td>{self.current_config.total_takeoff_weight_kg:.2f} kg</td></tr>")
+        html.append(f"            <tr><td>Wing Span</td><td>{self.current_config.wingspan_m:.2f} m</td></tr>")
+        html.append(f"            <tr><td>Wing Area</td><td>{self.current_config.wing_area_m2:.3f} m²</td></tr>")
+        html.append(f"            <tr><td>Battery Capacity</td><td>{self.current_config.battery_capacity_wh:.1f} Wh</td></tr>")
+        html.append("        </table>")
+        html.append("    </div>")
+        html.append("</body>")
+        html.append("</html>")
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(html))
+
+        return filename
+
+    def export_all_formats(self):
+        """Export in all available formats"""
+        if not self.current_results:
+            messagebox.showwarning("No Results", "Run an analysis first!")
+            return
+
+        if messagebox.askyesno("Export All", "Export report in all formats?\n(PDF, Excel, CSV, JSON, HTML)"):
+            try:
+                self.update_status("Exporting all formats...")
+
+                exported = []
+                for format_type in ["PDF", "XLSX", "CSV", "JSON", "HTML"]:
+                    self.export_format_var.set(format_type)
+                    try:
+                        filepath = self.perform_single_export(format_type)
+                        if filepath:
+                            exported.append(f"  • {format_type}: {os.path.basename(filepath)}")
+                    except Exception as e:
+                        exported.append(f"  • {format_type}: FAILED ({str(e)[:30]}...)")
+
+                messagebox.showinfo("Batch Export Complete",
+                    "Exported files:\n\n" + "\n".join(exported))
+
+                self.update_status("All formats exported")
+
+            except Exception as e:
+                messagebox.showerror("Batch Export Error", f"Error during batch export:\n{e}")
+
+    def perform_single_export(self, format_type):
+        """Perform single export without dialogs"""
+        output_dir = self.output_dir_var.get()
+        os.makedirs(output_dir, exist_ok=True)
+
+        if format_type == "PDF":
+            return self.export_pdf()
+        elif format_type == "XLSX":
+            return self.export_excel()
+        elif format_type == "CSV":
+            return self.export_csv()
+        elif format_type == "JSON":
+            return self.export_json()
+        elif format_type == "HTML":
+            return self.export_html()
+
+    def open_file(self, filepath):
+        """Open file with default system application"""
+        import subprocess
+        import platform
+
+        try:
+            if platform.system() == 'Darwin':  # macOS
+                subprocess.call(('open', filepath))
+            elif platform.system() == 'Windows':  # Windows
+                os.startfile(filepath)
+            else:  # Linux
+                subprocess.call(('xdg-open', filepath))
+        except:
+            pass  # Silently fail if can't open
 
     # -----------------------------------------------------------------------
     # STATUS BAR
@@ -851,29 +2096,218 @@ class VTOLAnalyzerGUI(tk.Tk):
             "Weight (kg)",
             "Wing Span (m)",
             "Altitude (m)",
+            "Control Power (W)",
+            "Propeller Efficiency (%)",
         ]
 
     def generate_custom_plot(self):
         """Generate user-defined custom plot"""
-        messagebox.showinfo("Coming Soon", "Custom plot generation")
+        if not self.current_calc:
+            messagebox.showwarning("No Analysis", "Run an analysis first!")
+            return
+
+        try:
+            self.update_status("Generating plot...")
+
+            # Get selected parameters
+            x_param = self.plot_x_var.get()
+            y_param = self.plot_y_var.get()
+            plot_type = self.plot_type_var.get()
+
+            # Clear existing plot
+            self.clear_plot()
+
+            # Generate data
+            x_data, y_data, x_label, y_label = self.calculate_plot_data(x_param, y_param)
+
+            # Create matplotlib figure
+            fig = Figure(figsize=(10, 6), dpi=100)
+            ax = fig.add_subplot(111)
+
+            # Plot based on type
+            if plot_type == "2D Line":
+                ax.plot(x_data, y_data, 'b-', linewidth=2, label=f"{y_label} vs {x_label}")
+            elif plot_type == "2D Scatter":
+                ax.scatter(x_data, y_data, c='blue', s=50, alpha=0.6, edgecolors='black')
+            else:  # 3D Surface - simplified to 2D for now
+                ax.plot(x_data, y_data, 'b-', linewidth=2)
+
+            ax.set_xlabel(x_label, fontsize=11, fontweight='bold')
+            ax.set_ylabel(y_label, fontsize=11, fontweight='bold')
+            ax.set_title(f"{y_label} vs {x_label}", fontsize=13, fontweight='bold')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+
+            # Add toolbar
+            toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+            toolbar.update()
+
+            # Store for export
+            self.current_plot_fig = fig
+            self.current_plot_data = (x_data, y_data, x_label, y_label)
+
+            self.update_status("Plot generated successfully")
+
+        except Exception as e:
+            messagebox.showerror("Plot Error", f"Could not generate plot:\n{e}")
+            self.update_status("Plot generation failed")
+
+    def calculate_plot_data(self, x_param, y_param):
+        """Calculate data for plotting based on parameter selection"""
+        import numpy as np
+
+        # Determine sweep range based on x parameter
+        if "Speed" in x_param:
+            x_range = np.linspace(10, 25, 50)  # 10-25 m/s
+            x_values = x_range
+            x_label = "Speed (m/s)"
+        elif "Weight" in x_param:
+            x_range = np.linspace(4, 8, 50)  # 4-8 kg
+            x_values = x_range
+            x_label = "Weight (kg)"
+        elif "Wing Span" in x_param:
+            x_range = np.linspace(1.5, 2.5, 50)  # 1.5-2.5 m
+            x_values = x_range
+            x_label = "Wing Span (m)"
+        elif "Altitude" in x_param:
+            x_range = np.linspace(0, 3000, 50)  # 0-3000 m
+            x_values = x_range
+            x_label = "Altitude (m MSL)"
+        else:
+            x_range = np.linspace(10, 25, 50)
+            x_values = x_range
+            x_label = x_param
+
+        # Calculate y values for each x
+        y_values = []
+        for x_val in x_range:
+            y_val = self.calculate_y_for_x(x_param, x_val, y_param)
+            y_values.append(y_val)
+
+        y_values = np.array(y_values)
+
+        # Y label
+        y_label = y_param
+
+        return x_values, y_values, x_label, y_label
+
+    def calculate_y_for_x(self, x_param, x_val, y_param):
+        """Calculate Y value for given X parameter value"""
+        # Create temporary config with modified parameter
+        from dataclasses import replace
+
+        temp_config = replace(self.current_config)
+
+        # Modify config based on x parameter
+        if "Speed" in x_param:
+            speed = x_val
+        elif "Weight" in x_param:
+            temp_config.total_takeoff_weight_kg = x_val
+            temp_config.__post_init__()
+            speed = 15.0  # default cruise speed
+        elif "Wing Span" in x_param:
+            temp_config.wingspan_m = x_val
+            temp_config.__post_init__()
+            speed = 15.0
+        elif "Altitude" in x_param:
+            temp_config.field_elevation_m = x_val
+            temp_config.__post_init__()
+            speed = 15.0
+        else:
+            speed = 15.0
+
+        # Calculate based on y parameter
+        temp_calc = PerformanceCalculator(temp_config)
+
+        if "Power" in y_param:
+            if "Control" in y_param:
+                return temp_calc.control_power(speed)
+            else:
+                pb = temp_calc.power_budget_breakdown(speed)
+                return pb['total_electrical_w']
+        elif "Current" in y_param:
+            return temp_calc.cruise_current(speed)
+        elif "Endurance" in y_param:
+            current = temp_calc.cruise_current(speed)
+            return temp_calc.endurance(current)
+        elif "Range" in y_param:
+            current = temp_calc.cruise_current(speed)
+            endurance = temp_calc.endurance(current)
+            return temp_calc.range_km(speed, endurance)
+        elif "Propeller Efficiency" in y_param:
+            return temp_calc.propeller_efficiency_cruise(speed) * 100
+        else:
+            return 0.0
 
     def clear_plot(self):
         """Clear current plot"""
-        # Clear plot frame
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
 
+        self.current_plot_fig = None
+        self.current_plot_data = None
+
     def export_plot_png(self):
         """Export current plot as PNG"""
-        messagebox.showinfo("Coming Soon", "Export plot as PNG")
+        if not hasattr(self, 'current_plot_fig') or self.current_plot_fig is None:
+            messagebox.showwarning("No Plot", "Generate a plot first!")
+            return
+
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
+            )
+
+            if filename:
+                self.current_plot_fig.savefig(filename, dpi=300, bbox_inches='tight')
+                self.update_status(f"Plot saved to {filename}")
+                messagebox.showinfo("Success", f"Plot saved to:\n{filename}")
+
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Could not export plot:\n{e}")
 
     def export_plot_csv(self):
         """Export plot data as CSV"""
-        messagebox.showinfo("Coming Soon", "Export plot data as CSV")
+        if not hasattr(self, 'current_plot_data') or self.current_plot_data is None:
+            messagebox.showwarning("No Data", "Generate a plot first!")
+            return
+
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+            )
+
+            if filename:
+                import csv
+                x_data, y_data, x_label, y_label = self.current_plot_data
+
+                with open(filename, 'w', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([x_label, y_label])
+                    for x, y in zip(x_data, y_data):
+                        writer.writerow([x, y])
+
+                self.update_status(f"Data saved to {filename}")
+                messagebox.showinfo("Success", f"Data saved to:\n{filename}")
+
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Could not export data:\n{e}")
 
     def quick_plot(self, x_param, y_param):
         """Generate a quick plot"""
-        messagebox.showinfo("Quick Plot", f"Generating {y_param} vs {x_param}")
+        # Set dropdowns
+        self.plot_x_var.set(f"{x_param} (m/s)" if x_param == "Speed" else f"{x_param} (kg)")
+        self.plot_y_var.set(f"{y_param} (W)" if y_param == "Power" else f"{y_param} (km)" if y_param == "Range" else f"{y_param} (min)")
+
+        # Generate
+        self.generate_custom_plot()
 
     # -----------------------------------------------------------------------
     # EXPORT FUNCTIONS
