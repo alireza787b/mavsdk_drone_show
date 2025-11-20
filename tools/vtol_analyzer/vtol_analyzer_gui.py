@@ -105,6 +105,13 @@ class VTOLAnalyzerGUI(tk.Tk):
         # Parameter tooltips database
         self.param_tooltips = self.get_parameter_tooltips()
 
+        # Parameter validation ranges
+        self.param_ranges = self.get_parameter_ranges()
+
+        # Validation status tracking
+        self.param_validation_status = {}
+        self.overall_validation_valid = False
+
         # Initialize UI
         self.create_styles()
         self.create_menu()
@@ -167,6 +174,129 @@ class VTOLAnalyzerGUI(tk.Tk):
             "payload_power_w": "Power for cameras, sensors, or other payload.\n0-20W depending on equipment",
             "heater_power_w": "Battery heater power for cold weather operations.\n0-15W, only when needed",
         }
+
+    def get_parameter_ranges(self):
+        """Parameter validation ranges (min, max, warning_min, warning_max)"""
+        return {
+            # Basic Parameters
+            "total_takeoff_weight_kg": (1.0, 20.0, 2.0, 12.0),
+            "wingspan_m": (0.5, 5.0, 1.0, 3.0),
+            "wing_chord_m": (0.05, 0.5, 0.1, 0.3),
+            "field_elevation_m": (0.0, 4000.0, 0.0, 2500.0),
+
+            # Tailsitter-Specific
+            "control_power_base_w": (20.0, 150.0, 30.0, 100.0),
+            "control_power_speed_factor": (1.0, 15.0, 2.0, 10.0),
+            "cd0_motor_nacelles": (0.010, 0.060, 0.020, 0.045),
+            "cd0_fuselage_base": (0.003, 0.025, 0.005, 0.015),
+            "cd0_landing_gear": (0.003, 0.030, 0.008, 0.020),
+            "cd0_interference": (0.005, 0.035, 0.010, 0.025),
+
+            # Transition Parameters
+            "transition_forward_duration_s": (5.0, 30.0, 10.0, 20.0),
+            "transition_forward_power_factor": (1.2, 3.0, 1.5, 2.5),
+            "transition_back_duration_s": (4.0, 25.0, 8.0, 15.0),
+            "transition_back_power_factor": (1.0, 2.5, 1.2, 2.0),
+
+            # Propulsion
+            "battery_capacity_mah": (2000.0, 30000.0, 5000.0, 20000.0),
+            "battery_voltage_v": (7.4, 50.0, 11.1, 29.6),
+            "battery_weight_fraction": (0.15, 0.50, 0.25, 0.40),
+            "battery_min_voltage_fraction": (0.70, 0.95, 0.75, 0.85),
+            "motor_kv": (100.0, 2000.0, 300.0, 1200.0),
+            "propeller_diameter_in": (5.0, 20.0, 8.0, 16.0),
+            "propeller_pitch_in": (3.0, 15.0, 5.0, 12.0),
+            "hover_efficiency": (0.40, 0.80, 0.50, 0.70),
+            "cruise_efficiency": (0.60, 0.90, 0.75, 0.85),
+            "motor_efficiency": (0.70, 0.95, 0.80, 0.90),
+            "esc_efficiency": (0.85, 0.98, 0.92, 0.97),
+            "prop_efficiency_lowspeed": (0.40, 0.85, 0.60, 0.75),
+            "prop_efficiency_highspeed": (0.40, 0.90, 0.50, 0.85),
+            "motor_efficiency_peak": (0.70, 0.95, 0.75, 0.90),
+
+            # Auxiliary Systems
+            "avionics_power_w": (2.0, 20.0, 4.0, 10.0),
+            "payload_power_w": (0.0, 50.0, 0.0, 20.0),
+            "heater_power_w": (0.0, 30.0, 0.0, 15.0),
+        }
+
+    def validate_parameter(self, param_name, value_str):
+        """Validate a single parameter and return status"""
+        if param_name not in self.param_ranges:
+            return 'unknown', None
+
+        try:
+            value = float(value_str)
+            min_val, max_val, warn_min, warn_max = self.param_ranges[param_name]
+
+            # Check hard limits
+            if value < min_val or value > max_val:
+                return 'invalid', f"Out of range: {min_val}-{max_val}"
+
+            # Check warning range
+            if value < warn_min or value > warn_max:
+                return 'warning', f"Unusual value (typical: {warn_min}-{warn_max})"
+
+            # Valid
+            return 'valid', None
+
+        except ValueError:
+            return 'invalid', "Must be a number"
+
+    def bind_validation(self, param_name, entry_widget):
+        """Bind real-time validation to an entry widget"""
+        def on_change(event=None):
+            value_str = entry_widget.get()
+
+            # Skip if empty (during loading)
+            if not value_str:
+                entry_widget.config(background='white')
+                self.param_validation_status[param_name] = 'empty'
+                self.update_overall_validation()
+                return
+
+            # Validate
+            status, message = self.validate_parameter(param_name, value_str)
+            self.param_validation_status[param_name] = status
+
+            # Visual feedback
+            colors = {
+                'valid': '#D4EDDA',      # Light green
+                'warning': '#FFF3CD',    # Light yellow
+                'invalid': '#F8D7DA',    # Light red
+                'empty': 'white',
+                'unknown': 'white',
+            }
+            entry_widget.config(background=colors.get(status, 'white'))
+
+            # Update overall validation
+            self.update_overall_validation()
+
+        # Bind to key release
+        entry_widget.bind('<KeyRelease>', on_change)
+        entry_widget.bind('<FocusOut>', on_change)
+
+        # Initial validation
+        on_change()
+
+    def update_overall_validation(self):
+        """Update overall validation status and enable/disable Run Analysis"""
+        # Check if any parameter is invalid
+        has_invalid = any(status == 'invalid' for status in self.param_validation_status.values())
+        has_empty = any(status == 'empty' for status in self.param_validation_status.values())
+
+        # Update overall status
+        if has_invalid or has_empty:
+            self.overall_validation_valid = False
+        else:
+            self.overall_validation_valid = True
+
+        # Update Run Analysis button state (if it exists)
+        if hasattr(self, 'run_analysis_button'):
+            if self.overall_validation_valid:
+                self.run_analysis_button.config(state='normal')
+            else:
+                self.run_analysis_button.config(state='disabled')
 
     # -----------------------------------------------------------------------
     # STYLING
@@ -357,7 +487,11 @@ class VTOLAnalyzerGUI(tk.Tk):
         bottom_frame.pack(fill='x', padx=10, pady=10)
 
         ttk.Button(bottom_frame, text="Validate Configuration", command=self.validate_config).pack(side='left', padx=5)
-        ttk.Button(bottom_frame, text="Run Analysis", command=self.run_analysis, style='Primary.TButton').pack(side='left', padx=5)
+
+        # Store Run Analysis button for validation control
+        self.run_analysis_button = ttk.Button(bottom_frame, text="Run Analysis", command=self.run_analysis, style='Primary.TButton')
+        self.run_analysis_button.pack(side='left', padx=5)
+
         ttk.Button(bottom_frame, text="View Results →", command=lambda: self.notebook.select(1)).pack(side='left', padx=5)
 
     def create_basic_params_section(self, parent):
@@ -387,6 +521,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Add tooltip if available
             if param in self.param_tooltips:
                 self.create_tooltip(entry, self.param_tooltips[param])
+
+            # Bind real-time validation
+            self.bind_validation(param, entry)
 
     def create_tailsitter_params_section(self, parent):
         """Create tailsitter-specific parameters section"""
@@ -421,6 +558,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             if param in self.param_tooltips:
                 self.create_tooltip(entry, self.param_tooltips[param])
 
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
     def create_transitions_params_section(self, parent):
         """Create transition parameters section (collapsible)"""
         # This will be a collapsible section - simplified for now
@@ -453,6 +593,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             if param in self.param_tooltips:
                 self.create_tooltip(entry, self.param_tooltips[param])
 
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
     def create_propulsion_params_section(self, parent):
         """Create propulsion parameters section"""
         frame = ttk.LabelFrame(parent, text=" Propulsion Efficiency ", padding=10)
@@ -481,6 +624,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             if param in self.param_tooltips:
                 self.create_tooltip(entry, self.param_tooltips[param])
 
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
     def create_auxiliary_params_section(self, parent):
         """Create auxiliary systems parameters section"""
         frame = ttk.LabelFrame(parent, text=" Auxiliary Systems ", padding=10)
@@ -507,6 +653,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Add tooltip if available
             if param in self.param_tooltips:
                 self.create_tooltip(entry, self.param_tooltips[param])
+
+            # Bind real-time validation
+            self.bind_validation(param, entry)
 
     # -----------------------------------------------------------------------
     # TAB 2: ANALYSIS RESULTS
