@@ -2319,6 +2319,7 @@ if __name__ == "__main__":
         print("  python vtol_performance_analyzer.py [options]")
         print("\nOptions:")
         print("  --help                Show this help message")
+        print("  --gui                 Launch full GUI interface (v4.0)")
         print("  --preset NAME         Use specific configuration preset")
         print("  --list-presets        List all available presets")
         print("  --console             Run console-only mode (no plots)")
@@ -2327,6 +2328,9 @@ if __name__ == "__main__":
         print("  python vtol_performance_analyzer.py --preset baseline    # 6kg standard")
         print("  python vtol_performance_analyzer.py --preset lightning   # 5.2kg ultra-light")
         print("  python vtol_performance_analyzer.py --preset thunder     # 8kg heavy payload")
+        print("\nGUI Mode (v4.0):")
+        print("  python vtol_performance_analyzer.py --gui                # Launch full GUI")
+        print("  python vtol_analyzer_gui.py                              # Direct GUI launch")
         print("\nDefault:")
         print("  If no preset specified, uses 'baseline' (6kg production standard)")
         print("\nOutput:")
@@ -2346,6 +2350,16 @@ if __name__ == "__main__":
         print("  - Complete power budget breakdown")
         print("  - Configuration presets (5.2kg, 6kg, 8kg)")
         print()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--gui":
+        # Launch GUI mode (v4.0)
+        print("Launching GUI interface...")
+        try:
+            import vtol_analyzer_gui
+            vtol_analyzer_gui.main()
+        except ImportError as e:
+            print(f"Error: Could not launch GUI: {e}")
+            print("Make sure vtol_analyzer_gui.py is in the same directory")
+            sys.exit(1)
     elif len(sys.argv) > 1 and sys.argv[1] == "--list-presets":
         try:
             from config_presets import PresetManager
