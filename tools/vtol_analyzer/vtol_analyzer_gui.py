@@ -472,66 +472,101 @@ class VTOLAnalyzerGUI(tk.Tk):
     # -----------------------------------------------------------------------
 
     def create_plots_tab(self):
-        """Create interactive plotting tab"""
-        # Control panel
-        control_frame = ttk.LabelFrame(self.tab_plots, text=" Plot Configuration ", padding=10)
+        """Create interactive plotting tab with dynamic parameter selection"""
+        # Initialize plot parameters list
+        self.plot_params = []
+
+        # Top section: Common Plots Gallery
+        gallery_frame = ttk.LabelFrame(self.tab_plots, text=" 📊 Common Plots Gallery - Quick Click ", padding=10)
+        gallery_frame.pack(fill='x', padx=10, pady=5)
+
+        # Try to load common plots
+        try:
+            from common_plots import COMMON_PLOTS, PLOT_CATEGORIES
+            self.common_plots_available = True
+
+            # Create category sections
+            for category, plot_ids in PLOT_CATEGORIES.items():
+                cat_frame = ttk.LabelFrame(gallery_frame, text=f" {category} ", padding=5)
+                cat_frame.pack(fill='x', pady=3)
+
+                for plot_id in plot_ids:
+                    plot_def = COMMON_PLOTS.get(plot_id)
+                    if plot_def:
+                        btn_text = f"{plot_def['icon']} {plot_def['name']}"
+                        btn = ttk.Button(
+                            cat_frame,
+                            text=btn_text,
+                            command=lambda pid=plot_id: self.load_common_plot(pid),
+                            width=25
+                        )
+                        btn.pack(side='left', padx=3)
+
+                        # Add tooltip with description
+                        self.create_tooltip(btn, plot_def['description'])
+
+        except ImportError:
+            self.common_plots_available = False
+            ttk.Label(gallery_frame, text="⚠ Common plots database not available",
+                     foreground='orange').pack()
+
+        # Custom plot configuration panel
+        control_frame = ttk.LabelFrame(self.tab_plots, text=" ⚙ Custom Plot - Select Parameters ", padding=10)
         control_frame.pack(fill='x', padx=10, pady=10)
 
-        # Plot type
-        ttk.Label(control_frame, text="Plot Type:").grid(row=0, column=0, sticky='w', pady=5)
-        self.plot_type_var = tk.StringVar(value="2D Line")
-        plot_types = ["2D Line", "2D Scatter", "3D Surface"]
-        for i, ptype in enumerate(plot_types):
-            ttk.Radiobutton(control_frame, text=ptype, variable=self.plot_type_var, value=ptype).grid(row=0, column=i+1, sticky='w', padx=10)
+        # Instructions
+        instructions = ttk.Label(
+            control_frame,
+            text="Add 2-3 parameters below. Plot shows: Last parameter vs First (if 2), or First vs Second,Third (if 3)",
+            foreground='gray',
+            font=('Arial', 9, 'italic')
+        )
+        instructions.pack(anchor='w', pady=(0, 10))
 
-        # Axis selectors
-        ttk.Label(control_frame, text="X-Axis:").grid(row=1, column=0, sticky='w', pady=5)
-        self.plot_x_var = tk.StringVar(value="Speed (m/s)")
-        x_combo = ttk.Combobox(control_frame, textvariable=self.plot_x_var, width=30, state='readonly')
-        x_combo['values'] = self.get_plottable_parameters()
-        x_combo.grid(row=1, column=1, columnspan=2, sticky='w', padx=5)
+        # Dynamic parameter selector
+        selector_frame = ttk.Frame(control_frame)
+        selector_frame.pack(fill='x')
 
-        ttk.Label(control_frame, text="Y-Axis:").grid(row=2, column=0, sticky='w', pady=5)
-        self.plot_y_var = tk.StringVar(value="Power (W)")
-        y_combo = ttk.Combobox(control_frame, textvariable=self.plot_y_var, width=30, state='readonly')
-        y_combo['values'] = self.get_plottable_parameters()
-        y_combo.grid(row=2, column=1, columnspan=2, sticky='w', padx=5)
+        # Container for parameter list
+        self.params_container = ttk.Frame(selector_frame)
+        self.params_container.pack(side='left', fill='both', expand=True)
 
-        ttk.Label(control_frame, text="Z-Axis (3D):").grid(row=3, column=0, sticky='w', pady=5)
-        self.plot_z_var = tk.StringVar(value="Weight (kg)")
-        z_combo = ttk.Combobox(control_frame, textvariable=self.plot_z_var, width=30, state='readonly')
-        z_combo['values'] = self.get_plottable_parameters()
-        z_combo.grid(row=3, column=1, columnspan=2, sticky='w', padx=5)
+        # Add parameter button
+        add_btn_frame = ttk.Frame(selector_frame)
+        add_btn_frame.pack(side='right', padx=10)
+
+        ttk.Button(
+            add_btn_frame,
+            text="➕ Add Parameter",
+            command=self.add_plot_parameter,
+            style='Primary.TButton'
+        ).pack()
+
+        ttk.Label(add_btn_frame, text="(max 3)", font=('Arial', 8), foreground='gray').pack()
 
         # Action buttons
         button_frame = ttk.Frame(control_frame)
-        button_frame.grid(row=4, column=0, columnspan=4, pady=10)
+        button_frame.pack(fill='x', pady=10)
 
-        ttk.Button(button_frame, text="Generate Plot", command=self.generate_custom_plot, style='Primary.TButton').pack(side='left', padx=5)
-        ttk.Button(button_frame, text="Clear", command=self.clear_plot).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="📈 Generate Plot", command=self.generate_custom_plot,
+                  style='Primary.TButton').pack(side='left', padx=5)
+        ttk.Button(button_frame, text="Clear All", command=self.clear_all_plot_params).pack(side='left', padx=5)
         ttk.Button(button_frame, text="Export PNG", command=self.export_plot_png).pack(side='left', padx=5)
         ttk.Button(button_frame, text="Export CSV", command=self.export_plot_csv).pack(side='left', padx=5)
-
-        # Quick plot buttons
-        quick_frame = ttk.LabelFrame(self.tab_plots, text=" Quick Plots ", padding=10)
-        quick_frame.pack(fill='x', padx=10, pady=5)
-
-        quick_buttons = [
-            ("Power vs Speed", lambda: self.quick_plot("Speed", "Power")),
-            ("Range vs Speed", lambda: self.quick_plot("Speed", "Range")),
-            ("Endurance vs Weight", lambda: self.quick_plot("Weight", "Endurance")),
-        ]
-
-        for text, cmd in quick_buttons:
-            ttk.Button(quick_frame, text=text, command=cmd).pack(side='left', padx=5)
 
         # Matplotlib canvas
         self.plot_frame = ttk.Frame(self.tab_plots)
         self.plot_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
         # Placeholder
-        placeholder = ttk.Label(self.plot_frame, text="Click 'Generate Plot' or use Quick Plots", font=('Arial', 12))
+        placeholder = ttk.Label(self.plot_frame,
+                               text="👆 Click a common plot above or build your own below",
+                               font=('Arial', 12))
         placeholder.pack(expand=True)
+
+        # Pre-load 2 parameters to show interface
+        self.after(100, lambda: self.add_plot_parameter("Speed (m/s)"))
+        self.after(150, lambda: self.add_plot_parameter("Forward Flight Power (W)"))
 
     # -----------------------------------------------------------------------
     # TAB 4: MISSION BUILDER
@@ -2430,54 +2465,211 @@ class VTOLAnalyzerGUI(tk.Tk):
         """Get list of parameters that can be plotted"""
         return [
             "Speed (m/s)",
-            "Power (W)",
+            "Forward Flight Power (W)",
+            "Hover Power (W)",
+            "Control Power (W)",
             "Current (A)",
-            "Endurance (min)",
-            "Range (km)",
+            "Forward Flight Endurance (min)",
+            "Hover Endurance (pure hover) (min)",
+            "Forward Flight Range (km)",
+            "Max Range (optimized speed) (km)",
             "Weight (kg)",
             "Wing Span (m)",
+            "Wing Area (m²)",
             "Altitude (m)",
-            "Control Power (W)",
+            "Battery Capacity (mAh)",
             "Propeller Efficiency (%)",
+            "Lift-to-Drag Ratio",
         ]
 
+    def add_plot_parameter(self, param_name=None):
+        """Add a parameter to the plot selection list"""
+        # Limit to 3 parameters
+        if len(self.plot_params) >= 3:
+            messagebox.showwarning("Maximum Reached", "You can select up to 3 parameters")
+            return
+
+        # Create parameter row
+        param_row = ttk.Frame(self.params_container)
+        param_row.pack(fill='x', pady=3)
+
+        # Parameter number label
+        param_num = len(self.plot_params) + 1
+        ttk.Label(param_row, text=f"Parameter {param_num}:", width=12).pack(side='left', padx=5)
+
+        # Parameter dropdown
+        param_var = tk.StringVar(value=param_name if param_name else "Speed (m/s)")
+        param_combo = ttk.Combobox(
+            param_row,
+            textvariable=param_var,
+            values=self.get_plottable_parameters(),
+            width=35,
+            state='readonly'
+        )
+        param_combo.pack(side='left', padx=5)
+
+        # Remove button
+        remove_btn = ttk.Button(
+            param_row,
+            text="➖",
+            width=3,
+            command=lambda: self.remove_plot_parameter(param_row, param_data)
+        )
+        remove_btn.pack(side='left', padx=5)
+
+        # Store parameter data
+        param_data = {
+            'frame': param_row,
+            'var': param_var,
+            'combo': param_combo,
+        }
+        self.plot_params.append(param_data)
+
+    def remove_plot_parameter(self, frame, param_data):
+        """Remove a parameter from the plot selection list"""
+        # Remove from UI
+        frame.destroy()
+
+        # Remove from list
+        if param_data in self.plot_params:
+            self.plot_params.remove(param_data)
+
+        # Renumber remaining parameters
+        for i, param in enumerate(self.plot_params):
+            # Update label
+            for widget in param['frame'].winfo_children():
+                if isinstance(widget, ttk.Label):
+                    widget.config(text=f"Parameter {i+1}:")
+                    break
+
+    def clear_all_plot_params(self):
+        """Clear all plot parameters"""
+        for param in self.plot_params[:]:  # Copy list to avoid modification during iteration
+            param['frame'].destroy()
+        self.plot_params = []
+        self.clear_plot()
+
+    def load_common_plot(self, plot_id):
+        """Load a common plot configuration"""
+        try:
+            from common_plots import COMMON_PLOTS
+
+            plot_def = COMMON_PLOTS.get(plot_id)
+            if not plot_def:
+                messagebox.showerror("Error", f"Plot definition not found: {plot_id}")
+                return
+
+            # Clear existing parameters
+            self.clear_all_plot_params()
+
+            # Add X parameter
+            self.add_plot_parameter(plot_def['x_param'])
+
+            # Add Y parameters
+            for y_param in plot_def['y_params']:
+                self.add_plot_parameter(y_param)
+
+            # Generate plot automatically
+            self.after(100, self.generate_custom_plot)
+
+            self.update_status(f"✓ Loaded: {plot_def['name']}")
+
+        except Exception as e:
+            messagebox.showerror("Load Error", f"Could not load common plot:\n{e}")
+
+    def create_tooltip(self, widget, text):
+        """Create a tooltip for a widget"""
+        def on_enter(event):
+            tooltip = tk.Toplevel()
+            tooltip.wm_overrideredirect(True)
+            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
+
+            label = ttk.Label(
+                tooltip,
+                text=text,
+                background="#ffffe0",
+                relief='solid',
+                borderwidth=1,
+                font=('Arial', 9)
+            )
+            label.pack()
+
+            widget.tooltip = tooltip
+
+        def on_leave(event):
+            if hasattr(widget, 'tooltip'):
+                widget.tooltip.destroy()
+                del widget.tooltip
+
+        widget.bind("<Enter>", on_enter)
+        widget.bind("<Leave>", on_leave)
+
     def generate_custom_plot(self):
-        """Generate user-defined custom plot"""
+        """Generate user-defined custom plot with dynamic parameters"""
         if not self.current_calc:
             messagebox.showwarning("No Analysis", "Run an analysis first!")
+            return
+
+        # Validate parameter count
+        if len(self.plot_params) < 2:
+            messagebox.showwarning("Not Enough Parameters",
+                                 "Add at least 2 parameters to create a plot.\n\n"
+                                 "2 params: Y vs X\n"
+                                 "3 params: X vs Y1, Y2")
             return
 
         try:
             self.update_status("Generating plot...")
 
-            # Get selected parameters
-            x_param = self.plot_x_var.get()
-            y_param = self.plot_y_var.get()
-            plot_type = self.plot_type_var.get()
-
             # Clear existing plot
             self.clear_plot()
 
-            # Generate data
-            x_data, y_data, x_label, y_label = self.calculate_plot_data(x_param, y_param)
+            # Get parameter selections
+            params = [p['var'].get() for p in self.plot_params]
+
+            if len(params) == 2:
+                # 2 parameters: param2 vs param1 (Y vs X)
+                x_param = params[0]
+                y_params = [params[1]]
+                title = f"{params[1]} vs {params[0]}"
+
+            elif len(params) == 3:
+                # 3 parameters: param1 vs param2, param3 (X vs Y1, Y2)
+                x_param = params[0]
+                y_params = [params[1], params[2]]
+                title = f"{params[0]} vs {params[1]}, {params[2]}"
 
             # Create matplotlib figure
             fig = Figure(figsize=(10, 6), dpi=100)
             ax = fig.add_subplot(111)
 
-            # Plot based on type
-            if plot_type == "2D Line":
-                ax.plot(x_data, y_data, 'b-', linewidth=2, label=f"{y_label} vs {x_label}")
-            elif plot_type == "2D Scatter":
-                ax.scatter(x_data, y_data, c='blue', s=50, alpha=0.6, edgecolors='black')
-            else:  # 3D Surface - simplified to 2D for now
-                ax.plot(x_data, y_data, 'b-', linewidth=2)
+            # Colors for multiple lines
+            colors = ['#2E86AB', '#A23B72', '#F18F01']
 
+            # Plot each Y parameter
+            all_y_data = []
+            for i, y_param in enumerate(y_params):
+                x_data, y_data, x_label, y_label = self.calculate_plot_data(x_param, y_param)
+
+                ax.plot(x_data, y_data, color=colors[i], linewidth=2,
+                       label=y_label, marker='o', markersize=3, markevery=5)
+
+                all_y_data.append((y_data, y_label))
+
+            # Set labels and formatting
             ax.set_xlabel(x_label, fontsize=11, fontweight='bold')
-            ax.set_ylabel(y_label, fontsize=11, fontweight='bold')
-            ax.set_title(f"{y_label} vs {x_label}", fontsize=13, fontweight='bold')
-            ax.grid(True, alpha=0.3)
-            ax.legend()
+
+            if len(y_params) == 1:
+                ax.set_ylabel(y_label, fontsize=11, fontweight='bold')
+            else:
+                ax.set_ylabel("Value", fontsize=11, fontweight='bold')
+
+            ax.set_title(title, fontsize=13, fontweight='bold', pad=15)
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.legend(loc='best', framealpha=0.9)
+
+            # Tight layout
+            fig.tight_layout()
 
             # Embed in tkinter
             canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
@@ -2490,11 +2682,13 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             # Store for export
             self.current_plot_fig = fig
-            self.current_plot_data = (x_data, y_data, x_label, y_label)
+            self.current_plot_data = (x_data, all_y_data, x_label)
 
-            self.update_status("Plot generated successfully")
+            self.update_status("✓ Plot generated successfully")
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             messagebox.showerror("Plot Error", f"Could not generate plot:\n{e}")
             self.update_status("Plot generation failed")
 
@@ -2504,25 +2698,32 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         # Determine sweep range based on x parameter
         if "Speed" in x_param:
-            x_range = np.linspace(10, 25, 50)  # 10-25 m/s
-            x_values = x_range
+            x_range = np.linspace(10, 25, 50)
             x_label = "Speed (m/s)"
         elif "Weight" in x_param:
-            x_range = np.linspace(4, 8, 50)  # 4-8 kg
-            x_values = x_range
+            x_range = np.linspace(4, 8, 50)
             x_label = "Weight (kg)"
         elif "Wing Span" in x_param:
-            x_range = np.linspace(1.5, 2.5, 50)  # 1.5-2.5 m
-            x_values = x_range
+            x_range = np.linspace(1.5, 2.5, 50)
             x_label = "Wing Span (m)"
+        elif "Wing Area" in x_param:
+            x_range = np.linspace(0.2, 0.6, 50)
+            x_label = "Wing Area (m²)"
         elif "Altitude" in x_param:
-            x_range = np.linspace(0, 3000, 50)  # 0-3000 m
-            x_values = x_range
+            x_range = np.linspace(0, 3000, 50)
             x_label = "Altitude (m MSL)"
+        elif "Battery Capacity" in x_param:
+            x_range = np.linspace(5000, 20000, 50)
+            x_label = "Battery Capacity (mAh)"
+        elif "Control Power" in x_param:
+            x_range = np.linspace(20, 100, 50)
+            x_label = "Control Power (W)"
         else:
+            # Default sweep
             x_range = np.linspace(10, 25, 50)
-            x_values = x_range
             x_label = x_param
+
+        x_values = x_range
 
         # Calculate y values for each x
         y_values = []
@@ -2531,15 +2732,12 @@ class VTOLAnalyzerGUI(tk.Tk):
             y_values.append(y_val)
 
         y_values = np.array(y_values)
-
-        # Y label
         y_label = y_param
 
         return x_values, y_values, x_label, y_label
 
     def calculate_y_for_x(self, x_param, x_val, y_param):
         """Calculate Y value for given X parameter value"""
-        # Create temporary config with modified parameter
         from dataclasses import replace
 
         temp_config = replace(self.current_config)
@@ -2550,13 +2748,25 @@ class VTOLAnalyzerGUI(tk.Tk):
         elif "Weight" in x_param:
             temp_config.total_takeoff_weight_kg = x_val
             temp_config.__post_init__()
-            speed = 15.0  # default cruise speed
+            speed = 15.0
         elif "Wing Span" in x_param:
             temp_config.wingspan_m = x_val
             temp_config.__post_init__()
             speed = 15.0
+        elif "Wing Area" in x_param:
+            temp_config.wing_area_m2 = x_val
+            temp_config.__post_init__()
+            speed = 15.0
         elif "Altitude" in x_param:
             temp_config.field_elevation_m = x_val
+            temp_config.__post_init__()
+            speed = 15.0
+        elif "Battery Capacity" in x_param:
+            temp_config.battery_capacity_mah = x_val
+            temp_config.__post_init__()
+            speed = 15.0
+        elif "Control Power" in x_param:
+            temp_config.control_power_w = x_val
             temp_config.__post_init__()
             speed = 15.0
         else:
@@ -2565,23 +2775,32 @@ class VTOLAnalyzerGUI(tk.Tk):
         # Calculate based on y parameter
         temp_calc = PerformanceCalculator(temp_config)
 
-        if "Power" in y_param:
-            if "Control" in y_param:
-                return temp_calc.control_power(speed)
-            else:
-                pb = temp_calc.power_budget_breakdown(speed)
-                return pb['total_electrical_w']
+        if "Forward Flight Power" in y_param:
+            pb = temp_calc.power_budget_breakdown(speed)
+            return pb['total_electrical_w']
+        elif "Hover Power" in y_param:
+            return temp_calc.hover_power()
+        elif "Control Power" in y_param:
+            return temp_calc.control_power(speed)
         elif "Current" in y_param:
             return temp_calc.cruise_current(speed)
-        elif "Endurance" in y_param:
+        elif "Forward Flight Endurance" in y_param:
             current = temp_calc.cruise_current(speed)
             return temp_calc.endurance(current)
-        elif "Range" in y_param:
+        elif "Hover Endurance" in y_param:
+            current = temp_calc.hover_current()
+            return temp_calc.endurance(current)
+        elif "Forward Flight Range" in y_param and "Max Range" not in y_param:
             current = temp_calc.cruise_current(speed)
             endurance = temp_calc.endurance(current)
             return temp_calc.range_km(speed, endurance)
+        elif "Max Range" in y_param:
+            best_range_result = temp_calc.best_range_speed()
+            return best_range_result['range_km']
         elif "Propeller Efficiency" in y_param:
             return temp_calc.propeller_efficiency_cruise(speed) * 100
+        elif "Lift-to-Drag Ratio" in y_param:
+            return temp_calc.lift_to_drag_ratio(speed)
         else:
             return 0.0
 
@@ -2627,15 +2846,21 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             if filename:
                 import csv
-                x_data, y_data, x_label, y_label = self.current_plot_data
+                x_data, all_y_data, x_label = self.current_plot_data
 
                 with open(filename, 'w', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([x_label, y_label])
-                    for x, y in zip(x_data, y_data):
-                        writer.writerow([x, y])
 
-                self.update_status(f"Data saved to {filename}")
+                    # Header row
+                    headers = [x_label] + [y_label for _, y_label in all_y_data]
+                    writer.writerow(headers)
+
+                    # Data rows
+                    for i, x in enumerate(x_data):
+                        row = [x] + [y_data[i] for y_data, _ in all_y_data]
+                        writer.writerow(row)
+
+                self.update_status(f"✓ Data saved to {filename}")
                 messagebox.showinfo("Success", f"Data saved to:\n{filename}")
 
         except Exception as e:
