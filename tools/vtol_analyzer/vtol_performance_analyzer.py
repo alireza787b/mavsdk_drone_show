@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 ===============================================================================
-VTOL QUADPLANE PERFORMANCE ANALYZER
+VTOL QUADPLANE PERFORMANCE ANALYZER v3.0
 ===============================================================================
-Professional aerospace performance analysis tool for VTOL quadplane UAVs
+Industrial-grade aerospace performance analysis tool for VTOL quadplane UAVs
+with tailsitter-specific corrections and mission profile analysis.
 
 Author: Aerospace Performance Analysis System
-Version: 2.0.0
-Date: 2025-01-19
+Version: 3.0.0
+Date: 2025-01-20
 
 Based on:
 - International Standard Atmosphere (ISA) model
@@ -140,6 +141,45 @@ class AircraftConfiguration:
     landing_gear_drag_area_m2: float = 0.003  # Equivalent flat plate drag [m²]
 
     # -----------------------------------------------------------------------
+    # TAILSITTER-SPECIFIC PARAMETERS (v3.0)
+    # -----------------------------------------------------------------------
+    # Aircraft type selection
+    aircraft_type: str = "TAILSITTER"  # "TAILSITTER" or "QUADPLANE"
+
+    # DRAG BREAKDOWN (Tailsitter-specific)
+    # Total CD0 = cd0_clean + cd0_nacelles + cd0_fuselage_base + cd0_gear + cd0_interference
+    cd0_motor_nacelles: float = 0.035  # 4 motor pods in crossflow [TUNE THIS]
+    cd0_fuselage_base: float = 0.008   # Blunt tail (vertical sitting position)
+    cd0_landing_gear: float = 0.012    # Tailsitter landing structure
+    cd0_interference: float = 0.015    # Propeller-wing interaction
+
+    # CONTROL POWER (Differential thrust - NO control surfaces)
+    control_power_base_w: float = 50.0           # Baseline control power [W] [TUNE THIS]
+    control_power_speed_factor: float = 5.0      # Additional power at low speed [W/(m/s)]
+    # At 15 m/s: 50W, At 10 m/s: 75W, At 5 m/s: 100W
+
+    # TRANSITION PARAMETERS
+    transition_forward_duration_s: float = 15.0  # Hover→cruise transition time [s] [MEASURE FROM LOGS]
+    transition_forward_power_factor: float = 2.0 # Peak power multiplier [TUNE THIS]
+    transition_back_duration_s: float = 10.0     # Cruise→hover transition time [s] [MEASURE FROM LOGS]
+    transition_back_power_factor: float = 1.6    # Peak power multiplier (usually less than forward)
+
+    # Q-ASSIST (Low-speed flight augmentation - PX4 VT_FW_DIFTHR_EN)
+    q_assist_enabled: bool = True                # Enable Q-Assist for tailsitter
+    q_assist_threshold_speed_ms: float = 12.0    # Activate below this airspeed [m/s]
+    q_assist_max_power_fraction: float = 0.25    # Max 25% of hover power
+
+    # PROPULSION EFFICIENCY CORRECTIONS (Tailsitter hover-optimized props)
+    prop_efficiency_lowspeed: float = 0.68       # 12-18 m/s (better than standard)
+    prop_efficiency_highspeed: float = 0.55      # >20 m/s (worse than standard)
+
+    # AUXILIARY SYSTEMS POWER BUDGET (v3.0)
+    avionics_power_w: float = 6.5      # Flight controller (3W) + GPS (0.5W) + Telemetry (2W) + Sensors (1W)
+    payload_power_w: float = 8.0       # Camera (5W) + Gimbal (3W)
+    heater_power_w: float = 0.0        # Battery heater for cold weather (if needed)
+    esc_efficiency: float = 0.92       # ESC efficiency (typical 30-60A ESC)
+
+    # -----------------------------------------------------------------------
     # OPERATING ENVIRONMENT
     # -----------------------------------------------------------------------
     field_elevation_m: float = 1000.0  # Field elevation above MSL [m]
@@ -169,7 +209,16 @@ class AircraftConfiguration:
         self.induced_drag_factor = 1.0 / (math.pi * self.aspect_ratio * self.oswald_efficiency)
 
         # Total parasite drag coefficient (cruise configuration)
-        self.cd0_total_cruise = self.cd0_clean + self.cd0_vtol_motors
+        # v3.0: Use tailsitter-specific breakdown if TAILSITTER type
+        if self.aircraft_type == "TAILSITTER":
+            self.cd0_total_cruise = (self.cd0_clean +
+                                     self.cd0_motor_nacelles +
+                                     self.cd0_fuselage_base +
+                                     self.cd0_landing_gear +
+                                     self.cd0_interference)
+        else:
+            # Standard quadplane
+            self.cd0_total_cruise = self.cd0_clean + self.cd0_vtol_motors
 
         # Propeller diameter in meters
         self.prop_diameter_m = self.prop_diameter_inch * 0.0254
@@ -590,27 +639,346 @@ class PerformanceCalculator:
         P_electrical = P_hover / (self.config.motor_efficiency_peak * 0.95)
         return P_electrical / self.config.battery_voltage_nominal
 
+    def control_power(self, velocity_ms: float) -> float:
+        """
+        Calculate control power required (v3.0 - Tailsitter-specific).
+
+        For tailsitters with differential thrust control (no control surfaces),
+        power requirement increases significantly at low speeds.
+
+        Args:
+            velocity_ms: Airspeed [m/s]
+
+        Returns:
+            Control power [W]
+        """
+        if self.config.aircraft_type == "TAILSITTER":
+            # Differential thrust control: higher power at low speeds
+            # P_control = base + speed_factor * max(0, threshold - velocity)
+            threshold_speed = 15.0  # m/s
+            if velocity_ms < threshold_speed:
+                additional_power = self.config.control_power_speed_factor * (threshold_speed - velocity_ms)
+            else:
+                additional_power = 0.0
+
+            return self.config.control_power_base_w + additional_power
+        else:
+            # Standard quadplane with control surfaces: minimal power
+            return 20.0
+
+    def q_assist_power(self, velocity_ms: float) -> float:
+        """
+        Calculate Q-Assist power (v3.0 - Tailsitter low-speed augmentation).
+
+        Q-Assist uses VTOL motors to provide additional lift/control at low speeds.
+        Active when airspeed < threshold, provides fraction of hover power.
+
+        Args:
+            velocity_ms: Airspeed [m/s]
+
+        Returns:
+            Q-Assist power [W]
+        """
+        if not self.config.q_assist_enabled or self.config.aircraft_type != "TAILSITTER":
+            return 0.0
+
+        if velocity_ms < self.config.q_assist_threshold_speed_ms:
+            # Linear blend: 100% at zero speed, 0% at threshold
+            blend_factor = 1.0 - (velocity_ms / self.config.q_assist_threshold_speed_ms)
+            hover_power = self.hover_power_total()
+            return hover_power * self.config.q_assist_max_power_fraction * blend_factor
+        else:
+            return 0.0
+
+    def propeller_efficiency_cruise(self, velocity_ms: float) -> float:
+        """
+        Calculate propeller efficiency for cruise flight (v3.0 - Speed-dependent).
+
+        Tailsitter hover-optimized props have different efficiency at various speeds.
+
+        Args:
+            velocity_ms: Airspeed [m/s]
+
+        Returns:
+            Propeller efficiency [0-1]
+        """
+        if self.config.aircraft_type == "TAILSITTER":
+            # Tailsitter with hover-optimized props
+            if velocity_ms < 12.0:
+                # Very low speed (Q-Assist range): lower efficiency
+                return 0.60
+            elif velocity_ms < 18.0:
+                # Low to medium speed (12-18 m/s): best efficiency range
+                return self.config.prop_efficiency_lowspeed
+            else:
+                # High speed (>18 m/s): reduced efficiency
+                # Linear blend from lowspeed to highspeed efficiency
+                if velocity_ms < 20.0:
+                    blend = (velocity_ms - 18.0) / 2.0
+                    return (self.config.prop_efficiency_lowspeed * (1 - blend) +
+                            self.config.prop_efficiency_highspeed * blend)
+                else:
+                    return self.config.prop_efficiency_highspeed
+        else:
+            # Standard quadplane: use traditional advance ratio method
+            rpm_estimate = self.config.motor_kv * (self.config.battery_voltage_nominal * 0.8)
+            J = PropellerModel.advance_ratio(velocity_ms, rpm_estimate, self.config.prop_diameter_m)
+            return PropellerModel.efficiency(J, self.config)
+
+    def transition_energy(self, direction: str = "forward") -> Dict[str, float]:
+        """
+        Calculate transition energy and time (v3.0 - Tailsitter transitions).
+
+        Transitions involve 90° pitch rotation with high power requirements.
+        Peak power occurs around 45° pitch angle.
+
+        Args:
+            direction: "forward" (hover→cruise) or "back" (cruise→hover)
+
+        Returns:
+            Dictionary with energy [Wh], average power [W], duration [s]
+        """
+        if direction == "forward":
+            duration_s = self.config.transition_forward_duration_s
+            power_factor = self.config.transition_forward_power_factor
+        else:  # "back"
+            duration_s = self.config.transition_back_duration_s
+            power_factor = self.config.transition_back_power_factor
+
+        # Base power (hover power)
+        hover_power = self.hover_power_total()
+
+        # Average power during transition (simplified trapezoidal profile)
+        # Start at hover power, peak at power_factor × hover, end at cruise
+        cruise_speed = self.minimum_power_speed()
+        cruise_power = self.power_required(cruise_speed)
+
+        if direction == "forward":
+            # Average: (hover + peak + cruise) / 3
+            peak_power = hover_power * power_factor
+            avg_power = (hover_power + peak_power + cruise_power) / 3.0
+        else:
+            # Back transition: (cruise + peak + hover) / 3
+            peak_power = hover_power * power_factor
+            avg_power = (cruise_power + peak_power + hover_power) / 3.0
+
+        # Account for propeller and motor efficiency
+        avg_power_electrical = avg_power / (self.config.motor_efficiency_peak * self.config.esc_efficiency)
+
+        # Energy consumed
+        energy_wh = (avg_power_electrical * duration_s) / 3600.0
+
+        return {
+            'direction': direction,
+            'duration_s': duration_s,
+            'avg_power_w': avg_power_electrical,
+            'peak_power_w': peak_power / (self.config.motor_efficiency_peak * self.config.esc_efficiency),
+            'energy_wh': energy_wh,
+        }
+
     def cruise_current(self, velocity_ms: float) -> float:
-        """Calculate current draw in cruise flight"""
-        P_req = self.power_required(velocity_ms)
+        """
+        Calculate current draw in cruise flight (v3.0 - Enhanced with all power components).
 
-        # Propeller operating point
-        # Estimate RPM for this flight condition (simplified)
-        # Assume motor operating at mid-range voltage
-        rpm_estimate = self.config.motor_kv * (self.config.battery_voltage_nominal * 0.8)
-        J = PropellerModel.advance_ratio(velocity_ms, rpm_estimate, self.config.prop_diameter_m)
-        eta_prop = PropellerModel.efficiency(J, self.config)
+        Includes:
+        - Aerodynamic drag power
+        - Propeller efficiency (speed-dependent for tailsitter)
+        - Motor efficiency
+        - ESC efficiency
+        - Control power (differential thrust for tailsitter)
+        - Q-Assist power (low-speed augmentation)
+        - Avionics power
+        - Payload power
+        - Heater power (if enabled)
+        """
+        # 1. Aerodynamic power required
+        P_aero = self.power_required(velocity_ms)
 
-        # Power required from motor
-        P_motor = P_req / eta_prop
+        # 2. Propeller efficiency (v3.0: speed-dependent for tailsitter)
+        eta_prop = self.propeller_efficiency_cruise(velocity_ms)
 
-        # Electrical power
-        P_elec = P_motor / self.config.motor_efficiency_peak
+        # 3. Power required from propulsion motor
+        P_motor = P_aero / eta_prop
 
-        # Add control power for VTOL motors (low throttle for stability)
-        P_control = 20.0  # Watts for stability control
+        # 4. Electrical power accounting for motor efficiency
+        P_propulsion = P_motor / self.config.motor_efficiency_peak
 
-        return (P_elec + P_control) / self.config.battery_voltage_nominal
+        # 5. Control power (v3.0: differential thrust for tailsitter)
+        P_control = self.control_power(velocity_ms)
+
+        # 6. Q-Assist power (v3.0: low-speed augmentation for tailsitter)
+        P_qassist = self.q_assist_power(velocity_ms)
+
+        # 7. Auxiliary systems (v3.0)
+        P_avionics = self.config.avionics_power_w
+        P_payload = self.config.payload_power_w
+        P_heater = self.config.heater_power_w
+
+        # 8. Total electrical power (before ESC)
+        P_total_pre_esc = P_propulsion + P_control + P_qassist + P_avionics + P_payload + P_heater
+
+        # 9. Account for ESC efficiency (v3.0)
+        P_total_electrical = P_total_pre_esc / self.config.esc_efficiency
+
+        # 10. Current draw from battery
+        return P_total_electrical / self.config.battery_voltage_nominal
+
+    def power_budget_breakdown(self, velocity_ms: float) -> Dict[str, float]:
+        """
+        Calculate detailed power budget breakdown (v3.0).
+
+        Returns:
+            Dictionary with all power components [W]
+        """
+        # Aerodynamic power
+        P_aero = self.power_required(velocity_ms)
+
+        # Propeller efficiency
+        eta_prop = self.propeller_efficiency_cruise(velocity_ms)
+
+        # Motor power
+        P_motor_shaft = P_aero / eta_prop
+
+        # Motor losses
+        P_motor_electrical = P_motor_shaft / self.config.motor_efficiency_peak
+        P_motor_loss = P_motor_electrical - P_motor_shaft
+
+        # Control power
+        P_control = self.control_power(velocity_ms)
+
+        # Q-Assist power
+        P_qassist = self.q_assist_power(velocity_ms)
+
+        # Auxiliary systems
+        P_avionics = self.config.avionics_power_w
+        P_payload = self.config.payload_power_w
+        P_heater = self.config.heater_power_w
+
+        # Total before ESC
+        P_total_pre_esc = P_motor_electrical + P_control + P_qassist + P_avionics + P_payload + P_heater
+
+        # ESC losses
+        P_esc_loss = P_total_pre_esc * (1.0 / self.config.esc_efficiency - 1.0)
+
+        # Total electrical
+        P_total = P_total_pre_esc + P_esc_loss
+
+        return {
+            'aerodynamic_drag_w': P_aero,
+            'propeller_efficiency': eta_prop,
+            'motor_shaft_power_w': P_motor_shaft,
+            'motor_electrical_w': P_motor_electrical,
+            'motor_loss_w': P_motor_loss,
+            'control_power_w': P_control,
+            'q_assist_w': P_qassist,
+            'avionics_w': P_avionics,
+            'payload_w': P_payload,
+            'heater_w': P_heater,
+            'esc_loss_w': P_esc_loss,
+            'total_electrical_w': P_total,
+            'current_a': P_total / self.config.battery_voltage_nominal,
+        }
+
+    def mission_profile_analysis(self, mission_segments: List[Dict]) -> Dict:
+        """
+        Analyze complete mission profile with multiple segments (v3.0).
+
+        Args:
+            mission_segments: List of mission segments, each containing:
+                - type: "hover", "cruise", "transition_forward", "transition_back"
+                - duration_s: Duration in seconds (not used for transitions)
+                - speed_ms: Speed in m/s (for cruise segments)
+
+        Returns:
+            Dictionary with mission analysis results
+        """
+        total_energy_wh = 0.0
+        total_time_s = 0.0
+        segment_results = []
+
+        for segment in mission_segments:
+            seg_type = segment['type']
+
+            if seg_type == "hover":
+                duration_s = segment.get('duration_s', 0)
+                current_a = self.hover_current()
+                power_w = current_a * self.config.battery_voltage_nominal
+                energy_wh = (power_w * duration_s) / 3600.0
+
+                segment_results.append({
+                    'type': 'hover',
+                    'duration_s': duration_s,
+                    'power_w': power_w,
+                    'current_a': current_a,
+                    'energy_wh': energy_wh,
+                })
+
+                total_energy_wh += energy_wh
+                total_time_s += duration_s
+
+            elif seg_type == "cruise":
+                duration_s = segment.get('duration_s', 0)
+                speed_ms = segment.get('speed_ms', self.minimum_power_speed())
+                current_a = self.cruise_current(speed_ms)
+                power_w = current_a * self.config.battery_voltage_nominal
+                energy_wh = (power_w * duration_s) / 3600.0
+                distance_km = (speed_ms * duration_s) / 1000.0
+
+                segment_results.append({
+                    'type': 'cruise',
+                    'duration_s': duration_s,
+                    'speed_ms': speed_ms,
+                    'speed_kmh': speed_ms * 3.6,
+                    'distance_km': distance_km,
+                    'power_w': power_w,
+                    'current_a': current_a,
+                    'energy_wh': energy_wh,
+                })
+
+                total_energy_wh += energy_wh
+                total_time_s += duration_s
+
+            elif seg_type == "transition_forward":
+                trans = self.transition_energy("forward")
+                segment_results.append({
+                    'type': 'transition_forward',
+                    'duration_s': trans['duration_s'],
+                    'avg_power_w': trans['avg_power_w'],
+                    'peak_power_w': trans['peak_power_w'],
+                    'energy_wh': trans['energy_wh'],
+                })
+
+                total_energy_wh += trans['energy_wh']
+                total_time_s += trans['duration_s']
+
+            elif seg_type == "transition_back":
+                trans = self.transition_energy("back")
+                segment_results.append({
+                    'type': 'transition_back',
+                    'duration_s': trans['duration_s'],
+                    'avg_power_w': trans['avg_power_w'],
+                    'peak_power_w': trans['peak_power_w'],
+                    'energy_wh': trans['energy_wh'],
+                })
+
+                total_energy_wh += trans['energy_wh']
+                total_time_s += trans['duration_s']
+
+        # Calculate totals and remaining capacity
+        battery_capacity_wh = self.config.battery_energy_wh
+        remaining_wh = battery_capacity_wh - total_energy_wh
+        remaining_percent = (remaining_wh / battery_capacity_wh) * 100.0
+
+        return {
+            'segments': segment_results,
+            'total_energy_wh': total_energy_wh,
+            'total_time_s': total_time_s,
+            'total_time_min': total_time_s / 60.0,
+            'battery_capacity_wh': battery_capacity_wh,
+            'energy_used_wh': total_energy_wh,
+            'energy_remaining_wh': remaining_wh,
+            'battery_remaining_percent': remaining_percent,
+        }
 
     def endurance(self, current_a: float) -> float:
         """Calculate endurance in minutes for given current draw"""
@@ -671,7 +1039,7 @@ class PerformanceCalculator:
         return 1.0 / math.cos(phi_rad)
 
     def generate_performance_summary(self) -> Dict:
-        """Generate complete performance summary"""
+        """Generate complete performance summary (v3.0 - Enhanced)"""
         # Calculate key speeds
         v_stall = self.stall_speed()
         v_min_power = self.minimum_power_speed()
@@ -701,6 +1069,25 @@ class PerformanceCalculator:
         # Aerodynamic parameters
         max_ld = self.max_lift_to_drag_ratio()
 
+        # v3.0: Power budget breakdown for cruise
+        cruise_power_budget = self.power_budget_breakdown(v_cruise)
+
+        # v3.0: Transition energy
+        transition_forward = self.transition_energy("forward")
+        transition_back = self.transition_energy("back")
+
+        # v3.0: Drag breakdown (tailsitter-specific)
+        drag_breakdown = None
+        if self.config.aircraft_type == "TAILSITTER":
+            drag_breakdown = {
+                'cd0_clean': self.config.cd0_clean,
+                'cd0_nacelles': self.config.cd0_motor_nacelles,
+                'cd0_fuselage': self.config.cd0_fuselage_base,
+                'cd0_gear': self.config.cd0_landing_gear,
+                'cd0_interference': self.config.cd0_interference,
+                'cd0_total': self.config.cd0_total_cruise,
+            }
+
         return {
             'atmospheric': self.atm,
             'weight': {
@@ -727,6 +1114,7 @@ class PerformanceCalculator:
                 'oswald_e': self.config.oswald_efficiency,
                 'cd0': self.config.cd0_total_cruise,
                 'k': self.config.induced_drag_factor,
+                'drag_breakdown': drag_breakdown,  # v3.0
             },
             'hover': {
                 'power_w': hover_power,
@@ -736,10 +1124,11 @@ class PerformanceCalculator:
             'cruise': {
                 'speed_ms': v_cruise,
                 'speed_kmh': v_cruise * 3.6,
-                'power_w': self.power_required(v_cruise),
+                'power_w': cruise_power_budget['total_electrical_w'],  # v3.0: total power
                 'current_a': cruise_current,
                 'endurance_min': cruise_endurance,
                 'range_km': cruise_range,
+                'power_budget': cruise_power_budget,  # v3.0
             },
             'best_range': {
                 'speed_ms': v_min_drag,
@@ -753,6 +1142,11 @@ class PerformanceCalculator:
                 'rate_dps': turn_rate_15,
                 'load_factor': self.load_factor(15.0),
             },
+            'transitions': {  # v3.0
+                'forward': transition_forward,
+                'back': transition_back,
+            },
+            'aircraft_type': self.config.aircraft_type,  # v3.0
         }
 
 
@@ -809,15 +1203,16 @@ class ReportGenerator:
 
     @staticmethod
     def print_performance_report(perf: Dict, config: AircraftConfiguration):
-        """Print comprehensive performance report"""
+        """Print comprehensive performance report (v3.0 - Enhanced)"""
         print("\n" + "="*80)
-        print(" VTOL QUADPLANE PERFORMANCE ANALYSIS REPORT".center(80))
+        print(" VTOL QUADPLANE PERFORMANCE ANALYSIS REPORT v3.0".center(80))
         print("="*80)
 
         # Configuration summary
         print("\n" + "-"*80)
         print("AIRCRAFT CONFIGURATION")
         print("-"*80)
+        print(f"  Aircraft Type:           {config.aircraft_type}")  # v3.0
         print(f"  Total Weight:            {config.total_takeoff_weight_kg:.2f} kg ({perf['weight']['total_n']:.1f} N)")
         print(f"  Wing Span:               {config.wingspan_m:.2f} m")
         print(f"  Wing Chord:              {config.wing_chord_m:.3f} m")
@@ -827,7 +1222,7 @@ class ReportGenerator:
         print(f"  Airfoil:                 {config.airfoil_name}")
         print(f"  Motor:                   {config.motor_name} x{config.motor_count}")
         print(f"  Propeller:               {config.prop_diameter_inch:.0f}x{config.prop_pitch_inch:.0f} inch")
-        print(f"  Battery:                 {config.battery_cells}S {config.battery_capacity_mah:.0f}mAh")
+        print(f"  Battery:                 {config.battery_cells}S {config.battery_capacity_mah:.0f}mAh ({config.battery_energy_wh:.1f} Wh usable)")
 
         # Atmospheric conditions
         atm = perf['atmospheric']
@@ -849,6 +1244,18 @@ class ReportGenerator:
         print(f"  Oswald Efficiency:       {aero['oswald_e']:.3f}")
         print(f"  Parasite Drag (CD0):     {aero['cd0']:.4f}")
         print(f"  Induced Drag Factor (K): {aero['k']:.4f}")
+
+        # v3.0: Drag breakdown for tailsitter
+        if aero.get('drag_breakdown'):
+            drag = aero['drag_breakdown']
+            print("\n  Drag Breakdown (Tailsitter):")
+            print(f"    • Clean airframe:      {drag['cd0_clean']:.4f}")
+            print(f"    • Motor nacelles:      {drag['cd0_nacelles']:.4f}")
+            print(f"    • Fuselage base:       {drag['cd0_fuselage']:.4f}")
+            print(f"    • Landing gear:        {drag['cd0_gear']:.4f}")
+            print(f"    • Interference:        {drag['cd0_interference']:.4f}")
+            print(f"    ─────────────────────────────")
+            print(f"    • TOTAL CD0:           {drag['cd0_total']:.4f}")
 
         # Flight speeds
         speeds = perf['speeds']
@@ -876,10 +1283,29 @@ class ReportGenerator:
         print("CRUISE PERFORMANCE (Best Endurance Speed)")
         print("-"*80)
         print(f"  Speed:                   {cruise['speed_ms']:.2f} m/s ({cruise['speed_kmh']:.1f} km/h)")
-        print(f"  Power Required:          {cruise['power_w']:.1f} W")
+        print(f"  Total Power:             {cruise['power_w']:.1f} W")
         print(f"  Current Draw:            {cruise['current_a']:.2f} A")
         print(f"  Endurance:               {cruise['endurance_min']:.2f} min ({cruise['endurance_min']/60:.2f} hours)")
         print(f"  Range:                   {cruise['range_km']:.2f} km")
+
+        # v3.0: Power budget breakdown
+        if 'power_budget' in cruise:
+            pb = cruise['power_budget']
+            print("\n  Power Budget Breakdown:")
+            print(f"    • Aerodynamic drag:    {pb['aerodynamic_drag_w']:6.1f} W")
+            print(f"    • Propeller eff:       {pb['propeller_efficiency']*100:6.1f} %")
+            print(f"    • Motor shaft power:   {pb['motor_shaft_power_w']:6.1f} W")
+            print(f"    • Motor electrical:    {pb['motor_electrical_w']:6.1f} W  (loss: {pb['motor_loss_w']:.1f} W)")
+            print(f"    • Control power:       {pb['control_power_w']:6.1f} W")
+            if pb['q_assist_w'] > 0:
+                print(f"    • Q-Assist power:      {pb['q_assist_w']:6.1f} W")
+            print(f"    • Avionics:            {pb['avionics_w']:6.1f} W")
+            print(f"    • Payload:             {pb['payload_w']:6.1f} W")
+            if pb['heater_w'] > 0:
+                print(f"    • Heater:              {pb['heater_w']:6.1f} W")
+            print(f"    • ESC loss:            {pb['esc_loss_w']:6.1f} W")
+            print(f"    ─────────────────────────────")
+            print(f"    • TOTAL:               {pb['total_electrical_w']:6.1f} W  ({pb['current_a']:.2f} A)")
 
         # Best range performance
         best_range = perf['best_range']
@@ -900,6 +1326,25 @@ class ReportGenerator:
         print(f"  Turn Rate:               {turn['rate_dps']:.2f} °/s ({60/turn['rate_dps']:.1f} s/360°)")
         print(f"  Load Factor:             {turn['load_factor']:.2f} g")
 
+        # v3.0: Transition energy (tailsitter)
+        if 'transitions' in perf:
+            trans = perf['transitions']
+            print("\n" + "-"*80)
+            print("TRANSITION ENERGY (Tailsitter)")
+            print("-"*80)
+            print(f"  Forward Transition (Hover → Cruise):")
+            print(f"    • Duration:            {trans['forward']['duration_s']:.1f} s")
+            print(f"    • Average Power:       {trans['forward']['avg_power_w']:.1f} W")
+            print(f"    • Peak Power:          {trans['forward']['peak_power_w']:.1f} W")
+            print(f"    • Energy Used:         {trans['forward']['energy_wh']:.1f} Wh")
+            print(f"\n  Back Transition (Cruise → Hover):")
+            print(f"    • Duration:            {trans['back']['duration_s']:.1f} s")
+            print(f"    • Average Power:       {trans['back']['avg_power_w']:.1f} W")
+            print(f"    • Peak Power:          {trans['back']['peak_power_w']:.1f} W")
+            print(f"    • Energy Used:         {trans['back']['energy_wh']:.1f} Wh")
+            total_trans_energy = trans['forward']['energy_wh'] + trans['back']['energy_wh']
+            print(f"\n  Total Transition Cycle:  {total_trans_energy:.1f} Wh")
+
         print("\n" + "="*80)
         print("CALCULATION BASIS:")
         print("-"*80)
@@ -910,6 +1355,15 @@ class ReportGenerator:
         print("• Motor equivalent circuit model")
         print(f"• Safety margin: {config.safety_factor_speed:.1f}x stall speed")
         print(f"• Battery usable capacity: {config.battery_usable_capacity_factor*100:.0f}%")
+        if config.aircraft_type == "TAILSITTER":
+            print("\nv3.0 TAILSITTER ENHANCEMENTS:")
+            print("• Differential thrust control power modeling")
+            print("• Speed-dependent propeller efficiency corrections")
+            print("• Q-Assist low-speed augmentation")
+            print("• Detailed drag breakdown (nacelles, interference, base)")
+            print("• Transition energy with peak power modeling")
+            print("• Complete power budget analysis")
+            print("• Mission profile segmentation")
         print("="*80 + "\n")
 
 
@@ -1722,8 +2176,8 @@ class OutputManager:
     </div>
 
     <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ccc; color: #7f8c8d; text-align: center;">
-        <p>Generated by VTOL Performance Analyzer v2.0 | 3D Surface Plot Analysis</p>
-        <p>Based on rigorous aerospace engineering principles</p>
+        <p>Generated by VTOL Performance Analyzer v3.0 | Industrial-Grade Tailsitter Analysis</p>
+        <p>Enhanced with differential thrust control, Q-Assist, transitions, and power budget analysis</p>
     </footer>
 </body>
 </html>
@@ -1856,17 +2310,25 @@ if __name__ == "__main__":
     import sys
 
     print("\n" + "="*80)
-    print(" VTOL QUADPLANE PERFORMANCE ANALYZER v2.0".center(80))
-    print(" Professional Aerospace Performance Analysis Tool".center(80))
+    print(" VTOL QUADPLANE PERFORMANCE ANALYZER v3.0".center(80))
+    print(" Industrial-Grade Tailsitter Performance Analysis".center(80))
     print("="*80 + "\n")
 
     if len(sys.argv) > 1 and sys.argv[1] == "--help":
         print("Usage:")
         print("  python vtol_performance_analyzer.py [options]")
         print("\nOptions:")
-        print("  --help      Show this help message")
-        print("  --console   Run console-only mode (no plots)")
-        print("  --full      Run full analysis with plots and exports (default)")
+        print("  --help                Show this help message")
+        print("  --preset NAME         Use specific configuration preset")
+        print("  --list-presets        List all available presets")
+        print("  --console             Run console-only mode (no plots)")
+        print("  --full                Run full analysis with plots (default)")
+        print("\nPreset Usage:")
+        print("  python vtol_performance_analyzer.py --preset baseline    # 6kg standard")
+        print("  python vtol_performance_analyzer.py --preset lightning   # 5.2kg ultra-light")
+        print("  python vtol_performance_analyzer.py --preset thunder     # 8kg heavy payload")
+        print("\nDefault:")
+        print("  If no preset specified, uses 'baseline' (6kg production standard)")
         print("\nOutput:")
         print("  - Console report with all performance parameters")
         print("  - 2D sensitivity analysis plots (PNG + JPG)")
@@ -1878,7 +2340,59 @@ if __name__ == "__main__":
         print("  - 2D plots: output/plots/")
         print("  - 3D plots: output/plots/3d_surfaces/")
         print("  - Data: output/data/")
+        print("\nv3.0 Features:")
+        print("  - Tailsitter-specific corrections (drag, control power, transitions)")
+        print("  - Mission profile analysis")
+        print("  - Complete power budget breakdown")
+        print("  - Configuration presets (5.2kg, 6kg, 8kg)")
         print()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--list-presets":
+        try:
+            from config_presets import PresetManager
+            manager = PresetManager()
+            print("Available Configuration Presets:")
+            print("-" * 80)
+            for preset_name in manager.list_presets():
+                desc = manager.get_preset_description(preset_name)
+                print(f"  • {preset_name:<35} {desc}")
+            print("\nUsage:")
+            print("  python vtol_performance_analyzer.py --preset <preset_name>")
+            print("\nDefault (if no preset specified):")
+            print("  baseline (6kg Production Standard)")
+            print()
+        except ImportError:
+            print("Warning: config_presets.py not found. Using default configuration.")
+            print()
+    elif len(sys.argv) > 2 and sys.argv[1] == "--preset":
+        # Use specified preset
+        preset_name = sys.argv[2]
+        try:
+            from config_presets import PresetManager
+            manager = PresetManager()
+            config = manager.get_preset(preset_name)
+            print(f"Using preset: {manager.get_preset_description(preset_name)}")
+            print()
+            run_full_analysis(config)
+        except ImportError:
+            print("Warning: config_presets.py not found. Using default configuration.")
+            run_full_analysis()
+        except ValueError as e:
+            print(f"Error: {e}")
+            print("\nUse --list-presets to see available options")
+            print()
     else:
-        # Run full analysis by default
-        run_full_analysis()
+        # Default: Try to use baseline preset
+        try:
+            from config_presets import PresetManager
+            manager = PresetManager()
+            config = manager.get_preset("baseline")
+            print("Using default preset: BASELINE (6kg Production Standard)")
+            print("  (Use --preset to select: lightning, baseline, or thunder)")
+            print("  (Use --list-presets to see all options)")
+            print()
+            run_full_analysis(config)
+        except ImportError:
+            print("Using built-in default configuration")
+            print("  (Install config_presets.py for preset support)")
+            print()
+            run_full_analysis()
