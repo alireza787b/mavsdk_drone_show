@@ -91,6 +91,16 @@ class VTOLAnalyzerGUI(tk.Tk):
         # Settings
         self.auto_update = tk.BooleanVar(value=False)
         self.dark_mode = tk.BooleanVar(value=False)
+        self.auto_save_enabled = tk.BooleanVar(value=True)
+
+        # Session management
+        self.session_file = ".vtol_analyzer_session.json"
+        self.config_dir = os.path.join(os.path.expanduser("~"), ".vtol_analyzer")
+        os.makedirs(self.config_dir, exist_ok=True)
+        self.recent_configs = []
+        self.max_recent = 10
+        self.config_modified = False
+        self.auto_save_timer_id = None
 
         # Initialize UI
         self.create_styles()
@@ -98,8 +108,12 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.create_main_interface()
         self.create_status_bar()
 
-        # Load default preset
-        self.load_preset("baseline")
+        # Load session state
+        self.load_session_state()
+
+        # Start auto-save timer
+        if self.auto_save_enabled.get():
+            self.start_auto_save_timer()
 
         # Bind window close
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -164,7 +178,8 @@ class VTOLAnalyzerGUI(tk.Tk):
         # View menu
         view_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="View", menu=view_menu)
-        view_menu.add_checkbutton(label="Auto Update", variable=self.auto_update, command=self.toggle_auto_update)
+        view_menu.add_checkbutton(label="Auto Update Analysis", variable=self.auto_update, command=self.toggle_auto_update)
+        view_menu.add_checkbutton(label="Auto-Save Configuration", variable=self.auto_save_enabled, command=self.toggle_auto_save)
         view_menu.add_checkbutton(label="Dark Mode", variable=self.dark_mode, command=self.toggle_dark_mode)
         view_menu.add_separator()
         view_menu.add_command(label="Refresh Results", command=self.refresh_results, accelerator="F5")
@@ -1969,16 +1984,62 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def new_analysis(self):
         """Start new analysis"""
+        if self.config_modified:
+            response = messagebox.askyesnocancel(
+                "Unsaved Changes",
+                "Save current configuration before starting new analysis?"
+            )
+            if response is None:  # Cancel
+                return
+            elif response:  # Yes, save
+                self.save_config()
+
         if messagebox.askyesno("New Analysis", "Reset to default configuration?"):
             self.load_preset("baseline")
+            self.config_modified = False
 
     def open_config(self):
         """Open configuration from file"""
-        messagebox.showinfo("Coming Soon", "Load configuration from JSON file")
+        try:
+            filename = filedialog.askopenfilename(
+                title="Open Configuration",
+                initialdir=self.config_dir,
+                filetypes=[
+                    ("JSON files", "*.json"),
+                    ("All files", "*.*")
+                ]
+            )
+
+            if filename:
+                self.load_config_from_file(filename)
+                self.add_to_recent(filename)
+                self.config_modified = False
+                self.update_status(f"Loaded configuration from {os.path.basename(filename)}")
+
+        except Exception as e:
+            messagebox.showerror("Load Error", f"Could not load configuration:\n{e}")
 
     def save_config(self):
         """Save current configuration"""
-        messagebox.showinfo("Coming Soon", "Save configuration to JSON file")
+        try:
+            filename = filedialog.asksaveasfilename(
+                title="Save Configuration",
+                initialdir=self.config_dir,
+                defaultextension=".json",
+                filetypes=[
+                    ("JSON files", "*.json"),
+                    ("All files", "*.*")
+                ]
+            )
+
+            if filename:
+                self.save_config_to_file(filename)
+                self.add_to_recent(filename)
+                self.config_modified = False
+                self.update_status(f"Configuration saved to {os.path.basename(filename)}")
+
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Could not save configuration:\n{e}")
 
     def export_report(self):
         """Export analysis report"""
@@ -1994,6 +2055,17 @@ class VTOLAnalyzerGUI(tk.Tk):
             self.update_status("Auto-update enabled")
         else:
             self.update_status("Auto-update disabled")
+
+    def toggle_auto_save(self):
+        """Toggle auto-save mode"""
+        if self.auto_save_enabled.get():
+            self.start_auto_save_timer()
+            self.update_status("Auto-save enabled (saves every 5 minutes)")
+        else:
+            if self.auto_save_timer_id:
+                self.after_cancel(self.auto_save_timer_id)
+                self.auto_save_timer_id = None
+            self.update_status("Auto-save disabled")
 
     def toggle_dark_mode(self):
         """Toggle dark mode"""
@@ -2069,13 +2141,83 @@ class VTOLAnalyzerGUI(tk.Tk):
         """Apply parameter changes"""
         try:
             # Update config from UI widgets
-            # (Implementation needed)
+            self.update_config_from_ui()
+
+            # Mark as modified
+            self.mark_config_modified()
+
             self.update_status("Configuration updated")
 
             if self.auto_update.get():
                 self.run_analysis()
         except Exception as e:
             messagebox.showerror("Error", f"Could not apply configuration: {e}")
+
+    def update_config_from_ui(self):
+        """Update configuration from UI parameter widgets"""
+        if not self.current_config:
+            return
+
+        try:
+            # Basic parameters
+            if 'total_takeoff_weight_kg' in self.param_widgets:
+                self.current_config.total_takeoff_weight_kg = float(self.param_widgets['total_takeoff_weight_kg'].get())
+            if 'wingspan_m' in self.param_widgets:
+                self.current_config.wingspan_m = float(self.param_widgets['wingspan_m'].get())
+            if 'wing_chord_m' in self.param_widgets:
+                self.current_config.wing_chord_m = float(self.param_widgets['wing_chord_m'].get())
+            if 'field_elevation_m' in self.param_widgets:
+                self.current_config.field_elevation_m = float(self.param_widgets['field_elevation_m'].get())
+
+            # Tailsitter parameters
+            if 'control_power_base_w' in self.param_widgets:
+                self.current_config.control_power_base_w = float(self.param_widgets['control_power_base_w'].get())
+            if 'control_power_speed_factor' in self.param_widgets:
+                self.current_config.control_power_speed_factor = float(self.param_widgets['control_power_speed_factor'].get())
+
+            # Drag coefficients
+            if 'cd0_motor_nacelles' in self.param_widgets:
+                self.current_config.cd0_motor_nacelles = float(self.param_widgets['cd0_motor_nacelles'].get())
+            if 'cd0_fuselage_base' in self.param_widgets:
+                self.current_config.cd0_fuselage_base = float(self.param_widgets['cd0_fuselage_base'].get())
+            if 'cd0_landing_gear' in self.param_widgets:
+                self.current_config.cd0_landing_gear = float(self.param_widgets['cd0_landing_gear'].get())
+            if 'cd0_interference' in self.param_widgets:
+                self.current_config.cd0_interference = float(self.param_widgets['cd0_interference'].get())
+
+            # Transitions
+            if 'transition_forward_duration_s' in self.param_widgets:
+                self.current_config.transition_forward_duration_s = float(self.param_widgets['transition_forward_duration_s'].get())
+            if 'transition_forward_power_factor' in self.param_widgets:
+                self.current_config.transition_forward_power_factor = float(self.param_widgets['transition_forward_power_factor'].get())
+            if 'transition_back_duration_s' in self.param_widgets:
+                self.current_config.transition_back_duration_s = float(self.param_widgets['transition_back_duration_s'].get())
+            if 'transition_back_power_factor' in self.param_widgets:
+                self.current_config.transition_back_power_factor = float(self.param_widgets['transition_back_power_factor'].get())
+
+            # Propulsion efficiencies (convert from percentage)
+            if 'prop_efficiency_lowspeed' in self.param_widgets:
+                self.current_config.prop_efficiency_lowspeed = float(self.param_widgets['prop_efficiency_lowspeed'].get()) / 100.0
+            if 'prop_efficiency_highspeed' in self.param_widgets:
+                self.current_config.prop_efficiency_highspeed = float(self.param_widgets['prop_efficiency_highspeed'].get()) / 100.0
+            if 'motor_efficiency_peak' in self.param_widgets:
+                self.current_config.motor_efficiency_peak = float(self.param_widgets['motor_efficiency_peak'].get()) / 100.0
+            if 'esc_efficiency' in self.param_widgets:
+                self.current_config.esc_efficiency = float(self.param_widgets['esc_efficiency'].get()) / 100.0
+
+            # Auxiliary systems
+            if 'avionics_power_w' in self.param_widgets:
+                self.current_config.avionics_power_w = float(self.param_widgets['avionics_power_w'].get())
+            if 'payload_power_w' in self.param_widgets:
+                self.current_config.payload_power_w = float(self.param_widgets['payload_power_w'].get())
+            if 'heater_power_w' in self.param_widgets:
+                self.current_config.heater_power_w = float(self.param_widgets['heater_power_w'].get())
+
+            # Recalculate derived parameters
+            self.current_config.__post_init__()
+
+        except ValueError as e:
+            raise ValueError(f"Invalid parameter value: {e}")
 
     def validate_config(self):
         """Validate current configuration"""
@@ -2327,13 +2469,237 @@ class VTOLAnalyzerGUI(tk.Tk):
             messagebox.showinfo("No Results", "Run an analysis first")
 
     # -----------------------------------------------------------------------
+    # CONFIGURATION PERSISTENCE
+    # -----------------------------------------------------------------------
+
+    def save_config_to_file(self, filename):
+        """Save current configuration to JSON file"""
+        import json
+        from dataclasses import asdict
+
+        config_dict = asdict(self.current_config)
+
+        # Add metadata
+        data = {
+            "metadata": {
+                "preset_name": self.current_preset_name,
+                "version": "4.0",
+                "timestamp": self.get_timestamp()
+            },
+            "configuration": config_dict
+        }
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+
+    def load_config_from_file(self, filename):
+        """Load configuration from JSON file"""
+        import json
+
+        with open(filename, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # Extract configuration
+        config_dict = data.get('configuration', data)  # Backward compatible
+
+        # Update current config
+        for key, value in config_dict.items():
+            if hasattr(self.current_config, key):
+                setattr(self.current_config, key, value)
+
+        # Recalculate derived parameters
+        self.current_config.__post_init__()
+
+        # Update UI
+        self.update_ui_from_config()
+
+        # Update preset name if available
+        metadata = data.get('metadata', {})
+        if 'preset_name' in metadata:
+            self.current_preset_name = metadata['preset_name']
+            self.preset_status.set(f"Preset: {self.current_preset_name.upper()} (loaded)")
+
+    def add_to_recent(self, filename):
+        """Add file to recent configurations list"""
+        # Remove if already in list
+        if filename in self.recent_configs:
+            self.recent_configs.remove(filename)
+
+        # Add to beginning
+        self.recent_configs.insert(0, filename)
+
+        # Trim to max
+        self.recent_configs = self.recent_configs[:self.max_recent]
+
+        # Update menu
+        self.update_recent_menu()
+
+    def update_recent_menu(self):
+        """Update recent files menu (if it exists)"""
+        # This would update a "Recent Files" submenu if we had one
+        pass
+
+    def get_timestamp(self):
+        """Get current timestamp"""
+        from datetime import datetime
+        return datetime.now().isoformat()
+
+    # -----------------------------------------------------------------------
+    # AUTO-SAVE FUNCTIONALITY
+    # -----------------------------------------------------------------------
+
+    def start_auto_save_timer(self):
+        """Start auto-save timer (saves every 5 minutes)"""
+        if self.auto_save_timer_id:
+            self.after_cancel(self.auto_save_timer_id)
+
+        # Auto-save every 5 minutes (300000 ms)
+        self.auto_save_timer_id = self.after(300000, self.auto_save)
+
+    def auto_save(self):
+        """Perform auto-save"""
+        if self.config_modified and self.auto_save_enabled.get():
+            try:
+                auto_save_file = os.path.join(self.config_dir, "autosave.json")
+                self.save_config_to_file(auto_save_file)
+                self.update_status("Auto-saved configuration")
+            except:
+                pass  # Silently fail auto-save
+
+        # Restart timer
+        if self.auto_save_enabled.get():
+            self.start_auto_save_timer()
+
+    def mark_config_modified(self):
+        """Mark configuration as modified"""
+        if not self.config_modified:
+            self.config_modified = True
+            # Update window title to show modification
+            current_title = self.title()
+            if not current_title.endswith("*"):
+                self.title(current_title + " *")
+
+    # -----------------------------------------------------------------------
+    # SESSION STATE MANAGEMENT
+    # -----------------------------------------------------------------------
+
+    def save_session_state(self):
+        """Save current session state"""
+        import json
+
+        try:
+            session_data = {
+                "version": "4.0",
+                "timestamp": self.get_timestamp(),
+                "last_preset": self.current_preset_name,
+                "window_geometry": self.geometry(),
+                "auto_save_enabled": self.auto_save_enabled.get(),
+                "auto_update": self.auto_update.get(),
+                "recent_configs": self.recent_configs,
+                "output_directory": self.output_dir_var.get() if hasattr(self, 'output_dir_var') else "./output"
+            }
+
+            session_file_path = os.path.join(self.config_dir, self.session_file)
+            with open(session_file_path, 'w', encoding='utf-8') as f:
+                json.dump(session_data, f, indent=2)
+
+        except Exception as e:
+            print(f"Could not save session state: {e}")
+
+    def load_session_state(self):
+        """Load previous session state"""
+        import json
+
+        try:
+            session_file_path = os.path.join(self.config_dir, self.session_file)
+
+            if os.path.exists(session_file_path):
+                with open(session_file_path, 'r', encoding='utf-8') as f:
+                    session_data = json.load(f)
+
+                # Restore settings
+                if 'last_preset' in session_data:
+                    self.load_preset(session_data['last_preset'])
+
+                if 'auto_save_enabled' in session_data:
+                    self.auto_save_enabled.set(session_data['auto_save_enabled'])
+
+                if 'auto_update' in session_data:
+                    self.auto_update.set(session_data['auto_update'])
+
+                if 'recent_configs' in session_data:
+                    self.recent_configs = session_data['recent_configs']
+                    # Verify files still exist
+                    self.recent_configs = [f for f in self.recent_configs if os.path.exists(f)]
+
+                if 'output_directory' in session_data and hasattr(self, 'output_dir_var'):
+                    self.output_dir_var.set(session_data['output_directory'])
+
+                # Try to restore window geometry
+                # if 'window_geometry' in session_data:
+                #     self.geometry(session_data['window_geometry'])
+
+                self.update_status("Session restored")
+
+            else:
+                # First run - load default
+                self.load_preset("baseline")
+
+        except Exception as e:
+            print(f"Could not load session state: {e}")
+            # Fallback to default
+            self.load_preset("baseline")
+
+    def check_for_autosave(self):
+        """Check if there's an autosave file and ask to restore"""
+        auto_save_file = os.path.join(self.config_dir, "autosave.json")
+
+        if os.path.exists(auto_save_file):
+            # Check if it's newer than 1 hour
+            import time
+            file_time = os.path.getmtime(auto_save_file)
+            current_time = time.time()
+
+            if (current_time - file_time) < 3600:  # Within last hour
+                response = messagebox.askyesno(
+                    "Auto-Save Found",
+                    "An auto-saved configuration was found.\nWould you like to restore it?"
+                )
+
+                if response:
+                    try:
+                        self.load_config_from_file(auto_save_file)
+                        self.update_status("Restored from auto-save")
+                    except:
+                        pass
+
+    # -----------------------------------------------------------------------
     # WINDOW CLOSE
     # -----------------------------------------------------------------------
 
     def on_closing(self):
         """Handle window close"""
-        if messagebox.askokcancel("Quit", "Do you want to quit?"):
-            self.destroy()
+        # Check for unsaved changes
+        if self.config_modified:
+            response = messagebox.askyesnocancel(
+                "Unsaved Changes",
+                "Save configuration before closing?"
+            )
+
+            if response is None:  # Cancel
+                return
+            elif response:  # Yes, save
+                self.save_config()
+
+        # Save session state
+        self.save_session_state()
+
+        # Cancel auto-save timer
+        if self.auto_save_timer_id:
+            self.after_cancel(self.auto_save_timer_id)
+
+        # Close application
+        self.destroy()
 
 
 # ===========================================================================
