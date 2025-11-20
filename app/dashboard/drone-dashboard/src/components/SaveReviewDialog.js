@@ -33,7 +33,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
   const hasDuplicates = warnings.duplicates && warnings.duplicates.length > 0;
   const hasMissingTrajectories = warnings.missing_trajectories && warnings.missing_trajectories.length > 0;
   const hasRoleSwaps = warnings.role_swaps && warnings.role_swaps.length > 0;
-  const hasChanges = changes.pos_id_changes.length > 0 || changes.xy_updates.length > 0;
+  const hasChanges = changes.pos_id_changes.length > 0;
 
   // Disable confirm button if duplicates exist and not acknowledged, or if missing trajectories
   const canConfirm = (!hasDuplicates || duplicateAcknowledged) && !hasMissingTrajectories;
@@ -139,6 +139,10 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {changes.pos_id_changes.length > 0 && (
           <div className="review-section changes-section">
             <h4>Position ID Changes ({changes.pos_id_changes.length})</h4>
+            <p className="info-hint">
+              <FontAwesomeIcon icon={faInfoCircle} />
+              {' '}Position coordinates come from trajectory CSV files (single source of truth)
+            </p>
             <table className="changes-table">
               <thead>
                 <tr>
@@ -162,39 +166,6 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
           </div>
         )}
 
-        {/* x,y Coordinate Updates */}
-        {changes.xy_updates.length > 0 && (
-          <div className="review-section changes-section">
-            <h4>Coordinate Updates from Trajectory CSV ({changes.xy_updates.length})</h4>
-            <p className="info-hint">
-              <FontAwesomeIcon icon={faInfoCircle} />
-              {' '}x,y coordinates will be updated to match trajectory files (single source of truth)
-            </p>
-            <table className="changes-table">
-              <thead>
-                <tr>
-                  <th>Drone</th>
-                  <th>pos_id</th>
-                  <th>Old (x, y)</th>
-                  <th></th>
-                  <th>New (x, y)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {changes.xy_updates.map((update, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{update.hw_id}</strong></td>
-                    <td>{update.pos_id}</td>
-                    <td>({update.old_x.toFixed(1)}, {update.old_y.toFixed(1)})</td>
-                    <td>→</td>
-                    <td><strong>({update.new_x.toFixed(1)}, {update.new_y.toFixed(1)})</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
         {/* No Changes */}
         {!hasChanges && (
           <div className="review-section info-section">
@@ -207,8 +178,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {/* Summary */}
         <div className="review-summary">
           <strong>Summary:</strong> {summary.total_drones} drones,
-          {' '}{summary.pos_id_changes_count} position changes,
-          {' '}{summary.xy_updates_count} coordinate updates
+          {' '}{summary.pos_id_changes_count} position changes
           {summary.duplicates_count > 0 && (
             <span className="summary-warning">
               , <FontAwesomeIcon icon={faExclamationTriangle} /> {summary.duplicates_count} duplicates
@@ -256,13 +226,11 @@ SaveReviewDialog.propTypes = {
       role_swaps: PropTypes.array
     }),
     changes: PropTypes.shape({
-      pos_id_changes: PropTypes.array,
-      xy_updates: PropTypes.array
+      pos_id_changes: PropTypes.array
     }),
     summary: PropTypes.shape({
       total_drones: PropTypes.number,
       pos_id_changes_count: PropTypes.number,
-      xy_updates_count: PropTypes.number,
       duplicates_count: PropTypes.number,
       missing_trajectories_count: PropTypes.number,
       role_swaps_count: PropTypes.number

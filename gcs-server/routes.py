@@ -317,10 +317,37 @@ def setup_routes(app):
             log_system_error(f"Error fetching trajectory coordinates: {e}", "config")
             return error_response(f"Error fetching trajectory data: {e}")
 
+    @app.route('/get-drone-positions', methods=['GET'])
+    def get_drone_positions():
+        """
+        Get initial positions for all drones from trajectory CSV files.
+
+        This is the SINGLE SOURCE OF TRUTH for drone positions. Positions are always
+        read from the first row of each drone's trajectory CSV file based on pos_id.
+
+        Returns:
+            JSON array: [{"hw_id": int, "pos_id": int, "x": float, "y": float}, ...]
+        """
+        try:
+            from config import get_all_drone_positions
+
+            positions = get_all_drone_positions()
+
+            if not positions:
+                log_system_event("⚠️ No drone positions retrieved (config may be empty)", "WARNING", "config")
+            else:
+                log_system_event(f"📍 Retrieved positions for {len(positions)} drones", "INFO", "config")
+
+            return jsonify(positions)
+
+        except Exception as e:
+            log_system_error(f"Error fetching all drone positions: {e}", "config")
+            return error_response(f"Error fetching drone positions: {e}")
+
     @app.route('/validate-config', methods=['POST'])
     def validate_config_route():
         """
-        Validate configuration and process x,y coordinates from trajectory CSV.
+        Validate configuration (positions come from trajectory CSV only).
         Returns validation report WITHOUT saving to file.
         Used by UI to show review dialog before final save.
         """
@@ -355,6 +382,12 @@ def setup_routes(app):
 
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
+        """
+        Save drone configuration to config.csv.
+
+        NOTE: x,y positions are NOT saved in config.csv. They are always fetched
+        from trajectory CSV files. Use /get-drone-positions to retrieve positions.
+        """
         config_data = request.get_json()
         if not config_data:
             return error_response("No configuration data provided", 400)
@@ -366,11 +399,11 @@ def setup_routes(app):
             if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
                 raise ValueError("Invalid configuration data format")
 
-            # Process config with trajectory-based x,y updates
+            # Validate and process config (removes x,y if present)
             sim_mode = getattr(Params, 'sim_mode', False)
             report = validate_and_process_config(config_data, sim_mode)
 
-            # Save the processed configuration (with trajectory-based x,y)
+            # Save the processed configuration (without x,y fields)
             save_config(report['updated_config'])
             log_system_event("✅ Configuration saved successfully", "INFO", "config")
 

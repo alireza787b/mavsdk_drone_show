@@ -11,6 +11,7 @@ import {
   faUndo,
   faMapMarkerAlt,
   faServer,
+  faSync,
 } from '@fortawesome/free-solid-svg-icons';
 import { CircularProgress } from '@mui/material';
 
@@ -28,6 +29,7 @@ const ControlButtons = ({
   exportConfig,
   openOriginModal,
   openGcsConfigModal,
+  handleResetToDefault,
   configData,
   setConfigData,
   loading,
@@ -117,6 +119,16 @@ const ControlButtons = ({
           <FontAwesomeIcon icon={faUndo} />
           Revert
         </button>
+
+        {/* Reset to Default */}
+        <button
+          className="reset-default"
+          onClick={handleResetToDefault}
+          title="Reset all drones to default (hw_id = pos_id)"
+        >
+          <FontAwesomeIcon icon={faSync} />
+          Reset to Default
+        </button>
       </div>
     </div>
   );
@@ -130,6 +142,7 @@ ControlButtons.propTypes = {
   exportConfig: PropTypes.func.isRequired,
   openOriginModal: PropTypes.func.isRequired,
   openGcsConfigModal: PropTypes.func.isRequired,
+  handleResetToDefault: PropTypes.func.isRequired,
   configData: PropTypes.array.isRequired,
   setConfigData: PropTypes.func.isRequired,
   loading: PropTypes.bool.isRequired,

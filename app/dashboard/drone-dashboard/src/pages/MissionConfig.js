@@ -53,6 +53,10 @@ const MissionConfig = () => {
   const [showGcsConfigModal, setShowGcsConfigModal] = useState(false);
   const [gcsConfig, setGcsConfig] = useState({ gcs_ip: null });
 
+  // Role Swap Details Modal
+  const [showRoleSwapModal, setShowRoleSwapModal] = useState(false);
+  const [roleSwapData, setRoleSwapData] = useState([]);
+
   // Deviations
   const [deviationData, setDeviationData] = useState({});
 
@@ -369,6 +373,30 @@ const MissionConfig = () => {
     toast.success('Configuration exported successfully.');
   };
 
+  const handleResetToDefault = () => {
+    // Find drones that need to be reset (hw_id !== pos_id)
+    const dronesNeedingReset = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
+
+    if (dronesNeedingReset.length === 0) {
+      toast.info('All drones are already set to default (hw_id = pos_id)');
+      return;
+    }
+
+    // Show confirmation dialog with preview
+    const message = `Reset ${dronesNeedingReset.length} drone(s) to default configuration?\n\nThis will set pos_id = hw_id for:\n${dronesNeedingReset.map(d => `Drone ${d.hw_id}: pos_id ${d.pos_id} → ${d.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git"`;
+
+    if (window.confirm(message)) {
+      // Reset pos_id to hw_id for all drones
+      const updatedConfig = configData.map(drone => ({
+        ...drone,
+        pos_id: drone.hw_id
+      }));
+
+      setConfigData(updatedConfig);
+      toast.success(`✅ Reset ${dronesNeedingReset.length} drone(s) to default. Remember to save your changes!`);
+    }
+  };
+
   // Sort config data
   const sortedConfigData = [...configData].sort(
     (a, b) => parseInt(a.hw_id, 10) - parseInt(b.hw_id, 10)
@@ -390,6 +418,7 @@ const MissionConfig = () => {
         exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
         openGcsConfigModal={() => setShowGcsConfigModal(true)}
+        handleResetToDefault={handleResetToDefault}
         configData={configData}
         setConfigData={setConfigData}
         loading={loading}
@@ -429,7 +458,18 @@ const MissionConfig = () => {
                     {' '}Drone {d.hw_id}→Pos {d.pos_id}
                   </span>
                 ))}
-                {roleSwaps.length > 3 && <span> and {roleSwaps.length - 3} more</span>}
+                {roleSwaps.length > 3 && (
+                  <span
+                    className="role-swap-more-link"
+                    onClick={() => {
+                      setRoleSwapData(roleSwaps);
+                      setShowRoleSwapModal(true);
+                    }}
+                    style={{ cursor: 'pointer', textDecoration: 'underline', color: '#3b82f6', marginLeft: '4px' }}
+                  >
+                    and {roleSwaps.length - 3} more
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -465,6 +505,87 @@ const MissionConfig = () => {
           onSubmit={handleGcsConfigSubmit}
           currentGcsIp={gcsConfig.gcs_ip}
         />
+      )}
+
+      {/* Role Swap Details Modal */}
+      {showRoleSwapModal && (
+        <>
+          <div
+            className="modal-overlay"
+            onClick={() => setShowRoleSwapModal(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <div
+              className="role-swap-modal"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                padding: '24px',
+                maxWidth: '600px',
+                maxHeight: '80vh',
+                overflow: 'auto',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+              }}
+            >
+              <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FontAwesomeIcon icon={faExchangeAlt} />
+                All Active Role Swaps ({roleSwapData.length})
+              </h3>
+              <p style={{ marginBottom: '16px', color: '#6b7280' }}>
+                These drones are flying different positions' trajectories:
+              </p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Hardware ID</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>→</th>
+                    <th style={{ padding: '8px', textAlign: 'left' }}>Position ID (Show)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roleSwapData.map((drone, idx) => (
+                    <tr key={drone.hw_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '8px' }}>
+                        <strong>Drone {drone.hw_id}</strong>
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>→</td>
+                      <td style={{ padding: '8px' }}>
+                        <strong>Position {drone.pos_id}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '20px', textAlign: 'right' }}>
+                <button
+                  onClick={() => setShowRoleSwapModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       <MissionLayout

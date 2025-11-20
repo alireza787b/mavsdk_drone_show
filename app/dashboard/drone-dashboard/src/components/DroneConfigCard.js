@@ -796,35 +796,6 @@ const DroneEditForm = memo(function DroneEditForm({
           </div>
         )}
 
-        {/* X, Y */}
-        <div className="form-field">
-          <label className="form-label">Initial X</label>
-          <input
-            type="text"
-            name="x"
-            value={droneData.x !== undefined && droneData.x !== null ? droneData.x : ''}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter X Coordinate"
-            aria-label="X Coordinate"
-          />
-          {errors.x && <span className="error-message">{errors.x}</span>}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label">Initial Y</label>
-          <input
-            type="text"
-            name="y"
-            value={droneData.y !== undefined && droneData.y !== null ? droneData.y : ''}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter Y Coordinate"
-            aria-label="Y Coordinate"
-          />
-          {errors.y && <span className="error-message">{errors.y}</span>}
-        </div>
-
         {/* Position ID with toggle for custom vs. existing */}
         <div className="form-field">
           <label className="form-label">Position ID</label>
@@ -970,6 +941,7 @@ export default function DroneConfigCard({
   const isEditing = editingDroneId === drone.hw_id;
 
   // Helper function to ensure all required fields exist with defaults
+  // Note: x,y removed - positions come from trajectory CSV files only
   const getCompleteFormData = (droneObj) => {
     if (!droneObj) {
       return {
@@ -979,8 +951,6 @@ export default function DroneConfigCard({
         mavlink_port: '',
         serial_port: '/dev/ttyS0',
         baudrate: '57600',
-        x: 0,
-        y: 0,
         isNew: false
       };
     }
@@ -991,8 +961,6 @@ export default function DroneConfigCard({
       mavlink_port: droneObj.mavlink_port || '',
       serial_port: droneObj.serial_port || '/dev/ttyS0',
       baudrate: droneObj.baudrate || '57600',
-      x: droneObj.x !== undefined ? droneObj.x : 0,
-      y: droneObj.y !== undefined ? droneObj.y : 0,
       isNew: droneObj.isNew || false
     };
   };
@@ -1076,13 +1044,7 @@ export default function DroneConfigCard({
     if (!droneData.mavlink_port) {
       validationErrors.mavlink_port = 'MavLink Port is required.';
     }
-    // Basic numeric check for x, y
-    if (droneData.x === undefined || isNaN(droneData.x)) {
-      validationErrors.x = 'A valid numeric X coordinate is required.';
-    }
-    if (droneData.y === undefined || isNaN(droneData.y)) {
-      validationErrors.y = 'A valid numeric Y coordinate is required.';
-    }
+    // Note: x,y positions come from trajectory CSV files - not validated here
     if (!droneData.pos_id) {
       validationErrors.pos_id = 'Position ID is required.';
     }
@@ -1157,51 +1119,23 @@ export default function DroneConfigCard({
           autoPosId={autoPosId}
           onEdit={() => setEditingDroneId(drone.hw_id)}
           onRemove={() => removeDrone(drone.hw_id)}
-          onAcceptConfigFromAuto={async (detectedValue) => {
+          onAcceptConfigFromAuto={(detectedValue) => {
             if (!detectedValue || detectedValue === '0') return;
-
-            // Fetch correct x,y from trajectory CSV
-            try {
-              const backendURL = getBackendURL();
-              const response = await axios.get(`${backendURL}/get-trajectory-first-row?pos_id=${detectedValue}`);
-              const { north, east } = response.data;
-
-              saveChanges(drone.hw_id, {
-                ...drone,
-                pos_id: detectedValue,
-                x: north,
-                y: east
-              });
-
-              toast.success(`Accepted auto-detected pos_id ${detectedValue} with trajectory coordinates`);
-            } catch (error) {
-              console.error('Error fetching trajectory coordinates:', error);
-              toast.warning(`Accepted pos_id ${detectedValue}, but could not fetch trajectory coordinates`);
-              saveChanges(drone.hw_id, { ...drone, pos_id: detectedValue });
-            }
+            // Note: x,y positions come from trajectory CSV - not stored in config
+            saveChanges(drone.hw_id, {
+              ...drone,
+              pos_id: detectedValue
+            });
+            toast.success(`Accepted auto-detected pos_id ${detectedValue}`);
           }}
-          onAcceptConfigFromHb={async (hbValue) => {
+          onAcceptConfigFromHb={(hbValue) => {
             if (!hbValue || hbValue === '0') return;
-
-            // Fetch correct x,y from trajectory CSV
-            try {
-              const backendURL = getBackendURL();
-              const response = await axios.get(`${backendURL}/get-trajectory-first-row?pos_id=${hbValue}`);
-              const { north, east } = response.data;
-
-              saveChanges(drone.hw_id, {
-                ...drone,
-                pos_id: hbValue,
-                x: north,
-                y: east
-              });
-
-              toast.success(`Accepted assigned pos_id ${hbValue} with trajectory coordinates`);
-            } catch (error) {
-              console.error('Error fetching trajectory coordinates:', error);
-              toast.warning(`Accepted pos_id ${hbValue}, but could not fetch trajectory coordinates`);
-              saveChanges(drone.hw_id, { ...drone, pos_id: hbValue });
-            }
+            // Note: x,y positions come from trajectory CSV - not stored in config
+            saveChanges(drone.hw_id, {
+              ...drone,
+              pos_id: hbValue
+            });
+            toast.success(`Accepted assigned pos_id ${hbValue}`);
           }}
         />
       )}

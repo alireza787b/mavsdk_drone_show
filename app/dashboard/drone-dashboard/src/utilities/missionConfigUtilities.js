@@ -8,16 +8,18 @@ import 'react-toastify/dist/ReactToastify.css';
 /**
  * Validate configuration with backend before saving.
  * Returns validation report for review dialog.
+ *
+ * NOTE: x,y positions are NOT sent - they come from trajectory CSV files only.
  */
 export const validateConfigWithBackend = async (configData, setLoading) => {
-    // Define the expected structure
-    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+    // Define the expected structure (x,y removed - come from trajectory CSV)
+    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
 
     // Clean and transform the configData
     const cleanedConfigData = configData.map(drone => {
         const cleanedDrone = {};
         expectedFields.forEach(field => {
-            cleanedDrone[field] = drone[field] || '';
+            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
         });
         return cleanedDrone;
     });
@@ -49,16 +51,18 @@ export const validateConfigWithBackend = async (configData, setLoading) => {
 /**
  * Save configuration to server after validation.
  * This is called AFTER user confirms in review dialog.
+ *
+ * NOTE: x,y positions are NOT saved - they come from trajectory CSV files only.
  */
 export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
-    // Define the expected structure (hardware-specific config, gcs_ip/debug_port removed)
-    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+    // Define the expected structure (x,y removed - come from trajectory CSV)
+    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
 
     // Clean and transform the configData
     const cleanedConfigData = configData.map(drone => {
         const cleanedDrone = {};
         expectedFields.forEach(field => {
-            cleanedDrone[field] = drone[field] || ''; // Default missing fields to an empty string
+            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
         });
         return cleanedDrone;
     });
@@ -87,7 +91,7 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
         const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
 
-        // Reload config from server to get trajectory-updated x,y values
+        // Reload config from server to get latest saved state
         const refreshResponse = await axios.get(`${backendURL}/get-config-data`);
         setConfigData(refreshResponse.data);
 
@@ -95,8 +99,10 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         if (response.data.git_info) {
             if (response.data.git_info.success) {
                 toast.success(
-                    `Configuration saved and committed to git successfully!`,
-                    { autoClose: 5000 }
+                    `✅ Configuration saved and committed to git successfully!
+
+⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+                    { autoClose: 8000 }
                 );
             } else {
                 toast.warning(
@@ -106,8 +112,10 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
             }
         } else {
             toast.success(
-                response.data.message || 'Configuration saved successfully',
-                { autoClose: 4000 }
+                `✅ ${response.data.message || 'Configuration saved successfully'}
+
+⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+                { autoClose: 8000 }
             );
         }
 

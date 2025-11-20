@@ -15,7 +15,8 @@ SWARM_FILE_PATH = os.path.join(BASE_DIR, Params.swarm_csv_name)
 logger = logging.getLogger(__name__)
 
 # Define the expected column order
-CONFIG_COLUMNS = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate']
+# Note: x,y removed - positions are now always fetched from trajectory CSV (single source of truth)
+CONFIG_COLUMNS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate']
 SWARM_COLUMNS = ['hw_id' , 'follow' , 'offset_n' , 'offset_e' , 'offset_alt' , 'body_coord']
 
 
@@ -133,15 +134,19 @@ def get_drone_git_status(drone_uri):
 
 def validate_and_process_config(config_data, sim_mode=None):
     """
-    Validate configuration and update x,y coordinates from trajectory CSV files.
+    Validate drone configuration (positions now come from trajectory CSV only).
 
     This function:
-    1. Reads trajectory CSV first row for each pos_id
-    2. Updates x,y coordinates in config with trajectory values
-    3. Detects duplicate pos_id values
-    4. Identifies missing trajectory files
-    5. Tracks role swaps (hw_id ≠ pos_id)
+    1. Validates trajectory CSV exists for each pos_id
+    2. Detects duplicate pos_id values (collision risk)
+    3. Identifies missing trajectory files
+    4. Tracks role swaps (hw_id ≠ pos_id)
+    5. Removes x,y fields from config (no longer stored in config.csv)
     6. Returns comprehensive validation report
+
+    NOTE: x,y positions are NOT stored in config.csv. They are always fetched
+    from trajectory CSV files (single source of truth). Use get_all_drone_positions()
+    or /get-drone-positions API to retrieve positions.
 
     Args:
         config_data (list): List of drone config dictionaries
@@ -164,8 +169,7 @@ def validate_and_process_config(config_data, sim_mode=None):
         "role_swaps": []
     }
     changes = {
-        "pos_id_changes": [],
-        "xy_updates": []
+        "pos_id_changes": []
     }
 
     # Track pos_id usage for duplicate detection
@@ -208,7 +212,7 @@ def validate_and_process_config(config_data, sim_mode=None):
                     "pos_id": pos_id
                 })
 
-            # Get expected position from trajectory CSV (single source of truth)
+            # Check if trajectory file exists for this pos_id
             expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
 
             if expected_north is None or expected_east is None:
@@ -218,33 +222,13 @@ def validate_and_process_config(config_data, sim_mode=None):
                     "pos_id": pos_id,
                     "message": f"Trajectory file 'Drone {pos_id}.csv' not found"
                 })
-                # Keep existing x,y values
-                updated_drone = dict(drone)
-            else:
-                # Update x,y with trajectory values
-                old_x = float(drone.get('x', 0))
-                old_y = float(drone.get('y', 0))
 
-                # Track x,y changes
-                if abs(old_x - expected_north) > 0.01 or abs(old_y - expected_east) > 0.01:
-                    changes["xy_updates"].append({
-                        "hw_id": hw_id,
-                        "pos_id": pos_id,
-                        "old_x": old_x,
-                        "old_y": old_y,
-                        "new_x": expected_north,
-                        "new_y": expected_east
-                    })
-
-                # Create updated drone config
-                updated_drone = dict(drone)
-                updated_drone['x'] = expected_north
-                updated_drone['y'] = expected_east
-
-                logger.info(
-                    f"hw_id={hw_id}, pos_id={pos_id}: Updated x,y from trajectory CSV: "
-                    f"({old_x:.2f}, {old_y:.2f}) → ({expected_north:.2f}, {expected_east:.2f})"
-                )
+            # Note: x,y removed from config.csv - positions always come from trajectory CSV
+            # Just copy the drone config without x,y fields
+            updated_drone = dict(drone)
+            # Remove x,y if they exist in input (for backward compatibility during migration)
+            updated_drone.pop('x', None)
+            updated_drone.pop('y', None)
 
             updated_config.append(updated_drone)
 
@@ -271,7 +255,6 @@ def validate_and_process_config(config_data, sim_mode=None):
         "summary": {
             "total_drones": len(updated_config),
             "pos_id_changes_count": len(changes["pos_id_changes"]),
-            "xy_updates_count": len(changes["xy_updates"]),
             "duplicates_count": len(warnings["duplicates"]),
             "missing_trajectories_count": len(warnings["missing_trajectories"]),
             "role_swaps_count": len(warnings["role_swaps"])
@@ -282,3 +265,60 @@ def validate_and_process_config(config_data, sim_mode=None):
     logger.info(f"Config validation complete: {report['summary']}")
 
     return report
+
+
+def get_all_drone_positions(sim_mode=None):
+    """
+    Get initial positions for all drones from their trajectory CSV files.
+
+    This is the SINGLE SOURCE OF TRUTH for drone positions. Positions are always
+    read from the first row of each drone's trajectory CSV file based on pos_id.
+
+    Args:
+        sim_mode (bool): Whether in simulation mode (affects trajectory path)
+
+    Returns:
+        list: List of dictionaries with structure:
+              [{"hw_id": int, "pos_id": int, "x": float, "y": float}, ...]
+              Returns empty list on error.
+    """
+    from origin import _get_expected_position_from_trajectory
+
+    # Detect sim_mode if not provided
+    if sim_mode is None:
+        sim_mode = getattr(Params, 'sim_mode', False)
+
+    positions = []
+
+    try:
+        # Load current configuration
+        config_data = load_config()
+
+        for drone in config_data:
+            try:
+                hw_id = int(drone.get('hw_id'))
+                pos_id = int(drone.get('pos_id', hw_id))  # Fallback to hw_id if no pos_id
+
+                # Get position from trajectory CSV (single source of truth)
+                x, y = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+                if x is not None and y is not None:
+                    positions.append({
+                        "hw_id": hw_id,
+                        "pos_id": pos_id,
+                        "x": x,
+                        "y": y
+                    })
+                else:
+                    logger.warning(f"Could not get position for hw_id={hw_id}, pos_id={pos_id}")
+
+            except Exception as e:
+                logger.error(f"Error getting position for drone {drone}: {e}")
+                continue
+
+        logger.info(f"Retrieved positions for {len(positions)} drones")
+        return positions
+
+    except Exception as e:
+        logger.error(f"Error getting all drone positions: {e}")
+        return []
