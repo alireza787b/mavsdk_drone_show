@@ -2066,10 +2066,10 @@ class OutputManager:
     </style>
 </head>
 <body>
-    <h1>🚁 VTOL Quadplane Performance Analysis</h1>
+    <h1>[VTOL] Quadplane Performance Analysis</h1>
 
     <div class="download-section">
-        <h3>📊 Data Downloads</h3>
+        <h3>[DATA] Downloads</h3>
         <ul>
             <li><a href="data/performance_data.csv">Performance Data (CSV)</a></li>
             <li><a href="data/configuration.txt">Configuration Details</a></li>
@@ -2184,7 +2184,7 @@ class OutputManager:
 """
 
         index_path = os.path.join(paths['base'], 'index.html')
-        with open(index_path, 'w') as f:
+        with open(index_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
 
         print(f"  Created HTML index: {index_path}")
@@ -2292,8 +2292,8 @@ def run_full_analysis(config: AircraftConfiguration = None, base_dir: str = "out
     print(f"  - 3D Surfaces:   {paths['plots_3d']}/")
     print(f"  - Data Export:   {paths['data']}/")
     print(f"  - HTML Index:    {base_dir}/index.html\n")
-    print("  💡 Tip: Open index.html in your browser for easy viewing")
-    print("  📊 High-res JPG files (300 dpi) available for reports/presentations")
+    print("  [TIP] Open index.html in your browser for easy viewing")
+    print("  [NOTE] High-res JPG files (300 dpi) available for reports/presentations")
     print("="*80 + "\n")
 
 
