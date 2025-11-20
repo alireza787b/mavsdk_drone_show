@@ -902,16 +902,16 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         # Performance
         output.append("\nPERFORMANCE:")
-        self.add_comparison_row(output, preset_names, results, "Hover Endurance (min)", lambda r: r['hover']['endurance_min'])
-        self.add_comparison_row(output, preset_names, results, "Cruise Endurance (min)", lambda r: r['cruise']['endurance_min'])
-        self.add_comparison_row(output, preset_names, results, "Cruise Range (km)", lambda r: r['cruise']['range_km'])
-        self.add_comparison_row(output, preset_names, results, "Cruise Speed (m/s)", lambda r: r['cruise']['speed_ms'])
-        self.add_comparison_row(output, preset_names, results, "Best Range (km)", lambda r: r['best_range']['range_km'])
+        self.add_comparison_row(output, preset_names, results, "Hover Endurance (pure hover, min)", lambda r: r['hover']['endurance_min'])
+        self.add_comparison_row(output, preset_names, results, "Forward Flight Endurance (min)", lambda r: r['cruise']['endurance_min'])
+        self.add_comparison_row(output, preset_names, results, "Forward Flight Range (km)", lambda r: r['cruise']['range_km'])
+        self.add_comparison_row(output, preset_names, results, "Forward Flight Speed (m/s)", lambda r: r['cruise']['speed_ms'])
+        self.add_comparison_row(output, preset_names, results, "Max Range - optimized (km)", lambda r: r['best_range']['range_km'])
 
         # Power
         output.append("\nPOWER BUDGET:")
         self.add_comparison_row(output, preset_names, results, "Hover Power (W)", lambda r: r['hover']['power_w'])
-        self.add_comparison_row(output, preset_names, results, "Cruise Power (W)", lambda r: r['cruise']['power_w'])
+        self.add_comparison_row(output, preset_names, results, "Forward Flight Power (W)", lambda r: r['cruise']['power_w'])
         if 'power_budget' in results[preset_names[0]]['cruise']:
             self.add_comparison_row(output, preset_names, results, "Control Power (W)",
                 lambda r: r['cruise']['power_budget']['control_power_w'] if 'power_budget' in r['cruise'] else 0)
@@ -973,11 +973,11 @@ class VTOLAnalyzerGUI(tk.Tk):
 
                     # Data rows
                     rows = [
-                        ("Hover Endurance (min)", lambda r: r['hover']['endurance_min']),
-                        ("Cruise Endurance (min)", lambda r: r['cruise']['endurance_min']),
-                        ("Cruise Range (km)", lambda r: r['cruise']['range_km']),
+                        ("Hover Endurance - pure hover (min)", lambda r: r['hover']['endurance_min']),
+                        ("Forward Flight Endurance (min)", lambda r: r['cruise']['endurance_min']),
+                        ("Forward Flight Range (km)", lambda r: r['cruise']['range_km']),
                         ("Hover Power (W)", lambda r: r['hover']['power_w']),
-                        ("Cruise Power (W)", lambda r: r['cruise']['power_w']),
+                        ("Forward Flight Power (W)", lambda r: r['cruise']['power_w']),
                     ]
 
                     for param_name, value_func in rows:
@@ -1209,9 +1209,9 @@ class VTOLAnalyzerGUI(tk.Tk):
         preview.append("-"*80)
         preview.append(f"Preset: {self.current_preset_name.upper()}")
         preview.append(f"Weight: {self.current_config.total_takeoff_weight_kg:.2f} kg")
-        preview.append(f"Hover Endurance: {self.current_results['hover']['endurance_min']:.1f} min")
-        preview.append(f"Cruise Range: {self.current_results['cruise']['range_km']:.1f} km")
-        preview.append(f"Cruise Power: {self.current_results['cruise']['power_w']:.0f} W")
+        preview.append(f"Hover Endurance (pure hover): {self.current_results['hover']['endurance_min']:.1f} min")
+        preview.append(f"Forward Flight Range: {self.current_results['cruise']['range_km']:.1f} km")
+        preview.append(f"Forward Flight Power: {self.current_results['cruise']['power_w']:.0f} W")
         preview.append("")
 
         preview.append("PDF FEATURES:")
@@ -1494,9 +1494,9 @@ class VTOLAnalyzerGUI(tk.Tk):
         # Summary table
         summary_data = [
             ['Parameter', 'Value', 'Unit'],
-            ['Hover Endurance', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'],
-            ['Cruise Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'],
-            ['Cruise Power', f"{self.current_results['cruise']['power_w']:.0f}", 'W'],
+            ['Hover Endurance (pure hover)', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'],
+            ['Forward Flight Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'],
+            ['Forward Flight Power', f"{self.current_results['cruise']['power_w']:.0f}", 'W'],
             ['Max L/D Ratio', f"{self.current_results['aerodynamics']['max_ld_ratio']:.2f}", '-'],
         ]
 
@@ -1596,12 +1596,12 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         # Data rows
         data = [
-            ("Hover Endurance", self.current_results['hover']['endurance_min'], "min"),
+            ("Hover Endurance (pure hover)", self.current_results['hover']['endurance_min'], "min"),
             ("Hover Power", self.current_results['hover']['power_w'], "W"),
-            ("Cruise Range", self.current_results['cruise']['range_km'], "km"),
-            ("Cruise Endurance", self.current_results['cruise']['endurance_min'], "min"),
-            ("Cruise Power", self.current_results['cruise']['power_w'], "W"),
-            ("Cruise Speed", self.current_results['cruise']['speed_ms'], "m/s"),
+            ("Forward Flight Range", self.current_results['cruise']['range_km'], "km"),
+            ("Forward Flight Endurance", self.current_results['cruise']['endurance_min'], "min"),
+            ("Forward Flight Power", self.current_results['cruise']['power_w'], "W"),
+            ("Forward Flight Speed", self.current_results['cruise']['speed_ms'], "m/s"),
             ("Max L/D Ratio", self.current_results['aerodynamics']['max_ld_ratio'], "-"),
         ]
 
@@ -1733,9 +1733,9 @@ class VTOLAnalyzerGUI(tk.Tk):
         html.append("        <h2>Key Performance Metrics</h2>")
         html.append("        <table>")
         html.append("            <tr><th>Parameter</th><th>Value</th><th>Unit</th></tr>")
-        html.append(f"            <tr><td>Hover Endurance</td><td class='metric'>{self.current_results['hover']['endurance_min']:.1f}</td><td>min</td></tr>")
-        html.append(f"            <tr><td>Cruise Range</td><td class='metric'>{self.current_results['cruise']['range_km']:.1f}</td><td>km</td></tr>")
-        html.append(f"            <tr><td>Cruise Power</td><td class='metric'>{self.current_results['cruise']['power_w']:.0f}</td><td>W</td></tr>")
+        html.append(f"            <tr><td>Hover Endurance (pure hover)</td><td class='metric'>{self.current_results['hover']['endurance_min']:.1f}</td><td>min</td></tr>")
+        html.append(f"            <tr><td>Forward Flight Range</td><td class='metric'>{self.current_results['cruise']['range_km']:.1f}</td><td>km</td></tr>")
+        html.append(f"            <tr><td>Forward Flight Power</td><td class='metric'>{self.current_results['cruise']['power_w']:.0f}</td><td>W</td></tr>")
         html.append(f"            <tr><td>Max L/D Ratio</td><td class='metric'>{self.current_results['aerodynamics']['max_ld_ratio']:.2f}</td><td>-</td></tr>")
         html.append("        </table>")
         html.append("")
@@ -1977,18 +1977,18 @@ class VTOLAnalyzerGUI(tk.Tk):
         cruise = self.current_results['cruise']
         best_range = self.current_results['best_range']
 
-        output.append(f"  Hover Endurance:       {hover['endurance_min']:.1f} min")
-        output.append(f"  Cruise Endurance:      {cruise['endurance_min']:.1f} min")
-        output.append(f"  Cruise Range:          {cruise['range_km']:.1f} km")
-        output.append(f"  Cruise Power:          {cruise['power_w']:.0f} W")
-        output.append(f"  Best Range:            {best_range['range_km']:.1f} km")
+        output.append(f"  Hover Endurance (pure hover):     {hover['endurance_min']:.1f} min")
+        output.append(f"  Forward Flight Endurance:         {cruise['endurance_min']:.1f} min")
+        output.append(f"  Forward Flight Range:             {cruise['range_km']:.1f} km @ {cruise['speed_ms']:.1f} m/s")
+        output.append(f"  Forward Flight Power:             {cruise['power_w']:.0f} W")
+        output.append(f"  Max Range (optimized speed):      {best_range['range_km']:.1f} km")
         output.append("")
 
         # Power budget
         if 'power_budget' in cruise:
             pb = cruise['power_budget']
             output.append("-"*80)
-            output.append("CRUISE POWER BUDGET")
+            output.append("FORWARD FLIGHT POWER BUDGET")
             output.append("-"*80)
             output.append(f"  Aerodynamic Drag:      {pb['aerodynamic_drag_w']:6.1f} W")
             output.append(f"  Propeller Efficiency:  {pb['propeller_efficiency']*100:6.1f} %")
