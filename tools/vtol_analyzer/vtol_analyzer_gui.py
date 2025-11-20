@@ -1889,7 +1889,22 @@ class VTOLAnalyzerGUI(tk.Tk):
     def run_analysis(self):
         """Run performance analysis with current configuration"""
         try:
-            self.update_status("Running analysis...")
+            # First apply any UI changes
+            self.update_config_from_ui()
+
+            # Validate configuration
+            self.update_status("Validating configuration...")
+            if not self.validate_config_silent():
+                response = messagebox.askyesno(
+                    "Validation Warning",
+                    "Configuration has warnings. Continue with analysis anyway?"
+                )
+                if not response:
+                    self.update_status("Analysis cancelled")
+                    return
+
+            self.update_status("Running analysis... Please wait")
+            self.update()  # Force UI update
 
             # Create calculator
             self.current_calc = PerformanceCalculator(self.current_config)
@@ -1900,14 +1915,43 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Display results
             self.display_results()
 
-            self.update_status("Analysis complete!")
+            self.update_status(f"✓ Analysis complete! Preset: {self.current_preset_name.upper()}")
 
             # Auto-switch to results tab
             self.notebook.select(1)
 
+        except ValueError as e:
+            messagebox.showerror("Invalid Input",
+                f"Invalid parameter value:\n\n{e}\n\n"
+                "Please check your inputs and try again.")
+            self.update_status("Analysis failed - invalid input")
         except Exception as e:
-            messagebox.showerror("Analysis Error", f"Could not run analysis:\n{e}")
+            messagebox.showerror("Analysis Error",
+                f"Could not run analysis:\n\n{e}\n\n"
+                "Please check your configuration and try again.")
             self.update_status("Analysis failed")
+            import traceback
+            traceback.print_exc()
+
+    def validate_config_silent(self):
+        """Validate configuration without showing messages"""
+        try:
+            errors = []
+
+            # Basic validation
+            if self.current_config.total_takeoff_weight_kg < 1.0 or self.current_config.total_takeoff_weight_kg > 20.0:
+                errors.append("Total weight out of range")
+
+            if self.current_config.wingspan_m < 0.5 or self.current_config.wingspan_m > 5.0:
+                errors.append("Wing span out of range")
+
+            if self.current_config.prop_efficiency_lowspeed < 0.3 or self.current_config.prop_efficiency_lowspeed > 1.0:
+                errors.append("Propeller efficiency out of range")
+
+            return len(errors) == 0
+
+        except:
+            return False
 
     def display_results(self):
         """Display analysis results in results tab"""
@@ -2221,7 +2265,55 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def validate_config(self):
         """Validate current configuration"""
-        messagebox.showinfo("Validation", "Configuration is valid!")
+        try:
+            errors = []
+            warnings = []
+
+            # Validate basic parameters
+            if self.current_config.total_takeoff_weight_kg < 1.0 or self.current_config.total_takeoff_weight_kg > 20.0:
+                errors.append("Total weight must be between 1.0 and 20.0 kg")
+
+            if self.current_config.wingspan_m < 0.5 or self.current_config.wingspan_m > 5.0:
+                errors.append("Wing span must be between 0.5 and 5.0 m")
+
+            if self.current_config.wing_chord_m < 0.05 or self.current_config.wing_chord_m > 0.5:
+                errors.append("Wing chord must be between 0.05 and 0.5 m")
+
+            # Validate efficiencies
+            if self.current_config.prop_efficiency_lowspeed < 0.3 or self.current_config.prop_efficiency_lowspeed > 1.0:
+                errors.append("Propeller efficiency (low speed) must be between 30% and 100%")
+
+            if self.current_config.motor_efficiency_peak < 0.5 or self.current_config.motor_efficiency_peak > 1.0:
+                errors.append("Motor efficiency must be between 50% and 100%")
+
+            # Validate drag coefficients
+            if self.current_config.cd0_motor_nacelles < 0.01 or self.current_config.cd0_motor_nacelles > 0.1:
+                warnings.append("CD0 motor nacelles seems unusual (typical: 0.020-0.050)")
+
+            # Validate power parameters
+            if self.current_config.control_power_base_w < 10 or self.current_config.control_power_base_w > 200:
+                warnings.append("Control power base seems unusual (typical: 30-100 W)")
+
+            # Display results
+            if errors:
+                messagebox.showerror("Validation Failed",
+                    "Configuration has errors:\n\n" + "\n".join(f"• {e}" for e in errors))
+                return False
+            elif warnings:
+                response = messagebox.showwarning("Validation Warnings",
+                    "Configuration has warnings:\n\n" + "\n".join(f"• {w}" for w in warnings) +
+                    "\n\nDo you want to continue?",
+                    type=messagebox.OKCANCEL)
+                return response == 'ok'
+            else:
+                messagebox.showinfo("Validation Passed",
+                    "✓ Configuration is valid!\n\n"
+                    "All parameters are within acceptable ranges.")
+                return True
+
+        except Exception as e:
+            messagebox.showerror("Validation Error", f"Could not validate configuration:\n{e}")
+            return False
 
     # -----------------------------------------------------------------------
     # PLOTTING FUNCTIONS
