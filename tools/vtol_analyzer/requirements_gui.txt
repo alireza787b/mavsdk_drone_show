@@ -1,0 +1,16 @@
+# VTOL Performance Analyzer v4.0 - GUI Edition
+# Python package requirements
+
+# Core dependencies (REQUIRED)
+numpy>=1.20.0
+matplotlib>=3.3.0
+
+# Optional dependencies for advanced export features
+reportlab>=3.6.0      # PDF export (falls back to text if not installed)
+openpyxl>=3.0.0       # Excel export (falls back to CSV if not installed)
+
+# Note: tkinter usually comes with Python installation
+# If tkinter is not available:
+#   Ubuntu/Debian: sudo apt-get install python3-tk
+#   macOS: brew install python-tk
+#   Windows: Reinstall Python with "tcl/tk" option checked
