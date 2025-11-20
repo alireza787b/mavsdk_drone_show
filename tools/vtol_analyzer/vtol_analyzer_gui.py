@@ -102,6 +102,9 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.config_modified = False
         self.auto_save_timer_id = None
 
+        # Parameter tooltips database
+        self.param_tooltips = self.get_parameter_tooltips()
+
         # Initialize UI
         self.create_styles()
         self.create_menu()
@@ -117,6 +120,53 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         # Bind window close
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def get_parameter_tooltips(self):
+        """Comprehensive tooltip database for all parameters"""
+        return {
+            # Basic Parameters
+            "total_takeoff_weight_kg": "Total aircraft weight including battery, payload, and airframe.\nTypical range: 2-10 kg for small VTOL",
+            "wingspan_m": "Total wing span from tip to tip.\nAffects lift generation and L/D ratio in forward flight",
+            "wing_chord_m": "Average wing chord (width from leading to trailing edge).\nDetermines wing area with span",
+            "field_elevation_m": "Operating altitude above sea level (affects air density).\nHigher altitude = less dense air = more power needed",
+
+            # Tailsitter-Specific
+            "control_power_base_w": "Base power for control surfaces and stabilization.\nHigher for aggressive flight or turbulent conditions",
+            "control_power_speed_factor": "Additional control power per m/s airspeed.\nAccounts for increased control demands at higher speeds",
+            "cd0_motor_nacelles": "Parasite drag from motors and nacelles.\n0.020-0.035 typical for clean installations",
+            "cd0_fuselage_base": "Fuselage base drag coefficient.\n0.005-0.015 depending on streamlining",
+            "cd0_landing_gear": "Drag from landing gear (if any).\n0.008-0.015 for fixed gear, 0.003 for retractable",
+            "cd0_interference": "Drag from component interference (wing-body, etc).\n0.010-0.020 typical for integrated designs",
+
+            # Transition Parameters
+            "transition_duration_s": "Time to transition between hover and forward flight.\nLonger = smoother but more energy, Shorter = quicker but rougher",
+            "avg_transition_power_w": "Average electrical power during transition.\nTypically 1.3-1.8x forward flight power",
+            "transition_forward_duration_s": "Duration of hover-to-forward flight transition.\n10-20 seconds typical for smooth transition",
+            "transition_forward_power_factor": "Power multiplier during forward transition.\n1.5-2.5× cruise power typical",
+            "transition_back_duration_s": "Duration of forward-to-hover transition.\n8-15 seconds, usually faster than forward transition",
+            "transition_back_power_factor": "Power multiplier during back transition.\n1.2-2.0× cruise power typical",
+
+            # Propulsion
+            "battery_capacity_mah": "Total battery capacity in milliamp-hours.\nHigher = longer flight time but more weight",
+            "battery_voltage_v": "Nominal battery voltage.\nCommon: 14.8V (4S), 22.2V (6S), 29.6V (8S)",
+            "battery_weight_fraction": "Battery weight as fraction of total weight.\n0.25-0.35 typical for good endurance",
+            "battery_min_voltage_fraction": "Minimum safe voltage as fraction of nominal.\n0.80 = land at 80% voltage for battery longevity",
+            "motor_kv": "Motor velocity constant (RPM per volt).\nLower KV = more torque, better for larger props",
+            "propeller_diameter_in": "Propeller diameter in inches.\nLarger = more efficient but slower response",
+            "propeller_pitch_in": "Propeller pitch in inches.\nHigher pitch = more thrust at high speed",
+            "hover_efficiency": "Propeller efficiency in hover (vertical).\n0.50-0.70 typical for multirotor props",
+            "cruise_efficiency": "Propeller efficiency in forward flight.\n0.75-0.85 typical for fixed-pitch cruise props",
+            "motor_efficiency": "Motor electrical-to-mechanical efficiency.\n0.80-0.90 for quality brushless motors",
+            "esc_efficiency": "Electronic Speed Controller efficiency.\n0.92-0.97 for modern ESCs",
+            "prop_efficiency_lowspeed": "Propeller efficiency at low speed (hover/climb).\n60-75% typical for multirotor-style props",
+            "prop_efficiency_highspeed": "Propeller efficiency at high speed (cruise).\n50-65% for fixed-pitch compromises, 75-85% for optimized cruise props",
+            "motor_efficiency_peak": "Peak motor efficiency.\n75-90% depending on motor quality and operating point",
+
+            # Auxiliary Systems
+            "avionics_power_w": "Power consumed by flight controller, GPS, telemetry.\n4-8W typical for autopilot systems",
+            "payload_power_w": "Power for cameras, sensors, or other payload.\n0-20W depending on equipment",
+            "heater_power_w": "Battery heater power for cold weather operations.\n0-15W, only when needed",
+        }
 
     # -----------------------------------------------------------------------
     # STYLING
@@ -334,6 +384,10 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             self.param_widgets[param] = entry
 
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
     def create_tailsitter_params_section(self, parent):
         """Create tailsitter-specific parameters section"""
         frame = ttk.LabelFrame(parent, text=" Tailsitter-Specific (v3.0) ", padding=10)
@@ -363,6 +417,10 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             self.param_widgets[param] = entry
 
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
     def create_transitions_params_section(self, parent):
         """Create transition parameters section (collapsible)"""
         # This will be a collapsible section - simplified for now
@@ -391,6 +449,10 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             self.param_widgets[param] = entry
 
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
     def create_propulsion_params_section(self, parent):
         """Create propulsion parameters section"""
         frame = ttk.LabelFrame(parent, text=" Propulsion Efficiency ", padding=10)
@@ -415,6 +477,10 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             self.param_widgets[param] = entry
 
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
     def create_auxiliary_params_section(self, parent):
         """Create auxiliary systems parameters section"""
         frame = ttk.LabelFrame(parent, text=" Auxiliary Systems ", padding=10)
@@ -437,6 +503,10 @@ class VTOLAnalyzerGUI(tk.Tk):
             ttk.Label(row, text=f"({range_str})", font=('Arial', 8), foreground='gray').pack(side='left')
 
             self.param_widgets[param] = entry
+
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
 
     # -----------------------------------------------------------------------
     # TAB 2: ANALYSIS RESULTS
