@@ -584,6 +584,46 @@ class VTOLAnalyzerGUI(tk.Tk):
         summary_label = ttk.Label(summary_frame, textvariable=self.mission_summary_text, font=('Courier', 10))
         summary_label.pack()
 
+        # Template selection frame
+        template_frame = ttk.LabelFrame(self.tab_mission, text=" 📋 Mission Templates (Examples) ", padding=10)
+        template_frame.pack(fill='x', padx=10, pady=5)
+
+        # Try to import mission templates
+        try:
+            from mission_templates import get_template_names, DEFAULT_MISSION
+            self.mission_templates_available = True
+
+            ttk.Label(template_frame, text="Load Template:").pack(side='left', padx=5)
+
+            template_names = get_template_names()
+            self.template_var = tk.StringVar(value=template_names[0][1] if template_names else "")
+            template_combo = ttk.Combobox(
+                template_frame,
+                textvariable=self.template_var,
+                values=[name for _, name in template_names],
+                width=40,
+                state='readonly'
+            )
+            template_combo.pack(side='left', padx=5)
+
+            ttk.Button(
+                template_frame,
+                text="Load Template",
+                command=self.load_mission_template
+            ).pack(side='left', padx=5)
+
+            # Store template mapping
+            self.template_map = {name: tid for tid, name in template_names}
+
+        except ImportError:
+            self.mission_templates_available = False
+            ttk.Label(
+                template_frame,
+                text="Mission templates not available. Add mission_templates.py to enable.",
+                foreground='gray',
+                font=('Arial', 9, 'italic')
+            ).pack(side='left', padx=5)
+
         # Action buttons
         action_frame = ttk.Frame(self.tab_mission)
         action_frame.pack(fill='x', padx=10, pady=10)
@@ -592,6 +632,10 @@ class VTOLAnalyzerGUI(tk.Tk):
         ttk.Button(action_frame, text="Clear All", command=self.clear_mission_segments).pack(side='left', padx=5)
         ttk.Button(action_frame, text="Save Mission", command=self.save_mission).pack(side='left', padx=5)
         ttk.Button(action_frame, text="Load Mission", command=self.load_mission).pack(side='left', padx=5)
+
+        # Load default example mission on startup
+        if self.mission_templates_available:
+            self.after(100, lambda: self.load_mission_template(DEFAULT_MISSION))
 
     def add_mission_segment(self):
         """Add a mission segment to the list"""
@@ -706,13 +750,16 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         self.update_mission_summary()
 
-    def clear_mission_segments(self):
+    def clear_mission_segments(self, confirm=True):
         """Clear all mission segments"""
-        if messagebox.askyesno("Clear Mission", "Remove all segments?"):
-            for seg in self.mission_segments:
-                seg['frame'].destroy()
-            self.mission_segments = []
-            self.update_mission_summary()
+        if confirm:
+            if not messagebox.askyesno("Clear Mission", "Remove all segments?"):
+                return
+
+        for seg in self.mission_segments:
+            seg['frame'].destroy()
+        self.mission_segments = []
+        self.update_mission_summary()
 
     def simulate_mission(self):
         """Simulate the mission and calculate energy"""
@@ -801,6 +848,66 @@ class VTOLAnalyzerGUI(tk.Tk):
     def load_mission(self):
         """Load mission profile from file"""
         messagebox.showinfo("Coming Soon", "Load mission profile from JSON file")
+
+    def load_mission_template(self, template_id=None):
+        """Load a mission template"""
+        try:
+            from mission_templates import get_mission_template
+
+            # Get template ID from dropdown if not provided
+            if template_id is None:
+                template_name = self.template_var.get()
+                template_id = self.template_map.get(template_name)
+
+            if not template_id:
+                return
+
+            template = get_mission_template(template_id)
+            if not template:
+                messagebox.showerror("Error", f"Template '{template_id}' not found")
+                return
+
+            # Clear existing segments
+            self.clear_mission_segments(confirm=False)
+
+            # Load template segments
+            for seg in template['segments']:
+                seg_type = seg['type']
+
+                if seg_type == "hover":
+                    self.segment_type_var.set("Hover")
+                    self.add_mission_segment()
+                    # Set duration
+                    self.mission_segments[-1]['duration_s'].set(str(seg['duration_s']))
+
+                elif seg_type == "cruise":
+                    self.segment_type_var.set("Cruise")
+                    self.add_mission_segment()
+                    # Set duration and speed
+                    self.mission_segments[-1]['duration_s'].set(str(seg['duration_s']))
+                    self.mission_segments[-1]['speed_ms'].set(str(seg['speed_ms']))
+
+                elif seg_type == "transition_forward":
+                    self.segment_type_var.set("Transition Forward")
+                    self.add_mission_segment()
+
+                elif seg_type == "transition_back":
+                    self.segment_type_var.set("Transition Back")
+                    self.add_mission_segment()
+
+            # Update summary
+            self.update_mission_summary()
+
+            # Show info
+            est_time = template.get('estimated_time_min', 'N/A')
+            est_dist = template.get('estimated_distance_km', 'N/A')
+            self.update_status(
+                f"✓ Loaded template: {template['name']} "
+                f"(~{est_time} min, ~{est_dist} km)"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Load Template Error", f"Could not load template:\n{e}")
 
     # -----------------------------------------------------------------------
     # TAB 5: COMPARISON
