@@ -86,6 +86,29 @@ class AircraftConfiguration:
     aspect_ratio: float = None  # Calculated if None: AR = b²/S
 
     # -----------------------------------------------------------------------
+    # FUSELAGE GEOMETRY (v4.1)
+    # -----------------------------------------------------------------------
+    fuselage_length_m: float = 1.2  # Total fuselage length [m]
+    fuselage_diameter_m: float = 0.10  # Fuselage diameter (cylindrical body) [m]
+
+    # -----------------------------------------------------------------------
+    # TAIL FIN CONFIGURATION (v4.1)
+    # -----------------------------------------------------------------------
+    # Tailsitters typically have 3 symmetric fins at 120° for stability
+    num_tail_fins: int = 3  # Number of vertical stabilizers (3 or 4)
+    tail_fin_chord_m: float = 0.05  # Fin chord length [m]
+    tail_fin_span_m: float = 0.15  # Fin height/span [m]
+    tail_fin_position_m: float = 0.50  # Distance from CG to fin root (aft) [m]
+    tail_fin_thickness_ratio: float = 0.12  # Airfoil thickness ratio (symmetric NACA 0012)
+    tail_fin_taper_ratio: float = 0.7  # Taper ratio (tip/root chord)
+
+    # -----------------------------------------------------------------------
+    # MOTOR GEOMETRY (v4.1)
+    # -----------------------------------------------------------------------
+    motor_spacing_m: float = 0.50  # Distance between motors [m]
+    num_motors: int = 4  # Number of motors (quad configuration)
+
+    # -----------------------------------------------------------------------
     # AIRFOIL (NACA 2212)
     # -----------------------------------------------------------------------
     airfoil_name: str = "NACA 2212"
@@ -196,6 +219,43 @@ class AircraftConfiguration:
     # -----------------------------------------------------------------------
     # CALCULATED PROPERTIES
     # -----------------------------------------------------------------------
+    def _calculate_tail_fin_drag(self) -> float:
+        """
+        Calculate parasite drag contribution from tail fins (v4.1).
+
+        For vertical stabilizers with symmetric airfoils at 0° angle of attack,
+        the drag is primarily parasiteCD0 from wetted area.
+
+        Returns:
+            CD0 contribution from tail fins (referenced to wing area)
+        """
+        # Wetted area per fin (both sides of the fin)
+        # Accounting for taper: avg_chord = root_chord * (1 + taper_ratio) / 2
+        avg_chord = self.tail_fin_chord_m * (1.0 + self.tail_fin_taper_ratio) / 2.0
+        wetted_area_per_fin = 2.0 * avg_chord * self.tail_fin_span_m
+
+        # Total wetted area for all fins
+        total_fin_wetted_area = self.num_tail_fins * wetted_area_per_fin
+
+        # Flat plate skin friction coefficient for streamlined surface
+        # Typical Re ~ 1e5 - 5e5 for small UAVs
+        # Using empirical value for smooth surface, Re ~ 2e5
+        cf_flat_plate = 0.008  # Conservative estimate for turbulent flow
+
+        # Form factor for symmetric airfoil (accounts for thickness)
+        # FF = 1 + 2*t/c + 60*(t/c)^4  (typical NACA airfoil correlation)
+        t_c = self.tail_fin_thickness_ratio
+        form_factor = 1.0 + 2.0 * t_c + 60.0 * (t_c ** 4)
+
+        # Interference factor (fin-body junction creates vortices)
+        interference_factor = 1.05  # 5% increase for clean junction
+
+        # CD0 contribution (referenced to wing area)
+        cd0_fins = (cf_flat_plate * form_factor * interference_factor *
+                   total_fin_wetted_area / self.wing_area_m2)
+
+        return cd0_fins
+
     def __post_init__(self):
         """Calculate derived parameters"""
         # Wing area from span and chord
@@ -208,17 +268,22 @@ class AircraftConfiguration:
         # Induced drag factor: k = 1 / (π * AR * e)
         self.induced_drag_factor = 1.0 / (math.pi * self.aspect_ratio * self.oswald_efficiency)
 
+        # Calculate tail fin drag contribution (v4.1)
+        self.cd0_tail_fins = self._calculate_tail_fin_drag()
+
         # Total parasite drag coefficient (cruise configuration)
         # v3.0: Use tailsitter-specific breakdown if TAILSITTER type
+        # v4.1: Added tail fin contribution
         if self.aircraft_type == "TAILSITTER":
             self.cd0_total_cruise = (self.cd0_clean +
                                      self.cd0_motor_nacelles +
                                      self.cd0_fuselage_base +
                                      self.cd0_landing_gear +
-                                     self.cd0_interference)
+                                     self.cd0_interference +
+                                     self.cd0_tail_fins)  # v4.1
         else:
             # Standard quadplane
-            self.cd0_total_cruise = self.cd0_clean + self.cd0_vtol_motors
+            self.cd0_total_cruise = self.cd0_clean + self.cd0_vtol_motors + self.cd0_tail_fins  # v4.1
 
         # Propeller diameter in meters
         self.prop_diameter_m = self.prop_diameter_inch * 0.0254

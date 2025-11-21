@@ -173,6 +173,18 @@ class VTOLAnalyzerGUI(tk.Tk):
             "avionics_power_w": "Power consumed by flight controller, GPS, telemetry.\n4-8W typical for autopilot systems",
             "payload_power_w": "Power for cameras, sensors, or other payload.\n0-20W depending on equipment",
             "heater_power_w": "Battery heater power for cold weather operations.\n0-15W, only when needed",
+
+            # Geometry Parameters (v4.1)
+            "fuselage_length_m": "Total fuselage length from nose to tail.\nAffects parasite drag and structural weight.\n1.0-1.5m typical for small tailsitters",
+            "fuselage_diameter_m": "Fuselage body diameter (cylindrical approximation).\nAffects frontal drag and internal volume.\n0.08-0.12m typical for small UAVs",
+            "num_tail_fins": "Number of vertical stabilizers for yaw/pitch control.\n3 fins (120° apart) or 4 fins (90° apart) typical for tailsitters",
+            "tail_fin_chord_m": "Root chord length of tail fin.\nAffects control authority and drag.\n0.04-0.06m typical for small aircraft",
+            "tail_fin_span_m": "Vertical height of tail fin from root to tip.\nAffects stability and control power.\n0.12-0.20m typical",
+            "tail_fin_position_m": "Distance from center of gravity to fin root (aft direction).\nFarther aft = better control leverage but more structural weight.\n0.4-0.6m typical",
+            "tail_fin_thickness_ratio": "Airfoil thickness-to-chord ratio (symmetric airfoil).\n0.12 = NACA 0012, 0.10 = NACA 0010.\nThicker = stronger but more drag",
+            "tail_fin_taper_ratio": "Ratio of tip chord to root chord.\n1.0 = rectangular, 0.7 = moderate taper, 0.5 = strong taper.\nTaper reduces weight and induced drag",
+            "motor_spacing_m": "Distance between motors in quad configuration.\nAffects control authority and structural loads.\n0.4-0.6m typical for small quads",
+            "num_motors": "Number of motors for VTOL thrust.\n4 = quadcopter, 6 = hexacopter.\nCurrently only 4 motors supported",
         }
 
     def get_parameter_ranges(self):
@@ -218,6 +230,19 @@ class VTOLAnalyzerGUI(tk.Tk):
             "avionics_power_w": (2.0, 20.0, 4.0, 10.0),
             "payload_power_w": (0.0, 50.0, 0.0, 20.0),
             "heater_power_w": (0.0, 30.0, 0.0, 15.0),
+
+            # Geometry Parameters (v4.1)
+            # Format: (hard_min, hard_max, warning_min, warning_max)
+            "fuselage_length_m": (0.5, 2.5, 0.8, 2.0),
+            "fuselage_diameter_m": (0.03, 0.25, 0.05, 0.20),
+            "num_tail_fins": (3.0, 4.0, 3.0, 4.0),  # Only 3 or 4 supported
+            "tail_fin_chord_m": (0.02, 0.15, 0.03, 0.10),
+            "tail_fin_span_m": (0.05, 0.40, 0.10, 0.30),
+            "tail_fin_position_m": (0.2, 1.0, 0.3, 0.8),
+            "tail_fin_thickness_ratio": (0.06, 0.18, 0.08, 0.15),
+            "tail_fin_taper_ratio": (0.4, 1.0, 0.5, 1.0),
+            "motor_spacing_m": (0.2, 1.0, 0.3, 0.8),
+            "num_motors": (4.0, 4.0, 4.0, 4.0),  # Only 4 motors supported currently
         }
 
     def validate_parameter(self, param_name, value_str):
@@ -429,6 +454,11 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.notebook.add(self.tab_export, text="  Export Manager  ")
         self.create_export_tab()
 
+        # Tab 7: Design Schematic (v4.1)
+        self.tab_schematic = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_schematic, text="  Design Schematic  ")
+        self.create_schematic_tab()
+
     # -----------------------------------------------------------------------
     # TAB 1: CONFIGURATION
     # -----------------------------------------------------------------------
@@ -481,6 +511,7 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.create_transitions_params_section(scrollable_frame)
         self.create_propulsion_params_section(scrollable_frame)
         self.create_auxiliary_params_section(scrollable_frame)
+        self.create_geometry_params_section(scrollable_frame)  # v4.1
 
         # Bottom action buttons
         bottom_frame = ttk.Frame(self.tab_config)
@@ -643,6 +674,96 @@ class VTOLAnalyzerGUI(tk.Tk):
             row.pack(fill='x', pady=2)
 
             ttk.Label(row, text=f"{label}:", width=20).pack(side='left')
+            entry = ttk.Entry(row, width=12)
+            entry.pack(side='left', padx=5)
+            ttk.Label(row, text=unit, width=8).pack(side='left')
+            ttk.Label(row, text=f"({range_str})", font=('Arial', 8), foreground='gray').pack(side='left')
+
+            self.param_widgets[param] = entry
+
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
+    def create_geometry_params_section(self, parent):
+        """Create airframe geometry parameters section (v4.1)"""
+        frame = ttk.LabelFrame(parent, text=" Airframe Geometry (v4.1) ", padding=10)
+        frame.pack(fill='x', padx=10, pady=5)
+
+        # Fuselage geometry
+        ttk.Label(frame, text="Fuselage:", font=('Arial', 9, 'bold')).pack(anchor='w', pady=(5, 2))
+
+        fuselage_params = [
+            ("fuselage_length_m", "Fuselage Length", "m", "0.8-2.0"),
+            ("fuselage_diameter_m", "Fuselage Diameter", "m", "0.05-0.20"),
+        ]
+
+        for param, label, unit, range_str in fuselage_params:
+            row = ttk.Frame(frame)
+            row.pack(fill='x', pady=2)
+
+            ttk.Label(row, text=f"  {label}:", width=25).pack(side='left')
+            entry = ttk.Entry(row, width=12)
+            entry.pack(side='left', padx=5)
+            ttk.Label(row, text=unit, width=8).pack(side='left')
+            ttk.Label(row, text=f"({range_str})", font=('Arial', 8), foreground='gray').pack(side='left')
+
+            self.param_widgets[param] = entry
+
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
+        # Tail fin configuration
+        ttk.Label(frame, text="Tail Fins:", font=('Arial', 9, 'bold')).pack(anchor='w', pady=(10, 2))
+
+        tail_params = [
+            ("num_tail_fins", "Number of Fins", "-", "3 or 4"),
+            ("tail_fin_chord_m", "Fin Chord", "m", "0.03-0.10"),
+            ("tail_fin_span_m", "Fin Span (Height)", "m", "0.10-0.30"),
+            ("tail_fin_position_m", "Fin Position (aft of CG)", "m", "0.3-0.8"),
+            ("tail_fin_thickness_ratio", "Airfoil Thickness Ratio", "-", "0.08-0.15"),
+            ("tail_fin_taper_ratio", "Taper Ratio (tip/root)", "-", "0.5-1.0"),
+        ]
+
+        for param, label, unit, range_str in tail_params:
+            row = ttk.Frame(frame)
+            row.pack(fill='x', pady=2)
+
+            ttk.Label(row, text=f"  {label}:", width=25).pack(side='left')
+            entry = ttk.Entry(row, width=12)
+            entry.pack(side='left', padx=5)
+            ttk.Label(row, text=unit, width=8).pack(side='left')
+            ttk.Label(row, text=f"({range_str})", font=('Arial', 8), foreground='gray').pack(side='left')
+
+            self.param_widgets[param] = entry
+
+            # Add tooltip if available
+            if param in self.param_tooltips:
+                self.create_tooltip(entry, self.param_tooltips[param])
+
+            # Bind real-time validation
+            self.bind_validation(param, entry)
+
+        # Motor configuration
+        ttk.Label(frame, text="Motors:", font=('Arial', 9, 'bold')).pack(anchor='w', pady=(10, 2))
+
+        motor_params = [
+            ("num_motors", "Number of Motors", "-", "4"),
+            ("motor_spacing_m", "Motor Spacing", "m", "0.3-0.8"),
+        ]
+
+        for param, label, unit, range_str in motor_params:
+            row = ttk.Frame(frame)
+            row.pack(fill='x', pady=2)
+
+            ttk.Label(row, text=f"  {label}:", width=25).pack(side='left')
             entry = ttk.Entry(row, width=12)
             entry.pack(side='left', padx=5)
             ttk.Label(row, text=unit, width=8).pack(side='left')
@@ -2176,6 +2297,120 @@ class VTOLAnalyzerGUI(tk.Tk):
             pass  # Silently fail if can't open
 
     # -----------------------------------------------------------------------
+    # DESIGN SCHEMATIC TAB (v4.1)
+    # -----------------------------------------------------------------------
+
+    def create_schematic_tab(self):
+        """Create design schematic visualization tab (v4.1)"""
+        # Toolbar with title and update button
+        toolbar = ttk.Frame(self.tab_schematic)
+        toolbar.pack(fill='x', padx=10, pady=10)
+
+        ttk.Label(
+            toolbar,
+            text="Aircraft Design Schematic",
+            style='Title.TLabel'
+        ).pack(side='left')
+
+        # Separator
+        ttk.Separator(toolbar, orient='vertical').pack(side='left', padx=20, fill='y')
+
+        # Info label
+        ttk.Label(
+            toolbar,
+            text="3-view engineering drawing based on current parameters",
+            font=('Arial', 10)
+        ).pack(side='left', padx=10)
+
+        # Update button on the right
+        ttk.Button(
+            toolbar,
+            text="🔄 Update Schematic",
+            command=self.update_schematic,
+            style='Primary.TButton'
+        ).pack(side='right', padx=5)
+
+        # Instructions panel
+        instructions_frame = ttk.LabelFrame(
+            self.tab_schematic,
+            text=" Instructions ",
+            padding=10
+        )
+        instructions_frame.pack(fill='x', padx=10, pady=(0, 10))
+
+        instructions_text = (
+            "This tab shows a professional 3-view engineering drawing of your aircraft design.\n\n"
+            "• Top View: Shows wing, fuselage, tail fins, and propeller positions\n"
+            "• Front View: Shows fuselage cross-section and tail fin arrangement\n"
+            "• Side View: Shows profile with wing and tail fin airfoils\n\n"
+            "Change parameters in the Configuration tab, then click 'Update Schematic' to refresh the visualization."
+        )
+
+        ttk.Label(
+            instructions_frame,
+            text=instructions_text,
+            font=('Arial', 10),
+            justify='left'
+        ).pack(anchor='w')
+
+        # Canvas frame for matplotlib figure
+        self.schematic_canvas_frame = ttk.Frame(self.tab_schematic)
+        self.schematic_canvas_frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # Placeholder message (shown until first update)
+        self.schematic_placeholder = ttk.Label(
+            self.schematic_canvas_frame,
+            text="Click 'Update Schematic' to visualize your aircraft design\n\n"
+                 "The schematic will show top, front, and side views with dimensions",
+            font=('Arial', 11),
+            justify='center',
+            foreground='#7f8c8d'
+        )
+        self.schematic_placeholder.pack(expand=True)
+
+    def update_schematic(self):
+        """Update schematic drawing based on current parameters (v4.1)"""
+        try:
+            self.update_status("Generating schematic...")
+
+            # Clear previous content
+            for widget in self.schematic_canvas_frame.winfo_children():
+                widget.destroy()
+
+            # Get current configuration from UI
+            config = self.get_current_config()
+
+            # Import schematic drawer
+            from drone_schematic_drawer import DroneSchematicDrawer
+
+            # Create drawer and generate 3-view figure
+            drawer = DroneSchematicDrawer(config)
+            fig = drawer.draw_3_view(figsize=(15, 5))
+
+            # Embed matplotlib figure in tkinter
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            canvas = FigureCanvasTkAgg(fig, master=self.schematic_canvas_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+
+            self.update_status("✓ Schematic updated successfully")
+
+        except ImportError as e:
+            messagebox.showerror(
+                "Import Error",
+                f"Could not import schematic drawer module:\n{str(e)}\n\n"
+                "Ensure drone_schematic_drawer.py is in the same directory."
+            )
+            self.update_status("✗ Schematic generation failed")
+        except Exception as e:
+            messagebox.showerror(
+                "Schematic Error",
+                f"Error generating schematic:\n{str(e)}\n\n"
+                "Check your parameter values and try again."
+            )
+            self.update_status("✗ Schematic generation failed")
+
+    # -----------------------------------------------------------------------
     # STATUS BAR
     # -----------------------------------------------------------------------
 
@@ -2233,6 +2468,17 @@ class VTOLAnalyzerGUI(tk.Tk):
             'avionics_power_w': 'avionics_power_w',
             'payload_power_w': 'payload_power_w',
             'heater_power_w': 'heater_power_w',
+            # Geometry parameters (v4.1)
+            'fuselage_length_m': 'fuselage_length_m',
+            'fuselage_diameter_m': 'fuselage_diameter_m',
+            'num_tail_fins': 'num_tail_fins',
+            'tail_fin_chord_m': 'tail_fin_chord_m',
+            'tail_fin_span_m': 'tail_fin_span_m',
+            'tail_fin_position_m': 'tail_fin_position_m',
+            'tail_fin_thickness_ratio': 'tail_fin_thickness_ratio',
+            'tail_fin_taper_ratio': 'tail_fin_taper_ratio',
+            'motor_spacing_m': 'motor_spacing_m',
+            'num_motors': 'num_motors',
         }
 
         for config_param, widget_key in param_map.items():
@@ -2618,11 +2864,40 @@ class VTOLAnalyzerGUI(tk.Tk):
             if 'heater_power_w' in self.param_widgets:
                 self.current_config.heater_power_w = float(self.param_widgets['heater_power_w'].get())
 
+            # Geometry parameters (v4.1)
+            if 'fuselage_length_m' in self.param_widgets:
+                self.current_config.fuselage_length_m = float(self.param_widgets['fuselage_length_m'].get())
+            if 'fuselage_diameter_m' in self.param_widgets:
+                self.current_config.fuselage_diameter_m = float(self.param_widgets['fuselage_diameter_m'].get())
+            if 'num_tail_fins' in self.param_widgets:
+                self.current_config.num_tail_fins = int(self.param_widgets['num_tail_fins'].get())
+            if 'tail_fin_chord_m' in self.param_widgets:
+                self.current_config.tail_fin_chord_m = float(self.param_widgets['tail_fin_chord_m'].get())
+            if 'tail_fin_span_m' in self.param_widgets:
+                self.current_config.tail_fin_span_m = float(self.param_widgets['tail_fin_span_m'].get())
+            if 'tail_fin_position_m' in self.param_widgets:
+                self.current_config.tail_fin_position_m = float(self.param_widgets['tail_fin_position_m'].get())
+            if 'tail_fin_thickness_ratio' in self.param_widgets:
+                self.current_config.tail_fin_thickness_ratio = float(self.param_widgets['tail_fin_thickness_ratio'].get())
+            if 'tail_fin_taper_ratio' in self.param_widgets:
+                self.current_config.tail_fin_taper_ratio = float(self.param_widgets['tail_fin_taper_ratio'].get())
+            if 'motor_spacing_m' in self.param_widgets:
+                self.current_config.motor_spacing_m = float(self.param_widgets['motor_spacing_m'].get())
+            if 'num_motors' in self.param_widgets:
+                self.current_config.num_motors = int(self.param_widgets['num_motors'].get())
+
             # Recalculate derived parameters
             self.current_config.__post_init__()
 
         except ValueError as e:
             raise ValueError(f"Invalid parameter value: {e}")
+
+    def get_current_config(self):
+        """Get current configuration from UI (v4.1)"""
+        # Update config from UI values
+        self.update_config_from_ui()
+        # Return the updated config
+        return self.current_config
 
     def validate_config(self):
         """Validate current configuration"""
