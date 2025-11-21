@@ -1,24 +1,60 @@
-# VTOL Performance Analyzer v2.0 - Required Dependencies
+# VTOL Performance Analyzer v4.1 - Professional Edition
 # ========================================================
 #
-# CORE DEPENDENCIES (Required for full functionality):
+# Python package requirements for both CLI and GUI modes
 #
 
-# Plotting and Visualization
-matplotlib>=3.5.0          # For 2D/3D plots, performance curves, and sensitivity analysis
+# CORE DEPENDENCIES (REQUIRED)
+# -----------------------------
+numpy>=1.20.0              # Numerical calculations, meshgrid, plot data
+matplotlib>=3.5.0          # 2D/3D plots, performance curves, sensitivity analysis
                            # Includes mpl_toolkits.mplot3d for 3D surface plots
-numpy>=1.21.0              # For numerical calculations, meshgrid, and plot data
+python-dateutil>=2.8.0     # Timestamp handling for sessions and exports
 
-# Note: The tool will run in console-only mode without these,
-# but 2D plots, 3D surface plots, and sensitivity analysis will not be generated.
+# OPTIONAL DEPENDENCIES (Recommended)
+# ------------------------------------
+# Enhanced export features - tool will work without these but with reduced export options
+reportlab>=3.6.0           # PDF export (falls back to text if not installed)
+openpyxl>=3.0.10           # Excel export (falls back to CSV if not installed)
+Pillow>=8.0.0              # Image handling for icons and plot exports
+
+# FUTURE ENHANCEMENTS (Not yet required)
+# ---------------------------------------
+# Uncomment these when implementing advanced features:
+# scipy>=1.7.0             # For optimization and sensitivity analysis (Phase E)
+# pandas>=1.3.0            # For advanced data analysis and batch processing
+
+# PLATFORM-SPECIFIC NOTES
+# ------------------------
+# tkinter (for GUI) - Usually included with Python installation
+# If tkinter is not available:
+#   Ubuntu/Debian: sudo apt-get install python3-tk
+#   macOS: brew install python-tk (if using Homebrew Python)
+#   Windows: Reinstall Python with "tcl/tk" option checked
+
+# INSTALLATION
+# ------------
+# Install all dependencies:
+#   pip install -r requirements.txt
 #
-# INSTALLATION:
+# Or install individually:
+#   pip install numpy matplotlib python-dateutil
+#   pip install reportlab openpyxl Pillow  # Optional
+#
+# For development:
+#   pip install -r requirements.txt --upgrade
+
+# COMPATIBILITY
 # -------------
-# pip install -r requirements.txt
-#
-# OR install individually:
-# pip install matplotlib numpy
-#
-# OPTIONAL (for future enhancements):
-# scipy>=1.7.0             # For advanced numerical analysis
-# pandas>=1.3.0            # For data manipulation
+# Verified compatible with:
+# - Python 3.7+
+# - Windows 10/11
+# - macOS 10.14+ (Mojave and later)
+# - Ubuntu 20.04+ / Debian 11+
+# - Raspberry Pi OS (Bullseye and later)
+
+# MODES OF OPERATION
+# ------------------
+# 1. CLI Mode: Requires only numpy, matplotlib (can work without matplotlib in basic mode)
+# 2. GUI Mode: Requires numpy, matplotlib, tkinter (python-dateutil recommended)
+# 3. Full Mode: All dependencies for complete functionality
