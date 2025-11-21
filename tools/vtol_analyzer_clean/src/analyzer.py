@@ -2427,7 +2427,7 @@ if __name__ == "__main__":
             sys.exit(1)
     elif len(sys.argv) > 1 and sys.argv[1] == "--list-presets":
         try:
-            from config_presets import PresetManager
+            from presets import PresetManager
             manager = PresetManager()
             print("Available Configuration Presets:")
             print("-" * 80)
@@ -2446,7 +2446,7 @@ if __name__ == "__main__":
         # Use specified preset
         preset_name = sys.argv[2]
         try:
-            from config_presets import PresetManager
+            from presets import PresetManager
             manager = PresetManager()
             config = manager.get_preset(preset_name)
             print(f"Using preset: {manager.get_preset_description(preset_name)}")
@@ -2462,7 +2462,7 @@ if __name__ == "__main__":
     else:
         # Default: Try to use baseline preset
         try:
-            from config_presets import PresetManager
+            from presets import PresetManager
             manager = PresetManager()
             config = manager.get_preset("baseline")
             print("Using default preset: BASELINE (6kg Production Standard)")

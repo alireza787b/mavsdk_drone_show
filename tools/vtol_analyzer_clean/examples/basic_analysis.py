@@ -64,8 +64,8 @@ def main():
     print(f"  Cruise:           {results['cruise']['endurance_min']:.1f} min")
 
     print("\n📏 RANGE:")
-    print(f"  Best Range:       {results['range']['max_range_km']:.1f} km")
-    print(f"  @ Speed:          {results['range']['best_range_speed_ms']:.1f} m/s")
+    print(f"  Best Range:       {results['best_range']['range_km']:.1f} km")
+    print(f"  @ Speed:          {results['best_range']['speed_ms']:.1f} m/s")
 
     print("\n⚡ POWER:")
     print(f"  Hover Power:      {results['hover']['power_w']:.0f} W")
@@ -74,11 +74,11 @@ def main():
     # Generate visualization
     print("\nGenerating plots...")
 
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle('VTOL Performance Analysis', fontsize=14, fontweight='bold')
 
     # Plot 1: Power vs Speed
-    speeds = range(10, 26)
+    speeds = list(range(10, 26))
     powers = [calc.power_required(v) for v in speeds]
     ax1.plot(speeds, powers, 'b-', linewidth=2)
     ax1.set_xlabel('Speed (m/s)')
@@ -86,39 +86,19 @@ def main():
     ax1.set_title('Power vs Speed')
     ax1.grid(True, alpha=0.3)
     ax1.axvline(results['speeds']['cruise_ms'], color='r', linestyle='--', label='Cruise Speed')
+    ax1.axhline(results['hover']['power_w'], color='g', linestyle='--', label='Hover Power')
     ax1.legend()
 
-    # Plot 2: L/D Ratio vs Speed
-    ld_ratios = [calc.lift_to_drag_ratio(v) for v in speeds]
-    ax2.plot(speeds, ld_ratios, 'g-', linewidth=2)
-    ax2.set_xlabel('Speed (m/s)')
-    ax2.set_ylabel('L/D Ratio')
-    ax2.set_title('Aerodynamic Efficiency')
-    ax2.grid(True, alpha=0.3)
-    max_ld_speed = speeds[ld_ratios.index(max(ld_ratios))]
-    ax2.axvline(max_ld_speed, color='r', linestyle='--', label=f'Max L/D @ {max_ld_speed}m/s')
-    ax2.legend()
-
-    # Plot 3: Range vs Speed
-    ranges = [calc.range_km(v, calc.endurance(calc.cruise_current(v))) for v in speeds]
-    ax3.plot(speeds, ranges, 'purple', linewidth=2)
-    ax3.set_xlabel('Speed (m/s)')
-    ax3.set_ylabel('Range (km)')
-    ax3.set_title('Range vs Speed')
-    ax3.grid(True, alpha=0.3)
-    best_range_speed = speeds[ranges.index(max(ranges))]
-    ax3.axvline(best_range_speed, color='r', linestyle='--', label=f'Best Range @ {best_range_speed}m/s')
-    ax3.legend()
-
-    # Plot 4: Current vs Speed
+    # Plot 2: Current vs Speed
     currents = [calc.cruise_current(v) for v in speeds]
-    ax4.plot(speeds, currents, 'orange', linewidth=2)
-    ax4.set_xlabel('Speed (m/s)')
-    ax4.set_ylabel('Current (A)')
-    ax4.set_title('Battery Current vs Speed')
-    ax4.grid(True, alpha=0.3)
-    ax4.axhline(results['hover']['current_a'], color='b', linestyle='--', label='Hover Current')
-    ax4.legend()
+    ax2.plot(speeds, currents, 'orange', linewidth=2)
+    ax2.set_xlabel('Speed (m/s)')
+    ax2.set_ylabel('Current (A)')
+    ax2.set_title('Battery Current vs Speed')
+    ax2.grid(True, alpha=0.3)
+    ax2.axhline(results['hover']['current_a'], color='b', linestyle='--', label='Hover Current')
+    ax2.axvline(results['best_range']['speed_ms'], color='r', linestyle='--', label='Best Range Speed')
+    ax2.legend()
 
     plt.tight_layout()
 

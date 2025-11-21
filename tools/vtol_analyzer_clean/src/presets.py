@@ -8,14 +8,14 @@ Pre-validated configurations for common tailsitter designs.
 Automatically loaded and organized for clean workflow.
 
 Usage:
-    from config_presets import PresetManager
+    from presets import PresetManager
     presets = PresetManager()
     config = presets.get_preset("validated_6kg_tailsitter")
 ===============================================================================
 """
 
 from dataclasses import dataclass, replace
-from vtol_performance_analyzer import AircraftConfiguration
+from analyzer import AircraftConfiguration
 import os
 import json
 from datetime import datetime
@@ -378,7 +378,7 @@ class PresetManager:
 
     def print_preset_comparison(self):
         """Print comparison table of all presets"""
-        from vtol_performance_analyzer import PerformanceCalculator
+        from analyzer import PerformanceCalculator
 
         print("\n" + "="*80)
         print(" PRESET CONFIGURATION COMPARISON".center(80))
@@ -458,7 +458,7 @@ if __name__ == "__main__":
 
     print("\nUsage Example:")
     print("-" * 60)
-    print("from config_presets import get_preset")
+    print("from presets import get_preset")
     print("config = get_preset('validated_6kg_tailsitter')")
     print("calc = PerformanceCalculator(config)")
     print()

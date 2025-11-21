@@ -1,0 +1,46 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Output Files (keep structure, ignore generated content)
+output/plots/*.png
+output/plots/*.pdf
+output/reports/*.pdf
+output/reports/*.xlsx
+output/reports/*.html
+output/data/*.csv
+output/data/*.json
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary Files
+*.tmp
+*.bak
+*.log

@@ -119,7 +119,9 @@ def test_presets():
 
         print(f"  Available presets: {len(presets)}")
 
-        for preset_name in ['baseline', 'performance', 'endurance']:
+        # Test with actual available presets
+        test_presets = ['baseline', 'lightning', 'thunder'] if len(presets) >= 3 else presets[:3]
+        for preset_name in test_presets:
             config = manager.get_preset(preset_name)
             calc = PerformanceCalculator(config)
             results = calc.generate_performance_summary()

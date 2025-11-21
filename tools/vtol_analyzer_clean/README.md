@@ -10,10 +10,18 @@ Comprehensive performance analysis for PX4 Tailsitter VTOL UAVs with advanced vi
 
 ### Windows:
 1. Double-click `run_gui.bat`
+   - ✓ Automatically checks for Python
+   - ✓ Creates virtual environment
+   - ✓ Installs dependencies
+   - ✓ Launches GUI
 
 ### Linux/Mac:
 1. Make executable: `chmod +x run_gui.sh`
 2. Double-click `run_gui.sh` or run `./run_gui.sh`
+   - ✓ Automatically checks for Python 3.7+
+   - ✓ Creates virtual environment
+   - ✓ Installs dependencies
+   - ✓ Launches GUI
 
 ### Command Line:
 ```bash
@@ -22,6 +30,8 @@ python3 run.py --cli        # Quick command-line analysis
 python3 run.py --example    # Run example analysis
 python3 run.py --test       # Run tests
 ```
+
+**First launch** creates a virtual environment and installs dependencies automatically. **Subsequent launches** are instant!
 
 ---
 
@@ -33,7 +43,9 @@ python3 run.py --test       # Run tests
   - numpy (calculations)
   - tkinter (GUI - usually pre-installed)
 
-**Manual Installation:**
+**Automatic Setup:** The launcher scripts handle everything!
+
+**Manual Installation (optional):**
 ```bash
 pip install -r requirements.txt
 ```
@@ -319,6 +331,31 @@ Pre-built mission profiles:
 - **Package Delivery:** Point-to-point with payload
 - **Aerial Survey:** Grid pattern with climb
 - **Long Range:** Optimized cruise mission
+
+### Building Standalone Executables
+
+Create executables that run without Python installed:
+
+**Windows:**
+```cmd
+build_executable.bat
+```
+Output: `dist\VTOLAnalyzer.exe` (~50-100 MB)
+
+**Linux/macOS:**
+```bash
+chmod +x build_executable.sh
+./build_executable.sh
+```
+Output: `dist/VTOLAnalyzer` (~80-150 MB)
+
+**Features:**
+- ✓ No Python required on target system
+- ✓ Single-file distribution
+- ✓ Automatic PyInstaller setup
+- ✓ Cross-platform support
+
+**Documentation:** See [BUILD_EXECUTABLE.md](BUILD_EXECUTABLE.md) for complete guide
 
 ---
 

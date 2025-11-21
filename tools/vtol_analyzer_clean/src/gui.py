@@ -36,17 +36,17 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
-# Import v3.0 core functionality
+# Import core functionality
 try:
-    from vtol_performance_analyzer import (
+    from analyzer import (
         AircraftConfiguration,
         PerformanceCalculator,
         ReportGenerator
     )
-    from config_presets import PresetManager, get_preset
+    from presets import PresetManager, get_preset
 except ImportError as e:
     print(f"Error: Could not import required modules: {e}")
-    print("Make sure vtol_performance_analyzer.py and config_presets.py are in the same directory")
+    print("Make sure all modules are in the src/ directory")
     sys.exit(1)
 
 
@@ -822,7 +822,7 @@ class VTOLAnalyzerGUI(tk.Tk):
 
         # Try to load common plots
         try:
-            from common_plots import COMMON_PLOTS, PLOT_CATEGORIES
+            from plots import COMMON_PLOTS, PLOT_CATEGORIES
             self.common_plots_available = True
 
             # Create category sections
@@ -2381,7 +2381,7 @@ class VTOLAnalyzerGUI(tk.Tk):
             config = self.get_current_config()
 
             # Import schematic drawer
-            from drone_schematic_drawer import DroneSchematicDrawer
+            from schematic import DroneSchematicDrawer
 
             # Create drawer and generate 3-view figure
             drawer = DroneSchematicDrawer(config)
@@ -3046,7 +3046,7 @@ class VTOLAnalyzerGUI(tk.Tk):
     def load_common_plot(self, plot_id):
         """Load a common plot configuration"""
         try:
-            from common_plots import COMMON_PLOTS
+            from plots import COMMON_PLOTS
 
             plot_def = COMMON_PLOTS.get(plot_id)
             if not plot_def:
