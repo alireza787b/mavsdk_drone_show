@@ -487,7 +487,7 @@ class VTOLAnalyzerGUI(tk.Tk):
         ttk.Button(top_frame, text="Apply Changes", command=self.apply_config, style='Primary.TButton').pack(side='left', padx=10)
 
         # Main scrollable frame for parameters
-        canvas = tk.Canvas(self.tab_config, bg='white')
+        canvas = tk.Canvas(self.tab_config, bg='white', highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.tab_config, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
@@ -499,8 +499,22 @@ class VTOLAnalyzerGUI(tk.Tk):
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
-        scrollbar.pack(side="right", fill="y", pady=10, padx=(0, 10))
+        # Bind mouse wheel scrolling
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def on_mousewheel_linux(event):
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        canvas.bind_all("<Button-4>", on_mousewheel_linux)
+        canvas.bind_all("<Button-5>", on_mousewheel_linux)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        scrollbar.pack(side="right", fill="y", pady=10)
 
         # Store parameter widgets
         self.param_widgets = {}
@@ -966,17 +980,24 @@ class VTOLAnalyzerGUI(tk.Tk):
                 self.selected_common_plot.set(default_plot_name)
                 # Auto-load after ensuring analysis is done
                 def auto_load_default_plot():
-                    # Check if analysis exists, if not run it first
-                    if not self.current_calc or not self.current_results:
-                        # Run analysis with default config first
-                        if not self.current_config:
-                            self.load_preset("baseline")
-                        self.run_analysis()
-                        # Then load the plot after analysis completes
-                        self.after(1000, lambda: self.load_common_plot(self.plot_id_map.get(default_plot_name)))
-                    else:
-                        # Analysis already exists, just load plot
-                        self.load_common_plot(self.plot_id_map.get(default_plot_name))
+                    try:
+                        # Check if analysis exists, if not run it first
+                        if not self.current_calc or not self.current_results:
+                            # Run analysis with default config first (stay on current tab, silent mode)
+                            if not self.current_config:
+                                self.load_preset("baseline")
+                            success = self.run_analysis(switch_to_results=False, silent=True)
+                            if success:
+                                # Then load the plot after analysis completes
+                                self.after(1000, lambda: self.load_common_plot(self.plot_id_map.get(default_plot_name)))
+                        else:
+                            # Analysis already exists, just load plot
+                            self.load_common_plot(self.plot_id_map.get(default_plot_name))
+                    except Exception as e:
+                        # Silently handle errors in auto-load
+                        print(f"Auto-load plot failed: {e}")
+                        import traceback
+                        traceback.print_exc()
 
                 self.after(500, auto_load_default_plot)
 
@@ -1619,7 +1640,7 @@ class VTOLAnalyzerGUI(tk.Tk):
     def create_export_tab(self):
         """Create export manager tab with PDF/Excel/CSV export capabilities"""
         # Create scrollable container
-        canvas = tk.Canvas(self.tab_export, bg='white')
+        canvas = tk.Canvas(self.tab_export, bg='white', highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.tab_export, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
@@ -1628,8 +1649,24 @@ class VTOLAnalyzerGUI(tk.Tk):
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=800)
         canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Bind mouse wheel scrolling
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        def on_mousewheel_linux(event):
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+
+        # Bind for Windows/Mac
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        # Bind for Linux
+        canvas.bind_all("<Button-4>", on_mousewheel_linux)
+        canvas.bind_all("<Button-5>", on_mousewheel_linux)
 
         canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
         scrollbar.pack(side="right", fill="y", pady=10, padx=(0, 10))
@@ -2297,7 +2334,7 @@ class VTOLAnalyzerGUI(tk.Tk):
             ['Battery Cells', f"{self.current_config.battery_cells}S"],
             ['Battery Capacity', f"{self.current_config.battery_capacity_mah:.0f} mAh"],
             ['Battery Energy', f"{self.current_config.battery_energy_wh:.1f} Wh"],
-            ['Battery Voltage', f"{self.current_config.battery_voltage_v:.1f} V"],
+            ['Battery Voltage', f"{self.current_config.battery_voltage_nominal:.1f} V"],
         ]
 
         power_table = Table(power_data, colWidths=[3*inch, 2.5*inch])
@@ -2479,7 +2516,7 @@ class VTOLAnalyzerGUI(tk.Tk):
             ("Wing Span", self.current_config.wingspan_m, "m"),
             ("Wing Chord", self.current_config.wing_chord_m, "m"),
             ("Wing Area", self.current_config.wing_area_m2, "m²"),
-            ("Battery Capacity", self.current_config.battery_capacity_wh, "Wh"),
+            ("Battery Energy", self.current_config.battery_energy_wh, "Wh"),
         ]
 
         row = 3
@@ -2868,8 +2905,13 @@ class VTOLAnalyzerGUI(tk.Tk):
                 widget.delete(0, tk.END)
                 widget.insert(0, str(value))
 
-    def run_analysis(self):
-        """Run performance analysis with current configuration"""
+    def run_analysis(self, switch_to_results=True, silent=False):
+        """Run performance analysis with current configuration
+
+        Args:
+            switch_to_results: If True, auto-switch to results tab after analysis
+            silent: If True, don't show error dialogs (for auto-analysis)
+        """
         try:
             # First apply any UI changes
             self.update_config_from_ui()
@@ -2877,13 +2919,15 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Validate configuration
             self.update_status("Validating configuration...")
             if not self.validate_config_silent():
-                response = messagebox.askyesno(
-                    "Validation Warning",
-                    "Configuration has warnings. Continue with analysis anyway?"
-                )
-                if not response:
-                    self.update_status("Analysis cancelled")
-                    return
+                if not silent:
+                    response = messagebox.askyesno(
+                        "Validation Warning",
+                        "Configuration has warnings. Continue with analysis anyway?"
+                    )
+                    if not response:
+                        self.update_status("Analysis cancelled")
+                        return False
+                # If silent mode, continue anyway for auto-analysis
 
             self.update_status("Running analysis... Please wait")
             self.update()  # Force UI update
@@ -2899,21 +2943,28 @@ class VTOLAnalyzerGUI(tk.Tk):
 
             self.update_status(f"✓ Analysis complete! Preset: {self.current_preset_name.upper()}")
 
-            # Auto-switch to results tab
-            self.notebook.select(1)
+            # Auto-switch to results tab if requested
+            if switch_to_results:
+                self.notebook.select(1)
+
+            return True
 
         except ValueError as e:
-            messagebox.showerror("Invalid Input",
-                f"Invalid parameter value:\n\n{e}\n\n"
-                "Please check your inputs and try again.")
+            if not silent:
+                messagebox.showerror("Invalid Input",
+                    f"Invalid parameter value:\n\n{e}\n\n"
+                    "Please check your inputs and try again.")
             self.update_status("Analysis failed - invalid input")
+            return False
         except Exception as e:
-            messagebox.showerror("Analysis Error",
-                f"Could not run analysis:\n\n{e}\n\n"
-                "Please check your configuration and try again.")
+            if not silent:
+                messagebox.showerror("Analysis Error",
+                    f"Could not run analysis:\n\n{e}\n\n"
+                    "Please check your configuration and try again.")
             self.update_status("Analysis failed")
             import traceback
             traceback.print_exc()
+            return False
 
     def validate_config_silent(self):
         """Validate configuration without showing messages"""
