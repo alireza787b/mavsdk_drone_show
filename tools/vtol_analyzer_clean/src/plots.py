@@ -149,11 +149,52 @@ COMMON_PLOTS = {
         "icon": "📊",
         "category": "trade-offs",
     },
+
+    # === ADDITIONAL USEFUL PLOTS ===
+    "endurance_vs_altitude": {
+        "name": "🌄 Endurance vs Altitude",
+        "description": "How altitude affects flight endurance.\nUseful for high-altitude missions.",
+        "x_param": "Altitude (m)",
+        "y_params": ["Hover Endurance (min)", "Forward Flight Endurance (min)"],
+        "x_range": (0, 3000, 50),
+        "icon": "🌄",
+        "category": "additional",
+    },
+
+    "range_vs_altitude": {
+        "name": "🏔️ Range vs Altitude",
+        "description": "Maximum range at different altitudes.\nAltitude performance analysis.",
+        "x_param": "Altitude (m)",
+        "y_params": ["Forward Flight Range (km)"],
+        "x_range": (0, 3000, 50),
+        "icon": "🏔️",
+        "category": "additional",
+    },
+
+    "endurance_vs_battery": {
+        "name": "🔋 Endurance vs Battery Capacity",
+        "description": "How battery size affects flight time.\nBattery selection optimization.",
+        "x_param": "Battery Capacity (mAh)",
+        "y_params": ["Hover Endurance (min)", "Forward Flight Endurance (min)"],
+        "x_range": (5000, 20000, 50),
+        "icon": "🔋",
+        "category": "additional",
+    },
+
+    "power_budget_breakdown": {
+        "name": "📈 Power Budget Analysis",
+        "description": "Power consumption vs speed showing all components.",
+        "x_param": "Speed (m/s)",
+        "y_params": ["Forward Flight Power (W)", "Hover Power (W)"],
+        "x_range": (10, 25, 50),
+        "icon": "📈",
+        "category": "additional",
+    },
 }
 
 # Plot categories for organized display
 PLOT_CATEGORIES = {
-    "🔴 Critical Design Plots": [
+    "🔴 Critical Design Plots (7)": [
         "hover_endurance_vs_weight",
         "hover_current_vs_weight",
         "forward_endurance_vs_weight",
@@ -162,16 +203,22 @@ PLOT_CATEGORIES = {
         "speeds_vs_span",
         "power_vs_span",
     ],
-    "⚡ Performance Optimization": [
+    "⚡ Performance Optimization (3)": [
         "power_vs_speed",
         "range_optimization",
         "current_vs_speed",
     ],
-    "📊 Design Trade-offs": [
+    "📊 Design Trade-offs (4)": [
         "endurance_comparison",
         "altitude_effects",
         "wing_sizing",
         "efficiency_analysis",
+    ],
+    "🔧 Additional Useful Plots (4)": [
+        "endurance_vs_altitude",
+        "range_vs_altitude",
+        "endurance_vs_battery",
+        "power_budget_breakdown",
     ],
 }
 

@@ -917,10 +917,21 @@ class VTOLAnalyzerGUI(tk.Tk):
             self.plot_id_map = {opt[0]: opt[1] for opt in plot_options}
 
             # Load button
+            def generate_selected_plot():
+                plot_name = self.selected_common_plot.get()
+                if not plot_name:
+                    messagebox.showwarning("No Selection", "Please select a plot from the dropdown first")
+                    return
+                plot_id = self.plot_id_map.get(plot_name)
+                if plot_id:
+                    self.load_common_plot(plot_id)
+                else:
+                    messagebox.showerror("Error", "Invalid plot selection")
+
             ttk.Button(
                 selector_row,
                 text="📊 Generate Plot",
-                command=lambda: self.load_common_plot(self.plot_id_map.get(self.selected_common_plot.get())),
+                command=generate_selected_plot,
                 style='Primary.TButton'
             ).pack(side='left', padx=5)
 
@@ -944,6 +955,13 @@ class VTOLAnalyzerGUI(tk.Tk):
                         self.plot_info_label.config(text=plot_def['description'].replace('\n', ' '))
 
             self.selected_common_plot.trace('w', update_plot_info)
+
+            # Pre-select "Hover Endurance vs Weight" as default
+            default_plot_name = "🔴 Hover Endurance vs Weight"
+            if default_plot_name in self.plot_id_map:
+                self.selected_common_plot.set(default_plot_name)
+                # Auto-load it after a short delay
+                self.after(500, lambda: self.load_common_plot(self.plot_id_map.get(default_plot_name)))
 
         except ImportError:
             self.common_plots_available = False
@@ -2537,6 +2555,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             self.update_ui_from_config()
             self.update_status(f"Loaded preset: {preset_name}")
             self.preset_status.set(f"Preset: {preset_name.upper()}")
+
+            # Auto-update schematic preview
+            self.after(200, self.update_config_schematic)
         except Exception as e:
             messagebox.showerror("Error", f"Could not load preset: {e}")
 
@@ -3105,22 +3126,22 @@ class VTOLAnalyzerGUI(tk.Tk):
         )
         param_combo.pack(side='left', padx=5)
 
-        # Remove button
-        remove_btn = ttk.Button(
-            param_row,
-            text="➖",
-            width=3,
-            command=lambda: self.remove_plot_parameter(param_row, param_data)
-        )
-        remove_btn.pack(side='left', padx=5)
-
-        # Store parameter data
+        # Store parameter data FIRST (before creating remove button)
         param_data = {
             'frame': param_row,
             'var': param_var,
             'combo': param_combo,
         }
         self.plot_params.append(param_data)
+
+        # Remove button (now param_data is defined)
+        remove_btn = ttk.Button(
+            param_row,
+            text="➖",
+            width=3,
+            command=lambda pd=param_data: self.remove_plot_parameter(param_row, pd)
+        )
+        remove_btn.pack(side='left', padx=5)
 
     def remove_plot_parameter(self, frame, param_data):
         """Remove a parameter from the plot selection list"""
@@ -3148,6 +3169,10 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def load_common_plot(self, plot_id):
         """Load a common plot configuration"""
+        if not plot_id:
+            messagebox.showwarning("No Selection", "Please select a plot first")
+            return
+
         try:
             from plots import COMMON_PLOTS
 
@@ -3172,7 +3197,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             self.update_status(f"✓ Loaded: {plot_def['name']}")
 
         except Exception as e:
-            messagebox.showerror("Load Error", f"Could not load common plot:\n{e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Load Error", f"Could not load common plot:\n{str(e)}")
 
     def create_tooltip(self, widget, text):
         """Create a tooltip for a widget"""
