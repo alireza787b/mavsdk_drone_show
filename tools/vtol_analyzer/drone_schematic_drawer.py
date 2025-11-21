@@ -1,33 +1,38 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-DRONE SCHEMATIC DRAWER v4.1
+DRONE SCHEMATIC DRAWER v4.1 - PX4 Tailsitter Edition
 ================================================================================
-Professional 3-view engineering drawing generator for VTOL aircraft.
+Professional 3-view engineering drawing generator for PX4 Tailsitter VTOL.
 
-Creates top, front, and side views with accurate proportions and dimensions.
-Visualizes wing, fuselage, tail fins, propellers, and CG location.
+Creates top, front, and side views with CORRECT PX4 FRD axis orientation:
+- X-axis: Forward (nose direction, points up in VTOL mode)
+- Y-axis: Right (right wing direction)
+- Z-axis: Down
+
+For tailsitter in VTOL (standing) position:
+- Top view: Looking down Z-axis, see circular fuselage cross-section, wings span left-right
+- Front view: Looking at nose (along X-axis), see full wingspan and fuselage circle
+- Side view: Looking from right (along Y-axis), see full fuselage length and wing chord
 
 Author: VTOL Analyzer Dev Team
-Version: 4.1.0
-Date: 2025-01-20
+Version: 4.1.1
+Date: 2025-01-21
 ================================================================================
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, Circle, Polygon, FancyBboxPatch, Wedge
+from matplotlib.patches import Rectangle, Circle, Polygon, FancyBboxPatch, Wedge, FancyArrowPatch
 from matplotlib.figure import Figure
 
 
 class DroneSchematicDrawer:
     """
-    Professional 3-view schematic drawer for VTOL aircraft.
+    Professional 3-view schematic drawer for PX4 Tailsitter VTOL.
 
-    Generates engineering-style drawings showing:
-    - Top view: Wing, fuselage, tail fins (plan view)
-    - Front view: Fuselage cross-section, tail fins, motors
-    - Side view: Profile with wing, tail fin, fuselage
+    Generates engineering-style drawings with correct PX4 axis orientation.
+    Tailsitter shown in VTOL (standing/vertical) configuration.
     """
 
     def __init__(self, config):
@@ -52,11 +57,12 @@ class DroneSchematicDrawer:
             'cg': '#E74C3C',             # Bright red
             'dimension': '#2C3E50',      # Very dark gray
             'grid': '#BDC3C7',           # Light gray
+            'nose': '#F39C12',           # Orange for nose indicator
         }
 
     def draw_3_view(self, figsize=(15, 5)):
         """
-        Create professional 3-view drawing.
+        Create professional 3-view drawing with PX4 axis orientation.
 
         Args:
             figsize: Figure size (width, height) in inches
@@ -70,13 +76,13 @@ class DroneSchematicDrawer:
             facecolor='white'
         )
 
-        # Draw each view
-        self._draw_top_view(ax_top)
-        self._draw_front_view(ax_front)
-        self._draw_side_view(ax_side)
+        # Draw each view with PX4 correct orientation
+        self._draw_top_view(ax_top)      # Looking down Z-axis
+        self._draw_front_view(ax_front)  # Looking along X-axis (at nose)
+        self._draw_side_view(ax_side)    # Looking along Y-axis (from right)
 
         # Overall title
-        fig.suptitle('VTOL Aircraft Design Schematic',
+        fig.suptitle('PX4 Tailsitter VTOL - 3-View Schematic (VTOL Mode)',
                     fontsize=14, fontweight='bold', y=0.98)
 
         plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -84,12 +90,33 @@ class DroneSchematicDrawer:
         return fig
 
     def _draw_top_view(self, ax):
-        """Draw top view (plan view)"""
-        # Wing (rectangular)
+        """
+        Draw top view - Looking down Z-axis (from above in VTOL mode)
+
+        See: Circular fuselage cross-section, wings spanning left-right,
+        tail fins at aft end, propellers in quad configuration
+        """
+        # === FUSELAGE (circular cross-section when looking down) ===
+        fuselage = Circle(
+            (0, 0),
+            self.config.fuselage_diameter_m / 2,
+            linewidth=2.5,
+            edgecolor=self.colors['fuselage_edge'],
+            facecolor=self.colors['fuselage'],
+            alpha=0.5,
+            zorder=3
+        )
+        ax.add_patch(fuselage)
+
+        # === WING (spans left-right along Y-axis) ===
+        # Wing positioned at CG (center of fuselage in top view)
+        wing_chord = self.config.wing_chord_m
+        wing_span = self.config.wingspan_m
+
         wing = Rectangle(
-            (-self.config.wingspan_m/2, -self.config.wing_chord_m/2),
-            self.config.wingspan_m,
-            self.config.wing_chord_m,
+            (-wing_span/2, -wing_chord/2),  # Y-axis (left-right), X-axis (fwd-aft)
+            wing_span,
+            wing_chord,
             linewidth=2.5,
             edgecolor=self.colors['wing_edge'],
             facecolor=self.colors['wing'],
@@ -98,123 +125,113 @@ class DroneSchematicDrawer:
         )
         ax.add_patch(wing)
 
-        # Fuselage (cylinder from above - rectangular)
-        fuse_length = self.config.fuselage_length_m
-        fuse_width = self.config.fuselage_diameter_m
+        # Mark leading edge (forward)
+        ax.plot([-wing_span/2, wing_span/2], [wing_chord/2, wing_chord/2],
+               color=self.colors['wing_edge'], linewidth=3, zorder=4,
+               label='Leading Edge')
 
-        fuse = Rectangle(
-            (-fuse_width/2, -fuse_length/2),
-            fuse_width,
-            fuse_length,
-            linewidth=2.5,
-            edgecolor=self.colors['fuselage_edge'],
-            facecolor=self.colors['fuselage'],
-            alpha=0.5,
-            zorder=3
-        )
-        ax.add_patch(fuse)
-
-        # Tail fins (3 at 120° intervals, radiating from tail)
+        # === TAIL FINS (at aft position along X-axis) ===
         self._draw_tail_fins_top(ax)
 
-        # Propellers (4 in quad configuration)
+        # === PROPELLERS (quad configuration around fuselage) ===
         self._draw_propellers_top(ax)
 
-        # CG marker
-        ax.plot(0, 0, '+', color=self.colors['cg'],
-               markersize=15, markeredgewidth=3, zorder=10)
-        ax.text(0.02, 0.02, 'CG', fontsize=10, color=self.colors['cg'],
-               fontweight='bold', zorder=10)
+        # === NOSE INDICATOR (shows forward direction) ===
+        # Small arrow pointing forward (+X direction in body frame)
+        nose_offset = self.config.fuselage_diameter_m / 2 + 0.05
+        ax.annotate('', xy=(0, nose_offset + 0.1), xytext=(0, nose_offset),
+                   arrowprops=dict(arrowstyle='->', lw=2, color=self.colors['nose']))
+        ax.text(0, nose_offset + 0.15, 'NOSE\n(+X)', ha='center', va='bottom',
+               fontsize=8, fontweight='bold', color=self.colors['nose'])
 
-        # Dimension lines
-        self._add_dimension_horizontal(ax,
-            -self.config.wingspan_m/2, self.config.wingspan_m/2,
-            self.config.wing_chord_m/2 + 0.15,
-            f"Wingspan: {self.config.wingspan_m:.2f} m"
-        )
+        # === CG MARKER ===
+        ax.plot(0, 0, 'x', color=self.colors['cg'], markersize=10,
+               markeredgewidth=2, zorder=10, label='CG')
 
-        # Styling
+        # === DIMENSIONS ===
+        # Wing span
+        self._add_dimension_horizontal(ax, -wing_span/2, wing_span/2,
+                                      -wing_chord/2 - 0.15,
+                                      f'{wing_span:.2f}m span')
+
+        # Wing chord
+        y_pos = wing_span/2 + 0.15
+        ax.annotate('', xy=(y_pos, wing_chord/2), xytext=(y_pos, -wing_chord/2),
+                   arrowprops=dict(arrowstyle='<->', lw=1.5, color=self.colors['dimension']))
+        ax.text(y_pos + 0.08, 0, f'{wing_chord:.2f}m\nchord',
+               ha='left', va='center', fontsize=8, color=self.colors['dimension'])
+
+        # === AXIS CONFIGURATION ===
         ax.set_aspect('equal')
-        ax.grid(True, alpha=0.2, linestyle='--', color=self.colors['grid'])
-        ax.set_title('TOP VIEW', fontweight='bold', fontsize=12, pad=10)
-        ax.set_xlabel('Lateral Distance (m)', fontsize=9)
-        ax.set_ylabel('Longitudinal Distance (m)', fontsize=9)
+        ax.grid(True, alpha=0.3, linestyle='--', color=self.colors['grid'])
+        ax.set_xlabel('Y-axis (Right Wing →)', fontsize=10, fontweight='bold')
+        ax.set_ylabel('X-axis (Forward →)', fontsize=10, fontweight='bold')
+        ax.set_title('TOP VIEW\n(Looking down -Z axis)', fontsize=11, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=8)
 
         # Set limits with padding
-        max_dim = max(self.config.wingspan_m, fuse_length) * 0.65
+        max_dim = max(wing_span, self.config.fuselage_length_m) * 0.7
         ax.set_xlim(-max_dim, max_dim)
         ax.set_ylim(-max_dim, max_dim)
 
     def _draw_tail_fins_top(self, ax):
-        """Draw tail fins in top view (radiating from tail)"""
-        # Fins positioned at tail (aft of CG)
-        tail_position = -self.config.tail_fin_position_m
+        """Draw tail fins in top view (positioned aft along X-axis)"""
+        tail_position = -self.config.tail_fin_position_m  # Aft of CG (negative X)
 
-        # 3 or 4 fins evenly spaced
+        # Determine fin angles based on count
         if self.config.num_tail_fins == 3:
-            angles_deg = [0, 120, 240]
+            angles_deg = [0, 120, 240]  # Y-shaped
         elif self.config.num_tail_fins == 4:
-            angles_deg = [0, 90, 180, 270]
+            angles_deg = [45, 135, 225, 315]  # X-shaped
         else:
-            angles_deg = [0]  # Fallback
+            angles_deg = [0, 120, 240]  # Default to 3
 
         for angle_deg in angles_deg:
             angle_rad = np.radians(angle_deg)
 
-            # Fin center position
-            fin_center_x = self.config.fuselage_diameter_m/2 * np.sin(angle_rad)
-            fin_center_y = tail_position + self.config.fuselage_diameter_m/2 * np.cos(angle_rad)
-
-            # Fin extends radially
-            fin_outer_x = (self.config.fuselage_diameter_m/2 + self.config.tail_fin_span_m) * np.sin(angle_rad)
-            fin_outer_y = tail_position + (self.config.fuselage_diameter_m/2 + self.config.tail_fin_span_m) * np.cos(angle_rad)
-
-            # Draw fin as thick line (chord width)
-            # Perpendicular to radial direction
-            perp_angle = angle_rad + np.pi/2
-            dx = self.config.tail_fin_chord_m/2 * np.cos(perp_angle)
-            dy = self.config.tail_fin_chord_m/2 * np.sin(perp_angle)
-
-            # Fin polygon (tapered)
-            taper = self.config.tail_fin_taper_ratio
+            # Fin parameters
             root_chord = self.config.tail_fin_chord_m
-            tip_chord = root_chord * taper
+            tip_chord = root_chord * self.config.tail_fin_taper_ratio
+            span = self.config.tail_fin_span_m
 
-            # Root (at fuselage)
-            root_x1 = fin_center_x + root_chord/2 * np.cos(perp_angle)
-            root_y1 = fin_center_y + root_chord/2 * np.sin(perp_angle)
-            root_x2 = fin_center_x - root_chord/2 * np.cos(perp_angle)
-            root_y2 = fin_center_y - root_chord/2 * np.sin(perp_angle)
+            # Fin extends radially outward from fuselage
+            fuse_radius = self.config.fuselage_diameter_m / 2
 
-            # Tip (at outer edge)
-            tip_x1 = fin_outer_x + tip_chord/2 * np.cos(perp_angle)
-            tip_y1 = fin_outer_y + tip_chord/2 * np.sin(perp_angle)
-            tip_x2 = fin_outer_x - tip_chord/2 * np.cos(perp_angle)
-            tip_y2 = fin_outer_y - tip_chord/2 * np.sin(perp_angle)
+            # Calculate fin polygon points (tapered)
+            # Fin root at fuselage edge, extends outward
+            root_start_x = tail_position - root_chord / 2
+            root_end_x = tail_position + root_chord / 2
+            tip_start_x = tail_position - tip_chord / 2
+            tip_end_x = tail_position + tip_chord / 2
 
+            # Direction perpendicular to fin (radial)
+            cos_a = np.cos(angle_rad)
+            sin_a = np.sin(angle_rad)
+
+            # Transform to Y-axis (horizontal) coordinate
             fin_points = [
-                [root_x1, root_y1],
-                [tip_x1, tip_y1],
-                [tip_x2, tip_y2],
-                [root_x2, root_y2],
+                (fuse_radius * sin_a, fuse_radius * cos_a + root_start_x),  # Root start
+                (fuse_radius * sin_a, fuse_radius * cos_a + root_end_x),    # Root end
+                ((fuse_radius + span) * sin_a, (fuse_radius + span) * cos_a + tip_end_x),  # Tip end
+                ((fuse_radius + span) * sin_a, (fuse_radius + span) * cos_a + tip_start_x),  # Tip start
             ]
 
-            fin_polygon = Polygon(fin_points,
-                                 linewidth=1.5,
-                                 edgecolor=self.colors['tail_edge'],
-                                 facecolor=self.colors['tail'],
-                                 alpha=0.6,
-                                 zorder=4)
+            fin_polygon = Polygon(
+                fin_points,
+                linewidth=1.5,
+                edgecolor=self.colors['tail_edge'],
+                facecolor=self.colors['tail'],
+                alpha=0.6,
+                zorder=4
+            )
             ax.add_patch(fin_polygon)
 
     def _draw_propellers_top(self, ax):
-        """Draw propellers in top view (circles)"""
-        # Quad configuration: 4 motors
-        # Positioned based on motor_spacing
+        """Draw propellers in top view (quad configuration)"""
         spacing = self.config.motor_spacing_m / 2
+        prop_radius = 0.05  # Visual representation
 
-        prop_radius = self.config.prop_diameter_inch * 0.0254 / 2  # inches to meters
-
+        # Quad motor positions (in Y-X plane for top view)
         motor_positions = [
             (spacing, spacing),      # Front right
             (-spacing, spacing),     # Front left
@@ -222,238 +239,309 @@ class DroneSchematicDrawer:
             (spacing, -spacing),     # Rear right
         ]
 
-        for x, y in motor_positions:
-            prop = Circle((x, y), prop_radius,
-                         linewidth=1.5,
-                         edgecolor=self.colors['prop_edge'],
-                         facecolor=self.colors['prop'],
-                         alpha=0.3,
-                         zorder=5)
-            ax.add_patch(prop)
+        for y, x in motor_positions:
+            # Motor hub
+            hub = Circle(
+                (y, x),
+                prop_radius * 0.3,
+                linewidth=1.5,
+                edgecolor=self.colors['prop_edge'],
+                facecolor=self.colors['prop'],
+                alpha=0.7,
+                zorder=5
+            )
+            ax.add_patch(hub)
 
-            # Motor center dot
-            ax.plot(x, y, 'o', color=self.colors['prop_edge'],
-                   markersize=4, zorder=6)
+            # Propeller blades (simple cross)
+            ax.plot([y - prop_radius, y + prop_radius], [x, x],
+                   color=self.colors['prop'], linewidth=2, alpha=0.5, zorder=4)
+            ax.plot([y, y], [x - prop_radius, x + prop_radius],
+                   color=self.colors['prop'], linewidth=2, alpha=0.5, zorder=4)
 
     def _draw_front_view(self, ax):
-        """Draw front view (looking at nose)"""
-        # Fuselage circle
-        fuselage = Circle((0, 0),
-                         self.config.fuselage_diameter_m/2,
-                         linewidth=2.5,
-                         edgecolor=self.colors['fuselage_edge'],
-                         facecolor=self.colors['fuselage'],
-                         alpha=0.4,
-                         zorder=2)
+        """
+        Draw front view - Looking at nose (along +X axis)
+
+        See: Full wingspan horizontal, fuselage as circle, tail fins radiating,
+        motors at wing tips
+        """
+        # === FUSELAGE (circular when looking at nose) ===
+        fuselage = Circle(
+            (0, 0),
+            self.config.fuselage_diameter_m / 2,
+            linewidth=2.5,
+            edgecolor=self.colors['fuselage_edge'],
+            facecolor=self.colors['fuselage'],
+            alpha=0.5,
+            zorder=3
+        )
         ax.add_patch(fuselage)
 
-        # Tail fins radiating from fuselage
+        # === WING (full span visible horizontally) ===
+        wing_span = self.config.wingspan_m
+        wing_thickness = self.config.wing_chord_m * 0.12  # ~12% airfoil thickness
+
+        # Wing shown as horizontal bar
+        wing = Rectangle(
+            (-wing_span/2, -wing_thickness/2),
+            wing_span,
+            wing_thickness,
+            linewidth=2.5,
+            edgecolor=self.colors['wing_edge'],
+            facecolor=self.colors['wing'],
+            alpha=0.5,
+            zorder=2
+        )
+        ax.add_patch(wing)
+
+        # === TAIL FINS (radial from fuselage, behind) ===
         self._draw_tail_fins_front(ax)
 
-        # Motors (4 in quad configuration)
+        # === MOTORS (at wing tips in quad config) ===
         spacing = self.config.motor_spacing_m / 2
-        motor_diameter = 0.04  # Approximate motor can diameter
+        motor_diameter = 0.04
 
         motor_positions = [
-            (spacing, spacing),      # Top right
-            (-spacing, spacing),     # Top left
-            (-spacing, -spacing),    # Bottom left
-            (spacing, -spacing),     # Bottom right
+            (spacing, spacing),      # Right upper
+            (-spacing, spacing),     # Left upper
+            (-spacing, -spacing),    # Left lower
+            (spacing, -spacing),     # Right lower
         ]
 
-        for x, y in motor_positions:
-            motor = Circle((x, y), motor_diameter/2,
-                          linewidth=1.5,
-                          edgecolor='#34495E',
-                          facecolor='#7F8C8D',
-                          alpha=0.6,
-                          zorder=5)
+        for y, z in motor_positions:
+            motor = Circle(
+                (y, z),
+                motor_diameter / 2,
+                linewidth=1.5,
+                edgecolor='#34495E',
+                facecolor='#7F8C8D',
+                alpha=0.7,
+                zorder=5
+            )
             ax.add_patch(motor)
 
-        # CG marker
-        ax.plot(0, 0, '+', color=self.colors['cg'],
-               markersize=12, markeredgewidth=2.5, zorder=10)
+        # === CG MARKER ===
+        ax.plot(0, 0, 'x', color=self.colors['cg'], markersize=10,
+               markeredgewidth=2, zorder=10)
 
-        # Styling
+        # === DIMENSIONS ===
+        # Wing span
+        self._add_dimension_horizontal(ax, -wing_span/2, wing_span/2,
+                                      -wing_thickness/2 - 0.2,
+                                      f'{wing_span:.2f}m')
+
+        # === AXIS CONFIGURATION ===
         ax.set_aspect('equal')
-        ax.grid(True, alpha=0.2, linestyle='--', color=self.colors['grid'])
-        ax.set_title('FRONT VIEW', fontweight='bold', fontsize=12, pad=10)
-        ax.set_xlabel('Lateral Distance (m)', fontsize=9)
-        ax.set_ylabel('Vertical Distance (m)', fontsize=9)
+        ax.grid(True, alpha=0.3, linestyle='--', color=self.colors['grid'])
+        ax.set_xlabel('Y-axis (Right Wing →)', fontsize=10, fontweight='bold')
+        ax.set_ylabel('Z-axis (Down ↓)', fontsize=10, fontweight='bold')
+        ax.set_title('FRONT VIEW\n(Looking at nose, along +X)', fontsize=11, fontweight='bold')
 
         # Set limits
-        max_dim = max(self.config.motor_spacing_m,
-                     self.config.fuselage_diameter_m + 2*self.config.tail_fin_span_m) * 0.65
+        max_dim = wing_span * 0.7
         ax.set_xlim(-max_dim, max_dim)
         ax.set_ylim(-max_dim, max_dim)
 
     def _draw_tail_fins_front(self, ax):
-        """Draw tail fins in front view (cross-section)"""
-        # Fins positioned radially from fuselage
+        """Draw tail fins in front view (radial lines from fuselage)"""
+        # Determine fin angles
         if self.config.num_tail_fins == 3:
-            angles_deg = [0, 120, 240]  # Bottom, upper-right, upper-left
+            angles_deg = [0, 120, 240]
         elif self.config.num_tail_fins == 4:
-            angles_deg = [0, 90, 180, 270]  # Bottom, right, top, left
+            angles_deg = [45, 135, 225, 315]
         else:
-            angles_deg = [0]
+            angles_deg = [0, 120, 240]
+
+        fuse_radius = self.config.fuselage_diameter_m / 2
+        fin_span = self.config.tail_fin_span_m
+        fin_thickness = self.config.tail_fin_chord_m * self.config.tail_fin_thickness_ratio
 
         for angle_deg in angles_deg:
-            angle_rad = np.radians(angle_deg - 90)  # Adjust for matplotlib coords
+            angle_rad = np.radians(angle_deg)
 
-            # Start at fuselage edge
-            start_r = self.config.fuselage_diameter_m / 2
-            end_r = start_r + self.config.tail_fin_span_m
+            # Fin extends radially from fuselage
+            start_y = fuse_radius * np.sin(angle_rad)
+            start_z = fuse_radius * np.cos(angle_rad)
+            end_y = (fuse_radius + fin_span) * np.sin(angle_rad)
+            end_z = (fuse_radius + fin_span) * np.cos(angle_rad)
 
-            start_x = start_r * np.cos(angle_rad)
-            start_y = start_r * np.sin(angle_rad)
-            end_x = end_r * np.cos(angle_rad)
-            end_y = end_r * np.sin(angle_rad)
+            # Draw fin as thick line
+            ax.plot([start_y, end_y], [start_z, end_z],
+                   color=self.colors['tail'],
+                   linewidth=fin_thickness * 100,  # Scale for visibility
+                   alpha=0.6,
+                   solid_capstyle='round')
 
-            # Draw fin as thick line with airfoil cross-section
-            ax.plot([start_x, end_x], [start_y, end_y],
-                   linewidth=8, color=self.colors['tail'],
-                   solid_capstyle='round', zorder=3)
-
-            # Add thickness indication at tip
-            perp_angle = angle_rad + np.pi/2
-            thickness = self.config.tail_fin_chord_m * self.config.tail_fin_thickness_ratio / 2
-
-            tip_x1 = end_x + thickness * np.cos(perp_angle)
-            tip_y1 = end_y + thickness * np.sin(perp_angle)
-            tip_x2 = end_x - thickness * np.cos(perp_angle)
-            tip_y2 = end_y - thickness * np.sin(perp_angle)
-
-            ax.plot([tip_x1, tip_x2], [tip_y1, tip_y2],
-                   linewidth=2, color=self.colors['tail_edge'], zorder=4)
+            # Fin edge
+            ax.plot([start_y, end_y], [start_z, end_z],
+                   color=self.colors['tail_edge'],
+                   linewidth=1.5,
+                   alpha=0.8)
 
     def _draw_side_view(self, ax):
-        """Draw side view (profile)"""
-        # Fuselage (cylindrical body)
+        """
+        Draw side view - Looking from right side (along +Y axis)
+
+        See: Full fuselage length vertical, wing chord visible, single tail fin profile
+        """
+        # === FUSELAGE (full length visible vertically in VTOL mode) ===
         fuse_length = self.config.fuselage_length_m
         fuse_diameter = self.config.fuselage_diameter_m
 
-        # Draw as rounded rectangle (cylinder)
+        # Fuselage centered vertically (standing position)
+        # X-axis: forward (up in VTOL), Z-axis: down (horizontal in this view)
         fuse = FancyBboxPatch(
-            (-fuse_length/2, -fuse_diameter/2),
-            fuse_length,
+            (-fuse_diameter/2, -fuse_length/2),  # Z, X coordinates
             fuse_diameter,
+            fuse_length,
             boxstyle="round,pad=0.02",
             linewidth=2.5,
             edgecolor=self.colors['fuselage_edge'],
             facecolor=self.colors['fuselage'],
-            alpha=0.4,
+            alpha=0.5,
             zorder=2
         )
         ax.add_patch(fuse)
 
-        # Wing (airfoil shape simplified as thin line with thickness)
-        wing_thickness = self.config.wing_chord_m * 0.12  # 12% thick
+        # Nose indicator (top of fuselage in VTOL mode)
+        nose_y = fuse_length / 2
+        ax.plot(0, nose_y, 'o', color=self.colors['nose'], markersize=8,
+               markeredgewidth=2, markerfacecolor='none', zorder=5)
+        ax.text(fuse_diameter/2 + 0.1, nose_y, 'NOSE', fontsize=8,
+               fontweight='bold', color=self.colors['nose'], va='center')
+
+        # === WING (chord visible as airfoil profile) ===
+        wing_chord = self.config.wing_chord_m
+        wing_thickness = wing_chord * 0.12  # Airfoil thickness
+
+        # Wing at CG position
         wing = Rectangle(
-            (-self.config.wing_chord_m/2, -wing_thickness/2),
-            self.config.wing_chord_m,
+            (-wing_chord/2, -wing_thickness/2),
+            wing_chord,
             wing_thickness,
             linewidth=2,
             edgecolor=self.colors['wing_edge'],
             facecolor=self.colors['wing'],
-            alpha=0.5,
+            alpha=0.6,
             zorder=3
         )
         ax.add_patch(wing)
 
-        # Tail fin (single fin visible from side)
+        # Mark leading edge
+        ax.plot([-wing_chord/2, -wing_chord/2], [-wing_thickness/2, wing_thickness/2],
+               color=self.colors['wing_edge'], linewidth=3, zorder=4)
+
+        # === TAIL FIN (one fin visible in profile) ===
         self._draw_tail_fin_side(ax)
 
-        # CG marker
-        ax.plot(0, 0, '+', color=self.colors['cg'],
-               markersize=15, markeredgewidth=3, zorder=10)
-        ax.text(0.02, -0.08, 'CG', fontsize=10, color=self.colors['cg'],
-               fontweight='bold', zorder=10)
+        # === CG MARKER ===
+        ax.plot(0, 0, 'x', color=self.colors['cg'], markersize=10,
+               markeredgewidth=2, zorder=10)
+        ax.text(0.05, -0.05, 'CG', fontsize=8, color=self.colors['cg'],
+               fontweight='bold')
 
-        # Dimension line for length
-        self._add_dimension_horizontal(ax,
-            -fuse_length/2, fuse_length/2,
-            -fuse_diameter/2 - 0.15,
-            f"Length: {fuse_length:.2f} m"
-        )
+        # === DIMENSIONS ===
+        # Fuselage length
+        x_pos = fuse_diameter/2 + 0.2
+        ax.annotate('', xy=(x_pos, fuse_length/2), xytext=(x_pos, -fuse_length/2),
+                   arrowprops=dict(arrowstyle='<->', lw=1.5, color=self.colors['dimension']))
+        ax.text(x_pos + 0.08, 0, f'{fuse_length:.2f}m\nlength',
+               ha='left', va='center', fontsize=8, color=self.colors['dimension'])
 
-        # Styling
+        # Wing chord
+        self._add_dimension_horizontal(ax, -wing_chord/2, wing_chord/2,
+                                      -wing_thickness/2 - 0.15,
+                                      f'{wing_chord:.2f}m chord')
+
+        # === AXIS CONFIGURATION ===
         ax.set_aspect('equal')
-        ax.grid(True, alpha=0.2, linestyle='--', color=self.colors['grid'])
-        ax.set_title('SIDE VIEW', fontweight='bold', fontsize=12, pad=10)
-        ax.set_xlabel('Longitudinal Distance (m)', fontsize=9)
-        ax.set_ylabel('Vertical Distance (m)', fontsize=9)
+        ax.grid(True, alpha=0.3, linestyle='--', color=self.colors['grid'])
+        ax.set_xlabel('Z-axis (Down →)', fontsize=10, fontweight='bold')
+        ax.set_ylabel('X-axis (Forward ↑)', fontsize=10, fontweight='bold')
+        ax.set_title('SIDE VIEW\n(Looking from right, along +Y)', fontsize=11, fontweight='bold')
 
         # Set limits
-        max_dim = max(fuse_length, fuse_diameter + 2*self.config.tail_fin_span_m) * 0.65
+        max_dim = max(fuse_length, wing_chord) * 0.7
         ax.set_xlim(-max_dim, max_dim)
         ax.set_ylim(-max_dim, max_dim)
 
     def _draw_tail_fin_side(self, ax):
-        """Draw tail fin in side view (airfoil profile)"""
-        # Fin positioned at tail
-        fin_x = -self.config.tail_fin_position_m
-        fin_y_base = -self.config.fuselage_diameter_m / 2
-        fin_y_top = fin_y_base - self.config.tail_fin_span_m
-
-        # Simplified symmetric airfoil shape
-        # Leading edge, top, trailing edge, bottom
+        """Draw tail fin profile in side view"""
+        tail_position = -self.config.tail_fin_position_m  # Aft (negative X)
         root_chord = self.config.tail_fin_chord_m
         tip_chord = root_chord * self.config.tail_fin_taper_ratio
-        max_thickness = root_chord * self.config.tail_fin_thickness_ratio
+        span = self.config.tail_fin_span_m
+        thickness_ratio = self.config.tail_fin_thickness_ratio
 
-        # Root airfoil (at fuselage)
-        fin_root = Polygon([
-            [fin_x - root_chord/2, fin_y_base],  # Leading edge
-            [fin_x - root_chord/4, fin_y_base + max_thickness/4],  # Top curve
-            [fin_x + root_chord/2, fin_y_base],  # Trailing edge
-            [fin_x - root_chord/4, fin_y_base - max_thickness/4],  # Bottom curve
-        ],
-        linewidth=2,
-        edgecolor=self.colors['tail_edge'],
-        facecolor=self.colors['tail'],
-        alpha=0.6,
-        zorder=4)
-        ax.add_patch(fin_root)
+        # Fin extends upward (positive Z direction perpendicular to fuselage)
+        fuse_radius = self.config.fuselage_diameter_m / 2
 
-        # Fin span line
-        ax.plot([fin_x, fin_x], [fin_y_base, fin_y_top],
-               linewidth=6, color=self.colors['tail'],
-               solid_capstyle='round', alpha=0.5, zorder=3)
+        # Draw tapered fin with airfoil thickness
+        root_thick = root_chord * thickness_ratio
+        tip_thick = tip_chord * thickness_ratio
 
-        # Tip airfoil (smaller)
-        fin_tip = Polygon([
-            [fin_x - tip_chord/2, fin_y_top],
-            [fin_x - tip_chord/4, fin_y_top + max_thickness*0.3],
-            [fin_x + tip_chord/2, fin_y_top],
-            [fin_x - tip_chord/4, fin_y_top - max_thickness*0.3],
-        ],
-        linewidth=1.5,
-        edgecolor=self.colors['tail_edge'],
-        facecolor=self.colors['tail'],
-        alpha=0.6,
-        zorder=4)
-        ax.add_patch(fin_tip)
+        # Fin polygon (one side visible)
+        fin_points = [
+            # Root airfoil
+            (fuse_radius, tail_position - root_chord/2),                    # Root leading edge bottom
+            (fuse_radius, tail_position + root_chord/2),                    # Root trailing edge bottom
+            # Tip airfoil
+            (fuse_radius + span, tail_position + tip_chord/2),              # Tip trailing edge
+            (fuse_radius + span, tail_position - tip_chord/2),              # Tip leading edge
+        ]
+
+        fin = Polygon(
+            fin_points,
+            linewidth=2,
+            edgecolor=self.colors['tail_edge'],
+            facecolor=self.colors['tail'],
+            alpha=0.6,
+            zorder=4
+        )
+        ax.add_patch(fin)
 
     def _add_dimension_horizontal(self, ax, x1, x2, y, label):
         """Add horizontal dimension line with arrows and label"""
         # Dimension line
-        ax.plot([x1, x2], [y, y],
-               color=self.colors['dimension'],
-               linewidth=1, linestyle='-', zorder=1)
+        ax.annotate('', xy=(x2, y), xytext=(x1, y),
+                   arrowprops=dict(arrowstyle='<->', lw=1.5,
+                                 color=self.colors['dimension']))
 
-        # Arrows
-        arrow_size = 0.03
-        ax.plot(x1, y, '<', color=self.colors['dimension'],
-               markersize=6, zorder=1)
-        ax.plot(x2, y, '>', color=self.colors['dimension'],
-               markersize=6, zorder=1)
+        # Label at midpoint
+        mid_x = (x1 + x2) / 2
+        ax.text(mid_x, y - 0.05, label, ha='center', va='top',
+               fontsize=8, color=self.colors['dimension'],
+               bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                        edgecolor=self.colors['dimension'], alpha=0.8))
 
-        # Label
-        ax.text((x1 + x2)/2, y - 0.05, label,
-               ha='center', va='top', fontsize=8,
-               color=self.colors['dimension'],
-               bbox=dict(boxstyle='round,pad=0.3',
-                        facecolor='white',
-                        edgecolor=self.colors['dimension'],
-                        alpha=0.8),
-               zorder=1)
+
+def main():
+    """Test function for standalone execution"""
+    # Example configuration
+    from dataclasses import dataclass
+
+    @dataclass
+    class TestConfig:
+        wingspan_m: float = 2.0
+        wing_chord_m: float = 0.20
+        fuselage_length_m: float = 1.2
+        fuselage_diameter_m: float = 0.10
+        num_tail_fins: int = 3
+        tail_fin_chord_m: float = 0.05
+        tail_fin_span_m: float = 0.15
+        tail_fin_position_m: float = 0.50
+        tail_fin_thickness_ratio: float = 0.12
+        tail_fin_taper_ratio: float = 0.7
+        motor_spacing_m: float = 0.50
+
+    config = TestConfig()
+    drawer = DroneSchematicDrawer(config)
+    fig = drawer.draw_3_view(figsize=(18, 6))
+
+    plt.savefig('px4_tailsitter_schematic.png', dpi=150, bbox_inches='tight')
+    print("Schematic saved to: px4_tailsitter_schematic.png")
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()

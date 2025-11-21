@@ -7,84 +7,172 @@ Each plot has description and configuration for quick access.
 """
 
 COMMON_PLOTS = {
+    # === CRITICAL DESIGN PLOTS (Most Used) ===
+    "hover_endurance_vs_weight": {
+        "name": "🔴 Hover Endurance vs Weight",
+        "description": "CRITICAL: How payload weight affects hover time.\nEssential for mission planning and payload sizing.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Hover Endurance (min)"],
+        "x_range": (3, 10, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "hover_current_vs_weight": {
+        "name": "🔴 Hover Current vs Weight",
+        "description": "CRITICAL: Current draw in hover mode vs weight.\nUse for battery and power system sizing.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Hover Current (A)"],
+        "x_range": (3, 10, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "forward_endurance_vs_weight": {
+        "name": "🔴 Forward Flight Endurance vs Weight",
+        "description": "CRITICAL: Cruise endurance vs weight.\nKey metric for range missions.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Forward Flight Endurance (min)"],
+        "x_range": (3, 10, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "forward_current_vs_weight": {
+        "name": "🔴 Forward Flight Current vs Weight",
+        "description": "CRITICAL: Current draw in forward flight.\nCrucial for electrical system design.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Current (A)"],
+        "x_range": (3, 10, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "speeds_vs_weight": {
+        "name": "🔴 Cruise & Stall Speed vs Weight",
+        "description": "CRITICAL: How weight affects flight speeds.\nSafety margin and operational envelope.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Cruise Speed (m/s)", "Stall Speed (m/s)"],
+        "x_range": (3, 10, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "speeds_vs_span": {
+        "name": "🔴 Cruise & Stall Speed vs Wing Span",
+        "description": "CRITICAL: Wing sizing impact on speeds.\nDesign trade-off analysis.",
+        "x_param": "Wing Span (m)",
+        "y_params": ["Cruise Speed (m/s)", "Stall Speed (m/s)"],
+        "x_range": (1.2, 3.0, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    # === PERFORMANCE OPTIMIZATION ===
     "power_vs_speed": {
-        "name": "Power vs Speed",
-        "description": "Shows how power consumption changes with flight speed.\nFind the most efficient cruise speed.",
+        "name": "⚡ Power vs Speed",
+        "description": "Power consumption across speed range.\nFind minimum power speed for efficiency.",
         "x_param": "Speed (m/s)",
         "y_params": ["Forward Flight Power (W)"],
-        "x_range": (10, 25, 50),  # min, max, points
+        "x_range": (10, 25, 50),
         "icon": "⚡",
+        "category": "performance",
     },
 
     "range_optimization": {
-        "name": "Range vs Speed",
-        "description": "Find optimal cruise speed for maximum range.\nPeak of curve = best speed for distance.",
+        "name": "📏 Range vs Speed",
+        "description": "Optimal cruise speed for maximum range.\nPeak = best endurance speed.",
         "x_param": "Speed (m/s)",
         "y_params": ["Forward Flight Range (km)"],
         "x_range": (10, 25, 50),
         "icon": "📏",
-    },
-
-    "endurance_vs_weight": {
-        "name": "Endurance vs Weight",
-        "description": "See how payload weight affects flight time.\nUse for mission planning with variable payload.",
-        "x_param": "Weight (kg)",
-        "y_params": ["Hover Endurance (min)", "Forward Flight Endurance (min)"],
-        "x_range": (4, 8, 50),
-        "icon": "⏱️",
-    },
-
-    "efficiency_analysis": {
-        "name": "Efficiency vs Speed",
-        "description": "System efficiency across speed range.\nHigher efficiency = longer flight time.",
-        "x_param": "Speed (m/s)",
-        "y_params": ["Propeller Efficiency (%)"],
-        "x_range": (10, 25, 50),
-        "icon": "📊",
+        "category": "performance",
     },
 
     "ld_performance": {
-        "name": "L/D Ratio vs Speed",
-        "description": "Aerodynamic efficiency curve.\nHigher L/D = better glide performance.",
+        "name": "✈️ L/D Ratio vs Speed",
+        "description": "Aerodynamic efficiency curve.\nHigher L/D = better glide and range.",
         "x_param": "Speed (m/s)",
         "y_params": ["L/D Ratio"],
         "x_range": (10, 25, 50),
         "icon": "✈️",
+        "category": "performance",
     },
 
     "current_vs_speed": {
-        "name": "Current vs Speed",
-        "description": "Battery current draw at different speeds.\nUse for battery and ESC sizing.",
+        "name": "🔋 Current vs Speed",
+        "description": "Battery current at different speeds.\nESC and wire gauge sizing.",
         "x_param": "Speed (m/s)",
         "y_params": ["Current (A)"],
         "x_range": (10, 25, 50),
         "icon": "🔋",
+        "category": "performance",
+    },
+
+    # === DESIGN TRADE-OFFS ===
+    "endurance_comparison": {
+        "name": "⏱️ Hover vs Forward Endurance",
+        "description": "Compare hover and forward flight endurance.\nMission profile optimization.",
+        "x_param": "Weight (kg)",
+        "y_params": ["Hover Endurance (min)", "Forward Flight Endurance (min)"],
+        "x_range": (3, 10, 50),
+        "icon": "⏱️",
+        "category": "trade-offs",
     },
 
     "altitude_effects": {
-        "name": "Performance vs Altitude",
-        "description": "How altitude affects performance.\nHigher altitude = less dense air = more power needed.",
+        "name": "⛰️ Performance vs Altitude",
+        "description": "Altitude impact on power requirements.\nHigh-altitude mission planning.",
         "x_param": "Altitude (m)",
         "y_params": ["Forward Flight Power (W)", "Hover Power (W)"],
         "x_range": (0, 3000, 50),
         "icon": "⛰️",
+        "category": "trade-offs",
     },
 
     "wing_sizing": {
-        "name": "Performance vs Wing Span",
-        "description": "Effect of wing size on performance.\nLarger wings = better efficiency but more drag.",
+        "name": "🦅 Wing Span Trade-offs",
+        "description": "Wing size vs performance metrics.\nOptimal span for mission requirements.",
         "x_param": "Wing Span (m)",
         "y_params": ["Forward Flight Range (km)", "Max L/D Ratio"],
-        "x_range": (1.5, 2.5, 50),
+        "x_range": (1.2, 3.0, 50),
         "icon": "🦅",
+        "category": "trade-offs",
+    },
+
+    "efficiency_analysis": {
+        "name": "📊 Propeller Efficiency vs Speed",
+        "description": "Propeller efficiency across speed range.\nProp selection validation.",
+        "x_param": "Speed (m/s)",
+        "y_params": ["Propeller Efficiency (%)"],
+        "x_range": (10, 25, 50),
+        "icon": "📊",
+        "category": "trade-offs",
     },
 }
 
-# Plot categories for organization
+# Plot categories for organized display
 PLOT_CATEGORIES = {
-    "Performance": ["power_vs_speed", "range_optimization", "efficiency_analysis"],
-    "Design Trade-offs": ["endurance_vs_weight", "wing_sizing", "altitude_effects"],
-    "Technical": ["ld_performance", "current_vs_speed"],
+    "🔴 Critical Design Plots": [
+        "hover_endurance_vs_weight",
+        "hover_current_vs_weight",
+        "forward_endurance_vs_weight",
+        "forward_current_vs_weight",
+        "speeds_vs_weight",
+        "speeds_vs_span",
+    ],
+    "⚡ Performance Optimization": [
+        "power_vs_speed",
+        "range_optimization",
+        "ld_performance",
+        "current_vs_speed",
+    ],
+    "📊 Design Trade-offs": [
+        "endurance_comparison",
+        "altitude_effects",
+        "wing_sizing",
+        "efficiency_analysis",
+    ],
 }
 
 def get_common_plot(plot_id):
