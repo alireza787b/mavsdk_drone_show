@@ -209,9 +209,9 @@ def blender_north_west_up_to_ned(x_b, y_b, z_b=0.0):
 def read_config(filename: str) -> Drone:
     """
     Read the drone configuration from a CSV file.
-    This CSV is assumed to store real NED coordinates directly:
-      - initial_x => North
-      - initial_y => East
+
+    Note: x,y positions now come from trajectory CSV files (single source of truth),
+    not from config.csv.
 
     Args:
         filename (str): Path to the config CSV file.
@@ -228,11 +228,34 @@ def read_config(filename: str) -> Drone:
                     hw_id = int(row["hw_id"])
                     if hw_id == HW_ID:
                         pos_id = int(row["pos_id"])
-                        # For config.csv, we do NOT transform: it is already NED
-                        initial_x = float(row["x"])  # North
-                        initial_y = float(row["y"])  # East
                         ip = row["ip"]
                         mavlink_port = int(row["mavlink_port"])
+
+                        # Get position from trajectory CSV (single source of truth)
+                        base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                        trajectory_file = os.path.join(
+                            os.path.dirname(__file__),  # Project root
+                            base_dir,
+                            'swarm',
+                            'processed',
+                            f"Drone {pos_id}.csv"
+                        )
+
+                        initial_x, initial_y = 0.0, 0.0  # Default values
+                        try:
+                            if os.path.exists(trajectory_file):
+                                with open(trajectory_file, 'r') as traj_f:
+                                    traj_reader = csv.DictReader(traj_f)
+                                    first_waypoint = next(traj_reader, None)
+                                    if first_waypoint:
+                                        initial_x = float(first_waypoint.get('px', 0))  # North
+                                        initial_y = float(first_waypoint.get('py', 0))  # East
+                                    else:
+                                        logger.warning(f"Trajectory file empty for pos_id={pos_id}")
+                            else:
+                                logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+                        except Exception as e:
+                            logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
 
                         drone = Drone(
                             hw_id,

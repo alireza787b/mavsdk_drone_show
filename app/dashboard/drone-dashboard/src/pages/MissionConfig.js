@@ -91,12 +91,7 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Derived Data & Helpers
   // -----------------------------------------------------
-  const positionIdMapping = configData.reduce((acc, drone) => {
-    if (drone.pos_id) {
-      acc[drone.pos_id] = { x: drone.x, y: drone.y };
-    }
-    return acc;
-  }, {});
+  // Note: x,y positions now come from trajectory CSV files, not config.csv
 
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
   const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
@@ -509,83 +504,50 @@ const MissionConfig = () => {
 
       {/* Role Swap Details Modal */}
       {showRoleSwapModal && (
-        <>
+        <div
+          className="modal-overlay"
+          onClick={() => setShowRoleSwapModal(false)}
+        >
           <div
-            className="modal-overlay"
-            onClick={() => setShowRoleSwapModal(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
+            className="role-swap-modal"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="role-swap-modal"
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                padding: '24px',
-                maxWidth: '600px',
-                maxHeight: '80vh',
-                overflow: 'auto',
-                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-              }}
-            >
-              <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <FontAwesomeIcon icon={faExchangeAlt} />
-                All Active Role Swaps ({roleSwapData.length})
-              </h3>
-              <p style={{ marginBottom: '16px', color: '#6b7280' }}>
-                These drones are flying different positions' trajectories:
-              </p>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Hardware ID</th>
-                    <th style={{ padding: '8px', textAlign: 'center' }}>→</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Position ID (Show)</th>
+            <h3>
+              <FontAwesomeIcon icon={faExchangeAlt} style={{ marginRight: '10px' }} />
+              All Active Role Swaps ({roleSwapData.length})
+            </h3>
+            <p style={{ marginBottom: '16px' }}>
+              These drones are flying different positions' trajectories:
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Hardware ID</th>
+                  <th style={{ textAlign: 'center' }}>→</th>
+                  <th>Position ID (Show)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleSwapData.map((drone) => (
+                  <tr key={drone.hw_id}>
+                    <td>
+                      <strong>Drone {drone.hw_id}</strong>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>→</td>
+                    <td>
+                      <strong>Position {drone.pos_id}</strong>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {roleSwapData.map((drone, idx) => (
-                    <tr key={drone.hw_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '8px' }}>
-                        <strong>Drone {drone.hw_id}</strong>
-                      </td>
-                      <td style={{ padding: '8px', textAlign: 'center' }}>→</td>
-                      <td style={{ padding: '8px' }}>
-                        <strong>Position {drone.pos_id}</strong>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ marginTop: '20px', textAlign: 'right' }}>
-                <button
-                  onClick={() => setShowRoleSwapModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button onClick={() => setShowRoleSwapModal(false)}>
+                Close
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <MissionLayout
@@ -666,7 +628,6 @@ const MissionConfig = () => {
                 removeDrone={removeDrone}
                 networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
                 heartbeatData={heartbeats[drone.hw_id] || null}
-                positionIdMapping={positionIdMapping}
                 style={{ animationDelay: `${index * 0.1}s` }}
               />
             ))

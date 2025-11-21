@@ -374,11 +374,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             <span className="info-label">Baudrate</span>
             <span className="info-value">{drone.baudrate || '57600'}</span>
           </div>
-
-          <div className="info-row">
-            <span className="info-label">Launch Position</span>
-            <span className="info-value">({drone.x}, {drone.y})</span>
-          </div>
         </div>
 
         {/* Position ID Section */}
@@ -494,12 +489,6 @@ const DroneEditForm = memo(function DroneEditForm({
   const [isCustomPosId, setIsCustomPosId] = useState(false);
   const [customPosId, setCustomPosId] = useState('');
 
-  // For confirmation dialog
-  const [oldX, setOldX] = useState(droneData.x);
-  const [oldY, setOldY] = useState(droneData.y);
-  const [newX, setNewX] = useState(droneData.x);
-  const [newY, setNewY] = useState(droneData.y);
-
   const [originalPosId, setOriginalPosId] = useState(droneData.pos_id);
 
   // Gather all pos_ids from configData for the dropdown
@@ -511,31 +500,12 @@ const DroneEditForm = memo(function DroneEditForm({
 
   /**
    * Handler: user changes the pos_id from the dropdown
-   * => possibly open a confirmation to copy x,y from an existing drone with that pos_id.
+   * => open a confirmation dialog
    */
   const handlePosSelectChange = (e) => {
     const chosenPos = e.target.value;
     if (chosenPos === droneData.pos_id) return; // No real change
     setPendingPosId(chosenPos);
-
-    // If another drone in configData has this pos_id, copy x,y from that drone
-    const matchedDrone = findDroneByPositionId(
-      configData,
-      chosenPos,
-      droneData.hw_id
-    );
-
-    setOldX(droneData.x);
-    setOldY(droneData.y);
-
-    if (matchedDrone) {
-      setNewX(matchedDrone.x);
-      setNewY(matchedDrone.y);
-    } else {
-      setNewX(droneData.x);
-      setNewY(droneData.y);
-    }
-
     setShowPosChangeDialog(true);
   };
 
@@ -546,7 +516,7 @@ const DroneEditForm = memo(function DroneEditForm({
     onFieldChange({ target: { name: 'pos_id', value: originalPosId } });
   };
 
-  /** Confirm pos_id change => update local droneData with new pos_id & possibly new x,y. */
+  /** Confirm pos_id change => update local droneData with new pos_id. */
   const handleConfirmPosChange = () => {
     if (!pendingPosId) {
       setShowPosChangeDialog(false);
@@ -555,28 +525,10 @@ const DroneEditForm = memo(function DroneEditForm({
 
     // Update pos_id in the form
     onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
-
-    const matchedDrone = findDroneByPositionId(
-      configData,
-      pendingPosId,
-      droneData.hw_id
-    );
-    if (matchedDrone) {
-      onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
-      onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
-      setDroneData((prevData) => ({
-        ...prevData,
-        pos_id: pendingPosId,
-        x: matchedDrone.x,
-        y: matchedDrone.y,
-      }));
-    } else {
-      // No matched drone => just update pos_id
-      setDroneData((prevData) => ({
-        ...prevData,
-        pos_id: pendingPosId,
-      }));
-    }
+    setDroneData((prevData) => ({
+      ...prevData,
+      pos_id: pendingPosId,
+    }));
 
     setOriginalPosId(pendingPosId);
     setShowPosChangeDialog(false);
@@ -599,9 +551,8 @@ const DroneEditForm = memo(function DroneEditForm({
               <strong>{pendingPosId}</strong>.
             </p>
             <p>
-              <em>Old (x,y):</em> ({oldX}, {oldY})
-              <br />
-              <em>New (x,y):</em> ({newX}, {newY})
+              This will change which trajectory/show this drone will perform.
+              Positions are loaded from trajectory CSV files.
             </p>
             <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
             <div className="dialog-buttons">
@@ -814,8 +765,6 @@ const DroneEditForm = memo(function DroneEditForm({
                   setDroneData((prev) => ({
                     ...prev,
                     pos_id: newPos,
-                    x: 0,
-                    y: 0,
                   }));
                 }}
                 aria-label="Custom Position ID"
