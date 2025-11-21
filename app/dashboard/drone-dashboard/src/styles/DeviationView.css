@@ -90,6 +90,21 @@
   cursor: not-allowed;
 }
 
+/* ========== INFO BANNER ========== */
+
+.info-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--spacing-sm) var(--spacing-base);
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 4px solid #3b82f6;
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
 /* ========== SUMMARY STATISTICS ========== */
 
 .deviation-summary {

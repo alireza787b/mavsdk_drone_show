@@ -30,6 +30,7 @@ const DeviationView = ({
   onRefresh
 }) => {
   const { isDark } = useTheme();
+  const [showActualPositions, setShowActualPositions] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
@@ -41,9 +42,9 @@ const DeviationView = ({
     grid: isDark ? '#495057' : '#dee2e6',
   };
 
-  // Auto-refresh mechanism - call parent's onRefresh every 5 seconds
+  // Auto-refresh mechanism - call parent's onRefresh every 5 seconds (only if showing actual positions)
   useEffect(() => {
-    if (!autoRefresh || !onRefresh) return;
+    if (!autoRefresh || !onRefresh || !showActualPositions) return;
 
     const interval = setInterval(() => {
       onRefresh();
@@ -51,7 +52,7 @@ const DeviationView = ({
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, onRefresh]);
+  }, [autoRefresh, onRefresh, showActualPositions]);
 
   // Extract summary data
   const summary = deviationData?.summary || {
@@ -226,38 +227,61 @@ const DeviationView = ({
     });
   }
 
-  plotTraces.push(expectedTrace, currentTrace, deviationVectors);
+  // Only add actual positions and deviations if enabled
+  plotTraces.push(expectedTrace);
+  if (showActualPositions) {
+    plotTraces.push(currentTrace, deviationVectors);
+  }
 
   return (
     <div className="deviation-view">
-      {/* Auto-refresh toggle and manual refresh button */}
+      {/* Controls */}
       <div className="deviation-controls">
         <label className="auto-refresh-toggle">
           <input
             type="checkbox"
-            checked={autoRefresh}
-            onChange={(e) => setAutoRefresh(e.target.checked)}
+            checked={showActualPositions}
+            onChange={(e) => setShowActualPositions(e.target.checked)}
           />
-          <span>Auto-refresh (5s)</span>
-          {autoRefresh && <span className="refresh-indicator">●</span>}
+          <span>Show Actual Positions & Deviations</span>
         </label>
 
-        <button
-          className="manual-refresh-btn"
-          onClick={() => {
-            if (onRefresh) {
-              onRefresh();
-              setLastUpdate(new Date());
-            }
-          }}
-          disabled={!onRefresh}
-        >
-          🔄 Refresh Now
-        </button>
+        {showActualPositions && (
+          <>
+            <label className="auto-refresh-toggle">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />
+              <span>Auto-refresh (5s)</span>
+              {autoRefresh && <span className="refresh-indicator">●</span>}
+            </label>
+
+            <button
+              className="manual-refresh-btn"
+              onClick={() => {
+                if (onRefresh) {
+                  onRefresh();
+                  setLastUpdate(new Date());
+                }
+              }}
+              disabled={!onRefresh}
+            >
+              🔄 Refresh Now
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Summary Statistics Header */}
-      <div className="deviation-summary">
+      {/* Info Banner */}
+      <div className="info-banner">
+        📍 Positions from trajectory CSV files (single source of truth)
+      </div>
+
+      {/* Summary Statistics Header (only when showing actual positions) */}
+      {showActualPositions && (
+        <div className="deviation-summary">
         <div className="stat-card">
           <span className="stat-value">{summary.online}</span>
           <span className="stat-label">Online</span>
@@ -287,6 +311,7 @@ const DeviationView = ({
           <span className="stat-label">Worst</span>
         </div>
       </div>
+      )}
 
       {/* Main Plot */}
       <div className="deviation-plot-container">
@@ -295,7 +320,7 @@ const DeviationView = ({
             data={plotTraces}
             layout={{
               title: {
-                text: 'Position Monitoring - Expected vs Current',
+                text: showActualPositions ? 'Position Monitoring - Expected vs Current' : 'Expected Launch Positions',
                 font: { color: themeColors.text, size: 16 }
               },
               xaxis: {
@@ -339,34 +364,38 @@ const DeviationView = ({
         )}
       </div>
 
-      {/* Legend */}
-      <div className="deviation-legend">
-        <div className="legend-item">
-          <span className="marker expected"></span>
-          <span>Expected Position</span>
-        </div>
-        <div className="legend-item">
-          <span className="marker current ok"></span>
-          <span>Current (OK &lt; 2m)</span>
-        </div>
-        <div className="legend-item">
-          <span className="marker current warning"></span>
-          <span>Current (Warning 2-5m)</span>
-        </div>
-        <div className="legend-item">
-          <span className="marker current error"></span>
-          <span>Current (Error &gt; 5m)</span>
-        </div>
-        <div className="legend-item">
-          <span className="line deviation"></span>
-          <span>Deviation Vector</span>
-        </div>
-      </div>
+      {/* Legend (only when showing actual positions) */}
+      {showActualPositions && (
+        <>
+          <div className="deviation-legend">
+            <div className="legend-item">
+              <span className="marker expected"></span>
+              <span>Expected Position</span>
+            </div>
+            <div className="legend-item">
+              <span className="marker current ok"></span>
+              <span>Current (OK &lt; 2m)</span>
+            </div>
+            <div className="legend-item">
+              <span className="marker current warning"></span>
+              <span>Current (Warning 2-5m)</span>
+            </div>
+            <div className="legend-item">
+              <span className="marker current error"></span>
+              <span>Current (Error &gt; 5m)</span>
+            </div>
+            <div className="legend-item">
+              <span className="line deviation"></span>
+              <span>Deviation Vector</span>
+            </div>
+          </div>
 
-      {/* Last Updated */}
-      <div className="last-updated">
-        Last updated: {lastUpdate.toLocaleTimeString()}
-      </div>
+          {/* Last Updated */}
+          <div className="last-updated">
+            Last updated: {lastUpdate.toLocaleTimeString()}
+          </div>
+        </>
+      )}
     </div>
   );
 };

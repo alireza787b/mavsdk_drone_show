@@ -1,13 +1,13 @@
 // src/components/PositionTabs.js
 
 import React from 'react';
-import UnifiedPositionPlot from './UnifiedPositionPlot';
+import DeviationView from './DeviationView';
 import '../styles/PositionTabs.css';
 
 /**
- * PositionTabs - Unified position visualization
+ * PositionTabs - Position visualization with toggle
  *
- * Now uses a single unified plot with optional deviation display.
+ * Shows position monitoring with optional actual positions and deviations.
  * Positions are loaded from trajectory CSV files (single source of truth).
  *
  * @param {Array} drones - Drone configuration data
@@ -27,11 +27,10 @@ const PositionTabs = ({
 }) => {
   return (
     <div className="position-tabs-container">
-      <UnifiedPositionPlot
+      <DeviationView
         drones={drones}
         deviationData={deviationData}
         origin={origin}
-        forwardHeading={forwardHeading}
         onDroneClick={onDroneClick}
         onRefresh={onRefresh}
       />
