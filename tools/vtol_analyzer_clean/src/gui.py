@@ -821,13 +821,17 @@ class VTOLAnalyzerGUI(tk.Tk):
             from schematic import DroneSchematicDrawer
             drawer = DroneSchematicDrawer(config)
 
-            # Create smaller figure for preview
-            fig = drawer.draw_3_view(figsize=(12, 4))
+            # Create smaller figure for preview (compact size that fits)
+            fig = drawer.draw_3_view(figsize=(10, 3))
+            fig.set_dpi(80)  # Lower DPI for smaller display
 
             # Embed in tkinter
             canvas = FigureCanvasTkAgg(fig, master=self.config_schematic_frame)
             canvas.draw()
-            canvas.get_tk_widget().pack(fill='both', expand=True)
+            # Pack with proper sizing constraints
+            canvas_widget = canvas.get_tk_widget()
+            canvas_widget.config(width=800, height=240)  # Fixed reasonable size
+            canvas_widget.pack(fill='both', expand=False)
 
         except Exception as e:
             # Show error message
@@ -960,8 +964,21 @@ class VTOLAnalyzerGUI(tk.Tk):
             default_plot_name = "🔴 Hover Endurance vs Weight"
             if default_plot_name in self.plot_id_map:
                 self.selected_common_plot.set(default_plot_name)
-                # Auto-load it after a short delay
-                self.after(500, lambda: self.load_common_plot(self.plot_id_map.get(default_plot_name)))
+                # Auto-load after ensuring analysis is done
+                def auto_load_default_plot():
+                    # Check if analysis exists, if not run it first
+                    if not self.current_calc or not self.current_results:
+                        # Run analysis with default config first
+                        if not self.current_config:
+                            self.load_preset("baseline")
+                        self.run_analysis()
+                        # Then load the plot after analysis completes
+                        self.after(1000, lambda: self.load_common_plot(self.plot_id_map.get(default_plot_name)))
+                    else:
+                        # Analysis already exists, just load plot
+                        self.load_common_plot(self.plot_id_map.get(default_plot_name))
+
+                self.after(500, auto_load_default_plot)
 
         except ImportError:
             self.common_plots_available = False
@@ -1601,14 +1618,30 @@ class VTOLAnalyzerGUI(tk.Tk):
 
     def create_export_tab(self):
         """Create export manager tab with PDF/Excel/CSV export capabilities"""
+        # Create scrollable container
+        canvas = tk.Canvas(self.tab_export, bg='white')
+        scrollbar = ttk.Scrollbar(self.tab_export, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
+        scrollbar.pack(side="right", fill="y", pady=10, padx=(0, 10))
+
         # Top toolbar
-        toolbar = ttk.Frame(self.tab_export)
+        toolbar = ttk.Frame(scrollable_frame)
         toolbar.pack(fill='x', padx=10, pady=5)
 
         ttk.Label(toolbar, text="Export Manager", style='Title.TLabel').pack(side='left')
 
         # Export format selection
-        format_frame = ttk.LabelFrame(self.tab_export, text=" Export Format ", padding=10)
+        format_frame = ttk.LabelFrame(scrollable_frame, text=" Export Format ", padding=10)
         format_frame.pack(fill='x', padx=10, pady=5)
 
         self.export_format_var = tk.StringVar(value="PDF Report")
@@ -1630,7 +1663,7 @@ class VTOLAnalyzerGUI(tk.Tk):
             ).grid(row=i//3, column=i%3, sticky='w', padx=20, pady=5)
 
         # Report template selection (for PDF/HTML)
-        template_frame = ttk.LabelFrame(self.tab_export, text=" Report Template ", padding=10)
+        template_frame = ttk.LabelFrame(scrollable_frame, text=" Report Template ", padding=10)
         template_frame.pack(fill='x', padx=10, pady=5)
 
         self.report_template_var = tk.StringVar(value="Engineering")
@@ -1650,7 +1683,7 @@ class VTOLAnalyzerGUI(tk.Tk):
             ).grid(row=i, column=0, sticky='w', padx=20, pady=3)
 
         # Export options
-        options_frame = ttk.LabelFrame(self.tab_export, text=" Export Options ", padding=10)
+        options_frame = ttk.LabelFrame(scrollable_frame, text=" Export Options ", padding=10)
         options_frame.pack(fill='x', padx=10, pady=5)
 
         self.include_plots_var = tk.BooleanVar(value=True)
@@ -1664,7 +1697,7 @@ class VTOLAnalyzerGUI(tk.Tk):
         ttk.Checkbutton(options_frame, text="Open file after export", variable=self.open_after_export_var).grid(row=3, column=0, sticky='w', padx=10, pady=3)
 
         # Output directory
-        output_frame = ttk.LabelFrame(self.tab_export, text=" Output Location ", padding=10)
+        output_frame = ttk.LabelFrame(scrollable_frame, text=" Output Location ", padding=10)
         output_frame.pack(fill='x', padx=10, pady=5)
 
         ttk.Label(output_frame, text="Directory:").grid(row=0, column=0, sticky='w', padx=5, pady=5)
@@ -1675,7 +1708,7 @@ class VTOLAnalyzerGUI(tk.Tk):
         output_frame.columnconfigure(1, weight=1)
 
         # File preview
-        preview_frame = ttk.LabelFrame(self.tab_export, text=" Export Preview ", padding=10)
+        preview_frame = ttk.LabelFrame(scrollable_frame, text=" Export Preview ", padding=10)
         preview_frame.pack(fill='both', expand=True, padx=10, pady=5)
 
         self.export_preview_text = scrolledtext.ScrolledText(
@@ -1690,7 +1723,7 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.export_preview_text.config(state='disabled')
 
         # Action buttons
-        action_frame = ttk.Frame(self.tab_export)
+        action_frame = ttk.Frame(scrollable_frame)
         action_frame.pack(fill='x', padx=10, pady=10)
 
         ttk.Button(action_frame, text="Generate Preview", command=self.generate_export_preview).pack(side='left', padx=5)
@@ -2051,16 +2084,89 @@ class VTOLAnalyzerGUI(tk.Tk):
             messagebox.showerror("Export Error", f"Could not export file:\n{e}")
             self.update_status("Export failed")
 
+    def generate_plot_for_pdf(self, plot_def):
+        """Generate a matplotlib figure from plot definition for PDF export (synchronous)"""
+        try:
+            import numpy as np
+            from matplotlib.figure import Figure
+
+            if not self.current_calc or not self.current_results:
+                return None
+
+            # Get parameters
+            x_param = plot_def['x_param']
+            y_params = plot_def['y_params']
+            x_range_def = plot_def.get('x_range', (0, 100, 50))
+
+            # Generate X values
+            x_values = np.linspace(x_range_def[0], x_range_def[1], x_range_def[2])
+
+            # Create figure
+            fig = Figure(figsize=(10, 6), dpi=100)
+            ax = fig.add_subplot(111)
+
+            # Colors for multiple lines
+            colors = ['#2E86AB', '#A23B72', '#F18F01', '#27AE60']
+
+            # Plot each Y parameter
+            for i, y_param in enumerate(y_params):
+                y_values = []
+                for x_val in x_values:
+                    y_val = self.calculate_y_for_x(x_param, x_val, y_param)
+                    y_values.append(y_val)
+
+                y_values = np.array(y_values)
+
+                ax.plot(x_values, y_values, color=colors[i % len(colors)], linewidth=2,
+                       label=y_param, marker='o', markersize=3, markevery=max(1, len(x_values)//20))
+
+            # Set labels
+            x_label = x_param
+            if "Speed" in x_param:
+                x_label = f"{x_param} (m/s)"
+            elif "Weight" in x_param:
+                x_label = f"{x_param} (kg)"
+            elif "Altitude" in x_param:
+                x_label = f"{x_param} (m)"
+            elif "Wing Span" in x_param or "Wing Area" in x_param or "Wing Chord" in x_param:
+                x_label = f"{x_param} (m)" if "Area" not in x_param else f"{x_param} (m²)"
+
+            ax.set_xlabel(x_label, fontsize=11, fontweight='bold')
+
+            if len(y_params) == 1:
+                ax.set_ylabel(y_params[0], fontsize=11, fontweight='bold')
+            else:
+                ax.set_ylabel("Value", fontsize=11, fontweight='bold')
+
+            ax.set_title(plot_def['name'].replace('🔴 ', '').replace('⚡ ', '').replace('📊 ', '').replace('🔧 ', ''),
+                        fontsize=13, fontweight='bold', pad=15)
+            ax.grid(True, alpha=0.3, linestyle='--')
+
+            if len(y_params) > 1:
+                ax.legend(loc='best', framealpha=0.9, fontsize=9)
+
+            fig.tight_layout()
+
+            return fig
+
+        except Exception as e:
+            print(f"Warning: Failed to generate plot {plot_def.get('name', 'unknown')}: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def export_pdf(self):
-        """Export analysis as PDF report"""
+        """Export comprehensive design document as PDF report"""
         try:
             # Try to import reportlab
             from reportlab.lib.pagesizes import letter, A4
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
             from reportlab.lib import colors
             from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+            from datetime import datetime
+            import tempfile
         except ImportError:
             messagebox.showwarning("PDF Export",
                 "reportlab library not installed.\n\n"
@@ -2069,77 +2175,225 @@ class VTOLAnalyzerGUI(tk.Tk):
             return self.export_text()
 
         output_dir = self.output_dir_var.get()
+        os.makedirs(output_dir, exist_ok=True)
+
         template = self.report_template_var.get()
-        filename = os.path.join(output_dir, f"vtol_analysis_{self.current_preset_name}_{template.lower()}.pdf")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(output_dir, f"VTOL_Design_Document_{self.current_preset_name}_{timestamp}.pdf")
 
         # Create PDF
-        doc = SimpleDocTemplate(filename, pagesize=letter)
+        doc = SimpleDocTemplate(filename, pagesize=letter,
+                              topMargin=0.75*inch, bottomMargin=0.75*inch)
         story = []
         styles = getSampleStyleSheet()
 
-        # Title
+        # Custom styles
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=24,
+            fontSize=20,
             textColor=colors.HexColor('#2C3E50'),
-            spaceAfter=30,
+            spaceAfter=10,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        )
+
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#7F8C8D'),
+            spaceAfter=20,
             alignment=TA_CENTER
         )
 
-        story.append(Paragraph("VTOL Performance Analysis Report", title_style))
-        story.append(Paragraph(f"Preset: {self.current_preset_name.upper()}", styles['Heading2']))
-        story.append(Spacer(1, 0.3*inch))
+        # ===== COVER PAGE =====
+        story.append(Spacer(1, 1.5*inch))
+        story.append(Paragraph("VTOL PERFORMANCE ANALYSIS", title_style))
+        story.append(Paragraph("Design Document & Technical Report", subtitle_style))
+        story.append(Spacer(1, 0.5*inch))
 
-        # Summary table
-        summary_data = [
-            ['Parameter', 'Value', 'Unit'],
-            ['Hover Endurance (pure hover)', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'],
-            ['Forward Flight Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'],
-            ['Forward Flight Power', f"{self.current_results['cruise']['power_w']:.0f}", 'W'],
-            ['Max L/D Ratio', f"{self.current_results['aerodynamics']['max_ld_ratio']:.2f}", '-'],
+        # Document info table
+        doc_info = [
+            ['Configuration Preset:', self.current_preset_name.upper()],
+            ['Report Date:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+            ['Analyzer Version:', 'v4.1.2'],
+            ['Template:', template],
         ]
 
-        table = Table(summary_data)
-        table.setStyle(TableStyle([
+        info_table = Table(doc_info, colWidths=[2*inch, 4*inch])
+        info_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(info_table)
+        story.append(PageBreak())
+
+        # ===== AIRCRAFT SCHEMATIC =====
+        story.append(Paragraph("1. AIRCRAFT CONFIGURATION SCHEMATIC", styles['Heading1']))
+        story.append(Spacer(1, 0.2*inch))
+
+        try:
+            # Generate schematic
+            from schematic import DroneSchematicDrawer
+            drawer = DroneSchematicDrawer(self.current_config)
+            fig = drawer.draw_3_view(figsize=(10, 4))
+
+            # Save to temporary file
+            temp_img = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+            fig.savefig(temp_img.name, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+
+            # Add to PDF
+            img = Image(temp_img.name, width=6.5*inch, height=2.6*inch)
+            story.append(img)
+            story.append(Spacer(1, 0.2*inch))
+        except Exception as e:
+            story.append(Paragraph(f"Schematic generation failed: {str(e)}", styles['Normal']))
+
+        story.append(PageBreak())
+
+        # ===== DETAILED CONFIGURATION =====
+        story.append(Paragraph("2. AIRCRAFT CONFIGURATION DETAILS", styles['Heading1']))
+        story.append(Spacer(1, 0.2*inch))
+
+        # Basic parameters
+        basic_data = [
+            ['Parameter', 'Value', 'Unit'],
+            ['Total Takeoff Weight', f"{self.current_config.total_takeoff_weight_kg:.2f}", 'kg'],
+            ['Wing Span', f"{self.current_config.wingspan_m:.2f}", 'm'],
+            ['Wing Chord', f"{self.current_config.wing_chord_m:.3f}", 'm'],
+            ['Wing Area', f"{self.current_config.wing_area_m2:.3f}", 'm²'],
+            ['Aspect Ratio', f"{self.current_config.aspect_ratio:.2f}", '-'],
+            ['Wing Loading', f"{self.current_config.wing_loading_kgm2:.1f}", 'kg/m²'],
+            ['Fuselage Length', f"{self.current_config.fuselage_length_m:.2f}", 'm'],
+            ['Fuselage Diameter', f"{self.current_config.fuselage_diameter_m:.3f}", 'm'],
+            ['Number of Motors', f"{self.current_config.num_motors}", '-'],
+            ['Tail Fins', f"{self.current_config.num_tail_fins}", '-'],
+        ]
+
+        config_table = Table(basic_data, colWidths=[3*inch, 1.5*inch, 1*inch])
+        config_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498DB')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
         ]))
 
-        story.append(table)
-        story.append(Spacer(1, 0.5*inch))
+        story.append(config_table)
+        story.append(Spacer(1, 0.3*inch))
 
-        # Configuration section
-        if template in ["Engineering", "FlightTest"]:
-            story.append(Paragraph("Aircraft Configuration", styles['Heading2']))
-            config_data = [
-                ['Parameter', 'Value'],
-                ['Weight', f"{self.current_config.total_takeoff_weight_kg:.2f} kg"],
-                ['Wing Span', f"{self.current_config.wingspan_m:.2f} m"],
-                ['Wing Chord', f"{self.current_config.wing_chord_m:.3f} m"],
-                ['Wing Area', f"{self.current_config.wing_area_m2:.3f} m²"],
-            ]
+        # Battery & Power System
+        story.append(Paragraph("Battery & Power System", styles['Heading2']))
+        power_data = [
+            ['Battery Cells', f"{self.current_config.battery_cells}S"],
+            ['Battery Capacity', f"{self.current_config.battery_capacity_mah:.0f} mAh"],
+            ['Battery Energy', f"{self.current_config.battery_energy_wh:.1f} Wh"],
+            ['Battery Voltage', f"{self.current_config.battery_voltage_v:.1f} V"],
+        ]
 
-            config_table = Table(config_data)
-            config_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
+        power_table = Table(power_data, colWidths=[3*inch, 2.5*inch])
+        power_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.lightblue),
+        ]))
+        story.append(power_table)
+        story.append(PageBreak())
 
-            story.append(config_table)
-            story.append(Spacer(1, 0.3*inch))
+        # ===== PERFORMANCE SUMMARY =====
+        story.append(Paragraph("3. PERFORMANCE SUMMARY", styles['Heading1']))
+        story.append(Spacer(1, 0.2*inch))
+
+        perf_data = [
+            ['Performance Metric', 'Value', 'Unit'],
+            ['Hover Endurance', f"{self.current_results['hover']['endurance_min']:.1f}", 'min'],
+            ['Hover Power Required', f"{self.current_results['hover']['power_w']:.0f}", 'W'],
+            ['Hover Current Draw', f"{self.current_results['hover']['current_a']:.1f}", 'A'],
+            ['Cruise Speed', f"{self.current_results['speeds']['cruise_ms']:.1f} ({self.current_results['speeds']['cruise_kmh']:.1f} km/h)", 'm/s'],
+            ['Stall Speed', f"{self.current_results['speeds']['stall_ms']:.1f} ({self.current_results['speeds']['stall_kmh']:.1f} km/h)", 'm/s'],
+            ['Cruise Endurance', f"{self.current_results['cruise']['endurance_min']:.1f}", 'min'],
+            ['Cruise Power Required', f"{self.current_results['cruise']['power_w']:.0f}", 'W'],
+            ['Maximum Range', f"{self.current_results['cruise']['range_km']:.1f}", 'km'],
+            ['Best Range Speed', f"{self.current_results['best_range']['speed_ms']:.1f}", 'm/s'],
+            ['Best Range', f"{self.current_results['best_range']['range_km']:.1f}", 'km'],
+            ['Maximum L/D Ratio', f"{self.current_results['aerodynamics']['max_ld_ratio']:.2f}", '-'],
+        ]
+
+        perf_table = Table(perf_data, colWidths=[3*inch, 2*inch, 1*inch])
+        perf_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27AE60')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+
+        story.append(perf_table)
+        story.append(PageBreak())
+
+        # ===== CRITICAL DESIGN PLOTS =====
+        if self.include_plots_var.get():
+            story.append(Paragraph("4. CRITICAL DESIGN PLOTS", styles['Heading1']))
+            story.append(Spacer(1, 0.2*inch))
+
+            # Generate key plots
+            from plots import PLOT_CATEGORIES, COMMON_PLOTS
+            critical_plots = PLOT_CATEGORIES.get("🔴 Critical Design Plots (7)", [])[:4]  # Top 4 critical
+
+            for i, plot_id in enumerate(critical_plots):
+                try:
+                    # Get plot definition
+                    plot_def = COMMON_PLOTS.get(plot_id)
+                    if not plot_def:
+                        continue
+
+                    # Generate plot directly (synchronously)
+                    fig = self.generate_plot_for_pdf(plot_def)
+
+                    if fig:
+                        # Save to temp file
+                        temp_plot = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+                        fig.savefig(temp_plot.name, dpi=120, bbox_inches='tight')
+                        plt.close(fig)
+
+                        # Add plot title
+                        story.append(Paragraph(plot_def['name'].replace('🔴 ', ''), styles['Heading3']))
+                        story.append(Spacer(1, 0.1*inch))
+
+                        # Add to PDF
+                        img = Image(temp_plot.name, width=6*inch, height=3.6*inch)
+                        story.append(img)
+                        story.append(Spacer(1, 0.2*inch))
+
+                        if (i + 1) % 2 == 0 and i < len(critical_plots) - 1:
+                            story.append(PageBreak())
+                except Exception as e:
+                    # Add error note but continue
+                    story.append(Paragraph(f"Plot generation failed: {plot_id}", styles['Normal']))
+                    story.append(Spacer(1, 0.2*inch))
 
         # Build PDF
         doc.build(story)
+
+        # Clean up temp files
+        import glob
+        for temp_file in glob.glob(tempfile.gettempdir() + '/tmp*.png'):
+            try:
+                os.remove(temp_file)
+            except:
+                pass
 
         return filename
 
