@@ -513,6 +513,9 @@ class VTOLAnalyzerGUI(tk.Tk):
         self.create_auxiliary_params_section(scrollable_frame)
         self.create_geometry_params_section(scrollable_frame)  # v4.1
 
+        # Add schematic preview at bottom
+        self.create_config_schematic_preview(scrollable_frame)
+
         # Bottom action buttons
         bottom_frame = ttk.Frame(self.tab_config)
         bottom_frame.pack(fill='x', padx=10, pady=10)
@@ -778,6 +781,64 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Bind real-time validation
             self.bind_validation(param, entry)
 
+    def create_config_schematic_preview(self, parent):
+        """Create live schematic preview in configuration tab"""
+        frame = ttk.LabelFrame(parent, text=" 🔍 Live Airframe Preview ", padding=10)
+        frame.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # Info label
+        ttk.Label(
+            frame,
+            text="Preview updates when you click 'Apply Changes'",
+            font=('Arial', 9, 'italic'),
+            foreground='gray'
+        ).pack(pady=5)
+
+        # Canvas for schematic
+        self.config_schematic_frame = ttk.Frame(frame)
+        self.config_schematic_frame.pack(fill='both', expand=True)
+
+        # Initial placeholder
+        placeholder = ttk.Label(
+            self.config_schematic_frame,
+            text="Click 'Apply Changes' to see airframe schematic",
+            font=('Arial', 11),
+            foreground='gray'
+        )
+        placeholder.pack(expand=True, pady=50)
+
+    def update_config_schematic(self):
+        """Update the schematic preview in configuration tab"""
+        try:
+            # Clear current schematic
+            for widget in self.config_schematic_frame.winfo_children():
+                widget.destroy()
+
+            # Get current configuration
+            config = self.get_current_config()
+
+            # Import and create schematic
+            from schematic import DroneSchematicDrawer
+            drawer = DroneSchematicDrawer(config)
+
+            # Create smaller figure for preview
+            fig = drawer.draw_3_view(figsize=(12, 4))
+
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, master=self.config_schematic_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+
+        except Exception as e:
+            # Show error message
+            error_label = ttk.Label(
+                self.config_schematic_frame,
+                text=f"Could not generate schematic:\n{str(e)}",
+                foreground='red',
+                font=('Arial', 9)
+            )
+            error_label.pack(expand=True, pady=20)
+
     # -----------------------------------------------------------------------
     # TAB 2: ANALYSIS RESULTS
     # -----------------------------------------------------------------------
@@ -825,25 +886,64 @@ class VTOLAnalyzerGUI(tk.Tk):
             from plots import COMMON_PLOTS, PLOT_CATEGORIES
             self.common_plots_available = True
 
-            # Create category sections
-            for category, plot_ids in PLOT_CATEGORIES.items():
-                cat_frame = ttk.LabelFrame(gallery_frame, text=f" {category} ", padding=5)
-                cat_frame.pack(fill='x', pady=3)
+            # Create dropdown selector for cleaner interface
+            selector_row = ttk.Frame(gallery_frame)
+            selector_row.pack(fill='x', pady=5)
 
+            ttk.Label(selector_row, text="Quick Select:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
+
+            # Build dropdown options
+            plot_options = []
+            for category, plot_ids in PLOT_CATEGORIES.items():
                 for plot_id in plot_ids:
                     plot_def = COMMON_PLOTS.get(plot_id)
                     if plot_def:
-                        btn_text = f"{plot_def['icon']} {plot_def['name']}"
-                        btn = ttk.Button(
-                            cat_frame,
-                            text=btn_text,
-                            command=lambda pid=plot_id: self.load_common_plot(pid),
-                            width=25
-                        )
-                        btn.pack(side='left', padx=3)
+                        # Use icon for visual grouping
+                        option_text = f"{plot_def['name']}"
+                        plot_options.append((option_text, plot_id))
 
-                        # Add tooltip with description
-                        self.create_tooltip(btn, plot_def['description'])
+            self.selected_common_plot = tk.StringVar()
+            plot_dropdown = ttk.Combobox(
+                selector_row,
+                textvariable=self.selected_common_plot,
+                values=[opt[0] for opt in plot_options],
+                state='readonly',
+                width=50,
+                font=('Arial', 10)
+            )
+            plot_dropdown.pack(side='left', padx=5)
+
+            # Map display names to plot IDs
+            self.plot_id_map = {opt[0]: opt[1] for opt in plot_options}
+
+            # Load button
+            ttk.Button(
+                selector_row,
+                text="📊 Generate Plot",
+                command=lambda: self.load_common_plot(self.plot_id_map.get(self.selected_common_plot.get())),
+                style='Primary.TButton'
+            ).pack(side='left', padx=5)
+
+            # Info label
+            self.plot_info_label = ttk.Label(
+                gallery_frame,
+                text="Select a plot from the dropdown above",
+                foreground='gray',
+                font=('Arial', 9, 'italic'),
+                wraplength=900
+            )
+            self.plot_info_label.pack(pady=5)
+
+            # Update info when selection changes
+            def update_plot_info(*args):
+                plot_name = self.selected_common_plot.get()
+                if plot_name:
+                    plot_id = self.plot_id_map.get(plot_name)
+                    plot_def = COMMON_PLOTS.get(plot_id)
+                    if plot_def:
+                        self.plot_info_label.config(text=plot_def['description'].replace('\n', ' '))
+
+            self.selected_common_plot.trace('w', update_plot_info)
 
         except ImportError:
             self.common_plots_available = False
@@ -2797,6 +2897,9 @@ class VTOLAnalyzerGUI(tk.Tk):
             # Mark as modified
             self.mark_config_modified()
 
+            # Update schematic preview
+            self.update_config_schematic()
+
             self.update_status("Configuration updated")
 
             if self.auto_update.get():
@@ -3293,8 +3396,14 @@ class VTOLAnalyzerGUI(tk.Tk):
             return best_range_result['range_km']
         elif "Propeller Efficiency" in y_param:
             return temp_calc.propeller_efficiency_cruise(speed) * 100
-        elif "Lift-to-Drag Ratio" in y_param:
-            return temp_calc.lift_to_drag_ratio(speed)
+        elif "Max L/D Ratio" in y_param or "L/D Ratio" in y_param:
+            return temp_calc.max_lift_to_drag_ratio()
+        elif "Cruise Speed" in y_param:
+            results = temp_calc.generate_performance_summary()
+            return results['speeds']['cruise_ms']
+        elif "Stall Speed" in y_param:
+            results = temp_calc.generate_performance_summary()
+            return results['speeds']['stall_ms']
         else:
             return 0.0
 

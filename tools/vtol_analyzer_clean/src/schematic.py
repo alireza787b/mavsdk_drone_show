@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-DRONE SCHEMATIC DRAWER v4.1 - PX4 Tailsitter Edition
+DRONE SCHEMATIC DRAWER v4.1.2 - PX4 Tailsitter VTOL (MC Mode)
 ================================================================================
 Professional 3-view engineering drawing generator for PX4 Tailsitter VTOL.
 
-Creates top, front, and side views with CORRECT PX4 FRD axis orientation:
-- X-axis: Forward (nose direction, points up in VTOL mode)
+PX4 MULTICOPTER (MC) MODE COORDINATE SYSTEM:
+- Uses PX4 FRD body frame (Front-Right-Down)
+- X-axis: Forward/Front (nose direction - points UP when hovering in VTOL mode)
 - Y-axis: Right (right wing direction)
-- Z-axis: Down
+- Z-axis: Down (towards ground when hovering)
 
-For tailsitter in VTOL (standing) position:
-- Top view: Looking down Z-axis, see circular fuselage cross-section, wings span left-right
-- Front view: Looking at nose (along X-axis), see full wingspan and fuselage circle
-- Side view: Looking from right (along Y-axis), see full fuselage length and wing chord
+For tailsitter in VTOL/MC (hovering/standing) position:
+- Top view: Looking down Z-axis from above → see circular fuselage cross-section, wings span left-right
+- Front view: Looking at nose along X-axis → see full wingspan and circular fuselage
+- Side view: Looking from right along Y-axis → see vertical fuselage length and wing chord
+
+NOTE: PX4 uses FRD body frame for ALL modes (MC, FW, VTOL). In VTOL/MC mode,
+the aircraft stands vertically so X points skyward, but it's still the "forward" body axis.
 
 Author: VTOL Analyzer Dev Team
-Version: 4.1.1
+Version: 4.1.2
 Date: 2025-01-21
 ================================================================================
 """
@@ -29,10 +33,11 @@ from matplotlib.figure import Figure
 
 class DroneSchematicDrawer:
     """
-    Professional 3-view schematic drawer for PX4 Tailsitter VTOL.
+    Professional 3-view schematic drawer for PX4 Tailsitter VTOL (MC Mode).
 
-    Generates engineering-style drawings with correct PX4 axis orientation.
-    Tailsitter shown in VTOL (standing/vertical) configuration.
+    Generates engineering-style drawings with correct PX4 MC (multicopter) mode
+    axis orientation using FRD (Front-Right-Down) body frame.
+    Tailsitter shown in VTOL/MC (hovering/standing/vertical) configuration.
     """
 
     def __init__(self, config):
@@ -82,7 +87,7 @@ class DroneSchematicDrawer:
         self._draw_side_view(ax_side)    # Looking along Y-axis (from right)
 
         # Overall title
-        fig.suptitle('PX4 Tailsitter VTOL - 3-View Schematic (VTOL Mode)',
+        fig.suptitle('PX4 Tailsitter VTOL - 3-View Schematic (MC/VTOL Mode)',
                     fontsize=14, fontweight='bold', y=0.98)
 
         plt.tight_layout(rect=[0, 0, 1, 0.96])

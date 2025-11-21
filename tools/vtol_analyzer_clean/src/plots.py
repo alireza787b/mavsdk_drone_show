@@ -59,10 +59,20 @@ COMMON_PLOTS = {
     },
 
     "speeds_vs_span": {
-        "name": "🔴 Cruise & Stall Speed vs Wing Span",
-        "description": "CRITICAL: Wing sizing impact on speeds.\nDesign trade-off analysis.",
+        "name": "🔴 Speeds vs Wing Span",
+        "description": "CRITICAL: Wing sizing impact on speeds.\nLarger span = lower speeds.",
         "x_param": "Wing Span (m)",
         "y_params": ["Cruise Speed (m/s)", "Stall Speed (m/s)"],
+        "x_range": (1.2, 3.0, 50),
+        "icon": "🔴",
+        "category": "critical",
+    },
+
+    "power_vs_span": {
+        "name": "🔴 Cruise Power vs Wing Span",
+        "description": "CRITICAL: Wing sizing impact on cruise power.\nLarger span = lower power required.",
+        "x_param": "Wing Span (m)",
+        "y_params": ["Forward Flight Power (W)"],
         "x_range": (1.2, 3.0, 50),
         "icon": "🔴",
         "category": "critical",
@@ -71,7 +81,7 @@ COMMON_PLOTS = {
     # === PERFORMANCE OPTIMIZATION ===
     "power_vs_speed": {
         "name": "⚡ Power vs Speed",
-        "description": "Power consumption across speed range.\nFind minimum power speed for efficiency.",
+        "description": "Power consumption across speed range.\nFind minimum power speed.",
         "x_param": "Speed (m/s)",
         "y_params": ["Forward Flight Power (W)"],
         "x_range": (10, 25, 50),
@@ -81,7 +91,7 @@ COMMON_PLOTS = {
 
     "range_optimization": {
         "name": "📏 Range vs Speed",
-        "description": "Optimal cruise speed for maximum range.\nPeak = best endurance speed.",
+        "description": "Optimal cruise speed for maximum range.",
         "x_param": "Speed (m/s)",
         "y_params": ["Forward Flight Range (km)"],
         "x_range": (10, 25, 50),
@@ -89,19 +99,9 @@ COMMON_PLOTS = {
         "category": "performance",
     },
 
-    "ld_performance": {
-        "name": "✈️ L/D Ratio vs Speed",
-        "description": "Aerodynamic efficiency curve.\nHigher L/D = better glide and range.",
-        "x_param": "Speed (m/s)",
-        "y_params": ["L/D Ratio"],
-        "x_range": (10, 25, 50),
-        "icon": "✈️",
-        "category": "performance",
-    },
-
     "current_vs_speed": {
         "name": "🔋 Current vs Speed",
-        "description": "Battery current at different speeds.\nESC and wire gauge sizing.",
+        "description": "Battery current at different speeds.\nFor ESC sizing.",
         "x_param": "Speed (m/s)",
         "y_params": ["Current (A)"],
         "x_range": (10, 25, 50),
@@ -160,11 +160,11 @@ PLOT_CATEGORIES = {
         "forward_current_vs_weight",
         "speeds_vs_weight",
         "speeds_vs_span",
+        "power_vs_span",
     ],
     "⚡ Performance Optimization": [
         "power_vs_speed",
         "range_optimization",
-        "ld_performance",
         "current_vs_speed",
     ],
     "📊 Design Trade-offs": [
