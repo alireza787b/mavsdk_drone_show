@@ -94,11 +94,11 @@ from process_formation import run_formation_process
 
 # Import metrics engine
 try:
-    from drone_show_metrics import DroneShowMetrics
+    from functions.drone_show_metrics import DroneShowMetrics
     METRICS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     METRICS_AVAILABLE = False
-    log_system_warning("DroneShowMetrics not available", "metrics")
+    log_system_warning(f"DroneShowMetrics not available: {e}", "metrics")
 
 
 # ============================================================================
@@ -724,18 +724,28 @@ async def get_origin():
     """Get current origin coordinates"""
     try:
         origin = load_origin()
-        if not origin:
+        if not origin or not origin.get('lat') or not origin.get('lon'):
             raise HTTPException(status_code=404, detail="Origin not set")
+
+        # Convert timestamp from ISO string to Unix ms if it exists
+        timestamp_ms = None
+        if origin.get('timestamp'):
+            try:
+                dt = datetime.fromisoformat(origin['timestamp'])
+                timestamp_ms = int(dt.timestamp() * 1000)
+            except:
+                timestamp_ms = int(time.time() * 1000)
 
         return OriginResponse(
             latitude=float(origin.get('lat', 0)),
             longitude=float(origin.get('lon', 0)),
             altitude=float(origin.get('alt', 0)),
-            timestamp=origin.get('timestamp')
+            timestamp=timestamp_ms
         )
     except HTTPException:
         raise
     except Exception as e:
+        log_system_error(f"Error in get-origin: {e}", "origin")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -911,6 +921,21 @@ async def process_trajectories(request: Request):
         return JSONResponse(content=result)
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/swarm/trajectory/recommendation", tags=["Swarm Trajectories"])
+async def get_trajectory_recommendation():
+    """Get smart processing recommendation based on current state"""
+    try:
+        recommendation = get_processing_recommendation()
+        log_system_event(f"Processing recommendation: {recommendation['action']}", "INFO", "swarm")
+        return JSONResponse(content={
+            'success': True,
+            'recommendation': recommendation
+        })
+    except Exception as e:
+        log_system_error(f"Failed to get recommendation: {e}", "swarm")
         raise HTTPException(status_code=500, detail=str(e))
 
 
