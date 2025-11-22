@@ -41,8 +41,13 @@ from pydantic import ValidationError
 # Import schemas
 from schemas import *
 
-# Import existing modules (preserving all original functionality)
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+# Configure base directories
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+root_dir = BASE_DIR
+
+# Add paths for imports
+sys.path.append(os.path.join(BASE_DIR, 'src'))
+sys.path.append(BASE_DIR)  # For functions module
 
 from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
 from command import send_commands_to_all, send_commands_to_selected
@@ -73,10 +78,7 @@ from logging_config import (
     get_logger, log_system_error, log_system_warning, log_system_event
 )
 
-# Configure base directories
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-root_dir = BASE_DIR
-
+# Configure simulation/production specific directories
 if Params.sim_mode:
     plots_directory = os.path.join(BASE_DIR, 'shapes_sitl/swarm/plots')
     skybrush_dir = os.path.join(BASE_DIR, 'shapes_sitl/swarm/skybrush')
@@ -88,12 +90,10 @@ else:
     processed_dir = os.path.join(BASE_DIR, 'shapes/swarm/processed')
     shapes_dir = os.path.join(BASE_DIR, 'shapes')
 
-sys.path.append(BASE_DIR)
 from process_formation import run_formation_process
 
 # Import metrics engine
 try:
-    sys.path.append(os.path.join(BASE_DIR, 'functions'))
     from drone_show_metrics import DroneShowMetrics
     METRICS_AVAILABLE = True
 except ImportError:
