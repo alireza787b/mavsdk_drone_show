@@ -1,0 +1,17 @@
+# tests/requirements-test.txt
+# Testing Dependencies for MAVSDK Drone Show
+# ===========================================
+
+# Core testing framework
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+
+# FastAPI testing
+httpx==0.27.2
+
+# Mocking and fixtures
+pytest-mock==3.14.0
+
+# Coverage reporting
+coverage[toml]==7.6.9
