@@ -493,7 +493,7 @@ start_services_in_tmux() {
         local window_index=0
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-            tmux rename-window -t "$session:0" "Flask-Server"
+            tmux rename-window -t "$session:0" "GCS-Server"
             tmux send-keys -t "$session:GCS-Server" "clear && echo 'Starting GCS server ($GCS_BACKEND)...' && $gcs_cmd" C-m
             window_index=$((window_index + 1))
         fi
