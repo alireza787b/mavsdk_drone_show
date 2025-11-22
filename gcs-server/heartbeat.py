@@ -1,6 +1,5 @@
 import logging
 import time
-from flask import request, jsonify
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -13,31 +12,29 @@ last_heartbeats_lock = Lock()
 network_info_from_heartbeats = {}  # { hw_id: network_info_dict }
 network_info_lock = Lock()
 
-def handle_heartbeat_post():
+def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestamp=None, network_info=None):
     """
     Handler for POST /drone-heartbeat
-    Expects JSON data with 'hw_id', 'pos_id', 'detected_pos_id', 'ip', 'timestamp', 'network_info'.
+    Backend-agnostic function that accepts heartbeat data as parameters.
 
-    Network info format:
-    {
-        "wifi": {"ssid": "...", "signal_strength_percent": 85},
-        "ethernet": {"interface": "eth0", "connection_name": "..."},
-        "timestamp": 1234567890
-    }
+    Args:
+        pos_id: Position ID of the drone
+        hw_id: Hardware ID of the drone
+        detected_pos_id: Detected position ID (optional)
+        ip: IP address of the drone (optional)
+        timestamp: Timestamp of the heartbeat (optional)
+        network_info: Network information dict (optional)
+            Format: {
+                "wifi": {"ssid": "...", "signal_strength_percent": 85},
+                "ethernet": {"interface": "eth0", "connection_name": "..."},
+                "timestamp": 1234567890
+            }
+
+    Returns:
+        dict: Response data
     """
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data in heartbeat"}), 400
-
-    hw_id = data.get("hw_id")
-    pos_id = data.get("pos_id")
-    detected_pos_id = data.get("detected_pos_id")
-    ip = data.get("ip")
-    timestamp = data.get("timestamp")
-    network_info = data.get("network_info")
-
     if not hw_id:
-        return jsonify({"error": "Missing hw_id"}), 400
+        raise ValueError("Missing hw_id")
 
     # We can do further validation if needed
     with last_heartbeats_lock:
@@ -79,26 +76,27 @@ def handle_heartbeat_post():
                 **network_info  # Spread the network info (wifi, ethernet, timestamp)
             }
 
-    return jsonify({"message": "Heartbeat received"}), 200
+    return {"message": "Heartbeat received"}
 
 def get_all_heartbeats():
     """
     Handler for GET /get-heartbeats
     Returns the latest heartbeat data for all drones.
+    Backend-agnostic function that returns dict data.
     """
     with last_heartbeats_lock:
-        # Return a copy or direct dictionary
-        # If you want to ensure no partial reads, do a .copy() or deep copy
-        return jsonify(last_heartbeats), 200
+        # Return a copy to ensure thread safety
+        return dict(last_heartbeats)
 
 def get_network_info_from_heartbeats():
     """
     Get network info for all drones from heartbeat data.
     Returns data in the format expected by the UI.
+    Backend-agnostic function that returns list data.
     """
     with network_info_lock:
         # Convert to list format expected by UI
         network_info_list = []
         for hw_id, network_data in network_info_from_heartbeats.items():
             network_info_list.append(network_data)
-        return network_info_list, 200
+        return network_info_list

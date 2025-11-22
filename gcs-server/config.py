@@ -4,7 +4,6 @@ import os
 import logging
 import subprocess
 import requests
-from flask import Flask, jsonify, request
 from params import Params
 from collections import defaultdict
 

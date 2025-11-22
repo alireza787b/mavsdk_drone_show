@@ -392,7 +392,11 @@ async def websocket_telemetry(websocket: WebSocket):
 async def post_heartbeat(heartbeat: HeartbeatRequest):
     """Receive heartbeat from drone (fire-and-forget)"""
     try:
-        handle_heartbeat_post(heartbeat.pos_id, heartbeat.hw_id)
+        handle_heartbeat_post(
+            pos_id=heartbeat.pos_id,
+            hw_id=heartbeat.hw_id,
+            timestamp=heartbeat.timestamp
+        )
         return HeartbeatPostResponse(
             success=True,
             message="Heartbeat received",
