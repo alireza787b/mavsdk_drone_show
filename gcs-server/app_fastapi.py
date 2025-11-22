@@ -1553,7 +1553,7 @@ async def get_gcs_config():
         # Return Params as dict
         config = {
             'sim_mode': Params.sim_mode,
-            'flask_port': Params.flask_telem_socket_port,
+            'gcs_port': Params.gcs_server_port,
             'git_auto_push': Params.GIT_AUTO_PUSH,
             'acceptable_deviation': Params.acceptable_deviation
         }
@@ -1684,7 +1684,7 @@ if __name__ == "__main__":
     import uvicorn
 
     # Support both new (GCS_PORT) and legacy (FLASK_PORT) environment variables
-    port = int(os.getenv('GCS_PORT', os.getenv('FLASK_PORT', Params.flask_telem_socket_port)))
+    port = int(os.getenv('GCS_PORT', os.getenv('FLASK_PORT', Params.gcs_server_port)))
 
     # Support both new (GCS_ENV) and legacy (FLASK_ENV) environment variables
     env_mode = os.getenv('GCS_ENV', os.getenv('FLASK_ENV', 'development'))
