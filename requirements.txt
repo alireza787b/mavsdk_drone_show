@@ -9,6 +9,7 @@ Flask==3.0.3
 Flask-Cors==4.0.1
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
+gunicorn==23.0.0
 pydantic==2.10.0
 python-multipart==0.0.20
 fonttools==4.53.1

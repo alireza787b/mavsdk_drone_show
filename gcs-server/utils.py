@@ -4,7 +4,6 @@ import shutil
 import logging
 import subprocess
 
-from flask import current_app
 from git import Repo, GitCommandError
 
 from params import Params

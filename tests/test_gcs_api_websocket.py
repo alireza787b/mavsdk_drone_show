@@ -58,9 +58,9 @@ def mock_git_status_data():
 @pytest.fixture
 def test_client(mock_telemetry_data, mock_git_status_data):
     """Create FastAPI test client with mocked dependencies"""
-    with patch('gcs-server.app_fastapi.load_config', return_value=[]):
-        with patch('gcs-server.app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
-            with patch('gcs-server.app_fastapi.git_status_data_all_drones', mock_git_status_data):
+    with patch('app_fastapi.load_config', return_value=[]):
+        with patch('app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
+            with patch('app_fastapi.git_status_data_all_drones', mock_git_status_data):
                 from app_fastapi import app
                 client = TestClient(app)
                 yield client
@@ -139,7 +139,7 @@ class TestGitStatusWebSocket:
 class TestHeartbeatWebSocket:
     """Test WebSocket heartbeat streaming"""
 
-    @patch('gcs-server.app_fastapi.get_all_heartbeats')
+    @patch('app_fastapi.get_all_heartbeats')
     def test_websocket_heartbeat_connection(self, mock_heartbeats, test_client):
         """Test WebSocket connection to /ws/heartbeats"""
         mock_heartbeats.return_value = [
@@ -154,7 +154,7 @@ class TestHeartbeatWebSocket:
             assert 'timestamp' in data
             assert 'data' in data
 
-    @patch('gcs-server.app_fastapi.get_all_heartbeats')
+    @patch('app_fastapi.get_all_heartbeats')
     def test_websocket_heartbeat_data_format(self, mock_heartbeats, test_client):
         """Test heartbeat WebSocket data format"""
         mock_heartbeats.return_value = [

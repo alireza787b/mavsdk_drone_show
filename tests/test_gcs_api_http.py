@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../gcs-server'))
 @pytest.fixture(autouse=True)
 def mock_background_services():
     """Mock background services to prevent actual polling during tests"""
-    with patch('gcs-server.app_fastapi.BackgroundServices') as mock_services:
+    with patch('app_fastapi.BackgroundServices') as mock_services:
         mock_instance = Mock()
         mock_instance.start = Mock()
         mock_instance.stop = Mock()
@@ -104,8 +104,8 @@ def mock_origin():
 @pytest.fixture
 def test_client(mock_config, mock_telemetry_data):
     """Create FastAPI test client with mocked dependencies"""
-    with patch('gcs-server.app_fastapi.load_config', return_value=mock_config):
-        with patch('gcs-server.app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
+    with patch('app_fastapi.load_config', return_value=mock_config):
+        with patch('app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
             from app_fastapi import app
             client = TestClient(app)
             yield client
@@ -152,8 +152,8 @@ class TestConfigurationEndpoints:
         assert data[0]['pos_id'] == 0
         assert data[0]['hw_id'] == '1'
 
-    @patch('gcs-server.app_fastapi.save_config')
-    @patch('gcs-server.app_fastapi.validate_and_process_config')
+    @patch('app_fastapi.save_config')
+    @patch('app_fastapi.validate_and_process_config')
     def test_save_config(self, mock_validate, mock_save, test_client, mock_config):
         """Test POST /save-config-data"""
         mock_validate.return_value = {'updated_config': mock_config}
@@ -164,7 +164,7 @@ class TestConfigurationEndpoints:
         assert data['success'] == True
         assert 'updated_count' in data
 
-    @patch('gcs-server.app_fastapi.validate_and_process_config')
+    @patch('app_fastapi.validate_and_process_config')
     def test_validate_config(self, mock_validate, test_client, mock_config):
         """Test POST /validate-config"""
         mock_validate.return_value = {
@@ -215,7 +215,7 @@ class TestTelemetryEndpoints:
 class TestHeartbeatEndpoints:
     """Test heartbeat endpoints"""
 
-    @patch('gcs-server.app_fastapi.handle_heartbeat_post')
+    @patch('app_fastapi.handle_heartbeat_post')
     def test_post_heartbeat(self, mock_handle, test_client):
         """Test POST /heartbeat"""
         heartbeat_data = {
@@ -229,7 +229,7 @@ class TestHeartbeatEndpoints:
         data = response.json()
         assert data['success'] == True
 
-    @patch('gcs-server.app_fastapi.get_all_heartbeats')
+    @patch('app_fastapi.get_all_heartbeats')
     def test_get_heartbeats(self, mock_get_heartbeats, test_client):
         """Test GET /get-heartbeats"""
         mock_get_heartbeats.return_value = [
@@ -251,7 +251,7 @@ class TestHeartbeatEndpoints:
 class TestOriginEndpoints:
     """Test origin management endpoints"""
 
-    @patch('gcs-server.app_fastapi.load_origin')
+    @patch('app_fastapi.load_origin')
     def test_get_origin(self, mock_load, test_client, mock_origin):
         """Test GET /get-origin"""
         mock_load.return_value = mock_origin
@@ -262,7 +262,7 @@ class TestOriginEndpoints:
         assert data['latitude'] == 35.123456
         assert data['longitude'] == -120.654321
 
-    @patch('gcs-server.app_fastapi.save_origin')
+    @patch('app_fastapi.save_origin')
     def test_set_origin(self, mock_save, test_client):
         """Test POST /set-origin"""
         origin_data = {
@@ -276,7 +276,7 @@ class TestOriginEndpoints:
         data = response.json()
         assert data['latitude'] == origin_data['latitude']
 
-    @patch('gcs-server.app_fastapi.load_origin')
+    @patch('app_fastapi.load_origin')
     def test_get_gps_global_origin(self, mock_load, test_client, mock_origin):
         """Test GET /get-gps-global-origin"""
         mock_load.return_value = mock_origin
@@ -286,7 +286,7 @@ class TestOriginEndpoints:
         data = response.json()
         assert data['has_origin'] == True
 
-    @patch('gcs-server.app_fastapi.load_origin')
+    @patch('app_fastapi.load_origin')
     def test_get_origin_for_drone(self, mock_load, test_client, mock_origin):
         """Test GET /get-origin-for-drone"""
         mock_load.return_value = mock_origin
@@ -305,8 +305,8 @@ class TestOriginEndpoints:
 class TestShowManagementEndpoints:
     """Test show import and management endpoints"""
 
-    @patch('gcs-server.app_fastapi.run_formation_process')
-    @patch('gcs-server.app_fastapi.clear_show_directories')
+    @patch('app_fastapi.run_formation_process')
+    @patch('app_fastapi.clear_show_directories')
     @patch('os.listdir')
     def test_import_show(self, mock_listdir, mock_clear, mock_process, test_client):
         """Test POST /import-show with file upload"""
@@ -355,7 +355,7 @@ class TestShowManagementEndpoints:
 class TestGitStatusEndpoints:
     """Test git status endpoints"""
 
-    @patch('gcs-server.app_fastapi.git_status_data_all_drones', {'1': {'status': 'synced'}, '2': {'status': 'synced'}})
+    @patch('app_fastapi.git_status_data_all_drones', {'1': {'status': 'synced'}, '2': {'status': 'synced'}})
     def test_get_git_status(self, test_client):
         """Test GET /git-status"""
         response = test_client.get("/git-status")
@@ -364,7 +364,7 @@ class TestGitStatusEndpoints:
         assert 'git_status' in data
         assert 'synced_count' in data
 
-    @patch('gcs-server.app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.get_gcs_git_report')
     def test_get_gcs_git_status(self, mock_report, test_client):
         """Test GET /get-gcs-git-status"""
         mock_report.return_value = {'branch': 'main', 'status': 'clean'}
@@ -380,7 +380,7 @@ class TestGitStatusEndpoints:
 class TestSwarmEndpoints:
     """Test swarm configuration endpoints"""
 
-    @patch('gcs-server.app_fastapi.load_swarm')
+    @patch('app_fastapi.load_swarm')
     def test_get_swarm_data(self, mock_load, test_client):
         """Test GET /get-swarm-data"""
         mock_load.return_value = {'hierarchies': {}}
@@ -388,8 +388,8 @@ class TestSwarmEndpoints:
         response = test_client.get("/get-swarm-data")
         assert response.status_code == 200
 
-    @patch('gcs-server.app_fastapi.save_swarm')
-    @patch('gcs-server.app_fastapi.git_operations')
+    @patch('app_fastapi.save_swarm')
+    @patch('app_fastapi.git_operations')
     def test_save_swarm_data(self, mock_git, mock_save, test_client):
         """Test POST /save-swarm-data"""
         swarm_data = {'hierarchies': {}}
@@ -405,8 +405,8 @@ class TestSwarmEndpoints:
 class TestCommandEndpoints:
     """Test command submission endpoints"""
 
-    @patch('gcs-server.app_fastapi.send_commands_to_all')
-    @patch('gcs-server.app_fastapi.load_config')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.load_config')
     def test_submit_command(self, mock_load, mock_send, test_client, mock_config):
         """Test POST /submit_command"""
         mock_load.return_value = mock_config

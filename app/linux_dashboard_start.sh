@@ -81,6 +81,11 @@ OVERWRITE_IP=""
 # Default behavior unchanged for normal users
 BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
 
+# Backend Selection: FastAPI (recommended) or Flask (legacy)
+# Options: fastapi, flask
+# Can be overridden via GCS_BACKEND environment variable
+GCS_BACKEND="${GCS_BACKEND:-fastapi}"
+
 # ===========================================
 # LOGGING FUNCTIONS
 # ===========================================
@@ -369,27 +374,62 @@ install_production_dependencies() {
 setup_production_environment() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         log_info "Configuring production environment..."
+        # New standardized environment variables
+        export GCS_ENV=production
+        export GCS_PORT="$DEV_FLASK_PORT"
+        export GCS_BACKEND="$GCS_BACKEND"
+
+        # Legacy environment variables (backward compatibility)
         export FLASK_ENV=production
+        export FLASK_PORT="$DEV_FLASK_PORT"
+
+        # Node/React environment
         export NODE_ENV=production
         export REACT_APP_ENV=production
         install_production_dependencies
-        log_success "Production environment configured."
+        log_success "Production environment configured (Backend: $GCS_BACKEND)"
     else
         log_info "Configuring development environment..."
+        # New standardized environment variables
+        export GCS_ENV=development
+        export GCS_PORT="$DEV_FLASK_PORT"
+        export GCS_BACKEND="$GCS_BACKEND"
+
+        # Legacy environment variables (backward compatibility)
         export FLASK_ENV=development
+        export FLASK_PORT="$DEV_FLASK_PORT"
         export FLASK_DEBUG=1
+
+        # Node/React environment
         export NODE_ENV=development
         export REACT_APP_ENV=development
-        log_success "Development environment configured."
+        log_success "Development environment configured (Backend: $GCS_BACKEND)"
     fi
 }
 
-get_flask_command() {
-    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+get_gcs_server_command() {
+    # Support both FastAPI and Flask backends
+    if [[ "$GCS_BACKEND" == "fastapi" ]]; then
+        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+            # FastAPI production: Gunicorn with Uvicorn workers
+            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
+        else
+            # FastAPI development: Uvicorn with auto-reload
+            echo "cd '$GCS_SERVER_DIR' && uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_FLASK_PORT --reload"
+        fi
     else
-        echo "cd '$GCS_SERVER_DIR' && python app.py"
+        # Flask backend (legacy)
+        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+        else
+            echo "cd '$GCS_SERVER_DIR' && python app.py"
+        fi
     fi
+}
+
+# Legacy alias for backward compatibility
+get_flask_command() {
+    get_gcs_server_command
 }
 
 get_react_command() {

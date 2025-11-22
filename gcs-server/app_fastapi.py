@@ -1683,14 +1683,18 @@ async def internal_error_handler(request: Request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv('FLASK_PORT', Params.flask_telem_socket_port))
+    # Support both new (GCS_PORT) and legacy (FLASK_PORT) environment variables
+    port = int(os.getenv('GCS_PORT', os.getenv('FLASK_PORT', Params.flask_telem_socket_port)))
 
-    log_system_event(f"Starting GCS FastAPI server on port {port}", "INFO", "startup")
+    # Support both new (GCS_ENV) and legacy (FLASK_ENV) environment variables
+    env_mode = os.getenv('GCS_ENV', os.getenv('FLASK_ENV', 'development'))
+
+    log_system_event(f"Starting GCS FastAPI server on port {port} in {env_mode} mode", "INFO", "startup")
 
     uvicorn.run(
         "app_fastapi:app",
         host="0.0.0.0",
         port=port,
-        reload=os.getenv('FLASK_ENV') == 'development',
+        reload=env_mode == 'development',
         log_level="info"
     )

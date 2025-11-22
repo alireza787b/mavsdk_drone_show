@@ -10,7 +10,7 @@ from functions.swarm_analyzer import analyze_swarm_structure
 from functions.swarm_trajectory_processor import process_swarm_trajectories, get_processing_recommendation, clear_processed_data
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
 from functions.file_management import clear_directory
-from src.params import Params
+from params import Params
 
 logger = logging.getLogger(__name__)
 
@@ -600,7 +600,7 @@ def register_swarm_trajectory_routes(app):
             
             # Import git operations from existing utils
             from utils import git_operations
-            from src.params import Params
+            from params import Params
             import os
             
             # Get the project base directory
