@@ -775,6 +775,11 @@ def log_system_warning(message: str, component: str = "system"):
     logger = get_logger()
     logger.log_system_event(message, "WARNING", component)
 
+def log_system_event(message: str, level: str = "INFO", component: str = "system"):
+    """Log system event"""
+    logger = get_logger()
+    logger.log_system_event(message, level, component)
+
 # Environment-based configuration
 def configure_from_environment():
     """Configure logging based on environment variables with ultra-quiet mode support"""
