@@ -5,15 +5,64 @@ import { convertToLatLon } from './geoutilities'; // Importing the convertToLatL
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
-    // Define the expected structure (hardware-specific config, gcs_ip/debug_port removed)
-    const expectedFields = ['hw_id', 'pos_id', 'x', 'y', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+/**
+ * Validate configuration with backend before saving.
+ * Returns validation report for review dialog.
+ *
+ * NOTE: x,y positions are NOT sent - they come from trajectory CSV files only.
+ */
+export const validateConfigWithBackend = async (configData, setLoading) => {
+    // Define the expected structure (x,y removed - come from trajectory CSV)
+    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
 
     // Clean and transform the configData
     const cleanedConfigData = configData.map(drone => {
         const cleanedDrone = {};
         expectedFields.forEach(field => {
-            cleanedDrone[field] = drone[field] || ''; // Default missing fields to an empty string
+            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
+        });
+        return cleanedDrone;
+    });
+
+    const backendURL = getBackendURL();
+
+    try {
+        setLoading(true);
+        toast.info('Validating configuration...', { autoClose: 2000 });
+
+        const response = await axios.post(`${backendURL}/validate-config`, cleanedConfigData);
+        return response.data; // Returns validation report
+
+    } catch (error) {
+        console.error('Error validating config data:', error);
+
+        if (error.response && error.response.data.message) {
+            toast.error(`Validation failed: ${error.response.data.message}`, { autoClose: 10000 });
+        } else {
+            toast.error(`Error validating configuration: ${error.message || 'Unknown error'}`, { autoClose: 10000 });
+        }
+
+        throw error; // Re-throw so caller knows validation failed
+    } finally {
+        setLoading(false);
+    }
+};
+
+/**
+ * Save configuration to server after validation.
+ * This is called AFTER user confirms in review dialog.
+ *
+ * NOTE: x,y positions are NOT saved - they come from trajectory CSV files only.
+ */
+export const handleSaveChangesToServer = async(configData, setConfigData, setLoading) => {
+    // Define the expected structure (x,y removed - come from trajectory CSV)
+    const expectedFields = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
+
+    // Clean and transform the configData
+    const cleanedConfigData = configData.map(drone => {
+        const cleanedDrone = {};
+        expectedFields.forEach(field => {
+            cleanedDrone[field] = drone[field] !== undefined && drone[field] !== null ? drone[field] : '';
         });
         return cleanedDrone;
     });
@@ -42,12 +91,18 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
         const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
 
+        // Reload config from server to get latest saved state
+        const refreshResponse = await axios.get(`${backendURL}/get-config-data`);
+        setConfigData(refreshResponse.data);
+
         // Success toast with git info
         if (response.data.git_info) {
             if (response.data.git_info.success) {
                 toast.success(
-                    `Configuration saved and committed to git successfully!`,
-                    { autoClose: 5000 }
+                    `✅ Configuration saved and committed to git successfully!
+
+⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+                    { autoClose: 8000 }
                 );
             } else {
                 toast.warning(
@@ -57,8 +112,10 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
             }
         } else {
             toast.success(
-                response.data.message || 'Configuration saved successfully',
-                { autoClose: 4000 }
+                `✅ ${response.data.message || 'Configuration saved successfully'}
+
+⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+                { autoClose: 8000 }
             );
         }
 
@@ -117,32 +174,30 @@ export const parseCSV = (data) => {
     const rows = data.trim().split('\n').filter(row => row.trim() !== '');
     const drones = [];
 
-    // Expected format: 8 columns (gcs_ip and debug_port removed, now in Params.py)
-    const expectedHeader = "hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate";
+    // Expected format: 6 columns (x,y removed - positions come from trajectory CSV)
+    const expectedHeader = "hw_id,pos_id,ip,mavlink_port,serial_port,baudrate";
     const header = rows[0].trim();
 
     if (header !== expectedHeader) {
-        toast.error("Invalid CSV format. Expected 8 columns: hw_id,pos_id,x,y,ip,mavlink_port,serial_port,baudrate");
+        toast.error("Invalid CSV format. Expected 6 columns: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate");
         return null;
     }
 
     for (let i = 1; i < rows.length; i++) {
         const columns = rows[i].split(',').map(cell => cell.trim());
 
-        if (columns.length === 8) {
+        if (columns.length === 6) {
             const drone = {
                 hw_id: columns[0],
                 pos_id: columns[1],
-                x: columns[2],
-                y: columns[3],
-                ip: columns[4],
-                mavlink_port: columns[5],
-                serial_port: columns[6],
-                baudrate: columns[7]
+                ip: columns[2],
+                mavlink_port: columns[3],
+                serial_port: columns[4],
+                baudrate: columns[5]
             };
             drones.push(drone);
         } else {
-            toast.error(`Row ${i} has incorrect number of columns (expected 8, got ${columns.length}).`);
+            toast.error(`Row ${i} has incorrect number of columns (expected 6, got ${columns.length}).`);
             return null;
         }
     }
@@ -162,12 +217,10 @@ export const validateDrones = (drones) => {
 };
 
 export const exportConfig = (configData) => {
-    const header = ["hw_id", "pos_id", "x", "y", "ip", "mavlink_port", "serial_port", "baudrate"];
+    const header = ["hw_id", "pos_id", "ip", "mavlink_port", "serial_port", "baudrate"];
     const csvRows = configData.map(drone => [
         drone.hw_id,
         drone.pos_id,
-        drone.x,
-        drone.y,
         drone.ip,
         drone.mavlink_port,
         drone.serial_port || '/dev/ttyS0',  // Default if missing
@@ -187,20 +240,27 @@ export const exportConfig = (configData) => {
     document.body.removeChild(a);
 };
 
+/**
+ * Generate KML from drone positions.
+ * NOTE: drones array should include x,y from trajectory CSV (fetched via API)
+ * For example: drones = [{hw_id, pos_id, x, y, ...}, ...]
+ */
 export const generateKML = (drones, originLat, originLon) => {
     let kml = `<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>`;
 
     drones.forEach((drone) => {
-        const { latitude, longitude } = convertToLatLon(
-            originLat,
-            originLon,
-            parseFloat(drone.x),
-            parseFloat(drone.y)
-        );
+        // x,y should be provided from trajectory CSV (not config.csv)
+        if (drone.x !== undefined && drone.y !== undefined) {
+            const { latitude, longitude } = convertToLatLon(
+                originLat,
+                originLon,
+                parseFloat(drone.x),
+                parseFloat(drone.y)
+            );
 
-        kml += `
+            kml += `
         <Placemark>
           <name>Drone ${drone.hw_id}</name>
           <description>HW ID: ${drone.hw_id}, POS ID: ${drone.pos_id}</description>
@@ -208,6 +268,7 @@ export const generateKML = (drones, originLat, originLon) => {
             <coordinates>${longitude},${latitude},0</coordinates>
           </Point>
         </Placemark>`;
+        }
     });
 
     kml += `

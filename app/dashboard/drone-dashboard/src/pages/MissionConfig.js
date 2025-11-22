@@ -11,6 +11,7 @@ import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
 import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
+import SaveReviewDialog from '../components/SaveReviewDialog';
 import axios from 'axios';
 
 // Hooks
@@ -22,9 +23,14 @@ import {
   handleRevertChanges,
   handleFileChange,
   exportConfig,
+  validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import { toast } from 'react-toastify';
 import { getBackendURL } from '../utilities/utilities';
+
+// Icons
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExclamationTriangle, faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
   // -----------------------------------------------------
@@ -47,6 +53,10 @@ const MissionConfig = () => {
   const [showGcsConfigModal, setShowGcsConfigModal] = useState(false);
   const [gcsConfig, setGcsConfig] = useState({ gcs_ip: null });
 
+  // Role Swap Details Modal
+  const [showRoleSwapModal, setShowRoleSwapModal] = useState(false);
+  const [roleSwapData, setRoleSwapData] = useState([]);
+
   // Deviations
   const [deviationData, setDeviationData] = useState({});
 
@@ -60,6 +70,10 @@ const MissionConfig = () => {
 
   // UI & Loading
   const [loading, setLoading] = useState(false);
+
+  // Save Review Dialog
+  const [showSaveReviewDialog, setShowSaveReviewDialog] = useState(false);
+  const [validationReport, setValidationReport] = useState(null);
 
   // -----------------------------------------------------
   // Data Fetching using custom hooks
@@ -77,12 +91,7 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Derived Data & Helpers
   // -----------------------------------------------------
-  const positionIdMapping = configData.reduce((acc, drone) => {
-    if (drone.pos_id) {
-      acc[drone.pos_id] = { x: drone.x, y: drone.y };
-    }
-    return acc;
-  }, {});
+  // Note: x,y positions now come from trajectory CSV files, not config.csv
 
   const allHwIds = new Set(configData.map((drone) => drone.hw_id));
   const maxHwId = Math.max(0, ...Array.from(allHwIds, (id) => parseInt(id, 10))) + 1;
@@ -326,14 +335,61 @@ const MissionConfig = () => {
     toast.info('All unsaved changes have been reverted.');
   };
 
-  const handleSaveChangesToServerWrapper = () => {
-    handleSaveChangesToServer(configData, setConfigData, setLoading);
-    toast.info('Saving changes to server...');
+  const handleSaveChangesToServerWrapper = async () => {
+    try {
+      // Step 1: Validate configuration and get report
+      const report = await validateConfigWithBackend(configData, setLoading);
+
+      // Step 2: Show review dialog with validation report
+      setValidationReport(report);
+      setShowSaveReviewDialog(true);
+
+    } catch (error) {
+      // Validation failed - error already shown by validateConfigWithBackend
+      console.error('Validation failed:', error);
+    }
+  };
+
+  const handleConfirmSave = async () => {
+    // User confirmed - proceed with actual save
+    setShowSaveReviewDialog(false);
+    await handleSaveChangesToServer(configData, setConfigData, setLoading);
+  };
+
+  const handleCancelSave = () => {
+    // User cancelled - close dialog
+    setShowSaveReviewDialog(false);
+    setValidationReport(null);
+    toast.info('Save cancelled');
   };
 
   const handleExportConfigWrapper = () => {
     exportConfig(configData);
     toast.success('Configuration exported successfully.');
+  };
+
+  const handleResetToDefault = () => {
+    // Find drones that need to be reset (hw_id !== pos_id)
+    const dronesNeedingReset = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
+
+    if (dronesNeedingReset.length === 0) {
+      toast.info('All drones are already set to default (hw_id = pos_id)');
+      return;
+    }
+
+    // Show confirmation dialog with preview
+    const message = `Reset ${dronesNeedingReset.length} drone(s) to default configuration?\n\nThis will set pos_id = hw_id for:\n${dronesNeedingReset.map(d => `Drone ${d.hw_id}: pos_id ${d.pos_id} → ${d.hw_id}`).join('\n')}\n\nNote: Changes will NOT be saved until you click "Save & Commit to Git"`;
+
+    if (window.confirm(message)) {
+      // Reset pos_id to hw_id for all drones
+      const updatedConfig = configData.map(drone => ({
+        ...drone,
+        pos_id: drone.hw_id
+      }));
+
+      setConfigData(updatedConfig);
+      toast.success(`✅ Reset ${dronesNeedingReset.length} drone(s) to default. Remember to save your changes!`);
+    }
   };
 
   // Sort config data
@@ -357,10 +413,63 @@ const MissionConfig = () => {
         exportConfig={handleExportConfigWrapper}
         openOriginModal={() => setShowOriginModal(true)}
         openGcsConfigModal={() => setShowGcsConfigModal(true)}
+        handleResetToDefault={handleResetToDefault}
         configData={configData}
         setConfigData={setConfigData}
         loading={loading}
       />
+
+      {/* Warning Banner for Duplicate pos_id and Role Swaps */}
+      {(() => {
+        const roleSwaps = configData.filter(d => parseInt(d.hw_id) !== parseInt(d.pos_id));
+        const posIdCounts = {};
+        configData.forEach(d => {
+          const posId = parseInt(d.pos_id);
+          if (!isNaN(posId)) {
+            posIdCounts[posId] = (posIdCounts[posId] || []).concat(parseInt(d.hw_id));
+          }
+        });
+        const duplicates = Object.entries(posIdCounts).filter(([_, hwIds]) => hwIds.length > 1);
+
+        return (roleSwaps.length > 0 || duplicates.length > 0) && (
+          <div className="config-warning-banner">
+            {duplicates.length > 0 && (
+              <div className="warning-section collision-warning">
+                <FontAwesomeIcon icon={faExclamationTriangle} />
+                <strong> COLLISION RISK:</strong> Duplicate pos_id detected!
+                {duplicates.map(([posId, hwIds]) => (
+                  <span key={posId} className="duplicate-detail">
+                    {' '}pos_id {posId} → drones {hwIds.join(', ')}
+                  </span>
+                ))}
+              </div>
+            )}
+            {roleSwaps.length > 0 && (
+              <div className="warning-section role-swap-info">
+                <FontAwesomeIcon icon={faExchangeAlt} />
+                <strong> {roleSwaps.length} Role Swap(s) Active:</strong>
+                {roleSwaps.slice(0, 3).map(d => (
+                  <span key={d.hw_id} className="role-swap-detail">
+                    {' '}Drone {d.hw_id}→Pos {d.pos_id}
+                  </span>
+                ))}
+                {roleSwaps.length > 3 && (
+                  <span
+                    className="role-swap-more-link"
+                    onClick={() => {
+                      setRoleSwapData(roleSwaps);
+                      setShowRoleSwapModal(true);
+                    }}
+                    style={{ cursor: 'pointer', textDecoration: 'underline', color: '#3b82f6', marginLeft: '4px' }}
+                  >
+                    and {roleSwaps.length - 3} more
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {!originAvailable && (
         <div className="origin-warning">
@@ -391,6 +500,54 @@ const MissionConfig = () => {
           onSubmit={handleGcsConfigSubmit}
           currentGcsIp={gcsConfig.gcs_ip}
         />
+      )}
+
+      {/* Role Swap Details Modal */}
+      {showRoleSwapModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowRoleSwapModal(false)}
+        >
+          <div
+            className="role-swap-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>
+              <FontAwesomeIcon icon={faExchangeAlt} style={{ marginRight: '10px' }} />
+              All Active Role Swaps ({roleSwapData.length})
+            </h3>
+            <p style={{ marginBottom: '16px' }}>
+              These drones are flying different positions' trajectories:
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Hardware ID</th>
+                  <th style={{ textAlign: 'center' }}>→</th>
+                  <th>Position ID (Show)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleSwapData.map((drone) => (
+                  <tr key={drone.hw_id}>
+                    <td>
+                      <strong>Drone {drone.hw_id}</strong>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>→</td>
+                    <td>
+                      <strong>Position {drone.pos_id}</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button onClick={() => setShowRoleSwapModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <MissionLayout
@@ -471,7 +628,6 @@ const MissionConfig = () => {
                 removeDrone={removeDrone}
                 networkInfo={networkInfo.find((info) => info.hw_id === drone.hw_id)}
                 heartbeatData={heartbeats[drone.hw_id] || null}
-                positionIdMapping={positionIdMapping}
                 style={{ animationDelay: `${index * 0.1}s` }}
               />
             ))
@@ -498,6 +654,14 @@ const MissionConfig = () => {
           />
         </div>
       </div>
+
+      {/* Save Review Dialog */}
+      <SaveReviewDialog
+        isOpen={showSaveReviewDialog}
+        validationReport={validationReport}
+        onConfirm={handleConfirmSave}
+        onCancel={handleCancelSave}
+      />
     </div>
   );
 };

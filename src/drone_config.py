@@ -31,6 +31,10 @@ class DroneConfig:
         self.last_mission = 0
         self.trigger_time = 0                 # Time of the last trigger event
         self.drone_setup = None
+
+        # Phase 2: Auto Global Origin Correction flags
+        self.auto_global_origin = None        # Phase 2 auto-correction mode (None means use Params default)
+        self.use_global_setpoints = None      # Local/Global mode (None means use Params default)
         self.position = {'lat': 0, 'long': 0, 'alt': 0}  # Initial position (lat, long, alt)
         self.velocity = {'north': 0, 'east': 0, 'down': 0} # Initial velocity components
         self.yaw = 0                          # Yaw angle in degrees
@@ -169,17 +173,49 @@ class DroneConfig:
     def load_all_configs(self):
         """
         Load all drone configurations from config.csv.
+
+        Note: x,y positions now come from trajectory CSV files (single source of truth),
+        not from config.csv.
         """
+        import os
         all_configs = {}
         try:
+            # Read config.csv to get all pos_ids
             with open(Params.config_csv_name, newline='') as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     pos_id = int(row['pos_id'])
-                    x = float(row['x'])
-                    y = float(row['y'])
-                    all_configs[pos_id] = {'x': x, 'y': y}
-            logging.info("All drone configurations loaded successfully.")
+
+                    # Get position from trajectory CSV (single source of truth)
+                    base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                    trajectory_file = os.path.join(
+                        os.path.dirname(os.path.dirname(__file__)),  # Project root
+                        base_dir,
+                        'swarm',
+                        'processed',
+                        f"Drone {pos_id}.csv"
+                    )
+
+                    try:
+                        if os.path.exists(trajectory_file):
+                            with open(trajectory_file, 'r') as traj_f:
+                                traj_reader = csv.DictReader(traj_f)
+                                first_waypoint = next(traj_reader, None)
+                                if first_waypoint:
+                                    x = float(first_waypoint.get('px', 0))  # North
+                                    y = float(first_waypoint.get('py', 0))  # East
+                                    all_configs[pos_id] = {'x': x, 'y': y}
+                                else:
+                                    logging.warning(f"Trajectory file empty for pos_id={pos_id}")
+                                    all_configs[pos_id] = {'x': 0, 'y': 0}
+                        else:
+                            logging.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+                            all_configs[pos_id] = {'x': 0, 'y': 0}
+                    except Exception as e:
+                        logging.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
+                        all_configs[pos_id] = {'x': 0, 'y': 0}
+
+            logging.info("All drone configurations loaded successfully from trajectory CSV files.")
         except FileNotFoundError:
             logging.error(f"Config file {Params.config_csv_name} not found.")
         except Exception as e:

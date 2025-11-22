@@ -1,6 +1,9 @@
 import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
+import axios from 'axios';
+import { getBackendURL } from '../utilities/utilities';
+import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faEdit,
@@ -319,7 +322,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <h3 className="drone-title">Drone {drone.hw_id}</h3>
           <div className="drone-subtitle">
             <span className="drone-hardware-id">Hardware ID: {drone.hw_id}</span>
-            <span className="drone-position-id">Position ID: {drone.pos_id}</span>
+            <span className="drone-position-id">
+              Position ID: {drone.pos_id}
+              {parseInt(drone.hw_id) !== parseInt(drone.pos_id) && (
+                <span className="role-swap-badge" title={`This drone is flying Position ${drone.pos_id}'s show instead of its own`}>
+                  ⚠️ Role Swap
+                </span>
+              )}
+            </span>
           </div>
         </div>
         <div className="card-actions">
@@ -363,11 +373,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div className="info-row">
             <span className="info-label">Baudrate</span>
             <span className="info-value">{drone.baudrate || '57600'}</span>
-          </div>
-
-          <div className="info-row">
-            <span className="info-label">Launch Position</span>
-            <span className="info-value">({drone.x}, {drone.y})</span>
           </div>
         </div>
 
@@ -484,12 +489,6 @@ const DroneEditForm = memo(function DroneEditForm({
   const [isCustomPosId, setIsCustomPosId] = useState(false);
   const [customPosId, setCustomPosId] = useState('');
 
-  // For confirmation dialog
-  const [oldX, setOldX] = useState(droneData.x);
-  const [oldY, setOldY] = useState(droneData.y);
-  const [newX, setNewX] = useState(droneData.x);
-  const [newY, setNewY] = useState(droneData.y);
-
   const [originalPosId, setOriginalPosId] = useState(droneData.pos_id);
 
   // Gather all pos_ids from configData for the dropdown
@@ -501,31 +500,12 @@ const DroneEditForm = memo(function DroneEditForm({
 
   /**
    * Handler: user changes the pos_id from the dropdown
-   * => possibly open a confirmation to copy x,y from an existing drone with that pos_id.
+   * => open a confirmation dialog
    */
   const handlePosSelectChange = (e) => {
     const chosenPos = e.target.value;
     if (chosenPos === droneData.pos_id) return; // No real change
     setPendingPosId(chosenPos);
-
-    // If another drone in configData has this pos_id, copy x,y from that drone
-    const matchedDrone = findDroneByPositionId(
-      configData,
-      chosenPos,
-      droneData.hw_id
-    );
-
-    setOldX(droneData.x);
-    setOldY(droneData.y);
-
-    if (matchedDrone) {
-      setNewX(matchedDrone.x);
-      setNewY(matchedDrone.y);
-    } else {
-      setNewX(droneData.x);
-      setNewY(droneData.y);
-    }
-
     setShowPosChangeDialog(true);
   };
 
@@ -536,7 +516,7 @@ const DroneEditForm = memo(function DroneEditForm({
     onFieldChange({ target: { name: 'pos_id', value: originalPosId } });
   };
 
-  /** Confirm pos_id change => update local droneData with new pos_id & possibly new x,y. */
+  /** Confirm pos_id change => update local droneData with new pos_id. */
   const handleConfirmPosChange = () => {
     if (!pendingPosId) {
       setShowPosChangeDialog(false);
@@ -545,28 +525,10 @@ const DroneEditForm = memo(function DroneEditForm({
 
     // Update pos_id in the form
     onFieldChange({ target: { name: 'pos_id', value: pendingPosId } });
-
-    const matchedDrone = findDroneByPositionId(
-      configData,
-      pendingPosId,
-      droneData.hw_id
-    );
-    if (matchedDrone) {
-      onFieldChange({ target: { name: 'x', value: matchedDrone.x } });
-      onFieldChange({ target: { name: 'y', value: matchedDrone.y } });
-      setDroneData((prevData) => ({
-        ...prevData,
-        pos_id: pendingPosId,
-        x: matchedDrone.x,
-        y: matchedDrone.y,
-      }));
-    } else {
-      // No matched drone => just update pos_id
-      setDroneData((prevData) => ({
-        ...prevData,
-        pos_id: pendingPosId,
-      }));
-    }
+    setDroneData((prevData) => ({
+      ...prevData,
+      pos_id: pendingPosId,
+    }));
 
     setOriginalPosId(pendingPosId);
     setShowPosChangeDialog(false);
@@ -589,9 +551,8 @@ const DroneEditForm = memo(function DroneEditForm({
               <strong>{pendingPosId}</strong>.
             </p>
             <p>
-              <em>Old (x,y):</em> ({oldX}, {oldY})
-              <br />
-              <em>New (x,y):</em> ({newX}, {newY})
+              This will change which trajectory/show this drone will perform.
+              Positions are loaded from trajectory CSV files.
             </p>
             <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
             <div className="dialog-buttons">
@@ -619,17 +580,21 @@ const DroneEditForm = memo(function DroneEditForm({
           <label className="form-label">Hardware ID</label>
           <select
             name="hw_id"
-            value={droneData.hw_id}
+            value={droneData.hw_id ? String(droneData.hw_id) : ''}
             onChange={handleGenericChange}
             className="form-select"
             title="Select Hardware ID"
             aria-label="Select Hardware ID"
           >
-            {hwIdOptions.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
+            {hwIdOptions && hwIdOptions.length > 0 ? (
+              hwIdOptions.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))
+            ) : (
+              <option value="">No options available</option>
+            )}
           </select>
           {errors.hw_id && <span className="error-message">{errors.hw_id}</span>}
         </div>
@@ -641,7 +606,7 @@ const DroneEditForm = memo(function DroneEditForm({
             <input
               type="text"
               name="ip"
-              value={droneData.ip}
+              value={droneData.ip || ''}
               onChange={handleGenericChange}
               className="form-input"
               placeholder="Enter IP Address"
@@ -680,7 +645,7 @@ const DroneEditForm = memo(function DroneEditForm({
           <input
             type="text"
             name="mavlink_port"
-            value={droneData.mavlink_port}
+            value={droneData.mavlink_port || ''}
             onChange={handleGenericChange}
             className="form-input"
             placeholder="Enter MAVLink Port"
@@ -782,35 +747,6 @@ const DroneEditForm = memo(function DroneEditForm({
           </div>
         )}
 
-        {/* X, Y */}
-        <div className="form-field">
-          <label className="form-label">Initial X</label>
-          <input
-            type="text"
-            name="x"
-            value={droneData.x}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter X Coordinate"
-            aria-label="X Coordinate"
-          />
-          {errors.x && <span className="error-message">{errors.x}</span>}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label">Initial Y</label>
-          <input
-            type="text"
-            name="y"
-            value={droneData.y}
-            onChange={handleGenericChange}
-            className="form-input"
-            placeholder="Enter Y Coordinate"
-            aria-label="Y Coordinate"
-          />
-          {errors.y && <span className="error-message">{errors.y}</span>}
-        </div>
-
         {/* Position ID with toggle for custom vs. existing */}
         <div className="form-field">
           <label className="form-label">Position ID</label>
@@ -829,8 +765,6 @@ const DroneEditForm = memo(function DroneEditForm({
                   setDroneData((prev) => ({
                     ...prev,
                     pos_id: newPos,
-                    x: 0,
-                    y: 0,
                   }));
                 }}
                 aria-label="Custom Position ID"
@@ -955,17 +889,55 @@ export default function DroneConfigCard({
 }) {
   const isEditing = editingDroneId === drone.hw_id;
 
+  // Helper function to ensure all required fields exist with defaults
+  // Note: x,y removed - positions come from trajectory CSV files only
+  const getCompleteFormData = (droneObj) => {
+    if (!droneObj) {
+      return {
+        hw_id: '',
+        pos_id: '',
+        ip: '',
+        mavlink_port: '',
+        serial_port: '/dev/ttyS0',
+        baudrate: '57600',
+        isNew: false
+      };
+    }
+    return {
+      hw_id: droneObj.hw_id ? String(droneObj.hw_id) : '',
+      pos_id: droneObj.pos_id ? String(droneObj.pos_id) : '',
+      ip: droneObj.ip || '',
+      mavlink_port: droneObj.mavlink_port || '',
+      serial_port: droneObj.serial_port || '/dev/ttyS0',
+      baudrate: droneObj.baudrate || '57600',
+      isNew: droneObj.isNew || false
+    };
+  };
+
   // Local state for the edit form
-  const [droneData, setDroneData] = useState({ ...drone });
+  const [droneData, setDroneData] = useState(getCompleteFormData(drone));
   const [errors, setErrors] = useState({});
+
+  // Ensure the dropdown includes current hw_id + available hw_ids
+  const hwIdOptionsForEdit = React.useMemo(() => {
+    const currentHwId = String(drone.hw_id);
+    const options = [...(availableHwIds || [])];
+
+    // Always include the current hw_id in options (so user can keep it)
+    if (!options.includes(currentHwId)) {
+      options.unshift(currentHwId);
+    }
+
+    return options.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  }, [drone.hw_id, availableHwIds]);
 
   // Reset local form when toggling edit mode
   useEffect(() => {
     if (isEditing) {
-      setDroneData({ ...drone });
+      setDroneData(getCompleteFormData(drone));
       setErrors({});
     }
-  }, [isEditing, drone]);
+  }, [isEditing]);
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};
@@ -1021,13 +993,7 @@ export default function DroneConfigCard({
     if (!droneData.mavlink_port) {
       validationErrors.mavlink_port = 'MavLink Port is required.';
     }
-    // Basic numeric check for x, y
-    if (droneData.x === undefined || isNaN(droneData.x)) {
-      validationErrors.x = 'A valid numeric X coordinate is required.';
-    }
-    if (droneData.y === undefined || isNaN(droneData.y)) {
-      validationErrors.y = 'A valid numeric Y coordinate is required.';
-    }
+    // Note: x,y positions come from trajectory CSV files - not validated here
     if (!droneData.pos_id) {
       validationErrors.pos_id = 'Position ID is required.';
     }
@@ -1079,10 +1045,10 @@ export default function DroneConfigCard({
           onSave={handleLocalSave}
           onCancel={() => {
             setEditingDroneId(null);
-            setDroneData({ ...drone });
+            setDroneData(getCompleteFormData(drone));
             setErrors({});
           }}
-          hwIdOptions={availableHwIds}
+          hwIdOptions={hwIdOptionsForEdit}
           configData={configData}
           setDroneData={setDroneData}
         />
@@ -1104,11 +1070,21 @@ export default function DroneConfigCard({
           onRemove={() => removeDrone(drone.hw_id)}
           onAcceptConfigFromAuto={(detectedValue) => {
             if (!detectedValue || detectedValue === '0') return;
-            saveChanges(drone.hw_id, { ...drone, pos_id: detectedValue });
+            // Note: x,y positions come from trajectory CSV - not stored in config
+            saveChanges(drone.hw_id, {
+              ...drone,
+              pos_id: detectedValue
+            });
+            toast.success(`Accepted auto-detected pos_id ${detectedValue}`);
           }}
           onAcceptConfigFromHb={(hbValue) => {
             if (!hbValue || hbValue === '0') return;
-            saveChanges(drone.hw_id, { ...drone, pos_id: hbValue });
+            // Note: x,y positions come from trajectory CSV - not stored in config
+            saveChanges(drone.hw_id, {
+              ...drone,
+              pos_id: hbValue
+            });
+            toast.success(`Accepted assigned pos_id ${hbValue}`);
           }}
         />
       )}

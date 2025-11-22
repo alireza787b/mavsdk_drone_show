@@ -22,11 +22,11 @@ from datetime import datetime
 # Import existing modules (preserving all original functionality)
 from telemetry import telemetry_data_all_drones, start_telemetry_polling, data_lock
 from command import send_commands_to_all, send_commands_to_selected
-from config import get_drone_git_status, get_gcs_git_report, load_config, save_config, load_swarm, save_swarm
+from config import get_drone_git_status, get_gcs_git_report, load_config, save_config, load_swarm, save_swarm, validate_and_process_config
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
 from get_elevation import get_elevation
-from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations
+from origin import compute_origin_from_drone, save_origin, load_origin, calculate_position_deviations, _get_expected_position_from_trajectory
 from heartbeat import handle_heartbeat_post, get_all_heartbeats, get_network_info_from_heartbeats
 from git_status import git_status_data_all_drones, data_lock_git_status
 
@@ -178,6 +178,8 @@ def setup_routes(app):
     def submit_command():
         """
         Endpoint to receive commands from the frontend and process them asynchronously.
+
+        Phase 2 Enhancement: If auto_global_origin is True, include origin data in command payload.
         """
         command_data = request.get_json()
         if not command_data:
@@ -185,6 +187,32 @@ def setup_routes(app):
 
         # Extract target_drones from command_data if provided
         target_drones = command_data.pop('target_drones', None)
+
+        # Phase 2: Include origin data if auto_global_origin is enabled
+        auto_global_origin = command_data.get('auto_global_origin', False)
+        if auto_global_origin:
+            # Fetch current origin from GCS
+            try:
+                origin = load_origin()
+                if origin and origin.get('lat') and origin.get('lon'):
+                    command_data['origin'] = {
+                        'lat': float(origin['lat']),
+                        'lon': float(origin['lon']),
+                        'alt': float(origin.get('alt', 0)),
+                        'timestamp': origin.get('timestamp', ''),
+                        'source': origin.get('alt_source', 'gcs')
+                    }
+                    log_system_event(
+                        f"🌍 Phase 2: Including origin in command (lat={origin['lat']:.6f}, lon={origin['lon']:.6f})",
+                        "INFO", "command"
+                    )
+                else:
+                    log_system_event(
+                        "⚠️ Phase 2: auto_global_origin=True but origin not set! Drones will fetch from GCS.",
+                        "WARNING", "command"
+                    )
+            except Exception as e:
+                log_system_error(f"Phase 2: Failed to load origin for command: {e}", "command")
 
         # Professional command logging
         if target_drones:
@@ -253,8 +281,113 @@ def setup_routes(app):
     # CONFIGURATION ENDPOINTS (preserving original)
     # ========================================================================
     
+    @app.route('/get-trajectory-first-row', methods=['GET'])
+    def get_trajectory_first_row():
+        """
+        Get expected position (first row) from trajectory CSV file.
+        Used by auto-accept pos_id feature to fetch correct x,y coordinates.
+        """
+        try:
+            pos_id = request.args.get('pos_id')
+            if not pos_id:
+                return error_response("pos_id parameter required", 400)
+
+            pos_id = int(pos_id)
+            sim_mode = getattr(Params, 'sim_mode', False)
+
+            # Get expected position from trajectory CSV
+            north, east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+            if north is None or east is None:
+                return error_response(
+                    f"Trajectory file not found for pos_id={pos_id}",
+                    404
+                )
+
+            return jsonify({
+                "pos_id": pos_id,
+                "north": north,
+                "east": east,
+                "source": f"Drone {pos_id}.csv (first waypoint)"
+            })
+
+        except ValueError as e:
+            return error_response(f"Invalid pos_id: {e}", 400)
+        except Exception as e:
+            log_system_error(f"Error fetching trajectory coordinates: {e}", "config")
+            return error_response(f"Error fetching trajectory data: {e}")
+
+    @app.route('/get-drone-positions', methods=['GET'])
+    def get_drone_positions():
+        """
+        Get initial positions for all drones from trajectory CSV files.
+
+        This is the SINGLE SOURCE OF TRUTH for drone positions. Positions are always
+        read from the first row of each drone's trajectory CSV file based on pos_id.
+
+        Returns:
+            JSON array: [{"hw_id": int, "pos_id": int, "x": float, "y": float}, ...]
+        """
+        try:
+            from config import get_all_drone_positions
+
+            positions = get_all_drone_positions()
+
+            if not positions:
+                log_system_event("⚠️ No drone positions retrieved (config may be empty)", "WARNING", "config")
+            else:
+                log_system_event(f"📍 Retrieved positions for {len(positions)} drones", "INFO", "config")
+
+            return jsonify(positions)
+
+        except Exception as e:
+            log_system_error(f"Error fetching all drone positions: {e}", "config")
+            return error_response(f"Error fetching drone positions: {e}")
+
+    @app.route('/validate-config', methods=['POST'])
+    def validate_config_route():
+        """
+        Validate configuration (positions come from trajectory CSV only).
+        Returns validation report WITHOUT saving to file.
+        Used by UI to show review dialog before final save.
+        """
+        config_data = request.get_json()
+        if not config_data:
+            return error_response("No configuration data provided", 400)
+
+        log_system_event("🔍 Configuration validation requested", "INFO", "config")
+
+        try:
+            # Validate config_data format
+            if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
+                raise ValueError("Invalid configuration data format")
+
+            # Validate and process config
+            sim_mode = getattr(Params, 'sim_mode', False)
+            report = validate_and_process_config(config_data, sim_mode)
+
+            log_system_event(
+                f"✅ Validation complete: {report['summary']['duplicates_count']} duplicates, "
+                f"{report['summary']['missing_trajectories_count']} missing trajectories, "
+                f"{report['summary']['role_swaps_count']} role swaps",
+                "INFO",
+                "config"
+            )
+
+            return jsonify(report)
+
+        except Exception as e:
+            log_system_error(f"Error validating configuration: {e}", "config")
+            return error_response(f"Error validating configuration: {e}")
+
     @app.route('/save-config-data', methods=['POST'])
     def save_config_route():
+        """
+        Save drone configuration to config.csv.
+
+        NOTE: x,y positions are NOT saved in config.csv. They are always fetched
+        from trajectory CSV files. Use /get-drone-positions to retrieve positions.
+        """
         config_data = request.get_json()
         if not config_data:
             return error_response("No configuration data provided", 400)
@@ -266,8 +399,12 @@ def setup_routes(app):
             if not isinstance(config_data, list) or not all(isinstance(drone, dict) for drone in config_data):
                 raise ValueError("Invalid configuration data format")
 
-            # Save the configuration data
-            save_config(config_data)
+            # Validate and process config (removes x,y if present)
+            sim_mode = getattr(Params, 'sim_mode', False)
+            report = validate_and_process_config(config_data, sim_mode)
+
+            # Save the processed configuration (without x,y fields)
+            save_config(report['updated_config'])
             log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
             git_info = None
@@ -926,6 +1063,69 @@ def setup_routes(app):
             log_system_error(f"Error loading origin: {e}", "origin")
             return jsonify({'status': 'error', 'message': 'Error loading origin'}), 500
 
+    @app.route('/get-origin-for-drone', methods=['GET'])
+    def get_origin_for_drone():
+        """
+        Lightweight endpoint for drones to fetch origin before flight (Phase 2).
+
+        This endpoint is optimized for drone pre-flight origin fetching during
+        Phase 2 Auto Global Origin Correction mode. Returns minimal data required
+        for coordinate transformation with clear error handling.
+
+        Returns:
+            Success (200):
+                {
+                    "lat": float,           # Latitude in degrees
+                    "lon": float,           # Longitude in degrees
+                    "alt": float,           # Altitude MSL in meters
+                    "timestamp": str,       # ISO 8601 timestamp
+                    "source": str           # Origin source: "manual", "drone", "elevation_api"
+                }
+
+            Error (404):
+                {
+                    "error": str,           # Error message
+                    "message": str          # Detailed explanation
+                }
+
+        Usage:
+            Drones call this endpoint during run_drone() before arming to fetch
+            the shared drone show origin. Falls back to cache if unavailable.
+        """
+        try:
+            # Load origin using existing origin management function
+            origin = load_origin()
+
+            # Validate origin is set
+            if not origin or 'lat' not in origin or 'lon' not in origin:
+                return jsonify({
+                    'error': 'Origin not set',
+                    'message': 'Drone show origin has not been configured in GCS. Use dashboard to set origin.'
+                }), 404
+
+            # Validate coordinates are not empty
+            if not origin['lat'] or not origin['lon']:
+                return jsonify({
+                    'error': 'Origin incomplete',
+                    'message': 'Origin coordinates are empty. Please reconfigure origin in GCS.'
+                }), 404
+
+            # Return minimal data required for drone coordinate transformation
+            return jsonify({
+                'lat': float(origin['lat']),
+                'lon': float(origin['lon']),
+                'alt': float(origin.get('alt', 0)),  # Default to 0 if altitude not set
+                'timestamp': origin.get('timestamp', ''),
+                'source': origin.get('alt_source', 'unknown')
+            }), 200
+
+        except Exception as e:
+            log_system_error(f"Error in get-origin-for-drone: {e}", "origin")
+            return jsonify({
+                'error': 'Server error',
+                'message': f'Failed to retrieve origin: {str(e)}'
+            }), 500
+
     @app.route('/get-position-deviations', methods=['GET'])
     def get_position_deviations():
         """
@@ -982,17 +1182,30 @@ def setup_routes(app):
 
             for drone in drones_config:
                 hw_id = drone.get('hw_id')
+                pos_id = drone.get('pos_id')
+
                 if not hw_id:
                     continue
 
-                # Get expected position from config (x=North, y=East)
-                try:
-                    expected_north = float(drone.get('x', 0))
-                    expected_east = float(drone.get('y', 0))
-                except (TypeError, ValueError):
+                # CRITICAL FIX: Use pos_id to get expected position from trajectory CSV
+                # When hw_id ≠ pos_id, the drone executes pos_id's trajectory, so expected
+                # position must come from trajectory file, NOT from config.csv x,y values
+                if not pos_id:
+                    # Fallback: if no pos_id defined, assume pos_id == hw_id
+                    pos_id = hw_id
+
+                # Detect simulation mode from Params
+                sim_mode = getattr(Params, 'sim_mode', False)
+
+                # Get expected position from trajectory CSV (single source of truth)
+                expected_north, expected_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+                if expected_north is None or expected_east is None:
                     deviations[hw_id] = {
+                        "hw_id": hw_id,
+                        "pos_id": pos_id,
                         "status": "error",
-                        "message": "Invalid config position data"
+                        "message": f"Could not read trajectory file for pos_id={pos_id}"
                     }
                     summary_stats['errors'] += 1
                     continue
@@ -1083,35 +1296,61 @@ def setup_routes(app):
                 deviation_vertical = abs(current_down) if current_alt is not None else 0
                 deviation_total_3d = math.sqrt(deviation_north**2 + deviation_east**2 + deviation_vertical**2)
 
-                # Determine GPS quality
-                satellites = drone_telemetry.get('Satellites', 0)
-                hdop = drone_telemetry.get('HDOP', 99)
+                # Determine GPS quality - check fix_type first (most reliable indicator)
+                gps_fix_type = drone_telemetry.get('Gps_Fix_Type', drone_telemetry.get('gps_fix_type', 0))
+                satellites = drone_telemetry.get('Satellites', drone_telemetry.get('Satellites_Visible', 0))
+                hdop = drone_telemetry.get('HDOP', drone_telemetry.get('Hdop', 99))
 
                 try:
+                    gps_fix_type = int(gps_fix_type)
                     satellites = int(satellites)
                     hdop = float(hdop)
                 except:
+                    gps_fix_type = 0
                     satellites = 0
                     hdop = 99
 
-                # GPS quality classification
-                if satellites >= 10 and hdop < 1.5:
+                # GPS quality classification - prioritize fix_type (MAVLink standard)
+                # Fix types: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
+                if gps_fix_type >= 6:
+                    # RTK Fixed - best quality
                     gps_quality = 'excellent'
-                elif satellites >= 8 and hdop < 2.0:
+                elif gps_fix_type >= 5:
+                    # RTK Float - excellent
+                    gps_quality = 'excellent'
+                elif gps_fix_type >= 4:
+                    # DGPS - very good
                     gps_quality = 'good'
-                elif satellites >= 6 and hdop < 5.0:
-                    gps_quality = 'fair'
-                elif satellites >= 4:
+                elif gps_fix_type >= 3:
+                    # 3D Fix - good quality (use satellites/HDOP to refine)
+                    if satellites >= 10 and hdop < 1.5:
+                        gps_quality = 'excellent'
+                    elif satellites >= 8 and hdop < 2.0:
+                        gps_quality = 'good'
+                    elif satellites >= 6 and hdop < 5.0:
+                        gps_quality = 'fair'
+                    else:
+                        # 3D fix but lower satellite count or higher HDOP - still acceptable
+                        gps_quality = 'fair'
+                elif gps_fix_type >= 2:
+                    # 2D Fix - poor (no altitude)
                     gps_quality = 'poor'
+                elif gps_fix_type >= 1:
+                    # No Fix - GPS connected but no position
+                    gps_quality = 'no_fix'
                 else:
+                    # No GPS (0) - no GPS hardware
                     gps_quality = 'no_fix'
 
                 # Determine status
                 within_threshold = deviation_horizontal <= threshold_warning
 
+                # Only warn if GPS quality is actually poor (2D fix or worse)
+                # 3D fix and above should not trigger warnings based on GPS alone
                 if gps_quality in ['no_fix', 'poor']:
                     status = 'warning'
-                    message = f"Poor GPS quality ({gps_quality})"
+                    fix_type_name = {0: 'No GPS', 1: 'No Fix', 2: '2D Fix', 3: '3D Fix', 4: 'DGPS', 5: 'RTK Float', 6: 'RTK Fixed'}.get(gps_fix_type, f'Fix Type {gps_fix_type}')
+                    message = f"GPS quality issue: {fix_type_name} (quality: {gps_quality})"
                     summary_stats['warnings'] += 1
                 elif deviation_horizontal > threshold_error:
                     status = 'error'

@@ -26,7 +26,7 @@ const ImportShow = () => {
   const [uploadTime, setUploadTime] = useState('N/A');
   const [uploadCount, setUploadCount] = useState(0);
   const [dronesMismatchWarning, setDronesMismatchWarning] = useState(null);
-  const [coordinateWarnings, setCoordinateWarnings] = useState([]);
+  // Note: coordinateWarnings removed - x,y no longer in config.csv
   const [returnWarnings, setReturnWarnings] = useState([]);
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -79,12 +79,7 @@ const ImportShow = () => {
         if (!configResponse.ok) throw new Error(`HTTP error! Status: ${configResponse.status}`);
         const configData = await configResponse.json();
 
-        const configMap = configData.reduce((acc, drone) => {
-          acc[drone.hw_id] = { x: parseFloat(drone.x), y: parseFloat(drone.y) };
-          return acc;
-        }, {});
-
-        const coordinateWarnings = [];
+        // Note: x,y positions now come from trajectory CSV files only, not config.csv
         const returnWarnings = [];
         let droneCountWarning = null;
 
@@ -92,9 +87,9 @@ const ImportShow = () => {
           droneCountWarning = `The number of drones in the uploaded show (${plotList.length - 1}) does not match the number in the config file (${configData.length}).`;
         }
 
-
-        // For each drone, check for coordinate mismatches
-        for (const [hw_id, { x: configX, y: configY }] of Object.entries(configMap)) {
+        // For each drone, check if they return to their starting position
+        for (const drone of configData) {
+          const hw_id = drone.hw_id;
           try {
             const rowResponse = await fetch(`${backendURL}/get-first-last-row/${hw_id}`);
             if (!rowResponse.ok) throw new Error(`HTTP error! Status: ${rowResponse.status}`);
@@ -105,12 +100,6 @@ const ImportShow = () => {
             const lastRowX = parseFloat(rowData.lastRow.x);
             const lastRowY = parseFloat(rowData.lastRow.y);
 
-            if (configX !== firstRowX || configY !== firstRowY) {
-              coordinateWarnings.push(
-                `Drone ${hw_id} has mismatch in initial launch point. Config: (${configX}, ${configY}), CSV: (${firstRowX}, ${firstRowY})`
-              );
-            }
-
             if (firstRowX !== lastRowX || firstRowY !== lastRowY) {
               returnWarnings.push(
                 `Drone ${hw_id} has different return point. Start: (${firstRowX}, ${firstRowY}), End: (${lastRowX}, ${lastRowY})`
@@ -120,7 +109,6 @@ const ImportShow = () => {
             console.warn(`Could not fetch data for drone ${hw_id}. Skipping...`, error);
           }
         }
-setCoordinateWarnings(coordinateWarnings);
         setReturnWarnings(returnWarnings);
         setDronesMismatchWarning(droneCountWarning);
       } catch (error) {
@@ -201,11 +189,7 @@ setCoordinateWarnings(coordinateWarnings);
       {dronesMismatchWarning && (
         <p className="warning-message">{dronesMismatchWarning}</p>
       )}
-      {coordinateWarnings.map((warning, index) => (
-        <p key={index} className="warning-message">
-          {warning}
-        </p>
-      ))}
+      {/* Note: Coordinate warnings removed - x,y no longer in config.csv */}
       {returnWarnings.map((warning, index) => (
         <p key={index} className="soft-warning-message">
           {warning}

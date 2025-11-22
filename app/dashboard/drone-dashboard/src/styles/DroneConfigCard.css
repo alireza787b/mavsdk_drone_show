@@ -143,6 +143,27 @@
   color: var(--color-text-tertiary);
 }
 
+/* Role Swap Badge - inline badge for role swaps */
+.role-swap-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  cursor: help;
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+
+.role-swap-badge:hover {
+  background: linear-gradient(135deg, #fde68a, #fcd34d);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
 /* Status Badge - Right aligned */
 .card-actions {
   display: flex;

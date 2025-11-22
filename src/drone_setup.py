@@ -310,11 +310,25 @@ class DroneSetup:
                 self._reset_mission_state(False)
                 return (False, "No executer script specified.")
 
+            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
+            auto_global_origin = self.drone_config.auto_global_origin
+            if auto_global_origin is None:
+                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+
+            use_global_setpoints = self.drone_config.use_global_setpoints
+            if use_global_setpoints is None:
+                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
+
+            # Build action string with all flags
+            action = f"--start_time={real_trigger_time}"
+            action += f" --auto_global_origin {auto_global_origin}"
+            action += f" --use_global_setpoints {use_global_setpoints}"
+            action += " --mission_type 1"  # DRONE_SHOW_FROM_CSV
+
             logger.info(f"Starting Standard Drone Show using '{main_offboard_executer}'.")
-            return await self.execute_mission_script(
-                main_offboard_executer,
-                f"--start_time={real_trigger_time}"
-            )
+            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
+                       f"use_global_setpoints={use_global_setpoints}")
+            return await self.execute_mission_script(main_offboard_executer, action)
 
         logger.debug("Conditions NOT met for Standard Drone Show.")
         return (False, "Conditions not met for Standard Drone Show.")
@@ -343,8 +357,24 @@ class DroneSetup:
                 self._reset_mission_state(False)
                 return (False, "No custom CSV file specified.")
 
-            logger.info(f"Starting Custom Drone Show with '{custom_csv_file_name}' using '{main_offboard_executer}'.")
+            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
+            auto_global_origin = self.drone_config.auto_global_origin
+            if auto_global_origin is None:
+                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+
+            use_global_setpoints = self.drone_config.use_global_setpoints
+            if use_global_setpoints is None:
+                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
+
+            # Build action string with all flags
             action = f"--start_time={real_trigger_time} --custom_csv={custom_csv_file_name}"
+            action += f" --auto_global_origin {auto_global_origin}"
+            action += f" --use_global_setpoints {use_global_setpoints}"
+            action += " --mission_type 3"  # CUSTOM_CSV
+
+            logger.info(f"Starting Custom Drone Show with '{custom_csv_file_name}' using '{main_offboard_executer}'.")
+            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
+                       f"use_global_setpoints={use_global_setpoints}")
             return await self.execute_mission_script(main_offboard_executer, action)
 
         logger.debug("Conditions NOT met for Custom CSV Drone Show.")
@@ -374,8 +404,24 @@ class DroneSetup:
                 self._reset_mission_state(False)
                 return (False, "No hover test CSV file specified.")
 
-            logger.info(f"Starting Hover Test with '{hover_test_csv_file_name}' using '{main_offboard_executer}'.")
+            # Phase 2: Build CLI flags (use command values if provided, else Params defaults)
+            auto_global_origin = self.drone_config.auto_global_origin
+            if auto_global_origin is None:
+                auto_global_origin = getattr(self.params, 'AUTO_GLOBAL_ORIGIN_MODE', True)
+
+            use_global_setpoints = self.drone_config.use_global_setpoints
+            if use_global_setpoints is None:
+                use_global_setpoints = getattr(self.params, 'USE_GLOBAL_SETPOINTS', True)
+
+            # Build action string with all flags
             action = f"--start_time={real_trigger_time} --custom_csv={hover_test_csv_file_name}"
+            action += f" --auto_global_origin {auto_global_origin}"
+            action += f" --use_global_setpoints {use_global_setpoints}"
+            action += " --mission_type 106"  # HOVER_TEST
+
+            logger.info(f"Starting Hover Test with '{hover_test_csv_file_name}' using '{main_offboard_executer}'.")
+            logger.info(f"Phase 2 flags: auto_global_origin={auto_global_origin}, "
+                       f"use_global_setpoints={use_global_setpoints}")
             return await self.execute_mission_script(main_offboard_executer, action)
 
         logger.debug("Conditions NOT met for Hover Test CSV Drone Show.")

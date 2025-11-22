@@ -45,6 +45,58 @@
     font-size: var(--font-size-base);
 }
 
+/* Config Warning Banner */
+.config-warning-banner {
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-dark-base);
+}
+
+.config-warning-banner .warning-section {
+    padding: var(--spacing-base);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-weight: var(--font-weight-medium);
+}
+
+.config-warning-banner .collision-warning {
+    background: rgba(220, 38, 38, 0.15);
+    border-left: 4px solid #ef4444;
+    color: var(--color-text-primary);
+    padding: var(--spacing-base);
+}
+
+.config-warning-banner .role-swap-info {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 4px solid #3b82f6;
+    color: var(--color-text-primary);
+    padding: var(--spacing-base);
+}
+
+.config-warning-banner .duplicate-detail,
+.config-warning-banner .role-swap-detail {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.config-warning-banner .collision-warning .duplicate-detail {
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.config-warning-banner .role-swap-info .role-swap-detail {
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    background: rgba(59, 130, 246, 0.2);
+}
+
 /* Heading Slider Section */
 .heading-controls {
     background: var(--color-bg-secondary);
@@ -311,6 +363,79 @@
 /* Focus Management */
 .mission-config-container:focus-within {
     outline: none;
+}
+
+/* Role Swap Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.role-swap-modal {
+    background: var(--color-bg-primary);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-xl);
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-dark-lg);
+    border: 1px solid var(--color-border-primary);
+}
+
+.role-swap-modal h3 {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 2px solid var(--color-info);
+    padding-bottom: var(--spacing-sm);
+}
+
+.role-swap-modal table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--spacing-lg);
+}
+
+.role-swap-modal th,
+.role-swap-modal td {
+    padding: var(--spacing-sm);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border-secondary);
+    color: var(--color-text-primary);
+}
+
+.role-swap-modal th {
+    background: var(--color-bg-secondary);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+}
+
+.role-swap-modal tr:hover {
+    background: var(--color-bg-hover);
+}
+
+.role-swap-modal button {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: var(--color-info);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-base);
+    cursor: pointer;
+    font-weight: var(--font-weight-medium);
+    transition: background 0.2s ease;
+}
+
+.role-swap-modal button:hover {
+    background: var(--color-info-hover, #2563eb);
 }
 
 /* Print Styles */

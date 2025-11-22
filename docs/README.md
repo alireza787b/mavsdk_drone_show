@@ -75,6 +75,7 @@ Detailed documentation for MDS features:
 |---------|-------------|
 | **[Swarm Trajectory](features/swarm-trajectory.md)** | Smart swarm mode, leader-follower clustering, Kalman filters |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |
+| **[Control Modes and Coordinates](control-modes-and-coordinates.md)** | Comprehensive guide to control modes, coordinate systems, Phase 2 auto-correction, and time synchronization |
 
 ---
 

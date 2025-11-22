@@ -190,11 +190,19 @@ class FlaskHandler:
                 if current_lat is None or current_lon is None:
                     return jsonify({"error": "Drone's current position not available"}), 400
 
-                # Step 3: Get the drone's intended initial position (N, E) from config
-                initial_east = safe_float(safe_get(self.drone_config.config, 'x'))  # 'x' is East
-                initial_north = safe_float(safe_get(self.drone_config.config, 'y'))  # 'y' is North
+                # Step 3: CRITICAL FIX - Get expected position from trajectory CSV, not config
+                # When hw_id ≠ pos_id, config x,y represents hw_id's physical position,
+                # but we need pos_id's trajectory starting position for deviation calculation
+                pos_id = safe_get(self.drone_config.config, 'pos_id', self.drone_config.hw_id)
+                if not pos_id:
+                    pos_id = self.drone_config.hw_id
+
+                initial_north, initial_east = self._get_expected_position_from_trajectory(pos_id)
+
                 if initial_north is None or initial_east is None:
-                    return jsonify({"error": "Drone's intended initial position not set"}), 400
+                    return jsonify({
+                        "error": f"Could not read trajectory file for pos_id={pos_id}"
+                    }), 400
 
                 # Step 4: Convert current position to NE coordinates relative to the origin
                 current_north, current_east = self._latlon_to_ne(current_lat, current_lon, origin['lat'], origin['lon'])
@@ -354,7 +362,74 @@ class FlaskHandler:
         east, north = transformer.transform(lat, lon)
         return north, east
 
+    def _get_expected_position_from_trajectory(self, pos_id):
+        """
+        Get the expected position (starting point) from a trajectory CSV file.
 
+        This function reads the first waypoint from the trajectory CSV file
+        corresponding to the given position ID. This is the single source of truth
+        for expected position, especially critical when hw_id ≠ pos_id.
+
+        Args:
+            pos_id (int): Position ID (determines which trajectory file to read)
+
+        Returns:
+            tuple: (north, east) coordinates from first waypoint, or (None, None) on error
+
+        Example:
+            When hw_id=10 performs pos_id=1's show, this function reads
+            "Drone 1.csv" first row to get the expected starting position.
+        """
+        try:
+            # Construct trajectory file path based on pos_id
+            base_dir = 'shapes_sitl' if self.params.sim_mode else 'shapes'
+            trajectory_file = os.path.join(
+                BASE_DIR,  # Use flask_handler base directory
+                base_dir,
+                'swarm',
+                'processed',
+                f"Drone {pos_id}.csv"
+            )
+
+            # Check if file exists
+            if not os.path.exists(trajectory_file):
+                logging.error(f"Trajectory file not found: {trajectory_file}")
+                return None, None
+
+            # Read first waypoint from CSV
+            with open(trajectory_file, 'r') as f:
+                reader = csv.DictReader(f)
+                first_waypoint = next(reader, None)
+
+                if first_waypoint is None:
+                    logging.error(f"Trajectory file is empty: {trajectory_file}")
+                    return None, None
+
+                # Extract px (North) and py (East) from first waypoint
+                # These represent the canonical expected position for this pos_id
+                expected_north = float(first_waypoint.get('px', 0))
+                expected_east = float(first_waypoint.get('py', 0))
+
+                logging.debug(
+                    f"Expected position for pos_id={pos_id}: "
+                    f"North={expected_north:.2f}m, East={expected_east:.2f}m "
+                    f"(from {trajectory_file})"
+                )
+
+                return expected_north, expected_east
+
+        except FileNotFoundError:
+            logging.error(f"Trajectory file not found for pos_id={pos_id}")
+            return None, None
+        except KeyError as e:
+            logging.error(f"Missing column in trajectory CSV: {e}")
+            return None, None
+        except ValueError as e:
+            logging.error(f"Invalid coordinate value in trajectory CSV: {e}")
+            return None, None
+        except Exception as e:
+            logging.error(f"Unexpected error reading trajectory file for pos_id={pos_id}: {e}")
+            return None, None
 
     def _execute_git_command(self, command):
         """

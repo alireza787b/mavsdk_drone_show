@@ -124,7 +124,7 @@ from drone_show_src.utils import configure_logging
 # ----------------------------- #
 
 DroneConfig = namedtuple(
-    "DroneConfig", "hw_id pos_id x y ip mavlink_port debug_port gcs_ip"
+    "DroneConfig", "hw_id pos_id x y ip mavlink_port"
 )
 
 SwarmConfig = namedtuple(
@@ -245,6 +245,9 @@ def read_config_csv(filename: str):
     """
     Reads the drone configurations from the config CSV file and populates DRONE_CONFIG.
 
+    Note: x,y positions now come from trajectory CSV files (single source of truth),
+    not from config.csv.
+
     Args:
         filename (str): Path to the config CSV file.
     """
@@ -256,19 +259,45 @@ def read_config_csv(filename: str):
             for row in reader:
                 try:
                     hw_id = str(int(row["hw_id"]))
+                    pos_id = int(row["pos_id"])
+
+                    # Get position from trajectory CSV (single source of truth)
+                    base_dir = 'shapes_sitl' if Params.sim_mode else 'shapes'
+                    trajectory_file = os.path.join(
+                        os.path.dirname(__file__),  # Project root
+                        base_dir,
+                        'swarm',
+                        'processed',
+                        f"Drone {pos_id}.csv"
+                    )
+
+                    x, y = 0.0, 0.0  # Default values
+                    try:
+                        if os.path.exists(trajectory_file):
+                            with open(trajectory_file, 'r') as traj_f:
+                                traj_reader = csv.DictReader(traj_f)
+                                first_waypoint = next(traj_reader, None)
+                                if first_waypoint:
+                                    x = float(first_waypoint.get('px', 0))  # North
+                                    y = float(first_waypoint.get('py', 0))  # East
+                                else:
+                                    logger.warning(f"Trajectory file empty for pos_id={pos_id}")
+                        else:
+                            logger.warning(f"Trajectory file not found for pos_id={pos_id}: {trajectory_file}")
+                    except Exception as e:
+                        logger.error(f"Error reading trajectory for pos_id={pos_id}: {e}")
+
                     DRONE_CONFIG[hw_id] = {
                         'hw_id': hw_id,
-                        'pos_id': int(row["pos_id"]),
-                        'x': float(row["x"]),
-                        'y': float(row["y"]),
+                        'pos_id': pos_id,
+                        'x': x,
+                        'y': y,
                         'ip': row["ip"],
                         'mavlink_port': int(row["mavlink_port"]),
-                        'debug_port': int(row["debug_port"]),
-                        'gcs_ip': row["gcs_ip"],
                     }
                 except ValueError as ve:
                     logger.error(f"Invalid data type in config file row: {row}. Error: {ve}")
-        logger.info(f"Read {len(DRONE_CONFIG)} drone configurations from '{filename}'.")
+        logger.info(f"Read {len(DRONE_CONFIG)} drone configurations from '{filename}' with positions from trajectory CSV.")
     except FileNotFoundError:
         logger.exception(f"Config file '{filename}' not found.")
         sys.exit(1)
@@ -497,7 +526,7 @@ async def update_swarm_config_periodically(drone):
     If a role change is detected (e.g., switching from follower to leader or vice versa),
     it starts or cancels follower-specific tasks accordingly.
 
-    NOTE: Requires DRONE_CONFIG[HW_ID]['gcs_ip'] and Params.flask_telem_socket_port to be set.
+    NOTE: Requires Params.GCS_IP and Params.flask_telem_socket_port to be set.
     """
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
@@ -505,14 +534,14 @@ async def update_swarm_config_periodically(drone):
 
     logger = logging.getLogger(__name__)
 
-    # Resolve the GCS endpoint for this drone
+    # Resolve the GCS endpoint using centralized GCS IP from Params
     str_HW_ID = str(HW_ID)
     drone_cfg = DRONE_CONFIG.get(str_HW_ID)
-    if not drone_cfg or 'gcs_ip' not in drone_cfg:
-        logger.error(f"[Periodic Update] Cannot resolve GCS IP for HW_ID={HW_ID}")
+    if not drone_cfg:
+        logger.error(f"[Periodic Update] Cannot resolve drone config for HW_ID={HW_ID}")
         return
 
-    gcs_ip = drone_cfg['gcs_ip']
+    gcs_ip = Params.GCS_IP
     state_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/get-swarm-data"
 
     # Shared session for connection reuse
@@ -811,7 +840,7 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
     """
     logger = logging.getLogger(__name__)
 
-    gcs_ip = DRONE_CONFIG[str(HW_ID)]['gcs_ip']
+    gcs_ip = Params.GCS_IP
     notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/request-new-leader"
 
     current = SWARM_CONFIG.get(str(HW_ID))

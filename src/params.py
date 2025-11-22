@@ -229,9 +229,41 @@ class Params:
     gcs_heartbeat_endpoint = "/drone-heartbeat"
 
     netbird_ip_prefix = "100."
-    
-    REQUIRE_GLOBAL_POSITION: bool = True  # Set to False if you want to skip global position checks
-    
+
+    # GPS 3D Fix Requirement
+    # When True, waits for GPS 3D fix and home position before starting mission
+    # When False, skips GPS health checks (useful for LOCAL mode or future non-GPS modes)
+    # Default: False (allows LOCAL mode operation without GPS)
+    # Note: GLOBAL mode requires GPS regardless of this setting
+    REQUIRE_GLOBAL_POSITION: bool = False
+
+    # Phase 2: Auto Global Origin Correction Mode
+    # When enabled, drones fetch shared origin from GCS and apply intelligent position correction
+    # Default: True for new deployments (maximum precision)
+    # Set to False to use legacy operator-placement mode (v3.7 behavior)
+    AUTO_GLOBAL_ORIGIN_MODE = True
+
+    # Safety threshold: Abort flight if drone position deviates more than this from expected position
+    # Default: 20.0 meters (catches major operator placement errors)
+    ORIGIN_DEVIATION_ABORT_THRESHOLD_M = 20.0
+
+    # Duration of smooth transition from current position to corrected trajectory after initial climb
+    # Default: 3.0 seconds (prevents abrupt movements)
+    BLEND_TRANSITION_DURATION_SEC = 3.0
+
+    # Minimum altitude safety margin during blend phase (Phase 2)
+    # Prevents sinking by ensuring blend target altitude is never below current altitude minus this margin
+    # Set to 0.0 to allow descent, or positive value to force upward bias during blend
+    # Default: 0.5 meters (ensures slight upward movement, preventing any sinking)
+    MIN_BLEND_ALTITUDE_MARGIN_M = 0.5
+
+    # Warn if cached origin is older than this (in seconds)
+    # Default: 3600 seconds (1 hour)
+    ORIGIN_CACHE_STALENESS_WARNING_SEC = 3600
+
+    # Timeout for fetching origin from GCS server
+    # Default: 5.0 seconds
+    ORIGIN_FETCH_TIMEOUT_SEC = 5.0
 
     # Smart Swarm Parameters
     CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz

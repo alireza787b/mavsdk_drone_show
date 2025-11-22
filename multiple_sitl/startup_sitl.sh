@@ -337,9 +337,10 @@ set_mav_sys_id() {
     fi
 }
 
-# Function to read offsets from config.csv
+# Function to read offsets from trajectory CSV
+# Note: x,y positions now come from trajectory CSV files (single source of truth), not config.csv
 read_offsets() {
-    log_message "Reading offsets from $CONFIG_FILE for HWID: $HWID..."
+    log_message "Reading offsets from trajectory CSV for HWID: $HWID..."
 
     OFFSET_X=0
     OFFSET_Y=0
@@ -349,16 +350,56 @@ read_offsets() {
         return
     fi
 
-    while IFS=, read -r hw_id pos_id x y ip mavlink_port debug_port gcs_ip; do
+    # Read config.csv to get pos_id for this hw_id (NEW 6-column format)
+    # Format: hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
+    local POS_ID=""
+    while IFS=, read -r hw_id pos_id ip mavlink_port serial_port baudrate; do
+        # Skip header line
+        if [ "$hw_id" == "hw_id" ]; then
+            continue
+        fi
         if [ "$hw_id" == "$HWID" ]; then
-            OFFSET_X="$x"
-            OFFSET_Y="$y"
-            log_message "Found offsets - X: $OFFSET_X, Y: $OFFSET_Y"
-            return
+            POS_ID="$pos_id"
+            log_message "Found pos_id=$POS_ID for hw_id=$HWID"
+            break
         fi
     done < "$CONFIG_FILE"
 
-    log_message "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
+    if [ -z "$POS_ID" ]; then
+        log_message "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
+        return
+    fi
+
+    # Read trajectory CSV to get initial position (px, py from first row)
+    TRAJECTORY_FILE="$BASE_DIR/shapes_sitl/swarm/processed/Drone ${POS_ID}.csv"
+
+    if [ ! -f "$TRAJECTORY_FILE" ]; then
+        log_message "WARNING: Trajectory file not found: $TRAJECTORY_FILE"
+        log_message "Falling back to row spawning with fixed spacing for drone $HWID"
+        # Spawn in row with 10m spacing
+        OFFSET_X=0
+        OFFSET_Y=$((($HWID - 1) * 10))
+        log_message "Using fallback offsets - X: $OFFSET_X, Y: $OFFSET_Y (row formation)"
+        return
+    fi
+
+    # Read first waypoint (skip header, read first data row)
+    # Trajectory CSV format: t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,yawspeed
+    local LINE_NUM=0
+    while IFS=, read -r t px py pz vx vy vz ax ay az yaw yawspeed; do
+        LINE_NUM=$((LINE_NUM + 1))
+        # Skip header
+        if [ "$LINE_NUM" -eq 1 ]; then
+            continue
+        fi
+        # Read first data row
+        OFFSET_X="$px"
+        OFFSET_Y="$py"
+        log_message "Found trajectory offsets from $TRAJECTORY_FILE - X: $OFFSET_X, Y: $OFFSET_Y"
+        return
+    done < "$TRAJECTORY_FILE"
+
+    log_message "WARNING: Could not read trajectory data from $TRAJECTORY_FILE. Using default offsets (0,0)."
 }
 
 # Function to calculate new geographic coordinates
