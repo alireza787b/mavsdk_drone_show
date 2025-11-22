@@ -11,7 +11,7 @@ This script initializes and coordinates various components of the drone manageme
 
 Key components:
     - ConnectivityChecker: Pings a specified IP and updates LED status.
-    - DroneCommunicator and FlaskHandler: Handle communication and HTTP server.
+    - DroneCommunicator and DroneAPIServer: Handle communication and HTTP server.
     - HeartbeatSender: Sends regular heartbeat signals.
     - PosIDAutoDetector: Automatically detects position ID (if enabled).
 """
@@ -32,7 +32,7 @@ from src.drone_communicator import DroneCommunicator
 from src.drone_setup import DroneSetup
 from src.params import Params
 from src.mavlink_manager import MavlinkManager
-from src.flask_handler import FlaskHandler
+from src.drone_api_server import DroneAPIServer
 from src.led_controller import LEDController
 from src.connectivity_checker import ConnectivityChecker
 from src.enums import State  # Import State enum
@@ -87,7 +87,7 @@ drone_setup = None
 heartbeat_sender = None
 connectivity_checker = None
 pos_id_auto_detector = None
-flask_handler = None
+api_server = None
 
 # Initialize LEDController instance if not in simulation mode
 if not Params.sim_mode:
@@ -145,7 +145,7 @@ def main_loop():
     Monitors drone state changes, updates LED status via ConnectivityChecker,
     sends watchdog notifications, and manages thread cleanup on exit.
     """
-    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, flask_handler
+    global mavlink_manager, drone_comms, drone_setup, connectivity_checker, heartbeat_sender, pos_id_auto_detector, api_server
 
     try:
         logger.info("Starting the main loop...")
@@ -270,25 +270,25 @@ def main():
     local_drone_controller = LocalMavlinkController(drone_config, params, False)
     logger.info("LocalMavlinkController initialized.")
 
-    # Initialize DroneCommunicator and FlaskHandler for communications
-    global flask_handler
+    # Initialize DroneCommunicator and DroneAPIServer for communications
+    global api_server
     drone_comms = DroneCommunicator(drone_config, params, drones)
-    flask_handler = FlaskHandler(params, drone_config)
+    api_server = DroneAPIServer(params, drone_config)
 
-    drone_comms.set_flask_handler(flask_handler)
-    logger.info("DroneCommunicator's FlaskHandler set.")
+    drone_comms.set_api_server(api_server)
+    logger.info("DroneCommunicator's DroneAPIServer set.")
 
-    flask_handler.set_drone_communicator(drone_comms)
-    logger.info("FlaskHandler's DroneCommunicator set.")
+    api_server.set_drone_communicator(drone_comms)
+    logger.info("DroneAPIServer's DroneCommunicator set.")
 
     drone_comms.start_communication()
     logger.info("DroneCommunicator communication started.")
 
-    # Start the Flask HTTP server if enabled in the parameters
+    # Start the FastAPI HTTP server if enabled in the parameters
     if params.enable_drones_http_server:
-        flask_thread = threading.Thread(target=flask_handler.run, daemon=True)
-        flask_thread.start()
-        logger.info("Flask HTTP server started.")
+        api_thread = threading.Thread(target=api_server.run, daemon=True)
+        api_thread.start()
+        logger.info("FastAPI HTTP server started.")
 
     # Start the HeartbeatSender to send periodic heartbeat signals
     heartbeat_sender = HeartbeatSender(drone_config)
@@ -303,7 +303,7 @@ def main():
     # Optionally, start the PosIDAutoDetector if auto-detection is enabled
     if params.auto_detection_enabled:
         global pos_id_auto_detector
-        pos_id_auto_detector = PosIDAutoDetector(drone_config, params, flask_handler)
+        pos_id_auto_detector = PosIDAutoDetector(drone_config, params, api_server)
         pos_id_auto_detector.start()
     else:
         logger.info("PosIDAutoDetector is disabled via parameters.")

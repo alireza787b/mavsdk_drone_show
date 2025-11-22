@@ -146,7 +146,10 @@ class Params:
 
     get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
     get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
-    flask_telem_socket_port = 5000          # Flask telemetry socket port
+
+    # GCS Server Port Configuration
+    gcs_server_port = 5000                  # GCS server port (FastAPI/Flask)
+    flask_telem_socket_port = gcs_server_port  # DEPRECATED: Use gcs_server_port instead
 
     get_position_deviation_URI = 'get-position-deviation'
     acceptable_deviation = 3.0              # Acceptable deviation in meters

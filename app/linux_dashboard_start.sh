@@ -27,7 +27,7 @@ PROD_WSGI_BIND="0.0.0.0:5000"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 DEV_REACT_PORT=3030
-DEV_FLASK_PORT=5000
+DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="DroneServices"
 
 # ===========================================
@@ -80,6 +80,11 @@ OVERWRITE_IP=""
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
 BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
+
+# Backend Selection: FastAPI (recommended) or Flask (legacy)
+# Options: fastapi, flask
+# Can be overridden via GCS_BACKEND environment variable
+GCS_BACKEND="${GCS_BACKEND:-fastapi}"
 
 # ===========================================
 # LOGGING FUNCTIONS
@@ -269,8 +274,8 @@ handle_env_file() {
         mkdir -p "$(dirname "$ENV_FILE_PATH")"
         cat > "$ENV_FILE_PATH" << EOF
 REACT_APP_SERVER_URL=http://$server_ip
-REACT_APP_FLASK_PORT=5000
-DRONE_APP_FLASK_PORT=7070
+REACT_APP_GCS_PORT=5000
+REACT_APP_DRONE_PORT=7070
 GENERATE_SOURCEMAP=false
 EOF
         log_success ".env file created with IP: $server_ip"
@@ -369,27 +374,62 @@ install_production_dependencies() {
 setup_production_environment() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         log_info "Configuring production environment..."
+        # New standardized environment variables
+        export GCS_ENV=production
+        export GCS_PORT="$DEV_GCS_PORT"
+        export GCS_BACKEND="$GCS_BACKEND"
+
+        # Legacy environment variables (backward compatibility)
         export FLASK_ENV=production
+        export FLASK_PORT="$DEV_GCS_PORT"
+
+        # Node/React environment
         export NODE_ENV=production
         export REACT_APP_ENV=production
         install_production_dependencies
-        log_success "Production environment configured."
+        log_success "Production environment configured (Backend: $GCS_BACKEND)"
     else
         log_info "Configuring development environment..."
+        # New standardized environment variables
+        export GCS_ENV=development
+        export GCS_PORT="$DEV_GCS_PORT"
+        export GCS_BACKEND="$GCS_BACKEND"
+
+        # Legacy environment variables (backward compatibility)
         export FLASK_ENV=development
+        export FLASK_PORT="$DEV_GCS_PORT"
         export FLASK_DEBUG=1
+
+        # Node/React environment
         export NODE_ENV=development
         export REACT_APP_ENV=development
-        log_success "Development environment configured."
+        log_success "Development environment configured (Backend: $GCS_BACKEND)"
     fi
 }
 
-get_flask_command() {
-    if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
-        echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+get_gcs_server_command() {
+    # Support both FastAPI and Flask backends
+    if [[ "$GCS_BACKEND" == "fastapi" ]]; then
+        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+            # FastAPI production: Gunicorn with Uvicorn workers
+            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app_fastapi:app"
+        else
+            # FastAPI development: Uvicorn with auto-reload
+            echo "cd '$GCS_SERVER_DIR' && uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload"
+        fi
     else
-        echo "cd '$GCS_SERVER_DIR' && python app.py"
+        # Flask backend (legacy)
+        if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
+            echo "cd '$GCS_SERVER_DIR' && gunicorn -w $PROD_WSGI_WORKERS -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL app:app"
+        else
+            echo "cd '$GCS_SERVER_DIR' && python app.py"
+        fi
     fi
+}
+
+# Legacy alias for backward compatibility
+get_flask_command() {
+    get_gcs_server_command
 }
 
 get_react_command() {
@@ -434,7 +474,7 @@ start_services_in_tmux() {
         local pane_index=0
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting Flask server in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
+            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
             pane_index=$((pane_index + 1))
         fi
         
@@ -453,8 +493,8 @@ start_services_in_tmux() {
         local window_index=0
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-            tmux rename-window -t "$session:0" "Flask-Server"
-            tmux send-keys -t "$session:Flask-Server" "clear && echo 'Starting Flask server...' && $gcs_cmd" C-m
+            tmux rename-window -t "$session:0" "GCS-Server"
+            tmux send-keys -t "$session:GCS-Server" "clear && echo 'Starting GCS server ($GCS_BACKEND)...' && $gcs_cmd" C-m
             window_index=$((window_index + 1))
         fi
         
@@ -477,7 +517,7 @@ start_services_no_tmux() {
     
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         local gcs_cmd=$(get_flask_command)
-        gnome-terminal -- bash -c "echo 'Starting Flask server in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
+        gnome-terminal -- bash -c "echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
     fi
     
     if [[ "$RUN_GUI_APP" == "true" ]]; then
@@ -559,7 +599,7 @@ EOF
 
 DEVELOPMENT CONFIG:
   - React Port: $DEV_REACT_PORT
-  - Flask Port: $DEV_FLASK_PORT
+  - GCS Port: $DEV_GCS_PORT
   - Hot Reload: ENABLED
   - Debug Mode: ENABLED
 EOF
@@ -620,7 +660,7 @@ if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         prod_port=$(echo "$PROD_WSGI_BIND" | cut -d':' -f2)
         check_and_kill_port "$prod_port"
     else
-        check_and_kill_port "$DEV_FLASK_PORT"
+        check_and_kill_port "$DEV_GCS_PORT"
     fi
 fi
 

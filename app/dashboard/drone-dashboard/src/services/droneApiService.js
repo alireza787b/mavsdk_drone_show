@@ -26,7 +26,7 @@ export const sendDroneCommand = async (commandData) => {
     console.log('Sending command:', JSON.stringify(commandData));
     console.log('Request URI:', requestURI);
     console.log('Base Server URL:', process.env.REACT_APP_SERVER_URL);
-    console.log('Service Port:', process.env.REACT_APP_FLASK_PORT);
+    console.log('Service Port:', process.env.REACT_APP_GCS_PORT || process.env.REACT_APP_FLASK_PORT);
 
     const response = await axios.post(requestURI, commandData);
     console.log('Response received from server:', response.data);

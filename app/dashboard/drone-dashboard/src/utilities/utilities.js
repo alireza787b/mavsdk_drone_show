@@ -4,7 +4,8 @@
 const baseServerURL = process.env.REACT_APP_SERVER_URL || 'http://localhost';
 
 // Function to get the backend URL, always including the specified or default port
-export function getBackendURL(servicePort = process.env.REACT_APP_FLASK_PORT || '5000') {
+// Supports both new (REACT_APP_GCS_PORT) and legacy (REACT_APP_FLASK_PORT) naming
+export function getBackendURL(servicePort = process.env.REACT_APP_GCS_PORT || process.env.REACT_APP_FLASK_PORT || '5000') {
     // Ensure that the port is always appended to the URL
     return `${baseServerURL}:${servicePort}`;
 }

@@ -253,7 +253,7 @@ const MissionConfig = () => {
     setOriginAvailable(true);
     toast.success('Origin set successfully.');
 
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
     axios
       .post(`${backendURL}/set-origin`, newOrigin)
       .then(() => {
@@ -269,7 +269,7 @@ const MissionConfig = () => {
   // GCS Configuration Modal submission
   // -----------------------------------------------------
   const handleGcsConfigSubmit = async (newGcsConfig) => {
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
 
     try {
       const response = await axios.post(`${backendURL}/save-gcs-config`, newGcsConfig);
@@ -311,7 +311,7 @@ const MissionConfig = () => {
       return;
     }
 
-    const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+    const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
     axios
       .get(`${backendURL}/get-position-deviations`)
       .then((response) => {

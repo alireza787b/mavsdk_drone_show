@@ -33,7 +33,7 @@ const ImportShow = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showDuration, setShowDuration] = useState(null);
 
-  const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+  const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
 
   // Fetch plot list from backend
   useEffect(() => {
