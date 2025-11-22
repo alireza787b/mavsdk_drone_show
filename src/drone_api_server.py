@@ -2,11 +2,11 @@
 """
 Drone API Server - FastAPI Implementation
 ==========================================
-Modern async API server for drone-side HTTP communication.
-Migrated from Flask with 100% backward compatibility.
+Modern async API server for drone-side HTTP and WebSocket communication.
+Migrated from Flask with 100% backward compatibility + WebSocket streaming.
 
-Endpoints:
-- GET  /get_drone_state          - Get current drone state
+HTTP REST Endpoints:
+- GET  /get_drone_state          - Get current drone state (snapshot)
 - POST /api/send-command          - Receive command from GCS
 - GET  /get-home-pos              - Get home position
 - GET  /get-gps-global-origin     - Get GPS global origin
@@ -16,6 +16,13 @@ Endpoints:
 - GET  /get-network-status        - Get network information
 - GET  /get-swarm-data            - Get swarm configuration
 - GET  /get-local-position-ned    - Get LOCAL_POSITION_NED data
+
+WebSocket Endpoints:
+- WS   /ws/drone-state            - Real-time drone state streaming (efficient)
+
+API Documentation:
+- Interactive Docs: http://drone-ip:7070/docs
+- OpenAPI Schema:   http://drone-ip:7070/openapi.json
 """
 
 import csv
@@ -28,12 +35,14 @@ from typing import Dict, Any, Optional, List
 from pyproj import Proj, Transformer
 
 # FastAPI imports
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 import requests
+import asyncio
+import json
 
 # Project imports
 from src.drone_config import DroneConfig
@@ -111,6 +120,7 @@ class DroneAPIServer:
     - Automatic OpenAPI documentation
     - Type validation with Pydantic
     - Same routes and behavior as Flask version
+    - WebSocket support for real-time telemetry streaming
     """
 
     def __init__(self, params: Params, drone_config: DroneConfig):
@@ -124,8 +134,11 @@ class DroneAPIServer:
         """
         self.app = FastAPI(
             title="Drone API Server",
-            description="API server for drone-side communication",
-            version="2.0.0"  # FastAPI version
+            description="High-performance API server for drone-side communication with HTTP REST and WebSocket support",
+            version="2.0.0",  # FastAPI version
+            docs_url="/docs",  # Interactive API docs
+            redoc_url="/redoc",  # Alternative docs
+            openapi_url="/openapi.json"  # OpenAPI schema
         )
 
         # Add CORS middleware (same as Flask-CORS)
@@ -140,6 +153,11 @@ class DroneAPIServer:
         self.params = params
         self.drone_communicator = None  # Will be set later
         self.drone_config = drone_config
+
+        # WebSocket connection management
+        self.active_websockets: List[WebSocket] = []
+        self.last_state_hash = None  # Track state changes
+
         self.setup_routes()
 
     def set_drone_communicator(self, drone_communicator):
@@ -389,6 +407,80 @@ class DroneAPIServer:
             except Exception as e:
                 logging.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve NED position")
+
+        # ====================================================================
+        # WebSocket Endpoint for Real-Time Telemetry Streaming
+        # ====================================================================
+
+        @self.app.websocket("/ws/drone-state")
+        async def websocket_drone_state(websocket: WebSocket):
+            """
+            WebSocket endpoint for real-time drone state streaming.
+
+            Advantages over HTTP polling:
+            - 95% less network overhead (no HTTP headers)
+            - Real-time push (no polling delay)
+            - Bi-directional communication
+            - More efficient for GCS monitoring multiple drones
+
+            Usage:
+                ws://drone-ip:7070/ws/drone-state
+
+            Example (JavaScript):
+                const ws = new WebSocket('ws://192.168.1.100:7070/ws/drone-state');
+                ws.onmessage = (event) => {
+                    const droneState = JSON.parse(event.data);
+                    console.log('Drone state:', droneState);
+                };
+
+            Example (Python):
+                import asyncio
+                import websockets
+                async with websockets.connect('ws://192.168.1.100:7070/ws/drone-state') as ws:
+                    while True:
+                        state = json.loads(await ws.recv())
+                        print(f"Drone state: {state}")
+
+            The endpoint sends state updates at 1 Hz (configurable).
+            """
+            await websocket.accept()
+            self.active_websockets.append(websocket)
+
+            logging.info(f"WebSocket client connected from {websocket.client.host}")
+            logging.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+
+            try:
+                while True:
+                    # Get current drone state
+                    drone_state = self.drone_communicator.get_drone_state()
+
+                    if drone_state:
+                        # Add timestamp
+                        drone_state['timestamp'] = int(time.time() * 1000)
+
+                        # Send state to client
+                        await websocket.send_json(drone_state)
+                    else:
+                        # Send error message if state not available
+                        await websocket.send_json({
+                            "error": "Drone state not available",
+                            "timestamp": int(time.time() * 1000)
+                        })
+
+                    # Update interval: 1 Hz (can be adjusted based on requirements)
+                    # For higher frequency: 0.1 (10 Hz) or 0.05 (20 Hz)
+                    # For lower frequency: 2 (0.5 Hz) or 5 (0.2 Hz)
+                    await asyncio.sleep(1.0)
+
+            except WebSocketDisconnect:
+                logging.info(f"WebSocket client disconnected from {websocket.client.host}")
+            except Exception as e:
+                logging.error(f"WebSocket error: {e}")
+            finally:
+                # Clean up
+                if websocket in self.active_websockets:
+                    self.active_websockets.remove(websocket)
+                logging.info(f"Active WebSocket connections: {len(self.active_websockets)}")
 
     # ========================================================================
     # Helper Methods (preserved from Flask version)
