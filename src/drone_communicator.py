@@ -45,12 +45,12 @@ class DroneCommunicator:
         if params.enable_default_subscriptions:
             self.subscription_manager.subscribe_to_all()
 
-        # Initialize flask_handler as None; it will be injected later
-        self.flask_handler = None
+        # Initialize api_server as None; it will be injected later
+        self.api_server = None
 
-    def set_flask_handler(self, flask_handler):
-        """Setter for injecting FlaskHandler dependency after initialization."""
-        self.flask_handler = flask_handler
+    def set_api_server(self, api_server):
+        """Setter for injecting DroneAPIServer dependency after initialization."""
+        self.api_server = api_server
 
     def _initialize_socket(self) -> socket.socket:
         """Initialize and return a UDP socket for telemetry."""
@@ -389,9 +389,8 @@ class DroneCommunicator:
             self.telemetry_thread.start()
             self.command_thread.start()
 
-        # Start the Flask server for HTTP commands
-        self.flask_handler_thread = threading.Thread(target=self.flask_handler.run)
-        self.flask_handler_thread.start()
+        # Note: API server is now started in coordinator.py, not here
+        # This keeps the separation of concerns clean
 
     def stop_communication(self) -> None:
         """Stop all communication threads and clean up resources."""
@@ -399,7 +398,7 @@ class DroneCommunicator:
         if Params.enable_udp_telemetry:
             self.telemetry_thread.join()
             self.command_thread.join()
-        self.flask_handler_thread.join()
+        # API server is managed separately in coordinator.py
         self.executor.shutdown()
 
         if self.sock:

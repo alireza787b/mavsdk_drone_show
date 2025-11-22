@@ -9,17 +9,17 @@ class PosIDAutoDetector:
     Handles the automatic detection of pos_id based on the drone's current position.
     """
 
-    def __init__(self, drone_config, params, flask_handler):
+    def __init__(self, drone_config, params, api_server):
         """
         Initialize the PosIDAutoDetector.
 
         :param drone_config: Configuration object for the drone.
         :param params: Parameters object containing settings.
-        :param flask_handler: Handler for communication with the Ground Control Station (GCS).
+        :param api_server: API server for communication with the Ground Control Station (GCS).
         """
         self.drone_config = drone_config
         self.params = params
-        self.flask_handler = flask_handler
+        self.api_server = api_server
         self.running_event = threading.Event()
         self.thread = None
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -73,7 +73,7 @@ class PosIDAutoDetector:
         self.logger.debug("Starting pos_id detection process.")
 
         # Fetch origin from GCS
-        origin = self.flask_handler._get_origin_from_gcs()
+        origin = self.api_server._get_origin_from_gcs()
         if not origin:
             self.logger.warning("Origin data unavailable. Skipping pos_id detection.")
             return
