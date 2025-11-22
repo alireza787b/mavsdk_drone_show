@@ -1,19 +1,32 @@
 # Test Suite - MAVSDK Drone Show
 
-**Status:** ✅ Initial test suite for Drone API Server
-**Coverage:** Drone-side API Server (HTTP + WebSocket)
+**Status:** ✅ Comprehensive test suite for both Drone and GCS API Servers
+**Coverage:** Drone-side API Server + GCS API Server (HTTP + WebSocket)
 **Framework:** pytest
 
 ---
 
 ## Overview
 
-This test suite provides comprehensive testing for the Drone API Server, covering:
+This test suite provides comprehensive testing for both API servers, covering:
+
+**Drone API Server:**
 - ✅ All 10 HTTP REST endpoints
 - ✅ WebSocket real-time streaming
 - ✅ Error handling and edge cases
 - ✅ Data format validation
+
+**GCS API Server:**
+- ✅ 71+ HTTP REST endpoints
+- ✅ WebSocket real-time streaming (telemetry, git-status, heartbeats)
+- ✅ Configuration management
+- ✅ Show import and management
+- ✅ Origin and position deviation calculations
+- ✅ Git operations and swarm management
+
+**General:**
 - ✅ Mock-based unit tests (fast execution)
+- ✅ Comprehensive error handling coverage
 
 ---
 
@@ -50,14 +63,16 @@ pytest --cov=src --cov-report=html
 
 ```
 tests/
-├── __init__.py                    # Package init
-├── conftest.py                    # Shared fixtures and configuration
-├── test_drone_api_http.py         # HTTP REST endpoint tests
-├── test_drone_api_websocket.py    # WebSocket streaming tests
-├── requirements-test.txt          # Test dependencies
-└── README.md                      # This file
+├── __init__.py                      # Package init
+├── conftest.py                      # Shared fixtures and configuration
+├── test_drone_api_http.py           # Drone HTTP REST endpoint tests
+├── test_drone_api_websocket.py      # Drone WebSocket streaming tests
+├── test_gcs_api_http.py             # GCS HTTP REST endpoint tests (NEW)
+├── test_gcs_api_websocket.py        # GCS WebSocket streaming tests (NEW)
+├── requirements-test.txt            # Test dependencies
+└── README.md                        # This file
 
-pytest.ini                         # Pytest configuration (root)
+pytest.ini                           # Pytest configuration (root)
 ```
 
 ---
