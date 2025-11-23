@@ -746,9 +746,9 @@ async def get_origin():
                 timestamp_ms = int(time.time() * 1000)
 
         return OriginResponse(
-            latitude=float(origin.get('lat', 0)),
-            longitude=float(origin.get('lon', 0)),
-            altitude=float(origin.get('alt', 0)),
+            lat=float(origin.get('lat', 0)),
+            lon=float(origin.get('lon', 0)),
+            alt=float(origin.get('alt', 0)),
             timestamp=timestamp_ms
         )
     except HTTPException:
@@ -763,21 +763,23 @@ async def set_origin(origin_req: OriginRequest):
     """Set origin coordinates manually"""
     try:
         origin_data = {
-            'lat': origin_req.latitude,
-            'lon': origin_req.longitude,
-            'alt': origin_req.altitude,
-            'timestamp': int(time.time() * 1000),
-            'source': 'manual'
+            'lat': origin_req.lat,
+            'lon': origin_req.lon,
+            'alt': origin_req.alt,
+            'alt_source': origin_req.alt_source,
+            'timestamp': datetime.now().isoformat(),
+            'version': 2
         }
         save_origin(origin_data)
 
         return OriginResponse(
-            latitude=origin_req.latitude,
-            longitude=origin_req.longitude,
-            altitude=origin_req.altitude,
-            timestamp=origin_data['timestamp']
+            lat=origin_req.lat,
+            lon=origin_req.lon,
+            alt=origin_req.alt,
+            timestamp=int(time.time() * 1000)
         )
     except Exception as e:
+        log_system_error(f"Error setting origin: {e}", "origin")
         raise HTTPException(status_code=500, detail=str(e))
 
 
