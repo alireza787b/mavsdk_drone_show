@@ -1719,11 +1719,9 @@ async def internal_error_handler(request: Request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    # Support both new (GCS_PORT) and legacy (FLASK_PORT) environment variables
-    port = int(os.getenv('GCS_PORT', os.getenv('FLASK_PORT', Params.gcs_server_port)))
-
-    # Support both new (GCS_ENV) and legacy (FLASK_ENV) environment variables
-    env_mode = os.getenv('GCS_ENV', os.getenv('FLASK_ENV', 'development'))
+    # Read environment configuration
+    port = int(os.getenv('GCS_PORT', Params.gcs_server_port))
+    env_mode = os.getenv('GCS_ENV', 'development')
     is_dev = env_mode == 'development'
 
     print(f"\n{'='*60}")

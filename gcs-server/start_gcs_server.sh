@@ -157,10 +157,7 @@ start_server() {
     # Export environment variables for the server
     export GCS_ENV="$MODE"
     export GCS_PORT="$PORT"
-
-    # Also export legacy FLASK_* variables for backward compatibility
-    export FLASK_ENV="$MODE"
-    export FLASK_PORT="$PORT"
+    export GCS_BACKEND="$BACKEND"
 
     if [[ "$BACKEND" == "fastapi" ]]; then
         start_fastapi
