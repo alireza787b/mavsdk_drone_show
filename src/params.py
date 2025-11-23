@@ -29,9 +29,7 @@ class Params:
     # If 'real.mode' exists, sim_mode is False (real-life mode)
     sim_mode = not os.path.exists(real_mode_file)
 
-    # Debug: Print the current mode
-    print(f"[DEBUG] Simulation Mode: {sim_mode}")
-
+    # Configuration CSV filenames (determined by mode)
     # URLs for configuration files (not used in current implementation)
     config_url = 'https://nb1.joomtalk.ir/download/config.csv'  # Ugit addRL for the configuration file
     swarm_url = 'https://nb1.joomtalk.ir/download/swarm.csv'    # URL for the swarm file
@@ -92,10 +90,6 @@ class Params:
     else:
         config_csv_name = "config.csv"
         swarm_csv_name = "swarm.csv"
-
-    # Debug: Print the selected configuration files
-    print(f"[DEBUG] Configuration CSV: {config_csv_name}")
-    print(f"[DEBUG] Swarm CSV: {swarm_csv_name}")
 
     # General Settings
     enable_drones_http_server = True  # Enable HTTP server on drones
