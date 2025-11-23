@@ -17,7 +17,7 @@ const useFetch = (endpoint, interval = null) => {
 
   useEffect(() => {
     let isMounted = true; // To prevent state updates after unmount
-    const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
+    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 
     const fetchData = async () => {
       setLoading(true);

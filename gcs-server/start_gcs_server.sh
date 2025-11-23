@@ -157,10 +157,7 @@ start_server() {
     # Export environment variables for the server
     export GCS_ENV="$MODE"
     export GCS_PORT="$PORT"
-
-    # Also export legacy FLASK_* variables for backward compatibility
-    export FLASK_ENV="$MODE"
-    export FLASK_PORT="$PORT"
+    export GCS_BACKEND="$BACKEND"
 
     if [[ "$BACKEND" == "fastapi" ]]; then
         start_fastapi
@@ -173,8 +170,9 @@ start_fastapi() {
     log_info "Starting FastAPI server..."
 
     if [[ "$MODE" == "production" ]]; then
-        # Production: Use Gunicorn with Uvicorn workers
-        log_info "Running FastAPI with Gunicorn + Uvicorn workers"
+        # Production: Use Gunicorn with Uvicorn workers (optimized for performance)
+        log_info "Running FastAPI with Gunicorn + Uvicorn workers ($PROD_WSGI_WORKERS workers)"
+        log_info "Production optimizations: preload app, worker recycling, graceful timeout"
         exec gunicorn app_fastapi:app \
             -w "$PROD_WSGI_WORKERS" \
             -k uvicorn.workers.UvicornWorker \
@@ -182,10 +180,17 @@ start_fastapi() {
             --timeout "$PROD_GUNICORN_TIMEOUT" \
             --log-level "$PROD_LOG_LEVEL" \
             --access-logfile - \
-            --error-logfile -
+            --error-logfile - \
+            --preload-app \
+            --max-requests 1000 \
+            --max-requests-jitter 50 \
+            --graceful-timeout 30 \
+            --keep-alive 5
     else
         # Development: Use Uvicorn directly with auto-reload
+        # NOTE: Auto-reload spawns 2 processes (reloader + worker), so startup code runs twice
         log_info "Running FastAPI with Uvicorn (auto-reload enabled)"
+        log_warn "Development mode: Server will auto-reload on file changes"
         exec uvicorn app_fastapi:app \
             --host 0.0.0.0 \
             --port "$PORT" \

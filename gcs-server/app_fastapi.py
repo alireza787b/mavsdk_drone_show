@@ -247,22 +247,25 @@ background_services = BackgroundServices()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown"""
-    # Startup
-    log_system_event("GCS FastAPI server starting up...", "INFO", "startup")
+    # Startup - only runs in worker process
+    mode = "Simulation" if Params.sim_mode else "Production"
+    log_system_event(f"Starting GCS FastAPI server ({mode} mode)...", "INFO", "startup")
+    log_system_event(f"Configuration: {Params.config_csv_name}, Swarm: {Params.swarm_csv_name}", "INFO", "startup")
 
     # Load drones
     drones = load_config()
     if not drones:
-        log_system_error("No drones found in configuration", "startup")
+        log_system_warning("No drones found in configuration", "startup")
     else:
+        log_system_event(f"Loaded {len(drones)} drone(s) from configuration", "INFO", "startup")
         # Start background services
         await background_services.start(drones)
 
-    log_system_event("GCS FastAPI server ready", "INFO", "startup")
+    log_system_event("GCS FastAPI server ready - all services started", "INFO", "startup")
 
     yield
 
-    # Shutdown
+    # Shutdown - only runs in worker process
     log_system_event("GCS FastAPI server shutting down...", "INFO", "shutdown")
     await background_services.stop()
     log_system_event("GCS FastAPI server stopped", "INFO", "shutdown")
@@ -743,9 +746,9 @@ async def get_origin():
                 timestamp_ms = int(time.time() * 1000)
 
         return OriginResponse(
-            latitude=float(origin.get('lat', 0)),
-            longitude=float(origin.get('lon', 0)),
-            altitude=float(origin.get('alt', 0)),
+            lat=float(origin.get('lat', 0)),
+            lon=float(origin.get('lon', 0)),
+            alt=float(origin.get('alt', 0)),
             timestamp=timestamp_ms
         )
     except HTTPException:
@@ -760,21 +763,23 @@ async def set_origin(origin_req: OriginRequest):
     """Set origin coordinates manually"""
     try:
         origin_data = {
-            'lat': origin_req.latitude,
-            'lon': origin_req.longitude,
-            'alt': origin_req.altitude,
-            'timestamp': int(time.time() * 1000),
-            'source': 'manual'
+            'lat': origin_req.lat,
+            'lon': origin_req.lon,
+            'alt': origin_req.alt,
+            'alt_source': origin_req.alt_source,
+            'timestamp': datetime.now().isoformat(),
+            'version': 2
         }
         save_origin(origin_data)
 
         return OriginResponse(
-            latitude=origin_req.latitude,
-            longitude=origin_req.longitude,
-            altitude=origin_req.altitude,
-            timestamp=origin_data['timestamp']
+            lat=origin_req.lat,
+            lon=origin_req.lon,
+            alt=origin_req.alt,
+            timestamp=int(time.time() * 1000)
         )
     except Exception as e:
+        log_system_error(f"Error setting origin: {e}", "origin")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1714,18 +1719,26 @@ async def internal_error_handler(request: Request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    # Support both new (GCS_PORT) and legacy (FLASK_PORT) environment variables
-    port = int(os.getenv('GCS_PORT', os.getenv('FLASK_PORT', Params.gcs_server_port)))
+    # Read environment configuration
+    port = int(os.getenv('GCS_PORT', Params.gcs_server_port))
+    env_mode = os.getenv('GCS_ENV', 'development')
+    is_dev = env_mode == 'development'
 
-    # Support both new (GCS_ENV) and legacy (FLASK_ENV) environment variables
-    env_mode = os.getenv('GCS_ENV', os.getenv('FLASK_ENV', 'development'))
-
-    log_system_event(f"Starting GCS FastAPI server on port {port} in {env_mode} mode", "INFO", "startup")
+    print(f"\n{'='*60}")
+    print(f"  GCS FastAPI Server")
+    print(f"{'='*60}")
+    print(f"  Mode:    {env_mode.upper()}")
+    print(f"  Host:    0.0.0.0")
+    print(f"  Port:    {port}")
+    print(f"  Reload:  {'Enabled (auto-reload on file changes)' if is_dev else 'Disabled'}")
+    print(f"  Config:  {Params.config_csv_name}")
+    print(f"  Swarm:   {Params.swarm_csv_name}")
+    print(f"{'='*60}\n")
 
     uvicorn.run(
         "app_fastapi:app",
         host="0.0.0.0",
         port=port,
-        reload=env_mode == 'development',
-        log_level="info"
+        reload=is_dev,  # Only use auto-reload in development
+        log_level="info" if is_dev else "warning"  # Less verbose in production
     )

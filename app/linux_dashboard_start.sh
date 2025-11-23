@@ -374,14 +374,10 @@ install_production_dependencies() {
 setup_production_environment() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         log_info "Configuring production environment..."
-        # New standardized environment variables
+        # Environment configuration
         export GCS_ENV=production
         export GCS_PORT="$DEV_GCS_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
-
-        # Legacy environment variables (backward compatibility)
-        export FLASK_ENV=production
-        export FLASK_PORT="$DEV_GCS_PORT"
 
         # Node/React environment
         export NODE_ENV=production
@@ -390,15 +386,10 @@ setup_production_environment() {
         log_success "Production environment configured (Backend: $GCS_BACKEND)"
     else
         log_info "Configuring development environment..."
-        # New standardized environment variables
+        # Environment configuration
         export GCS_ENV=development
         export GCS_PORT="$DEV_GCS_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
-
-        # Legacy environment variables (backward compatibility)
-        export FLASK_ENV=development
-        export FLASK_PORT="$DEV_GCS_PORT"
-        export FLASK_DEBUG=1
 
         # Node/React environment
         export NODE_ENV=development

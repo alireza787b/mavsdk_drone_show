@@ -391,17 +391,18 @@ class CommandResponse(BaseModel):
 # ============================================================================
 
 class OriginRequest(BaseModel):
-    """Request for POST /set-origin"""
-    latitude: float = Field(..., ge=-90, le=90, description="Origin latitude")
-    longitude: float = Field(..., ge=-180, le=180, description="Origin longitude")
-    altitude: float = Field(..., description="Origin altitude (m MSL)")
+    """Request for POST /set-origin - Flask-compatible format"""
+    lat: float = Field(..., ge=-90, le=90, description="Origin latitude")
+    lon: float = Field(..., ge=-180, le=180, description="Origin longitude")
+    alt: float = Field(..., description="Origin altitude (m MSL)")
+    alt_source: Optional[str] = Field('manual', description="Altitude source (manual/drone)")
 
 
 class OriginResponse(BaseModel):
-    """Response for GET/POST origin endpoints"""
-    latitude: float = Field(..., description="Origin latitude")
-    longitude: float = Field(..., description="Origin longitude")
-    altitude: float = Field(..., description="Origin altitude (m MSL)")
+    """Response for GET/POST origin endpoints - Flask-compatible format"""
+    lat: float = Field(..., description="Origin latitude")
+    lon: float = Field(..., description="Origin longitude")
+    alt: float = Field(..., description="Origin altitude (m MSL)")
     timestamp: Optional[int] = Field(None, description="Last update timestamp (Unix ms)")
 
 
