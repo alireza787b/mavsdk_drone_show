@@ -49,7 +49,7 @@ const VisualizationSection = ({ uploadCount }) => {
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
   const [showPerDroneData, setShowPerDroneData] = useState(false);
 
-  const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
+  const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 
   useEffect(() => {
     const fetchShowData = async () => {

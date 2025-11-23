@@ -40,7 +40,7 @@ const SwarmDesign = () => {
     const [changes, setChanges] = useState({ added: [], removed: [] });
     const [saving, setSaving] = useState(false);
 
-    const backendURL = getBackendURL(); // Auto-detects REACT_APP_GCS_PORT or REACT_APP_FLASK_PORT
+    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 
     // Initial fetch of both datasets
     useEffect(() => {

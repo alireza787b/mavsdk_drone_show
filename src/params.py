@@ -78,9 +78,9 @@ class Params:
     else:
         GCS_IP = "100.96.32.75"            # Real mode: GCS IP (★ CHANGE THIS FOR YOUR SETUP ★)
 
-    GCS_FLASK_PORT = 5000                  # GCS Flask backend port
+    GCS_PORT = 5000                        # GCS server port (FastAPI/Flask)
     connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
-    connectivity_check_port = GCS_FLASK_PORT
+    connectivity_check_port = GCS_PORT
     connectivity_check_interval = 10       # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
@@ -144,6 +144,7 @@ class Params:
     # GCS Server Port Configuration
     gcs_server_port = 5000                  # GCS server port (FastAPI/Flask)
     flask_telem_socket_port = gcs_server_port  # DEPRECATED: Use gcs_server_port instead
+    GCS_FLASK_PORT = GCS_PORT               # DEPRECATED: Use GCS_PORT instead
 
     get_position_deviation_URI = 'get-position-deviation'
     acceptable_deviation = 3.0              # Acceptable deviation in meters
