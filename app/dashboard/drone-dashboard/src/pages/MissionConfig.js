@@ -16,6 +16,7 @@ import axios from 'axios';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
+import { useNormalizedTelemetry } from '../hooks/useNormalizedTelemetry';
 
 // Utilities
 import {
@@ -84,7 +85,7 @@ const MissionConfig = () => {
   const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
   const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
   const { data: gcsGitStatusFetched } = useFetch('/get-gcs-git-status', 30000);
-  const { data: gitStatusDataFetched } = useFetch('/git-status', 20000);
+  const { data: gitStatusDataFetched } = useNormalizedTelemetry('/git-status', 20000);
   const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
   const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
 
@@ -294,7 +295,17 @@ const MissionConfig = () => {
         }
 
         if (response.data.git_status) {
-          toast.info(`Git: ${response.data.git_status}`, { autoClose: 5000 });
+          // Handle both string and object git_status formats
+          if (typeof response.data.git_status === 'string') {
+            toast.info(`Git: ${response.data.git_status}`, { autoClose: 5000 });
+          } else if (typeof response.data.git_status === 'object') {
+            // Format git status object properly to avoid "[object Object]" display
+            const gitStatus = response.data.git_status;
+            const branch = gitStatus.branch || gitStatus.current_branch || 'unknown';
+            const commit = gitStatus.commit || gitStatus.latest_commit || 'unknown';
+            const shortCommit = typeof commit === 'string' ? commit.slice(0, 7) : commit;
+            toast.info(`Git: ${branch} @ ${shortCommit}`, { autoClose: 5000 });
+          }
         }
       } else {
         toast.error(response.data.message || 'Failed to update GCS IP');

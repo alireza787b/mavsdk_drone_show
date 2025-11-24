@@ -45,13 +45,19 @@ export const STALE_DATA_THRESHOLD_SECONDS = 5;
 
 // Fetch the elevation based on latitude and longitude
 export const getElevation = async (lat, lon) => {
+  // Validate coordinates before making API call
+  if (lat === null || lat === undefined || lon === null || lon === undefined) {
+    console.warn('getElevation called with invalid coordinates:', { lat, lon });
+    return null;
+  }
+
   try {
       const url = getElevationURL(lat, lon);  // Use the updated function to get the elevation URL
       console.log(`Fetching elevation data from URL: ${url}`);  // Log the URL
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      
+
       return data.results[0]?.elevation || null;
   } catch (error) {
       console.error(`Failed to fetch elevation data: ${error}`);
