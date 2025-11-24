@@ -151,8 +151,13 @@ const MissionConfig = () => {
   }, [networkInfoFetched]);
 
   useEffect(() => {
-    if (heartbeatsFetched) {
-      setHeartbeats(heartbeatsFetched);
+    if (heartbeatsFetched && heartbeatsFetched.heartbeats) {
+      // Convert heartbeats array to dict keyed by hw_id for easy lookup
+      const heartbeatsDict = {};
+      heartbeatsFetched.heartbeats.forEach(hb => {
+        heartbeatsDict[hb.hw_id] = hb;
+      });
+      setHeartbeats(heartbeatsDict);
     }
   }, [heartbeatsFetched]);
 
