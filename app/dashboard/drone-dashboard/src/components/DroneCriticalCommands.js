@@ -72,7 +72,7 @@ const DroneCriticalCommands = ({ droneId }) => {
 
     try {
       const response = await sendDroneCommand(commandData);
-      if (response.status === 'success') {
+      if (response.success === true) {
         toast.success(
           `Command "${pendingAction.label}" sent to drone ${droneId} successfully!`
         );

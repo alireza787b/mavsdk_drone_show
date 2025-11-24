@@ -58,7 +58,7 @@ const CommandSender = ({ drones }) => {
 
         const response = await sendDroneCommand(commandDataToSend);
 
-        if (response.status === 'success') {
+        if (response.success === true) {
           toast.success('Command sent successfully!');
         } else {
           toast.error(`Error sending command: ${response.message}`);

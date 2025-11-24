@@ -1467,8 +1467,8 @@ async def get_position_deviations():
 
             # Get current position from telemetry
             drone_telemetry = telemetry_data_copy.get(hw_id, {})
-            current_lat = drone_telemetry.get('Position_Lat')
-            current_lon = drone_telemetry.get('Position_Long')
+            current_lat = drone_telemetry.get('position_lat')
+            current_lon = drone_telemetry.get('position_long')
 
             if current_lat is None or current_lon is None:
                 deviations[hw_id] = {

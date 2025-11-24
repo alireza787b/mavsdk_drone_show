@@ -235,8 +235,8 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
 
         # Get current position from telemetry
         drone_telemetry = telemetry_data_all_drones.get(hw_id, {})
-        current_lat = drone_telemetry.get('Position_Lat')
-        current_lon = drone_telemetry.get('Position_Long')
+        current_lat = drone_telemetry.get('position_lat')
+        current_lon = drone_telemetry.get('position_long')
 
         if current_lat is None or current_lon is None:
             deviations[hw_id] = {

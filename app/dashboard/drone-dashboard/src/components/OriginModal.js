@@ -129,8 +129,8 @@ const OriginModal = ({
   // ------------------------------------------
   const extractDroneParameters = (drone) => {
     const tData = telemetryData[drone.hw_id] || {};
-    const lat = parseFloat(tData.lat || tData.Position_Lat || 0);
-    const lon = parseFloat(tData.lon || tData.Position_Long || 0);
+    const lat = parseFloat(tData[FIELD_NAMES.POSITION_LAT] || 0);
+    const lon = parseFloat(tData[FIELD_NAMES.POSITION_LONG] || 0);
 
     // If lat/lon ~ zero or missing => invalid
     if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
