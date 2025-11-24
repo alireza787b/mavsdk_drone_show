@@ -139,8 +139,9 @@ const MissionConfig = () => {
   }, [gcsGitStatusFetched]);
 
   useEffect(() => {
-    if (gitStatusDataFetched) {
-      setGitStatusData(gitStatusDataFetched);
+    if (gitStatusDataFetched && gitStatusDataFetched.git_status) {
+      // Extract git_status dict from response (avoids passing metadata as drone data)
+      setGitStatusData(gitStatusDataFetched.git_status);
     }
   }, [gitStatusDataFetched]);
 

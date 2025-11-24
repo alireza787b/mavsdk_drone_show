@@ -41,7 +41,7 @@ const DronePositionMap = ({ originLat, originLon, drones, forwardHeading = 0 }) 
           const x = parseFloat(drone.x); // north
           const y = parseFloat(drone.y); // east
           if (!isValidNumber(x) || !isValidNumber(y)) {
-            console.error(`Invalid drone coords for hw_id=${drone.hw_id}:`, { x, y });
+            // Silently skip drones without x,y coords (positions should come from trajectory CSV)
             return null;
           }
 

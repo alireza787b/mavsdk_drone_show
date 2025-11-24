@@ -941,7 +941,8 @@ export default function DroneConfigCard({
 
   // Safely handle heartbeat data
   const safeHb = heartbeatData || {};
-  const timestampVal = safeHb.timestamp;
+  // Backend uses 'last_heartbeat' field, not 'timestamp'
+  const timestampVal = safeHb.last_heartbeat || safeHb.timestamp;
   const now = Date.now();
   const heartbeatAgeSec =
     typeof timestampVal === 'number'

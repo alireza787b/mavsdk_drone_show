@@ -188,7 +188,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
             {/* Critical Commands */}
             <div className="critical-commands-section">
               <h3>Critical Commands</h3>
-              <DroneCriticalCommands droneId={drone.hw_ID} />
+              <DroneCriticalCommands droneId={String(drone[FIELD_NAMES.HW_ID])} />
             </div>
           </div>
 

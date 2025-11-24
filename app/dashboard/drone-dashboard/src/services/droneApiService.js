@@ -10,12 +10,12 @@ import { getBackendURL } from '../utilities/utilities';
  * @param {number} triggerTime - Optional trigger time for scheduling (default immediate).
  */
 export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) => {
-  // Note: If droneIds is empty, backend might interpret as "All Drones" 
+  // Note: If droneIds is empty, backend might interpret as "All Drones"
   // or you can handle that in your caller.
   return {
-    missionType: actionType,
+    missionType: String(actionType), // Convert to string for drone API compatibility
     target_drones: droneIds,
-    triggerTime: String(triggerTime), // ensure it’s a string
+    triggerTime: String(triggerTime), // ensure it's a string
   };
 };
 

@@ -37,12 +37,17 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     attempt = 0
     backoff_factor = 1
     last_error = ""
-    
+
+    # Ensure missionType is string for drone API compatibility
+    command_payload = command_data.copy()
+    if 'missionType' in command_payload:
+        command_payload['missionType'] = str(command_payload['missionType'])
+
     while attempt < retries:
         try:
             response = requests.post(
                 f"http://{drone_ip}:{Params.drone_api_port}/{Params.send_drone_command_URI}",
-                json=command_data,
+                json=command_payload,
                 timeout=timeout
             )
             

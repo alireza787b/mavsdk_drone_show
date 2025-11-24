@@ -294,7 +294,7 @@ const DroneWidget = ({
 
       {/* Action Commands */}
       <div className="drone-critical-commands-section">
-        <DroneCriticalCommands droneId={drone[FIELD_NAMES.HW_ID]} />
+        <DroneCriticalCommands droneId={String(drone[FIELD_NAMES.HW_ID])} />
       </div>
 
     </div>
