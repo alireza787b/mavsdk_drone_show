@@ -52,12 +52,12 @@ This document provides a comprehensive analysis of the MAVSDK Drone Show backend
 ### 1.2 Server Locations
 
 1. **GCS Server** (`gcs-server/app.py`)
-   - Port: 5000 (configurable via `Params.flask_telem_socket_port`)
+   - Port: 5000 (configurable via `Params.gcs_api_port`)
    - Runs on: Ground Control Station / Cloud VM
    - Environment: Development/Production with Gunicorn support
 
 2. **Drone Server** (`src/flask_handler.py`)
-   - Port: 7070 (configurable via `Params.drones_flask_port`)
+   - Port: 7070 (configurable via `Params.drone_api_port`)
    - Runs on: Each drone (Raspberry Pi, Jetson, etc.)
    - Environment: Embedded Linux systems
 
@@ -133,7 +133,7 @@ This document provides a comprehensive analysis of the MAVSDK Drone Show backend
 
 | Endpoint | Method | Description | Input | Output |
 |----------|--------|-------------|-------|--------|
-| `/get-gcs-config` | GET | Get GCS IP configuration | None | `{gcs_ip, gcs_flask_port, git_auto_push, ...}` |
+| `/get-gcs-config` | GET | Get GCS IP configuration | None | `{gcs_ip, gcs_api_port, git_auto_push, ...}` |
 | `/save-gcs-config` | POST | Update GCS IP in params.py | `{gcs_ip, update_env_file?}` | `{status, data, warnings, git_info?}` |
 
 #### 2.1.8 Git Status & Synchronization
@@ -314,8 +314,8 @@ sim_mode = not os.path.exists('real.mode')
 | Parameter | SITL Value | Real Value | Purpose |
 |-----------|------------|------------|---------|
 | `GCS_IP` | `"172.18.0.1"` | `"100.96.32.75"` | GCS server address |
-| `GCS_FLASK_PORT` | `5000` | `5000` | GCS API port |
-| `drones_flask_port` | `7070` | `7070` | Drone API port |
+| `gcs_api_port` | `5000` | `5000` | GCS API port |
+| `drone_api_port` | `7070` | `7070` | Drone API port |
 | `config_csv_name` | `"config_sitl.csv"` | `"config.csv"` | Drone config file |
 | `swarm_csv_name` | `"swarm_sitl.csv"` | `"swarm.csv"` | Swarm config file |
 | `GIT_AUTO_PUSH` | `True` | `True` | Auto-commit changes |

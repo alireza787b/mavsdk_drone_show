@@ -392,7 +392,7 @@ async def get_current_ned_position(drone: System) -> PositionNedYaw:
         # Method 2: Fallback to local API
         logger.debug("Attempting to get current NED position via local API")
         response = requests.get(
-            f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
             timeout=1
         )
         if response.status_code == 200:
@@ -1537,7 +1537,7 @@ async def compute_position_drift():
     try:
         # Request NED data from local API endpoint
         response = requests.get(
-            f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
             timeout=2
         )
 

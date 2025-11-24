@@ -701,7 +701,7 @@ async def compute_position_drift():
         PositionNedYaw: Drift in NED coordinates or None if unavailable
     """
     response = requests.get(
-        f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+        f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
         timeout=2
     )
 

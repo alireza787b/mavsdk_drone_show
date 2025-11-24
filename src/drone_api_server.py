@@ -521,7 +521,7 @@ class DroneAPIServer:
                 logging.error("GCS IP not configured in Params")
                 return None
 
-            gcs_port = self.params.GCS_FLASK_PORT
+            gcs_port = self.params.gcs_api_port
             gcs_url = f"http://{gcs_ip}:{gcs_port}"
 
             response = requests.get(f"{gcs_url}/get-origin", timeout=5)
@@ -680,7 +680,7 @@ class DroneAPIServer:
         Equivalent to Flask's app.run()
         """
         host = '0.0.0.0'
-        port = self.params.drones_flask_port
+        port = self.params.drone_api_port
 
         # Uvicorn configuration
         config = uvicorn.Config(

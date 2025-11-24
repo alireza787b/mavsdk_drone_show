@@ -134,7 +134,7 @@ def poll_git_status(drone):
     while True:
         try:
             # Construct git status URI
-            full_uri = f"http://{drone_ip}:{Params.drones_flask_port}/get-git-status"
+            full_uri = f"http://{drone_ip}:{Params.drone_api_port}/get-git-status"
             
             # Make HTTP request
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)

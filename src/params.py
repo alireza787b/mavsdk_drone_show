@@ -66,7 +66,7 @@ class Params:
     #   - Heartbeat sending
     #   - MAVLink routing
     #   - Telemetry reporting
-    #   - Flask API communication
+    #   - API communication
     #   - Origin coordinate fetching
     #
     # Mode-specific GCS IP configuration:
@@ -78,9 +78,9 @@ class Params:
     else:
         GCS_IP = "100.96.32.75"            # Real mode: GCS IP (★ CHANGE THIS FOR YOUR SETUP ★)
 
-    GCS_PORT = 5000                        # GCS server port (FastAPI/Flask)
+    gcs_api_port = 5000                    # GCS server API port
     connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
-    connectivity_check_port = GCS_PORT
+    connectivity_check_port = gcs_api_port
     connectivity_check_interval = 10       # Interval in seconds between connectivity checks
 
     # Conditional Configuration File Names based on sim_mode
@@ -114,8 +114,8 @@ class Params:
 
 
 
-    # Flask Server Configuration
-    drones_flask_port = 7070                # Port for the drone's Flask server
+    # API Server Configuration
+    drone_api_port = 7070                   # Port for the drone's API server
     polling_interval = 1                    # Polling interval in seconds
     get_drone_state_URI = 'get_drone_state' # URI for getting drone state
     send_drone_command_URI = 'api/send-command'  # Replace with actual URI
@@ -141,10 +141,11 @@ class Params:
     get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
     get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
 
-    # GCS Server Port Configuration
-    gcs_server_port = 5000                  # GCS server port (FastAPI/Flask)
-    flask_telem_socket_port = gcs_server_port  # DEPRECATED: Use gcs_server_port instead
-    GCS_FLASK_PORT = GCS_PORT               # DEPRECATED: Use GCS_PORT instead
+    # GCS Server Port Configuration (Legacy Aliases)
+    GCS_PORT = gcs_api_port                 # DEPRECATED: Use gcs_api_port instead
+    gcs_server_port = gcs_api_port          # DEPRECATED: Use gcs_api_port instead
+    flask_telem_socket_port = gcs_api_port  # DEPRECATED: Use gcs_api_port instead
+    GCS_FLASK_PORT = gcs_api_port           # DEPRECATED: Use gcs_api_port instead
 
     get_position_deviation_URI = 'get-position-deviation'
     acceptable_deviation = 3.0              # Acceptable deviation in meters
@@ -223,7 +224,7 @@ class Params:
     # Heartbeat interval (in seconds)
     heartbeat_interval = 10  
 
-    # The Flask endpoint path for receiving drone heartbeats on GCS
+    # The API endpoint path for receiving drone heartbeats on GCS
     gcs_heartbeat_endpoint = "/drone-heartbeat"
 
     netbird_ip_prefix = "100."

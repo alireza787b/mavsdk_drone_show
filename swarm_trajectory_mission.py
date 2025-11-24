@@ -1093,7 +1093,7 @@ async def compute_position_drift():
     try:
         # Request NED data from local API endpoint
         response = requests.get(
-            f"http://localhost:{Params.drones_flask_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
             timeout=2
         )
 

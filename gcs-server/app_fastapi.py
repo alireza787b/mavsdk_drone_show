@@ -171,7 +171,7 @@ class BackgroundServices:
 
                     try:
                         # Run blocking request in thread pool
-                        url = f"http://{ip}:{Params.flask_drone_port}/get_drone_state"
+                        url = f"http://{ip}:{Params.drone_api_port}/get_drone_state"
                         response = await loop.run_in_executor(
                             None,
                             lambda: requests.get(url, timeout=2)
@@ -211,7 +211,7 @@ class BackgroundServices:
                     ip = drone['ip']
 
                     try:
-                        url = f"http://{ip}:{Params.flask_drone_port}/get-git-status"
+                        url = f"http://{ip}:{Params.drone_api_port}/get-git-status"
                         response = await loop.run_in_executor(
                             None,
                             lambda: requests.get(url, timeout=5)
@@ -1589,7 +1589,7 @@ async def get_gcs_config():
         # Return Params as dict
         config = {
             'sim_mode': Params.sim_mode,
-            'gcs_port': Params.gcs_server_port,
+            'gcs_port': Params.gcs_api_port,
             'git_auto_push': Params.GIT_AUTO_PUSH,
             'acceptable_deviation': Params.acceptable_deviation
         }
@@ -1720,7 +1720,7 @@ if __name__ == "__main__":
     import uvicorn
 
     # Read environment configuration
-    port = int(os.getenv('GCS_PORT', Params.gcs_server_port))
+    port = int(os.getenv('GCS_PORT', Params.gcs_api_port))
     env_mode = os.getenv('GCS_ENV', 'development')
     is_dev = env_mode == 'development'
 

@@ -760,7 +760,7 @@ Get GCS server configuration.
 ```json
 {
   "sim_mode": false,
-  "flask_port": 5000,
+  "gcs_port": 5000,
   "git_auto_push": true,
   "acceptable_deviation": 2.0
 }

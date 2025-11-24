@@ -42,7 +42,7 @@ def poll_network_status(drone):
                 continue
 
             # Construct the URI to fetch network status from the drone
-            full_uri = f"http://{drone_ip}:{Params.drones_flask_port}/get-network-status"
+            full_uri = f"http://{drone_ip}:{Params.drone_api_port}/get-network-status"
             logger.debug(f"Polling network status for drone {drone['hw_id']} at {full_uri}")
 
             # Make the HTTP GET request to the drone's network status endpoint

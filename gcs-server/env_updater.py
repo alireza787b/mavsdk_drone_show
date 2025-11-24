@@ -29,7 +29,7 @@ def update_dashboard_env(new_gcs_ip):
             # Create file if doesn't exist
             with open(env_file, 'w', encoding='utf-8') as f:
                 f.write(f'REACT_APP_SERVER_URL={new_url}\n')
-                f.write('REACT_APP_FLASK_PORT=5000\n')
+                f.write('REACT_APP_GCS_PORT=5000\n')
             return {
                 'success': True,
                 'old_url': None,

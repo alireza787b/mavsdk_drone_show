@@ -29,8 +29,8 @@ class ConnectivityChecker:
         self.is_running = False  # Flag to prevent multiple threads
         # Optionally, you can add a connectivity_check_endpoint in your Params; otherwise use default.
         self.endpoint = getattr(params, 'connectivity_check_endpoint', ConnectivityChecker.DEFAULT_ENDPOINT)
-        # Use a port from params if available, else fall back to flask_telem_socket_port (or a default value)
-        self.port = getattr(params, 'flask_telem_socket_port', 5000)
+        # Use a port from params if available, else fall back to gcs_api_port (or a default value)
+        self.port = getattr(params, 'gcs_api_port', 5000)
 
     def start(self):
         """

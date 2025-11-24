@@ -324,7 +324,7 @@ class DroneCommunicator:
     def send_drone_state(self) -> None:
         """Continuously send drone state as telemetry."""
         udp_ip = Params.GCS_IP  # Use centralized GCS IP from Params
-        udp_port = Params.flask_telem_socket_port  # Default port for UDP telemetry
+        udp_port = Params.gcs_api_port  # Default port for UDP telemetry
 
         while not self.stop_flag.is_set():
             drone_state = self.get_drone_state()

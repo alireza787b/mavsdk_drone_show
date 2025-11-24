@@ -526,7 +526,7 @@ async def update_swarm_config_periodically(drone):
     If a role change is detected (e.g., switching from follower to leader or vice versa),
     it starts or cancels follower-specific tasks accordingly.
 
-    NOTE: Requires Params.GCS_IP and Params.flask_telem_socket_port to be set.
+    NOTE: Requires Params.GCS_IP and Params.gcs_api_port to be set.
     """
     global SWARM_CONFIG, IS_LEADER, OFFSETS, BODY_COORD
     global LEADER_HW_ID, LEADER_IP, LEADER_KALMAN_FILTER, FOLLOWER_TASKS
@@ -542,7 +542,7 @@ async def update_swarm_config_periodically(drone):
         return
 
     gcs_ip = Params.GCS_IP
-    state_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/get-swarm-data"
+    state_url = f"http://{gcs_ip}:{Params.gcs_api_port}/get-swarm-data"
 
     # Shared session for connection reuse
     async with aiohttp.ClientSession() as session:
@@ -676,7 +676,7 @@ async def update_leader_state():
 
     while True:
         try:
-            state_url = f"http://{LEADER_IP}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
+            state_url = f"http://{LEADER_IP}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
             response = requests.get(state_url, timeout=1)
             if response.status_code == 200:
                 # reset on success
@@ -841,7 +841,7 @@ async def notify_gcs_of_leader_change(new_leader_hw_id: str) -> bool:
     logger = logging.getLogger(__name__)
 
     gcs_ip = Params.GCS_IP
-    notify_url = f"http://{gcs_ip}:{Params.flask_telem_socket_port}/request-new-leader"
+    notify_url = f"http://{gcs_ip}:{Params.gcs_api_port}/request-new-leader"
 
     current = SWARM_CONFIG.get(str(HW_ID))
     if not current:
@@ -1221,7 +1221,7 @@ async def run_smart_swarm():
         logger.warning(f"Telemetry GPS origin request failed: {e}")
 
     own_ip = '127.0.0.1'
-    fallback_origin = fetch_home_position(own_ip, Params.drones_flask_port, Params.get_drone_gps_origin_URI)
+    fallback_origin = fetch_home_position(own_ip, Params.drone_api_port, Params.get_drone_gps_origin_URI)
     if fallback_origin is not None:
         logger.info(f"Retrieved GPS global origin from fallback API: {fallback_origin}")
     else:
@@ -1245,7 +1245,7 @@ async def run_smart_swarm():
     logger.info(f"Reference position set to: {REFERENCE_POS}")
 
     if not IS_LEADER:
-        leader_home_pos = fetch_home_position(LEADER_IP, Params.drones_flask_port, Params.get_drone_home_URI)
+        leader_home_pos = fetch_home_position(LEADER_IP, Params.drone_api_port, Params.get_drone_home_URI)
         if leader_home_pos is None:
             logger.error("Failed to fetch leader's home position.")
             sys.exit(1)

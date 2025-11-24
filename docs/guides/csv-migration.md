@@ -70,9 +70,9 @@ GCS IP is now configured in `src/params.py`:
 # GCS (Ground Control Station) CONFIGURATION
 # ===================================================================================
 GCS_IP = "100.96.32.75"                # GCS IP address (★ CHANGE THIS FOR YOUR SETUP ★)
-GCS_FLASK_PORT = 5000                  # GCS Flask backend port
+gcs_api_port = 5000                    # GCS API server port
 connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
-connectivity_check_port = GCS_FLASK_PORT
+connectivity_check_port = gcs_api_port
 ```
 
 ### UI Configuration

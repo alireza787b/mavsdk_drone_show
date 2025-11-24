@@ -28,12 +28,12 @@ from src.drone_config import DroneConfig
 def mock_params():
     """Mock Params object with test configuration"""
     params = Mock(spec=Params)
-    params.drones_flask_port = 7070
+    params.drone_api_port = 7070
     params.env_mode = 'development'
     params.acceptable_deviation = 3.0
     params.sim_mode = True
     params.GCS_IP = "172.18.0.1"
-    params.GCS_FLASK_PORT = 5000
+    params.gcs_api_port = 5000
     params.config_csv_name = "config_sitl.csv"
     params.swarm_csv_name = "swarm_sitl.csv"
     return params

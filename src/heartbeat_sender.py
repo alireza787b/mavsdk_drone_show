@@ -20,7 +20,7 @@ class HeartbeatSender:
         self.drone_config = drone_config
         self.interval = Params.heartbeat_interval
         self.gcs_ip = Params.GCS_IP  # Use centralized GCS IP from Params
-        self.gcs_port = Params.GCS_FLASK_PORT
+        self.gcs_port = Params.gcs_api_port
         self.running = False
         self.thread = None
 

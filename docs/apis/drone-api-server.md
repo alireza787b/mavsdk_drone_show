@@ -40,7 +40,7 @@ The Drone API Server is a high-performance FastAPI-based server that runs on eac
 | Parameter | Value | Description |
 |-----------|-------|-------------|
 | Host | `0.0.0.0` | Listen on all interfaces |
-| Port | `7070` | Configurable via `Params.drones_flask_port` |
+| Port | `7070` | Configurable via `Params.drone_api_port` |
 | Environment | `development` / `production` | Set via `Params.env_mode` |
 | Auto-reload | `False` | Disabled for embedded systems |
 

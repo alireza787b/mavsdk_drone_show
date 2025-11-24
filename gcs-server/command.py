@@ -41,7 +41,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     while attempt < retries:
         try:
             response = requests.post(
-                f"http://{drone_ip}:{Params.drones_flask_port}/{Params.send_drone_command_URI}",
+                f"http://{drone_ip}:{Params.drone_api_port}/{Params.send_drone_command_URI}",
                 json=command_data,
                 timeout=timeout
             )

@@ -165,7 +165,7 @@ def poll_telemetry(drone):
     while True:
         try:
             # Construct the full URI
-            full_uri = f"http://{drone_ip}:{Params.drones_flask_port}/{Params.get_drone_state_URI}"
+            full_uri = f"http://{drone_ip}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
             
             # Make the HTTP request
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)

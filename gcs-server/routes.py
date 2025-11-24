@@ -1628,7 +1628,7 @@ def setup_routes(app):
                 'status': 'success',
                 'data': {
                     'gcs_ip': Params.GCS_IP,
-                    'gcs_flask_port': Params.GCS_FLASK_PORT,
+                    'gcs_api_port': Params.gcs_api_port,
                     'git_auto_push': Params.GIT_AUTO_PUSH,
                     'git_branch': Params.GIT_BRANCH,
                     'simulation_mode': Params.sim_mode
@@ -1780,7 +1780,7 @@ def setup_routes(app):
                 log_system_error(f'Drone with ID {drone_id} not found', "git")
                 return jsonify({'error': f'Drone with ID {drone_id} not found'}), 404
 
-            drone_uri = f"http://{drone['ip']}:{Params.drones_flask_port}"
+            drone_uri = f"http://{drone['ip']}:{Params.drone_api_port}"
             log_system_event(f"Constructed drone URI: {drone_uri}", "DEBUG", "git")
             drone_status = get_drone_git_status(drone_uri)
 
