@@ -414,12 +414,43 @@ async def post_heartbeat(heartbeat: HeartbeatRequest):
 @app.get("/get-heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
 async def get_heartbeats():
     """Get heartbeat status for all drones"""
-    heartbeats = get_all_heartbeats()
-    online_count = len([h for h in heartbeats if h.get('online', False)])
+    heartbeats_dict = get_all_heartbeats()  # Returns dict {hw_id: {...}}
+
+    current_time = time.time()
+    heartbeat_timeout = Params.TELEMETRY_POLLING_TIMEOUT  # Default 10 seconds
+
+    # Transform dict to list of HeartbeatData objects
+    heartbeats_list = []
+    for hw_id, hb_data in heartbeats_dict.items():
+        # Calculate online status based on timestamp
+        last_timestamp = hb_data.get('timestamp', 0)
+        if last_timestamp:
+            # Timestamp is in milliseconds, convert to seconds
+            time_diff = current_time - (last_timestamp / 1000.0)
+            is_online = time_diff < heartbeat_timeout
+        else:
+            is_online = False
+
+        # Calculate latency from network_info if available
+        network_info = hb_data.get('network_info', {})
+        latency_ms = network_info.get('latency_ms') if network_info else None
+
+        # Create HeartbeatData object
+        heartbeat_obj = HeartbeatData(
+            hw_id=str(hw_id),
+            pos_id=int(hb_data.get('pos_id', 0)),
+            ip=hb_data.get('ip', 'unknown'),
+            last_heartbeat=last_timestamp,
+            online=is_online,
+            latency_ms=latency_ms
+        )
+        heartbeats_list.append(heartbeat_obj)
+
+    online_count = len([h for h in heartbeats_list if h.online])
 
     return HeartbeatResponse(
-        heartbeats=heartbeats,
-        total_drones=len(heartbeats),
+        heartbeats=heartbeats_list,
+        total_drones=len(heartbeats_list),
         online_count=online_count,
         timestamp=int(time.time() * 1000)
     )
@@ -676,14 +707,60 @@ async def submit_command(request: Request):
 @app.get("/git-status", response_model=GitStatusResponse, tags=["Git"])
 async def get_git_status():
     """Get git status from all drones"""
-    synced_count = len([s for s in git_status_data_all_drones.values()
-                       if s.get('status') == 'synced'])
+    # Load drone config to get pos_id, hw_id, ip mapping
+    drones_config = load_config()
+    drone_map = {d['hw_id']: d for d in drones_config}
+
+    # Transform raw git status to match DroneGitStatus schema
+    transformed_git_status = {}
+
+    with data_lock_git_status:
+        for hw_id, raw_data in git_status_data_all_drones.items():
+            if not raw_data:
+                continue
+
+            drone_info = drone_map.get(hw_id, {})
+
+            # Map raw status to enum values
+            raw_status = raw_data.get('status', 'unknown')
+            if raw_status == 'clean':
+                mapped_status = GitStatus.SYNCED
+            elif raw_status == 'dirty':
+                mapped_status = GitStatus.DIVERGED
+            else:
+                # Check if it's already a valid enum value
+                try:
+                    mapped_status = GitStatus(raw_status)
+                except ValueError:
+                    mapped_status = GitStatus.UNKNOWN
+
+            # Extract commit hash (first 8 chars)
+            commit_hash = raw_data.get('commit', 'unknown')
+            short_commit = commit_hash[:8] if commit_hash and commit_hash != 'unknown' else 'unknown'
+
+            transformed_git_status[str(hw_id)] = DroneGitStatus(
+                pos_id=int(drone_info.get('pos_id', hw_id)),
+                hw_id=str(hw_id),
+                ip=drone_info.get('ip', 'unknown'),
+                current_branch=raw_data.get('branch', 'unknown'),
+                latest_commit=short_commit,
+                commit_message=raw_data.get('commit_message'),
+                status=mapped_status,
+                commits_ahead=raw_data.get('commits_ahead', 0),
+                commits_behind=raw_data.get('commits_behind', 0),
+                has_uncommitted=len(raw_data.get('uncommitted_changes', [])) > 0,
+                last_check=int(time.time() * 1000),
+                last_sync=None
+            )
+
+    synced_count = len([s for s in transformed_git_status.values()
+                       if s.status == GitStatus.SYNCED])
 
     return GitStatusResponse(
-        git_status=git_status_data_all_drones,
-        total_drones=len(git_status_data_all_drones),
+        git_status=transformed_git_status,
+        total_drones=len(transformed_git_status),
         synced_count=synced_count,
-        needs_sync_count=len(git_status_data_all_drones) - synced_count,
+        needs_sync_count=len(transformed_git_status) - synced_count,
         timestamp=int(time.time() * 1000)
     )
 
