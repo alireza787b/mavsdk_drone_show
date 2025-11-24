@@ -1580,13 +1580,13 @@ async def get_position_deviations():
 
 @app.post("/compute-origin", tags=["Origin"])
 async def compute_origin_endpoint(request: Request):
-    """Compute origin coordinates from drone's current position and intended NE position"""
+    """Compute origin coordinates from drone's current position and pos_id (trajectory CSV)"""
     try:
         import pymap3d as pm
 
         data = await request.json()
 
-        required_fields = ['current_lat', 'current_lon', 'intended_east', 'intended_north']
+        required_fields = ['current_lat', 'current_lon', 'pos_id']
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             raise HTTPException(status_code=400, detail=f"Missing required field(s): {', '.join(missing_fields)}")
@@ -1594,10 +1594,19 @@ async def compute_origin_endpoint(request: Request):
         try:
             current_lat = float(data.get('current_lat'))
             current_lon = float(data.get('current_lon'))
-            intended_east = float(data.get('intended_east'))
-            intended_north = float(data.get('intended_north'))
+            pos_id = data.get('pos_id')
         except (TypeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=f"Invalid input data types: {e}")
+
+        # Get intended position from trajectory CSV (single source of truth)
+        sim_mode = getattr(Params, 'sim_mode', False)
+        intended_north, intended_east = _get_expected_position_from_trajectory(pos_id, sim_mode)
+
+        if intended_north is None or intended_east is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not read trajectory file for pos_id={pos_id}. Ensure trajectory CSV exists."
+            )
 
         # Compute origin
         origin_lat, origin_lon = compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east)

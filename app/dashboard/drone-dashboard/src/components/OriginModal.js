@@ -99,15 +99,14 @@ const OriginModal = ({
       const {
         current_lat,
         current_lon,
-        intended_east,
-        intended_north,
+        pos_id,
         isValid,
       } = extractDroneParameters(selectedDrone);
       if (!isValid) {
         setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
         return;
       }
-      computeOrigin({ current_lat, current_lon, intended_east, intended_north });
+      computeOrigin({ current_lat, current_lon, pos_id });
     }
   }, [
     originMethod,
@@ -137,9 +136,7 @@ const OriginModal = ({
       return {
         current_lat: 0,
         current_lon: 0,
-        // CRITICAL FIX: x = North, y = East (matches config.csv schema)
-        intended_north: parseFloat(drone.x) || 0,  // x is North
-        intended_east: parseFloat(drone.y) || 0,   // y is East
+        pos_id: drone.pos_id,
         isValid: false,
       };
     }
@@ -147,9 +144,7 @@ const OriginModal = ({
     return {
       current_lat: lat,
       current_lon: lon,
-      // CRITICAL FIX: x = North, y = East (matches config.csv schema)
-      intended_north: parseFloat(drone.x) || 0,  // x is North
-      intended_east: parseFloat(drone.y) || 0,   // y is East
+      pos_id: drone.pos_id,
       isValid: true,
     };
   };
@@ -186,8 +181,7 @@ const OriginModal = ({
     const {
       current_lat,
       current_lon,
-      intended_east,
-      intended_north,
+      pos_id,
       isValid,
     } = extractDroneParameters(selectedDrone);
 
@@ -196,7 +190,7 @@ const OriginModal = ({
       return;
     }
     // Attempt re-compute
-    computeOrigin({ current_lat, current_lon, intended_east, intended_north });
+    computeOrigin({ current_lat, current_lon, pos_id });
   };
 
   // ------------------------------------------
