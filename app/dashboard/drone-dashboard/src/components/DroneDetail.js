@@ -9,6 +9,7 @@ import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName } from '../constants/droneStates';
 import { getFriendlyMissionName } from '../utilities/missionUtils';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 
 const POLLING_RATE_HZ = 2;
 const STALE_DATA_THRESHOLD_SECONDS = 5;
@@ -33,14 +34,14 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     const url = `${backendURL}/telemetry`;
     const fetchData = () => {
       axios.get(url).then((response) => {
-        const droneData = response.data[drone.hw_ID];
+        const droneData = response.data[drone[FIELD_NAMES.HW_ID]];
         if (droneData) {
           setDetailedDrone({
-            hw_ID: drone.hw_ID,
+            hw_ID: drone[FIELD_NAMES.HW_ID],
             ...droneData,
           });
           const currentTime = Math.floor(Date.now() / 1000);
-          const isDataStale = currentTime - droneData.Update_Time > STALE_DATA_THRESHOLD_SECONDS;
+          const isDataStale = currentTime - droneData[FIELD_NAMES.UPDATE_TIME] > STALE_DATA_THRESHOLD_SECONDS;
           setIsStale(isDataStale);
         }
       }).catch((error) => {
@@ -52,7 +53,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [drone.hw_ID]);
+  }, [drone[FIELD_NAMES.HW_ID]]);
 
   // Status assessment functions
   const getStatusColor = (isStale) => isStale ? '#e53e3e' : '#38a169';

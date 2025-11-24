@@ -416,6 +416,10 @@ async def get_heartbeats():
     """Get heartbeat status for all drones"""
     heartbeats_dict = get_all_heartbeats()  # Returns dict {hw_id: {...}}
 
+    # Load drone config to get IP addresses
+    drones_config = load_config()
+    config_lookup = {d['hw_id']: d for d in drones_config}
+
     current_time = time.time()
     heartbeat_timeout = Params.TELEMETRY_POLLING_TIMEOUT  # Default 10 seconds
 
@@ -435,11 +439,20 @@ async def get_heartbeats():
         network_info = hb_data.get('network_info', {})
         latency_ms = network_info.get('latency_ms') if network_info else None
 
+        # Get IP from heartbeat data, fallback to config, then 'unknown'
+        ip_value = hb_data.get('ip')
+        if not ip_value or ip_value is None:
+            # Try to get from config
+            ip_value = config_lookup.get(hw_id, {}).get('ip', 'unknown')
+
+        # Ensure ip is always a string (Pydantic validation requirement)
+        ip_str = str(ip_value) if ip_value else 'unknown'
+
         # Create HeartbeatData object
         heartbeat_obj = HeartbeatData(
             hw_id=str(hw_id),
             pos_id=int(hb_data.get('pos_id', 0)),
-            ip=hb_data.get('ip', 'unknown'),
+            ip=ip_str,
             last_heartbeat=last_timestamp,
             online=is_online,
             latency_ms=latency_ms

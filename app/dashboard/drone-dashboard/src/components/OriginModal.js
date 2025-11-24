@@ -8,6 +8,7 @@ import useComputeOrigin from '../hooks/useComputeOrigin';
 import PropTypes from 'prop-types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSyncAlt } from '@fortawesome/free-solid-svg-icons';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 
 /**
  * OriginModal

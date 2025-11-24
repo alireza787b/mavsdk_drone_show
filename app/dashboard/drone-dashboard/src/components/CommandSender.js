@@ -15,6 +15,7 @@ import {
   getCommandName,
 } from '../constants/droneConstants';
 import '../styles/CommandSender.css';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 
 const CommandSender = ({ drones }) => {
   const [activeTab, setActiveTab] = useState('missionTrigger');
@@ -88,7 +89,7 @@ const CommandSender = ({ drones }) => {
   };
 
   const selectAllDrones = () => {
-    const allDroneIds = drones.map((drone) => drone.hw_ID);
+    const allDroneIds = drones.map((drone) => drone[FIELD_NAMES.HW_ID]);
     setSelectedDrones(allDroneIds);
   };
 
@@ -121,13 +122,13 @@ const CommandSender = ({ drones }) => {
             <div className="drone-grid">
               {drones.map((drone) => (
                 <div
-                  key={drone.hw_ID}
+                  key={drone[FIELD_NAMES.HW_ID]}
                   className={`drone-item ${
-                    selectedDrones.includes(drone.hw_ID) ? 'selected' : ''
+                    selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
                   }`}
-                  onClick={() => toggleDroneSelection(drone.hw_ID)}
+                  onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
                 >
-                  {drone.hw_ID}
+                  {drone[FIELD_NAMES.HW_ID]}
                 </div>
               ))}
             </div>

@@ -6,6 +6,7 @@ import '../styles/GlobeView.css';
 import axios from 'axios';
 
 import { getTelemetryURL } from '../utilities/utilities';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
@@ -25,18 +26,18 @@ const GlobeView = () => {
         .map(([id, drone]) => ({
           hw_ID: id,
           position: [
-            drone.Position_Lat || 0,
-            drone.Position_Long || 0,
-            drone.Position_Alt || 0,
+            drone[FIELD_NAMES.POSITION_LAT] || 0,
+            drone[FIELD_NAMES.POSITION_LONG] || 0,
+            drone[FIELD_NAMES.POSITION_ALT] || 0,
           ],
-          state: drone.State || 'UNKNOWN',
+          state: drone[FIELD_NAMES.STATE] || 'UNKNOWN',
           follow_mode: drone.Follow_Mode || 0,
-          altitude: drone.Position_Alt || 0,
+          altitude: drone[FIELD_NAMES.POSITION_ALT] || 0,
         }));
 
       // Log received positions
       console.log('Received Drone Positions:', dronesData.map(drone => ({
-        hw_ID: drone.hw_ID,
+        hw_ID: drone[FIELD_NAMES.HW_ID],
         position: drone.position,
       })));
 

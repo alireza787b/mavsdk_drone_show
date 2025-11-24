@@ -9,6 +9,7 @@ import GlobeControlBox from './GlobeControlBox';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 
@@ -171,7 +172,7 @@ export default function Globe({ drones }) {
     if (drones?.length) {
       const newDroneVisibility = {};
       drones.forEach(drone => {
-        newDroneVisibility[drone.hw_ID] = droneVisibility[drone.hw_ID] ?? true;
+        newDroneVisibility[drone[FIELD_NAMES.HW_ID]] = droneVisibility[drone[FIELD_NAMES.HW_ID]] ?? true;
       });
       setDroneVisibility(newDroneVisibility);
     }
@@ -186,7 +187,7 @@ export default function Globe({ drones }) {
   useEffect(() => {
     if (drones?.length && referencePoint) {
       console.log('Initial Drone Positions:', drones.map(drone => ({
-        hw_ID: drone.hw_ID,
+        hw_ID: drone[FIELD_NAMES.HW_ID],
         position: drone.position,
       })));
       
@@ -262,7 +263,7 @@ export default function Globe({ drones }) {
         <axesHelper args={[50]} />
         {showGround && <Environment groundLevel={groundLevel} />}
         {convertedDrones.map(drone => (
-          droneVisibility[drone.hw_ID] && <MemoizedDrone key={drone.hw_ID} {...drone} />
+          droneVisibility[drone[FIELD_NAMES.HW_ID]] && <MemoizedDrone key={drone[FIELD_NAMES.HW_ID]} {...drone} />
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />

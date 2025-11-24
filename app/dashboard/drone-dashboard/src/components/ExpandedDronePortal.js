@@ -8,6 +8,7 @@ import { Tooltip } from 'react-tooltip';
 import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -52,25 +53,25 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
 
   // Calculate status information
   const currentTimeInMs = Date.now();
-  const isStale = currentTimeInMs - (drone.Timestamp || 0) > 5000;
+  const isStale = currentTimeInMs - (drone[FIELD_NAMES.TIMESTAMP] || 0) > 5000;
 
-  const flightModeValue = drone.Flight_Mode || 0;
-  const baseMode = drone.Base_Mode || 0;
+  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
+  const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
   const actualFlightMode = flightModeValue === 0 && baseMode === 192 ? 262147 : flightModeValue;
   const flightModeTitle = getFlightModeTitle(actualFlightMode);
   const flightModeCategory = getFlightModeCategory(actualFlightMode);
-  const systemStatusName = getSystemStatusTitle(drone.System_Status || 0);
+  const systemStatusName = getSystemStatusTitle(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
 
-  const isArmed = drone.Is_Armed || false;
-  const isReadyToArm = drone.Is_Ready_To_Arm || false;
+  const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
+  const isReadyToArm = drone[FIELD_NAMES.IS_READY_TO_ARM] || false;
   const isInSafeMode = isSafeMode(actualFlightMode);
-  const isSystemReady = isReady(drone.System_Status || 0);
+  const isSystemReady = isReady(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
 
-  const missionReady = isMissionReady(drone.State);
-  const missionExecuting = isMissionExecuting(drone.State);
-  const missionStateName = getDroneShowStateName(drone.State);
-  const friendlyMissionName = getFriendlyMissionName(drone.lastMission);
-  const missionStatusClass = getMissionStatusClass(drone.lastMission);
+  const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
+  const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
+  const missionStateName = getDroneShowStateName(drone[FIELD_NAMES.STATE]);
+  const friendlyMissionName = getFriendlyMissionName(drone[FIELD_NAMES.LAST_MISSION]);
+  const missionStatusClass = getMissionStatusClass(drone[FIELD_NAMES.LAST_MISSION]);
 
   const getBatteryStatus = (voltage) => {
     if (voltage === undefined) return { class: '', text: 'N/A' };
@@ -84,8 +85,8 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
     return `${alt.toFixed(1)}m`;
   };
 
-  const batteryStatus = getBatteryStatus(drone.Battery_Voltage);
-  const droneIP = drone.IP || drone.ip || (drone.hw_ID === '1' ? '127.0.0.1' : 'N/A');
+  const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
+  const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
 
   const portalRoot = document.getElementById('expanded-drone-portal-root');
   if (!portalRoot) return null;
@@ -114,7 +115,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
         <header className="expanded-drone-header">
           <div className="drone-header">
             <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
-            <span>Drone {drone.hw_ID || 'Unknown'}</span>
+            <span>Drone {drone[FIELD_NAMES.HW_ID] || 'Unknown'}</span>
           </div>
         </header>
 

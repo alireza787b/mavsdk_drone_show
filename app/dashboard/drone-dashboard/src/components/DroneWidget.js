@@ -5,6 +5,7 @@ import DroneCriticalCommands from './DroneCriticalCommands';
 import { getFlightModeTitle, getSystemStatusTitle, isSafeMode, isReady, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
 import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 import '../styles/DroneWidget.css';
 
 /**
@@ -18,7 +19,7 @@ const DroneWidget = ({
   setSelectedDrone,
 }) => {
   const currentTimeInMs = Date.now();
-  const isStale = currentTimeInMs - (drone.Timestamp || 0) > 5000;
+  const isStale = currentTimeInMs - (drone[FIELD_NAMES.TIMESTAMP] || 0) > 5000;
 
   // Force re-render every second for live time updates
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -28,32 +29,33 @@ const DroneWidget = ({
   }, []);
 
 
-  // Flight mode and system status (using correct field names)
-  const flightModeValue = drone.Flight_Mode || 0;
-  const baseMode = drone.Base_Mode || 0;
+  // Flight mode and system status
+  const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
+  const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
 
   // Derive actual flight mode from base mode if custom mode is 0 (SITL issue)
   const actualFlightMode = flightModeValue === 0 && baseMode === 192 ? 262147 : flightModeValue; // 192 = armed, use Hold as fallback
   const flightModeTitle = getFlightModeTitle(actualFlightMode);
   const flightModeCategory = getFlightModeCategory(actualFlightMode);
-  const systemStatusName = getSystemStatusTitle(drone.System_Status || 0);
+  const systemStatusName = getSystemStatusTitle(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
 
-  // Arming and readiness status (using correct field names)
-  const isArmed = drone.Is_Armed || false;
-  const isReadyToArm = drone.Is_Ready_To_Arm || false;
+  // Arming and readiness status
+  const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
+  const isReadyToArm = drone[FIELD_NAMES.IS_READY_TO_ARM] || false;
   const isInSafeMode = isSafeMode(actualFlightMode);
-  const isSystemReady = isReady(drone.System_Status || 0);
+  const isSystemReady = isReady(drone[FIELD_NAMES.SYSTEM_STATUS] || 0);
 
-  // Mission states (using correct field names)
-  const missionReady = isMissionReady(drone.State);
-  const missionExecuting = isMissionExecuting(drone.State);
-  const missionStateName = getDroneShowStateName(drone.State);
-  const friendlyMissionName = getFriendlyMissionName(drone.lastMission);
-  const missionStatusClass = getMissionStatusClass(drone.lastMission);
+  // Mission states
+  const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
+  const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
+  const missionStateName = getDroneShowStateName(drone[FIELD_NAMES.STATE]);
+  const friendlyMissionName = getFriendlyMissionName(drone[FIELD_NAMES.LAST_MISSION]);
+  const missionStatusClass = getMissionStatusClass(drone[FIELD_NAMES.LAST_MISSION]);
 
-  // GPS status processing (using correct field names, with SITL simulation)
-  const gpsFixType = drone.Gps_Fix_Type || (drone.System_Status === 4 ? 3 : 0); // SITL = 3D fix when active
-  const satellitesVisible = drone.Satellites_Visible || (drone.System_Status === 4 ? 12 : 0); // SITL simulation
+  // GPS status processing (with SITL simulation fallback)
+  const systemStatus = drone[FIELD_NAMES.SYSTEM_STATUS] || 0;
+  const gpsFixType = drone[FIELD_NAMES.GPS_FIX_TYPE] || (systemStatus === 4 ? 3 : 0); // SITL = 3D fix when active
+  const satellitesVisible = drone[FIELD_NAMES.SATELLITES_VISIBLE] || (systemStatus === 4 ? 12 : 0); // SITL simulation
 
   const getGpsFixName = (fixType) => {
     const fixTypes = {
@@ -87,7 +89,7 @@ const DroneWidget = ({
 
   const getGpsQualityStatus = (hdop, vdop) => {
     // Handle SITL simulation case where HDOP/VDOP are 0 but GPS is working
-    if ((hdop === undefined || hdop === 0) && drone.System_Status === 4) {
+    if ((hdop === undefined || hdop === 0) && systemStatus === 4) {
       return { class: 'good', text: '1.0/1.2' }; // SITL simulation values
     }
     if (hdop === undefined || vdop === undefined) return { class: '', text: 'N/A' };
@@ -103,8 +105,8 @@ const DroneWidget = ({
   };
 
   // Position ID validation
-  const posId = drone.Pos_ID ?? 'N/A';
-  const detectedPosRaw = drone.Detected_Pos_ID;
+  const posId = drone[FIELD_NAMES.POS_ID] ?? 'N/A';
+  const detectedPosRaw = drone[FIELD_NAMES.DETECTED_POS_ID];
   const detectedPosId = detectedPosRaw === undefined ? 'N/A' : String(detectedPosRaw);
   const isAutoDetectZero = detectedPosId === '0';
   const posMismatch = posId !== 'N/A' && detectedPosId !== 'N/A' && !isAutoDetectZero && posId !== detectedPosId;
@@ -126,11 +128,11 @@ const DroneWidget = ({
     });
   };
 
-  const batteryStatus = getBatteryStatus(drone.Battery_Voltage);
-  const gpsQuality = getGpsQualityStatus(drone.Hdop, drone.Vdop);
+  const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
+  const gpsQuality = getGpsQualityStatus(drone[FIELD_NAMES.HDOP], drone[FIELD_NAMES.VDOP]);
 
-  // Get drone IP (fallback for SITL)
-  const droneIP = drone.IP || drone.ip || (drone.hw_ID === '1' ? '127.0.0.1' : 'N/A');
+  // Get drone IP (use snake_case standard)
+  const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
 
   return (
     <div
@@ -149,7 +151,7 @@ const DroneWidget = ({
       }}>
         <div className="drone-header">
           <span className={`status-indicator ${isStale ? 'stale' : 'active'}`} />
-          <span>Drone {drone.hw_ID || 'Unknown'}</span>
+          <span>Drone {drone[FIELD_NAMES.HW_ID] || 'Unknown'}</span>
         </div>
       </h3>
 
@@ -173,10 +175,10 @@ const DroneWidget = ({
                 <>
                   <FaInfoCircle
                     className="posid-info-icon"
-                    data-tooltip-id={`posid-tooltip-info-${drone.hw_ID}`}
+                    data-tooltip-id={`posid-tooltip-info-${drone[FIELD_NAMES.HW_ID]}`}
                     data-tooltip-content="Auto-detected pos_id=0 (not available yet)."
                   />
-                  <Tooltip id={`posid-tooltip-info-${drone.hw_ID}`} place="top" effect="solid" />
+                  <Tooltip id={`posid-tooltip-info-${drone[FIELD_NAMES.HW_ID]}`} place="top" effect="solid" />
                 </>
               );
             }
@@ -185,12 +187,12 @@ const DroneWidget = ({
                 <>
                   <FaExclamationTriangle
                     className="posid-warning-icon"
-                    data-tooltip-id={`posid-tooltip-${drone.hw_ID}`}
+                    data-tooltip-id={`posid-tooltip-${drone[FIELD_NAMES.HW_ID]}`}
                     data-tooltip-content={`Mismatch: Auto-detected = ${detectedPosId}. Click to fix.`}
                     onClick={handlePositionConfigClick}
                     style={{ cursor: 'pointer' }}
                   />
-                  <Tooltip id={`posid-tooltip-${drone.hw_ID}`} place="top" effect="solid" />
+                  <Tooltip id={`posid-tooltip-${drone[FIELD_NAMES.HW_ID]}`} place="top" effect="solid" />
                 </>
               );
             }
@@ -199,10 +201,10 @@ const DroneWidget = ({
                 <>
                   <FaCheckCircle
                     className="posid-match-icon"
-                    data-tooltip-id={`posid-tooltip-match-${drone.hw_ID}`}
+                    data-tooltip-id={`posid-tooltip-match-${drone[FIELD_NAMES.HW_ID]}`}
                     data-tooltip-content={`Auto-detected matches config (${detectedPosId}).`}
                   />
-                  <Tooltip id={`posid-tooltip-match-${drone.hw_ID}`} place="top" effect="solid" />
+                  <Tooltip id={`posid-tooltip-match-${drone[FIELD_NAMES.HW_ID]}`} place="top" effect="solid" />
                 </>
               );
             }
@@ -243,7 +245,7 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">Altitude</span>
           <span className="data-value">
-            {getAltitudeDisplay(drone.Position_Alt)}
+            {getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT])}
           </span>
         </div>
 
@@ -284,7 +286,7 @@ const DroneWidget = ({
 
       {/* Last Update Indicator */}
       <div className="last-update">
-        <div className="update-time">Last seen: {formatLastUpdate(drone.Timestamp)}</div>
+        <div className="update-time">Last seen: {formatLastUpdate(drone[FIELD_NAMES.TIMESTAMP])}</div>
         {droneIP && droneIP !== 'N/A' && (
           <div className="drone-ip">{droneIP}</div>
         )}
@@ -292,7 +294,7 @@ const DroneWidget = ({
 
       {/* Action Commands */}
       <div className="drone-critical-commands-section">
-        <DroneCriticalCommands droneId={drone.hw_ID} />
+        <DroneCriticalCommands droneId={drone[FIELD_NAMES.HW_ID]} />
       </div>
 
     </div>
