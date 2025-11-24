@@ -29,10 +29,10 @@ const Overview = ({ setSelectedDrone }) => {
 
         const validDrones = dronesArray.filter(
           (drone) =>
-            drone.Position_Lat !== undefined &&
-            drone.Position_Long !== undefined &&
-            drone.Position_Alt !== undefined &&
-            drone.Battery_Voltage !== undefined
+            drone.position_lat !== undefined &&
+            drone.position_long !== undefined &&
+            drone.position_alt !== undefined &&
+            drone.battery_voltage !== undefined
         );
 
         const invalidDrones = dronesArray.filter(
