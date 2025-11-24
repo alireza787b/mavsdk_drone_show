@@ -53,10 +53,25 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
       return data;
     } else if (endpoint === '/git-status') {
       // Git status endpoint returns: { git_status: { "1": {...} } }
+      // Need to transform FastAPI Pydantic field names to match drone API format
       if (data.git_status) {
+        const transformedGitStatus = {};
+        Object.entries(data.git_status).forEach(([key, gitData]) => {
+          transformedGitStatus[key] = {
+            ...gitData,
+            // Map FastAPI schema names to drone API names for frontend compatibility
+            branch: gitData.current_branch || gitData.branch,
+            commit: gitData.latest_commit || gitData.commit,
+            message: gitData.commit_message || gitData.message,
+            // Keep original fields for backward compatibility
+            current_branch: gitData.current_branch,
+            latest_commit: gitData.latest_commit,
+            commit_message: gitData.commit_message,
+          };
+        });
         return {
           ...data,
-          git_status: normalizeTelemetryResponse(data.git_status),
+          git_status: transformedGitStatus,
         };
       }
       return data;

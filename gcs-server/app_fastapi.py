@@ -702,7 +702,7 @@ async def submit_command(request: Request):
         return CommandResponse(
             success=True,
             message="Command received and is being processed",
-            command=command_data.get('action', 'unknown'),
+            command=command_data.get('missionType', 'unknown'),
             target_drones=target_drones or [d['pos_id'] for d in drones],
             sent_count=len(target_drones) if target_drones else len(drones)
         )
