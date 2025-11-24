@@ -164,7 +164,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
               <div className="data-item">
                 <span className="data-label">Altitude</span>
                 <span className="data-value">
-                  {getAltitudeDisplay(drone.Position_Alt)}
+                  {getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT])}
                 </span>
               </div>
 

@@ -183,36 +183,38 @@ def poll_telemetry(drone):
                 # Update telemetry data with thread-safe access
                 with data_lock:
                     telemetry_data_all_drones[drone_id] = {
-                        'Pos_ID': telemetry_data.get('pos_id', 'UNKNOWN'),
-                        'Detected_Pos_ID': telemetry_data.get('detected_pos_id', 'UNKNOWN'),
-                        'State': telemetry_data.get('state', 999),  # Send numeric value, not enum name
-                        'Mission': get_enum_name(Mission, telemetry_data.get('mission', 'UNKNOWN')),
-                        'lastMission': get_enum_name(Mission, telemetry_data.get('last_mission', 'UNKNOWN')),
-                        'Position_Lat': telemetry_data.get('position_lat', 0.0),
-                        'Position_Long': telemetry_data.get('position_long', 0.0),
-                        'Position_Alt': telemetry_data.get('position_alt', 0.0),
-                        'Velocity_North': telemetry_data.get('velocity_north', 0.0),
-                        'Velocity_East': telemetry_data.get('velocity_east', 0.0),
-                        'Velocity_Down': telemetry_data.get('velocity_down', 0.0),
-                        'Yaw': telemetry_data.get('yaw', 0.0),
-                        'Battery_Voltage': telemetry_data.get('battery_voltage', 0.0),
-                        'Follow_Mode': telemetry_data.get('follow_mode', 'UNKNOWN'),
-                        'Update_Time': telemetry_data.get('update_time', 'UNKNOWN'),
-                        'Timestamp': telemetry_data.get('timestamp', time.time()),
-                        'Flight_Mode': telemetry_data.get('flight_mode', 'UNKNOWN'),  # PX4 custom_mode
-                        'Base_Mode': telemetry_data.get('base_mode', 'UNKNOWN'),      # MAVLink base_mode flags
-                        'System_Status': telemetry_data.get('system_status', 'UNKNOWN'),
-                        'Is_Armed': _get_enhanced_armed_status(telemetry_data), # Enhanced armed status
-                        'Is_Ready_To_Arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
-                        'Hdop': telemetry_data.get('hdop', 99.99),
-                        'Vdop': telemetry_data.get('vdop', 99.99),
-                        'Gps_Fix_Type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status
-                        'Satellites_Visible': telemetry_data.get('satellites_visible', 0),  # Number of satellites
-                        'IP': telemetry_data.get('ip', 'N/A'),  # Drone IP address from config
-                        # Heartbeat data
-                        'Heartbeat_Last_Seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp
-                        'Heartbeat_Network_Info': heartbeat_data.get('network_info', {}),  # Network connectivity info
-                        'Heartbeat_First_Seen': heartbeat_data.get('first_seen', 0),  # First heartbeat time
+                        'hw_id': drone_id,
+                        'pos_id': telemetry_data.get('pos_id', 'UNKNOWN'),
+                        'detected_pos_id': telemetry_data.get('detected_pos_id', 'UNKNOWN'),
+                        'state': telemetry_data.get('state', 999),  # Send numeric value, not enum name
+                        'mission': telemetry_data.get('mission', 0),  # Send numeric value for frontend integer mapping
+                        'last_mission': telemetry_data.get('last_mission', 0),  # Send numeric value for frontend integer mapping
+                        'position_lat': telemetry_data.get('position_lat', 0.0),
+                        'position_long': telemetry_data.get('position_long', 0.0),
+                        'position_alt': telemetry_data.get('position_alt', 0.0),
+                        'velocity_north': telemetry_data.get('velocity_north', 0.0),
+                        'velocity_east': telemetry_data.get('velocity_east', 0.0),
+                        'velocity_down': telemetry_data.get('velocity_down', 0.0),
+                        'yaw': telemetry_data.get('yaw', 0.0),
+                        'battery_voltage': telemetry_data.get('battery_voltage', 0.0),
+                        'follow_mode': telemetry_data.get('follow_mode', 0),
+                        'update_time': telemetry_data.get('update_time', 'UNKNOWN'),
+                        'timestamp': telemetry_data.get('timestamp', time.time()),
+                        'trigger_time': telemetry_data.get('trigger_time', 0),
+                        'flight_mode': telemetry_data.get('flight_mode', 'UNKNOWN'),  # PX4 custom_mode
+                        'base_mode': telemetry_data.get('base_mode', 'UNKNOWN'),  # MAVLink base_mode flags
+                        'system_status': telemetry_data.get('system_status', 'UNKNOWN'),
+                        'is_armed': _get_enhanced_armed_status(telemetry_data),  # Enhanced armed status
+                        'is_ready_to_arm': telemetry_data.get('is_ready_to_arm', False),  # Pre-arm checks
+                        'hdop': telemetry_data.get('hdop', 99.99),
+                        'vdop': telemetry_data.get('vdop', 99.99),
+                        'gps_fix_type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status
+                        'satellites_visible': telemetry_data.get('satellites_visible', 0),  # Number of satellites
+                        'ip': telemetry_data.get('ip', 'N/A'),  # Drone IP address from config
+                        # Heartbeat data (kept with prefix for clarity)
+                        'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp
+                        'heartbeat_network_info': heartbeat_data.get('network_info', {}),  # Network connectivity info
+                        'heartbeat_first_seen': heartbeat_data.get('first_seen', 0),  # First heartbeat time
                     }
                     last_telemetry_time[drone_id] = time.time()
 

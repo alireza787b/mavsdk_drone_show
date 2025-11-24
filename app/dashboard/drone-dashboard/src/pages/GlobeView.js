@@ -31,7 +31,7 @@ const GlobeView = () => {
             drone[FIELD_NAMES.POSITION_ALT] || 0,
           ],
           state: drone[FIELD_NAMES.STATE] || 'UNKNOWN',
-          follow_mode: drone.Follow_Mode || 0,
+          follow_mode: drone[FIELD_NAMES.FOLLOW_MODE] || 0,
           altitude: drone[FIELD_NAMES.POSITION_ALT] || 0,
         }));
 

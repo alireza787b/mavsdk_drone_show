@@ -57,10 +57,12 @@ export const FIELD_NAMES = {
   HDOP: 'hdop',
   VDOP: 'vdop',
 
-  // Timestamps
+  // Timestamps & Heartbeat
   TIMESTAMP: 'timestamp',
   UPDATE_TIME: 'update_time',
   HEARTBEAT_LAST_SEEN: 'heartbeat_last_seen',
+  HEARTBEAT_FIRST_SEEN: 'heartbeat_first_seen',
+  HEARTBEAT_NETWORK_INFO: 'heartbeat_network_info',
 };
 
 /**
@@ -120,10 +122,12 @@ export function normalizeDroneData(droneData) {
     Hdop: 'hdop',
     Vdop: 'vdop',
 
-    // Timestamps
+    // Timestamps & Heartbeat
     Timestamp: 'timestamp',
     Update_Time: 'update_time',
     Heartbeat_Last_Seen: 'heartbeat_last_seen',
+    Heartbeat_First_Seen: 'heartbeat_first_seen',
+    Heartbeat_Network_Info: 'heartbeat_network_info',
   };
 
   const normalized = {};

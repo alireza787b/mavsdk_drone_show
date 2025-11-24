@@ -76,7 +76,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
 
   const getConnectionStatus = () => {
     const now = Date.now();
-    const lastSeen = detailedDrone.Heartbeat_Last_Seen || 0;
+    const lastSeen = detailedDrone[FIELD_NAMES.HEARTBEAT_LAST_SEEN] || 0;
     const timeDiff = (now - lastSeen) / 1000;
 
     if (timeDiff < 5) return { class: 'excellent', color: '#38a169', label: 'Live' };
@@ -99,31 +99,31 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   };
 
   // Data processing
-  const flightModeName = getFlightModeTitle(detailedDrone.Flight_Mode);
-  const flightModeCategory = getFlightModeCategory(detailedDrone.Flight_Mode);
-  const systemStatusName = getSystemStatusTitle(detailedDrone.System_Status);
-  const missionStateName = getDroneShowStateName(detailedDrone.State);
-  const friendlyMissionName = getFriendlyMissionName(detailedDrone.lastMission);
+  const flightModeName = getFlightModeTitle(detailedDrone[FIELD_NAMES.FLIGHT_MODE]);
+  const flightModeCategory = getFlightModeCategory(detailedDrone[FIELD_NAMES.FLIGHT_MODE]);
+  const systemStatusName = getSystemStatusTitle(detailedDrone[FIELD_NAMES.SYSTEM_STATUS]);
+  const missionStateName = getDroneShowStateName(detailedDrone[FIELD_NAMES.STATE]);
+  const friendlyMissionName = getFriendlyMissionName(detailedDrone[FIELD_NAMES.LAST_MISSION]);
 
-  const isArmed = detailedDrone.Is_Armed || false;
-  const isReadyToArm = detailedDrone.Is_Ready_To_Arm || false;
+  const isArmed = detailedDrone[FIELD_NAMES.IS_ARMED] || false;
+  const isReadyToArm = detailedDrone[FIELD_NAMES.IS_READY_TO_ARM] || false;
 
-  const batteryStatus = getBatteryStatus(detailedDrone.Battery_Voltage || 0);
+  const batteryStatus = getBatteryStatus(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0);
   const gpsStatus = getGpsStatus(
-    detailedDrone.Gps_Fix_Type || 0,
-    detailedDrone.Hdop || 99.99,
-    detailedDrone.Satellites_Visible || 0
+    detailedDrone[FIELD_NAMES.GPS_FIX_TYPE] || 0,
+    detailedDrone[FIELD_NAMES.HDOP] || 99.99,
+    detailedDrone[FIELD_NAMES.SATELLITES_VISIBLE] || 0
   );
   const connectionStatus = getConnectionStatus();
 
   // Calculate uptime
-  const firstSeen = detailedDrone.Heartbeat_First_Seen || 0;
+  const firstSeen = detailedDrone[FIELD_NAMES.HEARTBEAT_FIRST_SEEN] || 0;
   const uptime = firstSeen > 0 ? (Date.now() / 1000) - firstSeen : 0;
 
   // Calculate speed
   const groundSpeed = Math.sqrt(
-    Math.pow(detailedDrone.Velocity_North || 0, 2) +
-    Math.pow(detailedDrone.Velocity_East || 0, 2)
+    Math.pow(detailedDrone[FIELD_NAMES.VELOCITY_NORTH] || 0, 2) +
+    Math.pow(detailedDrone[FIELD_NAMES.VELOCITY_EAST] || 0, 2)
   );
 
   const renderOverviewTab = () => (
@@ -151,7 +151,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="status-info">
             <div className="status-label">Battery</div>
-            <div className="status-value">{(detailedDrone.Battery_Voltage || 0).toFixed(1)}V</div>
+            <div className="status-value">{(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0).toFixed(1)}V</div>
             <div className="status-sub" style={{ color: batteryStatus.color }}>
               {batteryStatus.label}
             </div>
@@ -164,7 +164,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="status-info">
             <div className="status-label">GPS Status</div>
-            <div className="status-value">{detailedDrone.Satellites_Visible || 0} Sats</div>
+            <div className="status-value">{detailedDrone[FIELD_NAMES.SATELLITES_VISIBLE] || 0} Sats</div>
             <div className="status-sub" style={{ color: gpsStatus.color }}>
               {gpsStatus.label}
             </div>
@@ -177,7 +177,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="status-info">
             <div className="status-label">Connection</div>
-            <div className="status-value">{detailedDrone.IP || 'N/A'}</div>
+            <div className="status-value">{detailedDrone[FIELD_NAMES.IP] || 'N/A'}</div>
             <div className="status-sub" style={{ color: connectionStatus.color }}>
               {connectionStatus.label}
             </div>
@@ -203,7 +203,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Current Mission</label>
-            <span>{detailedDrone.Mission || 'None'}</span>
+            <span>{detailedDrone[FIELD_NAMES.MISSION] || 'None'}</span>
           </div>
           <div className="detail-item">
             <label>Last Mission</label>
@@ -211,7 +211,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Follow Mode</label>
-            <span>{detailedDrone.Follow_Mode || '0'}</span>
+            <span>{detailedDrone[FIELD_NAMES.FOLLOW_MODE] || '0'}</span>
           </div>
         </div>
       </div>
@@ -222,7 +222,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>Altitude</label>
-            <span>{(detailedDrone.Position_Alt || 0).toFixed(1)} m</span>
+            <span>{(detailedDrone[FIELD_NAMES.POSITION_ALT] || 0).toFixed(1)} m</span>
           </div>
           <div className="detail-item">
             <label>Ground Speed</label>
@@ -230,19 +230,19 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Vertical Speed</label>
-            <span>{(detailedDrone.Velocity_Down || 0).toFixed(1)} m/s</span>
+            <span>{(detailedDrone[FIELD_NAMES.VELOCITY_DOWN] || 0).toFixed(1)} m/s</span>
           </div>
           <div className="detail-item">
             <label>Heading</label>
-            <span>{(detailedDrone.Yaw || 0).toFixed(0)}°</span>
+            <span>{(detailedDrone[FIELD_NAMES.YAW] || 0).toFixed(0)}°</span>
           </div>
           <div className="detail-item">
             <label>Latitude</label>
-            <span>{(detailedDrone.Position_Lat || 0).toFixed(7)}</span>
+            <span>{(detailedDrone[FIELD_NAMES.POSITION_LAT] || 0).toFixed(7)}</span>
           </div>
           <div className="detail-item">
             <label>Longitude</label>
-            <span>{(detailedDrone.Position_Long || 0).toFixed(7)}</span>
+            <span>{(detailedDrone[FIELD_NAMES.POSITION_LONG] || 0).toFixed(7)}</span>
           </div>
         </div>
       </div>
@@ -257,27 +257,27 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>Hardware ID</label>
-            <span>{detailedDrone.hw_ID}</span>
+            <span>{detailedDrone[FIELD_NAMES.HW_ID]}</span>
           </div>
           <div className="detail-item">
             <label>Position ID</label>
-            <span>{detailedDrone.Pos_ID}</span>
+            <span>{detailedDrone[FIELD_NAMES.POS_ID]}</span>
           </div>
           <div className="detail-item">
             <label>Detected Pos ID</label>
-            <span>{detailedDrone.Detected_Pos_ID}</span>
+            <span>{detailedDrone[FIELD_NAMES.DETECTED_POS_ID]}</span>
           </div>
           <div className="detail-item">
             <label>State Code</label>
-            <span>{detailedDrone.State}</span>
+            <span>{detailedDrone[FIELD_NAMES.STATE]}</span>
           </div>
           <div className="detail-item">
             <label>Base Mode</label>
-            <span>{detailedDrone.Base_Mode} (0x{(detailedDrone.Base_Mode || 0).toString(16).toUpperCase()})</span>
+            <span>{detailedDrone[FIELD_NAMES.BASE_MODE]} (0x{(detailedDrone[FIELD_NAMES.BASE_MODE] || 0).toString(16).toUpperCase()})</span>
           </div>
           <div className="detail-item">
             <label>Flight Mode Code</label>
-            <span>{detailedDrone.Flight_Mode}</span>
+            <span>{detailedDrone[FIELD_NAMES.FLIGHT_MODE]}</span>
           </div>
         </div>
       </div>
@@ -292,18 +292,18 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Satellites Visible</label>
-            <span>{detailedDrone.Satellites_Visible || 0}</span>
+            <span>{detailedDrone[FIELD_NAMES.SATELLITES_VISIBLE] || 0}</span>
           </div>
           <div className="detail-item">
             <label>HDOP</label>
-            <span className={detailedDrone.Hdop <= 1.0 ? 'good' : detailedDrone.Hdop <= 2.0 ? 'fair' : 'poor'}>
-              {(detailedDrone.Hdop || 0).toFixed(2)}
+            <span className={detailedDrone[FIELD_NAMES.HDOP] <= 1.0 ? 'good' : detailedDrone[FIELD_NAMES.HDOP] <= 2.0 ? 'fair' : 'poor'}>
+              {(detailedDrone[FIELD_NAMES.HDOP] || 0).toFixed(2)}
             </span>
           </div>
           <div className="detail-item">
             <label>VDOP</label>
-            <span className={detailedDrone.Vdop <= 1.0 ? 'good' : detailedDrone.Vdop <= 2.0 ? 'fair' : 'poor'}>
-              {(detailedDrone.Vdop || 0).toFixed(2)}
+            <span className={detailedDrone[FIELD_NAMES.VDOP] <= 1.0 ? 'good' : detailedDrone[FIELD_NAMES.VDOP] <= 2.0 ? 'fair' : 'poor'}>
+              {(detailedDrone[FIELD_NAMES.VDOP] || 0).toFixed(2)}
             </span>
           </div>
         </div>
@@ -315,15 +315,15 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>North</label>
-            <span>{(detailedDrone.Velocity_North || 0).toFixed(2)} m/s</span>
+            <span>{(detailedDrone[FIELD_NAMES.VELOCITY_NORTH] || 0).toFixed(2)} m/s</span>
           </div>
           <div className="detail-item">
             <label>East</label>
-            <span>{(detailedDrone.Velocity_East || 0).toFixed(2)} m/s</span>
+            <span>{(detailedDrone[FIELD_NAMES.VELOCITY_EAST] || 0).toFixed(2)} m/s</span>
           </div>
           <div className="detail-item">
             <label>Down</label>
-            <span>{(detailedDrone.Velocity_Down || 0).toFixed(2)} m/s</span>
+            <span>{(detailedDrone[FIELD_NAMES.VELOCITY_DOWN] || 0).toFixed(2)} m/s</span>
           </div>
           <div className="detail-item">
             <label>Ground Speed</label>
@@ -338,15 +338,15 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>IP Address</label>
-            <span>{detailedDrone.IP || 'N/A'}</span>
+            <span>{detailedDrone[FIELD_NAMES.IP] || 'N/A'}</span>
           </div>
           <div className="detail-item">
             <label>First Seen</label>
-            <span>{formatTime(detailedDrone.Heartbeat_First_Seen * 1000)}</span>
+            <span>{formatTime(detailedDrone[FIELD_NAMES.HEARTBEAT_FIRST_SEEN] * 1000)}</span>
           </div>
           <div className="detail-item">
             <label>Last Heartbeat</label>
-            <span>{formatTime(detailedDrone.Heartbeat_Last_Seen)}</span>
+            <span>{formatTime(detailedDrone[FIELD_NAMES.HEARTBEAT_LAST_SEEN])}</span>
           </div>
           <div className="detail-item">
             <label>Uptime</label>
@@ -354,11 +354,11 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Data Update</label>
-            <span>{formatTime(detailedDrone.Update_Time * 1000)}</span>
+            <span>{formatTime(detailedDrone[FIELD_NAMES.UPDATE_TIME] * 1000)}</span>
           </div>
           <div className="detail-item">
             <label>Timestamp</label>
-            <span>{formatTime(detailedDrone.Timestamp)}</span>
+            <span>{formatTime(detailedDrone[FIELD_NAMES.TIMESTAMP])}</span>
           </div>
         </div>
       </div>
@@ -381,7 +381,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       </div>
       <div className="map-display">
         <MapContainer
-          center={[detailedDrone.Position_Lat, detailedDrone.Position_Long]}
+          center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
           zoom={13}
           style={{ height: '100%', width: '100%' }}
         >
@@ -410,7 +410,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             />
           )}
           <Marker
-            position={[detailedDrone.Position_Lat, detailedDrone.Position_Long]}
+            position={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
             icon={droneIcon}
           />
         </MapContainer>
@@ -423,7 +423,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       {!isAccordionView && (
         <div className="detail-header">
           <h1>
-            <FaPlane /> Drone {detailedDrone.hw_ID} - Detailed View
+            <FaPlane /> Drone {detailedDrone[FIELD_NAMES.HW_ID]} - Detailed View
             <div className="connection-indicator">
               <span
                 className="status-dot"

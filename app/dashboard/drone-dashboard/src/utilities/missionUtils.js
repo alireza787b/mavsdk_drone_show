@@ -4,6 +4,32 @@
  */
 
 /**
+ * Mapping from mission integer values to enum names
+ * Synchronized with backend src/enums.py Mission class
+ */
+export const MISSION_INT_TO_NAME = {
+  0: 'NONE',
+  1: 'DRONE_SHOW_FROM_CSV',
+  2: 'SMART_SWARM',
+  3: 'CUSTOM_CSV_DRONE_SHOW',
+  4: 'SWARM_TRAJECTORY',
+  6: 'REBOOT_FC',
+  7: 'REBOOT_SYS',
+  8: 'TEST_LED',
+  10: 'TAKE_OFF',
+  100: 'TEST',
+  101: 'LAND',
+  102: 'HOLD',
+  103: 'UPDATE_CODE',
+  104: 'RETURN_RTL',
+  105: 'KILL_TERMINATE',
+  106: 'HOVER_TEST',
+  110: 'INIT_SYSID',
+  111: 'APPLY_COMMON_PARAMS',
+  999: 'UNKNOWN'
+};
+
+/**
  * Mapping from mission enum names to user-friendly display names
  */
 export const MISSION_DISPLAY_NAMES = {
@@ -30,23 +56,39 @@ export const MISSION_DISPLAY_NAMES = {
 
 /**
  * Get a user-friendly mission name
- * @param {string} missionName - The mission enum name from backend
+ * @param {string|number} missionValue - The mission enum name (string) or integer value
  * @returns {string} Human-readable mission name
  */
-export const getFriendlyMissionName = (missionName) => {
-  if (!missionName || missionName === 'N/A') {
+export const getFriendlyMissionName = (missionValue) => {
+  if (missionValue === null || missionValue === undefined || missionValue === 'N/A') {
     return 'No Active Mission';
   }
 
-  return MISSION_DISPLAY_NAMES[missionName] || missionName;
+  // Handle integer values (convert to enum name first)
+  if (typeof missionValue === 'number') {
+    const enumName = MISSION_INT_TO_NAME[missionValue];
+    if (!enumName) {
+      return `Unknown Mission (${missionValue})`;
+    }
+    return MISSION_DISPLAY_NAMES[enumName] || enumName;
+  }
+
+  // Handle string values (enum names)
+  return MISSION_DISPLAY_NAMES[missionValue] || missionValue;
 };
 
 /**
  * Get mission status color/class based on mission type
- * @param {string} missionName - The mission enum name
+ * @param {string|number} missionValue - The mission enum name (string) or integer value
  * @returns {string} CSS class for styling
  */
-export const getMissionStatusClass = (missionName) => {
+export const getMissionStatusClass = (missionValue) => {
+  // Convert integer to enum name if needed
+  let missionName = missionValue;
+  if (typeof missionValue === 'number') {
+    missionName = MISSION_INT_TO_NAME[missionValue];
+  }
+
   if (!missionName || missionName === 'NONE' || missionName === 'N/A') {
     return 'mission-none';
   }
