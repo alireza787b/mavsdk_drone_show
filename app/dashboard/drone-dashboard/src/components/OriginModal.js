@@ -232,7 +232,7 @@ const OriginModal = ({
         // Add altitude from drone telemetry if available
         const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
         const tData = telemetryData[selectedDrone?.hw_id] || {};
-        const droneAlt = tData.absolute_altitude_m || tData.Position_Alt;
+        const droneAlt = tData[FIELD_NAMES.POSITION_ALT];
 
         const originData = { ...origin };
         if (droneAlt && !isNaN(parseFloat(droneAlt))) {
@@ -359,7 +359,7 @@ const OriginModal = ({
                 {selectedDroneId && (() => {
                   const selectedDrone = configData.find((d) => d.hw_id === selectedDroneId);
                   const tData = telemetryData[selectedDrone?.hw_id] || {};
-                  const droneAlt = tData.absolute_altitude_m || tData.Position_Alt;
+                  const droneAlt = tData[FIELD_NAMES.POSITION_ALT];
                   return droneAlt && !isNaN(parseFloat(droneAlt)) ? (
                     <p>Altitude: {parseFloat(droneAlt).toFixed(1)}m MSL (from drone)</p>
                   ) : null;

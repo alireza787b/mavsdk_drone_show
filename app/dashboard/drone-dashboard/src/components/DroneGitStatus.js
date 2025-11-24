@@ -32,7 +32,7 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   }
 
   const isInSync = gcsGitStatus && gitStatus.commit && gcsGitStatus.commit
-    ? gitStatus.commit === gcsGitStatus.commit
+    ? String(gitStatus.commit).trim() === String(gcsGitStatus.commit).trim()
     : false;
 
   const handleCopyCommit = async () => {
