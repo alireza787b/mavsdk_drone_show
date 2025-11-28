@@ -662,6 +662,11 @@ async def submit_command(request: Request):
         if not command_data:
             raise HTTPException(status_code=400, detail="No command data provided")
 
+        # Log command reception
+        mission_type = command_data.get('missionType', 'unknown')
+        trigger_time = command_data.get('triggerTime', '0')
+        logger.info(f"📥 Command received: missionType={mission_type}, triggerTime={trigger_time}")
+
         # Extract target drones
         target_drones = command_data.pop('target_drones', None)
 

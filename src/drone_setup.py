@@ -270,10 +270,11 @@ class DroneSetup:
             return
 
         logger.info(
-            f"Scheduling mission at {datetime.datetime.fromtimestamp(current_time)}. "
-            f"Mission: {Mission(self.drone_config.mission).name}, "
-            f"State: {State(self.drone_config.state).name}, "
-            f"TriggerTime: {trigger_time}, SoonerSeconds: {trigger_sooner}"
+            f"Checking Scheduler: "
+            f"Mission Code: {self.drone_config.mission}, "
+            f"State: {self.drone_config.state}, "
+            f"Trigger Time: {trigger_time}, "
+            f"Current Time: {current_time}"
         )
 
         try:
@@ -299,7 +300,7 @@ class DroneSetup:
             self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
-            logger.debug("Conditions met for Standard Drone Show; transitioning to TRIGGERED.")
+            logger.info("🚀 Executing Standard Drone Show - conditions met, transitioning to MISSION_EXECUTING")
             self.drone_config.state = State.MISSION_EXECUTING.value
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0
@@ -470,7 +471,7 @@ class DroneSetup:
             self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
-            logger.debug("Conditions met for Takeoff; transitioning to TRIGGERED.")
+            logger.info("🛫 Executing Takeoff - conditions met, transitioning to MISSION_EXECUTING")
             try:
                 altitude = float(self.drone_config.takeoff_altitude)
             except (AttributeError, ValueError, TypeError) as e:
@@ -478,7 +479,7 @@ class DroneSetup:
                 self._reset_mission_state(False)
                 return (False, f"Invalid takeoff altitude: {e}")
 
-            logger.info(f"Starting Takeoff to altitude: {altitude}m")
+            logger.info(f"📊 Takeoff altitude: {altitude}m")
             self.drone_config.state = State.MISSION_EXECUTING.value
             self.drone_config.trigger_time = 0
             return await self.execute_mission_script("actions.py", f"--action=takeoff --altitude={altitude}")

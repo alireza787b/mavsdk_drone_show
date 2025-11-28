@@ -371,14 +371,14 @@ class ShowImportResponse(BaseModel):
 
 
 class CommandRequest(BaseModel):
-    """Request for POST /api/send-command"""
+    """Request schema for commands (used internally, not directly exposed)"""
     command: str = Field(..., min_length=1, description="Command to send")
     drone_ids: Optional[List[int]] = Field(None, description="Target drone IDs (all if empty)")
     params: Optional[Dict[str, Any]] = Field(None, description="Command parameters")
 
 
 class CommandResponse(BaseModel):
-    """Response for POST /api/send-command"""
+    """Response for POST /submit_command (GCS endpoint for command submission)"""
     success: bool = Field(..., description="Command sent status")
     message: str = Field(..., description="Status message")
     command: str = Field(..., description="Command that was sent")

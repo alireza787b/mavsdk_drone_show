@@ -28,8 +28,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     if (missionType === DRONE_MISSION_TYPES.NONE) {
       // Directly send the command for 'Cancel Mission'
       const commandData = {
-        missionType: missionType,
-        triggerTime: 0, // Immediate action
+        missionType: String(missionType),
+        triggerTime: "0", // Immediate action (string for API compatibility)
       };
       onSendCommand(commandData);
     }
@@ -60,8 +60,8 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
     }
 
     const commandData = {
-      missionType: selectedMission,
-      triggerTime: triggerTime,
+      missionType: String(selectedMission),
+      triggerTime: String(triggerTime),
       auto_global_origin: autoGlobalOrigin,
       use_global_setpoints: useGlobalSetpoints,
     };

@@ -143,17 +143,26 @@ async def log_mavsdk_output(mavsdk_server):
             if not line:
                 break
             logger.debug(f"MAVSDK Server: {line.decode().strip()}")
-    except Exception:
-        logger.exception("Error reading MAVSDK server stdout")
+    except Exception as e:
+        # Only log unexpected errors (not shutdown-related)
+        if mavsdk_server.poll() is None:  # Server still running
+            logger.exception("Error reading MAVSDK server stdout")
 
     try:
         while True:
             line = await loop.run_in_executor(None, mavsdk_server.stderr.readline)
             if not line:
                 break
-            logger.error(f"MAVSDK Server Error: {line.decode().strip()}")
-    except Exception:
-        logger.exception("Error reading MAVSDK server stderr")
+            stderr_msg = line.decode().strip()
+            # Filter out expected GRPC shutdown messages
+            if "__anext__ grpc exception" in stderr_msg or "Socket closed" in stderr_msg:
+                logger.debug(f"MAVSDK Server (expected shutdown message): {stderr_msg}")
+            else:
+                logger.error(f"MAVSDK Server Error: {stderr_msg}")
+    except Exception as e:
+        # Only log unexpected errors (not shutdown-related)
+        if mavsdk_server.poll() is None:  # Server still running
+            logger.exception("Error reading MAVSDK server stderr")
 
 def read_hw_id():
     """
@@ -419,13 +428,21 @@ async def wait_for_drone_connection(drone, timeout=10):
     """
     logger.info("Waiting for drone connection state...")
     start = time.time()
-    async for state in drone.core.connection_state():
-        if state.is_connected:
-            logger.info("Drone connected successfully.")
-            return True
-        if time.time() - start > timeout:
-            return False
-        await asyncio.sleep(0.5)
+    try:
+        async for state in drone.core.connection_state():
+            if state.is_connected:
+                logger.info("Drone connected successfully.")
+                return True
+            if time.time() - start > timeout:
+                return False
+            await asyncio.sleep(0.5)
+    except Exception as e:
+        # GRPC exceptions during shutdown are expected - suppress them
+        if "unavailable" in str(e).lower() or "socket closed" in str(e).lower():
+            logger.debug(f"Connection state stream closed during shutdown: {e}")
+        else:
+            logger.error(f"Error waiting for drone connection: {e}")
+        return False
 
 async def safe_action(func, *args, **kwargs):
     """
