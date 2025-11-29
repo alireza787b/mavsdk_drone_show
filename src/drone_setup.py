@@ -300,7 +300,7 @@ class DroneSetup:
             self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
-            logger.info("🚀 Executing Standard Drone Show - conditions met, transitioning to MISSION_EXECUTING")
+            logger.debug("Conditions met for Standard Drone Show; transitioning to TRIGGERED.")
             self.drone_config.state = State.MISSION_EXECUTING.value
             real_trigger_time = self.drone_config.trigger_time
             self.drone_config.trigger_time = 0
@@ -471,7 +471,7 @@ class DroneSetup:
             self.drone_config.state == State.MISSION_READY.value
             and current_time >= earlier_trigger_time
         ):
-            logger.info("🛫 Executing Takeoff - conditions met, transitioning to MISSION_EXECUTING")
+            logger.debug("Conditions met for Takeoff; transitioning to TRIGGERED.")
             try:
                 altitude = float(self.drone_config.takeoff_altitude)
             except (AttributeError, ValueError, TypeError) as e:
@@ -479,7 +479,7 @@ class DroneSetup:
                 self._reset_mission_state(False)
                 return (False, f"Invalid takeoff altitude: {e}")
 
-            logger.info(f"📊 Takeoff altitude: {altitude}m")
+            logger.info(f"Starting Takeoff to altitude: {altitude}m")
             self.drone_config.state = State.MISSION_EXECUTING.value
             self.drone_config.trigger_time = 0
             return await self.execute_mission_script("actions.py", f"--action=takeoff --altitude={altitude}")

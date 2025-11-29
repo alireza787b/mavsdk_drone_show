@@ -188,12 +188,9 @@ class DroneAPIServer:
             """Endpoint to send a command to the drone."""
             try:
                 command_data = command.dict()
-                logging.info(f"📥 Drone API: Command received - missionType={command_data.get('missionType')}, triggerTime={command_data.get('triggerTime')}")
                 self.drone_communicator.process_command(command_data)
-                logging.info(f"✅ Drone API: Command processed successfully")
                 return {"status": "success", "message": "Command received"}
             except Exception as e:
-                logging.error(f"❌ Drone API: Command processing failed - {str(e)}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get('/get-home-pos')

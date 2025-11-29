@@ -29,7 +29,7 @@ const DroneActions = ({ actionTypes, onSendCommand }) => {
   const handleActionClick = (actionKey, extraData = {}) => {
     const actionTypeValue = actionTypes[actionKey];
     const commandData = {
-      missionType: actionTypeValue,
+      missionType: String(actionTypeValue),
       triggerTime: '0', // immediate
       ...extraData,
     };

@@ -665,7 +665,7 @@ async def submit_command(request: Request):
         # Log command reception
         mission_type = command_data.get('missionType', 'unknown')
         trigger_time = command_data.get('triggerTime', '0')
-        logger.info(f"📥 Command received: missionType={mission_type}, triggerTime={trigger_time}")
+        log_system_event(f"Command received: missionType={mission_type}, triggerTime={trigger_time}", "INFO", "command")
 
         # Extract target drones
         target_drones = command_data.pop('target_drones', None)
