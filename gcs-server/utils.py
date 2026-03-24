@@ -81,6 +81,21 @@ def _run_git_with_timeout(git_cmd, args, timeout):
         raise
 
 
+def _rollback_auto_commit(git, commit_hash):
+    """Undo an auto-created commit while keeping working tree changes intact."""
+    if not commit_hash:
+        return
+    try:
+        logger.warning(
+            "Rolling back local auto-commit %s after git propagation failure; "
+            "leaving changes in the working tree only.",
+            commit_hash,
+        )
+        git.reset('--mixed', 'HEAD~1')
+    except Exception as rollback_error:
+        logger.error(f"Failed to roll back auto-commit {commit_hash}: {rollback_error}")
+
+
 def git_operations(base_dir, commit_message, timeout=30):
     """
     Handles Git operations using GitPython for better control and error handling.
@@ -163,6 +178,7 @@ def git_operations(base_dir, commit_message, timeout=30):
             git.pull('--rebase', 'origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
         except (TimeoutError, GitCommandError) as e:
             if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+                _rollback_auto_commit(git, commit_hash)
                 return {'success': False, 'message': f'Git pull timed out after {timeout}s',
                         'commit_hash': commit_hash}
             elif 'merge conflict' in str(e).lower() or 'rebase' in str(e).lower():
@@ -182,6 +198,7 @@ def git_operations(base_dir, commit_message, timeout=30):
             git.push('origin', Params.GIT_BRANCH, kill_after_timeout=timeout)
         except (TimeoutError, GitCommandError) as e:
             if 'timeout' in str(e).lower() or 'kill_after_timeout' in str(e).lower():
+                _rollback_auto_commit(git, commit_hash)
                 return {'success': False, 'message': f'Git push timed out after {timeout}s',
                         'commit_hash': commit_hash}
             raise
@@ -220,6 +237,7 @@ def git_operations(base_dir, commit_message, timeout=30):
         except Exception:
             pass
 
+        _rollback_auto_commit(git, commit_hash)
         logger.error(error_message)
         return {'success': False, 'message': error_message}
     except Exception as e:

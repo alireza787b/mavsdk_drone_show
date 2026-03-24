@@ -85,7 +85,8 @@ class TestGitOperationsNonInteractiveAuth:
 
         fake_repo = MagicMock()
         fake_repo.git = fake_git
-        fake_repo.is_dirty.return_value = False
+        fake_repo.is_dirty.return_value = True
+        fake_repo.index.commit.return_value = type('Commit', (), {'hexsha': 'abc12345', 'stats': type('Stats', (), {'files': {}})()})()
 
         monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
 
@@ -94,6 +95,7 @@ class TestGitOperationsNonInteractiveAuth:
         assert result['success'] is False
         assert 'authenticated write access is required' in result['message']
         assert 'disable GIT_AUTO_PUSH' in result['message']
+        fake_git.reset.assert_called_once_with('--mixed', 'HEAD~1')
 
 
 class TestGitStatusSchemas:
