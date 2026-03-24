@@ -27,6 +27,7 @@ import traceback
 import tempfile
 import zipfile
 import threading
+import csv
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -1985,6 +1986,49 @@ async def get_show_info():
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading show info: {e}")
+
+
+@app.get("/get-custom-show-info", tags=["Show Management"])
+async def get_custom_show_info():
+    """Get metadata for the advanced custom CSV workflow."""
+    try:
+        custom_csv_path = os.path.join(shapes_dir, 'active.csv')
+        preview_path = os.path.join(shapes_dir, 'trajectory_plot.png')
+
+        if not os.path.exists(custom_csv_path):
+            raise HTTPException(status_code=404, detail="Custom CSV not found")
+
+        row_count = 0
+        duration_sec = 0.0
+        max_altitude = 0.0
+
+        with open(custom_csv_path, 'r', newline='') as csv_file:
+            reader = csv.DictReader(csv_file)
+            for row in reader:
+                row_count += 1
+                try:
+                    duration_sec = float(row.get('t', duration_sec))
+                except (TypeError, ValueError):
+                    pass
+
+                try:
+                    max_altitude = max(max_altitude, -float(row.get('pz', 0.0)))
+                except (TypeError, ValueError):
+                    pass
+
+        return JSONResponse(content={
+            'exists': True,
+            'filename': 'active.csv',
+            'row_count': row_count,
+            'duration_sec': round(duration_sec, 2),
+            'max_altitude': round(max_altitude, 2),
+            'preview_exists': os.path.exists(preview_path),
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading custom show info: {e}")
 
 
 @app.get("/get-comprehensive-metrics", tags=["Show Management"])

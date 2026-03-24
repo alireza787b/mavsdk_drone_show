@@ -47,6 +47,22 @@ def _safe_int(value: str, default: int) -> int:
         return default
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    """Read a boolean feature flag from environment or local.env."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+
+    normalized = value.strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off'}:
+        return False
+
+    logger.warning(f"Invalid boolean value for {name!r}: {value!r}. Using default {default}.")
+    return default
+
+
 class Params:
     """
     Params class manages configuration settings for the drone system,
@@ -95,10 +111,11 @@ class Params:
     #   - All Python components (GCS server, functions, etc.) automatically use your config
     #
     # ENVIRONMENT VARIABLES:
-    #   MDS_REPO_URL  - Git repository URL (SSH or HTTPS)
-    #   MDS_BRANCH    - Git branch name
+    #   MDS_REPO_URL       - Git repository URL (SSH or HTTPS)
+    #   MDS_BRANCH         - Git branch name
+    #   MDS_GIT_AUTO_PUSH  - Enable/disable automatic commit+push from GCS workflows
     # ===================================================================================
-    GIT_AUTO_PUSH = True
+    GIT_AUTO_PUSH = _env_flag('MDS_GIT_AUTO_PUSH', True)
     GIT_REPO_URL = os.environ.get('MDS_REPO_URL', 'git@github.com:alireza787b/mavsdk_drone_show.git')
     GIT_BRANCH = os.environ.get('MDS_BRANCH', 'main-candidate')
 

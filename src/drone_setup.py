@@ -627,6 +627,13 @@ class DroneSetup:
         """
         auto_global_origin, use_global_setpoints = self._get_phase2_flags()
 
+        # Custom CSV mode is a per-drone local-frame workflow by design.
+        # Keep it explicit so hidden UI state or stale API flags cannot silently
+        # switch it into a global/origin-corrected launch path.
+        if mission_type == Mission.CUSTOM_CSV_DRONE_SHOW.value:
+            auto_global_origin = False
+            use_global_setpoints = False
+
         action = f"--start_time={trigger_time}"
         if custom_csv:
             action += f" --custom_csv={custom_csv}"

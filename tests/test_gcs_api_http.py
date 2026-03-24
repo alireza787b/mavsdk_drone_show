@@ -543,6 +543,33 @@ class TestShowManagementEndpoints:
         assert 'drone_count' in data
         assert 'max_altitude' in data
 
+    def test_get_custom_show_info(self, test_client, monkeypatch, tmp_path):
+        """Test GET /get-custom-show-info reports active custom CSV metadata."""
+        import app_fastapi
+
+        shapes_dir = tmp_path / 'shapes_sitl'
+        shapes_dir.mkdir(parents=True, exist_ok=True)
+        (shapes_dir / 'active.csv').write_text(
+            'idx,t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb\n'
+            '0,0.0,0.0,0.0,-0.0,0,0,0,0,0,0,0,70,0,0,255\n'
+            '1,2.5,1.0,2.0,-5.0,0,0,0,0,0,0,0,70,0,0,255\n',
+            encoding='utf-8',
+        )
+        (shapes_dir / 'trajectory_plot.png').write_bytes(b'png')
+
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(shapes_dir))
+
+        response = test_client.get('/get-custom-show-info')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['exists'] is True
+        assert data['filename'] == 'active.csv'
+        assert data['row_count'] == 2
+        assert data['duration_sec'] == 2.5
+        assert data['max_altitude'] == 5.0
+        assert data['preview_exists'] is True
+
 
 # ============================================================================
 # Git Status Tests

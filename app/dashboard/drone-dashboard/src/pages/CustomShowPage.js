@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/CustomShowPage.css';
 import { getCustomShowImageURL } from '../utilities/utilities';
+import useFetch from '../hooks/useFetch';
 
 const CustomShowPage = () => {
     const [imageSrc, setImageSrc] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
+    const { data: customShowInfo } = useFetch('/get-custom-show-info');
 
     useEffect(() => {
         // Fetch the custom show image from the server
@@ -39,6 +41,11 @@ const CustomShowPage = () => {
                 for specialized testing and research, but it is a different operator workflow from the normal
                 multi-drone SkyBrush show pipeline. Treat it as an advanced/manual mode.
             </p>
+            {customShowInfo?.exists && (
+                <p className="description">
+                    Active file: <code>{customShowInfo.filename}</code> • duration {customShowInfo.duration_sec}s • max altitude {customShowInfo.max_altitude}m
+                </p>
+            )}
             {errorMessage && <div className="error-message">{errorMessage}</div>}
             {imageSrc ? (
                 <img src={imageSrc} alt="Custom Drone Show" className="custom-show-image" />

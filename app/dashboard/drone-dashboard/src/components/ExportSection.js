@@ -1,10 +1,17 @@
 // src/components/ExportSection.js
 import React from 'react';
 import { getBackendURL } from '../utilities/utilities';
-import { Box, Typography, Button, Paper } from '@mui/material';
+import { Box, Typography, Button, Paper, Alert } from '@mui/material';
+import useFetch from '../hooks/useFetch';
 
 const ExportSection = () => {
+  const { data: showInfo } = useFetch('/get-show-info');
+  const hasImportedShow = Boolean(showInfo && Number(showInfo.drone_count) > 0);
+
   const handleDownload = (type) => {
+    if (!hasImportedShow) {
+      return;
+    }
     const downloadUrl = `${getBackendURL()}/download-${type}-show`;
     window.open(downloadUrl, '_blank');
   };
@@ -17,17 +24,22 @@ const ExportSection = () => {
 
       <Paper sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Button variant="contained" onClick={() => handleDownload('raw')}>
+          {!hasImportedShow && (
+            <Alert severity="info">
+              Import a Drone Show first to enable raw and processed export packages.
+            </Alert>
+          )}
+
+          <Button variant="contained" onClick={() => handleDownload('raw')} disabled={!hasImportedShow}>
             Download Raw Show
           </Button>
-          <Button variant="contained" onClick={() => handleDownload('processed')}>
+          <Button variant="contained" onClick={() => handleDownload('processed')} disabled={!hasImportedShow}>
             Download Processed Show
           </Button>
 
           <Typography variant="body2" sx={{ mt: 1 }} className="info">
-            Use the buttons above to download the raw or processed data for your drone shows. 
-            Raw data contains the original ZIP file created by SkyBrush, while processed data 
-            includes modifications for MAVSDK Drone Show.
+            Raw export contains the current SkyBrush CSV set stored on the GCS. Processed export
+            contains the NED trajectory files used by Drone Show missions.
           </Typography>
         </Box>
       </Paper>

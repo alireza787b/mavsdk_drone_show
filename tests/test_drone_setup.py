@@ -311,6 +311,32 @@ class TestMissionHandlers:
 
         assert result[0] is False
 
+    def test_custom_csv_action_forces_local_mode(self):
+        """Custom CSV missions must not inherit global/origin-corrected flags."""
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.AUTO_GLOBAL_ORIGIN_MODE = True
+        params.USE_GLOBAL_SETPOINTS = True
+
+        drone_config = create_mock_drone_config()
+        drone_config.auto_global_origin = True
+        drone_config.use_global_setpoints = True
+
+        setup = DroneSetup(params, drone_config)
+
+        action = setup._build_offboard_action(
+            trigger_time=1234567890,
+            mission_type=Mission.CUSTOM_CSV_DRONE_SHOW.value,
+            custom_csv='active.csv',
+        )
+
+        assert '--custom_csv=active.csv' in action
+        assert '--mission_type 3' in action
+        assert '--auto_global_origin False' in action
+        assert '--use_global_setpoints False' in action
+
 
 # ============================================================================
 # Test: Process Management

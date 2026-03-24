@@ -57,11 +57,12 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
       }
     }
 
+    const isCustomCsvMission = selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW;
     const commandData = {
       missionType: String(selectedMission),
       triggerTime: String(triggerTime),
-      auto_global_origin: autoGlobalOrigin,
-      use_global_setpoints: useGlobalSetpoints,
+      auto_global_origin: isCustomCsvMission ? false : autoGlobalOrigin,
+      use_global_setpoints: isCustomCsvMission ? false : useGlobalSetpoints,
     };
     onSendCommand(commandData);
   };

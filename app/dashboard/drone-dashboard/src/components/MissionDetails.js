@@ -41,8 +41,12 @@ const MissionDetails = ({
   
   // Only show hints for DRONE_SHOW_FROM_CSV mission type
   const showModeHints = missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV;
+  const customShowHints = missionType === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW;
   const { data: showInfo, error: showInfoError, loading: showInfoLoading } = useFetch(
     showModeHints ? '/get-show-info' : null
+  );
+  const { data: customShowInfo, error: customShowError, loading: customShowLoading } = useFetch(
+    customShowHints ? '/get-custom-show-info' : null
   );
   
   // Extract deviation summary
@@ -134,8 +138,11 @@ const MissionDetails = ({
   
   const placementStatus = getPlacementStatus();
   const showImported = Boolean(showInfo && showInfo.drone_count > 0);
+  const customShowReady = Boolean(customShowInfo && customShowInfo.exists);
   const droneShowBlockers = [];
   const droneShowWarnings = [];
+  const customShowBlockers = [];
+  const customShowWarnings = [];
 
   if (showModeHints && showInfoLoading) {
     droneShowBlockers.push('Verifying imported Drone Show package...');
@@ -174,7 +181,27 @@ const MissionDetails = ({
     }
   }
 
-  const canSendMission = droneShowBlockers.length === 0;
+  if (customShowHints && customShowLoading) {
+    customShowBlockers.push('Verifying active custom CSV package...');
+  }
+
+  if (customShowHints && !customShowLoading) {
+    if (!customShowReady) {
+      customShowBlockers.push('Custom CSV mode requires shapes_sitl/active.csv (or shapes/active.csv in real mode).');
+    }
+
+    if (customShowError && !customShowReady) {
+      customShowWarnings.push('Custom CSV metadata could not be verified from the backend.');
+    }
+
+    if (customShowReady && !customShowInfo.preview_exists) {
+      customShowWarnings.push('Preview image is missing. Regenerate the custom trajectory plot if operators need a visual cross-check.');
+    }
+  }
+
+  const missionBlockers = showModeHints ? droneShowBlockers : customShowHints ? customShowBlockers : [];
+  const missionWarnings = showModeHints ? droneShowWarnings : customShowHints ? customShowWarnings : [];
+  const canSendMission = missionBlockers.length === 0;
   
   // Find drones with worst deviation (with tolerance for floating point comparison)
   const getWorstDeviationDrones = () => {
@@ -517,6 +544,69 @@ const MissionDetails = ({
                 Show Design
               </Link>{' '}
               and the live launch setup in{' '}
+              <Link to="/mission-config" className="origin-link">
+                Mission Config
+              </Link>{' '}
+              before scheduling launch.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {customShowHints && (
+        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
+          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-content">
+            <strong>Custom CSV Readiness Snapshot</strong>
+            <div className="origin-confirmation">
+              <div className="origin-info-row">
+                <span className="origin-label">Execution Mode:</span>
+                <span className="origin-coords">LOCAL launch-frame only</span>
+              </div>
+              <div className="origin-info-row">
+                <span className="origin-label">Active CSV:</span>
+                <span className="origin-coords">
+                  {customShowReady
+                    ? `${customShowInfo.filename} • ${customShowInfo.duration_sec}s • ${customShowInfo.row_count} samples`
+                    : 'Not available'}
+                </span>
+              </div>
+              {customShowReady && (
+                <div className="origin-info-row">
+                  <span className="origin-label">Max Altitude:</span>
+                  <span className="origin-coords">{customShowInfo.max_altitude} m</span>
+                </div>
+              )}
+            </div>
+
+            {missionBlockers.length > 0 && (
+              <ul>
+                {missionBlockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            )}
+
+            {missionWarnings.length > 0 && (
+              <ul>
+                {missionWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            )}
+
+            <ul>
+              <li>Each drone runs the same CSV relative to its own launch point.</li>
+              <li>GLOBAL origin correction and shared-origin placement checks do not apply in this mode.</li>
+              <li>Use this for advanced/manual testing, not for the normal SkyBrush multi-drone show pipeline.</li>
+            </ul>
+
+            <p>
+              Review the authored path in{' '}
+              <Link to="/custom-show" className="origin-link">
+                Custom Show
+              </Link>{' '}
+              and confirm launch spacing in{' '}
               <Link to="/mission-config" className="origin-link">
                 Mission Config
               </Link>{' '}

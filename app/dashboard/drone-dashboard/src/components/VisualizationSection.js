@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getBackendURL } from '../utilities/utilities';
 import {
+  Alert,
   Box,
   Typography,
   Card,
@@ -70,23 +71,33 @@ const VisualizationSection = ({ uploadCount }) => {
         // Fetch show info
         const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
         const showInfoData = await showInfoResponse.json();
-
-        setShowDetails({
-          droneCount: showInfoData.drone_count,
-          duration: {
-            ms: showInfoData.duration_ms,
-            minutes: parseInt(showInfoData.duration_minutes),
-            seconds: parseInt(showInfoData.duration_seconds),
-          },
-          maxAltitude: showInfoData.max_altitude,
-        });
+        if (showInfoResponse.ok && Number(showInfoData?.drone_count || 0) > 0) {
+          setShowDetails({
+            droneCount: showInfoData.drone_count,
+            duration: {
+              ms: showInfoData.duration_ms,
+              minutes: parseInt(showInfoData.duration_minutes),
+              seconds: parseInt(showInfoData.duration_seconds),
+            },
+            maxAltitude: showInfoData.max_altitude,
+          });
+        } else {
+          setShowDetails({
+            droneCount: 0,
+            duration: null,
+            maxAltitude: null,
+          });
+          setComprehensiveMetrics(null);
+        }
 
         // Fetch comprehensive metrics (new endpoint)
         try {
           const metricsResponse = await fetch(`${backendURL}/get-comprehensive-metrics`);
-          if (metricsResponse.ok) {
+          if (showInfoResponse.ok && metricsResponse.ok) {
             const metricsData = await metricsResponse.json();
             setComprehensiveMetrics(metricsData);
+          } else if (!showInfoResponse.ok) {
+            setComprehensiveMetrics(null);
           }
         } catch (metricsError) {
           setComprehensiveMetrics(null);
@@ -165,6 +176,8 @@ const VisualizationSection = ({ uploadCount }) => {
     const nextIndex = currentIndex === plots.length - 1 ? 0 : currentIndex + 1;
     setCurrentIndex(nextIndex);
   };
+
+  const hasImportedShow = showDetails.droneCount > 0 || plots.length > 0 || Boolean(comprehensiveMetrics);
 
 
   const renderTechnicalData = () => {
@@ -461,6 +474,13 @@ const VisualizationSection = ({ uploadCount }) => {
       <Typography variant="h5" sx={{ color: '#0056b3', mb: 1 }}>
         Drone Show Visualization
       </Typography>
+
+      {!loading && !hasImportedShow && !error && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          No processed Drone Show is active yet. Upload a SkyBrush ZIP above to populate plots,
+          metrics, and launch-ready trajectory data.
+        </Alert>
+      )}
       
       {/* Show File Information */}
       {comprehensiveMetrics?.show_info && (
