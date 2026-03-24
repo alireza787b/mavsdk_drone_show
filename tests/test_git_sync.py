@@ -8,7 +8,20 @@ schema validation, check_git_sync_status GCS comparison.
 
 import pytest
 import time
+import importlib.util
+from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
+from git import GitCommandError
+
+
+def load_gcs_utils_module():
+    """Load gcs-server/utils.py without the autouse utils.git_operations patch."""
+    module_path = Path(__file__).resolve().parents[1] / 'gcs-server' / 'utils.py'
+    spec = importlib.util.spec_from_file_location('gcs_utils_under_test', module_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class TestGitOperationsTimeout:
@@ -32,6 +45,55 @@ class TestGitOperationsTimeout:
         result = {'success': False, 'message': 'Git push timed out after 30s', 'commit_hash': 'abc1234'}
         assert result['success'] is False
         assert result['commit_hash'] is not None
+
+
+class TestGitOperationsNonInteractiveAuth:
+    """Test non-interactive git auth handling for write-backed workflows."""
+
+    def test_git_operations_sets_noninteractive_environment(self, monkeypatch):
+        gcs_utils = load_gcs_utils_module()
+
+        fake_git = MagicMock()
+        fake_repo = MagicMock()
+        fake_repo.git = fake_git
+        fake_repo.is_dirty.return_value = False
+
+        monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
+
+        result = gcs_utils.git_operations('/tmp/repo', 'test commit')
+
+        assert result['success'] is True
+        fake_git.update_environment.assert_called_once_with(
+            GIT_TERMINAL_PROMPT='0',
+            GIT_ASKPASS='echo',
+            SSH_ASKPASS='echo',
+            GCM_INTERACTIVE='never',
+        )
+
+    def test_git_operations_reports_noninteractive_auth_failure(self, monkeypatch):
+        gcs_utils = load_gcs_utils_module()
+
+        fake_git = MagicMock()
+        fake_git.fetch.return_value = ''
+        fake_git.pull.return_value = ''
+        fake_git.push.side_effect = GitCommandError(
+            'push',
+            128,
+            stderr="fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        )
+        fake_git.config.return_value = 'https://github.com/example/repo.git'
+
+        fake_repo = MagicMock()
+        fake_repo.git = fake_git
+        fake_repo.is_dirty.return_value = False
+
+        monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
+
+        result = gcs_utils.git_operations('/tmp/repo', 'test commit')
+
+        assert result['success'] is False
+        assert 'authenticated write access is required' in result['message']
+        assert 'disable GIT_AUTO_PUSH' in result['message']
 
 
 class TestGitStatusSchemas:

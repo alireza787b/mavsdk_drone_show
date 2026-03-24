@@ -103,6 +103,12 @@ def git_operations(base_dir, commit_message, timeout=30):
     try:
         repo = Repo(base_dir)
         git = repo.git
+        git.update_environment(
+            GIT_TERMINAL_PROMPT='0',
+            GIT_ASKPASS='echo',
+            SSH_ASKPASS='echo',
+            GCM_INTERACTIVE='never',
+        )
 
         # Fetch latest changes (with timeout)
         logger.info("Fetching latest changes from remote...")
@@ -187,7 +193,17 @@ def git_operations(base_dir, commit_message, timeout=30):
     except GitCommandError as e:
         error_str = str(e)
         # Provide specific error messages
-        if 'Permission denied' in error_str or 'publickey' in error_str:
+        lowered_error = error_str.lower()
+        if (
+            'could not read username' in lowered_error
+            or 'terminal prompts disabled' in lowered_error
+            or 'authentication failed' in lowered_error
+        ):
+            error_message = (
+                "Git push failed: authenticated write access is required for auto-push. "
+                "Configure SSH/PAT credentials or disable GIT_AUTO_PUSH on this GCS."
+            )
+        elif 'Permission denied' in error_str or 'publickey' in error_str:
             error_message = "Git push failed: no SSH key or permission denied. Ensure GCS has a deploy key with write access."
         elif 'Could not resolve host' in error_str or 'unable to access' in error_str:
             error_message = "Git push failed: network error. Check internet connectivity."
