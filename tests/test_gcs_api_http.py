@@ -24,6 +24,7 @@ import tempfile
 import os
 import signal
 import sys
+import zipfile
 from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
 
@@ -447,25 +448,78 @@ class TestOriginEndpoints:
 class TestShowManagementEndpoints:
     """Test show import and management endpoints"""
 
-    @patch('app_fastapi.run_formation_process')
-    @patch('app_fastapi.clear_show_directories')
-    @patch('os.listdir')
-    def test_import_show(self, mock_listdir, mock_clear, mock_process, test_client):
-        """Test POST /import-show with file upload"""
-        # Create a mock zip file
-        mock_listdir.return_value = ['Drone 1.csv', 'Drone 2.csv']
+    def test_import_show_rejects_non_zip(self, test_client):
+        """Test POST /import-show rejects non-ZIP uploads early"""
+        files = {'file': ('bad_show.txt', BytesIO(b'not-a-zip'), 'text/plain')}
 
-        # Create test zip content
-        zip_content = b'PK\x03\x04...'  # Minimal zip header
+        response = test_client.post("/import-show", files=files)
 
-        files = {'file': ('test_show.zip', BytesIO(zip_content), 'application/zip')}
+        assert response.status_code == 400
+        assert 'ZIP' in response.json()['detail']
 
-        with patch('zipfile.ZipFile'):
-            response = test_client.post("/import-show", files=files)
+    def test_import_show_accepts_nested_zip_and_returns_summary(self, test_client, monkeypatch, tmp_path):
+        """Test POST /import-show stages nested CSVs and returns the new summary payload"""
+        import app_fastapi
 
-        # Should process but may fail on actual zip extraction
-        # We're testing the endpoint structure, not zip processing
-        assert response.status_code in [200, 500]
+        live_skybrush = tmp_path / 'shapes_sitl' / 'swarm' / 'skybrush'
+        live_processed = tmp_path / 'shapes_sitl' / 'swarm' / 'processed'
+        live_plots = tmp_path / 'shapes_sitl' / 'swarm' / 'plots'
+        temp_dir = tmp_path / 'temp'
+        for path in (live_skybrush, live_processed, live_plots, temp_dir):
+            path.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(app_fastapi, 'BASE_DIR', str(tmp_path))
+        monkeypatch.setattr(app_fastapi, 'skybrush_dir', str(live_skybrush))
+        monkeypatch.setattr(app_fastapi, 'processed_dir', str(live_processed))
+        monkeypatch.setattr(app_fastapi, 'plots_directory', str(live_plots))
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
+
+        def fake_clear_show_directories(_base_dir):
+            for directory in (live_skybrush, live_processed, live_plots):
+                for entry in directory.iterdir():
+                    if entry.is_file():
+                        entry.unlink()
+
+        def fake_run_formation_process(base_dir, skybrush_dir=None, processed_dir=None, plots_dir=None):
+            assert sorted(os.listdir(skybrush_dir)) == ['Drone 1.csv', 'Drone 2.csv']
+
+            for filename in ('Drone 1.csv', 'Drone 2.csv'):
+                with open(os.path.join(processed_dir, filename), 'w', encoding='utf-8') as fh:
+                    fh.write('idx,t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb\n0,0,0,0,0,0,0,0,0,0,0,0,70,255,0,0\n')
+
+            for filename in ('drone_1_path.jpg', 'drone_2_path.jpg', 'combined_drone_paths.jpg'):
+                with open(os.path.join(plots_dir, filename), 'wb') as fh:
+                    fh.write(b'jpg')
+
+            return {
+                'success': True,
+                'message': 'ok',
+                'input_count': 2,
+                'processed_count': 2,
+                'plot_count': 3,
+                'processed_files': ['Drone 1.csv', 'Drone 2.csv'],
+            }
+
+        monkeypatch.setattr(app_fastapi, 'clear_show_directories', fake_clear_show_directories)
+        monkeypatch.setattr(app_fastapi, 'run_formation_process', fake_run_formation_process)
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as archive:
+            archive.writestr('nested/export/Drone 1.csv', 'Time [msec],x [m],y [m],z [m],Red,Green,Blue\n0,0,0,0,255,0,0\n')
+            archive.writestr('deep/Drone 2.csv', 'Time [msec],x [m],y [m],z [m],Red,Green,Blue\n0,0,0,0,255,0,0\n')
+        zip_buffer.seek(0)
+
+        files = {'file': ('test_show.zip', zip_buffer, 'application/zip')}
+        response = test_client.post("/import-show", files=files)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['files_processed'] == 2
+        assert data['raw_files_found'] == 2
+        assert data['plots_generated'] == 3
+        assert any('flattened' in warning.lower() for warning in data['warnings'])
+        assert len(data['next_steps']) == 2
 
     @patch('os.listdir')
     @patch('os.path.exists', return_value=True)

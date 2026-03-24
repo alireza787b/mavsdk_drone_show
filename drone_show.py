@@ -396,9 +396,10 @@ async def get_current_ned_position(drone: System) -> PositionNedYaw:
     try:
         # Method 2: Fallback to local API
         logger.debug("Attempting to get current NED position via local API")
-        response = requests.get(
+        response = await asyncio.to_thread(
+            requests.get,
             f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
-            timeout=1
+            timeout=1,
         )
         if response.status_code == 200:
             ned_data = response.json()
@@ -942,7 +943,7 @@ async def perform_trajectory(
                 # --- (5) Progress & Landing Trigger ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
-                logger.info(
+                logger.debug(
                     f"WP {waypoint_index+1}/{total_waypoints}, "
                     f"progress {prog:.2%}, ETA {time_to_end:.2f}s, "
                     f"drift {drift_delta:.2f}s"
@@ -1190,11 +1191,11 @@ async def fetch_origin_with_fallback(drone: System):
     # Attempt 2: Fetch from GCS server
     try:
         logger.info("🌍 Fetching drone show origin from GCS...")
-        gcs_url = f"http://{Params.GCS_IP}:5000/get-origin-for-drone"
-
-        response = requests.get(
+        gcs_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/get-origin-for-drone"
+        response = await asyncio.to_thread(
+            requests.get,
             gcs_url,
-            timeout=Params.ORIGIN_FETCH_TIMEOUT_SEC
+            timeout=Params.ORIGIN_FETCH_TIMEOUT_SEC,
         )
 
         if response.status_code == 200:
@@ -1222,7 +1223,7 @@ async def fetch_origin_with_fallback(drone: System):
     except requests.exceptions.Timeout:
         logger.warning(f"❌ GCS origin fetch timeout after {Params.ORIGIN_FETCH_TIMEOUT_SEC}s")
     except requests.exceptions.ConnectionError:
-        logger.warning(f"❌ Cannot connect to GCS at {Params.GCS_IP}:5000")
+        logger.warning(f"❌ Cannot connect to GCS at {Params.GCS_IP}:{Params.gcs_api_port}")
     except Exception as e:
         logger.warning(f"❌ GCS origin fetch failed: {e}")
 
@@ -1367,7 +1368,7 @@ async def validate_drone_position(drone: System, origin: dict, config: dict):
         raise ValueError(f"Position validation failed: {e}")
 
 
-async def pre_flight_checks(drone: System):
+async def pre_flight_checks(drone: System, require_global_position: bool):
     """
     Perform pre-flight checks to ensure the drone is ready for flight, including:
     - Checking the health of the global and home position via MAVSDK
@@ -1391,7 +1392,7 @@ async def pre_flight_checks(drone: System):
     health_checks_passed = False
 
     try:
-        if Params.REQUIRE_GLOBAL_POSITION:
+        if require_global_position:
             # Phase 1: Wait for health checks to pass with timeout
             logger.info("Waiting for health checks...")
             async for health in drone.telemetry.health():
@@ -1449,8 +1450,7 @@ async def pre_flight_checks(drone: System):
             return gps_origin
 
         else:
-            logger.info("Skipping GPS health checks (REQUIRE_GLOBAL_POSITION=False)")
-            logger.info("This is normal for LOCAL mode or non-GPS operations")
+            logger.info("Skipping GPS health checks for LOCAL mode / non-GPS execution")
             led_controller.set_color(0, 255, 0)
             return None
 
@@ -1541,9 +1541,10 @@ async def compute_position_drift():
 
     try:
         # Request NED data from local API endpoint
-        response = requests.get(
+        response = await asyncio.to_thread(
+            requests.get,
             f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
-            timeout=2
+            timeout=2,
         )
 
         if response.status_code == 200:
@@ -1650,10 +1651,8 @@ def get_mavsdk_server_path():
     Returns:
         str: Path to mavsdk_server.
     """
-    home_dir = os.path.expanduser("~")
-    mavsdk_drone_show_dir = os.path.join(home_dir, "mavsdk_drone_show")
-    mavsdk_server_path = os.path.join(mavsdk_drone_show_dir, "mavsdk_server")
-    return mavsdk_server_path
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(project_root, "mavsdk_server")
 
 
 def start_mavsdk_server(udp_port: int):
@@ -1865,10 +1864,7 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         # Step 2: Initial Setup and Connection
         drone = await initial_setup_and_connection()
 
-        # Step 3: Pre-flight Checks
-        home_position = await pre_flight_checks(drone)
-
-        # Step 3.5: PHASE 2 - Determine effective modes
+        # Step 3: Determine effective modes before pre-flight checks.
         # Priority: CLI/UI argument > Params defaults
 
         # Determine effective USE_GLOBAL_SETPOINTS (LOCAL vs GLOBAL mode)
@@ -1892,6 +1888,12 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         else:
             effective_auto_origin_mode = False
             logger.warning("AUTO_GLOBAL_ORIGIN_MODE not defined in params.py, defaulting to False")
+
+        # Step 4: Pre-flight Checks
+        home_position = await pre_flight_checks(
+            drone,
+            require_global_position=effective_use_global_setpoints,
+        )
 
         # Mission type logging
         if mission_type is not None:

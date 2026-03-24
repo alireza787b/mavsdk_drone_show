@@ -2,7 +2,8 @@
 import argparse
 import os
 import sys
-from typing import Optional
+from pathlib import Path
+from typing import Dict, Optional
 from functions.plot_drone_paths import plot_drone_paths
 from functions.process_drone_files import process_drone_files
 from src.params import Params
@@ -21,7 +22,12 @@ def get_config_filename() -> str:
     """Return config filename for current mode."""
     return Params.config_file_name
 
-def run_formation_process(base_dir: Optional[str] = None) -> str:
+def run_formation_process(
+    base_dir: Optional[str] = None,
+    skybrush_dir: Optional[str] = None,
+    processed_dir: Optional[str] = None,
+    plots_dir: Optional[str] = None,
+) -> Dict[str, object]:
     """
     Full pipeline:
       1) Identify SITL or real
@@ -30,7 +36,7 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
       4) generate plots
 
     Returns:
-        str: Success message or error description
+        dict: Structured success/error summary.
     """
     mode_str = "SITL" if Params.sim_mode else "real"
     logger.info(f"[run_formation_process] ========================================")
@@ -42,9 +48,9 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         base_dir = base_dir or os.getcwd()
         base_folder = get_base_folder()
 
-        skybrush_dir = os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
-        processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
-        plots_dir    = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+        skybrush_dir = skybrush_dir or os.path.join(base_dir, base_folder, 'swarm', 'skybrush')
+        processed_dir = processed_dir or os.path.join(base_dir, base_folder, 'swarm', 'processed')
+        plots_dir = plots_dir or os.path.join(base_dir, base_folder, 'swarm', 'plots')
 
         config_name = get_config_filename()
         config_file = os.path.join(base_dir, config_name)
@@ -56,7 +62,7 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         logger.info(f"[run_formation_process]   Config:    {config_file}")
 
         # Count input files for validation
-        input_files = [f for f in os.listdir(skybrush_dir) if f.endswith('.csv')]
+        input_files = [str(path.relative_to(skybrush_dir)) for path in Path(skybrush_dir).rglob('*.csv') if path.is_file()]
         input_count = len(input_files)
         logger.info(f"[run_formation_process] Input drone count: {input_count}")
 
@@ -66,7 +72,7 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
 
         # 2) Plot
         logger.info(f"[run_formation_process] Step 2/2: Generating 3D visualizations...")
-        plot_drone_paths(base_dir, show_plots=False)
+        plot_drone_paths(base_dir, show_plots=False, processed_dir=processed_dir, plots_dir=plots_dir)
 
         # ====================================================================
         # FINAL VALIDATION: Verify complete processing pipeline
@@ -96,7 +102,14 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
             msg = f"✅ Processing completed successfully! {input_count} drones processed, {plot_count} plots generated."
             logger.info(f"[run_formation_process] {msg}")
             logger.info(f"[run_formation_process] ========================================")
-            return msg
+            return {
+                'success': True,
+                'message': msg,
+                'input_count': input_count,
+                'processed_count': processed_count,
+                'plot_count': plot_count,
+                'processed_files': [os.path.basename(path) for path in processed_files],
+            }
         else:
             err_msg = f"❌ Processing completed with errors: {processed_count}/{input_count} drones processed"
             logger.error(f"[run_formation_process] {err_msg}")
@@ -107,7 +120,14 @@ def run_formation_process(base_dir: Optional[str] = None) -> str:
         err = f"Processing error: {str(e)}"
         logger.error(f"[run_formation_process] ❌ FATAL ERROR: {err}", exc_info=True)
         logger.info(f"[run_formation_process] ========================================")
-        return err
+        return {
+            'success': False,
+            'message': err,
+            'input_count': 0,
+            'processed_count': 0,
+            'plot_count': 0,
+            'processed_files': [],
+        }
 
 def main():
     """
@@ -128,7 +148,7 @@ def main():
         init_drone_logging()
 
         result = run_formation_process(args.directory)
-        print(result)
+        print(result["message"])
 
 if __name__ == "__main__":
     main()

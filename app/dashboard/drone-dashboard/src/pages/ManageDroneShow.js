@@ -25,11 +25,11 @@ const WorkflowGuidanceSection = () => {
         🎬 Drone Show Production Workflow
       </Typography>
       <Typography variant="body2" sx={{ mb: 2, color: 'white', fontWeight: 500 }}>
-        Complete workflow: Create in Blender → Upload here → Verify in Mission Control → Launch
+        Create in Blender / SkyBrush, import here, verify launch geometry in Mission Config, then confirm live readiness in Overview before launch.
       </Typography>
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Button 
-          variant="outlined" 
+        <Button
+          variant="outlined"
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
         >
           1. Create in Blender/SkyBrush
@@ -44,18 +44,25 @@ const WorkflowGuidanceSection = () => {
         >
           2. Upload & Process ← You are here
         </Button>
-        <Button 
-          variant="outlined" 
+        <Button
+          variant="outlined"
+          sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
+          onClick={() => navigate('/mission-config')}
+        >
+          3. Review Mission Config
+        </Button>
+        <Button
+          variant="outlined"
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
           onClick={() => navigate('/mission-control')}
         >
-          3. Verify Mission Control
+          4. Confirm Overview
         </Button>
-        <Button 
-          variant="outlined" 
+        <Button
+          variant="outlined"
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
         >
-          4. Launch Show
+          5. Launch Show
         </Button>
       </Box>
     </Paper>

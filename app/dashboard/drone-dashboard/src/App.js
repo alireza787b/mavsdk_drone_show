@@ -36,7 +36,6 @@ import './App.css';
 // Lazy loaded — heavy visualization pages (three.js, plotly, cytoscape, mapbox)
 const Detail = lazy(() => import('./components/DroneDetail'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
-const DroneShowDesign = lazy(() => import('./pages/DroneShowDesign'));
 const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));
 const GlobeView = lazy(() => import('./pages/GlobeView'));
 const ManageDroneShow = lazy(() => import('./pages/ManageDroneShow'));
@@ -74,7 +73,7 @@ const App = () => {
           <Suspense fallback={<div className="page-loading">Loading...</div>}>
           <Routes>
             {/* Main drone management routes */}
-            <Route path="/drone-show-design" element={<DroneShowDesign />} />
+            <Route path="/drone-show-design" element={<ManageDroneShow />} />
             <Route path="/swarm-design" element={<SwarmDesign />} />
             <Route path="/mission-config" element={<MissionConfig />} />
             <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />

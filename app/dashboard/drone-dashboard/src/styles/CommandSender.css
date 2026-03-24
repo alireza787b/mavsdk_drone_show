@@ -401,6 +401,23 @@
     line-height: var(--line-height-normal);
 }
 
+.command-confirmation-details {
+    text-align: left;
+    margin: 0 0 var(--spacing-xl);
+    padding: var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-secondary);
+}
+
+.command-confirmation-details p {
+    margin: 0 0 var(--spacing-sm);
+}
+
+.command-confirmation-details p:last-child {
+    margin-bottom: 0;
+}
+
 .modal-actions {
     display: flex;
     justify-content: space-around;

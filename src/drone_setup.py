@@ -27,6 +27,7 @@ class RunningMissionProcess:
     script_name: str
     process: ManagedProcess
     command_id: Optional[str] = None
+    superseded: bool = False
 
 class DroneSetup:
     """
@@ -210,6 +211,7 @@ class DroneSetup:
             for process_key, record in list(self.running_processes.items()):
                 script_name = record.script_name
                 process = record.process
+                record.superseded = True
                 if process.returncode is None:
                     logger.warning(
                         f"Terminating mission script: {script_name} "
@@ -329,6 +331,13 @@ class DroneSetup:
             async with self.process_lock:
                 if process_record.process_key in self.running_processes:
                     del self.running_processes[process_record.process_key]
+
+            if process_record.superseded:
+                logger.info(
+                    f"Mission script '{script_name}' ended after being superseded by a newer command. "
+                    "Skipping duplicate mission-state reset/report."
+                )
+                return
 
             if return_code == 0:
                 logger.info(f"Mission script '{script_name}' completed successfully. Output: {stdout_str}")

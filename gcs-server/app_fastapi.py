@@ -18,13 +18,16 @@ Last Updated: 2025-11-22
 """
 
 import os
+import shutil
 import sys
 import json
 import time
 import asyncio
 import traceback
+import tempfile
 import zipfile
 import threading
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -1506,6 +1509,17 @@ async def get_gps_global_origin():
 # Show Import Endpoint (File Upload)
 # ============================================================================
 
+def _copy_directory_contents(src_dir: str, dst_dir: str) -> None:
+    os.makedirs(dst_dir, exist_ok=True)
+    for entry in os.listdir(src_dir):
+        src_path = os.path.join(src_dir, entry)
+        dst_path = os.path.join(dst_dir, entry)
+        if os.path.isdir(src_path):
+            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src_path, dst_path)
+
+
 @app.post("/import-show", response_model=ShowImportResponse, tags=["Show Management"])
 async def import_show(file: UploadFile = File(...)):
     """
@@ -1517,51 +1531,116 @@ async def import_show(file: UploadFile = File(...)):
 
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file part or empty filename")
+        if not allowed_file(file.filename):
+            raise HTTPException(status_code=400, detail="Only ZIP archives are supported")
 
-        # Clear directories
-        clear_show_directories(BASE_DIR)
+        warnings: List[str] = []
+        git_result: Optional[Dict[str, Any]] = None
 
-        # Save uploaded zip
-        zip_path = os.path.join(BASE_DIR, 'temp', 'uploaded.zip')
-        os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+        temp_root = os.path.join(BASE_DIR, 'temp')
+        os.makedirs(temp_root, exist_ok=True)
 
-        with open(zip_path, 'wb') as f:
-            content = await file.read()
-            f.write(content)
+        with tempfile.TemporaryDirectory(prefix="show-import-", dir=temp_root) as staging_root:
+            zip_path = os.path.join(staging_root, 'uploaded.zip')
+            extract_dir = os.path.join(staging_root, 'extracted')
+            staging_skybrush_dir = os.path.join(staging_root, 'skybrush')
+            staging_processed_dir = os.path.join(staging_root, 'processed')
+            staging_plots_dir = os.path.join(staging_root, 'plots')
 
-        # Extract zip
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(skybrush_dir)
-        os.remove(zip_path)
+            os.makedirs(extract_dir, exist_ok=True)
+            os.makedirs(staging_skybrush_dir, exist_ok=True)
+            os.makedirs(staging_processed_dir, exist_ok=True)
+            os.makedirs(staging_plots_dir, exist_ok=True)
 
-        # Process formation
-        log_system_event(f"⚙️ Processing show files from {skybrush_dir}", "INFO", "show")
-        output = run_formation_process(BASE_DIR)
+            with open(zip_path, 'wb') as f:
+                content = await file.read()
+                f.write(content)
 
-        # Count processed files
-        processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
-        processed_count = len(processed_files)
+            if not zipfile.is_zipfile(zip_path):
+                raise HTTPException(status_code=400, detail="Uploaded file is not a valid ZIP archive")
 
-        log_system_event(f"✅ Show processing completed: {processed_count} drones", "INFO", "show")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
 
-        # Git operations if enabled (run in executor to avoid blocking async event loop)
-        if Params.GIT_AUTO_PUSH:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None, git_operations, BASE_DIR,
-                f"show: import {file.filename} ({processed_count} drones)"
+            extracted_csvs = sorted(path for path in Path(extract_dir).rglob('*.csv') if path.is_file())
+            if not extracted_csvs:
+                raise HTTPException(status_code=400, detail="ZIP archive does not contain any SkyBrush CSV files")
+
+            basename_map: Dict[str, List[Path]] = {}
+            for csv_path in extracted_csvs:
+                basename_map.setdefault(csv_path.name, []).append(csv_path)
+
+            duplicate_names = sorted(name for name, paths in basename_map.items() if len(paths) > 1)
+            if duplicate_names:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "ZIP archive contains duplicate CSV filenames. "
+                        f"Each drone CSV must be uniquely named. Duplicates: {duplicate_names}"
+                    ),
+                )
+
+            nested_csv_count = sum(1 for csv_path in extracted_csvs if csv_path.parent != Path(extract_dir))
+            if nested_csv_count:
+                warnings.append(
+                    f"Detected {nested_csv_count} CSV file(s) in nested archive folders; "
+                    "they were flattened during import."
+                )
+
+            for csv_path in extracted_csvs:
+                shutil.copy2(csv_path, os.path.join(staging_skybrush_dir, csv_path.name))
+
+            log_system_event(f"⚙️ Processing show files from staged import ({len(extracted_csvs)} CSVs)", "INFO", "show")
+            process_result = run_formation_process(
+                BASE_DIR,
+                skybrush_dir=staging_skybrush_dir,
+                processed_dir=staging_processed_dir,
+                plots_dir=staging_plots_dir,
             )
+            if not process_result.get('success'):
+                raise HTTPException(status_code=400, detail=process_result.get('message', 'Show processing failed'))
+
+            clear_show_directories(BASE_DIR)
+            _copy_directory_contents(staging_skybrush_dir, skybrush_dir)
+            _copy_directory_contents(staging_processed_dir, processed_dir)
+            _copy_directory_contents(staging_plots_dir, plots_directory)
+
+            processed_count = len([f for f in os.listdir(processed_dir) if f.endswith('.csv')])
+            plots_generated = len([f for f in os.listdir(plots_directory) if f.endswith('.jpg')])
+
+            log_system_event(f"✅ Show processing completed: {processed_count} drones", "INFO", "show")
+
+            if Params.GIT_AUTO_PUSH:
+                loop = asyncio.get_event_loop()
+                git_result = await loop.run_in_executor(
+                    None,
+                    git_operations,
+                    BASE_DIR,
+                    f"show: import {file.filename} ({processed_count} drones)"
+                )
+                if not git_result.get('success'):
+                    warnings.append(f"Git auto-push failed: {git_result.get('message', 'unknown error')}")
 
         return ShowImportResponse(
             success=True,
             message="Show imported and processed successfully",
             show_name=file.filename,
             files_processed=processed_count,
-            drones_configured=processed_count
+            drones_configured=processed_count,
+            raw_files_found=len(extracted_csvs),
+            plots_generated=plots_generated,
+            warnings=warnings,
+            next_steps=[
+                "Review launch positions and origin in Mission Config.",
+                "Confirm telemetry and readiness in Overview before launch.",
+            ],
+            git_info=git_result,
         )
 
     except Exception as e:
         log_system_error(f"Error importing show: {e}", "show")
+        if isinstance(e, HTTPException):
+            raise
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1916,7 +1995,7 @@ async def get_comprehensive_metrics():
 
     try:
         # Try to load from saved file first
-        swarm_dir = os.path.join(BASE_DIR, 'shapes/swarm')
+        swarm_dir = os.path.join(shapes_dir, 'swarm')
         metrics_file = os.path.join(swarm_dir, 'comprehensive_metrics.json')
 
         if os.path.exists(metrics_file):

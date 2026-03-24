@@ -26,6 +26,13 @@ const CommandSender = ({ drones }) => {
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const formatTriggerTime = (unixSeconds) => {
+    if (!unixSeconds) return 'Immediate';
+    const date = new Date(Number(unixSeconds) * 1000);
+    if (Number.isNaN(date.getTime())) return 'Immediate';
+    return date.toLocaleString();
+  };
+
   // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
     let targetDronesList = 'All Drones';
@@ -175,6 +182,25 @@ const CommandSender = ({ drones }) => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Confirm Command</h3>
             <p>{confirmationMessage}</p>
+            {currentCommandData && (
+              <div className="command-confirmation-details">
+                <p><strong>Trigger:</strong> {formatTriggerTime(currentCommandData.triggerTime)}</p>
+                {currentCommandData.missionType === String(DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV) && (
+                  <>
+                    <p>
+                      <strong>Control Mode:</strong>{' '}
+                      {currentCommandData.use_global_setpoints ? 'GLOBAL' : 'LOCAL'}
+                    </p>
+                    {currentCommandData.use_global_setpoints && (
+                      <p>
+                        <strong>Launch Correction:</strong>{' '}
+                        {currentCommandData.auto_global_origin ? 'Auto Global Launch Corrector' : 'Manual launch placement'}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             <div className="modal-actions">
               <button className="confirm-button" onClick={handleConfirmSendCommand}>
                 Yes

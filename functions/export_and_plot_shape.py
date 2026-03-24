@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 def export_and_plot_shape(output_file):
     """
@@ -45,8 +46,11 @@ def export_and_plot_shape(output_file):
     # Create legend
     ax.legend(loc='best')
 
+    output_path = Path(output_file).resolve()
+    plot_path = output_path.parent / 'trajectory_plot.png'
+
     # Save the figure before showing it
-    plt.savefig('shapes/trajectory_plot.png', dpi=80, bbox_inches='tight', optimize=True)
+    plt.savefig(plot_path, dpi=80, bbox_inches='tight', optimize=True)
 
     # Then show the plot
     plt.show()

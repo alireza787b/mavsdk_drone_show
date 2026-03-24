@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/CustomShowPage.css';
-import { getCustomShowImageURL } from '../utilities/utilities';  // Import the new utility function
+import { getCustomShowImageURL } from '../utilities/utilities';
 
 const CustomShowPage = () => {
     const [imageSrc, setImageSrc] = useState(null);
@@ -30,16 +30,20 @@ const CustomShowPage = () => {
         <div className="custom-show-container">
             <h1>Custom Drone Show</h1>
             <p className="description">
-                This custom drone show is based on the <code>shape/active.csv</code> file. You can create various shapes using the 
-                <code>csvcreator.py</code> script included in the source code, such as an eight shape, spiral, heart shape, zigzag, 
-                or you can use a custom CSV template. Each drone executes its portion of the CSV independently based on its home 
-                position, unlike the Skybrush-based drone show controlled via the Show Design page.
+                This page is the preview surface for the advanced custom CSV mode. It uses the shared
+                <code> shapes/active.csv </code> or <code> shapes_sitl/active.csv </code> workflow rather than the
+                normal SkyBrush ZIP import used on the Show Design page.
+            </p>
+            <p className="description">
+                In this mode, each drone runs the same authored CSV relative to its own launch frame. That is useful
+                for specialized testing and research, but it is a different operator workflow from the normal
+                multi-drone SkyBrush show pipeline. Treat it as an advanced/manual mode.
             </p>
             {errorMessage && <div className="error-message">{errorMessage}</div>}
             {imageSrc ? (
                 <img src={imageSrc} alt="Custom Drone Show" className="custom-show-image" />
             ) : (
-                !errorMessage && <p>Loading custom show image...</p>
+                !errorMessage && <p>Custom preview image not available yet. Generate or upload the active CSV first.</p>
             )}
         </div>
     );

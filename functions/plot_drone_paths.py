@@ -1,9 +1,11 @@
 import logging
 import os
-import pandas as pd
+from pathlib import Path
+from typing import List, Optional, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List, Tuple
+import pandas as pd
 from src.params import Params
 
 def setup_matplotlib_style():
@@ -71,7 +73,13 @@ def compute_plot_limits(data_list: List[pd.DataFrame]) -> Tuple[float, float, fl
         mid_up - max_range, mid_up + max_range
     )
 
-def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool = True):
+def plot_drone_paths(
+    base_dir: str,
+    show_plots: bool = False,
+    high_quality: bool = True,
+    processed_dir: Optional[str] = None,
+    plots_dir: Optional[str] = None,
+):
     """
     3D path visualization in a North–East–Up frame.
 
@@ -96,12 +104,13 @@ def plot_drone_paths(base_dir: str, show_plots: bool = False, high_quality: bool
         setup_matplotlib_style()
 
     # Determine folder based on simulation mode
-    base_folder   = 'shapes_sitl' if Params.sim_mode else 'shapes'
-    processed_dir = os.path.join(base_dir, base_folder, 'swarm', 'processed')
-    plots_dir     = os.path.join(base_dir, base_folder, 'swarm', 'plots')
+    if processed_dir is None or plots_dir is None:
+        base_folder = 'shapes_sitl' if Params.sim_mode else 'shapes'
+        processed_dir = processed_dir or os.path.join(base_dir, base_folder, 'swarm', 'processed')
+        plots_dir = plots_dir or os.path.join(base_dir, base_folder, 'swarm', 'plots')
     os.makedirs(plots_dir, exist_ok=True)
 
-    processed_files = [f for f in os.listdir(processed_dir) if f.endswith('.csv')]
+    processed_files = sorted(f.name for f in Path(processed_dir).glob('*.csv'))
     if not processed_files:
         logging.error("[plot_drone_paths] ❌ ERROR: No processed CSV files found.")
         raise RuntimeError("Cannot generate plots: No processed CSV files found")

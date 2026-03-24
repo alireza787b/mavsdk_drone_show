@@ -480,6 +480,11 @@ class ShowImportResponse(BaseModel):
     show_name: str = Field(..., description="Imported show name")
     files_processed: int = Field(..., ge=0, description="Number of files processed")
     drones_configured: int = Field(..., ge=0, description="Number of drones configured")
+    raw_files_found: int = Field(0, ge=0, description="Number of raw CSV files found in the uploaded archive")
+    plots_generated: int = Field(0, ge=0, description="Number of generated plot images")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings raised during import")
+    next_steps: List[str] = Field(default_factory=list, description="Operator follow-up actions after import")
+    git_info: Optional[Dict[str, Any]] = Field(None, description="Git auto-push result when enabled")
 
 
 class CommandRequest(BaseModel):

@@ -16,6 +16,13 @@ const useFetch = (endpoint, interval = null) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!endpoint) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return undefined;
+    }
+
     let isMounted = true; // To prevent state updates after unmount
     const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 

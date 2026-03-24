@@ -6,6 +6,7 @@ from functions.file_management import ensure_directory_exists, clear_directory
 import logging
 import os
 from typing import List
+from pathlib import Path
 
 def validate_drone_data(df: pd.DataFrame) -> bool:
     """
@@ -19,7 +20,7 @@ def validate_drone_data(df: pd.DataFrame) -> bool:
       - 'Red', 'Green', 'Blue' for LED colors
     """
     required_columns = ['Time [msec]', 'x [m]', 'y [m]', 'z [m]', 'Red', 'Green', 'Blue']
-    return all(col in df.columns for col in required_columns) and len(df) > 2
+    return all(col in df.columns for col in required_columns) and len(df) >= 2
 
 def smooth_trajectory(data: np.ndarray, window_length: int = 11, poly_order: int = 3) -> np.ndarray:
     """
@@ -33,8 +34,32 @@ def smooth_trajectory(data: np.ndarray, window_length: int = 11, poly_order: int
         return data  # Not enough points to smooth meaningfully
     window_length = min(window_length, n_points)
     if window_length % 2 == 0:
-        window_length += 1
+        window_length -= 1
+    if window_length < 3:
+        return data
+    poly_order = min(poly_order, window_length - 1)
+    if poly_order < 1:
+        return data
     return savgol_filter(data, window_length, poly_order)
+
+
+def build_output_time_vector(t_end: float, dt: float) -> np.ndarray:
+    """
+    Build a stable output time vector that always includes the final timestamp.
+    """
+    if t_end <= 0:
+        return np.array([0.0], dtype=float)
+
+    t_new = np.arange(0, t_end + (dt * 0.5), dt, dtype=float)
+    if t_new.size == 0:
+        return np.array([0.0, t_end], dtype=float)
+
+    if t_new[-1] < t_end:
+        t_new = np.append(t_new, t_end)
+    else:
+        t_new[-1] = t_end
+
+    return t_new
 
 def process_drone_files(
     skybrush_dir: str,
@@ -80,23 +105,31 @@ def process_drone_files(
     clear_directory(processed_dir)
 
     processed_files = []
-    csv_files = [f for f in os.listdir(skybrush_dir) if f.endswith(".csv")]
+    csv_paths = sorted(p for p in Path(skybrush_dir).rglob("*.csv") if p.is_file())
+    csv_files = [str(path.relative_to(skybrush_dir)) for path in csv_paths]
     logging.info(f"[process_drone_files] ✅ Found {len(csv_files)} CSV file(s) in '{skybrush_dir}'.")
 
     # List all files for verification
     if csv_files:
         logging.info(f"[process_drone_files] Raw input files: {sorted(csv_files)}")
 
+    basenames = [path.name for path in csv_paths]
+    duplicate_basenames = sorted({name for name in basenames if basenames.count(name) > 1})
+    if duplicate_basenames:
+        raise RuntimeError(
+            f"Duplicate CSV filenames detected in SkyBrush import: {duplicate_basenames}. "
+            "Each drone CSV must have a unique filename."
+        )
+
     interpolation_methods = {
         'cubic': CubicSpline,
         'akima': Akima1DInterpolator,
         'linear': interp1d
     }
-    Interpolator = interpolation_methods.get(method, CubicSpline)
 
-    for filename in csv_files:
-        filepath = os.path.join(skybrush_dir, filename)
-        logging.debug(f"[process_drone_files] Reading {filename} ...")
+    for filepath in csv_paths:
+        filename = filepath.name
+        logging.debug(f"[process_drone_files] Reading {filepath.relative_to(skybrush_dir)} ...")
         try:
             df = pd.read_csv(filepath)
             if not validate_drone_data(df):
@@ -104,7 +137,8 @@ def process_drone_files(
                 continue
 
             # Convert timestamps from msec to sec
-            t_original = df['Time [msec]'] / 1000.0
+            df = df.sort_values('Time [msec]').drop_duplicates(subset='Time [msec]', keep='last').reset_index(drop=True)
+            t_original = (df['Time [msec]'] / 1000.0).astype(float)
 
             # Convert Blender NWU -> NED
             #    X (north) => X (north) : unchanged
@@ -113,18 +147,33 @@ def process_drone_files(
             df['y [m]'] = -df['y [m]']
             df['z [m]'] = -df['z [m]']
 
+            # Short trajectories cannot support higher-order interpolation reliably.
+            effective_method = method
+            if len(t_original) < 4 and method == 'cubic':
+                effective_method = 'linear'
+                logging.info(
+                    f"[process_drone_files] Using linear interpolation for {filename} "
+                    f"because it only has {len(t_original)} points."
+                )
+
+            Interpolator = interpolation_methods.get(effective_method, CubicSpline)
+
             # Prepare interpolators for position (x,y,z) and LED (r,g,b)
             cs_pos = Interpolator(t_original, df[['x [m]', 'y [m]', 'z [m]']])
             cs_led = Interpolator(t_original, df[['Red', 'Green', 'Blue']])
 
             # Create uniform time vector (0..t_end) with step dt
             t_end = t_original.iloc[-1]
-            t_new = np.arange(0, t_end, dt)
+            t_new = build_output_time_vector(t_end, dt)
 
             # Interpolate position
             pos_new = cs_pos(t_new)         # shape: (N, 3)
-            vel_new = cs_pos.derivative()(t_new)
-            acc_new = cs_pos.derivative().derivative()(t_new)
+            if hasattr(cs_pos, 'derivative'):
+                vel_new = cs_pos.derivative()(t_new)
+                acc_new = cs_pos.derivative().derivative()(t_new)
+            else:
+                vel_new = np.gradient(pos_new, dt, axis=0)
+                acc_new = np.gradient(vel_new, dt, axis=0)
 
             # Interpolate LED
             led_new = cs_led(t_new)         # shape: (N, 3)
@@ -170,7 +219,7 @@ def process_drone_files(
             logging.info(f"[process_drone_files] Processed and saved NED CSV: {out_path}")
 
         except Exception as e:
-            logging.error(f"[process_drone_files] ❌ ERROR processing {filename}: {e}", exc_info=True)
+            logging.error(f"[process_drone_files] ❌ ERROR processing {filepath.relative_to(skybrush_dir)}: {e}", exc_info=True)
 
     # ====================================================================
     # CRITICAL VALIDATION: Verify all input files were processed

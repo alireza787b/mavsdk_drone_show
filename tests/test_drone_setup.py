@@ -381,6 +381,43 @@ class TestProcessManagement:
 
         assert len(setup.running_processes) == 0
 
+    @pytest.mark.asyncio
+    async def test_monitor_skips_superseded_process_reports(self):
+        """Superseded mission processes should not reset state or report twice."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        class FakeProcess:
+            pid = 1234
+            returncode = 0
+
+            async def communicate(self):
+                return (b'ok', b'')
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = Mock()
+        drone_config.trigger_time = 0
+        drone_config.mission = 0
+
+        setup = DroneSetup(params, drone_config)
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        record = RunningMissionProcess(
+            process_key='drone_show.py:test',
+            script_name='drone_show.py',
+            process=FakeProcess(),
+            command_id='cmd-1',
+            superseded=True,
+        )
+        setup.running_processes[record.process_key] = record
+
+        await setup._monitor_script_process(record)
+
+        setup._reset_mission_state.assert_not_called()
+        setup._report_execution_to_gcs.assert_not_awaited()
+        assert record.process_key not in setup.running_processes
+
 
 # ============================================================================
 # Test: Mission State Reset

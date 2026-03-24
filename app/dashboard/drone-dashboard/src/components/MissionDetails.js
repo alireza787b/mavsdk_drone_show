@@ -41,6 +41,9 @@ const MissionDetails = ({
   
   // Only show hints for DRONE_SHOW_FROM_CSV mission type
   const showModeHints = missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV;
+  const { data: showInfo, error: showInfoError, loading: showInfoLoading } = useFetch(
+    showModeHints ? '/get-show-info' : null
+  );
   
   // Extract deviation summary
   const deviationSummary = deviationData?.summary || null;
@@ -130,6 +133,48 @@ const MissionDetails = ({
   };
   
   const placementStatus = getPlacementStatus();
+  const showImported = Boolean(showInfo && showInfo.drone_count > 0);
+  const droneShowBlockers = [];
+  const droneShowWarnings = [];
+
+  if (showModeHints && showInfoLoading) {
+    droneShowBlockers.push('Verifying imported Drone Show package...');
+  }
+
+  if (showModeHints && !showInfoLoading) {
+    if (!showImported) {
+      droneShowBlockers.push('No processed Drone Show is loaded. Import a SkyBrush ZIP on the Show Design page first.');
+    }
+
+    if (showInfoError && !showImported) {
+      droneShowWarnings.push('Show metadata could not be verified from the backend.');
+    }
+
+    if (useGlobalSetpoints && autoGlobalOrigin && !isOriginSet) {
+      droneShowBlockers.push('Auto Global Launch Corrector requires a configured shared origin.');
+    }
+
+    if (useGlobalSetpoints && autoGlobalOrigin && isOriginSet && deviationSummary) {
+      if (deviationSummary.online === 0) {
+        droneShowBlockers.push('No live drone telemetry is available for launch-position verification.');
+      }
+      if (deviationSummary.errors > 0) {
+        droneShowBlockers.push('Critical launch-position errors must be resolved before launch.');
+      }
+      if (warningAnalysis.placementWarnings > 0) {
+        droneShowWarnings.push('Some drones still have placement warnings. Review Mission Config before launch.');
+      }
+      if (warningAnalysis.gpsWarnings > 0) {
+        droneShowWarnings.push('Some drones have GPS quality warnings. Confirm these are acceptable before launch.');
+      }
+    }
+
+    if (useGlobalSetpoints && !autoGlobalOrigin) {
+      droneShowWarnings.push('GLOBAL manual mode assumes operators placed every drone exactly on its assigned launch point.');
+    }
+  }
+
+  const canSendMission = droneShowBlockers.length === 0;
   
   // Find drones with worst deviation (with tolerance for floating point comparison)
   const getWorstDeviationDrones = () => {
@@ -428,6 +473,59 @@ const MissionDetails = ({
         <MissionReadinessCard refreshTrigger={0} />
       )}
 
+      {showModeHints && (
+        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
+          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-content">
+            <strong>Launch Readiness Snapshot</strong>
+            <div className="origin-confirmation">
+              <div className="origin-info-row">
+                <span className="origin-label">Imported Show:</span>
+                <span className="origin-coords">
+                  {showImported
+                    ? `${showInfo.drone_count} drones • ${showInfo.duration_minutes}m ${showInfo.duration_seconds}s`
+                    : 'Not available'}
+                </span>
+              </div>
+              {showImported && (
+                <div className="origin-info-row">
+                  <span className="origin-label">Max Altitude:</span>
+                  <span className="origin-coords">{showInfo.max_altitude} m</span>
+                </div>
+              )}
+            </div>
+
+            {droneShowBlockers.length > 0 && (
+              <ul>
+                {droneShowBlockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            )}
+
+            {droneShowWarnings.length > 0 && (
+              <ul>
+                {droneShowWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            )}
+
+            <p>
+              Review the imported geometry in{' '}
+              <Link to="/manage-drone-show" className="origin-link">
+                Show Design
+              </Link>{' '}
+              and the live launch setup in{' '}
+              <Link to="/mission-config" className="origin-link">
+                Mission Config
+              </Link>{' '}
+              before scheduling launch.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="time-selection">
         <label>
           <input
@@ -472,7 +570,7 @@ const MissionDetails = ({
         </div>
       )}
 
-      <button onClick={onSend} className="mission-button">
+      <button onClick={onSend} className="mission-button" disabled={!canSendMission}>
         Send Command
       </button>
       <button onClick={onBack} className="back-button">
