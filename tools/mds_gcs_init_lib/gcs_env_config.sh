@@ -134,6 +134,12 @@ configure_gcs_env() {
     repo_url=$(gcs_state_get_value "repo_url" "$GCS_DEFAULT_REPO_SSH")
     local repo_branch
     repo_branch=$(gcs_state_get_value "repo_branch" "$GCS_DEFAULT_BRANCH")
+    local access_method
+    access_method=$(gcs_state_get_value "access_method" "ssh")
+    local git_auto_push="true"
+    if [[ "$access_method" == "https" ]]; then
+        git_auto_push="false"
+    fi
 
     # Create /etc/mds directory if needed
     mkdir -p "$(dirname "$GCS_CONFIG_FILE")"
@@ -164,6 +170,7 @@ GCS_BACKEND=fastapi
 # Repository Settings
 MDS_REPO_URL=${repo_url}
 MDS_BRANCH=${repo_branch}
+MDS_GIT_AUTO_PUSH=${git_auto_push}
 MDS_INSTALL_DIR=${install_dir}
 
 # Dashboard Settings

@@ -35,7 +35,7 @@ Drones (read/pull only)
 
 ## Auto-Commit on Config Save
 
-When `GIT_AUTO_PUSH` is enabled (default), saving configuration or swarm data via the dashboard automatically:
+When `GIT_AUTO_PUSH` is enabled, saving configuration or swarm data via the dashboard automatically:
 
 1. Stages all changes
 2. Commits with a descriptive message (e.g., `config: update config.json via dashboard (10 drones updated)`)
@@ -43,6 +43,8 @@ When `GIT_AUTO_PUSH` is enabled (default), saving configuration or swarm data vi
 4. Pushes to origin
 
 The commit result (hash or error) is returned to the frontend and displayed in a toast notification.
+
+For fresh GCS installs that stay on the default HTTPS/read-only repository path, the installer now writes `MDS_GIT_AUTO_PUSH=false` into `/etc/mds/gcs.env`. That keeps demo and evaluation setups from attempting write-back they cannot perform. SSH/fork installs keep auto-push enabled.
 
 A 30-second timeout protects against network hangs during fetch/pull/push operations.
 
@@ -128,7 +130,7 @@ This is parsed by `actions.py` for logging and status tracking.
 - `src/utilities/utilities.js` - URL helpers (`getSyncReposURL`, `getUnifiedGitStatusURL`)
 
 ### Configuration
-- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH` env vars or `/etc/mds/local.env`)
+- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH`/`MDS_GIT_AUTO_PUSH` env vars or `/etc/mds/local.env`)
 - `tools/git_sync_mds/git_sync_mds.service` - Systemd service template (sources `/etc/mds/local.env` for fork config)
 - `tools/git_sync_mds/install_git_sync_mds.sh` - Service installer (substitutes user/home at install time)
 
@@ -138,7 +140,7 @@ For users who fork the repo, the following override chain applies:
 
 | Component | Config Source | Override Method |
 |-----------|-------------|-----------------|
-| GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` | Set `MDS_BRANCH`/`MDS_REPO_URL` in `/etc/mds/local.env` |
+| GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/local.env` or `/etc/mds/gcs.env` |
 | Drone boot sync | `update_repo_ssh.sh` defaults | Set `DEFAULT_SSH_GIT_URL`/`DEFAULT_BRANCH` in `/etc/mds/local.env` |
 | SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
 | `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |

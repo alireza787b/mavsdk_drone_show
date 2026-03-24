@@ -127,6 +127,7 @@ After extraction you should have:
 > - If third-party `megatools` login returns `HTTP POST failed: Server returned 402`, treat that as a client/workflow issue and switch to official `MEGAcmd` for account-backed operations.
 > - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
 > - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
+> - The official HTTPS/demo bootstrap path keeps `MDS_GIT_AUTO_PUSH=false` by default, so first-time imports/config saves stay clean on read-only evaluation setups.
 
 ### Docker Installation
 

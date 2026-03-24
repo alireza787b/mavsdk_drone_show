@@ -57,6 +57,8 @@ github.com/alireza787b/mavsdk_drone_show
 - Pulling updates still works, but write-backed custom git sync workflows are not enabled
 - Suitable for SITL and testing only
 
+The installer now also writes `MDS_GIT_AUTO_PUSH=false` for this HTTPS/read-only path, so show imports and config saves do not attempt a git push the repo cannot perform.
+
 ### Option 2: Your Own Fork (Production)
 
 For production drone shows, fork the repository first:
@@ -214,6 +216,7 @@ GCS_BACKEND=fastapi
 # Repository Settings
 MDS_REPO_URL=git@github.com:alireza787b/mavsdk_drone_show.git
 MDS_BRANCH=main-candidate
+MDS_GIT_AUTO_PUSH=true
 MDS_INSTALL_DIR=~/mavsdk_drone_show
 
 # Dashboard Settings
