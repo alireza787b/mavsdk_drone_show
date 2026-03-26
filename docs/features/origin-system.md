@@ -111,7 +111,15 @@ There are **THREE distinct coordinate systems** in this project:
 - Represents the **formation's** (0,0,0) point in GPS coordinates
 - Includes altitude MSL for sloped terrain
 - Used to calculate expected GPS positions for each drone
-- Stored in `gcs-server/origin.json`
+- Runtime override stored in `data/origin.json`
+- In stock SITL only, a packaged fallback default may also exist at `data/origin.sitl.default.json`
+
+> **Current storage model**
+>
+> - `data/origin.sitl.default.json`: tracked stock SITL default (currently Azadi Stadium)
+> - `data/origin.json`: local runtime override created by `POST /set-origin` or related origin-setting workflows
+>
+> On fresh SITL installs, MDS uses the packaged default only when no runtime override exists. Real hardware workflows should still treat origin as an operator-managed runtime value.
 
 ### Critical Distinction to Avoid Confusion
 
@@ -207,7 +215,7 @@ intended_east: parseFloat(drone.y) || 0,   // ✅ y is East
 }
 ```
 
-**Auto-Migration:** Old origin.json files automatically upgrade to v2 on first load, with `alt=0` (ground level default).
+**Auto-Migration:** Old runtime `data/origin.json` files automatically upgrade to v2 on first load, with `alt=0` (ground level default).
 
 **Why Altitude Matters:**
 - Professional shows often operate on **sloped terrain**
@@ -1048,7 +1056,7 @@ if correction_distance > MAX_CORRECTION_DISTANCE:
 **Problem:** Drones in field may not have reliable internet.
 
 **Solutions:**
-- Origin can be pre-loaded to `origin.json` file
+- SITL can be seeded from `data/origin.sitl.default.json`, and runtime workflows can write `data/origin.json`
 - Drones read from local file, not API
 - API only for real-time monitoring (optional)
 
@@ -1193,7 +1201,7 @@ def calculate_expected_position(config_north: float, config_east: float,
 └──────────────────────────────────────────────────────────────────┘
   Operator sets formation origin via OriginModal:
     origin = {lat: 37.7749, lon: -122.4194, alt: 45.5}
-  Saved to: gcs-server/origin.json
+  Saved to: data/origin.json
 
   ↓
 
@@ -1310,7 +1318,8 @@ mavsdk_drone_show/
 │   ├── app.py                    # Flask server
 │   ├── routes.py                 # API endpoints [PHASE 1 COMPLETE]
 │   ├── origin.py                 # Origin management [PHASE 1 COMPLETE]
-│   └── origin.json               # Formation origin storage
+│   ├── origin.sitl.default.json  # Stock SITL fallback origin
+│   └── origin.json               # Local runtime origin override
 │
 ├── app/dashboard/drone-dashboard/  # React UI
 │   ├── src/

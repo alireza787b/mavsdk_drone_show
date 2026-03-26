@@ -44,6 +44,23 @@ The related dashboard surfaces are:
 - `Mission Config` for launch geometry and origin review
 - `Overview` for live readiness and mission dispatch
 
+## Origin Behavior in Stock SITL
+
+The official stock SITL package ships with one tracked demo default origin:
+
+- `data/origin.sitl.default.json`
+- current location: **Azadi Stadium**
+
+Fresh SITL uses that file only as a fallback seed so first-time testers get a consistent launch-reference baseline without a manual `/set-origin`.
+
+Important distinction:
+
+- `data/origin.sitl.default.json` is the tracked stock demo default
+- `data/origin.json` is the local runtime override created after an operator changes origin from the dashboard or API
+- the runtime override is intentionally untracked and takes precedence over the packaged SITL default on that machine
+
+So the stock demo comes up consistent out of the box, but operators can still change origin later without editing the repository.
+
 ## Control Modes
 
 ### 1. GLOBAL mode with Auto Global Launch Corrector

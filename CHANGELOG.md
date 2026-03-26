@@ -60,6 +60,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- Drone Show now separates the tracked stock SITL demo origin (`data/origin.sitl.default.json`) from the mutable runtime origin override (`data/origin.json`), and the stock Azadi Stadium default is shared by both GCS origin fallback and `startup_sitl.sh`
+- The shipped SITL Drone Show bundle now matches the stock 5-drone SITL config end-to-end, and packaged Drone Show metrics were refreshed so stock assets no longer drift from config
+- Superseded running Drone Show missions now report a terminal execution result back to GCS instead of leaving command tracking stuck in `executing`
 - GCS HTTPS/demo installs now write `MDS_GIT_AUTO_PUSH=false` into `/etc/mds/gcs.env`, and dashboard imports/saves fail fast instead of hanging on interactive push prompts
 - Drone Show dashboard surfaces now avoid misleading empty export/visualization states before any show is imported, and the custom CSV confirmation path is explicit about its local-only execution model
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`

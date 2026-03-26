@@ -234,6 +234,31 @@ class TestCommandTracker:
         assert status['outcome'] == 'partial'
 
     @pytest.mark.asyncio
+    async def test_superseded_execution_results_surface_superseded_outcome(self, tracker):
+        """A fully superseded running mission should not look like a generic execution failure."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1', '2']
+        )
+
+        for hw_id in ['1', '2']:
+            await tracker.record_ack(command_id, hw_id=hw_id, category='accepted')
+
+        for hw_id in ['1', '2']:
+            await tracker.record_execution(
+                command_id,
+                hw_id=hw_id,
+                success=False,
+                error_message='Superseded by a newer command before completion',
+            )
+
+        status = await tracker.get_status(command_id)
+        assert status['status'] == 'cancelled'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'superseded'
+        assert status['error_summary'] == 'Superseded by newer command on all 2 drones'
+
+    @pytest.mark.asyncio
     async def test_cancel_command(self, tracker):
         """Test command cancellation"""
         command_id = await tracker.create_command(

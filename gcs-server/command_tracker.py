@@ -174,6 +174,21 @@ class CommandTracker:
 
         logger.info(f"CommandTracker initialized (max_commands={max_commands})")
 
+    @staticmethod
+    def _all_execution_failures_superseded(command: TrackedCommand) -> bool:
+        """Return True when every recorded execution ended because it was superseded."""
+        if command.executions_failed == 0 or command.executions_received == 0:
+            return False
+
+        for execution in command.executions.values():
+            if execution.success:
+                return False
+            message = (execution.error_message or "").strip().lower()
+            if "superseded by a newer command" not in message:
+                return False
+
+        return True
+
     def _get_mission_name(self, mission_type: int) -> str:
         """Get human-readable mission name"""
         if self.mission_enum:
@@ -482,13 +497,22 @@ class CommandTracker:
                     command.outcome = CommandOutcome.COMPLETED
                     self._stats['successful_commands'] += 1
                 elif command.executions_succeeded == 0:
-                    command.status = CommandStatus.FAILED
-                    command.phase = CommandPhase.TERMINAL
-                    command.outcome = CommandOutcome.FAILED
-                    command.error_summary = (
-                        f"All {command.executions_failed} executions failed"
-                    )
-                    self._stats['failed_commands'] += 1
+                    if self._all_execution_failures_superseded(command):
+                        command.status = CommandStatus.CANCELLED
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.SUPERSEDED
+                        command.error_summary = (
+                            f"Superseded by newer command on all {command.executions_failed} drones"
+                        )
+                        self._stats['cancelled_commands'] += 1
+                    else:
+                        command.status = CommandStatus.FAILED
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.FAILED
+                        command.error_summary = (
+                            f"All {command.executions_failed} executions failed"
+                        )
+                        self._stats['failed_commands'] += 1
                 else:
                     command.status = CommandStatus.PARTIAL
                     command.phase = CommandPhase.TERMINAL

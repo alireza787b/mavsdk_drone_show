@@ -274,6 +274,8 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - Raw Uvicorn/Gunicorn access logs are disabled by default because MDS already emits structured API request logs. Re-enable them only when you explicitly need that extra layer with `export MDS_GCS_ACCESS_LOGS=true`.
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
+- The official stock SITL package now auto-seeds a default launch origin from `data/origin.sitl.default.json` (Azadi Stadium). That gives first-time testers an immediate green Mission Config baseline without a manual `/set-origin`.
+- If you later change origin from the dashboard or API, MDS writes a local runtime override to `data/origin.json`. That file is intentionally untracked and overrides the packaged SITL default on that server until you replace or remove it.
 
 You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). E.g., `http://drone.YOUR_DOMAIN.com:3030`
 
@@ -284,6 +286,8 @@ You should now be able to access the GUI via a browser using your domain, IP, or
 You can configure your mission, swarm design, or drone show using SkyBrush or similar tools.
 
 If you are running the default mutable latest-on-boot mode with `MDS_SITL_GIT_SYNC=true`, container startup fetches and hard-resets the MDS repo to the configured branch, so uncommitted container-local edits are disposable by design.
+
+For the stock official SITL package, Mission Config initially uses the tracked Azadi Stadium demo origin. That is just the packaged first-run baseline for repeatable validation. Operators can still set a different origin in the UI/API at any time, which creates a local `data/origin.json` runtime override on that server.
 
 For an official or validated release workflow, do **not** rely on in-container edits. Commit changes to git first, rebuild or release a clean image, and then redeploy containers from that image. See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) if you maintain your own fork or customer-specific image.
 
