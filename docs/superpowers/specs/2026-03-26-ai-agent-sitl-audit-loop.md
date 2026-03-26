@@ -32,6 +32,8 @@ Resolve conflicts in this order:
 
 Do not treat archived docs, stale chat context, or remembered habits as authoritative.
 
+If repeated real-world runs expose missing guidance in the agent docs, improve these specs when the user approves instead of letting the same gap recur indefinitely.
+
 ## Detect Environment First
 
 Before acting, determine:

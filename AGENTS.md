@@ -28,6 +28,7 @@ Do not assume the environment. Detect it first.
 - Use unified logs as the first debugging surface before speculative fixes.
 - Keep code changes minimal, explainable, and test-backed.
 - If behavior changes, update the relevant docs and any validation tooling in the same phase.
+- If repeated findings show the agent docs are incomplete, propose or apply a focused update when the user approves.
 - If the current branch/worktree is dirty, do not overwrite unrelated user changes.
 - Do not perform destructive cleanup or reset actions unless explicitly required and safe.
 
