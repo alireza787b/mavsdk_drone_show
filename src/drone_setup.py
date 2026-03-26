@@ -335,7 +335,15 @@ class DroneSetup:
             if process_record.superseded:
                 logger.info(
                     f"Mission script '{script_name}' ended after being superseded by a newer command. "
-                    "Skipping duplicate mission-state reset/report."
+                    "Skipping duplicate mission-state reset but reporting the superseded execution."
+                )
+                await self._report_execution_to_gcs(
+                    command_id=process_record.command_id,
+                    success=False,
+                    error_message="Superseded by a newer command before completion",
+                    exit_code=return_code,
+                    script_output=diagnostic_output[:500],
+                    duration_ms=duration_ms
                 )
                 return
 

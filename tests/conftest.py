@@ -15,6 +15,7 @@ This module includes:
 import pytest
 import asyncio
 import httpx
+import tempfile
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
 from typing import Dict, List, Any
 from fastapi.testclient import TestClient as FastAPITestClient
@@ -27,6 +28,9 @@ import os
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 _GCS_SERVER = os.path.join(_PROJECT_ROOT, 'gcs-server')
 _SRC_DIR = os.path.join(_PROJECT_ROOT, 'src')
+
+# Keep matplotlib test imports from warning on root-owned environments.
+os.environ.setdefault('MPLCONFIGDIR', tempfile.mkdtemp(prefix='mds-mplconfig-'))
 
 # Add paths in order of priority
 for _path in [_PROJECT_ROOT, _GCS_SERVER, _SRC_DIR]:

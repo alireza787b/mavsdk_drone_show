@@ -148,6 +148,7 @@ cached_files.txt
 /local_config.yml
 /local_config.xml
 /online_config.json
+/data/origin.json
 
 # Specific binary and hardware ID files that should not be committed
 /mavsdk_server

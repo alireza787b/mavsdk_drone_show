@@ -69,6 +69,41 @@ else
     DEFAULT_BASE_DIR="$HOME/mavsdk_drone_show"
 fi
 
+BASE_DIR="${MDS_BASE_DIR:-$DEFAULT_BASE_DIR}"
+
+load_stock_sitl_origin_defaults() {
+    local default_origin_file="$BASE_DIR/data/origin.sitl.default.json"
+    local origin_values
+
+    if [[ ! -f "$default_origin_file" ]]; then
+        return 0
+    fi
+
+    if ! origin_values="$(python3 - "$default_origin_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, 'r', encoding='utf-8') as handle:
+    data = json.load(handle)
+
+print(data['lat'])
+print(data['lon'])
+print(data.get('alt', 0))
+PY
+)"; then
+        echo "[WARN] Failed to load stock SITL origin defaults from $default_origin_file" >&2
+        return 0
+    fi
+
+    mapfile -t _origin_lines <<<"$origin_values"
+    if [[ ${#_origin_lines[@]} -ge 3 ]]; then
+        DEFAULT_LAT="${_origin_lines[0]}"
+        DEFAULT_LON="${_origin_lines[1]}"
+        DEFAULT_ALT="${_origin_lines[2]}"
+    fi
+}
+
 # Option to use global Python
 USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
 
@@ -76,9 +111,9 @@ USE_GLOBAL_PYTHON=false  # Set to true to use global Python instead of venv
 DEFAULT_LAT=35.724435686078365
 DEFAULT_LON=51.275581311948706
 DEFAULT_ALT=1278
+load_stock_sitl_origin_defaults
 
 # Directory Paths
-BASE_DIR="${MDS_BASE_DIR:-$DEFAULT_BASE_DIR}"
 HWID_DIR="${MDS_HWID_DIR:-$BASE_DIR}"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.json"

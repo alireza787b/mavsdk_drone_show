@@ -4,6 +4,7 @@ import math
 import os
 import json
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from params import Params
 from scipy.optimize import minimize
@@ -35,10 +36,59 @@ def _get_telemetry_record_for_hw_id(telemetry_snapshot, hw_id):
 # Define the path for storing origin data
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 origin_file_path = os.path.join(BASE_DIR, 'data', 'origin.json')
+sitl_default_origin_file_path = os.path.join(BASE_DIR, 'data', 'origin.sitl.default.json')
 
 # Ensure the data directory exists
 if not os.path.exists(os.path.dirname(origin_file_path)):
     os.makedirs(os.path.dirname(origin_file_path))
+
+
+def _normalize_origin_payload(data: Dict[str, Any], *, default_alt_source: str) -> Dict[str, Any]:
+    """Normalize origin payloads from runtime or packaged defaults."""
+    lat = data.get('lat')
+    lon = data.get('lon')
+
+    normalized = {
+        'lat': '' if lat in (None, '') else float(lat),
+        'lon': '' if lon in (None, '') else float(lon),
+        'alt': float(data.get('alt', 0) or 0),
+        'alt_source': data.get('alt_source', default_alt_source),
+        'version': int(data.get('version', 2) or 2),
+    }
+
+    if data.get('timestamp'):
+        normalized['timestamp'] = data.get('timestamp')
+
+    return normalized
+
+
+def _load_json_origin_file(path: str, *, default_alt_source: str) -> Optional[Dict[str, Any]]:
+    """Load and normalize an origin JSON file."""
+    if not os.path.exists(path):
+        return None
+
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    return _normalize_origin_payload(data, default_alt_source=default_alt_source)
+
+
+def load_sitl_default_origin() -> Optional[Dict[str, Any]]:
+    """Return the tracked default SITL origin when available."""
+    if not getattr(Params, 'sim_mode', False):
+        return None
+
+    try:
+        origin = _load_json_origin_file(
+            sitl_default_origin_file_path,
+            default_alt_source='sitl_default',
+        )
+        if origin:
+            logger.debug("Using packaged SITL default origin.")
+        return origin
+    except Exception as e:
+        logger.error(f"Error loading packaged SITL default origin: {e}")
+        return None
 
 def save_origin(data):
     """
@@ -65,7 +115,7 @@ def save_origin(data):
             'version': 2
         }
 
-        with open(origin_file_path, 'w') as f:
+        with open(origin_file_path, 'w', encoding='utf-8') as f:
             json.dump(origin_data, f, indent=2)
 
         logger.info(f"Origin coordinates saved successfully: lat={origin_data['lat']}, "
@@ -84,7 +134,7 @@ def load_origin():
     """
     if os.path.exists(origin_file_path):
         try:
-            with open(origin_file_path, 'r') as f:
+            with open(origin_file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
             # Check version and migrate if needed
@@ -106,14 +156,18 @@ def load_origin():
                     pass  # Don't fail if save fails during migration
 
             logger.debug("Origin coordinates loaded successfully.")
-            return data
+            return _normalize_origin_payload(data, default_alt_source='manual')
 
         except Exception as e:
             logger.error(f"Error loading origin coordinates: {e}")
             return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
-    else:
-        logger.debug("Origin file does not exist yet. Returning default values.")
-        return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
+
+    default_origin = load_sitl_default_origin()
+    if default_origin:
+        return default_origin
+
+    logger.debug("Origin file does not exist yet. Returning default values.")
+    return {'lat': '', 'lon': '', 'alt': 0, 'version': 2}
 
 def calculate_position_deviations(telemetry_data_all_drones, drones_config, origin_lat, origin_lon):
     """
