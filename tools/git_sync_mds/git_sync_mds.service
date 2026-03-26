@@ -16,7 +16,7 @@ User=__MDS_USER__
 Group=__MDS_USER__
 TimeoutStartSec=600
 
-# Source fork configuration (MDS_REPO_URL, MDS_BRANCH, DEFAULT_SSH_GIT_URL, etc.)
+# Source repo configuration (prefer MDS_REPO_URL / MDS_BRANCH; keep legacy fallbacks compatible)
 # These files are optional (-) — service works with defaults if they don't exist
 EnvironmentFile=-/etc/mds/local.env
 EnvironmentFile=-__MDS_HOME__/.config/mds/env

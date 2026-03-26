@@ -14,7 +14,7 @@ set -euo pipefail
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-readonly SCRIPT_VERSION="2.1.0"
+readonly SCRIPT_VERSION="2.2.0"
 readonly SCRIPT_NAME="git-sync"
 
 # Use dynamic variables for user and home directory
@@ -55,6 +55,8 @@ ENVIRONMENT="${ENVIRONMENT:-production}"
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
 LOG_FILE="$HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
+USER_ENV_FILE="${MDS_USER_ENV_FILE:-$HOME/.config/mds/env}"
 
 # ----------------------------------
 # Enhanced Logging System (FIXED - No variable corruption)
@@ -96,6 +98,31 @@ log_error_and_exit() {
     echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"${BRANCH_NAME:-unknown}\",\"error\":\"$component\",\"message\":\"$error_json\"}"
     cleanup_on_exit
     exit "$exit_code"
+}
+
+# ----------------------------------
+# Runtime Environment Loading
+# ----------------------------------
+load_runtime_env_files() {
+    local env_file=""
+    local loaded_files=()
+
+    for env_file in "$LOCAL_ENV_FILE" "$USER_ENV_FILE"; do
+        if [[ -f "$env_file" ]]; then
+            log_debug "ENV" "Loading environment overrides from $env_file"
+            set -a
+            # shellcheck source=/dev/null
+            source "$env_file"
+            set +a
+            loaded_files+=("$env_file")
+        fi
+    done
+
+    if [[ ${#loaded_files[@]} -gt 0 ]]; then
+        log_info "ENV" "Loaded environment overrides from ${loaded_files[*]}"
+    else
+        log_debug "ENV" "No runtime environment override files found"
+    fi
 }
 
 # ----------------------------------
@@ -597,9 +624,9 @@ parse_arguments() {
         esac
     done
     
-    # Set values with precedence: CLI args > environment > defaults
-    BRANCH_NAME="${branch_name:-${DRONE_BRANCH:-$DEFAULT_BRANCH}}"
-    REPO_URL="${repo_url:-$DEFAULT_SSH_GIT_URL}"
+    # Set values with precedence: CLI args > modern env vars > legacy env vars > defaults
+    BRANCH_NAME="${branch_name:-${MDS_BRANCH:-${DRONE_BRANCH:-$DEFAULT_BRANCH}}}"
+    REPO_URL="${repo_url:-${MDS_REPO_URL:-$DEFAULT_SSH_GIT_URL}}"
     REPO_DIR="${repo_dir:-$REPO_DIR}"
     
     export BRANCH_NAME REPO_URL REPO_DIR
@@ -622,6 +649,12 @@ OPTIONS:
     -h, --help              Show this help message
 
 ENVIRONMENT VARIABLES:
+    MDS_REPO_URL           Repository URL override (preferred single source of truth)
+    MDS_BRANCH             Branch override (preferred single source of truth)
+    MDS_LOCAL_ENV_FILE     Alternate /etc/mds/local.env path for testing
+    MDS_USER_ENV_FILE      Alternate user env path for testing
+    DRONE_BRANCH           Legacy branch override (fallback)
+    DEFAULT_SSH_GIT_URL    Legacy repository URL fallback
     RECOVERY_STRATEGY       'graceful' or 'aggressive' (default: graceful)
     ENABLE_JITTER          Add random delays for swarm operations (default: true)
     MAX_RETRIES            Maximum retry attempts (default: 10)
@@ -652,6 +685,8 @@ main() {
     log_info "INIT" "User: $(whoami)"
     log_info "INIT" "PID: $$"
     log_info "INIT" "=========================================="
+
+    load_runtime_env_files
     
     # Parse arguments
     parse_arguments "$@"

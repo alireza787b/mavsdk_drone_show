@@ -63,6 +63,26 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+normalize_github_repo_path() {
+    local spec="${1:-}"
+
+    spec="${spec#https://github.com/}"
+    spec="${spec#git@github.com:}"
+    spec="${spec#github.com/}"
+    spec="${spec%.git}"
+    spec="${spec#/}"
+
+    if [[ -z "$spec" ]]; then
+        return 1
+    fi
+
+    if [[ "$spec" != */* ]]; then
+        spec="${spec}/mavsdk_drone_show"
+    fi
+
+    printf '%s\n' "$spec"
+}
+
 print_banner() {
     # Source shared banner if available
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -155,7 +175,7 @@ USAGE:
 
 OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
-    --fork USER         Use a forked repository (github.com/USER/mavsdk_drone_show)
+    --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
     -h, --help          Show this help message
 
@@ -172,6 +192,9 @@ EXAMPLES:
 
     # Use your own fork
     curl -fsSL ... | sudo bash -s -- --fork myusername
+
+    # Use a customer org/private repo path
+    curl -fsSL ... | sudo bash -s -- --fork myorg/customer-mds
 
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop
@@ -200,10 +223,14 @@ main() {
                 shift 2
                 ;;
             --fork)
-                # Set fork repository URL
-                REPO_URL="https://github.com/$2/mavsdk_drone_show.git"
+                local repo_path
+                repo_path=$(normalize_github_repo_path "$2") || {
+                    log_error "Invalid --fork value: $2"
+                    exit 1
+                }
+                REPO_URL="https://github.com/${repo_path}.git"
                 export MDS_REPO_URL="$REPO_URL"
-                log_info "Using fork: $2/mavsdk_drone_show"
+                log_info "Using GitHub repository: ${repo_path}"
                 shift 2
                 ;;
             --install-dir)

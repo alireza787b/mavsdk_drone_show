@@ -105,6 +105,26 @@ MAVLINK_ENDPOINTS=""
 MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
 
+normalize_github_repo_path() {
+    local spec="${1:-}"
+
+    spec="${spec#https://github.com/}"
+    spec="${spec#git@github.com:}"
+    spec="${spec#github.com/}"
+    spec="${spec%.git}"
+    spec="${spec#/}"
+
+    if [[ -z "$spec" ]]; then
+        return 1
+    fi
+
+    if [[ "$spec" != */* ]]; then
+        spec="${spec}/mavsdk_drone_show"
+    fi
+
+    printf '%s\n' "$spec"
+}
+
 # =============================================================================
 # HELP TEXT
 # =============================================================================
@@ -128,7 +148,7 @@ REPOSITORY OPTIONS:
                                 Default: git@github.com:alireza787b/mavsdk_drone_show.git
     -b, --branch BRANCH         Git branch to use
                                 Default: main-candidate
-    --fork USER                 Use forked repository (github.com/USER/mavsdk_drone_show)
+    --fork OWNER[/REPO]         Use GitHub fork or custom repo path
     --https                     Use HTTPS instead of SSH for git operations
 
 OPTIONAL COMPONENTS:
@@ -178,6 +198,9 @@ EXAMPLES:
 
     # Custom fork with HTTPS (using --fork shorthand)
     sudo ./mds_init.sh -d 1 --fork myuser --branch main
+
+    # Custom org/private repo path (using --fork shorthand)
+    sudo ./mds_init.sh -d 1 --fork myorg/customer-mds --branch main-candidate
 
     # Or with full URL
     sudo ./mds_init.sh -d 1 --https -r https://github.com/myuser/myfork.git -b main
@@ -243,8 +266,13 @@ parse_args() {
                 shift 2
                 ;;
             --fork)
-                # Set fork repository URL - use SSH by default
-                REPO_URL="git@github.com:$2/mavsdk_drone_show.git"
+                local repo_path
+                repo_path=$(normalize_github_repo_path "$2") || {
+                    echo "Error: Invalid --fork value '$2'" >&2
+                    exit 1
+                }
+                # Use SSH by default for writable hardware deployments.
+                REPO_URL="git@github.com:${repo_path}.git"
                 shift 2
                 ;;
             --https)

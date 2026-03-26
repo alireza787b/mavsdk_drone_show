@@ -2,6 +2,8 @@
 
 Guide for automated fleet provisioning, CI/CD integration, and batch deployment of MDS drones.
 
+If your fleet follows a customer-owned repo or private branch, read [Custom Repo Workflow](custom-repo-workflow.md) first. This guide assumes you already know which repo/branch each target should follow.
+
 ## Overview
 
 The `mds_init.sh` script supports fully automated, non-interactive installation for:
@@ -28,11 +30,14 @@ sudo ./tools/mds_init.sh -d 1 -y
 ### Recommended Flags for Automation
 
 ```bash
+# Avoid SSH key prompts for unattended installs.
+# Pin the repo and branch explicitly.
 sudo ./tools/mds_init.sh \
     -d ${DRONE_ID} \
-    --https \                    # Avoids SSH key prompts
-    -b main-candidate \          # Explicit branch
-    -y                           # Non-interactive
+    --https \
+    --repo-url https://github.com/YOURORG/YOURREPO.git \
+    -b customer-demo \
+    -y
 ```
 
 ## Fleet Provisioning
@@ -56,7 +61,7 @@ fi
 # Clone repository if not exists
 if [[ ! -d "/home/droneshow/mavsdk_drone_show" ]]; then
     sudo -u droneshow git clone \
-        https://github.com/alireza787b/mavsdk_drone_show.git \
+        https://github.com/YOURORG/YOURREPO.git \
         /home/droneshow/mavsdk_drone_show
 fi
 
@@ -66,6 +71,8 @@ cd /home/droneshow/mavsdk_drone_show
 sudo ./tools/mds_init.sh \
     -d "$DRONE_ID" \
     --https \
+    --repo-url https://github.com/YOURORG/YOURREPO.git \
+    --branch customer-demo \
     -y \
     2>&1 | tee "/var/log/mds/provision_${DRONE_ID}.log"
 
@@ -93,8 +100,10 @@ for entry in "${DRONES[@]}"; do
 
     ssh -o StrictHostKeyChecking=accept-new "droneshow@$ip" << EOF
         cd ~/mavsdk_drone_show
-        git pull
-        sudo ./tools/mds_init.sh -d $drone_id --https -y
+        git fetch origin customer-demo
+        git checkout customer-demo
+        git reset --hard origin/customer-demo
+        sudo ./tools/mds_init.sh -d $drone_id --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
 EOF
 
     if [[ $? -eq 0 ]]; then
@@ -114,8 +123,8 @@ done
   hosts: drones
   become: yes
   vars:
-    mds_repo: "https://github.com/alireza787b/mavsdk_drone_show.git"
-    mds_branch: "main-candidate"
+    mds_repo: "https://github.com/YOURORG/YOURREPO.git"
+    mds_branch: "customer-demo"
 
   tasks:
     - name: Ensure droneshow user exists
@@ -193,10 +202,14 @@ jobs:
           key: ${{ secrets.DRONE_SSH_KEY }}
           script: |
             cd ~/mavsdk_drone_show
-            git pull origin main-candidate
+            git fetch origin customer-demo
+            git checkout customer-demo
+            git reset --hard origin/customer-demo
             sudo ./tools/mds_init.sh \
               -d ${{ github.event.inputs.drone_id }} \
               --https \
+              --repo-url https://github.com/YOURORG/YOURREPO.git \
+              --branch customer-demo \
               -y
 ```
 
@@ -209,11 +222,13 @@ deploy_drone:
   script:
     - ssh droneshow@${DRONE_IP} "
         cd ~/mavsdk_drone_show &&
-        git pull &&
-        sudo ./tools/mds_init.sh -d ${DRONE_ID} --https -y
+        git fetch origin customer-demo &&
+        git checkout customer-demo &&
+        git reset --hard origin/customer-demo &&
+        sudo ./tools/mds_init.sh -d ${DRONE_ID} --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
       "
   only:
-    - main-candidate
+    - customer-demo
   when: manual
 ```
 
@@ -297,7 +312,7 @@ WantedBy=multi-user.target
 Set these before running the script:
 
 ```bash
-export MDS_REPO_URL="https://github.com/myorg/mavsdk_drone_show.git"
+export MDS_REPO_URL="https://github.com/myorg/customer-mds.git"
 export MDS_BRANCH="production"
 export MDS_GCS_IP="192.168.1.100"
 

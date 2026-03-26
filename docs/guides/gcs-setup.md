@@ -59,15 +59,20 @@ github.com/alireza787b/mavsdk_drone_show
 
 The installer now also writes `MDS_GIT_AUTO_PUSH=false` for this HTTPS/read-only path, so show imports and config saves do not attempt a git push the repo cannot perform.
 
-### Option 2: Your Own Fork (Production)
+### Option 2: Your Own Repo Or Customer Org Repo (Production)
 
-For production drone shows, fork the repository first:
+For production or customer-specific deployments, use a repo you control:
 
-1. **Fork on GitHub**: Go to [mavsdk_drone_show](https://github.com/alireza787b/mavsdk_drone_show) and click "Fork"
+1. Either fork [mavsdk_drone_show](https://github.com/alireza787b/mavsdk_drone_show) or create/use an org-owned private repo.
 
-2. **Use your fork during installation**:
+2. Use the repo during installation:
    ```bash
    curl -fsSL ... | sudo bash -s -- --fork yourusername
+   ```
+
+   Customer org/private repo example:
+   ```bash
+   curl -fsSL ... | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo
    ```
 
    Or select option 2 during interactive setup.
@@ -93,8 +98,10 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 | Mode | Write Access | Git Sync | Use Case |
 |------|--------------|----------|----------|
 | HTTPS (default repo) | No | Pull only, auto-push disabled | Testing, SITL |
-| HTTPS (fork) | Manual push | Manual | Simple deployments |
-| SSH (fork) | Yes | Yes | Production shows |
+| HTTPS (custom repo) | Manual push | Manual | Simple deployments |
+| SSH (custom repo) | Yes | Yes | Production shows |
+
+For a full customer repo decision tree, see [Custom Repo Workflow](custom-repo-workflow.md).
 
 ---
 
@@ -119,6 +126,12 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
    cd mavsdk_drone_show
    ```
 
+   Or clone the customer repo you intend to operate:
+   ```bash
+   git clone -b customer-demo git@github.com:yourorg/customer-mds.git
+   cd customer-mds
+   ```
+
 2. **Run the GCS initialization script:**
    ```bash
    sudo ./tools/mds_gcs_init.sh
@@ -130,6 +143,14 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
    - Install npm dependencies
    - Configure firewall rules
    - Set up Mapbox token (optional, for map features)
+
+For customer/private repos, prefer a fully explicit command:
+
+```bash
+sudo ./tools/mds_gcs_init.sh \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo
+```
 
 ---
 
@@ -184,6 +205,11 @@ sudo ./tools/mds_gcs_init.sh --resume
 
 # Skip firewall changes (if using external firewall)
 sudo ./tools/mds_gcs_init.sh --skip-firewall
+
+# Customer/private repo with write-back
+sudo ./tools/mds_gcs_init.sh \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo
 ```
 
 ---
@@ -214,8 +240,8 @@ GCS_PORT=5000
 GCS_BACKEND=fastapi
 
 # Repository Settings
-MDS_REPO_URL=git@github.com:alireza787b/mavsdk_drone_show.git
-MDS_BRANCH=main-candidate
+MDS_REPO_URL=git@github.com:yourorg/customer-mds.git
+MDS_BRANCH=customer-demo
 MDS_GIT_AUTO_PUSH=true
 MDS_INSTALL_DIR=~/mavsdk_drone_show
 
@@ -330,6 +356,14 @@ cd ~/mavsdk_drone_show/app
 3. **Test SSH connection:**
    ```bash
    ssh -T git@github.com
+   ```
+
+4. **Verify the configured repo and branch, not just GitHub in general:**
+   ```bash
+   grep '^MDS_REPO_URL=' /etc/mds/gcs.env
+   grep '^MDS_BRANCH=' /etc/mds/gcs.env
+   git -C ~/mavsdk_drone_show remote -v
+   git -C ~/mavsdk_drone_show branch --show-current
    ```
 
 ### Port Conflicts

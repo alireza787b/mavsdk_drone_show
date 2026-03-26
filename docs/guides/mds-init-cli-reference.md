@@ -22,7 +22,7 @@ These parameters are required but can be provided interactively if omitted:
 |--------|-------------|---------|
 | `-r, --repo-url URL` | Git repository URL | `git@github.com:alireza787b/mavsdk_drone_show.git` |
 | `-b, --branch BRANCH` | Git branch to use | `main-candidate` |
-| `--fork USER` | Use forked repository (`github.com/USER/mavsdk_drone_show`) | - |
+| `--fork OWNER[/REPO]` | Use GitHub fork shorthand (`OWNER/mavsdk_drone_show`) or explicit owner/repo path | - |
 | `--https` | Use HTTPS instead of SSH for git operations | SSH |
 
 ## Optional Components
@@ -110,12 +110,16 @@ Using your own fork (simple method):
 sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
 ```
 
+Using a customer org/private repo path:
+```bash
+sudo ./tools/mds_init.sh -d 1 --fork yourorg/customer-mds -y
+```
+
 Custom repository and branch:
 ```bash
 sudo ./tools/mds_init.sh -d 1 \
-    --https \
-    -r https://github.com/myuser/myfork.git \
-    -b feature-branch \
+    -r git@github.com:yourorg/customer-mds.git \
+    -b customer-demo \
     -y
 ```
 
@@ -287,7 +291,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 | Option | Description |
 |--------|-------------|
 | `--branch BRANCH` | Git branch to clone |
-| `--fork USER` | Use forked repository |
+| `--fork OWNER[/REPO]` | Use GitHub fork shorthand or explicit owner/repo path |
 | `-h, --help` | Show bootstrap help |
 
 All other options are passed through to `mds_init.sh`.
@@ -303,6 +307,9 @@ curl -fsSL ... | sudo bash -s -- -d 1 -y
 
 # Using your fork
 curl -fsSL ... | sudo bash -s -- --fork yourusername -d 1 -y
+
+# Using a customer org/private repo path
+curl -fsSL ... | sudo bash -s -- --fork yourorg/customer-mds -d 1 -y
 
 # Custom branch with VPN
 curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y

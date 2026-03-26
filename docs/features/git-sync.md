@@ -137,15 +137,17 @@ This is parsed by `actions.py` for logging and status tracking.
 - `tools/git_sync_mds/git_sync_mds.service` - Systemd service template (sources `/etc/mds/local.env` for fork config)
 - `tools/git_sync_mds/install_git_sync_mds.sh` - Service installer (substitutes user/home at install time)
 
-## Fork Configuration
+## Custom Repository Configuration
 
-For users who fork the repo, the following override chain applies:
+For custom forks, org repos, or private customer repos, the following override chain applies:
 
 | Component | Config Source | Override Method |
 |-----------|-------------|-----------------|
 | GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env` |
-| Drone boot sync | `update_repo_ssh.sh` defaults | Set `DEFAULT_SSH_GIT_URL`/`DEFAULT_BRANCH` in `/etc/mds/local.env` |
+| Drone boot sync and `UPDATE_CODE` action | `update_repo_ssh.sh` | Set `MDS_REPO_URL`/`MDS_BRANCH` in `/etc/mds/local.env` |
 | SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
 | `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
-The GCS launcher sources `/etc/mds/gcs.env` on startup, while drone boot sync still uses `/etc/mds/local.env`.
+The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dashboard-triggered `UPDATE_CODE` both load `/etc/mds/local.env`, so hardware repo/branch selection stays aligned across boot-time and operator-triggered sync.
+
+For the end-to-end customer/private repo workflow, see [Custom Repo Workflow](../guides/custom-repo-workflow.md).

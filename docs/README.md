@@ -29,9 +29,11 @@ Start here to get your first drone show simulation running:
    - Complete step-by-step SITL setup
    - Single stable Mega archive name, `7z` validation/extraction, Docker setup, dashboard startup
 
-2. **[Advanced SITL Guide](guides/advanced-sitl.md)** - Use this if you maintain your own fork or custom Docker image
+2. **[Custom Repo Workflow](guides/custom-repo-workflow.md)** - Use this if GCS, drones, or SITL must follow a customer-owned repo/branch
 
-3. **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** - Use this if you need a validated custom image, package, or redistribution workflow
+3. **[Advanced SITL Guide](guides/advanced-sitl.md)** - Use this if you maintain your own fork or custom Docker image
+
+4. **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** - Use this if you need a validated custom image, package, or redistribution workflow
 
 ### Maintainers and AI Agents
 
@@ -50,6 +52,7 @@ Start here to get your first drone show simulation running:
 | Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | Import and fly a Drone Show | [Drone Show Guide](features/drone-show.md) |
 | Run the first Smart Swarm operator flow in the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
+| Point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
 | Run or tune live Smart Swarm missions | [Smart Swarm Guide](features/smart-swarm.md) |
 | Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
@@ -68,6 +71,7 @@ Start here to get your first drone show simulation running:
 | Guide | Description | Audience |
 |-------|-------------|----------|
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
+| **[Custom Repo Workflow](guides/custom-repo-workflow.md)** | Customer repo/branch selection across GCS, drones, and SITL | Advanced users |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
 | **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** | Fork maintenance, clean image rebuilds, package/archive distribution | Advanced users |
 
@@ -242,7 +246,7 @@ Detailed reports of major implementations and bug fixes (chronologically organiz
 
 Older versions retained for historical reference:
 
-- [DEPRECATED: Version 2.0 SITL Guide](archives/deprecated/DEPRECATED_v2.0_doc_sitl_demo.md)
+- [DEPRECATED: Version 2.0 SITL Guide](archives/deprecated/DEPRECATED_v2.0_doc_sitl_demo.md) - historical only, do not use for current SITL/custom-image workflows
 
 ### Legacy Documentation
 

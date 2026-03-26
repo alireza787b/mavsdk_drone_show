@@ -1,0 +1,314 @@
+# Custom Repo Workflow
+
+## Overview
+
+Use this guide when MDS must run against a customer-owned GitHub repository instead of the official public repo.
+
+Typical reasons:
+- private customer infrastructure
+- customer-specific config, shows, or UI changes
+- a dedicated demo branch
+- a validated custom SITL image for redistribution
+- keeping a customer repo in sync with official MDS upstream over time
+
+This guide is the source of truth for:
+- custom repo and branch selection
+- where each component stores that selection
+- SSH vs HTTPS recommendations
+- writable vs read-only Git workflows
+- upstream sync strategy
+
+It complements these guides:
+- [GCS Setup Guide](gcs-setup.md)
+- [MDS Init Setup Guide](mds-init-setup.md)
+- [Advanced SITL Guide](advanced-sitl.md)
+- [SITL Custom Release Workflow](sitl-custom-release-workflow.md)
+- [Git Sync System](../features/git-sync.md)
+
+## First Decisions
+
+Before touching a customer deployment, decide these five things:
+
+1. Which repo is the customer source of truth?
+2. Which branch should GCS, drones, and SITL follow?
+3. Does the GCS need write-back (`MDS_GIT_AUTO_PUSH=true`) or read-only behavior?
+4. Will SITL stay mutable on boot (`MDS_SITL_GIT_SYNC=true`) or use a pinned validated image?
+5. How will the customer repo receive official MDS updates later?
+
+If these are not decided first, the rest becomes noisy and hard to reason about.
+
+## Single Source Of Truth
+
+Use the same variable names everywhere:
+
+| Target | Source of truth | Keys |
+|--------|-----------------|------|
+| GCS | `/etc/mds/gcs.env` | `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTO_PUSH` |
+| Real drone hardware | `/etc/mds/local.env` | `MDS_REPO_URL`, `MDS_BRANCH` |
+| SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_DOCKER_IMAGE` |
+| GCS backend defaults | `src/params.py` | fallback only when env files are absent |
+
+Important rules:
+- prefer `MDS_REPO_URL` and `MDS_BRANCH` over editing hardcoded defaults
+- treat `src/params.py` as a fallback, not the primary customer customization point
+- for hardware and GCS, let the init scripts write `/etc/mds/*.env`
+- for SITL, export variables explicitly or bake them into a validated custom image workflow
+
+## Access Model
+
+| Target | Recommended access | Why |
+|--------|--------------------|-----|
+| GCS with dashboard write-back | SSH deploy key or another non-interactive writable Git credential | config/show saves may need commit + push |
+| GCS read-only evaluation | HTTPS + `MDS_GIT_AUTO_PUSH=false` | simplest safe demo path |
+| Real drones | SSH deploy key or HTTPS read-only | drones normally pull only |
+| SITL development | HTTPS | easiest when many containers come and go |
+| Custom SITL image build for private repo | authenticated HTTPS or a pre-authenticated build environment | build happens inside a containerized prep flow |
+
+Practical recommendation:
+- GCS: SSH if it must push customer changes
+- drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
+- SITL: HTTPS unless you deliberately provision SSH credentials into the build/runtime environment
+
+## `--fork` Versus `--repo-url`
+
+There are now two clean ways to target a customer repo:
+
+### `--fork`
+
+Use this when the customer repo lives on GitHub and you want a short shorthand.
+
+Supported values:
+- `--fork youruser`
+- `--fork yourorg/customer-mds`
+
+Behavior:
+- `OWNER` becomes `OWNER/mavsdk_drone_show`
+- `OWNER/REPO` keeps the explicit repo name
+
+### `--repo-url`
+
+Use this when you want full explicit control.
+
+Examples:
+
+```bash
+--repo-url https://github.com/yourorg/customer-mds.git
+--repo-url git@github.com:yourorg/customer-mds.git
+```
+
+Recommendation:
+- use `--fork` for quick GitHub bootstrap
+- use `--repo-url` in long-lived customer docs and automation because it is fully explicit
+
+## GCS Workflow
+
+For a customer-owned GitHub repo with dashboard write-back:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+  sudo bash -s -- \
+  --fork yourorg/customer-mds \
+  --branch customer-demo
+```
+
+Or with an explicit URL:
+
+```bash
+sudo ./tools/mds_gcs_init.sh \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo
+```
+
+What matters after install:
+- `/etc/mds/gcs.env` stores `MDS_REPO_URL`, `MDS_BRANCH`, and `MDS_GIT_AUTO_PUSH`
+- `app/linux_dashboard_start.sh` exports those values before backend startup
+- dashboard saves/imports use those values for commit/push behavior
+
+If the GCS repo is intentionally read-only:
+
+```bash
+MDS_GIT_AUTO_PUSH=false
+```
+
+That is the correct safe setting for evaluation setups.
+
+## Real Drone Workflow
+
+For a drone that should follow the customer repo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | \
+  sudo bash -s -- \
+  -d 1 \
+  --fork yourorg/customer-mds \
+  --branch customer-demo \
+  -y
+```
+
+Or:
+
+```bash
+sudo ./tools/mds_init.sh \
+  -d 1 \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo \
+  -y
+```
+
+What matters after install:
+- `/etc/mds/local.env` stores the chosen `MDS_REPO_URL` and `MDS_BRANCH`
+- boot-time `git_sync_mds.service` sources `/etc/mds/local.env`
+- operator-triggered `UPDATE_CODE` now also loads `/etc/mds/local.env`, so boot sync and runtime sync use the same repo/branch
+
+This removes a major source of drift between startup behavior and dashboard-triggered sync.
+
+## SITL Workflow
+
+For mutable development SITL:
+
+```bash
+export MDS_REPO_URL="https://github.com/yourorg/customer-mds.git"
+export MDS_BRANCH="customer-demo"
+export MDS_SITL_GIT_SYNC=true
+export MDS_SITL_REQUIREMENTS_SYNC=true
+
+bash multiple_sitl/create_dockers.sh 5
+```
+
+For a pinned validated customer image:
+
+```bash
+export MDS_DOCKER_IMAGE="yourorg-mds-sitl:v5-customer"
+export MDS_SITL_GIT_SYNC=false
+export MDS_SITL_REQUIREMENTS_SYNC=false
+
+bash multiple_sitl/create_dockers.sh 5
+```
+
+Use mutable boot sync for active development.
+Use a pinned image for professional demos, large fleets, and repeatable validation.
+
+## Custom SITL Image Workflow
+
+If the customer repo is approved and must become a stable release image:
+
+```bash
+export MDS_REPO_URL="https://github.com/yourorg/customer-mds.git"
+export MDS_BRANCH="customer-demo"
+
+bash tools/release_sitl_image.sh \
+  --base-image mavsdk-drone-show-sitl:latest \
+  --image-repo yourorg-mds-sitl \
+  --version-tag v5-customer \
+  --repo-url "$MDS_REPO_URL" \
+  --branch "$MDS_BRANCH" \
+  --package
+```
+
+Important:
+- this rebuilds the image from git
+- PX4 and the baked `mavsdk_server` stay pinned inside the image
+- the final image is the correct artifact for redistribution
+- do not use `docker commit` as the release workflow
+
+For private repo builds, make sure the build environment has real Git access. Authenticated HTTPS is usually easier than injecting SSH keys into the containerized image-prep flow.
+
+## Upstream Sync Strategy
+
+Recommended model:
+- customer repo = `origin`
+- official MDS repo = `upstream`
+
+Inside the customer repo:
+
+```bash
+git remote add upstream https://github.com/alireza787b/mavsdk_drone_show.git
+git fetch upstream
+```
+
+Then choose one policy:
+
+| Policy | When to use it |
+|--------|----------------|
+| merge upstream into customer branch | easiest operational history |
+| rebase customer branch on upstream | cleaner history, requires more Git discipline |
+| cherry-pick selected upstream commits | strict change control |
+
+Recommendation for most customers:
+- keep the running branch on the customer repo
+- pull official changes into a staging branch first
+- validate in SITL
+- then promote to the customer production/demo branch
+
+Do not point customer drones straight at the official repo if the customer expects their own config, UI, or mission assets to remain authoritative.
+
+## What Changes When You Leave The Official Repo
+
+These areas matter:
+
+| Area | What changes |
+|------|--------------|
+| GCS bootstrap | choose customer repo/branch and write `/etc/mds/gcs.env` |
+| Hardware bootstrap | choose customer repo/branch and write `/etc/mds/local.env` |
+| Dashboard save/import flow | may need writable Git credentials |
+| SITL launch | export `MDS_REPO_URL` / `MDS_BRANCH` or use a custom image |
+| Release packaging | customer image/tag/archive naming now belongs to the customer workflow |
+| Upstream maintenance | customer repo must deliberately fetch and review official updates |
+
+## Common Pitfalls
+
+### 1. GCS points at customer repo, drones still point at official repo
+
+Result:
+- dashboard saves land in one repo
+- drones keep pulling another repo
+
+Fix:
+- verify `/etc/mds/gcs.env`
+- verify `/etc/mds/local.env`
+- verify SITL env or image settings
+
+### 2. Private repo build fails inside custom SITL image prep
+
+Result:
+- image build cannot clone customer repo
+
+Fix:
+- use authenticated HTTPS or a build environment with valid non-interactive credentials
+
+### 3. Dashboard pushes fail on a read-only repo
+
+Result:
+- show/config save succeeds locally but push fails
+
+Fix:
+- set `MDS_GIT_AUTO_PUSH=false`
+- or give the GCS real write credentials
+
+### 4. Running containers are edited manually
+
+Result:
+- changes disappear when the container is recreated
+
+Fix:
+- commit to git first
+- or rebuild and package a clean image
+
+## Recommended Customer Policy
+
+For serious customer work:
+
+1. Keep official MDS on GitHub as the upstream reference.
+2. Keep each customer on their own repo and branch.
+3. Use GCS SSH write-back only where the customer actually wants dashboard saves committed automatically.
+4. Validate custom behavior in SITL before moving it to hardware.
+5. Rebuild a pinned custom SITL image once the customer branch is approved.
+6. Document the customer repo URL, branch, image tag, and update policy in one place.
+
+## Related Guides
+
+- [GCS Setup Guide](gcs-setup.md)
+- [MDS Init Setup Guide](mds-init-setup.md)
+- [Advanced SITL Guide](advanced-sitl.md)
+- [SITL Custom Release Workflow](sitl-custom-release-workflow.md)
+- [Git Sync System](../features/git-sync.md)

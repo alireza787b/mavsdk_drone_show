@@ -177,6 +177,27 @@ test_ssh_connection() {
 # FORK SELECTION
 # =============================================================================
 
+# Normalize a GitHub owner or owner/repo shorthand into an owner/repo path
+normalize_github_repo_path() {
+    local spec="${1:-}"
+
+    spec="${spec#https://github.com/}"
+    spec="${spec#git@github.com:}"
+    spec="${spec#github.com/}"
+    spec="${spec%.git}"
+    spec="${spec#/}"
+
+    if [[ -z "$spec" ]]; then
+        return 1
+    fi
+
+    if [[ "$spec" != */* ]]; then
+        spec="${spec}/mavsdk_drone_show"
+    fi
+
+    printf '%s\n' "$spec"
+}
+
 # Display repository selection prompt
 display_repo_selection_box() {
     echo ""
@@ -184,10 +205,10 @@ display_repo_selection_box() {
     echo -e "${CYAN}│${NC}  ${WHITE}Repository Selection${NC}                                                      ${CYAN}│${NC}"
     echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}  Do you have your own fork of the MDS repository?                         ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  Do you have your own fork or custom GitHub repository for MDS?            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}    ${GREEN}[1]${NC} No - Use default repository ${DIM}(read-only unless you're a collaborator)${NC}  ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}    ${GREEN}[2]${NC} Yes - I have my own fork ${DIM}(recommended for production)${NC}              ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}[2]${NC} Yes - I have my own repo ${DIM}(recommended for production)${NC}           ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo ""
@@ -204,35 +225,41 @@ display_readonly_warning() {
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}  ${DIM}• git_sync_mds service will pull updates automatically${NC}                  ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}  ${DIM}• You cannot push local changes unless you're a collaborator${NC}            ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}  ${DIM}• For custom modifications, create your own fork${NC}                        ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}  ${DIM}• For custom modifications, use your own fork or org repo${NC}               ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo ""
 }
 
-# Prompt for fork username
-prompt_fork_username() {
-    local fork_user=""
+# Prompt for custom GitHub owner / repo path
+prompt_custom_repo_path() {
+    local repo_spec=""
+    local repo_path=""
 
     echo ""
-    echo -e "  ${INFO} Enter your GitHub username for the fork."
-    echo -e "  ${DIM}The repository should be at: github.com/YOUR_USER/mavsdk_drone_show${NC}"
+    echo -e "  ${INFO} Enter your GitHub owner or owner/repo path."
+    echo -e "  ${DIM}Examples: youruser   or   yourorg/customer-mds${NC}"
     echo ""
-    prompt_input "GitHub username" "" fork_user
+    prompt_input "GitHub owner or owner/repo" "" repo_spec
 
-    if [[ -z "$fork_user" ]]; then
-        log_warn "No username provided, using default repository"
+    if [[ -z "$repo_spec" ]]; then
+        log_warn "No repository provided, using default repository"
         return 1
     fi
 
+    repo_path=$(normalize_github_repo_path "$repo_spec") || {
+        log_warn "Invalid repository selection, using default repository"
+        return 1
+    }
+
     # Set the repository URL based on access method preference
     if [[ "${USE_HTTPS:-false}" == "true" ]]; then
-        REPO_URL="https://github.com/${fork_user}/mavsdk_drone_show.git"
+        REPO_URL="https://github.com/${repo_path}.git"
     else
-        REPO_URL="git@github.com:${fork_user}/mavsdk_drone_show.git"
+        REPO_URL="git@github.com:${repo_path}.git"
     fi
 
-    log_info "Using fork: ${fork_user}/mavsdk_drone_show"
+    log_info "Using custom repository: ${repo_path}"
     return 0
 }
 
@@ -266,8 +293,8 @@ prompt_repository_selection() {
             display_readonly_warning
             ;;
         2)
-            # Fork - prompt for username
-            if ! prompt_fork_username; then
+            # Custom repo - prompt for owner / repo path
+            if ! prompt_custom_repo_path; then
                 # Fallback to default if no username provided
                 REPO_URL="${DEFAULT_REPO_URL_HTTPS}"
                 USE_HTTPS="true"

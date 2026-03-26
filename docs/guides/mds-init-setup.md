@@ -7,7 +7,7 @@ Complete step-by-step guide for initializing a Raspberry Pi for the MDS drone sw
 The `mds_init.sh` script is an enterprise-grade initialization system that configures a fresh Raspberry Pi for use in MDS drone swarm operations. It handles:
 
 - System prerequisites and validation
-- Repository cloning with SSH/HTTPS support (fork selection included)
+- Repository cloning with SSH/HTTPS support (custom repo selection included)
 - Hardware identity configuration
 - Python virtual environment setup
 - MAVSDK binary installation
@@ -46,9 +46,14 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- -d 1 -y
 ```
 
-**Using your own fork:**
+**Using your own fork or org repo:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourusername -d 1 -y
+```
+
+**Using a customer org/private repo path:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
 ```
 
 ### Option 2: Manual Installation
@@ -83,6 +88,13 @@ git clone https://github.com/alireza787b/mavsdk_drone_show.git
 cd mavsdk_drone_show
 ```
 
+Or clone the customer repo you actually plan to deploy:
+
+```bash
+git clone -b customer-demo git@github.com:yourorg/customer-mds.git
+cd customer-mds
+```
+
 #### Step 4: Run the Initialization Script
 
 **Interactive mode (recommended for first-time setup):**
@@ -97,10 +109,19 @@ sudo ./tools/mds_init.sh
 sudo ./tools/mds_init.sh -d 1 -y
 ```
 
-**Using your own fork:**
+**Using your own fork or custom repo:**
 
 ```bash
 sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
+```
+
+Or fully explicit:
+
+```bash
+sudo ./tools/mds_init.sh -d 1 \
+    --repo-url git@github.com:yourorg/customer-mds.git \
+    --branch customer-demo \
+    -y
 ```
 
 ## Initialization Phases
@@ -133,23 +154,24 @@ For a single drone with ID 1:
 sudo ./tools/mds_init.sh -d 1 -y
 ```
 
-### Scenario 2: Custom Repository Fork
+### Scenario 2: Custom Repository
 
-For using a forked repository (simple method):
+For using a forked repository or org-owned repo (simple shorthand):
 
 ```bash
 sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
 ```
 
-Or with full URL:
+Or with a customer org/private repo:
 
 ```bash
 sudo ./tools/mds_init.sh -d 1 \
-    --https \
-    --repo-url https://github.com/yourusername/mavsdk_drone_show.git \
-    --branch your-branch \
+    --repo-url git@github.com:yourorg/customer-mds.git \
+    --branch customer-demo \
     -y
 ```
+
+For the full cross-target workflow, see [Custom Repo Workflow](custom-repo-workflow.md).
 
 ### Scenario 3: Full Setup with VPN and Static IP
 

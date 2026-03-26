@@ -2,9 +2,11 @@
 
 ## Overview
 
-This guide is for advanced users who want to use their own forked repository or custom Docker images with MDS SITL.
+This guide is for advanced users who want to use their own forked or customer-owned repository and custom Docker images with MDS SITL.
 
 If you need a full release-maintenance workflow instead of just runtime overrides, also read [SITL Custom Release Workflow](sitl-custom-release-workflow.md). That guide covers the clean path for validated custom images, packaging, archive distribution, and large-fleet pinned deployments.
+
+If the repo/branch must also work on GCS and real drones, start with [Custom Repo Workflow](custom-repo-workflow.md) first. This guide focuses only on the SITL side.
 
 > **⚠️ Prerequisites Required:**
 > - Good understanding of Git, Docker, and Linux
@@ -15,7 +17,7 @@ If you need a full release-maintenance workflow instead of just runtime override
 > - Official `MEGAcmd` if you plan to upload authenticated MEGA artifacts for your own distribution workflow
 
 > **⚠️ Important Warning:**
-> Using custom repositories disconnects you from automatic MDS updates. You'll need to manually sync your fork with upstream changes.
+> Using custom repositories disconnects you from automatic MDS updates. You'll need to manually sync your repo with upstream changes.
 
 ---
 
@@ -23,7 +25,7 @@ If you need a full release-maintenance workflow instead of just runtime override
 
 ### Step 1: Set Your Configuration
 
-Copy and paste these commands, replacing them with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys.
+Copy and paste these commands, replacing them with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys. For private repos, use authenticated HTTPS or a build/runtime environment that already has valid non-interactive Git credentials.
 
 Do **not** point `MDS_DOCKER_IMAGE` at a custom tag yet unless that image already exists. The clean first pass is:
 
@@ -250,6 +252,8 @@ docker exec drone-1 bash -c "cd /root/mavsdk_drone_show && git remote -v"
 ```bash
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
 ```
+
+For a private repo, the fallback only works if the resulting HTTPS access is also authenticated.
 
 ### Problem: Docker Image Not Found
 

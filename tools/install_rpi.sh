@@ -61,6 +61,26 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+normalize_github_repo_path() {
+    local spec="${1:-}"
+
+    spec="${spec#https://github.com/}"
+    spec="${spec#git@github.com:}"
+    spec="${spec#github.com/}"
+    spec="${spec%.git}"
+    spec="${spec#/}"
+
+    if [[ -z "$spec" ]]; then
+        return 1
+    fi
+
+    if [[ "$spec" != */* ]]; then
+        spec="${spec}/mavsdk_drone_show"
+    fi
+
+    printf '%s\n' "$spec"
+}
+
 # =============================================================================
 # BANNER
 # =============================================================================
@@ -284,7 +304,7 @@ USAGE:
 
 BOOTSTRAP OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
-    --fork USER         Use a forked repository (github.com/USER/mavsdk_drone_show)
+    --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     -h, --help          Show this help message
 
     All other options are passed to mds_init.sh
@@ -312,6 +332,9 @@ EXAMPLES:
 
     # Use your own fork
     curl -fsSL ... | sudo bash -s -- --fork myusername -d 1 -y
+
+    # Use a customer org/private repo path
+    curl -fsSL ... | sudo bash -s -- --fork myorg/customer-mds -d 1 -y
 
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop -d 1 -y
@@ -344,10 +367,14 @@ main() {
                 shift 2
                 ;;
             --fork)
-                # Set fork repository URL (HTTPS for bootstrap)
-                REPO_URL="https://github.com/$2/mavsdk_drone_show.git"
+                local repo_path
+                repo_path=$(normalize_github_repo_path "$2") || {
+                    log_error "Invalid --fork value: $2"
+                    exit 1
+                }
+                REPO_URL="https://github.com/${repo_path}.git"
                 export MDS_REPO_URL="$REPO_URL"
-                log_info "Using fork: $2/mavsdk_drone_show"
+                log_info "Using GitHub repository: ${repo_path}"
                 shift 2
                 ;;
             -h|--help)

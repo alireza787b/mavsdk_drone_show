@@ -18,6 +18,26 @@ _MDS_GCS_REPO_LOADED=1
 readonly GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 
+normalize_github_repo_path() {
+    local spec="${1:-}"
+
+    spec="${spec#https://github.com/}"
+    spec="${spec#git@github.com:}"
+    spec="${spec#github.com/}"
+    spec="${spec%.git}"
+    spec="${spec#/}"
+
+    if [[ -z "$spec" ]]; then
+        return 1
+    fi
+
+    if [[ "$spec" != */* ]]; then
+        spec="${spec}/mavsdk_drone_show"
+    fi
+
+    printf '%s\n' "$spec"
+}
+
 # =============================================================================
 # REPOSITORY SELECTION
 # =============================================================================
@@ -136,18 +156,24 @@ prompt_repository_selection() {
         log_info "Using: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show (${BRANCH:-main-candidate})"
     else
         echo ""
-        echo -e "  ${WHITE}Enter your fork details:${NC}"
-        local github_user
-        read -p "  GitHub username: " github_user </dev/tty
+        echo -e "  ${WHITE}Enter your custom GitHub repository:${NC}"
+        echo -e "  ${DIM}Examples: youruser   or   yourorg/customer-mds${NC}"
+        local repo_spec repo_path
+        read -p "  GitHub owner or owner/repo: " repo_spec </dev/tty
 
-        if [[ -n "$github_user" ]]; then
-            REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
+        if [[ -n "$repo_spec" ]]; then
+            repo_path=$(normalize_github_repo_path "$repo_spec") || {
+                log_warn "Invalid repository value, using default repository"
+                echo ""
+                return 0
+            }
+            REPO_URL="https://github.com/${repo_path}.git"
             export REPO_URL
             echo ""
             log_info "Repository: ${REPO_URL}"
             log_info "Branch: ${BRANCH:-main-candidate}"
         else
-            log_warn "No username provided, using default repository"
+            log_warn "No repository provided, using default repository"
         fi
     fi
     echo ""
@@ -664,7 +690,7 @@ run_repository_phase() {
     # STEP 5: Fork Verification (for custom repos)
     # =========================================================================
     if [[ -n "${REPO_URL:-}" ]]; then
-        print_section "Fork Configuration Check"
+        print_section "Repo Configuration Check"
         verify_fork_config
     fi
 

@@ -84,11 +84,15 @@ sudo ./tools/mds_init.sh
 # Test network connectivity
 ping github.com
 
+# Check the configured repo / branch
+grep '^MDS_REPO_URL=' /etc/mds/local.env
+grep '^MDS_BRANCH=' /etc/mds/local.env
+
 # Test git access (SSH)
 ssh -T git@github.com
 
-# Test git access (HTTPS)
-git ls-remote https://github.com/alireza787b/mavsdk_drone_show.git
+# Test git access using the configured remote
+git ls-remote "$(grep '^MDS_REPO_URL=' /etc/mds/local.env | cut -d= -f2-)"
 ```
 
 **Solutions:**
@@ -112,6 +116,11 @@ git ls-remote https://github.com/alireza787b/mavsdk_drone_show.git
    ```bash
    sudo ./tools/mds_init.sh -d 1 --debug -y
    ```
+
+4. **If this is a customer/private repo deployment:**
+   - verify the repo URL in `/etc/mds/local.env`
+   - verify the branch in `/etc/mds/local.env`
+   - verify the credential path matches the chosen URL (`SSH` deploy key vs `HTTPS` token/read-only access)
 
 ### Issue: Python requirements installation fails
 

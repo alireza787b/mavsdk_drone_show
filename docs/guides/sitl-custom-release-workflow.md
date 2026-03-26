@@ -6,11 +6,14 @@ This guide is the source of truth for advanced SITL image maintenance.
 
 Use it when you need one of these workflows:
 - maintain your own fork
+- maintain a customer-owned private repo
 - build a custom validated SITL image
 - package a release archive for other users
 - keep a large fleet on a pinned tested image instead of mutable latest-on-boot sync
 
 This guide is about the **Docker SITL image workflow**. It does not replace the real-hardware setup guides for Raspberry Pi, Jetson, or field deployment.
+
+If you are aligning GCS, drones, and SITL around the same customer repo/branch, read [Custom Repo Workflow](custom-repo-workflow.md) first.
 
 ## Choose The Right Workflow
 
@@ -65,7 +68,7 @@ bash multiple_sitl/create_dockers.sh 2
 
 ## Development Workflow On Your Fork
 
-Use this when you want containers to pull the latest committed MDS code from your fork on boot.
+Use this when you want containers to pull the latest committed MDS code from your fork or customer repo on boot.
 
 ```bash
 export MDS_REPO_URL="https://github.com/YOURORG/YOURREPO.git"
@@ -80,6 +83,7 @@ Recommended rules:
 - commit and push before testing changes that must survive container recreation
 - do not rely on editing files inside running containers
 - rebuild the image once the fork state is approved and needs to become a stable release
+- for private repos, make sure the runtime environment can authenticate before you rely on mutable boot sync
 
 ## Build A Clean Custom Image
 
@@ -101,6 +105,7 @@ Notes:
 - the final image is flattened so old `docker commit` layer history does not accumulate
 - export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before building if you intentionally want a different baked `mavsdk_server`
 - export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before building only if your custom image intentionally needs the PX4 ARM toolchain
+- for private repos, prefer authenticated HTTPS or another pre-authenticated Git path during image preparation
 
 ## Rebuild And Package A Validated Release
 

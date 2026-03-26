@@ -58,6 +58,7 @@ python3 tools/validate_smart_swarm_runtime.py
 
 If you need your own fork, custom image, or a pinned redistribution workflow, do not improvise from the demo path. Use:
 
+- **[Custom Repo Workflow](docs/guides/custom-repo-workflow.md)**
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)**
 - **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)**
 
@@ -67,7 +68,8 @@ If you need your own fork, custom image, or a pinned redistribution workflow, do
 |------|------------|
 | Run a quick SITL demo | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
 | Import and launch a Drone Show | [Drone Show Guide](docs/features/drone-show.md) |
-| Maintain a custom fork or Docker image | [Advanced SITL Guide](docs/guides/advanced-sitl.md) |
+| Run MDS from a customer org or private repo | [Custom Repo Workflow](docs/guides/custom-repo-workflow.md) |
+| Maintain a custom SITL image | [Advanced SITL Guide](docs/guides/advanced-sitl.md) |
 | Build and redistribute a validated custom SITL release | [SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md) |
 | Set up a VPS / Ubuntu GCS server | [GCS Setup Guide](docs/guides/gcs-setup.md) |
 | Deploy on Raspberry Pi hardware | [MDS Init Setup Guide](docs/guides/mds-init-setup.md) |
