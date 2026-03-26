@@ -12,6 +12,26 @@ from mds_logging import get_logger
 
 logger = get_logger("origin")
 
+
+def _get_telemetry_record_for_hw_id(telemetry_snapshot, hw_id):
+    """Handle legacy int-key and current string-key telemetry stores consistently."""
+    if hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(hw_id, {})
+
+    normalized_hw_id = str(hw_id)
+    if normalized_hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(normalized_hw_id, {})
+
+    try:
+        numeric_hw_id = int(normalized_hw_id)
+    except (TypeError, ValueError):
+        numeric_hw_id = None
+
+    if numeric_hw_id is not None and numeric_hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(numeric_hw_id, {})
+
+    return {}
+
 # Define the path for storing origin data
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 origin_file_path = os.path.join(BASE_DIR, 'data', 'origin.json')
@@ -144,7 +164,7 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
         )
 
         # Get current position from telemetry
-        drone_telemetry = telemetry_data_all_drones.get(hw_id, {})
+        drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_all_drones, hw_id)
         current_lat = drone_telemetry.get('position_lat')
         current_lon = drone_telemetry.get('position_long')
 

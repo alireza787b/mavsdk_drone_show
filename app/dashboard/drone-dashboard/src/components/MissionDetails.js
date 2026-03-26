@@ -260,7 +260,7 @@ const MissionDetails = ({
               <div className="mode-content">
                 <span className="mode-icon">🧭</span>
                 <span className="mode-label">LOCAL Mode</span>
-                <span className="mode-description">NED feedforward, no GPS required</span>
+                <span className="mode-description">Local NED feedforward with precise manual launch placement</span>
               </div>
             </label>
             <label className={`mode-option ${useGlobalSetpoints ? 'active' : ''}`}>
@@ -291,10 +291,10 @@ const MissionDetails = ({
           <div className="guidance-content">
             <ul>
               <li>Uses <strong>local NED coordinates</strong> (North-East-Down) relative to launch position</li>
-              <li>Works with both <strong>GPS and non-GPS</strong> setups</li>
               <li>Operator must place drones <strong>exactly</strong> on their launch positions manually</li>
-              <li>For <strong>non-GPS operation</strong>: Configure PX4 failsafe and local estimator, disable "wait for GPS fix" parameter</li>
-              <li>Position accuracy depends entirely on manual placement precision</li>
+              <li>Current implementation still expects a valid launch/home reference at mission start before replaying the local trajectory</li>
+              <li>Use this path only after validating the PX4/local-estimator workflow for your deployment</li>
+              <li>Position accuracy depends on estimator quality and manual placement precision</li>
             </ul>
           </div>
         </div>

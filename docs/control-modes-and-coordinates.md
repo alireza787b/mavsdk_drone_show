@@ -77,6 +77,7 @@ df['z [m]'] = -df['z [m]']
 - **Waypoint Adjustment**: Auto-extract from CSV (`auto_launch_position=True`)
 - **Use Case**: Single drone or manual placement
 - **Precision**: Relative to arming position
+- **Current Limitation**: The current MDS workflow still expects a valid launch/home reference at mission start; treat fully GPS-independent operation as a later refinement, not as a guaranteed behavior today
 
 **Example:**
 ```python

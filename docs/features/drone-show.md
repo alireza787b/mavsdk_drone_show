@@ -89,8 +89,8 @@ Current implementation note:
 Use this when:
 
 - you are testing local-frame execution
-- GPS is unavailable or intentionally not part of the control loop
-- you have validated PX4/local-estimator behavior for this deployment
+- you intentionally want the local-frame control path
+- you have already validated the PX4/local-estimator and launch/home-reference workflow for this deployment
 
 ### 4. Custom CSV mode
 

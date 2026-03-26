@@ -570,6 +570,43 @@ class TestShowManagementEndpoints:
         assert data['max_altitude'] == 5.0
         assert data['preview_exists'] is True
 
+    def test_get_position_deviations_supports_string_hw_id_telemetry_keys(
+        self,
+        test_client,
+        monkeypatch,
+        mock_config,
+        mock_origin,
+    ):
+        """Live background telemetry stores string hw_id keys; deviation checks must still resolve them."""
+        import app_fastapi
+
+        string_keyed_telemetry = {
+            "1": {
+                "hw_id": "1",
+                "position_lat": mock_origin["lat"],
+                "position_long": mock_origin["lon"],
+            },
+            "2": {
+                "hw_id": "2",
+                "position_lat": mock_origin["lat"],
+                "position_long": mock_origin["lon"],
+            },
+        }
+
+        monkeypatch.setattr(app_fastapi, 'telemetry_data_all_drones', string_keyed_telemetry)
+        monkeypatch.setattr(app_fastapi, 'load_config', lambda: mock_config)
+        monkeypatch.setattr(app_fastapi, 'load_origin', lambda: mock_origin)
+        monkeypatch.setattr(app_fastapi, 'get_expected_position_from_trajectory', lambda *args, **kwargs: (0.0, 0.0))
+
+        response = test_client.get('/get-position-deviations')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['summary']['online'] == 2
+        assert data['summary']['no_telemetry'] == 0
+        assert data['deviations']['1']['current'] is not None
+        assert data['deviations']['2']['current'] is not None
+
     def test_get_comprehensive_metrics_recalculates_stale_cache(self, test_client, monkeypatch, tmp_path):
         """Stale saved metrics must be ignored when the processed drone count changes."""
         import app_fastapi

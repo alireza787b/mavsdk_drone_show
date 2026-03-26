@@ -293,6 +293,29 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
     }
 
 
+def _get_telemetry_record_for_hw_id(
+    telemetry_snapshot: Dict[Any, Dict[str, Any]],
+    hw_id: Any,
+) -> Dict[str, Any]:
+    """Return telemetry for a drone regardless of whether storage keys are ints or strings."""
+    if hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(hw_id) or {}
+
+    normalized_hw_id = str(hw_id)
+    if normalized_hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(normalized_hw_id) or {}
+
+    try:
+        numeric_hw_id = int(normalized_hw_id)
+    except (TypeError, ValueError):
+        numeric_hw_id = None
+
+    if numeric_hw_id is not None and numeric_hw_id in telemetry_snapshot:
+        return telemetry_snapshot.get(numeric_hw_id) or {}
+
+    return {}
+
+
 # ============================================================================
 # FastAPI Lifespan
 # ============================================================================
@@ -2407,7 +2430,7 @@ async def get_position_deviations():
                 continue
 
             # Get current position from telemetry
-            drone_telemetry = telemetry_data_copy.get(hw_id, {})
+            drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_copy, hw_id)
             current_lat = drone_telemetry.get('position_lat')
             current_lon = drone_telemetry.get('position_long')
 

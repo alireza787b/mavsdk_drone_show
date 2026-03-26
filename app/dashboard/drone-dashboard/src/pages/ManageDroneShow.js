@@ -61,8 +61,9 @@ const WorkflowGuidanceSection = () => {
         <Button
           variant="outlined"
           sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
+          onClick={() => navigate('/mission-control')}
         >
-          5. Launch Show
+          5. Open Overview / Launch
         </Button>
       </Box>
     </Paper>

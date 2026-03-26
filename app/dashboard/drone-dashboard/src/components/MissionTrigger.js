@@ -2,7 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
-import { DRONE_MISSION_TYPES, DRONE_MISSION_DISPLAY_ORDER, defaultTriggerTimeDelay, getMissionDescription } from '../constants/droneConstants';
+import {
+  DRONE_MISSION_TYPES,
+  DRONE_MISSION_DISPLAY_ORDER,
+  defaultTriggerTimeDelay,
+  getMissionDescription,
+  getCommandName,
+} from '../constants/droneConstants';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({ missionTypes, onSendCommand }) => {
@@ -90,7 +96,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
                   ? '🚀🛸🚀'
                   : '🚫'
               }
-              label={mission.key === 'NONE' ? 'Cancel Mission' : mission.key.replace(/_/g, ' ')}
+              label={getCommandName(mission.value)}
               onClick={() => handleMissionSelect(mission.value)}
               isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
             />
@@ -112,9 +118,7 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
               ? '🚀🛸🚀'
               : '❓'
           }
-          label={Object.keys(missionTypes)
-            .find((key) => missionTypes[key] === selectedMission)
-            .replace(/_/g, ' ')}
+          label={getCommandName(selectedMission)}
           description={getMissionDescription(selectedMission)}
           useSlider={useSlider}
           timeDelay={timeDelay}
