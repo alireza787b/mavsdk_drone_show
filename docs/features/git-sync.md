@@ -5,24 +5,27 @@
 The MDS git sync system uses git as the transport mechanism to keep code and configuration synchronized between the GCS (Ground Control Station) server and the drone fleet.
 
 ```
-GCS Server (write/push via SSH)
+GCS Server
+  - SSH write-back mode (read + write)
+  - HTTPS read-only mode (read only)
     |
     v
-GitHub Repository (central source of truth)
+Git repository (central source of truth)
     |
     v
-Drones (read/pull only)
+Drones / SITL (pull latest configured branch)
   - Real drones: SSH (via update_repo_ssh.sh)
-  - SITL containers: HTTPS (inline in startup_sitl.sh)
+  - SITL containers: HTTPS or SSH-compatible git sync at startup
 ```
 
 ## Access Model
 
-| Role | Protocol | Access | Script |
-|------|----------|--------|--------|
+| Role | Protocol | Access | Script / Path |
+|------|----------|--------|---------------|
 | GCS Server | SSH | Read + Write (push) | `gcs-server/utils.py` `git_operations()` |
+| GCS Server | HTTPS | Read only unless external credentials are configured | `gcs-server/utils.py` `git_operations()` |
 | Real Drones | SSH | Read only (pull) | `tools/update_repo_ssh.sh` |
-| SITL Containers | HTTPS | Read only (pull) | `multiple_sitl/startup_sitl.sh` `update_repository()` |
+| SITL Containers | HTTPS or SSH-compatible git remote | Read only by default (pull/reset) | `multiple_sitl/startup_sitl.sh` `update_repository()` |
 
 ## Sync Trigger Paths
 
@@ -35,14 +38,14 @@ Drones (read/pull only)
 
 ## Auto-Commit on Config Save
 
-When `GIT_AUTO_PUSH` is enabled, saving configuration or swarm data via the dashboard automatically:
+When `GIT_AUTO_PUSH` is enabled, saving configuration, swarm data, or imported show assets via the dashboard automatically:
 
 1. Stages all changes
 2. Commits with a descriptive message (e.g., `config: update config.json via dashboard (10 drones updated)`)
 3. Rebases on top of remote changes
 4. Pushes to origin
 
-The commit result (hash or error) is returned to the frontend and displayed in a toast notification.
+The commit result (hash or error) is returned to the frontend and displayed in a toast notification or import summary.
 
 For fresh GCS installs that stay on the default HTTPS/read-only repository path, the installer now writes `MDS_GIT_AUTO_PUSH=false` into `/etc/mds/gcs.env`. That keeps demo and evaluation setups from attempting write-back they cannot perform. SSH/fork installs keep auto-push enabled.
 
@@ -88,7 +91,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | Error | Cause | Recovery |
 |-------|-------|----------|
 | Push timeout | Network issue | GCS retries on next save; check connectivity |
-| Push permission denied | Missing SSH key | Add deploy key with write access (see gcs-setup.md) |
+| Push permission denied / auth failure | Missing SSH key or non-interactive token | Add verified write credentials or disable `MDS_GIT_AUTO_PUSH` |
 | Push rejected (non-fast-forward) | Remote diverged | Pull and resolve conflicts |
 | HTTPS remote detected | GCS using HTTPS | Switch to SSH remote for push access |
 | Merge conflict on rebase | Concurrent edits | Auto-resolved: abort rebase, reset, retry |
@@ -130,7 +133,7 @@ This is parsed by `actions.py` for logging and status tracking.
 - `src/utilities/utilities.js` - URL helpers (`getSyncReposURL`, `getUnifiedGitStatusURL`)
 
 ### Configuration
-- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH`/`MDS_GIT_AUTO_PUSH` env vars or `/etc/mds/local.env`)
+- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH`/`MDS_GIT_AUTO_PUSH` env vars or `/etc/mds/gcs.env` and `/etc/mds/local.env`)
 - `tools/git_sync_mds/git_sync_mds.service` - Systemd service template (sources `/etc/mds/local.env` for fork config)
 - `tools/git_sync_mds/install_git_sync_mds.sh` - Service installer (substitutes user/home at install time)
 
@@ -140,9 +143,9 @@ For users who fork the repo, the following override chain applies:
 
 | Component | Config Source | Override Method |
 |-----------|-------------|-----------------|
-| GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/local.env` or `/etc/mds/gcs.env` |
+| GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env` |
 | Drone boot sync | `update_repo_ssh.sh` defaults | Set `DEFAULT_SSH_GIT_URL`/`DEFAULT_BRANCH` in `/etc/mds/local.env` |
 | SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
 | `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
-The `git_sync_mds.service` sources `/etc/mds/local.env` on boot, so fork settings apply to both Python and shell scripts.
+The GCS launcher sources `/etc/mds/gcs.env` on startup, while drone boot sync still uses `/etc/mds/local.env`.

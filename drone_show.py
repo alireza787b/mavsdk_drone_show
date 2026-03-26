@@ -1025,7 +1025,7 @@ async def controlled_landing(drone: System):
                     logger.info("Landing detected during controlled landing.")
                     break
                 break
-            if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
+            if (time.time() - landing_start_time) > Params.CONTROLLED_LANDING_TIMEOUT:
                 logger.warning("Controlled landing timed out. Initiating PX4 native landing.")
                 await stop_offboard_mode(drone)
                 await perform_landing(drone)

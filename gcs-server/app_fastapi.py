@@ -1521,6 +1521,68 @@ def _copy_directory_contents(src_dir: str, dst_dir: str) -> None:
             shutil.copy2(src_path, dst_path)
 
 
+def _swarm_directory() -> str:
+    return os.path.join(shapes_dir, 'swarm')
+
+
+def _saved_metrics_path() -> str:
+    return os.path.join(_swarm_directory(), 'comprehensive_metrics.json')
+
+
+def _count_processed_drone_files(directory: str) -> int:
+    if not os.path.exists(directory):
+        return 0
+    return len(
+        [
+            filename for filename in os.listdir(directory)
+            if filename.startswith('Drone ') and filename.endswith('.csv')
+        ]
+    )
+
+
+def _load_saved_metrics_if_current() -> Optional[Dict[str, Any]]:
+    metrics_file = _saved_metrics_path()
+    if not os.path.exists(metrics_file):
+        return None
+
+    try:
+        with open(metrics_file, 'r', encoding='utf-8') as f:
+            metrics_data = json.load(f)
+    except Exception as e:
+        log_system_warning(f"Failed to read saved show metrics, recalculating: {e}", "show")
+        return None
+
+    cached_count = metrics_data.get('basic_metrics', {}).get('drone_count')
+    current_count = _count_processed_drone_files(processed_dir)
+    try:
+        cached_count = int(cached_count)
+    except (TypeError, ValueError):
+        cached_count = None
+
+    if cached_count != current_count:
+        log_system_warning(
+            f"Saved show metrics are stale (cached drones={cached_count}, current drones={current_count}); recalculating.",
+            "show",
+        )
+        return None
+
+    return metrics_data
+
+
+def _refresh_saved_show_metrics(show_filename: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not METRICS_AVAILABLE:
+        return None
+
+    metrics_engine = DroneShowMetrics(processed_dir)
+    comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
+    metrics_engine.save_metrics_to_file(
+        comprehensive_metrics,
+        show_filename=show_filename,
+        upload_datetime=datetime.now().isoformat(),
+    )
+    return comprehensive_metrics
+
+
 @app.post("/import-show", response_model=ShowImportResponse, tags=["Show Management"])
 async def import_show(file: UploadFile = File(...)):
     """
@@ -1608,6 +1670,13 @@ async def import_show(file: UploadFile = File(...)):
 
             processed_count = len([f for f in os.listdir(processed_dir) if f.endswith('.csv')])
             plots_generated = len([f for f in os.listdir(plots_directory) if f.endswith('.jpg')])
+
+            if METRICS_AVAILABLE:
+                try:
+                    _refresh_saved_show_metrics(file.filename)
+                except Exception as metrics_error:
+                    warnings.append(f"Metrics refresh failed: {metrics_error}")
+                    log_system_warning(f"Failed to refresh show metrics after import: {metrics_error}", "show")
 
             log_system_event(f"✅ Show processing completed: {processed_count} drones", "INFO", "show")
 
@@ -2038,19 +2107,12 @@ async def get_comprehensive_metrics():
         raise HTTPException(status_code=503, detail="Enhanced metrics engine not available")
 
     try:
-        # Try to load from saved file first
-        swarm_dir = os.path.join(shapes_dir, 'swarm')
-        metrics_file = os.path.join(swarm_dir, 'comprehensive_metrics.json')
-
-        if os.path.exists(metrics_file):
-            with open(metrics_file, 'r') as f:
-                metrics_data = json.load(f)
+        metrics_data = _load_saved_metrics_if_current()
+        if metrics_data is not None:
             return JSONResponse(content=metrics_data)
 
         # Calculate on-demand
-        metrics_engine = DroneShowMetrics(processed_dir)
-        comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
-        metrics_engine.save_metrics_to_file(comprehensive_metrics)
+        comprehensive_metrics = _refresh_saved_show_metrics()
 
         return JSONResponse(content=comprehensive_metrics)
 

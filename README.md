@@ -64,6 +64,7 @@ If you need your own fork, custom image, or a pinned redistribution workflow, do
 | Goal | Start Here |
 |------|------------|
 | Run a quick SITL demo | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
+| Import and launch a Drone Show | [Drone Show Guide](docs/features/drone-show.md) |
 | Maintain a custom fork or Docker image | [Advanced SITL Guide](docs/guides/advanced-sitl.md) |
 | Build and redistribute a validated custom SITL release | [SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md) |
 | Set up a VPS / Ubuntu GCS server | [GCS Setup Guide](docs/guides/gcs-setup.md) |
@@ -77,6 +78,7 @@ If you need your own fork, custom image, or a pinned redistribution workflow, do
 - **Single operator surface**: React dashboard for monitoring, control, QuickScout, trajectory planning, and log review
 - **Modern SITL workflow**: prebuilt PX4 Gazebo SITL image, fast container startup, and reproducible custom-image tooling
 - **Operational visibility**: unified logging across GCS, drones, and frontend error reporting with exportable sessions
+- **Drone Show pipeline**: staged SkyBrush ZIP import, processed trajectory plots, readiness gating, and synchronized launch control
 - **Scalable architecture**: designed for anything from a small demo to large validated multi-container runs
 
 ## Dashboard Scope

@@ -137,6 +137,8 @@ load_gcs_system_config() {
         # Apply config values (respect CLI overrides)
         [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
+        [[ -n "${GCS_PORT:-}" ]] && DEV_GCS_PORT="$GCS_PORT"
+        [[ -n "${DASHBOARD_PORT:-}" ]] && DEV_REACT_PORT="$DASHBOARD_PORT"
 
         if [[ -n "${GCS_BACKEND:-}" && "${GCS_BACKEND}" != "fastapi" ]]; then
             log_warn "Legacy GCS_BACKEND=${GCS_BACKEND} detected in ${GCS_SYSTEM_CONFIG}. Using fastapi."
@@ -144,7 +146,7 @@ load_gcs_system_config() {
         fi
 
         # Export repo settings so Python (params.py) inherits them
-        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR 2>/dev/null || true
+        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH 2>/dev/null || true
         return 0
     fi
     return 1

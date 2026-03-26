@@ -570,6 +570,53 @@ class TestShowManagementEndpoints:
         assert data['max_altitude'] == 5.0
         assert data['preview_exists'] is True
 
+    def test_get_comprehensive_metrics_recalculates_stale_cache(self, test_client, monkeypatch, tmp_path):
+        """Stale saved metrics must be ignored when the processed drone count changes."""
+        import app_fastapi
+
+        swarm_dir = tmp_path / 'shapes_sitl' / 'swarm'
+        processed = swarm_dir / 'processed'
+        processed.mkdir(parents=True, exist_ok=True)
+
+        for drone_id in range(1, 6):
+            (processed / f'Drone {drone_id}.csv').write_text('idx,t,px,py,pz\n0,0,0,0,0\n', encoding='utf-8')
+
+        stale_metrics = {
+            'basic_metrics': {
+                'drone_count': 6,
+                'duration_seconds': 12.0,
+                'max_altitude_m': 9.0,
+            }
+        }
+        metrics_file = swarm_dir / 'comprehensive_metrics.json'
+        metrics_file.write_text(json.dumps(stale_metrics), encoding='utf-8')
+
+        refreshed_metrics = {
+            'basic_metrics': {
+                'drone_count': 5,
+                'duration_seconds': 25.0,
+                'max_altitude_m': 14.0,
+            }
+        }
+        refresh_calls = []
+
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(tmp_path / 'shapes_sitl'))
+        monkeypatch.setattr(app_fastapi, 'processed_dir', str(processed))
+        monkeypatch.setattr(app_fastapi, 'METRICS_AVAILABLE', True)
+
+        def fake_refresh(show_filename=None):
+            refresh_calls.append(show_filename)
+            metrics_file.write_text(json.dumps(refreshed_metrics), encoding='utf-8')
+            return refreshed_metrics
+
+        monkeypatch.setattr(app_fastapi, '_refresh_saved_show_metrics', fake_refresh)
+
+        response = test_client.get('/get-comprehensive-metrics')
+
+        assert response.status_code == 200
+        assert response.json()['basic_metrics']['drone_count'] == 5
+        assert refresh_calls == [None]
+
 
 # ============================================================================
 # Git Status Tests

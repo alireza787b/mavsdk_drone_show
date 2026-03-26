@@ -199,6 +199,11 @@ const CommandSender = ({ drones }) => {
                     )}
                   </>
                 )}
+                {currentCommandData.missionType === String(DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW) && (
+                  <p>
+                    <strong>Execution Mode:</strong> LOCAL launch-frame only
+                  </p>
+                )}
               </div>
             )}
             <div className="modal-actions">

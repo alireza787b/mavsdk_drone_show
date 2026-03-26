@@ -42,6 +42,7 @@ Start here to get your first drone show simulation running:
 | I want to... | Start with... |
 |--------------|---------------|
 | Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| Import and fly a Drone Show | [Drone Show Guide](features/drone-show.md) |
 | Run the first Smart Swarm operator flow in the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
 | Run or tune live Smart Swarm missions | [Smart Swarm Guide](features/smart-swarm.md) |
@@ -80,6 +81,7 @@ Detailed documentation for MDS features:
 
 | Feature | Description |
 |---------|-------------|
+| **[Drone Show](features/drone-show.md)** | SkyBrush ZIP import, control-mode selection, trigger timing, custom CSV distinction, and launch-readiness workflow |
 | **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, first SITL flow, and validator tool |
 | **[Swarm Trajectory](features/swarm-trajectory.md)** | Processed cluster trajectories, leader-follow offsets, plotting, and KML export |
 | **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
@@ -105,6 +107,7 @@ MDS supports environment variable overrides for advanced configuration:
 |----------|---------|---------|
 | `MDS_REPO_URL` | Custom git repository URL | Official repo |
 | `MDS_BRANCH` | Custom git branch | `main-candidate` |
+| `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
 | `MDS_DOCKER_IMAGE` | Custom Docker image | Official image |
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |
 | `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |

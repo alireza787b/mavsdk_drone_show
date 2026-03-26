@@ -35,10 +35,11 @@ def clear_show_directories(base_dir):
     else:
         shape_folder = 'shapes'
 
+    swarm_dir = os.path.join(base_dir, shape_folder, 'swarm')
     directories = [
-        os.path.join(base_dir, shape_folder, 'swarm', 'skybrush'),
-        os.path.join(base_dir, shape_folder, 'swarm', 'processed'),
-        os.path.join(base_dir, shape_folder, 'swarm', 'plots')
+        os.path.join(swarm_dir, 'skybrush'),
+        os.path.join(swarm_dir, 'processed'),
+        os.path.join(swarm_dir, 'plots')
     ]
     for directory in directories:
         if not os.path.exists(directory):
@@ -53,6 +54,14 @@ def clear_show_directories(base_dir):
                 logger.info(f"Deleted {file_path}")
             except Exception as e:
                 logger.error(f"Failed to delete {file_path}. Reason: {e}")
+
+    metrics_file = os.path.join(swarm_dir, 'comprehensive_metrics.json')
+    if os.path.exists(metrics_file):
+        try:
+            os.unlink(metrics_file)
+            logger.info(f"Deleted {metrics_file}")
+        except Exception as e:
+            logger.error(f"Failed to delete {metrics_file}. Reason: {e}")
 
 
 def zip_directory(folder_path, zip_path):

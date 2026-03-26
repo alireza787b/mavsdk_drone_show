@@ -10,6 +10,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- **Drone Show Operator Guide**:
+  - new `docs/features/drone-show.md` covering SkyBrush import flow, GLOBAL/LOCAL modes, Custom CSV, trigger timing, and read-only demo guidance
 - **Unified Logging System (`mds_logging`)**: Shared logging contract for all components
   - JSONL format for machine-parseable log files with ISO 8601 UTC timestamps
   - Session-based retention with configurable limits (count + size)
@@ -58,6 +60,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- GCS HTTPS/demo installs now write `MDS_GIT_AUTO_PUSH=false` into `/etc/mds/gcs.env`, and dashboard imports/saves fail fast instead of hanging on interactive push prompts
+- Drone Show dashboard surfaces now avoid misleading empty export/visualization states before any show is imported, and the custom CSV confirmation path is explicit about its local-only execution model
 - All GCS server components migrated from `gcs_logging`/`logging_config` to `mds_logging`
 - All drone-side components migrated from `configure_logging()`/inline setup to `mds_logging`
 - CLI flags unified: `--debug` replaced with `--verbose`/`--debug`/`--quiet`

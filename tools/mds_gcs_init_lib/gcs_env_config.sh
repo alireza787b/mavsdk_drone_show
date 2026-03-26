@@ -182,6 +182,9 @@ EOF
 
     chmod 644 "$GCS_CONFIG_FILE"
     log_success "GCS system configuration created: ${GCS_CONFIG_FILE}"
+    if [[ "$git_auto_push" == "false" ]]; then
+        log_info "Set MDS_GIT_AUTO_PUSH=false because this GCS is configured with an HTTPS/read-only repository."
+    fi
 
     return 0
 }

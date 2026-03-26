@@ -54,7 +54,7 @@ github.com/alireza787b/mavsdk_drone_show
 
 **Limitations:**
 - Read-only access (unless you're a collaborator)
-- Pulling updates still works, but write-backed custom git sync workflows are not enabled
+- Pulling updates still works, but write-backed custom git sync workflows are not enabled by default
 - Suitable for SITL and testing only
 
 The installer now also writes `MDS_GIT_AUTO_PUSH=false` for this HTTPS/read-only path, so show imports and config saves do not attempt a git push the repo cannot perform.
@@ -92,7 +92,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 
 | Mode | Write Access | Git Sync | Use Case |
 |------|--------------|----------|----------|
-| HTTPS (default repo) | No | No | Testing, SITL |
+| HTTPS (default repo) | No | Pull only, auto-push disabled | Testing, SITL |
 | HTTPS (fork) | Manual push | Manual | Simple deployments |
 | SSH (fork) | Yes | Yes | Production shows |
 
@@ -294,7 +294,12 @@ python -c "import mavsdk; print('MAVSDK OK')"
 
 # Verify Node.js environment
 ls ~/mavsdk_drone_show/app/dashboard/drone-dashboard/node_modules | head -5
+
+# Verify GCS git mode
+grep '^MDS_GIT_AUTO_PUSH=' /etc/mds/gcs.env
 ```
+
+Expect `MDS_GIT_AUTO_PUSH=false` on read-only HTTPS demo setups and `true` only when authenticated write access is already verified.
 
 ### Run Diagnostic Check
 

@@ -26,6 +26,7 @@ PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 GCS_CONSOLE_LOG_LEVEL="${MDS_GCS_CONSOLE_LOG_LEVEL:-INFO}"
+GCS_SYSTEM_CONFIG="/etc/mds/gcs.env"
 
 # ===========================================
 # PARSE ARGUMENTS
@@ -125,6 +126,18 @@ if [[ "$BACKEND" == "uvicorn" || "$BACKEND" == "gunicorn" ]]; then
     log_warn "Legacy GCS_BACKEND=$BACKEND detected. Mapping to fastapi."
     BACKEND="fastapi"
 fi
+
+load_gcs_system_config() {
+    if [[ -f "$GCS_SYSTEM_CONFIG" ]]; then
+        # shellcheck source=/dev/null
+        source "$GCS_SYSTEM_CONFIG"
+
+        PORT="${GCS_PORT:-$PORT}"
+        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH 2>/dev/null || true
+    fi
+}
+
+load_gcs_system_config
 
 # ===========================================
 # VALIDATION
