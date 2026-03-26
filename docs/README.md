@@ -36,6 +36,7 @@ Start here to get your first drone show simulation running:
 ### Maintainers and AI Agents
 
 - **[Repo Agent Operating Spec](../AGENTS.md)** - canonical machine-oriented operating loop for terminal AI agents; root vendor shims (`CLAUDE.md`, `GEMINI.md`) stay thin and point here
+- **[AI Agent SITL Audit Loop](superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)** - deeper agent-only execution contract for reproduce, patch, validate, package, and handoff phases
 
 ### Project Videos
 

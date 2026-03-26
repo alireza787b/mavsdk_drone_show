@@ -13,6 +13,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - **Repo-wide AI agent operating spec**:
   - new root `AGENTS.md` as the canonical machine-oriented SITL audit/debug/release loop
   - thin root `CLAUDE.md` and `GEMINI.md` shims that point to the shared spec instead of duplicating instructions
+  - new `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md` for the deeper agent-only execution contract
 - **Drone Show Operator Guide**:
   - new `docs/features/drone-show.md` covering SkyBrush import flow, GLOBAL/LOCAL modes, Custom CSV, trigger timing, and read-only demo guidance
 - **Unified Logging System (`mds_logging`)**: Shared logging contract for all components
