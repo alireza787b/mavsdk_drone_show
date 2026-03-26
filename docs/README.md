@@ -6,34 +6,32 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 
 ---
 
-## 📋 Table of Contents
-
-- [Getting Started](#-getting-started)
-- [Setup Guides](#-setup-guides)
-- [Features](#-features)
-- [Configuration](#-configuration)
-- [Hardware](#-hardware)
-- [API & Integration](#-api--integration)
-- [Version Management](#-version-management)
-- [Archived Documentation](#-archived-documentation)
-
----
-
 ## 🚀 Getting Started
 
-### New to MDS?
+### Fastest Paths
 
-Start here to get your first drone show simulation running:
+| I want to... | Start with... |
+|--------------|---------------|
+| get a working SITL demo fast | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
+| run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
+| point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
+| install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
+| deploy Raspberry Pi hardware | [MDS Init Setup](guides/mds-init-setup.md) |
+| build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
+| inspect logs | [Logging System Guide](guides/logging-system.md) |
 
-1. **[SITL Comprehensive Guide](guides/sitl-comprehensive.md)** - Recommended for first-time users
-   - Complete step-by-step SITL setup
-   - Single stable Mega archive name, `7z` validation/extraction, Docker setup, dashboard startup
+### By Role
 
-2. **[Custom Repo Workflow](guides/custom-repo-workflow.md)** - Use this if GCS, drones, or SITL must follow a customer-owned repo/branch
-
-3. **[Advanced SITL Guide](guides/advanced-sitl.md)** - Use this if you maintain your own fork or custom Docker image
-
-4. **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** - Use this if you need a validated custom image, package, or redistribution workflow
+| Role | Read this first |
+|------|-----------------|
+| Tester / pilot / evaluator | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| Drone Show operator | [Drone Show Guide](features/drone-show.md) |
+| Smart Swarm operator | [Smart Swarm Guide](features/smart-swarm.md) |
+| Deployment engineer | [GCS Setup Guide](guides/gcs-setup.md) and [MDS Init Setup](guides/mds-init-setup.md) |
+| Customer maintainer | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
+| SITL release maintainer | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
+| AI agent / maintainer | [Repo Agent Operating Spec](../AGENTS.md) |
 
 ### Maintainers and AI Agents
 
@@ -45,22 +43,12 @@ Start here to get your first drone show simulation running:
 
 - **[Project history and walkthrough playlist](https://www.youtube.com/watch?v=dg5jyhV15S8&list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk&pp=sAgC)** - long-form project history, walkthroughs, and evolving demos
 
-### Choose Your Path
+### Core Secondary Guides
 
-| I want to... | Start with... |
-|--------------|---------------|
-| Try MDS quickly (SITL) | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
-| Import and fly a Drone Show | [Drone Show Guide](features/drone-show.md) |
-| Run the first Smart Swarm operator flow in the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
-| Point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
-| Set up GCS server | [GCS Setup Guide](guides/gcs-setup.md) |
-| Run or tune live Smart Swarm missions | [Smart Swarm Guide](features/smart-swarm.md) |
-| Deploy on Raspberry Pi | [MDS Init Setup](guides/mds-init-setup.md) |
-| Customize deployment | [Advanced SITL Guide](guides/advanced-sitl.md) |
-| Build or redistribute a custom SITL release | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
-| Run QuickScout SAR / recon missions | [QuickScout Guide](quickscout.md) |
-| Review live or historical operator logs | [Logging System Guide](guides/logging-system.md) |
-| Understand features | [Features Section](#-features) |
+- **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
+- **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
+- **[Versioning Guide](VERSIONING.md)** - release flow and version management
+- **[Python Compatibility](guides/python-compatibility.md)** - supported Python versions
 
 ---
 
@@ -257,27 +245,6 @@ Original documentation from early versions:
 - Version 0.8 Server Documentation (HTML)
 
 Located in: `archives/legacy-versions/`
-
----
-
-## 🎯 Quick Navigation
-
-### By User Type
-
-**Beginners:**
-1. Start with [SITL Comprehensive Guide](guides/sitl-comprehensive.md)
-2. Review [Python Compatibility](guides/python-compatibility.md)
-3. Explore [Features Documentation](#-features)
-
-**Experienced Users:**
-1. Check [Advanced SITL Guide](guides/advanced-sitl.md)
-2. Review [Swarm Trajectory Features](features/swarm-trajectory.md)
-3. Consult [API Documentation](#-api--integration)
-
-**Developers/Contributors:**
-1. Read [Versioning Guide](VERSIONING.md)
-2. Review [Configuration Guides](#-configuration)
-3. Check [Archived Implementation Summaries](#implementation-summaries)
 
 ---
 

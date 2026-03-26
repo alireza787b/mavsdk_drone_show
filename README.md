@@ -15,6 +15,19 @@ MDS combines the drone-side runtime, GCS/backend services, and React operator da
 - **QuickScout SAR / recon** with multi-drone coverage planning and PX4 Mission Mode execution
 - **Unified operations tooling** with SITL, GCS services, trajectory planning, and live/historical logs
 
+## Start Here
+
+| If you want to... | Start here |
+|-------------------|------------|
+| run the first demo quickly | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
+| import and launch a drone show | [Drone Show Guide](docs/features/drone-show.md) |
+| run Smart Swarm from the dashboard | [Smart Swarm Guide](docs/features/smart-swarm.md) |
+| point MDS at a customer/private repo | [Custom Repo Workflow](docs/guides/custom-repo-workflow.md) |
+| install a GCS on a VPS or Ubuntu box | [GCS Setup Guide](docs/guides/gcs-setup.md) |
+| deploy real drone hardware | [MDS Init Setup Guide](docs/guides/mds-init-setup.md) |
+| build or ship a validated custom SITL image | [SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md) |
+| browse everything else | [Documentation Index](docs/README.md) |
+
 ## Quick Demo
 
 For a normal first run, use the official SITL archive and the full guide:
@@ -62,20 +75,12 @@ If you need your own fork, custom image, or a pinned redistribution workflow, do
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)**
 - **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)**
 
-## Choose A Path
+## More Guides
 
-| Goal | Start Here |
-|------|------------|
-| Run a quick SITL demo | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
-| Import and launch a Drone Show | [Drone Show Guide](docs/features/drone-show.md) |
-| Run MDS from a customer org or private repo | [Custom Repo Workflow](docs/guides/custom-repo-workflow.md) |
-| Maintain a custom SITL image | [Advanced SITL Guide](docs/guides/advanced-sitl.md) |
-| Build and redistribute a validated custom SITL release | [SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md) |
-| Set up a VPS / Ubuntu GCS server | [GCS Setup Guide](docs/guides/gcs-setup.md) |
-| Deploy on Raspberry Pi hardware | [MDS Init Setup Guide](docs/guides/mds-init-setup.md) |
-| Run QuickScout SAR / recon workflows | [QuickScout Guide](docs/quickscout.md) |
-| Review live or historical GCS / drone logs | [Logging System Guide](docs/guides/logging-system.md) |
-| Explore the full docs map | [Documentation Index](docs/README.md) |
+- **[Advanced SITL Guide](docs/guides/advanced-sitl.md)** for custom runtime env vars, mutable boot-sync behavior, and debug-oriented SITL tuning
+- **[Logging System Guide](docs/guides/logging-system.md)** for live and historical GCS / drone logs
+- **[QuickScout Guide](docs/quickscout.md)** for SAR / recon workflows
+- **[Documentation Index](docs/README.md)** for the full map, APIs, archived notes, and deeper references
 
 ## Product Highlights
 

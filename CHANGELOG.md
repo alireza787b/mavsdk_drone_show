@@ -67,6 +67,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- Root `README.md` and `docs/README.md` now use a cleaner "start here" / role-based navigation model so testers, operators, deployers, and maintainers can reach the right guide with less duplication and less scrolling
 - Drone git sync now uses the same repo/branch source of truth in both boot-time sync and operator-triggered `UPDATE_CODE` flows by loading `/etc/mds/local.env` before resolving `MDS_REPO_URL` / `MDS_BRANCH`
 - Bootstrap and setup flows now accept `--fork OWNER` or `--fork OWNER/REPO`, so customer org/private repo paths no longer require ad hoc URL rewriting
 - README, docs index, setup guides, automation guides, and troubleshooting guides now route custom repo users to a single end-to-end workflow instead of assuming only a personal GitHub fork
