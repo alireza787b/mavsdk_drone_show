@@ -58,6 +58,7 @@ Important distinction:
 - `data/origin.sitl.default.json` is the tracked stock demo default
 - `data/origin.json` is the local runtime override created after an operator changes origin from the dashboard or API
 - the runtime override is intentionally untracked and takes precedence over the packaged SITL default on that machine
+- if you want to return that server to the stock Azadi baseline, remove the local `data/origin.json` runtime override
 
 So the stock demo comes up consistent out of the box, but operators can still change origin later without editing the repository.
 

@@ -276,6 +276,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
 - The official stock SITL package now auto-seeds a default launch origin from `data/origin.sitl.default.json` (Azadi Stadium). That gives first-time testers an immediate green Mission Config baseline without a manual `/set-origin`.
 - If you later change origin from the dashboard or API, MDS writes a local runtime override to `data/origin.json`. That file is intentionally untracked and overrides the packaged SITL default on that server until you replace or remove it.
+- If you want to return a server back to the stock Azadi demo baseline, delete the local `data/origin.json` override and restart the normal SITL flow.
 
 You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). E.g., `http://drone.YOUR_DOMAIN.com:3030`
 
