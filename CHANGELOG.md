@@ -37,6 +37,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - drone card position-ID comparison now normalizes numeric/string values before flagging a mismatch, so matching IDs no longer show a false warning icon
 - the Overview dashboard now normalizes live telemetry before rendering drone cards, so browser/server clock skew no longer produces false `Heartbeat only` / `Link lost` card states, and short 3-point SkyBrush imports now process correctly through the linear fallback path
 - the telemetry API now exposes a server clock header and the dashboard uses that server-derived time when evaluating freshness, so moderate browser clock drift no longer silently degrades link state; if a meaningful client/server offset exists it is surfaced in the link-status tooltip instead
+- Swarm Trajectory readiness now uses truthful per-cluster backend state instead of heuristic leader-count guesses: uploaded raw CSV content changes force a fresh reprocess, leader uploads are validated against the current top-leader set, processing status now exposes real cluster readiness/missing followers/plot availability, and the dashboard distinguishes `ready`, `pending process`, and `missing upload`
 
 ### Added
 - **Custom Repo Workflow Guide**:
