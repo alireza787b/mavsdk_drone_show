@@ -45,10 +45,17 @@ describe('MissionReadinessCard', () => {
     const { container } = render(<MissionReadinessCard />);
 
     await waitFor(() => {
-      expect(container.querySelector('.overall-status')?.textContent).toContain('50% Clusters Ready');
+      const overallStatus = container.querySelector('.overall-status');
+      expect(overallStatus).not.toBeNull();
+      expect(overallStatus.textContent).toContain('50% Clusters Ready');
     });
 
-    expect(container.querySelectorAll('.csv-indicator')[1]?.textContent).toContain('Needs Processing');
+    await waitFor(() => {
+      const indicators = container.querySelectorAll('.csv-indicator');
+      expect(indicators.length).toBeGreaterThan(1);
+      expect(indicators[1].textContent).toContain('Needs Processing');
+    });
+
     expect(screen.getByText(/0 missing upload/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Leader 5'));
