@@ -177,6 +177,8 @@ Operational dashboard note:
 - the per-drone override strip on each overview card is intentionally treated as an airborne intervention surface
 - when a drone is still disarmed, the controls stay visibly unavailable instead of pretending they are useful on the ground
 - when telemetry is unavailable, the card tells the operator to recover link authority before attempting a per-drone override
+- the overview Actions tab now keeps flight/test overrides compact by default, while still allowing optional GCS-clock scheduling for those actions when operators need a delayed takeoff or rehearsal start
+- maintenance and danger actions remain immediate so recovery operations do not silently inherit a delayed trigger
 
 ## Read-only Demo and Tester Setups
 

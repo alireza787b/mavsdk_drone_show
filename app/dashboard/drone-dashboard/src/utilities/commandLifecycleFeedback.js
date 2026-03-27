@@ -42,10 +42,14 @@ function formatTriggerTime(triggerTime) {
     return null;
   }
 
-  return new Date(numeric * 1000).toLocaleTimeString([], {
+  return new Date(numeric * 1000).toLocaleString([], {
+    month: 'short',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
   });
 }
 

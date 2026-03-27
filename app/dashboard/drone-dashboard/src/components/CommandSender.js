@@ -62,24 +62,25 @@ const CommandSender = ({ drones }) => {
     }
 
     const uiMeta = currentCommandData.uiMeta || {};
+    const showExecution = currentCommandData?.uiMeta?.triggerSummary
+      && currentCommandData.uiMeta.triggerSummary !== 'Immediate on acceptance';
     const detailRows = [
       {
         label: 'Targets',
         value: targetLabel,
       },
-      {
-        label: 'Execution',
-        value: uiMeta.triggerSummary || formatCommandAbsoluteTime(currentCommandData.triggerTime),
-      },
-      ...(clockOffsetLabel
+      ...(showExecution
+        ? [{
+          label: 'Execution',
+          value: uiMeta.triggerSummary || formatCommandAbsoluteTime(currentCommandData.triggerTime),
+        }]
+        : []),
+      ...((clockOffsetLabel && showExecution)
         ? [{
           label: 'Clock note',
           value: `Scheduling uses the GCS-aligned clock. ${clockOffsetLabel}.`,
         }]
-        : [{
-          label: 'Clock note',
-          value: 'Scheduling uses the GCS-aligned clock.',
-        }]),
+        : []),
       ...((uiMeta.details || []).map((detail) => ({
         label: detail.label,
         value: detail.value,
@@ -111,7 +112,8 @@ const CommandSender = ({ drones }) => {
       },
     });
     setConfirmationMessage(
-      `${missionName} will be sent to ${targetLabel}. Confirm this command package before dispatch.`
+      commandData.uiMeta?.confirmationMessage
+        || `${missionName} → ${targetLabel}. Confirm dispatch.`
     );
     setModalOpen(true);
   };
@@ -252,6 +254,8 @@ const CommandSender = ({ drones }) => {
             actionTypes={DRONE_ACTION_TYPES}
             onSendCommand={handleSendCommand}
             targetCount={targetCount}
+            referenceNowMs={fleetClock.referenceNowMs}
+            clockOffsetLabel={clockOffsetLabel}
           />
         )}
       </div>
