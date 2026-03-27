@@ -4,7 +4,6 @@
 // ALL FIXES INTEGRATED: Search z-index, real terrain, corrected speed logic
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { distance } from '@turf/turf';
 
 // Import existing trajectory components
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -12,6 +11,8 @@ import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
 import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
 import WaypointModal from '../components/trajectory/WaypointModal';
+import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTrajectoryTransferDialog';
+import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
 
 // FIXED IMPORTS: Add new speed calculation functions and yaw utilities
 import { 
@@ -26,13 +27,14 @@ import {
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
+import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from '../components/map/LeafletMapBase';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
-import { Marker as LMarker, Polyline as LPolyline, CircleMarker, useMapEvents } from 'react-leaflet';
+import { Marker as LMarker, Polyline as LPolyline, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 // Import styles
@@ -143,6 +145,7 @@ const TrajectoryPlanning = () => {
 
   // Enhanced state management with state manager
   const mapRef = useRef(null);
+  const importInputRef = useRef(null);
   const stateManagerRef = useRef(new TrajectoryStateManager());
   const storageRef = useRef(new TrajectoryStorage());
   
@@ -152,8 +155,6 @@ const TrajectoryPlanning = () => {
   const [isAddingWaypoint, setIsAddingWaypoint] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
   const [sceneMode, setSceneMode] = useState('3D');
-  const [error, setError] = useState(null);
-  const [mapReady, setMapReady] = useState(false);
 
   // Enhanced state
   const [historyStatus, setHistoryStatus] = useState({ canUndo: false, canRedo: false });
@@ -161,7 +162,10 @@ const TrajectoryPlanning = () => {
   const [trajectoryName, setTrajectoryName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showSwarmTransferDialog, setShowSwarmTransferDialog] = useState(false);
   const [availableTrajectories, setAvailableTrajectories] = useState([]);
+  const [plannerNotice, setPlannerNotice] = useState(null);
 
   // Drag-drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -242,6 +246,37 @@ const TrajectoryPlanning = () => {
     const trajectories = storageRef.current.getAllTrajectories();
     setAvailableTrajectories(trajectories);
   };
+
+  const setOperationNotice = useCallback((text, tone = 'info') => {
+    setPlannerNotice({ text, tone });
+  }, []);
+
+  const clearOperationNotice = useCallback(() => {
+    setPlannerNotice(null);
+  }, []);
+
+  const applyTrajectoryToPlanner = useCallback((trajectory, successMessage) => {
+    const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(trajectory.waypoints || []);
+
+    stateManagerRef.current.executeAction(
+      ACTION_TYPES.LOAD_TRAJECTORY,
+      {
+        waypoints: waypointsWithCorrectSpeeds,
+        selectedWaypointId: null,
+      },
+      `Load ${trajectory.name || 'trajectory'}`
+    );
+
+    setWaypoints(waypointsWithCorrectSpeeds);
+    setTrajectoryName(trajectory.name || '');
+    setSelectedWaypointId(null);
+    setSaveStatus({ saved: true, autoSaveTime: Date.now() });
+    clearOperationNotice();
+
+    if (successMessage) {
+      setOperationNotice(successMessage, 'success');
+    }
+  }, [clearOperationNotice, setOperationNotice]);
 
   // FIXED: Calculate trajectory statistics using corrected speed calculations
   const trajectoryStats = useMemo(() => {
@@ -447,47 +482,50 @@ const TrajectoryPlanning = () => {
     );
     
     if (confirmation) {
-      const newState = stateManagerRef.current.executeAction(
-        ACTION_TYPES.CLEAR_WAYPOINTS,
-        { waypoints: [] },
+      stateManagerRef.current.executeAction(
+        ACTION_TYPES.CLEAR_TRAJECTORY,
+        { waypoints: [], selectedWaypointId: null },
         'Clear trajectory'
       );
-      
+
       setWaypoints([]);
       setSelectedWaypointId(null);
       setSaveStatus({ saved: false, autoSaveTime: null });
+      clearOperationNotice();
     }
-  }, [waypoints.length]);
+  }, [clearOperationNotice, waypoints.length]);
 
   // FIXED: Undo/Redo with correct speed handling
   const handleUndo = useCallback(() => {
     const previousState = stateManagerRef.current.undo();
-    if (previousState) {
+    if (previousState?.state) {
       // CRITICAL FIX: Ensure undone state has correct speeds
-      const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(previousState.waypoints || []);
-      
+      const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(previousState.state.waypoints || []);
+
       setWaypoints(waypointsWithCorrectSpeeds);
-      setSelectedWaypointId(previousState.selectedWaypointId || null);
+      setSelectedWaypointId(previousState.state.selectedWaypointId || null);
       setSaveStatus({ saved: false, autoSaveTime: null });
+      clearOperationNotice();
     }
-  }, []);
+  }, [clearOperationNotice]);
 
   const handleRedo = useCallback(() => {
     const nextState = stateManagerRef.current.redo();
-    if (nextState) {
+    if (nextState?.state) {
       // CRITICAL FIX: Ensure redone state has correct speeds
-      const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(nextState.waypoints || []);
-      
+      const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(nextState.state.waypoints || []);
+
       setWaypoints(waypointsWithCorrectSpeeds);
-      setSelectedWaypointId(nextState.selectedWaypointId || null);
+      setSelectedWaypointId(nextState.state.selectedWaypointId || null);
       setSaveStatus({ saved: false, autoSaveTime: null });
+      clearOperationNotice();
     }
-  }, []);
+  }, [clearOperationNotice]);
 
   // Save trajectory functionality
   const handleSave = useCallback(async (name) => {
     if (!name.trim()) {
-      alert('Please enter a trajectory name');
+      setOperationNotice('Enter a trajectory name before saving.', 'warning');
       return;
     }
 
@@ -501,11 +539,11 @@ const TrajectoryPlanning = () => {
       setTrajectoryName(name);
       setShowSaveDialog(false);
       loadAvailableTrajectories();
-      alert(result.message);
+      setOperationNotice(result.message, 'success');
     } else {
-      alert(`Save failed: ${result.error}`);
+      setOperationNotice(`Save failed: ${result.error}`, 'error');
     }
-  }, [waypoints, trajectoryStats]);
+  }, [setOperationNotice, trajectoryStats, waypoints]);
 
   // FIXED: Load trajectory with speed recalculation
   const handleLoad = useCallback(async (identifier) => {
@@ -513,30 +551,40 @@ const TrajectoryPlanning = () => {
     
     if (result.success) {
       const trajectory = result.trajectory;
-      
-      // CRITICAL FIX: Ensure loaded waypoints have correct speeds
-      const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(trajectory.waypoints || []);
-      
-      const newState = stateManagerRef.current.executeAction(
-        ACTION_TYPES.LOAD_TRAJECTORY,
-        { 
-          waypoints: waypointsWithCorrectSpeeds,
-          name: trajectory.name || 'Loaded Trajectory'
-        },
-        `Load ${trajectory.name}`
+      applyTrajectoryToPlanner(
+        trajectory,
+        `Loaded ${trajectory.name} with ${(trajectory.waypoints || []).length} waypoints.`
       );
-
-      setWaypoints(waypointsWithCorrectSpeeds);
-      setTrajectoryName(trajectory.name || '');
-      setSelectedWaypointId(null);
       setShowLoadDialog(false);
-      setSaveStatus({ saved: true, autoSaveTime: new Date() });
-      
-      console.info(`Loaded trajectory: ${trajectory.name} with ${waypointsWithCorrectSpeeds.length} waypoints`);
     } else {
-      alert(`Load failed: ${result.error}`);
+      setOperationNotice(`Load failed: ${result.error}`, 'error');
     }
+  }, [applyTrajectoryToPlanner, setOperationNotice]);
+
+  const handleImportRequest = useCallback(() => {
+    importInputRef.current?.click();
   }, []);
+
+  const handleImportFileChange = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    const result = await storageRef.current.importTrajectory(file);
+
+    if (result.success) {
+      applyTrajectoryToPlanner(
+        result.trajectory,
+        `Imported ${file.name} and loaded it into the planner.`
+      );
+      loadAvailableTrajectories();
+    } else {
+      setOperationNotice(`Import failed: ${result.error}`, 'error');
+    }
+  }, [applyTrajectoryToPlanner, setOperationNotice]);
 
   // Auto-save functionality
   const autoSave = useCallback(async () => {
@@ -653,25 +701,110 @@ const TrajectoryPlanning = () => {
       const groundElevation = estimateGroundElevation(latitude, longitude);
       console.info(`Estimated ground elevation: ${groundElevation}m MSL at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
     }
-  }, []);
+  }, [useLeaflet]);
 
-  // Enhanced export with additional formats
-  const exportTrajectory = useCallback(async () => {
+  const openSwarmTransferDialog = useCallback(() => {
     if (waypoints.length === 0) {
-      alert('No waypoints to export');
+      setOperationNotice('Add at least one waypoint before assigning a leader trajectory to the swarm.', 'warning');
       return;
     }
 
-    const format = prompt('Export format? (csv/json/kml)', 'csv');
-    if (!format) return;
+    clearOperationNotice();
+    setShowSwarmTransferDialog(true);
+  }, [clearOperationNotice, setOperationNotice, waypoints.length]);
 
+  const closeSwarmTransferDialog = useCallback(() => {
+    setShowSwarmTransferDialog(false);
+  }, []);
+
+  const handleUploadCurrentTrajectory = useCallback(async (leaderId) => {
+    if (waypoints.length === 0) {
+      throw new Error('No trajectory is currently loaded in the planner.');
+    }
+
+    const csvContent = storageRef.current.convertToCSV(waypoints);
+    const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+    const result = await uploadSwarmTrajectory(leaderId, csvBlob, `Drone ${leaderId}.csv`);
+
+    setOperationNotice(
+      result.message || `Leader ${leaderId} trajectory uploaded. Review and process the formation on Swarm Trajectory.`,
+      'success'
+    );
+
+    return result;
+  }, [setOperationNotice, waypoints]);
+
+  const handleSendTrajectoryToSwarm = useCallback(async () => {
+    const leaderId = swarmTransferState.selectedLeaderId;
+
+    if (!leaderId || waypoints.length === 0) {
+      return;
+    }
+
+    setSwarmTransferState((prev) => ({
+      ...prev,
+      submitting: true,
+      error: '',
+      successMessage: '',
+    }));
+
+    try {
+      const result = await handleUploadCurrentTrajectory(leaderId);
+
+      setSwarmTransferState((prev) => ({
+        ...prev,
+        submitting: false,
+        successMessage:
+          result.message ||
+          `Trajectory uploaded for Leader ${leaderId}. Next step: process the swarm formation.`,
+      }));
+
+      const refreshed = await getSwarmClusterStatus();
+      const clusters = [...(refreshed.clusters || [])].sort(
+        (a, b) => Number(a.leader_id) - Number(b.leader_id)
+      );
+
+      setSwarmTransferState((prev) => ({
+        ...prev,
+        clusters,
+      }));
+    } catch (submitError) {
+      setSwarmTransferState((prev) => ({
+        ...prev,
+        submitting: false,
+        error: submitError?.response?.data?.error || submitError.message || 'Failed to upload trajectory.',
+      }));
+    }
+  }, [handleUploadCurrentTrajectory, swarmTransferState.selectedLeaderId, waypoints.length]);
+
+  const openExportDialog = useCallback(() => {
+    if (waypoints.length === 0) {
+      setOperationNotice('No waypoints are available to export.', 'warning');
+      return;
+    }
+
+    setShowExportDialog(true);
+  }, [setOperationNotice, waypoints.length]);
+
+  const handleExportTrajectory = useCallback(async (format) => {
     const name = trajectoryName || 'trajectory';
     const result = await storageRef.current.exportTrajectory(name, format);
-    
-    if (!result.success) {
-      alert(`Export failed: ${result.error}`);
+
+    if (result.success) {
+      setShowExportDialog(false);
+      setOperationNotice(result.message, 'success');
+    } else {
+      setOperationNotice(`Export failed: ${result.error}`, 'error');
     }
-  }, [waypoints, trajectoryName]);
+  }, [setOperationNotice, trajectoryName]);
+
+  const handleOpenSwarmTrajectory = useCallback(() => {
+    navigate('/swarm-trajectory');
+  }, [navigate]);
+
+  const handleOpenSwarmDesign = useCallback(() => {
+    navigate('/swarm-design');
+  }, [navigate]);
 
   // Scene mode handling
   const handleSceneModeChange = useCallback((mode) => {
@@ -728,10 +861,61 @@ const TrajectoryPlanning = () => {
     return '#007bff'; // Default - Blue
   }, [waypoints.length]);
 
+  const plannerNoticeBanner = plannerNotice ? (
+    <div className={`trajectory-planner-notice ${plannerNotice.tone || 'info'}`}>
+      <div className="trajectory-planner-notice__copy">{plannerNotice.text}</div>
+      <button type="button" onClick={clearOperationNotice}>
+        Dismiss
+      </button>
+    </div>
+  ) : null;
+
+  const swarmTransferDialog = (
+    <SwarmTrajectoryTransferDialog
+      isOpen={showSwarmTransferDialog}
+      onClose={closeSwarmTransferDialog}
+      onSubmit={handleSendTrajectoryToSwarm}
+      clusters={swarmTransferState.clusters}
+      loading={swarmTransferState.loading}
+      submitting={swarmTransferState.submitting}
+      selectedLeaderId={swarmTransferState.selectedLeaderId}
+      onSelectLeaderId={(leaderId) => {
+        setSwarmTransferState((prev) => ({
+          ...prev,
+          selectedLeaderId: leaderId,
+          error: '',
+          successMessage: '',
+        }));
+      }}
+      error={swarmTransferState.error}
+      successMessage={swarmTransferState.successMessage}
+      trajectoryName={trajectoryName}
+      waypointCount={waypoints.length}
+      totalDistance={trajectoryStats.totalDistance}
+      totalTime={trajectoryStats.totalTime}
+    />
+  );
+
+  const exportDialog = (
+    <TrajectoryExportDialog
+      isOpen={showExportDialog}
+      onClose={() => setShowExportDialog(false)}
+      onExport={handleExportTrajectory}
+      trajectoryName={trajectoryName}
+    />
+  );
+
   // Leaflet fallback: show Leaflet map when Mapbox unavailable
   if (useLeaflet || (!mapboxAvailable && !mapboxToken) || !mapboxToken) {
     return (
       <div className="trajectory-planning">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv,.json,text/csv,application/json"
+          hidden
+          onChange={handleImportFileChange}
+        />
         <div className="trajectory-header">
           <div className="header-left">
             <h1>Trajectory Planning</h1>
@@ -747,7 +931,7 @@ const TrajectoryPlanning = () => {
               isAddingWaypoint={isAddingWaypoint}
               onToggleAddWaypoint={() => setIsAddingWaypoint(!isAddingWaypoint)}
               onClearTrajectory={clearTrajectory}
-              onExportTrajectory={exportTrajectory}
+              onExportTrajectory={openExportDialog}
               showTerrain={false}
               onToggleTerrain={() => {}}
               sceneMode="2D"
@@ -759,8 +943,14 @@ const TrajectoryPlanning = () => {
               onRedo={handleRedo}
               onSave={() => setShowSaveDialog(true)}
               onLoad={() => setShowLoadDialog(true)}
+              onImport={handleImportRequest}
+              onSendToSwarm={openSwarmTransferDialog}
+              canSendToSwarm={waypoints.length > 0}
               saveStatus={saveStatus}
+              trajectoryName={trajectoryName}
             />
+
+            {plannerNoticeBanner}
 
             <div className="map-container">
               <MapFallbackBanner />
@@ -891,6 +1081,9 @@ const TrajectoryPlanning = () => {
             </div>
           </div>
         )}
+
+        {exportDialog}
+        {swarmTransferDialog}
       </div>
     );
   }
@@ -898,6 +1091,13 @@ const TrajectoryPlanning = () => {
   // Full Mapbox implementation with ALL PHASE 3 FIXES
   return (
     <div className="trajectory-planning">
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".csv,.json,text/csv,application/json"
+        hidden
+        onChange={handleImportFileChange}
+      />
       <div className="trajectory-header">
         <div className="header-left">
           <h1>Trajectory Planning</h1>
@@ -913,7 +1113,7 @@ const TrajectoryPlanning = () => {
             isAddingWaypoint={isAddingWaypoint}
             onToggleAddWaypoint={() => setIsAddingWaypoint(!isAddingWaypoint)}
             onClearTrajectory={clearTrajectory}
-            onExportTrajectory={exportTrajectory}
+            onExportTrajectory={openExportDialog}
             showTerrain={showTerrain}
             onToggleTerrain={toggleTerrain}
             sceneMode={sceneMode}
@@ -927,9 +1127,14 @@ const TrajectoryPlanning = () => {
             onRedo={handleRedo}
             onSave={() => setShowSaveDialog(true)}
             onLoad={() => setShowLoadDialog(true)}
+            onImport={handleImportRequest}
+            onSendToSwarm={openSwarmTransferDialog}
+            canSendToSwarm={waypoints.length > 0}
             saveStatus={saveStatus}
             trajectoryName={trajectoryName}
           />
+
+          {plannerNoticeBanner}
 
           <div className="map-container">
             <Map
@@ -946,7 +1151,6 @@ const TrajectoryPlanning = () => {
                 'default'
               }
               onLoad={() => {
-                setMapReady(true);
                 console.info('Map loaded with terrain source for elevation queries');
               }}
             >
@@ -1151,9 +1355,12 @@ const TrajectoryPlanning = () => {
             <div className="dialog-buttons">
               <button onClick={() => setShowLoadDialog(false)}>Cancel</button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+      {exportDialog}
+      {swarmTransferDialog}
     </div>
   );
 };

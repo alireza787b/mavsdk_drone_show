@@ -1852,3 +1852,337 @@
     color: black !important;
   }
 }
+
+/* =============================================== */
+/* SWARM TRANSFER BANNER */
+/* =============================================== */
+
+.swarm-transfer-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-base);
+  margin: var(--spacing-base);
+  padding: var(--spacing-base) var(--spacing-lg);
+  border: 1px solid var(--color-primary-border, var(--color-border-primary));
+  border-radius: var(--border-radius-md);
+  background: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.swarm-transfer-banner-copy {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.swarm-transfer-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.swarm-transfer-banner-actions button,
+.swarm-transfer-banner-actions a {
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.swarm-transfer-banner-actions button:hover,
+.swarm-transfer-banner-actions a:hover {
+  background: var(--color-bg-tertiary);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .swarm-transfer-banner {
+    margin: var(--spacing-sm);
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .swarm-transfer-banner-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .swarm-transfer-banner-actions button,
+  .swarm-transfer-banner-actions a {
+    flex: 1;
+    text-align: center;
+  }
+}
+
+/* =============================================== */
+/* PLANNER NOTICE + TRANSFER / EXPORT DIALOGS */
+/* =============================================== */
+
+.dialog-content p.dialog-body-copy {
+  margin: 0 0 var(--spacing-lg) 0 !important;
+  color: var(--color-text-secondary) !important;
+  line-height: 1.5 !important;
+}
+
+.dialog-content select {
+  width: 100% !important;
+  padding: var(--spacing-base) !important;
+  border: 2px solid var(--color-border-light) !important;
+  border-radius: var(--border-radius-md) !important;
+  font-size: var(--font-size-base) !important;
+  background: var(--color-bg-light) !important;
+  color: var(--color-text-primary) !important;
+  box-sizing: border-box !important;
+}
+
+.dialog-content select:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.trajectory-planner-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  margin: var(--spacing-base) var(--spacing-lg) 0;
+  padding: var(--spacing-base) var(--spacing-lg);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+.trajectory-planner-notice.info {
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.trajectory-planner-notice.success {
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.trajectory-planner-notice.warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.trajectory-planner-notice.error {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.trajectory-planner-notice__copy {
+  flex: 1;
+  line-height: 1.45;
+}
+
+.trajectory-planner-notice button {
+  border: 1px solid var(--color-border-light);
+  background: transparent;
+  color: inherit;
+  border-radius: var(--border-radius-sm);
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+
+.transfer-summary-grid,
+.transfer-cluster-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-base);
+}
+
+.transfer-summary-grid {
+  margin-bottom: var(--spacing-lg);
+}
+
+.transfer-cluster-overview {
+  margin-bottom: var(--spacing-base);
+}
+
+.transfer-summary-card,
+.transfer-overview-stat,
+.trajectory-transfer-empty,
+.transfer-cluster-card {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+}
+
+.transfer-summary-card,
+.transfer-overview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: var(--spacing-base);
+}
+
+.transfer-summary-label {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trajectory-transfer-message {
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.trajectory-transfer-message.success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.trajectory-transfer-message.error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.trajectory-transfer-empty {
+  padding: var(--spacing-lg);
+}
+
+.transfer-leader-selector {
+  margin-bottom: var(--spacing-lg);
+}
+
+.transfer-leader-selector label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.transfer-cluster-card {
+  padding: var(--spacing-lg);
+}
+
+.transfer-cluster-card__header,
+.transfer-cluster-card__body,
+.dialog-inline-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}
+
+.transfer-cluster-card__header {
+  margin-bottom: var(--spacing-base);
+}
+
+.transfer-cluster-card__header h4 {
+  margin: 0 0 0.35rem 0;
+  color: var(--color-text-primary);
+}
+
+.transfer-cluster-card__header p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.transfer-cluster-card__body {
+  margin-bottom: var(--spacing-base);
+}
+
+.transfer-cluster-card__body > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.transfer-cluster-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.transfer-cluster-status.ready {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+
+.transfer-cluster-status.pending {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+
+.dialog-inline-actions {
+  margin-top: var(--spacing-base);
+}
+
+.dialog-link-btn {
+  border: 1px solid var(--color-border-light);
+  background: transparent;
+  color: var(--color-primary);
+  border-radius: var(--border-radius-sm);
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+}
+
+.trajectory-export-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.trajectory-export-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-base);
+  padding: var(--spacing-base);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+  cursor: pointer;
+}
+
+.trajectory-export-option.selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.trajectory-export-option input {
+  margin-top: 0.25rem;
+}
+
+.trajectory-export-option p {
+  margin: 0.35rem 0 0 0;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .trajectory-planner-notice,
+  .transfer-cluster-card__header,
+  .transfer-cluster-card__body,
+  .dialog-inline-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .transfer-summary-grid,
+  .transfer-cluster-overview {
+    grid-template-columns: 1fr;
+  }
+}

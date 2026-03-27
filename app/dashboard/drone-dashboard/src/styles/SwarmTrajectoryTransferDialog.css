@@ -1,0 +1,218 @@
+.swarm-transfer-dialog {
+  width: min(760px, 94vw) !important;
+  min-height: auto !important;
+}
+
+.swarm-transfer-dialog__header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.swarm-transfer-dialog__header h3 {
+  text-align: left !important;
+  margin-bottom: var(--spacing-sm) !important;
+}
+
+.swarm-transfer-dialog__header p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.swarm-transfer-dialog__header a,
+.swarm-transfer-empty a,
+.swarm-transfer-note a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.swarm-transfer-dialog__header a:hover,
+.swarm-transfer-empty a:hover,
+.swarm-transfer-note a:hover {
+  text-decoration: underline;
+}
+
+.swarm-transfer-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.swarm-transfer-summary__item {
+  padding: var(--spacing-base);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+}
+
+.swarm-transfer-summary__label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.swarm-transfer-alert {
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  margin-bottom: var(--spacing-base);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.swarm-transfer-alert--error {
+  border: 1px solid var(--color-danger-border);
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.swarm-transfer-alert--success {
+  border: 1px solid var(--color-success-border);
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.swarm-transfer-loading,
+.swarm-transfer-empty,
+.swarm-transfer-note {
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.swarm-transfer-empty p,
+.swarm-transfer-note p {
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.swarm-transfer-clusters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-base);
+  margin-bottom: var(--spacing-base);
+}
+
+.swarm-transfer-cluster-card {
+  text-align: left;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+  padding: var(--spacing-base);
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.swarm-transfer-cluster-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.swarm-transfer-cluster-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.swarm-transfer-cluster-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  margin-bottom: var(--spacing-sm);
+}
+
+.swarm-transfer-cluster-card__header p,
+.swarm-transfer-cluster-card__detail,
+.swarm-transfer-cluster-card__followers {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.swarm-transfer-cluster-card__detail {
+  margin-bottom: var(--spacing-sm);
+}
+
+.swarm-transfer-cluster-card__followers {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.swarm-transfer-status-badge {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.swarm-transfer-status-badge.ready {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.swarm-transfer-status-badge.processing {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.swarm-transfer-status-badge.missing {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.swarm-transfer-note {
+  margin-top: var(--spacing-base);
+}
+
+.swarm-transfer-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--spacing-base);
+}
+
+.swarm-transfer-inline-actions button {
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-all);
+}
+
+.swarm-transfer-inline-actions button:hover {
+  background: var(--color-bg-tertiary);
+}
+
+@media (max-width: 768px) {
+  .swarm-transfer-dialog {
+    width: min(94vw, 94vw) !important;
+    padding: var(--spacing-lg) !important;
+  }
+
+  .swarm-transfer-clusters {
+    grid-template-columns: 1fr;
+  }
+
+  .swarm-transfer-cluster-card__header {
+    flex-direction: column;
+  }
+
+  .swarm-transfer-inline-actions {
+    justify-content: stretch;
+  }
+
+  .swarm-transfer-inline-actions button {
+    width: 100%;
+  }
+}

@@ -41,12 +41,41 @@ export const getCommandStatus = async (commandId) => {
   }
 };
 
+export const getSwarmTrajectoryStatus = async () => {
+  try {
+    const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/status`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadSwarmTrajectory = async (leaderId, file, filename = null) => {
+  const formData = new FormData();
+
+  if (file instanceof Blob) {
+    formData.append('file', file, filename || `Drone ${leaderId}.csv`);
+  } else {
+    formData.append('file', file);
+  }
+
+  try {
+    const response = await axios.post(
+      `${getBackendURL()}/api/swarm/trajectory/upload/${leaderId}`,
+      formData
+    );
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getSwarmClusterStatus = async () => {
   try {
     // Get swarm leaders and status information
     const [leadersResponse, statusResponse] = await Promise.all([
       axios.get(`${getBackendURL()}/api/swarm/leaders`),
-      axios.get(`${getBackendURL()}/api/swarm/trajectory/status`)
+      getSwarmTrajectoryStatus()
     ]);
 
     const leadersData = leadersResponse.data;

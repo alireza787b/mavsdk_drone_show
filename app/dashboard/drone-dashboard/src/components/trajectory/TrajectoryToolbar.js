@@ -24,8 +24,11 @@ const TrajectoryToolbar = ({
   onRedo,
   onSave,
   onLoad,
+  onImport,
+  onSendToSwarm,
   saveStatus = { saved: true, autoSaveTime: null },
-  trajectoryName = ''
+  trajectoryName = '',
+  canSendToSwarm = false
 }) => {
   // Format auto-save time for display
   const formatAutoSaveTime = (timestamp) => {
@@ -96,6 +99,15 @@ const TrajectoryToolbar = ({
           <span className="btn-icon">📂</span>
           <span className="btn-text">Load</span>
         </button>
+
+        <button
+          className="toolbar-btn import-btn"
+          onClick={onImport}
+          title="Import CSV or JSON Trajectory"
+        >
+          <span className="btn-icon">📥</span>
+          <span className="btn-text">Import</span>
+        </button>
         
         <button 
           className={`toolbar-btn export-btn ${waypointCount === 0 ? 'disabled' : ''}`}
@@ -105,6 +117,16 @@ const TrajectoryToolbar = ({
         >
           <span className="btn-icon">📤</span>
           <span className="btn-text">Export</span>
+        </button>
+
+        <button
+          className={`toolbar-btn primary-btn ${!canSendToSwarm ? 'disabled' : ''}`}
+          onClick={onSendToSwarm}
+          disabled={!canSendToSwarm}
+          title={canSendToSwarm ? 'Send current trajectory to a swarm cluster leader' : 'Add at least one waypoint before sending to swarm'}
+        >
+          <span className="btn-icon">🧭</span>
+          <span className="btn-text">Send to Swarm</span>
         </button>
         
         <button 
@@ -230,6 +252,9 @@ TrajectoryToolbar.propTypes = {
   onRedo: PropTypes.func,
   onSave: PropTypes.func,
   onLoad: PropTypes.func,
+  onImport: PropTypes.func,
+  onSendToSwarm: PropTypes.func,
+  canSendToSwarm: PropTypes.bool,
   saveStatus: PropTypes.shape({
     saved: PropTypes.bool,
     autoSaveTime: PropTypes.number
