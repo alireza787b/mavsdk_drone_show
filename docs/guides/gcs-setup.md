@@ -40,6 +40,8 @@ This script will:
 
 If Node.js is installed through `nvm`, the dashboard launcher now discovers that toolchain automatically on headless VPS hosts. You do not need to manually source `nvm.sh` before running `app/linux_dashboard_start.sh`.
 
+If you run this installer over non-interactive SSH, it now detects the missing TTY and switches to safe defaults automatically instead of prompting through `/dev/tty`.
+
 ---
 
 ## Repository Options
@@ -97,6 +99,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 3. The installer verifies the connection before proceeding
    It now tests and pins the intended deploy key explicitly, so pre-existing `~/.ssh/config` GitHub identities do not silently hijack the repo connection.
    For a first-time private SSH bootstrap, non-interactive `-y` only works if that deploy key is already authorized on GitHub.
+   After you authorize the deploy key, rerunning `mds_gcs_init.sh` with the same repo/branch updates `/etc/mds/gcs.env` to match, so the launcher and backend stay on the same source of truth.
 
 ### Access Modes
 

@@ -153,6 +153,7 @@ What matters after install:
 - `app/linux_dashboard_start.sh` exports those values before backend startup
 - dashboard saves/imports use those values for commit/push behavior
 - repo-local `core.sshCommand` is pinned when SSH is used, so pre-existing `~/.ssh/config` GitHub identities do not silently hijack the intended MDS deploy key
+- rerunning `mds_gcs_init.sh` with a different repo, branch, or access mode now rewrites `/etc/mds/gcs.env` accordingly, even in non-interactive mode, so launcher state does not drift behind the selected repo
 
 First-time SSH note:
 - a non-interactive `-y` run can only succeed if the target repo deploy key is already authorized on GitHub

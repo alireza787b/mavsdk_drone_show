@@ -13,6 +13,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - **Custom Repo Workflow Validation**:
   - documented the real GitHub behavior that public upstream forks stay public by default, so confidentiality-sensitive customer setups should use a private mirror/custom repo path instead of assuming a private fork
   - GCS and drone SSH repo setup now pin repo-local `core.sshCommand` when SSH is used, so pre-existing host `~/.ssh/config` GitHub identities do not silently override the intended MDS deploy key
+  - GCS env configuration now rewrites `/etc/mds/gcs.env` when repo, branch, or access mode changes on a non-interactive rerun, so launcher/runtime state stays aligned with the selected customer repo instead of preserving stale official defaults
   - SITL runtime and SITL image preparation now prefer file-backed private GitHub auth via `MDS_GIT_AUTH_TOKEN_FILE`, so private mutable SITL and private custom-image builds avoid exposing raw tokens in process arguments while keeping `MDS_GIT_AUTH_TOKEN` as a legacy fallback
   - fresh headless GCS startup is now robust when Node.js was installed via `nvm`, because the launcher discovers the Node toolchain explicitly and uses absolute `uvicorn` / `gunicorn` / `npm` paths inside tmux panes instead of depending on inherited shell PATH state
   - SITL image preparation and live SITL runtime no longer blank the repo URL when authenticated GitHub HTTPS is unavailable, and official/custom image builds now stop immediately if runtime filesystem preparation fails instead of flattening a partial container
@@ -81,6 +82,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Drone git sync now uses the same repo/branch source of truth in both boot-time sync and operator-triggered `UPDATE_CODE` flows by loading `/etc/mds/local.env` before resolving `MDS_REPO_URL` / `MDS_BRANCH`
 - Bootstrap and setup flows now accept `--fork OWNER` or `--fork OWNER/REPO`, so customer org/private repo paths no longer require ad hoc URL rewriting
 - README, docs index, setup guides, automation guides, and troubleshooting guides now route custom repo users to a single end-to-end workflow instead of assuming only a personal GitHub fork
+- fresh-host setup guides now include the missing `curl` prerequisite for the one-line GCS bootstrap and explicitly note the validated headless `/health` readiness check after launch
 - Drone Show now separates the tracked stock SITL demo origin (`data/origin.sitl.default.json`) from the mutable runtime origin override (`data/origin.json`), and the stock Azadi Stadium default is shared by both GCS origin fallback and `startup_sitl.sh`
 - The shipped SITL Drone Show bundle now matches the stock 5-drone SITL config end-to-end, and packaged Drone Show metrics were refreshed so stock assets no longer drift from config
 - Superseded running Drone Show missions now report a terminal execution result back to GCS instead of leaving command tracking stuck in `executing`

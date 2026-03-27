@@ -90,7 +90,7 @@ First, install the base packages required for the SITL workflow, including the p
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip tmux lsof git megatools p7zip-full
+sudo apt install -y curl python3 python3-venv python3-pip tmux lsof git megatools p7zip-full
 ```
 
 #### Downloading the Official SITL Docker Image
@@ -232,6 +232,13 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 ```
 
 See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (for example `--dry-run`, `-y`, or `--fork`).
+
+Notes:
+- This installer now handles headless SSH sessions cleanly. If no interactive TTY is available, it automatically switches to non-interactive defaults instead of trying to read from `/dev/tty`.
+- After the installer finishes and you launch the dashboard, give the backend a few seconds to come up before treating a first `curl` failure as a problem. The quickest readiness check is:
+  ```bash
+  curl http://127.0.0.1:5000/health
+  ```
 
 #### Option B: Manual Setup
 
