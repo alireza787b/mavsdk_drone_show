@@ -29,6 +29,19 @@ export const YAW_CONSTANTS = {
   DEFAULT_HEADING: 0      // Default heading: 000° (North)
 };
 
+const calculateSegmentDistance3D = (fromWaypoint, toWaypoint) => {
+  const point1 = [fromWaypoint.longitude, fromWaypoint.latitude];
+  const point2 = [toWaypoint.longitude, toWaypoint.latitude];
+  const horizontalDistance = distance(point1, point2, { units: 'meters' });
+  const altitudeDifference = Math.abs(
+    (toWaypoint.altitude ?? 0) - (fromWaypoint.altitude ?? 0)
+  );
+
+  return Math.sqrt(
+    Math.pow(horizontalDistance, 2) + Math.pow(altitudeDifference, 2)
+  );
+};
+
 /**
  * Calculate heading (yaw) from one point to another
  * Aviation standard: 0° = North, 90° = East, 180° = South, 270° = West
@@ -89,18 +102,10 @@ export const calculateSpeed = (fromWaypoint, toWaypoint, currentPosition = null)
     // Use current position if provided, otherwise use toWaypoint position
     const targetPosition = currentPosition || toWaypoint;
     
-    // Calculate horizontal distance using Turf.js
-    const point1 = [fromWaypoint.longitude, fromWaypoint.latitude];
-    const point2 = [targetPosition.longitude, targetPosition.latitude];
-    const horizontalDistance = distance(point1, point2, { units: 'meters' });
-    
-    // Calculate altitude difference
-    const altitudeDifference = Math.abs(toWaypoint.altitude - fromWaypoint.altitude);
-    
-    // Calculate 3D distance using Pythagorean theorem
-    const totalDistance = Math.sqrt(
-      Math.pow(horizontalDistance, 2) + Math.pow(altitudeDifference, 2)
-    );
+    const totalDistance = calculateSegmentDistance3D(fromWaypoint, {
+      ...targetPosition,
+      altitude: toWaypoint.altitude,
+    });
     
     // Calculate time difference
     const timeDifference = toWaypoint.timeFromStart - (fromWaypoint.timeFromStart || 0);
@@ -498,9 +503,7 @@ export const calculateTrajectoryStats = (waypoints) => {
 
     // Calculate segment distance and speed FROM current TO next
     const segmentSpeed = calculateSpeed(curr, next);
-    const point1 = [curr.longitude, curr.latitude];
-    const point2 = [next.longitude, next.latitude];
-    const segmentDistance = distance(point1, point2, { units: 'meters' });
+    const segmentDistance = calculateSegmentDistance3D(curr, next);
     
     totalDistance += segmentDistance;
     maxSpeed = Math.max(maxSpeed, segmentSpeed);
@@ -544,14 +547,10 @@ export const calculateTrajectoryStats = (waypoints) => {
  */
 export const suggestOptimalTime = (fromWaypoint, toPosition, preferredSpeed = 8, altitude = 100) => {
   try {
-    const point1 = [fromWaypoint.longitude, fromWaypoint.latitude];
-    const point2 = [toPosition.longitude, toPosition.latitude];
-    const horizontalDistance = distance(point1, point2, { units: 'meters' });
-    
-    const altitudeDifference = Math.abs(altitude - fromWaypoint.altitude);
-    const totalDistance = Math.sqrt(
-      Math.pow(horizontalDistance, 2) + Math.pow(altitudeDifference, 2)
-    );
+    const totalDistance = calculateSegmentDistance3D(fromWaypoint, {
+      ...toPosition,
+      altitude,
+    });
     
     const requiredTime = totalDistance / preferredSpeed;
     const suggestedTime = (fromWaypoint.timeFromStart || 0) + Math.ceil(requiredTime);
