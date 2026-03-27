@@ -62,7 +62,7 @@ async def test_execute_end_behavior_return_home_waits_for_rtl_completion():
     stop_offboard_mode.assert_awaited_once()
     drone.action.hold.assert_awaited_once()
     drone.action.return_to_launch.assert_awaited_once()
-    wait_for_rtl_completion.assert_awaited_once_with(drone)
+    wait_for_rtl_completion.assert_awaited_once_with(drone, home_lat=35.0, home_lon=51.0)
 
 
 @pytest.mark.asyncio
@@ -80,6 +80,31 @@ async def test_wait_for_rtl_completion_issues_explicit_disarm_after_touchdown_gr
             await stm.wait_for_rtl_completion(drone)
 
     disarm_drone.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_rtl_completion_forces_land_when_stalled_over_home(monkeypatch):
+    drone = MagicMock()
+    drone.telemetry.landed_state.side_effect = _stream_side_effect([object(), object()])
+    drone.telemetry.armed.side_effect = _stream_side_effect([True, True])
+
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC", 0)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_RADIUS_M", 25.0)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS", 0.3)
+    monkeypatch.setattr(stm, "calculate_swarm_rtl_completion_timeout", lambda altitude: 1200)
+
+    local_state = {
+        "position_lat": 35.0,
+        "position_long": 51.0,
+        "velocity_down": 0.0,
+    }
+
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=1200.0)):
+        with patch.object(stm, "_get_local_drone_state_snapshot", return_value=local_state):
+            with patch.object(stm, "perform_landing", new=AsyncMock()) as perform_landing:
+                await stm.wait_for_rtl_completion(drone, home_lat=35.0, home_lon=51.0)
+
+    perform_landing.assert_awaited_once_with(drone)
 
 
 @pytest.mark.asyncio

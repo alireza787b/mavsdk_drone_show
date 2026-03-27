@@ -473,6 +473,9 @@ class Params:
     SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC = 180  # Extra RTL leg time before touchdown/disarm should complete
     SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT = 1800  # Hard cap for very long RTL recoveries
     SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC = 15    # Grace period to auto-disarm after RTL touchdown if PX4 remains armed
+    SWARM_TRAJECTORY_RTL_HOME_STALL_RADIUS_M = 25.0  # Treat the drone as "back home" when within this horizontal radius
+    SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS = 0.3  # Smaller descent rates are treated as effectively stalled
+    SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC = 20  # Time to tolerate home-hover stall before forcing LAND fallback
     
     # Takeoff Configuration (same as drone show)
     SWARM_TRAJECTORY_TAKEOFF_MODE = "BODY_VELOCITY"  # Use same as drone show

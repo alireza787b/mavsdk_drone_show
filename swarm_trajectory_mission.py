@@ -86,6 +86,7 @@ import sys
 import time
 import asyncio
 import csv
+import math
 import subprocess
 import logging
 import socket
@@ -791,7 +792,11 @@ async def controlled_landing(drone: System):
     led_controller.set_color(0, 255, 0)
 
 
-async def wait_for_rtl_completion(drone: System):
+async def wait_for_rtl_completion(
+    drone: System,
+    home_lat: float | None = None,
+    home_lon: float | None = None,
+):
     """
     Wait for an RTL handoff to finish with touchdown and disarm.
 
@@ -816,6 +821,10 @@ async def wait_for_rtl_completion(drone: System):
     start_time = time.monotonic()
     touchdown_since = None
     disarm_requested = False
+    rtl_stall_since = None
+    rtl_stall_trigger = float(getattr(Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC", 20))
+    rtl_stall_radius = float(getattr(Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_RADIUS_M", 25.0))
+    rtl_stall_descent_eps = float(getattr(Params, "SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS", 0.3))
 
     while True:
         if time.monotonic() - start_time > timeout:
@@ -823,6 +832,7 @@ async def wait_for_rtl_completion(drone: System):
 
         landed_state = await _get_current_landed_state(drone)
         is_armed = await _get_current_armed_state(drone)
+        local_state = _get_local_drone_state_snapshot(timeout=1.0)
 
         if landed_state == LandedState.ON_GROUND:
             if touchdown_since is None:
@@ -848,6 +858,22 @@ async def wait_for_rtl_completion(drone: System):
         else:
             touchdown_since = None
             disarm_requested = False
+            rtl_stall_since = _update_rtl_stall_timer(
+                logger,
+                local_state,
+                home_lat=home_lat,
+                home_lon=home_lon,
+                stall_since=rtl_stall_since,
+                stall_radius_m=rtl_stall_radius,
+                descent_eps_mps=rtl_stall_descent_eps,
+            )
+            if rtl_stall_since is not None and (time.monotonic() - rtl_stall_since) >= rtl_stall_trigger:
+                logger.warning(
+                    "RTL appears stalled over home without meaningful descent; forcing PX4 LAND fallback."
+                )
+                await perform_landing(drone)
+                logger.info("RTL completion confirmed after stalled-home LAND fallback.")
+                return
 
         await asyncio.sleep(1.0)
 
@@ -873,7 +899,7 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
             await drone.action.hold()
             await drone.action.return_to_launch()
             logger.info("RTL mode activated - waiting for landing/disarm confirmation")
-            await wait_for_rtl_completion(drone)
+            await wait_for_rtl_completion(drone, home_lat=launch_lat, home_lon=launch_lon)
             logger.info("RTL completion confirmed")
 
         elif behavior == 'land_current':
@@ -1363,6 +1389,84 @@ async def _get_current_relative_altitude(drone: System, timeout: float = 3.0):
             return getattr(position, "relative_altitude_m", None)
         except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
             break
+    return None
+
+
+def _get_local_drone_state_snapshot(timeout: float = 1.0):
+    """Read the local drone API state for mode/velocity/home-hover diagnostics."""
+    try:
+        response = requests.get(
+            f"http://127.0.0.1:{Params.drone_api_port}/{Params.get_drone_state_URI}",
+            timeout=timeout,
+        )
+        if response.status_code == 200:
+            return response.json()
+    except requests.RequestException:
+        return None
+    return None
+
+
+def _horizontal_distance_m(lat1, lon1, lat2, lon2) -> float | None:
+    """Approximate local horizontal distance for short home-hover checks."""
+    try:
+        lat1 = float(lat1)
+        lon1 = float(lon1)
+        lat2 = float(lat2)
+        lon2 = float(lon2)
+    except (TypeError, ValueError):
+        return None
+
+    north_m = (lat1 - lat2) * 111_320.0
+    east_m = (lon1 - lon2) * 111_320.0 * math.cos(math.radians((lat1 + lat2) / 2.0))
+    return math.hypot(north_m, east_m)
+
+
+def _update_rtl_stall_timer(
+    logger: logging.Logger,
+    local_state: dict | None,
+    *,
+    home_lat: float | None,
+    home_lon: float | None,
+    stall_since,
+    stall_radius_m: float,
+    descent_eps_mps: float,
+):
+    """
+    Track whether PX4 has effectively stopped descending after returning home.
+
+    Some SITL/PX4 states can end up hovering over home in HOLD/Return instead of
+    continuing the descent. Once the drone is back over home and no longer
+    descending meaningfully, we treat that as a stalled RTL and hand off to LAND.
+    """
+    if not local_state or home_lat is None or home_lon is None:
+        return None
+
+    home_distance_m = _horizontal_distance_m(
+        local_state.get("position_lat"),
+        local_state.get("position_long"),
+        home_lat,
+        home_lon,
+    )
+    try:
+        descent_rate_mps = abs(float(local_state.get("velocity_down", 0.0)))
+    except (TypeError, ValueError):
+        descent_rate_mps = None
+
+    if (
+        home_distance_m is not None
+        and home_distance_m <= stall_radius_m
+        and descent_rate_mps is not None
+        and descent_rate_mps <= descent_eps_mps
+    ):
+        if stall_since is None:
+            logger.warning(
+                "RTL drone is within %.1fm of home but vertical descent is only %.2fm/s; starting stall timer.",
+                home_distance_m,
+                descent_rate_mps,
+            )
+            return time.monotonic()
+        return stall_since
+
     return None
 
 
