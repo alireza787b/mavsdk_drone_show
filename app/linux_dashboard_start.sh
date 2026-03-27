@@ -52,6 +52,8 @@ REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
 ENABLE_GCS_ACCESS_LOGS="${MDS_GCS_ACCESS_LOGS:-false}"
 GCS_CONSOLE_LOG_LEVEL="${MDS_GCS_CONSOLE_LOG_LEVEL:-INFO}"
+NODE_BIN_PATH=""
+NPM_BIN_PATH=""
 
 enforce_fastapi_single_worker() {
     if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
@@ -163,6 +165,8 @@ log_header() { echo -e "\n=== $1 ==="; }
 
 ensure_nodejs_in_path() {
     if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        NODE_BIN_PATH="$(command -v node)"
+        NPM_BIN_PATH="$(command -v npm)"
         return 0
     fi
 
@@ -197,6 +201,8 @@ ensure_nodejs_in_path() {
     for dir in "${candidate_dirs[@]}"; do
         if [[ -x "$dir/node" && -x "$dir/npm" ]]; then
             export PATH="$dir:$PATH"
+            NODE_BIN_PATH="$dir/node"
+            NPM_BIN_PATH="$dir/npm"
             log_info "Using Node.js toolchain from: $dir"
             return 0
         fi
@@ -742,6 +748,7 @@ check_build_needed() {
 
 build_react_app() {
     log_info "Building React application for production..."
+    ensure_nodejs_in_path
     
     cd "$REACT_APP_DIR" || {
         log_error "Failed to navigate to React app directory: $REACT_APP_DIR"
@@ -753,7 +760,7 @@ build_react_app() {
     fi
 
     log_info "Building optimized production bundle..."
-    NODE_OPTIONS="${NODE_OPTIONS:-} --max_old_space_size=${REACT_BUILD_MAX_OLD_SPACE_SIZE}" npm run build
+    NODE_OPTIONS="${NODE_OPTIONS:-} --max_old_space_size=${REACT_BUILD_MAX_OLD_SPACE_SIZE}" "$NPM_BIN_PATH" run build
     if [[ $? -ne 0 ]]; then
         log_error "Build failed."
         exit 1
@@ -764,15 +771,16 @@ build_react_app() {
 
 install_dashboard_dependencies() {
     log_info "Installing dashboard npm dependencies..."
+    ensure_nodejs_in_path
 
-    if npm ci --no-audit --no-fund; then
+    if "$NPM_BIN_PATH" ci --no-audit --no-fund; then
         log_success "Dashboard npm dependencies ready."
         return 0
     fi
 
     if [[ "$NPM_ALLOW_INSTALL_FALLBACK" == "true" ]]; then
         log_warn "npm ci failed. MDS_ALLOW_NPM_INSTALL_FALLBACK=true, so npm install will be attempted."
-        npm install --no-audit --no-fund
+        "$NPM_BIN_PATH" install --no-audit --no-fund
         log_success "Dashboard npm dependencies ready via npm install fallback."
         return 0
     fi
@@ -855,6 +863,18 @@ get_gcs_server_command() {
 
     # Set PYTHONPATH to include project root for module imports (functions, src, etc.)
     local python_path="PYTHONPATH='$PROJECT_ROOT:$PROJECT_ROOT/src:\$PYTHONPATH'"
+    local uvicorn_bin="$VENV_PATH/bin/uvicorn"
+    local gunicorn_bin="$VENV_PATH/bin/gunicorn"
+
+    if [[ "$DEPLOYMENT_MODE" == "production" && ! -x "$gunicorn_bin" ]]; then
+        log_error "Gunicorn binary not found at $gunicorn_bin"
+        exit 1
+    fi
+
+    if [[ "$DEPLOYMENT_MODE" != "production" && ! -x "$uvicorn_bin" ]]; then
+        log_error "Uvicorn binary not found at $uvicorn_bin"
+        exit 1
+    fi
 
     # FastAPI backend (only option)
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
@@ -863,19 +883,21 @@ get_gcs_server_command() {
         if [[ "${ENABLE_GCS_ACCESS_LOGS,,}" == "true" ]]; then
             production_access_log_args=" --access-logfile -"
         fi
-        echo "cd '$GCS_SERVER_DIR' && $python_path gunicorn -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL${production_access_log_args} app_fastapi:app"
+        echo "cd '$GCS_SERVER_DIR' && $python_path '$gunicorn_bin' -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL${production_access_log_args} app_fastapi:app"
     else
         # Development: Uvicorn with auto-reload
         local development_access_log_args=" --no-access-log"
         if [[ "${ENABLE_GCS_ACCESS_LOGS,,}" == "true" ]]; then
             development_access_log_args=""
         fi
-        echo "cd '$GCS_SERVER_DIR' && $python_path uvicorn app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload${development_access_log_args}"
+        echo "cd '$GCS_SERVER_DIR' && $python_path '$uvicorn_bin' app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload${development_access_log_args}"
     fi
 }
 
 
 get_react_command() {
+    ensure_nodejs_in_path
+
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         if [[ ! -d "$BUILD_DIR" ]]; then
             log_error "Production build directory missing: $BUILD_DIR"
@@ -887,7 +909,7 @@ get_react_command() {
         fi
         echo "python3 '$SPA_SERVER_SCRIPT' --directory '$BUILD_DIR' --port $DEV_REACT_PORT"
     else
-        echo "cd '$REACT_APP_DIR' && npm start"
+        echo "cd '$REACT_APP_DIR' && '$NPM_BIN_PATH' start"
     fi
 }
 
