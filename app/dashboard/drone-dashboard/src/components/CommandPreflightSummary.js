@@ -89,7 +89,7 @@ const CommandPreflightSummary = ({
       },
       gcsBranch: gcsGitStatus?.branch || gcsGitStatus?.current_branch || '',
     };
-  }, [clockOffsetLabel, drones, gitStatusResponse, referenceNowMs, selectedDrones, targetMode]);
+  }, [drones, gitStatusResponse, referenceNowMs, selectedDrones, targetMode]);
 
   const gitReadyCount = summary.counts.configured - summary.git.unknown;
   const gitStatusLabel = gitLoading

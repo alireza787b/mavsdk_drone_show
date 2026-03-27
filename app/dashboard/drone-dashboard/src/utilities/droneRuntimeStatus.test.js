@@ -83,6 +83,7 @@ describe('droneRuntimeStatus', () => {
     const status = getDroneRuntimeStatus(drone, receivedAtMs);
     expect(status.level).toBe('online');
     expect(status.label).toBe('Live telemetry');
+    expect(status.tooltip).not.toMatch(/Browser clock offset/);
   });
 
   test('still ages out to offline when time elapses after the runtime clock hint', () => {

@@ -1,6 +1,8 @@
 import {
   buildCommandSchedule,
+  CLOCK_OFFSET_WARNING_THRESHOLD_MS,
   COMMAND_SCHEDULE_MODES,
+  formatClockOffsetLabel,
   formatDateTimeLocalInput,
   getFleetReferenceClock,
 } from './commandScheduling';
@@ -27,6 +29,8 @@ describe('commandScheduling', () => {
 
     expect(schedule.triggerTimeSec).toBe(1_700_000_030);
     expect(schedule.isImmediate).toBe(false);
+    expect(schedule.summary).toMatch(/Executes in 30s/);
+    expect(schedule.summary).toMatch(/UTC/);
   });
 
   test('rejects absolute times that are already past the reference clock', () => {
@@ -58,5 +62,10 @@ describe('commandScheduling', () => {
 
   test('formats datetime-local values with seconds', () => {
     expect(formatDateTimeLocalInput('2026-03-27T08:20:25Z')).toMatch(/T\d{2}:\d{2}:\d{2}$/);
+  });
+
+  test('suppresses minor clock-offset labels and shows material ones', () => {
+    expect(formatClockOffsetLabel(CLOCK_OFFSET_WARNING_THRESHOLD_MS - 1000)).toBeNull();
+    expect(formatClockOffsetLabel(CLOCK_OFFSET_WARNING_THRESHOLD_MS + 1000)).toMatch(/Browser clock/);
   });
 });

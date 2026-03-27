@@ -56,6 +56,22 @@ function getDisabledReason(command, isArmed, runtimeStatus) {
   return null;
 }
 
+function getPanelNote(isArmed, runtimeStatus) {
+  if (!runtimeStatus || runtimeStatus.level === 'unknown' || runtimeStatus.level === 'offline') {
+    return 'Recover telemetry to enable per-drone overrides.';
+  }
+
+  if (!isArmed) {
+    return 'These overrides become active once this drone is airborne.';
+  }
+
+  if (runtimeStatus.level === 'degraded') {
+    return 'Link is delayed. Use overrides only if you still have command authority.';
+  }
+
+  return 'Use for isolated intervention on this one drone.';
+}
+
 const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
@@ -67,6 +83,7 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
     })),
     [isArmed, runtimeStatus],
   );
+  const panelNote = getPanelNote(isArmed, runtimeStatus);
 
   const handleCommandClick = (command) => {
     if (command.disabledReason) {
@@ -108,28 +125,35 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   };
 
   return (
-    <div className="critical-commands-container">
-      {commands.map((command) => {
-        const Icon = command.icon;
-        const disabled = Boolean(command.disabledReason);
+    <div className="critical-commands-panel">
+      <div className="critical-commands-panel__header">
+        <span className="critical-commands-panel__title">Airborne Overrides</span>
+        <span className="critical-commands-panel__note">{panelNote}</span>
+      </div>
 
-        return (
-          <button
-            key={command.actionType}
-            type="button"
-            className={`critical-command-button ${command.tone}`}
-            title={disabled ? `${command.label}: ${command.disabledReason}` : `${command.label}: ${command.description}`}
-            onClick={() => handleCommandClick(command)}
-            disabled={disabled}
-            aria-disabled={disabled}
-          >
-            <span className="critical-command-button__icon">
-              <Icon aria-hidden="true" />
-            </span>
-            <span className="critical-command-button__label">{command.label}</span>
-          </button>
-        );
-      })}
+      <div className="critical-commands-container">
+        {commands.map((command) => {
+          const Icon = command.icon;
+          const disabled = Boolean(command.disabledReason);
+
+          return (
+            <button
+              key={command.actionType}
+              type="button"
+              className={`critical-command-button ${command.tone}`}
+              title={disabled ? `${command.label}: ${command.disabledReason}` : `${command.label}: ${command.description}`}
+              onClick={() => handleCommandClick(command)}
+              disabled={disabled}
+              aria-disabled={disabled}
+            >
+              <span className="critical-command-button__icon">
+                <Icon aria-hidden="true" />
+              </span>
+              <span className="critical-command-button__label">{command.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <ConfirmationModal
         isOpen={modalOpen}

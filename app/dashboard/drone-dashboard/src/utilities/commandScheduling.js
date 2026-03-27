@@ -7,6 +7,7 @@ export const COMMAND_SCHEDULE_MODES = {
 };
 
 export const COMMAND_DELAY_PRESETS = [10, 30, 60];
+export const CLOCK_OFFSET_WARNING_THRESHOLD_MS = 30_000;
 
 function pad(value) {
   return String(value).padStart(2, '0');
@@ -54,7 +55,7 @@ export function getFleetReferenceClock(drones = [], nowMs = Date.now()) {
 
 export function formatClockOffsetLabel(offsetMs = 0) {
   const roundedSeconds = Math.round(Math.abs(offsetMs) / 1000);
-  if (roundedSeconds <= 0) {
+  if (roundedSeconds <= 0 || Math.abs(offsetMs) < CLOCK_OFFSET_WARNING_THRESHOLD_MS) {
     return null;
   }
 
@@ -74,6 +75,8 @@ export function formatCommandAbsoluteTime(unixSeconds) {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    timeZone: 'UTC',
+    timeZoneName: 'short',
   });
 }
 
@@ -143,8 +146,8 @@ export function buildCommandSchedule({
     scheduleMode: COMMAND_SCHEDULE_MODES.DELAY,
     triggerTimeSec,
     absoluteMs,
-    summary: `Executes in ${delaySeconds}s`,
-    detail: `Target execution time: ${formatCommandAbsoluteTime(triggerTimeSec)}`,
+    summary: `Executes in ${delaySeconds}s · ${formatCommandAbsoluteTime(triggerTimeSec)}`,
+    detail: `GCS trigger time: ${formatCommandAbsoluteTime(triggerTimeSec)}`,
     isImmediate: delaySeconds === 0,
     error: null,
   };

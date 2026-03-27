@@ -42,7 +42,7 @@ function formatClockOffset(offsetMs) {
     return null;
   }
 
-  return `Client clock offset: ${offsetMs > 0 ? '+' : '-'}${magnitudeSeconds}s vs GCS`;
+  return `Browser clock offset: ${offsetMs > 0 ? '+' : '-'}${magnitudeSeconds}s vs GCS`;
 }
 
 export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
@@ -76,7 +76,7 @@ export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
 export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
   const referenceNowMs = getDroneReferenceNowMs(drone, nowMs);
   const calibratedClockOffsetMs = nowMs - referenceNowMs;
-  const clockOffsetNote = Math.abs(calibratedClockOffsetMs) > 5_000
+  const clockOffsetNote = Math.abs(calibratedClockOffsetMs) > CLIENT_CLOCK_SKEW_TOLERANCE_MS
     ? formatClockOffset(calibratedClockOffsetMs)
     : null;
   const telemetryTimestamp = normalizeTimestampMs(drone?.timestamp ?? drone?.update_time);

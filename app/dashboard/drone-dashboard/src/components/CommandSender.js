@@ -43,9 +43,7 @@ const CommandSender = ({ drones }) => {
     () => getFleetReferenceClock(drones, browserNowMs),
     [browserNowMs, drones],
   );
-  const clockOffsetLabel = Math.abs(fleetClock.offsetMs) > 5000
-    ? formatClockOffsetLabel(fleetClock.offsetMs)
-    : null;
+  const clockOffsetLabel = formatClockOffsetLabel(fleetClock.offsetMs);
   const selectedLookup = useMemo(
     () => new Set(selectedDrones.map((value) => String(value))),
     [selectedDrones],

@@ -131,12 +131,14 @@ Drone Show missions are scheduled by `triggerTime` and start through the coordin
 - the operator can launch with a relative delay or specific time-of-day trigger
 - the drone-side scheduler starts preparing slightly early via `trigger_sooner_seconds`
 - the executer waits until the requested synchronized start time before beginning trajectory execution
+- the dashboard mission scheduler now shows the synchronized execution time using the GCS-aligned UTC clock so operator confirmations and follow-up toasts do not depend on the browser wall clock
 
 Operational guidance:
 
 - keep clocks synchronized, especially on real hardware
 - rehearse the actual delay window you intend to use
 - verify the fleet is already `READY` before scheduling the trigger
+- if the browser and GCS clocks diverge materially, the dashboard warns about the offset, but scheduling still follows the GCS clock
 
 ## Launch Readiness
 
@@ -169,6 +171,12 @@ These are still per-drone commands. Rehearse your abort policy before flight tes
 - a single-drone override
 - a group/fleet action from the dashboard controls
 - a mission cancel followed by explicit recovery commands
+
+Operational dashboard note:
+
+- the per-drone override strip on each overview card is intentionally treated as an airborne intervention surface
+- when a drone is still disarmed, the controls stay visibly unavailable instead of pretending they are useful on the ground
+- when telemetry is unavailable, the card tells the operator to recover link authority before attempting a per-drone override
 
 ## Read-only Demo and Tester Setups
 

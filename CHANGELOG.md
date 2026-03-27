@@ -10,6 +10,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- mission and action scheduling now present GCS-aligned UTC execution times more clearly, so operator confirmations/toasts stay consistent even when the browser wall clock is off
+- browser/GCS clock-drift notes now appear only for material offsets instead of small harmless differences, reducing operator noise during normal SITL use
+- per-drone overview-card overrides now explain that they are airborne intervention controls, so disarmed or link-unavailable cards no longer look like broken action panels
 - dashboard drone cards now separate warning/unknown link states from true blocked readiness, add clearer link-state hover details, and avoid treating every non-ready state as the same red alarm
 - the Custom CSV workflow now has a real dashboard upload/validate/preview path instead of the old placeholder/CORS-broken preview behavior
 - the Drone Show dashboard now states more clearly that SkyBrush ZIP import and Custom CSV are separate operator workflows, reducing accidental mode confusion
