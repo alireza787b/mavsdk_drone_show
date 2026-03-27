@@ -175,6 +175,7 @@ USAGE:
 
 OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
+    --repo-url URL      Use an explicit repository URL for bootstrap and init
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
     -h, --help          Show this help message
@@ -196,6 +197,9 @@ EXAMPLES:
     # Use a customer org/private repo path
     curl -fsSL ... | sudo bash -s -- --fork myorg/customer-mds
 
+    # Use an explicit repository URL
+    curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo
+
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop
 
@@ -215,11 +219,22 @@ EOF
 main() {
     # Parse bootstrap-specific arguments
     local passthrough_args=()
+    local explicit_branch=""
+    local explicit_repo_url=""
+    local selected_repo_path=""
+    local config_repo_url=""
+    local use_https_mode="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --branch)
                 BRANCH="$2"
+                explicit_branch="$2"
+                shift 2
+                ;;
+            --repo-url)
+                REPO_URL="$2"
+                explicit_repo_url="$2"
                 shift 2
                 ;;
             --fork)
@@ -228,10 +243,15 @@ main() {
                     log_error "Invalid --fork value: $2"
                     exit 1
                 }
+                selected_repo_path="$repo_path"
                 REPO_URL="https://github.com/${repo_path}.git"
-                export MDS_REPO_URL="$REPO_URL"
                 log_info "Using GitHub repository: ${repo_path}"
                 shift 2
+                ;;
+            --https)
+                use_https_mode="true"
+                passthrough_args+=("$1")
+                shift
                 ;;
             --install-dir)
                 INSTALL_DIR="$2"
@@ -248,6 +268,26 @@ main() {
                 ;;
         esac
     done
+
+    if [[ -n "$explicit_repo_url" ]]; then
+        config_repo_url="$explicit_repo_url"
+    elif [[ -n "$selected_repo_path" ]]; then
+        if [[ "$use_https_mode" == "true" ]]; then
+            config_repo_url="https://github.com/${selected_repo_path}.git"
+        else
+            config_repo_url="git@github.com:${selected_repo_path}.git"
+        fi
+    fi
+
+    if [[ -n "$explicit_branch" ]]; then
+        export MDS_BRANCH="$explicit_branch"
+        passthrough_args+=("--branch" "$explicit_branch")
+    fi
+
+    if [[ -n "$config_repo_url" ]]; then
+        export MDS_REPO_URL="$config_repo_url"
+        passthrough_args+=("--repo-url" "$config_repo_url")
+    fi
 
     print_banner
 

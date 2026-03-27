@@ -291,6 +291,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 | Option | Description |
 |--------|-------------|
 | `--branch BRANCH` | Git branch to clone |
+| `--repo-url URL` | Use an explicit repository URL |
 | `--fork OWNER[/REPO]` | Use GitHub fork shorthand or explicit owner/repo path |
 | `-h, --help` | Show bootstrap help |
 
@@ -310,6 +311,9 @@ curl -fsSL ... | sudo bash -s -- --fork yourusername -d 1 -y
 
 # Using a customer org/private repo path
 curl -fsSL ... | sudo bash -s -- --fork yourorg/customer-mds -d 1 -y
+
+# Using an explicit repository URL
+curl -fsSL ... | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
 
 # Custom branch with VPN
 curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y

@@ -71,8 +71,8 @@ source_library "verify.sh"
 
 # Configuration (set via CLI or defaults)
 DRONE_ID=""
-REPO_URL=""
-BRANCH=""
+REPO_URL="${MDS_REPO_URL:-}"
+BRANCH="${MDS_BRANCH:-}"
 USE_HTTPS="false"
 NETBIRD_KEY=""
 NETBIRD_URL=""

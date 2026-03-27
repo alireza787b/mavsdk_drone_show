@@ -167,6 +167,7 @@ sudo ./tools/mds_gcs_init.sh \
 
 | Option | Description |
 |--------|-------------|
+| `--repo-url URL` | Use an explicit repository URL |
 | `-y, --yes` | Non-interactive mode (accept defaults) |
 | `--dry-run` | Preview changes without executing |
 | `--resume` | Continue interrupted setup from last checkpoint |
@@ -196,6 +197,9 @@ sudo ./tools/mds_gcs_init.sh
 
 # Non-interactive setup with HTTPS
 sudo ./tools/mds_gcs_init.sh -y --https
+
+# Explicit custom repo + branch
+sudo ./tools/mds_gcs_init.sh --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo
 
 # Dry run to preview changes
 sudo ./tools/mds_gcs_init.sh --dry-run

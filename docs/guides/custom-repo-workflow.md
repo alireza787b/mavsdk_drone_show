@@ -99,6 +99,7 @@ Examples:
 Recommendation:
 - use `--fork` for quick GitHub bootstrap
 - use `--repo-url` in long-lived customer docs and automation because it is fully explicit
+- the bootstrap installers now support both forms, so explicit `--repo-url` no longer needs an environment-variable workaround
 
 ## GCS Workflow
 
@@ -112,6 +113,15 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 ```
 
 Or with an explicit URL:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+  sudo bash -s -- \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo
+```
+
+Or from an already-cloned repo:
 
 ```bash
 sudo ./tools/mds_gcs_init.sh \
@@ -146,6 +156,17 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 ```
 
 Or:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | \
+  sudo bash -s -- \
+  -d 1 \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo \
+  -y
+```
+
+Or from an already-cloned repo:
 
 ```bash
 sudo ./tools/mds_init.sh \

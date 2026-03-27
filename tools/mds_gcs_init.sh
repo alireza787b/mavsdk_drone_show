@@ -57,8 +57,8 @@ done
 MODE="configure"  # configure or run
 
 # Repository options
-REPO_URL=""
-BRANCH=""
+REPO_URL="${MDS_REPO_URL:-}"
+BRANCH="${MDS_BRANCH:-}"
 USE_HTTPS="false"
 
 # Installation options
