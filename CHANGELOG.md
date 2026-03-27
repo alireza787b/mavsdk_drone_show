@@ -26,6 +26,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the Custom CSV page now uses the served image endpoint directly instead of a cross-origin `fetch()` blob path, which removes the false preview error caused by browser CORS on `:3030 -> :5000`
 - drone card position-ID comparison now normalizes numeric/string values before flagging a mismatch, so matching IDs no longer show a false warning icon
 - the Overview dashboard now normalizes live telemetry before rendering drone cards, so browser/server clock skew no longer produces false `Heartbeat only` / `Link lost` card states, and short 3-point SkyBrush imports now process correctly through the linear fallback path
+- the telemetry API now exposes a server clock header and the dashboard uses that server-derived time when evaluating freshness, so moderate browser clock drift no longer silently degrades link state; if a meaningful client/server offset exists it is surfaced in the link-status tooltip instead
 
 ### Added
 - **Custom Repo Workflow Guide**:

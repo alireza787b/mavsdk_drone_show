@@ -108,14 +108,16 @@ const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'com
   }
 
   return (
-    <div className={`drone-readiness drone-readiness--compact ${readiness.status}`}>
-      <div className="drone-readiness__header">
-        <div className={`drone-readiness__pill ${readiness.status}`}>
-          {getStatusIcon(readiness.status)}
-          <span>{readiness.statusLabel}</span>
+    <div className={`drone-readiness drone-readiness--compact ${readiness.status} ${readiness.isReady ? 'drone-readiness--compact-minimal' : ''}`}>
+      {!readiness.isReady && (
+        <div className="drone-readiness__header">
+          <div className={`drone-readiness__pill ${readiness.status}`}>
+            {getStatusIcon(readiness.status)}
+            <span>{readiness.statusLabel}</span>
+          </div>
+          <p className="drone-readiness__summary">{readiness.summary}</p>
         </div>
-        <p className="drone-readiness__summary">{readiness.summary}</p>
-      </div>
+      )}
 
       {hasCompactDetails && (
         <details className="drone-readiness__details">

@@ -11,7 +11,12 @@ import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName } from '../constants/droneStates';
 import { getFriendlyMissionName } from '../utilities/missionUtils';
-import { FIELD_NAMES, attachDroneRuntimeClock, normalizeDroneData } from '../constants/fieldMappings';
+import {
+  FIELD_NAMES,
+  attachDroneRuntimeClock,
+  extractServerNowMs,
+  normalizeDroneData,
+} from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 
@@ -37,10 +42,14 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       axios.get(url).then((response) => {
         const droneData = response.data[drone[FIELD_NAMES.HW_ID]];
         if (droneData) {
+          const clockMeta = {
+            receivedAtMs: Date.now(),
+            serverNowMs: extractServerNowMs(response.headers),
+          };
           setDetailedDrone(attachDroneRuntimeClock({
             hw_ID: drone[FIELD_NAMES.HW_ID],
             ...normalizeDroneData(droneData),
-          }));
+          }, clockMeta));
         }
       }).catch((error) => {
         console.error('Network Error:', error);

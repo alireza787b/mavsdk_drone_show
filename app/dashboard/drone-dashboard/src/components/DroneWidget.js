@@ -26,13 +26,6 @@ const DroneWidget = ({
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
-  const runtimeStatusText = runtimeStatus.level === 'online'
-    ? 'Live'
-    : runtimeStatus.level === 'degraded'
-      ? 'Delayed'
-      : runtimeStatus.level === 'offline'
-        ? 'Lost'
-        : 'Waiting';
   const runtimeTooltipId = `runtime-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
   const runtimeTooltipText = `${runtimeStatus.label}. ${runtimeStatus.tooltip}`;
   const promotedField = getPromotedMissionConfigField(drone);
@@ -194,9 +187,6 @@ const DroneWidget = ({
           <span
             className={`status-indicator ${runtimeStatus.indicatorClass}`}
           />
-            <span className={`drone-header__status-label ${runtimeStatus.level}`}>
-              {runtimeStatusText}
-            </span>
           </div>
           <div className="drone-header__titles">
             <span className="drone-header__title">Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
@@ -204,14 +194,6 @@ const DroneWidget = ({
               {operatorAlias && (
                 <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
               )}
-              <span
-                className={`drone-header__link-state ${runtimeStatus.level}`}
-                title={runtimeStatus.tooltip}
-                data-tooltip-id={runtimeTooltipId}
-                data-tooltip-content={runtimeTooltipText}
-              >
-                Link: {runtimeStatus.label}
-              </span>
             </div>
           </div>
         </div>

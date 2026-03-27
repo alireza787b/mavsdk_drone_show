@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getBackendURL } from '../utilities/utilities';
+import { extractServerNowMs } from '../constants/fieldMappings';
 
 /**
  * Custom hook for fetching data from a given endpoint.
@@ -12,12 +13,14 @@ import { getBackendURL } from '../utilities/utilities';
  */
 const useFetch = (endpoint, interval = null) => {
   const [data, setData] = useState(null);
+  const [meta, setMeta] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!endpoint) {
       setData(null);
+      setMeta(null);
       setError(null);
       setLoading(false);
       return undefined;
@@ -31,13 +34,19 @@ const useFetch = (endpoint, interval = null) => {
       try {
         const response = await axios.get(`${backendURL}${endpoint}`);
         if (isMounted) {
+          const receivedAtMs = Date.now();
           setData(response.data);
+          setMeta({
+            receivedAtMs,
+            serverNowMs: extractServerNowMs(response.headers),
+          });
           setError(null);
         }
       } catch (err) {
         if (isMounted) {
           setError(err);
           setData(null);
+          setMeta(null);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -57,7 +66,7 @@ const useFetch = (endpoint, interval = null) => {
     };
   }, [endpoint, interval]);
 
-  return { data, error, loading };
+  return { data, meta, error, loading };
 };
 
 export default useFetch;

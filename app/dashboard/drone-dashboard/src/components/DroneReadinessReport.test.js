@@ -78,4 +78,31 @@ describe('DroneReadinessReport', () => {
 
     expect(container.firstChild).toBeNull();
   });
+
+  test('keeps only the advisory summary visible when the drone is ready with link warnings', () => {
+    render(
+      <DroneReadinessReport
+        drone={{
+          [FIELD_NAMES.IS_READY_TO_ARM]: true,
+          [FIELD_NAMES.READINESS_STATUS]: 'ready',
+          [FIELD_NAMES.READINESS_SUMMARY]: 'Ready to fly',
+          [FIELD_NAMES.PREFLIGHT_BLOCKERS]: [],
+          [FIELD_NAMES.PREFLIGHT_WARNINGS]: [
+            {
+              source: 'link',
+              severity: 'warning',
+              message: 'Telemetry is delayed.',
+            },
+          ],
+          [FIELD_NAMES.STATUS_MESSAGES]: [],
+          [FIELD_NAMES.READINESS_CHECKS]: [],
+        }}
+        runtimeStatus={{ level: 'degraded' }}
+        variant="compact"
+      />
+    );
+
+    expect(screen.queryByText('Ready to Fly')).not.toBeInTheDocument();
+    expect(screen.getByText('1 advisory')).toBeInTheDocument();
+  });
 });

@@ -11,6 +11,11 @@
   margin-bottom: var(--spacing-sm);
 }
 
+.drone-readiness--compact-minimal {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
 .drone-readiness.ready {
   border-color: rgba(56, 161, 105, 0.35);
 }
@@ -68,6 +73,10 @@
 
 .drone-readiness__details {
   margin-top: var(--spacing-sm);
+}
+
+.drone-readiness--compact-minimal .drone-readiness__details {
+  margin-top: 0;
 }
 
 .drone-readiness__details-summary {

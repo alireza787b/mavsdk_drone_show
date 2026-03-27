@@ -63,6 +63,28 @@ describe('droneRuntimeStatus', () => {
     expect(status.label).toBe('Live telemetry');
   });
 
+  test('uses server now hint even when browser skew is moderate', () => {
+    const telemetryTimestamp = 1_700_000_000_000;
+    const receivedAtMs = 1_700_000_020_000;
+    const drone = {
+      timestamp: telemetryTimestamp,
+      heartbeat_last_seen: telemetryTimestamp - 1_000,
+    };
+
+    Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP, {
+      value: {
+        referenceTimestampMs: telemetryTimestamp,
+        referenceNowMs: telemetryTimestamp + 2_000,
+        receivedAtMs,
+      },
+      enumerable: false,
+    });
+
+    const status = getDroneRuntimeStatus(drone, receivedAtMs);
+    expect(status.level).toBe('online');
+    expect(status.label).toBe('Live telemetry');
+  });
+
   test('still ages out to offline when time elapses after the runtime clock hint', () => {
     const telemetryTimestamp = 1_700_000_000_000;
     const receivedAtMs = 1_800_000_000_000;

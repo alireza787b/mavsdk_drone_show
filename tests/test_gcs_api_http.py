@@ -321,6 +321,7 @@ class TestTelemetryEndpoints:
         """Test GET /telemetry (legacy endpoint)"""
         response = test_client.get("/telemetry")
         assert response.status_code == 200
+        assert 'x-mds-server-time' in response.headers
         data = response.json()
         assert isinstance(data, dict)
         assert '1' in data
@@ -330,6 +331,7 @@ class TestTelemetryEndpoints:
         """Test GET /api/telemetry (typed endpoint)"""
         response = test_client.get("/api/telemetry")
         assert response.status_code == 200
+        assert 'x-mds-server-time' in response.headers
         data = response.json()
         assert 'telemetry' in data
         assert 'total_drones' in data

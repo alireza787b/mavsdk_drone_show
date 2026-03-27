@@ -30,7 +30,7 @@ import { normalizeTelemetryResponse, normalizeDroneData } from '../constants/fie
  * console.log(drone.position_lat, drone.battery_voltage);
  */
 export function useNormalizedTelemetry(endpoint, interval = null, normalize = true) {
-  const { data, error, loading } = useFetch(endpoint, interval);
+  const { data, meta, error, loading } = useFetch(endpoint, interval);
 
   // Memoize normalized data to avoid re-computation on every render
   const normalizedData = useMemo(() => {
@@ -41,7 +41,7 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
     // Handle different endpoint response formats
     if (endpoint === '/telemetry') {
       // Telemetry endpoint returns: { "1": {...}, "2": {...} }
-      return normalizeTelemetryResponse(data);
+      return normalizeTelemetryResponse(data, meta);
     } else if (endpoint === '/get-heartbeats') {
       // Heartbeat endpoint returns: { heartbeats: [...], total_drones: N }
       if (data.heartbeats && Array.isArray(data.heartbeats)) {
@@ -79,7 +79,7 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
       // Generic normalization for other endpoints
       return normalizeDroneData(data);
     }
-  }, [data, endpoint, normalize]);
+  }, [data, endpoint, meta, normalize]);
 
   return {
     data: normalizedData,

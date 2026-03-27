@@ -435,13 +435,17 @@ async def health_check():
 @app.get("/telemetry", tags=["Telemetry"])
 async def get_telemetry():
     """Get telemetry from all drones (legacy endpoint - returns raw dict)"""
-    return JSONResponse(content=telemetry_data_all_drones)
+    return JSONResponse(
+        content=telemetry_data_all_drones,
+        headers={"X-MDS-Server-Time": str(int(time.time() * 1000))},
+    )
 
 
 @app.get("/api/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
-async def get_telemetry_typed():
+async def get_telemetry_typed(response: Response):
     """Get telemetry from all drones with typed response"""
     online_count = len([d for d in telemetry_data_all_drones.values() if d])
+    response.headers["X-MDS-Server-Time"] = str(int(time.time() * 1000))
 
     return TelemetryResponse(
         telemetry=telemetry_data_all_drones,

@@ -36,14 +36,29 @@ function formatAge(ageSeconds, label) {
   return `${label}: ${ageSeconds}s ago`;
 }
 
+function formatClockOffset(offsetMs) {
+  const magnitudeSeconds = Math.round(Math.abs(offsetMs) / MS_PER_SECOND);
+  if (magnitudeSeconds === 0) {
+    return null;
+  }
+
+  return `Client clock offset: ${offsetMs > 0 ? '+' : '-'}${magnitudeSeconds}s vs GCS`;
+}
+
 export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
   const runtimeClock = drone?.[DRONE_RUNTIME_CLOCK_PROP];
   if (!runtimeClock) {
     return nowMs;
   }
 
-  const referenceTimestampMs = Number(runtimeClock.referenceTimestampMs);
+  const referenceNowMs = Number(runtimeClock.referenceNowMs);
   const receivedAtMs = Number(runtimeClock.receivedAtMs);
+  if (Number.isFinite(referenceNowMs) && Number.isFinite(receivedAtMs)) {
+    const elapsedMs = Math.max(0, nowMs - receivedAtMs);
+    return referenceNowMs + elapsedMs;
+  }
+
+  const referenceTimestampMs = Number(runtimeClock.referenceTimestampMs);
   if (!Number.isFinite(referenceTimestampMs) || !Number.isFinite(receivedAtMs)) {
     return nowMs;
   }
@@ -60,6 +75,10 @@ export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
 
 export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
   const referenceNowMs = getDroneReferenceNowMs(drone, nowMs);
+  const calibratedClockOffsetMs = nowMs - referenceNowMs;
+  const clockOffsetNote = Math.abs(calibratedClockOffsetMs) > 5_000
+    ? formatClockOffset(calibratedClockOffsetMs)
+    : null;
   const telemetryTimestamp = normalizeTimestampMs(drone?.timestamp ?? drone?.update_time);
   const heartbeatTimestamp = normalizeTimestampMs(drone?.heartbeat_last_seen);
   const telemetryAgeSec = toAgeSeconds(referenceNowMs, telemetryTimestamp);
@@ -75,7 +94,7 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
       level: 'online',
       indicatorClass: 'active',
       label: 'Live telemetry',
-      tooltip: `${formatAge(telemetryAgeSec, 'Telemetry')} | ${formatAge(heartbeatAgeSec, 'Heartbeat')}`,
+      tooltip: [formatAge(telemetryAgeSec, 'Telemetry'), formatAge(heartbeatAgeSec, 'Heartbeat'), clockOffsetNote].filter(Boolean).join(' | '),
       telemetryAgeSec,
       heartbeatAgeSec,
     };
@@ -86,7 +105,7 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
       level: 'degraded',
       indicatorClass: 'degraded',
       label: 'Heartbeat only',
-      tooltip: `Telemetry delayed. ${formatAge(telemetryAgeSec, 'Telemetry')} | ${formatAge(heartbeatAgeSec, 'Heartbeat')}`,
+      tooltip: ['Telemetry delayed.', formatAge(telemetryAgeSec, 'Telemetry'), formatAge(heartbeatAgeSec, 'Heartbeat'), clockOffsetNote].filter(Boolean).join(' | '),
       telemetryAgeSec,
       heartbeatAgeSec,
     };
@@ -97,7 +116,7 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
       level: 'offline',
       indicatorClass: 'offline',
       label: 'Link lost',
-      tooltip: `No recent telemetry or heartbeat. ${formatAge(telemetryAgeSec, 'Telemetry')} | ${formatAge(heartbeatAgeSec, 'Heartbeat')}`,
+      tooltip: ['No recent telemetry or heartbeat.', formatAge(telemetryAgeSec, 'Telemetry'), formatAge(heartbeatAgeSec, 'Heartbeat'), clockOffsetNote].filter(Boolean).join(' | '),
       telemetryAgeSec,
       heartbeatAgeSec,
     };

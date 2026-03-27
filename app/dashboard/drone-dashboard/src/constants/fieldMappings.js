@@ -76,9 +76,15 @@ export const DRONE_RUNTIME_CLOCK_PROP = '__runtimeClock';
 
 const UNIX_MS_THRESHOLD = 1_000_000_000_000;
 
-function normalizeRuntimeTimestampMs(value) {
+export function normalizeRuntimeTimestampMs(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
+    if (typeof value === 'string') {
+      const parsedDateMs = Date.parse(value);
+      if (Number.isFinite(parsedDateMs) && parsedDateMs > 0) {
+        return parsedDateMs;
+      }
+    }
     return null;
   }
 
@@ -87,6 +93,19 @@ function normalizeRuntimeTimestampMs(value) {
   }
 
   return numeric * 1000;
+}
+
+export function extractServerNowMs(headers = {}) {
+  if (!headers || typeof headers !== 'object') {
+    return null;
+  }
+
+  return normalizeRuntimeTimestampMs(
+    headers['x-mds-server-time']
+    ?? headers['X-MDS-Server-Time']
+    ?? headers.date
+    ?? headers.Date
+  );
 }
 
 function getRuntimeClockReferenceMs(droneData) {
@@ -100,19 +119,44 @@ function getRuntimeClockReferenceMs(droneData) {
   return Math.max(telemetryTimestampMs ?? 0, heartbeatTimestampMs ?? 0) || null;
 }
 
-export function attachDroneRuntimeClock(droneData, receivedAtMs = Date.now()) {
+function normalizeClockMeta(clockMeta = {}) {
+  if (typeof clockMeta === 'number') {
+    return {
+      receivedAtMs: clockMeta,
+      serverNowMs: null,
+    };
+  }
+
+  if (!clockMeta || typeof clockMeta !== 'object') {
+    return {
+      receivedAtMs: Date.now(),
+      serverNowMs: null,
+    };
+  }
+
+  return {
+    receivedAtMs: Number.isFinite(Number(clockMeta.receivedAtMs))
+      ? Number(clockMeta.receivedAtMs)
+      : Date.now(),
+    serverNowMs: normalizeRuntimeTimestampMs(clockMeta.serverNowMs ?? clockMeta.referenceNowMs),
+  };
+}
+
+export function attachDroneRuntimeClock(droneData, clockMeta = {}) {
   if (!droneData || typeof droneData !== 'object') {
     return droneData;
   }
 
+  const { receivedAtMs, serverNowMs } = normalizeClockMeta(clockMeta);
   const referenceTimestampMs = getRuntimeClockReferenceMs(droneData);
-  if (!referenceTimestampMs) {
+  if (!referenceTimestampMs && !serverNowMs) {
     return droneData;
   }
 
   Object.defineProperty(droneData, DRONE_RUNTIME_CLOCK_PROP, {
     value: {
       referenceTimestampMs,
+      referenceNowMs: serverNowMs,
       receivedAtMs,
     },
     configurable: true,
@@ -217,16 +261,16 @@ export function normalizeDroneData(droneData) {
  * const normalized = normalizeTelemetryResponse(response);
  * // { "1": { position_lat: 35.72 }, "2": { position_lat: 35.73 } }
  */
-export function normalizeTelemetryResponse(telemetryResponse) {
+export function normalizeTelemetryResponse(telemetryResponse, clockMeta = {}) {
   if (!telemetryResponse || typeof telemetryResponse !== 'object') {
     return telemetryResponse;
   }
 
   const normalized = {};
-  const receivedAtMs = Date.now();
+  const resolvedClockMeta = normalizeClockMeta(clockMeta);
 
   for (const [droneId, droneData] of Object.entries(telemetryResponse)) {
-    normalized[droneId] = attachDroneRuntimeClock(normalizeDroneData(droneData), receivedAtMs);
+    normalized[droneId] = attachDroneRuntimeClock(normalizeDroneData(droneData), resolvedClockMeta);
   }
 
   return normalized;
