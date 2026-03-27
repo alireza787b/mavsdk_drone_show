@@ -1239,7 +1239,7 @@ async def get_git_status():
     """Get git status from all drones"""
     # Load drone config to get pos_id, hw_id, ip mapping
     drones_config = load_config()
-    drone_map = {d['hw_id']: d for d in drones_config}
+    drone_map = {str(d['hw_id']): d for d in drones_config}
 
     # Transform raw git status to match DroneGitStatus schema
     transformed_git_status = {}
@@ -1249,7 +1249,7 @@ async def get_git_status():
             if not raw_data:
                 continue
 
-            drone_info = drone_map.get(hw_id, {})
+            drone_info = drone_map.get(str(hw_id), {})
 
             # Map raw status to enum values
             raw_status = raw_data.get('status', 'unknown')

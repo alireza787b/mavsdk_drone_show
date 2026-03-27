@@ -728,14 +728,20 @@ class TestGitStatusEndpoints:
         '1': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []},
         '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
     })
-    def test_get_git_status(self, test_client):
+    @patch('app_fastapi.load_config')
+    def test_get_git_status(self, mock_load_config, test_client):
         """Test GET /git-status"""
+        mock_load_config.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
         response = test_client.get("/git-status")
         assert response.status_code == 200
         data = response.json()
         assert 'git_status' in data
         assert 'synced_count' in data
         assert data['git_status']['1']['commit'] == 'abc12345'
+        assert data['git_status']['1']['ip'] == '10.0.0.1'
 
     @patch('app_fastapi.get_gcs_git_report')
     def test_get_gcs_git_status(self, mock_report, test_client):
