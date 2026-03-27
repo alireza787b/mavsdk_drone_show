@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory processing/status truth is now richer and less heuristic: recommendations include expected/uploaded/missing leader IDs, processing results now distinguish `success` vs `partial` outcome, cluster status exposes explicit states/issues/advisories, and planner export now uses the current in-memory path instead of stale saved-local-storage state
 - drone `UPDATE_CODE` commands now preserve their runtime `update_branch` payload all the way into mission execution, so dashboard-triggered repo sync actually runs instead of reporting accepted while silently failing branch resolution on the drone
 - git-sync verification now ignores generated SITL provenance metadata files, so stock containers do not stay permanently `dirty` just because they carry build/provenance markers
 - the `Sync Now` flow now verifies real branch/commit convergence before reporting success, and default all-drone sync now prefers recently active drones instead of counting stale offline config slots from the same host

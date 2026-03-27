@@ -645,9 +645,11 @@ Get list of top leaders from swarm configuration.
 ```json
 {
   "success": true,
-  "leaders": [0, 1, 2],
-  "hierarchies": {...},
-  "uploaded_leaders": [0, 1]
+  "leaders": [1, 5],
+  "hierarchies": {"1": 2, "5": 1},
+  "follower_details": {"1": [2, 3], "5": [6]},
+  "uploaded_leaders": [1],
+  "simulation_mode": true
 }
 ```
 
@@ -665,8 +667,8 @@ Upload CSV trajectory for specific leader.
 ```json
 {
   "success": true,
-  "message": "Drone 0 trajectory uploaded successfully",
-  "filepath": "/path/to/Drone 0.csv"
+  "message": "Drone 1 trajectory uploaded successfully",
+  "filepath": "/path/to/Drone 1.csv"
 }
 ```
 
@@ -685,8 +687,19 @@ Smart processing with automatic change detection.
 ```json
 {
   "success": true,
-  "processed_drones": 10,
-  "auto_reloaded": [0, 1, 2]
+  "outcome": "partial",
+  "message": "Processed 2/4 drones (1 leaders, 1 followers). Some clusters still need attention before launch.",
+  "processed_drones": 2,
+  "processed_drone_list": [1, 2],
+  "expected_drone_list": [1, 2, 5, 6],
+  "skipped_drone_ids": [5, 6],
+  "missing_leaders": [5],
+  "auto_reloaded": [1],
+  "statistics": {
+    "leaders": 1,
+    "followers": 1,
+    "errors": 0
+  }
 }
 ```
 
@@ -698,13 +711,48 @@ Get current processing status and file counts.
 {
   "success": true,
   "status": {
-    "raw_trajectories": 3,
-    "processed_trajectories": 10,
-    "generated_plots": 10,
-    "has_results": true
+    "raw_trajectories": 1,
+    "processed_trajectories": 2,
+    "generated_plots": 0,
+    "has_results": true,
+    "expected_top_leaders": [1, 5],
+    "uploaded_leaders": [1],
+    "missing_uploaded_leaders": [5],
+    "orphan_uploaded_leaders": [],
+    "cluster_summary": {
+      "cluster_count": 2,
+      "ready_cluster_count": 0,
+      "needs_processing_cluster_count": 0,
+      "missing_upload_cluster_count": 1,
+      "partial_output_cluster_count": 1,
+      "processed_cluster_count": 1,
+      "all_clusters_ready": false,
+      "overall_state": "partial"
+    },
+    "clusters": [
+      {
+        "leader_id": 1,
+        "state": "partial_outputs",
+        "leader_uploaded": true,
+        "leader_processed": true,
+        "expected_drone_count": 3,
+        "processed_drone_count": 2,
+        "missing_follower_ids": [3]
+      }
+    ]
   }
 }
 ```
+
+Additional active Swarm Trajectory endpoints:
+
+- `GET /api/swarm/trajectory/recommendation`
+- `POST /api/swarm/trajectory/clear`
+- `POST /api/swarm/trajectory/clear-leader/{leader_id}`
+- `DELETE /api/swarm/trajectory/remove/{leader_id}`
+- `POST /api/swarm/trajectory/clear-drone/{drone_id}`
+- `GET /api/swarm/trajectory/download-cluster-kml/{leader_id}`
+- `POST /api/swarm/trajectory/commit`
 
 #### `POST /api/swarm/trajectory/clear-processed`
 Explicitly clear all processed data and plots.

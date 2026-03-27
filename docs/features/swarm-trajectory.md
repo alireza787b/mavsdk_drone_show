@@ -1,8 +1,8 @@
 # Swarm Trajectory Feature Documentation
 
-**Version:** 1.0.0  
-**Date:** September 2025  
-**Status:** Production Ready  
+**Version:** 1.1.0  
+**Date:** March 2026  
+**Status:** Active Hardening / Operator Validation  
 **Mission Type:** 4 (SWARM_TRAJECTORY)
 
 ---
@@ -50,7 +50,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
                                 ▼                        ▼
                        ┌─────────────────┐    ┌─────────────────┐
                        │  File Storage   │    │  Mission Exec   │
-                       │  (CSV + Plots)  │    │  (drone_show)   │
+                       │  (CSV + Plots)  │    │  (swarm_trajectory_mission.py) │
                        └─────────────────┘    └─────────────────┘
 ```
 
@@ -108,12 +108,18 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 
 ## 👥 User Workflow
 
-### Step 1: Trajectory Planning
+### Step 1: Build a Leader Path
 ```mermaid
 graph LR
-    A[Mission Planning Tool] --> B[Export CSV Waypoints]
-    B --> C[Save as 'Drone X.csv' format]
+    A[Trajectory Planning] --> B[Author or import leader path]
+    B --> C[Export or Send to Swarm]
 ```
+
+Important:
+
+- only **top leaders** are authored/uploaded in this mode
+- follower paths are **generated later** from the current swarm hierarchy and offsets
+- this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
 
 **CSV Format Required:**
 ```csv
@@ -122,19 +128,32 @@ Waypoint 1,35.69466817,51.28617904,1300.00,10.0,8.0,25.8,auto
 Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 ```
 
-### Step 2: Upload & Process
+### Step 2: Assign, Upload, and Process
 
-1. **Navigate** to "Swarm Trajectory" in dashboard menu
-2. **Upload** CSV files for each lead drone  
-3. **Review** system status (lead drones found, uploaded count)
-4. **Process** formation - system calculates all trajectories
-5. **Verify** results and download individual files if needed
+1. **Open** `Trajectory Planning` to author/import the leader route
+2. **Send to Swarm** from the planner, or export CSV and upload manually in `Swarm Trajectory`
+3. **Assign** the route to the intended top leader cluster
+4. **Review** cluster truth:
+   - leaders with uploaded CSVs
+   - leaders still missing uploads
+   - clusters needing processing
+   - clusters with partial outputs
+5. **Process** the formation to regenerate follower outputs and plots
+6. **Verify** processed outputs and previews before launch
+7. **Commit / push** if the generated artifacts must be synced to SITL or hardware repos
 
 ### Step 3: Mission Execution
 
 1. **Set Mission Type** to 4 (Swarm Trajectory) on all drones
 2. **Trigger Mission** - each drone reads its individual trajectory
 3. **Monitor** execution through existing telemetry systems
+
+### Current Operator Notes
+
+- `Trajectory Planning` is the authoring workspace
+- `Swarm Trajectory` is the processing / review / commit workspace
+- direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
+- launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 
 ---
 
@@ -184,7 +203,8 @@ Parses swarm configuration to identify leader-follower relationships.
 ```python
 {
     'top_leaders': [1, 2, 23],           # HW IDs of top leaders
-    'hierarchies': {1: [3,4,5], 2: [6,7]}, # Leader -> followers mapping  
+    'hierarchies': {1: 3, 2: 2},         # Leader -> follower count
+    'follower_details': {1: [3,4,5], 2: [6,7]}, # Leader -> follower IDs
     'swarm_config': {...}                # Full drone configurations
 }
 ```
@@ -199,6 +219,11 @@ Main processing pipeline that orchestrates the entire workflow.
 4. Process leaders (smooth trajectories)
 5. Process followers (calculate positions)
 6. Generate visualizations
+
+Current truth model:
+
+- processing can return `success: true` with `outcome: partial`
+- operators should treat cluster readiness as authoritative, not only processed file counts
 
 #### `smooth_trajectory_with_waypoints(waypoints_df, dt=0.05)`
 Converts waypoint trajectories to smooth interpolated paths.
@@ -256,8 +281,9 @@ Get swarm leaders and upload status.
 ```json
 {
   "success": true,
-  "leaders": [1, 2],
-  "hierarchies": {"1": 3, "2": 2},
+  "leaders": [1, 5],
+  "hierarchies": {"1": 2, "5": 1},
+  "follower_details": {"1": [2, 3], "5": [6]},
   "uploaded_leaders": [1],
   "simulation_mode": false
 }
@@ -276,13 +302,64 @@ Process all uploaded trajectories.
 ```json
 {
   "success": true,
-  "processed_drones": 5,
-  "statistics": {"leaders": 2, "followers": 3, "errors": 0}
+  "outcome": "partial",
+  "message": "Processed 2/4 drones (1 leaders, 1 followers). Some clusters still need attention before launch.",
+  "processed_drones": 2,
+  "processed_drone_list": [1, 2],
+  "expected_drone_list": [1, 2, 5, 6],
+  "skipped_drone_ids": [5, 6],
+  "missing_leaders": [5],
+  "statistics": {"leaders": 1, "followers": 1, "errors": 0}
 }
 ```
 
 #### `GET /trajectory/status`
 Get processing status and file counts.
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": {
+    "raw_trajectories": 1,
+    "processed_trajectories": 2,
+    "generated_plots": 0,
+    "has_results": true,
+    "expected_top_leaders": [1, 5],
+    "uploaded_leaders": [1],
+    "missing_uploaded_leaders": [5],
+    "orphan_uploaded_leaders": [],
+    "cluster_summary": {
+      "cluster_count": 2,
+      "ready_cluster_count": 0,
+      "needs_processing_cluster_count": 0,
+      "missing_upload_cluster_count": 1,
+      "partial_output_cluster_count": 1,
+      "processed_cluster_count": 1,
+      "all_clusters_ready": false,
+      "overall_state": "partial"
+    },
+    "clusters": [
+      {
+        "leader_id": 1,
+        "state": "partial_outputs",
+        "leader_uploaded": true,
+        "leader_processed": true,
+        "expected_drone_count": 3,
+        "processed_drone_count": 2,
+        "missing_follower_ids": [3]
+      }
+    ]
+  }
+}
+```
+
+Cluster states:
+
+- `missing_upload`: no leader CSV uploaded yet
+- `needs_processing`: leader CSV exists but outputs were not regenerated yet
+- `partial_outputs`: some outputs exist, but the cluster is incomplete
+- `ready`: leader and all followers have processed outputs
 
 #### `POST /trajectory/clear`
 Clear all trajectory files.
