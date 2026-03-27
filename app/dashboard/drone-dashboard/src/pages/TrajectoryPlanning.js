@@ -166,6 +166,14 @@ const TrajectoryPlanning = () => {
   const [showSwarmTransferDialog, setShowSwarmTransferDialog] = useState(false);
   const [availableTrajectories, setAvailableTrajectories] = useState([]);
   const [plannerNotice, setPlannerNotice] = useState(null);
+  const [swarmTransferState, setSwarmTransferState] = useState({
+    loading: false,
+    submitting: false,
+    clusters: [],
+    selectedLeaderId: '',
+    error: '',
+    successMessage: '',
+  });
 
   // Drag-drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -711,10 +719,47 @@ const TrajectoryPlanning = () => {
 
     clearOperationNotice();
     setShowSwarmTransferDialog(true);
+    setSwarmTransferState((prev) => ({
+      ...prev,
+      loading: true,
+      error: '',
+      successMessage: '',
+    }));
+
+    getSwarmClusterStatus()
+      .then((data) => {
+        const clusters = [...(data.clusters || [])].sort(
+          (a, b) => Number(a.leader_id) - Number(b.leader_id)
+        );
+
+        setSwarmTransferState((prev) => ({
+          ...prev,
+          loading: false,
+          clusters,
+          selectedLeaderId:
+            clusters.find((cluster) => Number(cluster.leader_id) === Number(prev.selectedLeaderId))?.leader_id ||
+            clusters[0]?.leader_id ||
+            '',
+        }));
+      })
+      .catch((loadError) => {
+        setSwarmTransferState((prev) => ({
+          ...prev,
+          loading: false,
+          clusters: [],
+          selectedLeaderId: '',
+          error: loadError?.response?.data?.error || loadError.message || 'Failed to load swarm cluster status.',
+        }));
+      });
   }, [clearOperationNotice, setOperationNotice, waypoints.length]);
 
   const closeSwarmTransferDialog = useCallback(() => {
     setShowSwarmTransferDialog(false);
+    setSwarmTransferState((prev) => ({
+      ...prev,
+      error: '',
+      successMessage: '',
+    }));
   }, []);
 
   const handleUploadCurrentTrajectory = useCallback(async (leaderId) => {
