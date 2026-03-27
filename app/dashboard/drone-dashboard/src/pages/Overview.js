@@ -5,6 +5,7 @@ import axios from 'axios';
 import CommandSender from '../components/CommandSender';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
+import { attachDroneRuntimeClock, normalizeTelemetryResponse } from '../constants/fieldMappings';
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
@@ -57,10 +58,11 @@ const Overview = ({ setSelectedDrone }) => {
     const fetchData = async () => {
       try {
         const response = await axios.get(url);
-        const dronesArray = Object.keys(response.data).map((hw_ID) => ({
+        const normalizedTelemetry = normalizeTelemetryResponse(response.data || {});
+        const dronesArray = Object.keys(normalizedTelemetry).map((hw_ID) => attachDroneRuntimeClock({
           ...(configByHwId[normalizeComparableId(hw_ID)] || {}),
           hw_ID,
-          ...response.data[hw_ID],
+          ...normalizedTelemetry[hw_ID],
         }));
 
         const validDrones = dronesArray.filter(
