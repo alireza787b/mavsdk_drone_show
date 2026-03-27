@@ -36,6 +36,8 @@ Notes:
     a clean image.
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you need
     the image to bake in a specific MAVSDK server binary.
+  - For a private GitHub repo, export MDS_GIT_AUTH_TOKEN so the builder can
+    clone through authenticated HTTPS without container-local SSH setup.
   - Export MDS_SITL_KEEP_ARM_TOOLCHAIN=true before running only if your
     custom image intentionally needs the PX4 ARM firmware toolchain preserved.
   - The resulting image keeps the MDS repo as a shallow git checkout so each

@@ -45,6 +45,7 @@ echo "For ADVANCED USERS - Custom Repository Configuration:"
 echo "  Set environment variables before running this script:"
 echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
 echo "    export MDS_BRANCH=\"your-branch\""
+echo "    export MDS_GIT_AUTH_TOKEN=\"read-only-github-token\"   # for private GitHub repos over HTTPS"
 echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
 echo "  Then run: bash create_dockers.sh <number>"
 echo "  All MDS_* environment variables are forwarded into the container runtime."
@@ -70,6 +71,7 @@ echo
 #     export MDS_DOCKER_IMAGE="company-mds-sitl:v1.0"
 #     export MDS_REPO_URL="git@github.com:company/fork.git"
 #     export MDS_BRANCH="production"
+#     export MDS_GIT_AUTH_TOKEN="read-only-github-token"   # private GitHub HTTPS only
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:

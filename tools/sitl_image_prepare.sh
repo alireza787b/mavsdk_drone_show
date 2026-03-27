@@ -8,6 +8,8 @@ BASE_DIR="${MDS_BASE_DIR:-/root/mavsdk_drone_show}"
 PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"
 BRANCH="${2:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
+GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
+GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 VENV_DIR="$BASE_DIR/venv"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
@@ -59,6 +61,44 @@ github_https_fallback_url() {
     return 1
 }
 
+urlencode_value() {
+    python3 - "$1" <<'PY'
+import sys
+from urllib.parse import quote
+
+print(quote(sys.argv[1], safe=''))
+PY
+}
+
+github_repo_path() {
+    local repo_url="$1"
+    local repo_path=""
+
+    if [[ "$repo_url" =~ ^git@github\.com:(.+)$ ]]; then
+        repo_path="${BASH_REMATCH[1]}"
+    elif [[ "$repo_url" =~ ^https://github\.com/(.+)$ ]]; then
+        repo_path="${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+
+    repo_path="${repo_path%.git}"
+    printf '%s.git\n' "$repo_path"
+}
+
+github_authenticated_https_url() {
+    local repo_url="$1"
+    local repo_path=""
+
+    [[ -n "$GIT_AUTH_TOKEN" ]] || return 1
+    repo_path=$(github_repo_path "$repo_url") || return 1
+
+    local encoded_username encoded_token
+    encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
+    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN")
+    printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
+}
+
 requirements_state_value() {
     local requirements_file="$BASE_DIR/requirements.txt"
     local requirements_hash
@@ -70,12 +110,15 @@ requirements_state_value() {
 
 fresh_clone_mds_repo() {
     local fallback_repo_url=""
+    local effective_repo_url="$REPO_URL"
     local clone_parent
     local clone_dir
     local preserve_dir
     preserve_dir=$(mktemp -d)
 
-    if fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
+    if effective_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
+        fallback_repo_url=""
+    elif fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
         :
     else
         fallback_repo_url=""
@@ -89,7 +132,7 @@ fresh_clone_mds_repo() {
     clone_dir="$clone_parent/repo"
 
     log "Cloning ${REPO_URL}@${BRANCH} as a shallow working tree..."
-    if ! retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$clone_dir"; then
+    if ! retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$effective_repo_url" "$clone_dir"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$REPO_URL" ]; then
             log "Primary clone failed. Retrying with HTTPS fallback: $fallback_repo_url"
             retry_cmd 3 git clone --depth 1 --branch "$BRANCH" "$fallback_repo_url" "$clone_dir"

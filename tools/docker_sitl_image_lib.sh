@@ -58,6 +58,14 @@ docker_sitl_run_prepare_script() {
         docker_exec_args+=(-e "MDS_SITL_KEEP_ARM_TOOLCHAIN=${MDS_SITL_KEEP_ARM_TOOLCHAIN}")
     fi
 
+    if [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
+        docker_exec_args+=(-e "MDS_GIT_AUTH_TOKEN=${MDS_GIT_AUTH_TOKEN}")
+    fi
+
+    if [[ -n "${MDS_GIT_AUTH_USERNAME:-}" ]]; then
+        docker_exec_args+=(-e "MDS_GIT_AUTH_USERNAME=${MDS_GIT_AUTH_USERNAME}")
+    fi
+
     docker_exec_args+=("$container_name" bash /tmp/mds_sitl_image_prepare.sh)
     "${docker_exec_args[@]}"
 }

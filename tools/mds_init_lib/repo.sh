@@ -19,7 +19,48 @@ readonly DEFAULT_REPO_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
 readonly DEFAULT_REPO_URL_HTTPS="https://github.com/alireza787b/mavsdk_drone_show.git"
 readonly DEFAULT_BRANCH="main-candidate"
 readonly SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
-readonly SSH_CONFIG_PATH="/home/${MDS_USER}/.ssh/config"
+
+mds_git_ssh_command() {
+    printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$SSH_KEY_PATH"
+}
+
+is_github_ssh_repo_url() {
+    [[ "${1:-}" == git@github.com:* ]]
+}
+
+prepare_repo_ssh_runtime() {
+    local ssh_dir="/home/${MDS_USER}/.ssh"
+
+    mkdir -p "$ssh_dir"
+    chown "${MDS_USER}:${MDS_USER}" "$ssh_dir"
+    chmod 700 "$ssh_dir"
+
+    if [[ -f "$SSH_KEY_PATH" ]]; then
+        chmod 600 "$SSH_KEY_PATH"
+        chown "${MDS_USER}:${MDS_USER}" "$SSH_KEY_PATH"
+    fi
+
+    if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+        chmod 644 "${SSH_KEY_PATH}.pub"
+        chown "${MDS_USER}:${MDS_USER}" "${SSH_KEY_PATH}.pub"
+    fi
+
+    sudo -u "${MDS_USER}" bash -lc 'if ! grep -q "github.com" "$HOME/.ssh/known_hosts" 2>/dev/null; then ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true; fi'
+}
+
+configure_repo_ssh_command() {
+    local repo_url="$1"
+
+    if ! repo_exists; then
+        return 0
+    fi
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" config core.sshCommand "$(mds_git_ssh_command)"
+    else
+        sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" config --unset-all core.sshCommand >/dev/null 2>&1 || true
+    fi
+}
 
 # =============================================================================
 # SSH KEY MANAGEMENT
@@ -80,34 +121,8 @@ configure_ssh_for_github() {
         return 0
     fi
 
-    local ssh_config="${SSH_CONFIG_PATH}"
-
-    # Create config if doesn't exist
-    if [[ ! -f "$ssh_config" ]]; then
-        touch "$ssh_config"
-        chown "${MDS_USER}:${MDS_USER}" "$ssh_config"
-        chmod 600 "$ssh_config"
-    fi
-
-    # Check if GitHub config already exists
-    if grep -q "Host github.com" "$ssh_config" 2>/dev/null; then
-        log_info "GitHub SSH config already exists"
-        return 0
-    fi
-
-    # Add GitHub configuration
-    cat >> "$ssh_config" << EOF
-
-# MDS GitHub Deploy Key Configuration
-Host github.com
-    HostName github.com
-    User git
-    IdentityFile ${SSH_KEY_PATH}
-    IdentitiesOnly yes
-    StrictHostKeyChecking accept-new
-EOF
-
-    log_success "SSH config updated for GitHub"
+    prepare_repo_ssh_runtime
+    log_success "SSH GitHub access prepared"
     return 0
 }
 
@@ -145,7 +160,7 @@ display_deploy_key_instructions() {
     echo -e "${CYAN}│${NC}     • ${YELLOW}Enable \"Allow write access\" for git sync functionality${NC}            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}  ${BOLD}3. Verify connection:${NC}                                                    ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}     ${GREEN}ssh -T git@github.com${NC}                                                  ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}     ${GREEN}ssh -i ${SSH_KEY_PATH} -o IdentitiesOnly=yes -T git@github.com${NC}      ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo ""
@@ -157,8 +172,10 @@ test_ssh_connection() {
 
     # Test connection (suppress expected "You've successfully authenticated" message)
     local output
+    prepare_repo_ssh_runtime
     output=$(sudo -u "${MDS_USER}" ssh -T -o StrictHostKeyChecking=accept-new \
         -o BatchMode=yes -o ConnectTimeout=10 \
+        -o IdentitiesOnly=yes \
         -i "${SSH_KEY_PATH}" git@github.com 2>&1) || true
 
     if echo "$output" | grep -q "successfully authenticated"; then
@@ -412,12 +429,13 @@ clone_repository() {
     # Clone with retry
     local cmd
     if [[ "$access_method" == "ssh" ]]; then
-        cmd="sudo -u ${MDS_USER} GIT_SSH_COMMAND='ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=accept-new' git clone --branch ${branch} ${repo_url} ${MDS_INSTALL_DIR}"
+        cmd="sudo -u ${MDS_USER} GIT_SSH_COMMAND='$(mds_git_ssh_command)' git clone --branch ${branch} ${repo_url} ${MDS_INSTALL_DIR}"
     else
         cmd="sudo -u ${MDS_USER} git clone --branch ${branch} ${repo_url} ${MDS_INSTALL_DIR}"
     fi
 
     if run_with_retry "$cmd" 3 5 "git clone"; then
+        configure_repo_ssh_command "$repo_url"
         log_success "Repository cloned successfully"
         state_set_value "repo_url" "$repo_url"
         state_set_value "repo_branch" "$branch"
@@ -440,6 +458,9 @@ update_repository() {
     fi
 
     cd "${MDS_INSTALL_DIR}" || return 1
+    local current_remote
+    current_remote=$(sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" remote get-url origin 2>/dev/null || echo "")
+    configure_repo_ssh_command "$current_remote"
 
     # Fetch latest
     log_info "Fetching latest changes..."

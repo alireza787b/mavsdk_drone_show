@@ -48,6 +48,8 @@ Result:
   - Preserves the real PX4 git/submodule metadata and writes PX4 provenance into image metadata files
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you want to
     pin the baked mavsdk_server binary for this release
+  - For a private GitHub repo, export MDS_GIT_AUTH_TOKEN so image preparation
+    can clone through authenticated HTTPS inside the temporary container
   - Export MDS_SITL_KEEP_ARM_TOOLCHAIN=true before running only if you
     intentionally need the PX4 ARM firmware toolchain preserved in the image
 EOF

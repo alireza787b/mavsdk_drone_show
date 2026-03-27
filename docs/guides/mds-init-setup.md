@@ -51,6 +51,8 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourusername -d 1 -y
 ```
 
+For confidentiality-sensitive customers, prefer an org-owned private repo instead of assuming a normal GitHub fork will be private.
+
 **Using a customer org/private repo path:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y

@@ -18,6 +18,46 @@ _MDS_GCS_REPO_LOADED=1
 readonly GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 
+gcs_git_ssh_command() {
+    printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$GCS_SSH_KEY_PATH"
+}
+
+is_github_ssh_repo_url() {
+    [[ "${1:-}" == git@github.com:* ]]
+}
+
+prepare_gcs_ssh_runtime() {
+    mkdir -p "${HOME}/.ssh"
+    chmod 700 "${HOME}/.ssh"
+
+    if [[ -f "$GCS_SSH_KEY_PATH" ]]; then
+        chmod 600 "$GCS_SSH_KEY_PATH"
+    fi
+
+    if [[ -f "$GCS_SSH_KEY_PUB" ]]; then
+        chmod 644 "$GCS_SSH_KEY_PUB"
+    fi
+
+    if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan -t ed25519 github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+    fi
+}
+
+configure_repo_ssh_command() {
+    local repo_dir="$1"
+    local repo_url="$2"
+
+    if ! [[ -d "${repo_dir}/.git" ]]; then
+        return 0
+    fi
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        git -C "$repo_dir" config core.sshCommand "$(gcs_git_ssh_command)"
+    else
+        git -C "$repo_dir" config --unset-all core.sshCommand >/dev/null 2>&1 || true
+    fi
+}
+
 normalize_github_repo_path() {
     local spec="${1:-}"
 
@@ -242,6 +282,7 @@ display_ssh_key_instructions() {
     echo -e "  4. Paste the key above"
     echo -e "  ${YELLOW}5. CHECK 'Allow write access' (REQUIRED for git sync features)${NC}"
     echo -e "  6. Click ${CYAN}Add key${NC}"
+    echo -e "  7. Verify: ${GREEN}ssh -i ${GCS_SSH_KEY_PATH} -o IdentitiesOnly=yes -T git@github.com${NC}"
     echo ""
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
 
@@ -258,27 +299,8 @@ configure_ssh_github() {
         return 0
     fi
 
-    local ssh_config="${HOME}/.ssh/config"
-
-    # Check if already configured
-    if [[ -f "$ssh_config" ]] && grep -q "mds_gcs_deploy_key" "$ssh_config" 2>/dev/null; then
-        log_info "SSH config already set up for MDS GCS"
-        return 0
-    fi
-
-    # Add GitHub config
-    cat >> "$ssh_config" << EOF
-
-# MDS GCS Deploy Key
-Host github.com
-    HostName github.com
-    User git
-    IdentityFile ${GCS_SSH_KEY_PATH}
-    IdentitiesOnly yes
-EOF
-
-    chmod 600 "$ssh_config"
-    log_success "SSH config updated"
+    prepare_gcs_ssh_runtime
+    log_success "SSH GitHub access prepared"
     return 0
 }
 
@@ -291,14 +313,16 @@ test_ssh_connection() {
         return 0
     fi
 
-    # Add GitHub to known hosts if not present
-    if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
-        ssh-keyscan -t ed25519 github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null
-    fi
-
-    # Test connection
     local result
-    result=$(ssh -T -o BatchMode=yes -o ConnectTimeout=10 git@github.com 2>&1) || true
+    prepare_gcs_ssh_runtime
+    result=$(ssh \
+        -T \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new \
+        -i "${GCS_SSH_KEY_PATH}" \
+        git@github.com 2>&1) || true
 
     if echo "$result" | grep -qi "successfully authenticated"; then
         log_success "SSH connection to GitHub verified"
@@ -401,6 +425,7 @@ clone_or_update_repo() {
             log_success "Remote URL updated"
         fi
 
+        configure_repo_ssh_command "$install_dir" "$repo_url"
         log_info "Fetching from remote..."
 
         # Fetch and checkout branch
@@ -448,10 +473,17 @@ clone_or_update_repo() {
         parent_dir=$(dirname "$install_dir")
         mkdir -p "$parent_dir"
 
+        local clone_rc=0
         start_progress "Cloning repository" "may take 1-3 min for first clone"
-        if git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1; then
+        if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+            git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1 || clone_rc=$?
+        else
+            GIT_SSH_COMMAND="$(gcs_git_ssh_command)" git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1 || clone_rc=$?
+        fi
+        if [[ $clone_rc -eq 0 ]]; then
             stop_progress
             cd "$install_dir" || return 1
+            configure_repo_ssh_command "$install_dir" "$repo_url"
             local commit
             commit=$(git rev-parse --short HEAD 2>/dev/null)
             log_success "Repository cloned (commit: $commit)"

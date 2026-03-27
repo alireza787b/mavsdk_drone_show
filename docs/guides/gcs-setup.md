@@ -64,6 +64,7 @@ The installer now also writes `MDS_GIT_AUTO_PUSH=false` for this HTTPS/read-only
 For production or customer-specific deployments, use a repo you control:
 
 1. Either fork [mavsdk_drone_show](https://github.com/alireza787b/mavsdk_drone_show) or create/use an org-owned private repo.
+   For confidentiality-sensitive customers, prefer an org-owned private repo instead of assuming a normal GitHub fork will be private.
 
 2. Use the repo during installation:
    ```bash
@@ -92,6 +93,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
    - Go to Repository → Settings → Deploy keys → Add deploy key
    - **Enable "Allow write access"**
 3. The installer verifies the connection before proceeding
+   It now tests and pins the intended deploy key explicitly, so pre-existing `~/.ssh/config` GitHub identities do not silently hijack the repo connection.
 
 ### Access Modes
 

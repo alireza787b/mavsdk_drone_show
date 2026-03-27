@@ -44,8 +44,10 @@ set -euo pipefail
 #   bash create_dockers.sh 10
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
-#   MDS_REPO_URL  - Git repository URL (SSH or HTTPS format)
-#   MDS_BRANCH    - Git branch name to checkout and use
+#   MDS_REPO_URL         - Git repository URL (SSH or HTTPS format)
+#   MDS_BRANCH           - Git branch name to checkout and use
+#   MDS_GIT_AUTH_TOKEN   - Optional authenticated HTTPS token for private GitHub repos
+#   MDS_GIT_AUTH_USERNAME- Optional HTTPS username for token auth (default: x-access-token)
 #
 # NOTE: These variables are checked at container startup time
 # =============================================================================
@@ -54,6 +56,8 @@ set -euo pipefail
 DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
+GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 
 # Script Metadata and repository path detection
 SCRIPT_NAME=$(basename "$0")
@@ -698,6 +702,44 @@ github_https_fallback_url() {
     return 1
 }
 
+urlencode_value() {
+    python3 - "$1" <<'PY'
+import sys
+from urllib.parse import quote
+
+print(quote(sys.argv[1], safe=''))
+PY
+}
+
+github_repo_path() {
+    local repo_url="$1"
+    local repo_path=""
+
+    if [[ "$repo_url" =~ ^git@github\.com:(.+)$ ]]; then
+        repo_path="${BASH_REMATCH[1]}"
+    elif [[ "$repo_url" =~ ^https://github\.com/(.+)$ ]]; then
+        repo_path="${BASH_REMATCH[1]}"
+    else
+        return 1
+    fi
+
+    repo_path="${repo_path%.git}"
+    printf '%s.git\n' "$repo_path"
+}
+
+github_authenticated_https_url() {
+    local repo_url="$1"
+    local repo_path=""
+
+    [[ -n "$GIT_AUTH_TOKEN" ]] || return 1
+    repo_path=$(github_repo_path "$repo_url") || return 1
+
+    local encoded_username encoded_token
+    encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
+    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN")
+    printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
+}
+
 requirements_state_value() {
     local requirements_file="$BASE_DIR/requirements.txt"
     if [ ! -f "$requirements_file" ]; then
@@ -727,6 +769,7 @@ load_image_build_metadata() {
 bootstrap_repository_checkout() {
     local repo_url="$1"
     local fallback_repo_url="$2"
+    local effective_repo_url="$repo_url"
     local clone_parent
     clone_parent=$(mktemp -d)
     local clone_dir="$clone_parent/repo"
@@ -770,7 +813,11 @@ bootstrap_repository_checkout() {
         cp "$PX4_SUBMODULE_STATUS_FILE" "$preserve_dir/.mds_px4_submodules.txt"
     fi
 
-    if ! git clone --depth 1 --branch "$GIT_BRANCH" "$repo_url" "$clone_dir"; then
+    if effective_repo_url=$(github_authenticated_https_url "$repo_url"); then
+        fallback_repo_url=""
+    fi
+
+    if ! git clone --depth 1 --branch "$GIT_BRANCH" "$effective_repo_url" "$clone_dir"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$repo_url" ]; then
             log_message "Clone via SSH failed. Retrying with HTTPS fallback: $fallback_repo_url"
             git clone --depth 1 --branch "$GIT_BRANCH" "$fallback_repo_url" "$clone_dir"
@@ -835,14 +882,17 @@ update_repository() {
     fi
 
     local fallback_repo_url=""
-    if fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
+    local effective_repo_url="$GITHUB_REPO_URL"
+    if effective_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
+        fallback_repo_url=""
+    elif fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
         :
     else
         fallback_repo_url=""
     fi
 
     if ! git -C "$BASE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        bootstrap_repository_checkout "$GITHUB_REPO_URL" "$fallback_repo_url"
+        bootstrap_repository_checkout "$effective_repo_url" "$fallback_repo_url"
     fi
 
     log_message "Navigating to $BASE_DIR..."
@@ -850,14 +900,14 @@ update_repository() {
 
     log_message "Setting Git remote to $GIT_REMOTE..."
     if git remote get-url "$GIT_REMOTE" >/dev/null 2>&1; then
-        git remote set-url "$GIT_REMOTE" "$GITHUB_REPO_URL"
+        git remote set-url "$GIT_REMOTE" "$effective_repo_url"
     else
-        git remote add "$GIT_REMOTE" "$GITHUB_REPO_URL"
+        git remote add "$GIT_REMOTE" "$effective_repo_url"
     fi
 
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
     if ! sitl_retry 3 "GIT-FETCH" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
-        if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$GITHUB_REPO_URL" ]; then
+        if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$effective_repo_url" ]; then
             log_message "SSH fetch failed. Retrying with HTTPS fallback: $fallback_repo_url"
             git remote set-url "$GIT_REMOTE" "$fallback_repo_url" || true
             if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
