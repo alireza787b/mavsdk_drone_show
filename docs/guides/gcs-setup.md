@@ -38,6 +38,8 @@ This script will:
 - Configure firewall rules
 - Create system configuration files
 
+If Node.js is installed through `nvm`, the dashboard launcher now discovers that toolchain automatically on headless VPS hosts. You do not need to manually source `nvm.sh` before running `app/linux_dashboard_start.sh`.
+
 ---
 
 ## Repository Options
