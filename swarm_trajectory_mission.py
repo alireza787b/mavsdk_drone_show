@@ -458,6 +458,17 @@ async def perform_swarm_trajectory(
     # Main Trajectory Execution Loop
     # -----------------------------------
     last_velocity = None  # Track last velocity for continue_heading behavior
+    progress_milestones = (
+        (0.25, None),
+        (0.50, "*** 50% TRAJECTORY COMPLETED ***"),
+        (0.75, None),
+        (0.90, "*** 90% TRAJECTORY COMPLETED - APPROACHING END ***"),
+    )
+    logged_milestones: set[float] = set()
+    progress_log_interval = max(
+        1,
+        int(getattr(Params, "SWARM_TRAJECTORY_PROGRESS_LOG_INTERVAL_WAYPOINTS", 200)),
+    )
 
     while waypoint_index < total_waypoints:
         try:
@@ -610,9 +621,14 @@ async def perform_swarm_trajectory(
                 # --- (5) Enhanced Progress Logging with Mission Status ---
                 time_to_end = waypoints[-1][0] - t_wp
                 prog = (waypoint_index + 1) / total_waypoints
+                milestone_hits = []
+                for threshold, marker in progress_milestones:
+                    if prog >= threshold and threshold not in logged_milestones:
+                        logged_milestones.add(threshold)
+                        milestone_hits.append(marker)
 
                 # Enhanced logging with mission status markers
-                if (waypoint_index % 50 == 0) or (prog in [0.1, 0.25, 0.5, 0.75, 0.9]):
+                if (waypoint_index % progress_log_interval == 0) or milestone_hits:
                     logger.info(
                         f"Trajectory progress: {prog:.1%} complete | "
                         f"WP {waypoint_index+1}/{total_waypoints} | "
@@ -620,11 +636,9 @@ async def perform_swarm_trajectory(
                         f"Drift: {drift_delta:.2f}s"
                     )
 
-                # Critical milestone logging
-                if prog == 0.5:
-                    logger.info("*** 50% TRAJECTORY COMPLETED ***")
-                elif prog >= 0.9:
-                    logger.info("*** 90% TRAJECTORY COMPLETED - APPROACHING END ***")
+                for marker in milestone_hits:
+                    if marker:
+                        logger.info(marker)
 
                 if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 20 == 0:
                     logger.debug(

@@ -27,6 +27,17 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
+try:
+    from src.params import Params
+except Exception:  # pragma: no cover - validator fallback only
+    class _FallbackParams:
+        SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
+        SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600
+        LANDING_TIMEOUT = 10
+        CONTROLLED_LANDING_TIMEOUT = 7
+
+    Params = _FallbackParams()
+
 
 SWARM_TRAJECTORY = 4
 LAND = 101
@@ -375,6 +386,36 @@ def max_processed_duration_seconds(repo_root: Path) -> float:
     return max(durations) if durations else 0.0
 
 
+def estimate_command_completion_timeout(duration_sec: float, end_behavior: str | None = None) -> int:
+    """
+    Estimate a realistic validator timeout for Swarm Trajectory completion.
+
+    The validator starts its terminal wait after the formation gate, not at the
+    original dispatch timestamp, so it must budget for the full remaining path
+    plus any end-behavior completion window.
+    """
+    duration_sec = max(0.0, float(duration_sec or 0.0))
+    behavior = str(end_behavior or getattr(Params, "SWARM_TRAJECTORY_END_BEHAVIOR", "return_home")).lower()
+    base_buffer_sec = 180
+
+    if behavior == "return_home":
+        rtl_timeout = int(getattr(Params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600))
+        landing_buffer = max(
+            60,
+            int(getattr(Params, "LANDING_TIMEOUT", 10)) * 3,
+        )
+        return max(300, int(math.ceil(duration_sec + rtl_timeout + landing_buffer + base_buffer_sec)))
+
+    if behavior == "land_current":
+        landing_timeout = max(
+            int(getattr(Params, "LANDING_TIMEOUT", 10)),
+            int(getattr(Params, "CONTROLLED_LANDING_TIMEOUT", 7)),
+        )
+        return max(300, int(math.ceil(duration_sec + landing_timeout + base_buffer_sec)))
+
+    return max(300, int(math.ceil(duration_sec + base_buffer_sec)))
+
+
 def cleanup_land(client: ApiClient, ids: list[int], label: str) -> None:
     telemetry = client.get_telemetry()
     armed_ids = [idx for idx in ids if telemetry.get(str(idx), {}).get("is_armed")]
@@ -452,8 +493,10 @@ def main() -> int:
         results["formation"] = formation["diagnostics"]
 
         duration = max_processed_duration_seconds(args.repo_root)
-        mission_timeout = max(300, int(duration * 1.4) + 240)
+        end_behavior = getattr(Params, "SWARM_TRAJECTORY_END_BEHAVIOR", "return_home")
+        mission_timeout = estimate_command_completion_timeout(duration, end_behavior=end_behavior)
         results["expected_duration_sec"] = duration
+        results["end_behavior"] = end_behavior
         results["mission_timeout_sec"] = mission_timeout
 
         status = wait_for_command(client, command_id, terminal=True, timeout=mission_timeout)

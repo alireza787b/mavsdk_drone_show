@@ -50,6 +50,7 @@ This script executes various drone actions using MAVSDK:
 import argparse
 import asyncio
 import csv
+import math
 import os
 import requests
 import socket
@@ -436,6 +437,59 @@ def _get_local_relative_altitude_snapshot(timeout: float = 1.0):
     return current_altitude - home_altitude
 
 
+async def _get_current_relative_altitude(drone, timeout: float = 3.0):
+    """Capture the current relative altitude, preferring the local API snapshot."""
+    local_relative_altitude = _get_local_relative_altitude_snapshot(timeout=1.0)
+    if local_relative_altitude is not None:
+        return local_relative_altitude
+
+    deadline = time.monotonic() + timeout
+    position_stream = drone.telemetry.position()
+    while time.monotonic() < deadline:
+        try:
+            position = await asyncio.wait_for(anext(position_stream), timeout=max(0.1, deadline - time.monotonic()))
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+        return getattr(position, "relative_altitude_m", None)
+    return None
+
+
+async def _get_current_landed_state(drone, timeout: float = 3.0):
+    """Read the current landed state without treating the read as a logged milestone."""
+    deadline = time.monotonic() + timeout
+    landed_state_stream = drone.telemetry.landed_state()
+    while time.monotonic() < deadline:
+        try:
+            return await asyncio.wait_for(anext(landed_state_stream), timeout=max(0.1, deadline - time.monotonic()))
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+    return None
+
+
+def calculate_land_disarm_timeout(relative_altitude_m):
+    """
+    Estimate a realistic disarm wait budget for LAND based on current altitude.
+
+    High-altitude SITL and large-area field missions can spend minutes descending
+    after PX4 has already accepted LAND. Treating a fixed 45-second disarm wait
+    as failure creates false negatives for otherwise healthy landing sequences.
+    """
+    minimum_wait = int(getattr(Params, "LAND_ACTION_MIN_DISARM_WAIT_SEC", 45))
+    if relative_altitude_m is None:
+        return minimum_wait
+
+    try:
+        altitude_m = max(0.0, float(relative_altitude_m))
+    except (TypeError, ValueError):
+        return minimum_wait
+
+    descent_rate = max(0.1, float(getattr(Params, "LAND_ACTION_ASSUMED_DESCENT_RATE_MPS", 2.5)))
+    buffer_sec = max(0, int(getattr(Params, "LAND_ACTION_DISARM_BUFFER_SEC", 30)))
+    maximum_wait = max(minimum_wait, int(getattr(Params, "LAND_ACTION_MAX_DISARM_WAIT_SEC", 900)))
+    estimated_wait = math.ceil(minimum_wait + (altitude_m / descent_rate) + buffer_sec)
+    return max(minimum_wait, min(maximum_wait, estimated_wait))
+
+
 async def wait_until_armed_state(drone, expected: bool, timeout=15):
     state_label = "armed" if expected else "disarmed"
     return await wait_for_telemetry_condition(
@@ -738,7 +792,35 @@ async def land(drone):
             "landing state transition",
             timeout=15,
         )
-        await wait_until_armed_state(drone, False, timeout=45)
+
+        relative_altitude = await _get_current_relative_altitude(drone)
+        disarm_timeout = calculate_land_disarm_timeout(relative_altitude)
+        altitude_message = (
+            f"{relative_altitude:.1f}m"
+            if isinstance(relative_altitude, (int, float))
+            else "unknown"
+        )
+        logger.info(
+            "Waiting up to %.0fs for landing disarm confirmation (relative altitude: %s).",
+            disarm_timeout,
+            altitude_message,
+        )
+
+        try:
+            await wait_until_armed_state(drone, False, timeout=disarm_timeout)
+        except TimeoutError:
+            landed_state = await _get_current_landed_state(drone)
+            if landed_state == telemetry.LandedState.ON_GROUND:
+                touchdown_grace = int(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20))
+                logger.warning(
+                    "Drone is on ground but still armed after %.0fs; issuing explicit disarm and waiting %.0fs more.",
+                    disarm_timeout,
+                    touchdown_grace,
+                )
+                await drone.action.disarm()
+                await wait_until_armed_state(drone, False, timeout=touchdown_grace)
+            else:
+                raise
 
         for _ in range(3):
             led_controller.set_color(0, 255, 0)

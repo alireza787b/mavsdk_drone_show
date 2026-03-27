@@ -273,6 +273,11 @@ class Params:
     default_takeoff_alt = 10       # Default takeoff altitude
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
+    LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm
+    LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 2.5 # Conservative descent-rate estimate for high-altitude LAND commands
+    LAND_ACTION_DISARM_BUFFER_SEC = 30         # Extra landing/disarm buffer above the estimated descent time
+    LAND_ACTION_MAX_DISARM_WAIT_SEC = 900      # Cap LAND action wait time for very high-altitude recoveries
+    LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC = 20  # Extra wait after touchdown before forcing explicit disarm
 
     # LED Configuration
     led_count = 25        # Number of LED pixels
@@ -472,6 +477,7 @@ class Params:
     # Logging and Debug
     SWARM_TRAJECTORY_VERBOSE_LOGGING = True     # Enable detailed trajectory logging
     SWARM_TRAJECTORY_LOG_WAYPOINTS = False      # Log each waypoint execution
+    SWARM_TRAJECTORY_PROGRESS_LOG_INTERVAL_WAYPOINTS = 200  # Regular progress-log cadence during long missions
     
     # React UI Integration
     swarm_trajectory_executer = "swarm_trajectory_mission.py"  # Script name for UI
