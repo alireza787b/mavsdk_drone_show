@@ -179,11 +179,20 @@ This keeps the download instructions stable while still preserving release trace
 
 ## MEGA Distribution Workflow
 
-For authenticated archive management, prefer the official `MEGAcmd` client.
+Use the official `MEGAcmd` client for both public downloads and authenticated archive management.
 
-Do not rely on third-party `megatools` for authenticated account replacement workflows. In practice, modern MEGA account protections can cause `megals`/`megaput` login failures such as `HTTP POST failed: Server returned 402` even when browser login is fine. Use `MEGAcmd` for:
+Recommended Ubuntu 24.04 install:
+
+```bash
+curl -fsSLo /tmp/megacmd-xUbuntu_24.04_amd64.deb \
+  https://mega.nz/linux/repo/xUbuntu_24.04/amd64/megacmd-xUbuntu_24.04_amd64.deb
+sudo apt install -y /tmp/megacmd-xUbuntu_24.04_amd64.deb
+```
+
+This keeps the official MEGA client under `apt`/`dpkg` management instead of mixing in third-party tools. Use `MEGAcmd` for:
 
 - `mega-login`
+- `mega-get`
 - `mega-ls`
 - `mega-put`
 - `mega-export`

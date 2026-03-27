@@ -83,6 +83,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Bootstrap and setup flows now accept `--fork OWNER` or `--fork OWNER/REPO`, so customer org/private repo paths no longer require ad hoc URL rewriting
 - README, docs index, setup guides, automation guides, and troubleshooting guides now route custom repo users to a single end-to-end workflow instead of assuming only a personal GitHub fork
 - fresh-host setup guides now include the missing `curl` prerequisite for the one-line GCS bootstrap and explicitly note the validated headless `/health` readiness check after launch
+- SITL archive docs now standardize on the official `MEGAcmd` client installed through MEGA's Ubuntu package and `apt`, so public downloads and authenticated archive replacement use one consistent toolchain
+- the official public SITL archive was refreshed again from the exact validated branch state and re-exported on MEGA with baked commit `f55a65b`
 - Drone Show now separates the tracked stock SITL demo origin (`data/origin.sitl.default.json`) from the mutable runtime origin override (`data/origin.json`), and the stock Azadi Stadium default is shared by both GCS origin fallback and `startup_sitl.sh`
 - The shipped SITL Drone Show bundle now matches the stock 5-drone SITL config end-to-end, and packaged Drone Show metrics were refreshed so stock assets no longer drift from config
 - Superseded running Drone Show missions now report a terminal execution result back to GCS instead of leaving command tracking stuck in `executing`

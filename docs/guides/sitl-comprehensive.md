@@ -86,11 +86,14 @@ ssh root@your_server_ip
 
 ### Package and Software Installation
 
-First, install the base packages required for the SITL workflow, including the public-link Mega downloader and `7z` tools used for the distributed Docker image:
+First, install the base packages required for the SITL workflow, then install the official `MEGAcmd` Ubuntu package from MEGA so download and release operations use one consistent client:
 
 ```bash
 sudo apt update
-sudo apt install -y curl python3 python3-venv python3-pip tmux lsof git megatools p7zip-full
+sudo apt install -y curl python3 python3-venv python3-pip tmux lsof git p7zip-full
+curl -fsSLo /tmp/megacmd-xUbuntu_24.04_amd64.deb \
+  https://mega.nz/linux/repo/xUbuntu_24.04/amd64/megacmd-xUbuntu_24.04_amd64.deb
+sudo apt install -y /tmp/megacmd-xUbuntu_24.04_amd64.deb
 ```
 
 #### Downloading the Official SITL Docker Image
@@ -104,8 +107,8 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 
 ```bash
 cd ~
-# Public Mega download; large archives may take several minutes to complete.
-megadl 'https://mega.nz/file/HaJkCDqL#yiMYp4-QLuiJkHMO8RsJQQ-lHL1H0FrlDfwNXL_RGXM'
+# Public Mega download via the official MEGAcmd client; large archives may take several minutes.
+mega-get 'https://mega.nz/file/qewEgKDZ#KHah4cc_2zjLTEnHAGQuGF5sNlQ0K8de-3Uf_6w6a4I' .
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
@@ -117,14 +120,13 @@ After extraction you should have:
 - `mavsdk-drone-show-sitl-image.tar` - Docker image tar produced by `7z`
 
 > **Notes**
-> - `megadl` comes from the `megatools` package and is intended here only for unauthenticated public-link downloads.
-> - If Mega free-tier throttling or temporary limits block the public download, retry with the official MEGAcmd client after signing in:
+> - This guide now standardizes on the official `MEGAcmd` client for both public downloads and authenticated archive operations.
+> - The Ubuntu 24.04 package path above is the official MEGA Linux package for this platform, installed through `apt` so it stays package-managed.
+> - If Mega free-tier throttling or temporary limits block the public download, sign in and retry:
 >   ```bash
 >   mega-login 'you@example.com' 'your-password'
->   mega-get 'https://mega.nz/file/HaJkCDqL#yiMYp4-QLuiJkHMO8RsJQQ-lHL1H0FrlDfwNXL_RGXM' .
+>   mega-get 'https://mega.nz/file/qewEgKDZ#KHah4cc_2zjLTEnHAGQuGF5sNlQ0K8de-3Uf_6w6a4I' .
 >   ```
-> - For authenticated MEGA account operations, prefer the official MEGAcmd client over third-party tools.
-> - If third-party `megatools` login returns `HTTP POST failed: Server returned 402`, treat that as a client/workflow issue and switch to official `MEGAcmd` for account-backed operations.
 > - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
 > - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
 > - The official HTTPS/demo bootstrap path keeps `MDS_GIT_AUTO_PUSH=false` by default, so first-time imports/config saves stay clean on read-only evaluation setups.
