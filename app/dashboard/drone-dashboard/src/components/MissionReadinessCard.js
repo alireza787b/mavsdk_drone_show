@@ -130,7 +130,8 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
 
   const overallStatus = getOverallStatus();
   const readyClusters = clusterStatus.clusters.filter(c => c.ready).length;
-  const missingCount = clusterStatus.clusters.length - readyClusters;
+  const processingCount = clusterStatus.clusters.filter(c => c.leader_uploaded && !c.ready).length;
+  const missingCount = clusterStatus.clusters.filter(c => !c.leader_uploaded).length;
 
   return (
     <div className="mission-readiness-card">
@@ -150,7 +151,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         <div className="header-right">
           <div className="quick-stats">
             <div className="stat">{clusterStatus.clusters.length} Clusters</div>
-            <div className="stat">{readyClusters} leaders uploaded • {missingCount} missing</div>
+            <div className="stat">
+              {readyClusters} ready • {processingCount} pending process • {missingCount} missing upload
+            </div>
           </div>
           <button
             className="refresh-btn"
@@ -294,7 +297,12 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         <div className="missing-warning">
           <span className="warning-icon">⚠️</span>
           <div className="warning-text">
-            Action needed: {missingCount} leader trajectory{missingCount === 1 ? '' : 'ies'} missing
+            Action needed:{' '}
+            {missingCount > 0 && processingCount > 0
+              ? `${missingCount} leader upload${missingCount === 1 ? '' : 's'} missing • ${processingCount} uploaded cluster${processingCount === 1 ? '' : 's'} still need processing`
+              : missingCount > 0
+                ? `${missingCount} leader trajectory upload${missingCount === 1 ? '' : 's'} missing`
+                : `${processingCount} uploaded cluster${processingCount === 1 ? '' : 's'} still need processing`}
           </div>
           <a href="/swarm-trajectory" className="fix-link">
             Fix in Swarm Trajectory →

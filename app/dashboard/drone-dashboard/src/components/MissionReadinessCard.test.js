@@ -45,7 +45,8 @@ describe('MissionReadinessCard', () => {
     render(<MissionReadinessCard />);
 
     expect(await screen.findByText(/50% Leaders Ready/i)).toBeInTheDocument();
-    expect(screen.getByText('Needs Processing')).toBeInTheDocument();
+    expect(screen.getByText(/Needs Processing/)).toBeInTheDocument();
+    expect(screen.getByText(/0 missing upload/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Leader 5'));
 
