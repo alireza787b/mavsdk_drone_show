@@ -347,6 +347,7 @@ class DroneGitStatus(BaseModel):
     status: GitStatus = Field(..., description="Git sync status")
 
     # Synchronization
+    in_sync_with_gcs: bool = Field(False, description="Whether the drone matches the current GCS branch/commit")
     commits_ahead: int = Field(0, ge=0, description="Commits ahead of origin")
     commits_behind: int = Field(0, ge=0, description="Commits behind origin")
     uncommitted_changes: List[str] = Field(default_factory=list, description="List of uncommitted file changes")

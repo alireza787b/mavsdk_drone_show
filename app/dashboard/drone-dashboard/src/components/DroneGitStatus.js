@@ -32,9 +32,11 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
     );
   }
 
-  const isInSync = gcsGitStatus && gitStatus.commit && gcsGitStatus.commit
-    ? areGitRevisionsEquivalent(gitStatus.commit, gcsGitStatus.commit)
-    : false;
+  const isInSync = typeof gitStatus.in_sync_with_gcs === 'boolean'
+    ? gitStatus.in_sync_with_gcs
+    : (gcsGitStatus && gitStatus.commit && gcsGitStatus.commit
+        ? areGitRevisionsEquivalent(gitStatus.commit, gcsGitStatus.commit)
+        : false);
 
   const handleCopyCommit = async () => {
     if (!gitStatus.commit) {
@@ -165,6 +167,7 @@ DroneGitStatus.propTypes = {
     branch: PropTypes.string,
     commit: PropTypes.string,
     status: PropTypes.string,
+    in_sync_with_gcs: PropTypes.bool,
     commit_date: PropTypes.string,
     commit_message: PropTypes.string,
     author_name: PropTypes.string,

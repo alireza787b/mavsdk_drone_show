@@ -1241,6 +1241,14 @@ async def get_git_status():
     drones_config = load_config()
     drone_map = {str(d['hw_id']): d for d in drones_config}
 
+    try:
+        gcs_status = get_gcs_git_report()
+    except Exception:
+        gcs_status = None
+
+    gcs_branch = (gcs_status or {}).get('branch')
+    gcs_commit = (gcs_status or {}).get('commit')
+
     # Transform raw git status to match DroneGitStatus schema
     transformed_git_status = {}
 
@@ -1277,6 +1285,15 @@ async def get_git_status():
                     mapped_status = GitStatus.UNKNOWN
 
             commit_hash = raw_data.get('commit', 'unknown')
+            in_sync_with_gcs = (
+                mapped_status == GitStatus.SYNCED
+                if not gcs_commit
+                else (
+                    raw_data.get('branch') == gcs_branch
+                    and commit_hash == gcs_commit
+                    and mapped_status == GitStatus.SYNCED
+                )
+            )
 
             transformed_git_status[str(hw_id)] = DroneGitStatus(
                 pos_id=int(drone_info.get('pos_id', hw_id)),
@@ -1289,6 +1306,7 @@ async def get_git_status():
                 author_name=raw_data.get('author_name'),
                 author_email=raw_data.get('author_email'),
                 status=mapped_status,
+                in_sync_with_gcs=in_sync_with_gcs,
                 commits_ahead=raw_data.get('commits_ahead', 0),
                 commits_behind=raw_data.get('commits_behind', 0),
                 uncommitted_changes=raw_data.get('uncommitted_changes', []),
@@ -1297,13 +1315,7 @@ async def get_git_status():
             )
 
     synced_count = len([s for s in transformed_git_status.values()
-                       if s.status == GitStatus.SYNCED])
-
-    # Include GCS git status in the response
-    try:
-        gcs_status = get_gcs_git_report()
-    except Exception:
-        gcs_status = None
+                       if s.in_sync_with_gcs])
 
     return GitStatusResponse(
         git_status=transformed_git_status,

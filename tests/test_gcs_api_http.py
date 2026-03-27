@@ -728,13 +728,15 @@ class TestGitStatusEndpoints:
         '1': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []},
         '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
     })
+    @patch('app_fastapi.get_gcs_git_report')
     @patch('app_fastapi.load_config')
-    def test_get_git_status(self, mock_load_config, test_client):
+    def test_get_git_status(self, mock_load_config, mock_gcs_git_report, test_client):
         """Test GET /git-status"""
         mock_load_config.return_value = [
             {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
         ]
+        mock_gcs_git_report.return_value = {'branch': 'main', 'commit': 'abc12345'}
         response = test_client.get("/git-status")
         assert response.status_code == 200
         data = response.json()
@@ -742,6 +744,35 @@ class TestGitStatusEndpoints:
         assert 'synced_count' in data
         assert data['git_status']['1']['commit'] == 'abc12345'
         assert data['git_status']['1']['ip'] == '10.0.0.1'
+        assert data['git_status']['1']['in_sync_with_gcs'] is True
+        assert data['needs_sync_count'] == 0
+
+    @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []},
+        '2': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []}
+    })
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_get_git_status_counts_out_of_sync_with_gcs(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        test_client,
+    ):
+        """GET /git-status should flag clean-but-behind drones as out of sync with GCS."""
+        mock_load_config.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+        mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
+
+        response = test_client.get("/git-status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['synced_count'] == 0
+        assert data['needs_sync_count'] == 2
+        assert data['git_status']['1']['in_sync_with_gcs'] is False
 
     @patch('app_fastapi.get_gcs_git_report')
     def test_get_gcs_git_status(self, mock_report, test_client):
