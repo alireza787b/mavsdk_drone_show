@@ -126,7 +126,7 @@ normalize_github_repo_path() {
 }
 
 enable_non_interactive_without_tty() {
-    if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ ! -r /dev/tty ]]; then
+    if [[ "${NON_INTERACTIVE}" != "true" ]] && ! { [[ -t 0 || -t 1 || -t 2 ]] && : </dev/tty >/dev/null 2>&1; }; then
         NON_INTERACTIVE="true"
     fi
     export NON_INTERACTIVE

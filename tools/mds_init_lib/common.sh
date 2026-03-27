@@ -372,7 +372,7 @@ get_architecture() {
 
 # Returns success when interactive prompting is safe.
 can_prompt() {
-    [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -r /dev/tty ]]
+    [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -t 0 || -t 1 || -t 2 ]] && : </dev/tty >/dev/null 2>&1
 }
 
 # Prompt for input with default value
