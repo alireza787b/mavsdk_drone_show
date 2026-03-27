@@ -54,7 +54,9 @@ const SwarmTrajectory = () => {
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   useEffect(() => {
+    // This screen intentionally boots once, then refreshes from explicit operator actions.
     initializeComponent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const viewModel = useMemo(
