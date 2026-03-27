@@ -18,6 +18,17 @@ _MDS_GCS_ENV_CONFIG_LOADED=1
 readonly GCS_DASHBOARD_ENV_EXAMPLE=".env.example"
 readonly GCS_DASHBOARD_ENV=".env"
 
+get_existing_gcs_env_value() {
+    local key="$1"
+    local env_file="${2:-$GCS_CONFIG_FILE}"
+
+    if [[ ! -f "$env_file" ]]; then
+        return 1
+    fi
+
+    awk -F= -v target="$key" '$1 == target {print substr($0, index($0, "=") + 1); exit}' "$env_file"
+}
+
 # =============================================================================
 # DASHBOARD .env CONFIGURATION
 # =============================================================================
@@ -144,8 +155,33 @@ configure_gcs_env() {
     # Create /etc/mds directory if needed
     mkdir -p "$(dirname "$GCS_CONFIG_FILE")"
 
+    local existing_repo_url=""
+    local existing_repo_branch=""
+    local existing_git_auto_push=""
+    local existing_install_dir=""
+    local config_matches="false"
+
+    if [[ -f "$GCS_CONFIG_FILE" ]]; then
+        existing_repo_url=$(get_existing_gcs_env_value "MDS_REPO_URL" "$GCS_CONFIG_FILE" || true)
+        existing_repo_branch=$(get_existing_gcs_env_value "MDS_BRANCH" "$GCS_CONFIG_FILE" || true)
+        existing_git_auto_push=$(get_existing_gcs_env_value "MDS_GIT_AUTO_PUSH" "$GCS_CONFIG_FILE" || true)
+        existing_install_dir=$(get_existing_gcs_env_value "MDS_INSTALL_DIR" "$GCS_CONFIG_FILE" || true)
+
+        if [[ "$existing_repo_url" == "$repo_url" ]] && \
+           [[ "$existing_repo_branch" == "$repo_branch" ]] && \
+           [[ "$existing_git_auto_push" == "$git_auto_push" ]] && \
+           [[ "$existing_install_dir" == "$install_dir" ]]; then
+            config_matches="true"
+        fi
+    fi
+
     # Check if file exists
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
+        if [[ "$config_matches" == "true" ]]; then
+            log_info "GCS configuration already matches requested repo and branch"
+            return 0
+        fi
+
         if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
             if ! confirm "Reconfigure ${GCS_CONFIG_FILE}?" "n"; then
                 log_info "Keeping existing GCS configuration"
@@ -153,8 +189,8 @@ configure_gcs_env() {
             fi
             backup_file "$GCS_CONFIG_FILE"
         else
-            log_info "Keeping existing GCS configuration (non-interactive mode)"
-            return 0
+            backup_file "$GCS_CONFIG_FILE"
+            log_info "Updating existing GCS configuration to match requested repo and branch"
         fi
     fi
 
