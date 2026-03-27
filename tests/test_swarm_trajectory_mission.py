@@ -22,6 +22,10 @@ async def _stream_once(value):
     yield value
 
 
+async def _stream_once_position(relative_altitude_m):
+    yield types.SimpleNamespace(relative_altitude_m=relative_altitude_m)
+
+
 def _stream_side_effect(values):
     iterator = iter(values)
 
@@ -41,6 +45,27 @@ async def test_wait_for_rtl_completion_returns_after_touchdown_and_disarm():
     drone.telemetry.armed.return_value = _stream_once(False)
 
     await stm.wait_for_rtl_completion(drone)
+
+
+@pytest.mark.asyncio
+async def test_has_reached_initial_climb_altitude_requires_real_height_when_available():
+    drone = MagicMock()
+    drone.telemetry.position.return_value = _stream_once_position(1.0)
+
+    assert await stm._has_reached_initial_climb_altitude(drone, 4.0) is False
+
+
+@pytest.mark.asyncio
+async def test_has_reached_initial_climb_altitude_accepts_missing_telemetry():
+    drone = MagicMock()
+
+    async def _broken_stream():
+        raise RuntimeError("telemetry unavailable")
+        yield  # pragma: no cover
+
+    drone.telemetry.position.return_value = _broken_stream()
+
+    assert await stm._has_reached_initial_climb_altitude(drone, 4.0) is True
 
 
 @pytest.mark.asyncio

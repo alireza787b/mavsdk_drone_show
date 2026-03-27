@@ -504,16 +504,11 @@ async def perform_swarm_trajectory(
                     altitude_condition = time_in_climb >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_TIME
                     height_condition = (time_in_climb * Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED) >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT
 
-                    # Additional safety check: verify actual altitude if possible
-                    actual_altitude_ok = True
-                    try:
-                        async for position in drone.telemetry.position():
-                            current_alt = position.relative_altitude_m
-                            if current_alt >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT * 0.8:  # 80% of target
-                                actual_altitude_ok = True
-                            break
-                    except Exception:
-                        pass  # Continue with time-based climb if altitude unavailable
+                    # Additional safety check: verify actual altitude when telemetry is available.
+                    actual_altitude_ok = await _has_reached_initial_climb_altitude(
+                        drone,
+                        Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT * 0.8,
+                    )
 
                     in_initial_climb = not (altitude_condition and height_condition and actual_altitude_ok)
 
@@ -1390,6 +1385,27 @@ async def _get_current_relative_altitude(drone: System, timeout: float = 3.0):
         except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
             break
     return None
+
+
+async def _has_reached_initial_climb_altitude(
+    drone: System,
+    minimum_relative_altitude_m: float,
+) -> bool:
+    """
+    Confirm the aircraft has actually climbed before leaving the takeoff phase.
+
+    If telemetry is unavailable, fall back to the existing time-based guard.
+    If a real sample is available, it must satisfy the minimum relative altitude.
+    """
+    try:
+        async for position in drone.telemetry.position():
+            current_alt = getattr(position, "relative_altitude_m", None)
+            if current_alt is None:
+                return True
+            return float(current_alt) >= float(minimum_relative_altitude_m)
+    except Exception:
+        return True
+    return True
 
 
 def _get_local_drone_state_snapshot(timeout: float = 1.0):
