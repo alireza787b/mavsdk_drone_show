@@ -798,14 +798,6 @@ const TrajectoryPlanning = () => {
     }
   }, [setOperationNotice, trajectoryName]);
 
-  const handleOpenSwarmTrajectory = useCallback(() => {
-    navigate('/swarm-trajectory');
-  }, [navigate]);
-
-  const handleOpenSwarmDesign = useCallback(() => {
-    navigate('/swarm-design');
-  }, [navigate]);
-
   // Scene mode handling
   const handleSceneModeChange = useCallback((mode) => {
     setSceneMode(mode);
