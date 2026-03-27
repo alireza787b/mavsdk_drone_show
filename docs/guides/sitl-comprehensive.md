@@ -9,18 +9,18 @@ Welcome to the MDS Simulation Server Setup Guide. This is the validated first-ru
 >
 > This guide is the official quick-start for evaluation, demos, and repeatable SITL validation on a clean server.
 > For custom images, fork maintenance, or customer-specific redistribution, use [Advanced SITL Configuration](advanced-sitl.md) and [SITL Custom Release Workflow](sitl-custom-release-workflow.md).
+>
+> Advanced customization and real-hardware deployment require solid PX4/Linux/networking knowledge plus licensing, regulatory, and operational review. For private assistance or deployment consulting, contact [Alireza on LinkedIn](https://www.linkedin.com/in/alireza787b/) or [p30planets@gmail.com](mailto:p30planets@gmail.com).
 
-This document provides a complete, all-in-one framework for setting up and running either:
-- **Decentralized Drone Shows** (offline, pre-planned trajectories), and
-- **Live, Cooperative Swarm Missions** (real-time, leader–follower clustering with dynamic role changes).
+This same stack also powers multiple operator modes. Use this SITL guide first, then branch into the mode-specific docs you need:
 
-MDS 5.0 is built on the [`mavsdk_drone_show`](https://github.com/alireza787b/mavsdk_drone_show) repository. It supports:
-- **Offline Choreography Modes:** Preload "ShowMode" trajectory files (e.g., Spiral, Wave, Heart) that every drone executes in sync.
-- **Real-Time Swarm Mode:** A clustered leader–follower architecture with smart leader-failure handling, automatic leader re-election, dynamic formation reshuffling, and per-drone role changes on the fly.
+- **[Drone Show](../features/drone-show.md)** for SkyBrush ZIP import, show processing, and synchronized launch control
+- **[Smart Swarm](../features/smart-swarm.md)** for live leader-follower runtime operations
+- **[Swarm Trajectory](../features/swarm-trajectory.md)** for cluster trajectory generation and analysis
+- **[QuickScout](../quickscout.md)** for SAR / recon planning and mission execution
+- Additional modes may be added over time; new audited guides should appear in the [Documentation Index](../README.md)
 
-In other words, you can use the **same system** either to run an elaborate, pre-programmed drone-show performance or to orchestrate a live, fully decentralized cooperative mission, with robust startup sequencing and local offboard formation control over a shared reference frame.
-
-For a step-by-step walkthrough beginning with version 0.1, see our YouTube tutorial playlist linked in the [GitHub repository](https://github.com/alireza787b/mavsdk_drone_show).
+For a step-by-step walkthrough beginning with version 0.1, use the [project YouTube playlist](https://www.youtube.com/watch?v=dg5jyhV15S8&list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk&pp=sAgC).
 
 
 ## Watch the Setup Video
@@ -86,7 +86,7 @@ ssh root@your_server_ip
 
 ### Package and Software Installation
 
-First, install the base packages required for the SITL workflow, then install the official `MEGAcmd` Ubuntu package from MEGA so download and release operations use one consistent client:
+First, install the base packages required for the SITL workflow, then install the official `MEGAcmd` Ubuntu package from MEGA so downloads and archive operations use one consistent client:
 
 ```bash
 sudo apt update
@@ -98,7 +98,7 @@ sudo apt install -y /tmp/megacmd-xUbuntu_24.04_amd64.deb
 
 #### Downloading the Official SITL Docker Image
 
-The current SITL image is **not** published in GitHub Releases yet. For now, download the compressed archive from Mega, validate it, extract it locally, then load the resulting tar into Docker.
+The current SITL image is **temporarily** distributed from MEGA rather than GitHub Releases. If you prefer, you can also download the same `.7z` archive manually in a browser on the same machine, then continue with the exact same `7z` and `docker load` steps below.
 
 The public archive keeps one stable filename:
 - `mavsdk-drone-show-sitl-image.7z`
@@ -120,15 +120,10 @@ After extraction you should have:
 - `mavsdk-drone-show-sitl-image.tar` - Docker image tar produced by `7z`
 
 > **Notes**
-> - This guide now standardizes on the official `MEGAcmd` client for both public downloads and authenticated archive operations.
-> - The Ubuntu 24.04 package path above is the official MEGA Linux package for this platform, installed through `apt` so it stays package-managed.
-> - If Mega free-tier throttling or temporary limits block the public download, sign in and retry:
->   ```bash
->   mega-login 'you@example.com' 'your-password'
->   mega-get 'https://mega.nz/file/qewEgKDZ#KHah4cc_2zjLTEnHAGQuGF5sNlQ0K8de-3Uf_6w6a4I' .
->   ```
-> - The public Mega link may change over time, but the archive filename stays stable so the local commands do not.
-> - If the image is ever hosted on a browser-first provider again, a practical fallback is to start the download in the browser, copy the resolved direct file URL, and then fetch it with `wget`.
+> - This guide standardizes on the official `MEGAcmd` client for both public downloads and authenticated archive operations.
+> - If you already downloaded the `.7z` in a browser, skip `mega-get` and continue with `7z t`, `7z x`, and `docker load`.
+> - If MEGA free-tier throttling blocks the public download, sign in and retry with `mega-login`.
+> - The public link may change over time, but the archive filename stays stable.
 > - The official HTTPS/demo bootstrap path keeps `MDS_GIT_AUTO_PUSH=false` by default, so first-time imports/config saves stay clean on read-only evaluation setups.
 
 ### Docker Installation

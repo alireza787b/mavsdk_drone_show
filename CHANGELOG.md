@@ -17,7 +17,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - SITL runtime and SITL image preparation now prefer file-backed private GitHub auth via `MDS_GIT_AUTH_TOKEN_FILE`, so private mutable SITL and private custom-image builds avoid exposing raw tokens in process arguments while keeping `MDS_GIT_AUTH_TOKEN` as a legacy fallback
   - fresh headless GCS startup is now robust when Node.js was installed via `nvm`, because the launcher discovers the Node toolchain explicitly and uses absolute `uvicorn` / `gunicorn` / `npm` paths inside tmux panes instead of depending on inherited shell PATH state
   - SITL image preparation and live SITL runtime no longer blank the repo URL when authenticated GitHub HTTPS is unavailable, and official/custom image builds now stop immediately if runtime filesystem preparation fails instead of flattening a partial container
-  - the official public SITL archive was rebuilt from the corrected release flow, republished on MEGA, and re-linked in the SITL guide after validation on a fresh Hetzner host
+- the official public SITL archive was rebuilt from the corrected release flow, republished on MEGA, and re-linked in the SITL guide after validation on a fresh Hetzner host
+- dashboard runtime freshness now uses a server-derived telemetry clock hint instead of blindly trusting the operator browser clock, so fresh remote SITL sessions no longer show false stale-link readiness states just because the client clock is skewed
+- drone readiness cards now preserve a recent PX4 readiness snapshot as a warning-only link issue instead of immediately flipping the whole card to `Unverified`, so low-bandwidth or briefly delayed telemetry is shown more cleanly for operators
+- the Custom CSV page now uses the served image endpoint directly instead of a cross-origin `fetch()` blob path, which removes the false preview error caused by browser CORS on `:3030 -> :5000`
+- drone card position-ID comparison now normalizes numeric/string values before flagging a mismatch, so matching IDs no longer show a false warning icon
 
 ### Added
 - **Custom Repo Workflow Guide**:
@@ -85,6 +89,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - fresh-host setup guides now include the missing `curl` prerequisite for the one-line GCS bootstrap and explicitly note the validated headless `/health` readiness check after launch
 - SITL archive docs now standardize on the official `MEGAcmd` client installed through MEGA's Ubuntu package and `apt`, so public downloads and authenticated archive replacement use one consistent toolchain
 - the official public SITL archive was refreshed again from the exact validated branch state and re-exported on MEGA with baked commit `f55a65b`
+- the SITL guide now points directly to the YouTube playlist, trims repeated Mega wording, clarifies that manual browser download of the same archive is acceptable on local systems, and adds a stronger advanced/custom/hardware caution with direct contact info
 - Drone Show now separates the tracked stock SITL demo origin (`data/origin.sitl.default.json`) from the mutable runtime origin override (`data/origin.json`), and the stock Azadi Stadium default is shared by both GCS origin fallback and `startup_sitl.sh`
 - The shipped SITL Drone Show bundle now matches the stock 5-drone SITL config end-to-end, and packaged Drone Show metrics were refreshed so stock assets no longer drift from config
 - Superseded running Drone Show missions now report a terminal execution result back to GCS instead of leaving command tracking stuck in `executing`

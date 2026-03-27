@@ -75,6 +75,8 @@ If you need your own fork, custom image, or a pinned redistribution workflow, do
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)**
 - **[SITL Custom Release Workflow](docs/guides/sitl-custom-release-workflow.md)**
 
+These advanced and real-hardware paths require stronger PX4/Linux/networking knowledge plus licensing, regulatory, and operational review. If you need private assistance or deployment consulting, contact [Alireza on LinkedIn](https://www.linkedin.com/in/alireza787b/) or [p30planets@gmail.com](mailto:p30planets@gmail.com).
+
 ## More Guides
 
 - **[Advanced SITL Guide](docs/guides/advanced-sitl.md)** for custom runtime env vars, mutable boot-sync behavior, and debug-oriented SITL tuning

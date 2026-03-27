@@ -114,7 +114,8 @@ const DroneWidget = ({
   };
 
   // Position ID validation
-  const posId = drone[FIELD_NAMES.POS_ID] ?? 'N/A';
+  const posIdRaw = drone[FIELD_NAMES.POS_ID];
+  const posId = posIdRaw === undefined || posIdRaw === null ? 'N/A' : String(posIdRaw);
   const detectedPosRaw = drone[FIELD_NAMES.DETECTED_POS_ID];
   const detectedPosId = detectedPosRaw === undefined ? 'N/A' : String(detectedPosRaw);
   const isAutoDetectZero = detectedPosId === '0';

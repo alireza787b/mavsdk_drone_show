@@ -77,13 +77,13 @@ function buildRuntimeBrief(targetDrones = []) {
 
 const SwarmRuntimeControls = ({
   viewModel,
-  selectedDroneId,
-  selectedClusterId,
-  dirtyIds,
-  pendingSyncIds,
-  telemetryById,
-  onReviewSelection,
-  onOpenMissionConfig,
+  selectedDroneId = null,
+  selectedClusterId = null,
+  dirtyIds = [],
+  pendingSyncIds = [],
+  telemetryById = {},
+  onReviewSelection = null,
+  onOpenMissionConfig = null,
 }) => {
   const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
   const [pendingActionKey, setPendingActionKey] = useState(null);
@@ -376,16 +376,6 @@ SwarmRuntimeControls.propTypes = {
   telemetryById: PropTypes.object,
   onReviewSelection: PropTypes.func,
   onOpenMissionConfig: PropTypes.func,
-};
-
-SwarmRuntimeControls.defaultProps = {
-  selectedDroneId: null,
-  selectedClusterId: null,
-  dirtyIds: [],
-  pendingSyncIds: [],
-  telemetryById: {},
-  onReviewSelection: null,
-  onOpenMissionConfig: null,
 };
 
 export default SwarmRuntimeControls;

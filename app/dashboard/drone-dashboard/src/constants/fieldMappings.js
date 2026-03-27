@@ -72,6 +72,57 @@ export const FIELD_NAMES = {
   HEARTBEAT_NETWORK_INFO: 'heartbeat_network_info',
 };
 
+export const DRONE_RUNTIME_CLOCK_PROP = '__runtimeClock';
+
+const UNIX_MS_THRESHOLD = 1_000_000_000_000;
+
+function normalizeRuntimeTimestampMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  if (numeric >= UNIX_MS_THRESHOLD) {
+    return numeric;
+  }
+
+  return numeric * 1000;
+}
+
+function getRuntimeClockReferenceMs(droneData) {
+  if (!droneData || typeof droneData !== 'object') {
+    return null;
+  }
+
+  const telemetryTimestampMs = normalizeRuntimeTimestampMs(droneData.timestamp ?? droneData.update_time);
+  const heartbeatTimestampMs = normalizeRuntimeTimestampMs(droneData.heartbeat_last_seen);
+
+  return Math.max(telemetryTimestampMs ?? 0, heartbeatTimestampMs ?? 0) || null;
+}
+
+export function attachDroneRuntimeClock(droneData, receivedAtMs = Date.now()) {
+  if (!droneData || typeof droneData !== 'object') {
+    return droneData;
+  }
+
+  const referenceTimestampMs = getRuntimeClockReferenceMs(droneData);
+  if (!referenceTimestampMs) {
+    return droneData;
+  }
+
+  Object.defineProperty(droneData, DRONE_RUNTIME_CLOCK_PROP, {
+    value: {
+      referenceTimestampMs,
+      receivedAtMs,
+    },
+    configurable: true,
+    writable: true,
+    enumerable: false,
+  });
+
+  return droneData;
+}
+
 /**
  * Normalize drone telemetry data from any format to FastAPI snake_case
  *
@@ -172,9 +223,10 @@ export function normalizeTelemetryResponse(telemetryResponse) {
   }
 
   const normalized = {};
+  const receivedAtMs = Date.now();
 
   for (const [droneId, droneData] of Object.entries(telemetryResponse)) {
-    normalized[droneId] = normalizeDroneData(droneData);
+    normalized[droneId] = attachDroneRuntimeClock(normalizeDroneData(droneData), receivedAtMs);
   }
 
   return normalized;

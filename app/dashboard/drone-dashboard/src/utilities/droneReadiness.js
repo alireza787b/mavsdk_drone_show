@@ -1,4 +1,5 @@
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getDroneReferenceNowMs } from './droneRuntimeStatus';
 
 const STATUS_LABELS = {
   ready: 'Ready to Fly',
@@ -6,6 +7,7 @@ const STATUS_LABELS = {
   warning: 'Review Warnings',
   unknown: 'Unverified',
 };
+const READINESS_SNAPSHOT_GRACE_THRESHOLD_MS = 90_000;
 
 function normalizeMessages(messages) {
   if (!Array.isArray(messages)) {
@@ -50,7 +52,7 @@ function dedupeMessages(messages) {
   });
 }
 
-function getAvailabilityGuard(runtimeStatus) {
+function getAvailabilityGuard(runtimeStatus, canUseLastSnapshot = false) {
   if (!runtimeStatus || runtimeStatus.level === 'online') {
     return null;
   }
@@ -59,7 +61,9 @@ function getAvailabilityGuard(runtimeStatus) {
     return {
       source: 'link',
       severity: 'warning',
-      message: 'Telemetry is delayed. Readiness cannot be trusted until live telemetry returns.',
+      message: canUseLastSnapshot
+        ? 'Telemetry is delayed. Showing the last readiness snapshot until live telemetry returns.'
+        : 'Telemetry is delayed. Readiness cannot be trusted until live telemetry returns.',
       timestamp: Date.now(),
     };
   }
@@ -67,9 +71,25 @@ function getAvailabilityGuard(runtimeStatus) {
   return {
     source: 'link',
     severity: 'error',
-    message: 'Telemetry link is stale or lost. Readiness is currently unavailable.',
+    message: canUseLastSnapshot
+      ? 'Telemetry link is stale or lost. Showing the last readiness snapshot; verify the link before launch.'
+      : 'Telemetry link is stale or lost. Readiness is currently unavailable.',
     timestamp: Date.now(),
   };
+}
+
+function hasFreshReadinessSnapshot(drone, runtimeStatus) {
+  const lastUpdateMs = Number(drone?.[FIELD_NAMES.PREFLIGHT_LAST_UPDATE]) || null;
+  if (!lastUpdateMs) {
+    return false;
+  }
+
+  const referenceNowMs = getDroneReferenceNowMs(drone, Date.now());
+  if (runtimeStatus?.level === 'online') {
+    return true;
+  }
+
+  return referenceNowMs - lastUpdateMs <= READINESS_SNAPSHOT_GRACE_THRESHOLD_MS;
 }
 
 export function getDroneReadinessModel(drone, runtimeStatus = null) {
@@ -92,26 +112,34 @@ export function getDroneReadinessModel(drone, runtimeStatus = null) {
   );
   let summary = drone?.[FIELD_NAMES.READINESS_SUMMARY]
     || (status === 'ready' ? 'Ready to fly' : 'Preflight checks are not complete.');
+  let visibleBlockers = blockers;
+  let visibleWarnings = warnings;
 
-  const availabilityGuard = getAvailabilityGuard(runtimeStatus);
+  const canUseLastSnapshot = hasFreshReadinessSnapshot(drone, runtimeStatus) && status !== 'unknown';
+  const availabilityGuard = getAvailabilityGuard(runtimeStatus, canUseLastSnapshot);
   if (availabilityGuard) {
-    status = 'unknown';
-    summary = availabilityGuard.message;
+    if (canUseLastSnapshot) {
+      visibleWarnings = dedupeMessages([availabilityGuard, ...warnings])
+        .sort((left, right) => right.timestamp - left.timestamp);
+    } else {
+      status = 'unknown';
+      summary = availabilityGuard.message;
+      visibleBlockers = [availabilityGuard, ...blockers];
+    }
   }
 
-  const visibleBlockers = availabilityGuard ? [availabilityGuard, ...blockers] : blockers;
-  const issueCount = visibleBlockers.length + warnings.length;
+  const issueCount = visibleBlockers.length + visibleWarnings.length;
 
   return {
     status,
     summary,
     statusLabel: STATUS_LABELS[status] || STATUS_LABELS.unknown,
     blockers: visibleBlockers,
-    warnings,
+    warnings: visibleWarnings,
     recentMessages,
     checks,
     issueCount,
-    isReady: status === 'ready' && issueCount === 0,
+    isReady: status === 'ready' && visibleBlockers.length === 0,
     updatedAt: Number(drone?.[FIELD_NAMES.PREFLIGHT_LAST_UPDATE]) || null,
   };
 }

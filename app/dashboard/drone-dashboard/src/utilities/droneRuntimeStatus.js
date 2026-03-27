@@ -1,5 +1,8 @@
+import { DRONE_RUNTIME_CLOCK_PROP } from '../constants/fieldMappings';
+
 const LIVE_TELEMETRY_THRESHOLD_MS = 7_000;
 const HEARTBEAT_GRACE_THRESHOLD_MS = 25_000;
+const CLIENT_CLOCK_SKEW_TOLERANCE_MS = 30_000;
 const MS_PER_SECOND = 1_000;
 const UNIX_MS_THRESHOLD = 1_000_000_000_000;
 
@@ -32,16 +35,39 @@ function formatAge(ageSeconds, label) {
   return `${label}: ${ageSeconds}s ago`;
 }
 
+export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
+  const runtimeClock = drone?.[DRONE_RUNTIME_CLOCK_PROP];
+  if (!runtimeClock) {
+    return nowMs;
+  }
+
+  const referenceTimestampMs = Number(runtimeClock.referenceTimestampMs);
+  const receivedAtMs = Number(runtimeClock.receivedAtMs);
+  if (!Number.isFinite(referenceTimestampMs) || !Number.isFinite(receivedAtMs)) {
+    return nowMs;
+  }
+
+  const elapsedMs = Math.max(0, nowMs - receivedAtMs);
+  const calibratedNowMs = referenceTimestampMs + elapsedMs;
+
+  if (Math.abs(nowMs - calibratedNowMs) > CLIENT_CLOCK_SKEW_TOLERANCE_MS) {
+    return calibratedNowMs;
+  }
+
+  return nowMs;
+}
+
 export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
+  const referenceNowMs = getDroneReferenceNowMs(drone, nowMs);
   const telemetryTimestamp = normalizeTimestampMs(drone?.timestamp ?? drone?.update_time);
   const heartbeatTimestamp = normalizeTimestampMs(drone?.heartbeat_last_seen);
-  const telemetryAgeSec = toAgeSeconds(nowMs, telemetryTimestamp);
-  const heartbeatAgeSec = toAgeSeconds(nowMs, heartbeatTimestamp);
+  const telemetryAgeSec = toAgeSeconds(referenceNowMs, telemetryTimestamp);
+  const heartbeatAgeSec = toAgeSeconds(referenceNowMs, heartbeatTimestamp);
 
   const hasLiveTelemetry =
-    telemetryTimestamp !== null && nowMs - telemetryTimestamp <= LIVE_TELEMETRY_THRESHOLD_MS;
+    telemetryTimestamp !== null && referenceNowMs - telemetryTimestamp <= LIVE_TELEMETRY_THRESHOLD_MS;
   const hasRecentHeartbeat =
-    heartbeatTimestamp !== null && nowMs - heartbeatTimestamp <= HEARTBEAT_GRACE_THRESHOLD_MS;
+    heartbeatTimestamp !== null && referenceNowMs - heartbeatTimestamp <= HEARTBEAT_GRACE_THRESHOLD_MS;
 
   if (hasLiveTelemetry) {
     return {

@@ -1,3 +1,4 @@
+import { DRONE_RUNTIME_CLOCK_PROP } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
 
 describe('droneRuntimeStatus', () => {
@@ -39,5 +40,47 @@ describe('droneRuntimeStatus', () => {
 
     expect(status.level).toBe('unknown');
     expect(status.label).toBe('Waiting for link');
+  });
+
+  test('uses the runtime clock hint when the client clock is badly skewed', () => {
+    const telemetryTimestamp = 1_700_000_000_000;
+    const receivedAtMs = 1_800_000_000_000;
+    const drone = {
+      timestamp: telemetryTimestamp,
+      heartbeat_last_seen: telemetryTimestamp - 1_000,
+    };
+
+    Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP, {
+      value: {
+        referenceTimestampMs: telemetryTimestamp,
+        receivedAtMs,
+      },
+      enumerable: false,
+    });
+
+    const status = getDroneRuntimeStatus(drone, receivedAtMs);
+    expect(status.level).toBe('online');
+    expect(status.label).toBe('Live telemetry');
+  });
+
+  test('still ages out to offline when time elapses after the runtime clock hint', () => {
+    const telemetryTimestamp = 1_700_000_000_000;
+    const receivedAtMs = 1_800_000_000_000;
+    const drone = {
+      timestamp: telemetryTimestamp,
+      heartbeat_last_seen: telemetryTimestamp,
+    };
+
+    Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP, {
+      value: {
+        referenceTimestampMs: telemetryTimestamp,
+        receivedAtMs,
+      },
+      enumerable: false,
+    });
+
+    const status = getDroneRuntimeStatus(drone, receivedAtMs + 40_000);
+    expect(status.level).toBe('offline');
+    expect(status.label).toBe('Link lost');
   });
 });
