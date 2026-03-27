@@ -163,6 +163,22 @@ class SwarmSessionManager:
             logger.error(f"Failed to get uploaded leaders: {e}")
             return []
 
+    def get_expected_top_leaders(self) -> List[int]:
+        """Get current top-level leader IDs from swarm configuration."""
+        try:
+            swarm_data = fetch_swarm_data()
+            leaders = []
+            for drone in swarm_data:
+                try:
+                    if int(drone.get('follow', -1)) == 0:
+                        leaders.append(int(drone.get('hw_id')))
+                except (TypeError, ValueError):
+                    continue
+            return sorted(leaders)
+        except Exception as e:
+            logger.error(f"Failed to determine expected top leaders: {e}")
+            return []
+
     def detect_changes(self) -> Dict[str, Any]:
         """Detect what has changed since last processing session"""
         current_session = self.get_current_session()
@@ -256,6 +272,9 @@ class SwarmSessionManager:
         """Get smart recommendation for processing approach"""
         changes = self.detect_changes()
         uploaded_leaders = self.get_uploaded_leaders()
+        expected_top_leaders = self.get_expected_top_leaders()
+        missing_uploaded_leaders = sorted(set(expected_top_leaders) - set(uploaded_leaders))
+        orphan_uploaded_leaders = sorted(set(uploaded_leaders) - set(expected_top_leaders))
 
         recommendation = {
             'action': 'unknown',
@@ -263,7 +282,11 @@ class SwarmSessionManager:
             'details': [],
             'requires_confirmation': False,
             'uploaded_count': len(uploaded_leaders),
-            'changes': changes
+            'changes': changes,
+            'expected_top_leaders': expected_top_leaders,
+            'uploaded_leaders': uploaded_leaders,
+            'missing_uploaded_leaders': missing_uploaded_leaders,
+            'orphan_uploaded_leaders': orphan_uploaded_leaders,
         }
 
         if not uploaded_leaders:

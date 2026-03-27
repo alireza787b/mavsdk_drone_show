@@ -92,34 +92,46 @@ export const getSwarmClusterStatus = async () => {
           leader_id: cluster.leader_id,
           follower_ids: cluster.follower_ids || leadersData.follower_details?.[cluster.leader_id] || [],
           follower_count: cluster.follower_count ?? (cluster.follower_ids || []).length,
+          expected_drone_count: cluster.expected_drone_count ?? 1 + (cluster.follower_count ?? 0),
+          processed_drone_count: cluster.processed_drone_count ?? 0,
           has_trajectory: Boolean(cluster.ready),
           ready: Boolean(cluster.ready),
+          state: cluster.state || (cluster.ready ? 'ready' : cluster.leader_uploaded ? 'needs_processing' : 'missing_upload'),
           leader_uploaded: Boolean(cluster.leader_uploaded),
           leader_processed: Boolean(cluster.leader_processed),
           missing_follower_ids: cluster.missing_follower_ids || [],
           processed_follower_ids: cluster.processed_follower_ids || [],
           leader_plot_available: Boolean(cluster.leader_plot_available),
           cluster_plot_available: Boolean(cluster.cluster_plot_available),
+          issues: cluster.issues || [],
+          advisories: cluster.advisories || [],
         }))
       : leadersData.leaders.map(leaderId => ({
           leader_id: leaderId,
           follower_ids: leadersData.follower_details?.[leaderId] || [],
           follower_count: leadersData.hierarchies[leaderId] || 0,
+          expected_drone_count: 1 + (leadersData.hierarchies[leaderId] || 0),
+          processed_drone_count: 0,
           has_trajectory: leadersData.uploaded_leaders.includes(leaderId) && statusData.status.processed_trajectories > 0,
           ready: leadersData.uploaded_leaders.includes(leaderId) && statusData.status.processed_trajectories > 0,
+          state: leadersData.uploaded_leaders.includes(leaderId) ? 'needs_processing' : 'missing_upload',
           leader_uploaded: leadersData.uploaded_leaders.includes(leaderId),
           leader_processed: statusData.status.processed_leaders?.includes?.(leaderId) || false,
           missing_follower_ids: [],
           processed_follower_ids: [],
           leader_plot_available: false,
           cluster_plot_available: false,
+          issues: [],
+          advisories: [],
         }));
 
     return {
       clusters,
       total_leaders: leadersData.leaders.length,
       total_followers: clusters.reduce((sum, cluster) => sum + cluster.follower_count, 0),
-      processed_trajectories: statusData.status.processed_trajectories || 0
+      processed_trajectories: statusData.status.processed_trajectories || 0,
+      overall_state: statusData.status.cluster_summary?.overall_state || 'unknown',
+      cluster_summary: statusData.status.cluster_summary || null,
     };
   } catch (error) {
     throw error;

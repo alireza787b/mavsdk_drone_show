@@ -5,6 +5,7 @@ Swarm trajectory service tests.
 from pathlib import Path
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
 from functions.swarm_analyzer import fetch_swarm_data
@@ -129,6 +130,7 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
 
     monkeypatch.setattr('functions.swarm_trajectory_service.get_swarm_trajectory_folders', lambda: folders)
     monkeypatch.setattr('functions.swarm_trajectory_service._load_swarm_structure', lambda: structure)
+    monkeypatch.setattr('functions.swarm_session_manager.get_swarm_trajectory_folders', lambda: folders)
 
     payload = get_processing_status_payload()
     status = payload['status']
@@ -136,6 +138,16 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert status['processed_trajectories'] == 2
     assert status['has_results'] is True
     assert status['plots_available'] is False
+    assert status['expected_top_leaders'] == [1, 5]
+    assert status['uploaded_leaders'] == [1]
+    assert status['missing_uploaded_leaders'] == [5]
+    assert status['orphan_uploaded_leaders'] == []
+    assert status['cluster_summary']['cluster_count'] == 2
+    assert status['cluster_summary']['ready_cluster_count'] == 0
+    assert status['cluster_summary']['partial_output_cluster_count'] == 1
+    assert status['cluster_summary']['missing_upload_cluster_count'] == 1
+    assert status['cluster_summary']['overall_state'] == 'partial'
+    assert status['session']['exists'] is False
 
     clusters = {cluster['leader_id']: cluster for cluster in status['clusters']}
     assert clusters[1]['leader_uploaded'] is True
@@ -143,11 +155,50 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert clusters[1]['processed_follower_ids'] == [2]
     assert clusters[1]['missing_follower_ids'] == [3]
     assert clusters[1]['ready'] is False
+    assert clusters[1]['state'] == 'partial_outputs'
+    assert clusters[1]['expected_drone_count'] == 3
+    assert clusters[1]['processed_drone_count'] == 2
+    assert clusters[1]['issues']
 
     assert clusters[5]['leader_uploaded'] is False
     assert clusters[5]['leader_processed'] is False
     assert clusters[5]['missing_follower_ids'] == [6]
     assert clusters[5]['ready'] is False
+    assert clusters[5]['state'] == 'missing_upload'
+    assert clusters[5]['issues']
+
+
+def test_session_manager_recommendation_includes_expected_and_missing_leader_truth(monkeypatch, tmp_path):
+    """Recommendations should expose expected/uploaded/missing leader IDs for the UI."""
+    folders = {
+        'base': str(tmp_path),
+        'raw': str(tmp_path / 'raw'),
+        'processed': str(tmp_path / 'processed'),
+        'plots': str(tmp_path / 'plots'),
+    }
+    for directory in folders.values():
+        Path(directory).mkdir(parents=True, exist_ok=True)
+
+    swarm_data = [
+        {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': 5, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': 2, 'follow': 1, 'offset_x': 1, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+    ]
+
+    monkeypatch.setattr('functions.swarm_session_manager.get_swarm_trajectory_folders', lambda: folders)
+    monkeypatch.setattr('functions.swarm_session_manager.fetch_swarm_data', lambda: swarm_data)
+
+    raw_file = Path(folders['raw']) / 'Drone 1.csv'
+    raw_file.write_text('leader-1', encoding='utf-8')
+
+    manager = SwarmSessionManager()
+    recommendation = manager.get_processing_recommendation()
+
+    assert recommendation['expected_top_leaders'] == [1, 5]
+    assert recommendation['uploaded_leaders'] == [1]
+    assert recommendation['missing_uploaded_leaders'] == [5]
+    assert recommendation['orphan_uploaded_leaders'] == []
+    assert recommendation['action'] == 'recommended_full_reprocess'
 
 
 def test_process_swarm_trajectories_reports_auto_reloaded_leaders(monkeypatch):
@@ -177,3 +228,85 @@ def test_process_swarm_trajectories_reports_auto_reloaded_leaders(monkeypatch):
     assert result['success'] is True
     assert result['available_leaders'] == [1, 5]
     assert result['auto_reloaded'] == [5]
+
+
+def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_incomplete(monkeypatch, tmp_path):
+    """Processing should report partial outcome when expected drones are not fully generated."""
+
+    folders = {
+        'base': str(tmp_path),
+        'raw': str(tmp_path / 'raw'),
+        'processed': str(tmp_path / 'processed'),
+        'plots': str(tmp_path / 'plots'),
+    }
+    for directory in folders.values():
+        Path(directory).mkdir(parents=True, exist_ok=True)
+
+    swarm_structure = {
+        'top_leaders': [1, 5],
+        'hierarchies': {1: [2], 5: [6]},
+    }
+
+    swarm_rows = [
+        {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': 2, 'follow': 1, 'offset_x': 1, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': 5, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+        {'hw_id': 6, 'follow': 5, 'offset_x': 1, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+    ]
+
+    class FakeSessionManager:
+        def create_processing_session(self, processed_leaders, total_drones):
+            return type('Session', (), {'session_id': 'sess-1'})()
+
+    trajectory_df = pd.DataFrame([{
+        't': 0.0,
+        'lat': 35.0,
+        'lon': 51.0,
+        'alt': 1200.0,
+        'vx': 0.0,
+        'vy': 0.0,
+        'vz': 0.0,
+        'ax': 0.0,
+        'ay': 0.0,
+        'az': 0.0,
+        'yaw': 0.0,
+        'mode': 70,
+        'ledr': 255,
+        'ledg': 0,
+        'ledb': 0,
+    }])
+
+    monkeypatch.setattr(swarm_trajectory_processor, 'get_swarm_trajectory_folders', lambda: folders)
+    monkeypatch.setattr(swarm_trajectory_processor, 'ensure_directory_exists', lambda directory: None)
+    monkeypatch.setattr(swarm_trajectory_processor, 'analyze_swarm_structure', lambda: swarm_structure)
+    monkeypatch.setattr(swarm_trajectory_processor, 'load_leader_trajectories', lambda raw_dir, valid_leaders: {1: pd.DataFrame([{
+        'Name': 'WP1',
+        'Latitude': 35.0,
+        'Longitude': 51.0,
+        'Altitude_MSL_m': 1200.0,
+        'TimeFromStart_s': 0.0,
+        'EstimatedSpeed_ms': 5.0,
+        'Heading_deg': 0.0,
+        'HeadingMode': 'auto',
+    }])})
+    monkeypatch.setattr(swarm_trajectory_processor, 'calculate_formation_origin', lambda leader_trajectories: {'lat': 35.0, 'lon': 51.0, 'alt': 1200.0})
+    monkeypatch.setattr(swarm_trajectory_processor, 'fetch_swarm_data', lambda: swarm_rows)
+    monkeypatch.setattr(swarm_trajectory_processor, 'smooth_trajectory_with_waypoints', lambda waypoints_df: trajectory_df.copy())
+    monkeypatch.setattr(swarm_trajectory_processor, 'calculate_follower_trajectory', lambda leader_trajectory, drone_config, formation_origin: trajectory_df.copy())
+    monkeypatch.setattr(swarm_trajectory_processor, 'save_drone_trajectory', lambda hw_id, trajectory, processed_dir: None)
+    monkeypatch.setattr(swarm_trajectory_processor, 'generate_swarm_plots', lambda all_trajectories, structure, plots_dir: None)
+
+    result = swarm_trajectory_processor._execute_trajectory_processing(
+        available_leaders=[1],
+        session_manager=FakeSessionManager(),
+        recommendation={'action': 'safe_incremental'},
+        reloaded_leaders=[],
+    )
+
+    assert result['success'] is True
+    assert result['outcome'] == 'partial'
+    assert result['processed_drone_list'] == [1, 2]
+    assert result['expected_drone_list'] == [1, 2, 5, 6]
+    assert result['skipped_drone_ids'] == [5, 6]
+    assert result['missing_leaders'] == [5]
+    assert 'Some clusters still need attention before launch' in result['message']

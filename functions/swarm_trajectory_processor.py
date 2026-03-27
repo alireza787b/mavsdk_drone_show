@@ -357,6 +357,8 @@ def _execute_trajectory_processing(
                 processing_stats['errors'] += 1
                 continue
 
+        expected_drone_ids = sorted(int(drone_row["hw_id"]) for _, drone_row in swarm_df.iterrows())
+
         # Step 5: Generate plots
         logger.info("Generating visualization plots...")
         generate_swarm_plots(all_trajectories, swarm_structure, folders['plots'])
@@ -365,13 +367,28 @@ def _execute_trajectory_processing(
         total_processed = processing_stats['leaders'] + processing_stats['followers']
         processed_leaders = list(leader_trajectories.keys())
         session = session_manager.create_processing_session(processed_leaders, total_processed)
+        processed_drone_ids = sorted(all_trajectories.keys())
+        skipped_drone_ids = sorted(set(expected_drone_ids) - set(processed_drone_ids))
+        outcome = 'success'
+        if missing_leaders or processing_stats['errors'] > 0 or skipped_drone_ids:
+            outcome = 'partial'
+        message = (
+            f"Processed {total_processed}/{len(expected_drone_ids)} drones "
+            f"({processing_stats['leaders']} leaders, {processing_stats['followers']} followers)."
+        )
+        if outcome == 'partial':
+            message += " Some clusters still need attention before launch."
 
         logger.info(f"Processing complete: {total_processed} drones processed ({processing_stats['leaders']} leaders, {processing_stats['followers']} followers, {processing_stats['errors']} errors)")
 
         return {
             'success': True,
+            'outcome': outcome,
+            'message': message,
             'processed_drones': total_processed,
-            'processed_drone_list': sorted(all_trajectories.keys()),
+            'processed_drone_list': processed_drone_ids,
+            'expected_drone_list': expected_drone_ids,
+            'skipped_drone_ids': skipped_drone_ids,
             'statistics': processing_stats,
             'session_id': session.session_id,
             'recommendation': recommendation,

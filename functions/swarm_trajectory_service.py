@@ -78,6 +78,91 @@ def _clear_session_file(session_file: Path, cleared_items: List[str]) -> None:
         cleared_items.append(str(session_file.relative_to(Path(get_project_root()))))
 
 
+def _build_cluster_status(structure: Dict, raw_leaders: List[int], processed_drones: List[int], plots_dir: Path) -> Tuple[List[Dict], Dict]:
+    raw_leader_set = set(raw_leaders)
+    processed_drone_set = set(processed_drones)
+    top_leaders = structure["top_leaders"]
+    clusters: List[Dict] = []
+    summary = {
+        "cluster_count": len(top_leaders),
+        "ready_cluster_count": 0,
+        "needs_processing_cluster_count": 0,
+        "missing_upload_cluster_count": 0,
+        "partial_output_cluster_count": 0,
+        "processed_cluster_count": 0,
+        "all_clusters_ready": False,
+        "overall_state": "empty" if not top_leaders else "missing_uploads",
+    }
+
+    for leader_id in top_leaders:
+        follower_ids = structure["hierarchies"].get(leader_id, [])
+        leader_uploaded = leader_id in raw_leader_set
+        leader_processed = leader_id in processed_drone_set
+        processed_follower_ids = [drone_id for drone_id in follower_ids if drone_id in processed_drone_set]
+        missing_follower_ids = [drone_id for drone_id in follower_ids if drone_id not in processed_drone_set]
+        leader_plot_path = plots_dir / f"drone_{leader_id}_trajectory.jpg"
+        cluster_plot_path = plots_dir / f"cluster_leader_{leader_id}.jpg"
+        issues: List[str] = []
+        advisories: List[str] = []
+
+        if not leader_uploaded:
+            state = "missing_upload"
+            issues.append("Leader trajectory CSV has not been uploaded.")
+            summary["missing_upload_cluster_count"] += 1
+        elif not leader_processed:
+            state = "needs_processing"
+            issues.append("Leader CSV is uploaded, but processed outputs have not been generated yet.")
+            summary["needs_processing_cluster_count"] += 1
+        elif missing_follower_ids:
+            state = "partial_outputs"
+            issues.append(
+                "One or more follower trajectories are missing from processed outputs."
+            )
+            summary["partial_output_cluster_count"] += 1
+        else:
+            state = "ready"
+            summary["ready_cluster_count"] += 1
+
+        if leader_processed:
+            summary["processed_cluster_count"] += 1
+
+        if leader_processed and not leader_plot_path.exists():
+            advisories.append("Leader trajectory plot is missing.")
+        if leader_processed and not cluster_plot_path.exists():
+            advisories.append("Cluster formation plot is missing.")
+
+        ready = state == "ready"
+        clusters.append({
+            "leader_id": leader_id,
+            "follower_ids": follower_ids,
+            "follower_count": len(follower_ids),
+            "expected_drone_count": 1 + len(follower_ids),
+            "processed_drone_count": int(leader_processed) + len(processed_follower_ids),
+            "leader_uploaded": leader_uploaded,
+            "leader_processed": leader_processed,
+            "processed_follower_ids": processed_follower_ids,
+            "missing_follower_ids": missing_follower_ids,
+            "leader_plot_available": leader_plot_path.exists(),
+            "cluster_plot_available": cluster_plot_path.exists(),
+            "ready": ready,
+            "state": state,
+            "issues": issues,
+            "advisories": advisories,
+        })
+
+    if summary["cluster_count"] == 0:
+        summary["overall_state"] = "empty"
+    elif summary["ready_cluster_count"] == summary["cluster_count"]:
+        summary["overall_state"] = "ready"
+        summary["all_clusters_ready"] = True
+    elif summary["processed_cluster_count"] > 0 or summary["needs_processing_cluster_count"] > 0:
+        summary["overall_state"] = "partial"
+    else:
+        summary["overall_state"] = "missing_uploads"
+
+    return clusters, summary
+
+
 def get_swarm_leaders_payload() -> Dict:
     structure = _load_swarm_structure()
     folders = get_swarm_trajectory_folders()
@@ -148,43 +233,40 @@ def get_processing_status_payload() -> Dict:
     raw_leaders = _collect_drone_ids(folders["raw"])
     processed_drones = _collect_drone_ids(folders["processed"])
 
+    session_manager = SwarmSessionManager()
+    current_session = session_manager.get_current_session()
+
     try:
         structure = _load_swarm_structure()
         top_leaders = structure["top_leaders"]
         processed_leaders = [drone_id for drone_id in processed_drones if drone_id in top_leaders]
         processed_followers = [drone_id for drone_id in processed_drones if drone_id not in top_leaders]
-        processed_drone_set = set(processed_drones)
-        raw_leader_set = set(raw_leaders)
-        clusters = []
-
-        for leader_id in top_leaders:
-            follower_ids = structure["hierarchies"].get(leader_id, [])
-            processed_follower_ids = [drone_id for drone_id in follower_ids if drone_id in processed_drone_set]
-            missing_follower_ids = [drone_id for drone_id in follower_ids if drone_id not in processed_drone_set]
-            leader_plot_path = plots_dir / f"drone_{leader_id}_trajectory.jpg"
-            cluster_plot_path = plots_dir / f"cluster_leader_{leader_id}.jpg"
-
-            clusters.append({
-                "leader_id": leader_id,
-                "follower_ids": follower_ids,
-                "follower_count": len(follower_ids),
-                "leader_uploaded": leader_id in raw_leader_set,
-                "leader_processed": leader_id in processed_drone_set,
-                "processed_follower_ids": processed_follower_ids,
-                "missing_follower_ids": missing_follower_ids,
-                "leader_plot_available": leader_plot_path.exists(),
-                "cluster_plot_available": cluster_plot_path.exists(),
-                "ready": (
-                    leader_id in raw_leader_set
-                    and leader_id in processed_drone_set
-                    and not missing_follower_ids
-                ),
-            })
+        clusters, cluster_summary = _build_cluster_status(
+            structure=structure,
+            raw_leaders=raw_leaders,
+            processed_drones=processed_drones,
+            plots_dir=plots_dir,
+        )
+        orphan_uploaded_leaders = [drone_id for drone_id in raw_leaders if drone_id not in top_leaders]
+        missing_uploaded_leaders = [leader_id for leader_id in top_leaders if leader_id not in raw_leaders]
     except Exception as e:
         logger.warning("Could not analyze swarm structure for status: %s", e)
         processed_leaders = processed_drones
         processed_followers = []
         clusters = []
+        top_leaders = []
+        orphan_uploaded_leaders = raw_leaders
+        missing_uploaded_leaders = []
+        cluster_summary = {
+            "cluster_count": 0,
+            "ready_cluster_count": 0,
+            "needs_processing_cluster_count": 0,
+            "missing_upload_cluster_count": 0,
+            "partial_output_cluster_count": 0,
+            "processed_cluster_count": 0,
+            "all_clusters_ready": False,
+            "overall_state": "unknown",
+        }
 
     return {
         "success": True,
@@ -200,7 +282,19 @@ def get_processing_status_payload() -> Dict:
             "follower_count": len(processed_followers),
             "has_results": processed_count > 0,
             "plots_available": plot_count > 0,
+            "expected_top_leaders": top_leaders,
+            "uploaded_leaders": raw_leaders,
+            "missing_uploaded_leaders": missing_uploaded_leaders,
+            "orphan_uploaded_leaders": orphan_uploaded_leaders,
             "clusters": clusters,
+            "cluster_summary": cluster_summary,
+            "session": {
+                "exists": current_session is not None,
+                "session_id": current_session.session_id if current_session else None,
+                "timestamp": current_session.timestamp if current_session else None,
+                "processed_leaders": current_session.processed_leaders if current_session else [],
+                "total_drones": current_session.total_drones if current_session else 0,
+            },
         },
         "folders": folders,
     }

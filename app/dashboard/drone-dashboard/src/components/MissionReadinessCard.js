@@ -43,19 +43,37 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
   const getOverallStatus = () => {
     if (!clusterStatus?.clusters) return { status: 'unknown', percentage: 0 };
 
-    const totalClusters = clusterStatus.clusters.length;
-    const readyClusters = clusterStatus.clusters.filter(c => c.has_trajectory).length;
+    const summary = clusterStatus.cluster_summary;
+    const totalClusters = summary?.cluster_count ?? clusterStatus.clusters.length;
+    const readyClusters = summary?.ready_cluster_count ?? clusterStatus.clusters.filter(c => c.ready).length;
     const percentage = totalClusters > 0 ? Math.round((readyClusters / totalClusters) * 100) : 0;
 
-    if (percentage === 100) return { status: 'ready', percentage };
-    if (percentage > 0) return { status: 'partial', percentage };
+    if (summary?.overall_state === 'ready' || percentage === 100) return { status: 'ready', percentage };
+    if (summary?.overall_state === 'partial' || percentage > 0) return { status: 'partial', percentage };
+    if (summary?.overall_state === 'missing_uploads') return { status: 'missing', percentage };
     return { status: 'not-ready', percentage };
   };
 
   const getClusterStatus = (cluster) => {
-    if (cluster.ready) return 'ready';
-    if (cluster.leader_uploaded) return 'processing';
+    if (cluster.state === 'ready' || cluster.ready) return 'ready';
+    if (cluster.state === 'partial_outputs') return 'processing';
+    if (cluster.state === 'needs_processing' || cluster.leader_uploaded) return 'processing';
     return 'missing';
+  };
+
+  const getClusterStatusLabel = (cluster) => {
+    switch (cluster.state) {
+      case 'ready':
+        return 'Ready';
+      case 'partial_outputs':
+        return 'Partial Outputs';
+      case 'needs_processing':
+        return 'Needs Processing';
+      case 'missing_upload':
+        return 'Missing CSV';
+      default:
+        return cluster.ready ? 'Ready' : cluster.leader_uploaded ? 'Needs Processing' : 'Missing CSV';
+    }
   };
 
   const openLightbox = (imageSrc, title) => {
@@ -129,9 +147,10 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
   }
 
   const overallStatus = getOverallStatus();
-  const readyClusters = clusterStatus.clusters.filter(c => c.ready).length;
-  const processingCount = clusterStatus.clusters.filter(c => c.leader_uploaded && !c.ready).length;
-  const missingCount = clusterStatus.clusters.filter(c => !c.leader_uploaded).length;
+  const summary = clusterStatus.cluster_summary || {};
+  const readyClusters = summary.ready_cluster_count ?? clusterStatus.clusters.filter(c => c.ready).length;
+  const processingCount = (summary.needs_processing_cluster_count ?? 0) + (summary.partial_output_cluster_count ?? 0);
+  const missingCount = summary.missing_upload_cluster_count ?? clusterStatus.clusters.filter(c => !c.leader_uploaded).length;
 
   return (
     <div className="mission-readiness-card">
@@ -168,11 +187,11 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
       {/* Clusters grid with accordion */}
       <div className="clusters-grid">
         {clusterStatus.clusters.map((cluster, index) => {
-          const clusterStatus = getClusterStatus(cluster);
+          const clusterTone = getClusterStatus(cluster);
           const isExpanded = expandedClusters.has(cluster.leader_id);
 
           return (
-            <div key={cluster.leader_id} className={`cluster-card ${clusterStatus} ${isExpanded ? 'expanded' : ''}`}>
+            <div key={cluster.leader_id} className={`cluster-card ${clusterTone} ${isExpanded ? 'expanded' : ''}`}>
               {/* Cluster Header - Clickable */}
               <div
                 className="cluster-header clickable"
@@ -185,12 +204,8 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
 
                 <div className="header-actions">
                   <span className="csv-indicator">
-                    {clusterStatus === 'ready' ? '✅' : clusterStatus === 'processing' ? '⏳' : '❌'}
-                    {clusterStatus === 'ready'
-                      ? 'Ready'
-                      : clusterStatus === 'processing'
-                        ? 'Needs Processing'
-                        : 'Missing CSV'}
+                    {clusterTone === 'ready' ? '✅' : clusterTone === 'processing' ? '⏳' : '❌'}
+                    {getClusterStatusLabel(cluster)}
                   </span>
                   {cluster.cluster_plot_available && (
                     <button
@@ -208,14 +223,14 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
               </div>
 
               {/* Compact follower display */}
-              <div className="drone-list">
-                <div className="leader-drone">
-                  <span className={`drone-id leader`}>[{cluster.leader_id}]</span>
-                </div>
+                <div className="drone-list">
+                  <div className="leader-drone">
+                    <span className={`drone-id leader`}>[{cluster.leader_id}]</span>
+                  </div>
                 <span className="followers-label">→</span>
                 <div className="follower-drones">
-                  <span className={`drone-id follower ${clusterStatus}`}>
-                    {cluster.follower_count} follower{cluster.follower_count === 1 ? '' : 's'}
+                  <span className={`drone-id follower ${clusterTone}`}>
+                    {cluster.processed_drone_count ?? 0}/{cluster.expected_drone_count ?? (cluster.follower_count + 1)} ready
                   </span>
                 </div>
               </div>
@@ -235,12 +250,14 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                         <span className={`drone-id-large leader`}>[{cluster.leader_id}]</span>
                         <div className="drone-meta">
                           <span className="drone-role">LEADER</span>
-                          <span className={`drone-status ${clusterStatus}`}>
-                            {clusterStatus === 'ready'
+                          <span className={`drone-status ${clusterTone}`}>
+                            {clusterTone === 'ready'
                               ? '✅ Ready'
-                              : clusterStatus === 'processing'
-                                ? '⏳ Uploaded, processing required'
-                                : '❌ Missing CSV'}
+                              : cluster.state === 'partial_outputs'
+                                ? '⏳ Cluster outputs incomplete'
+                                : clusterTone === 'processing'
+                                  ? '⏳ Uploaded, processing required'
+                                  : '❌ Missing CSV'}
                           </span>
                         </div>
                       </div>
@@ -261,17 +278,19 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                     {/* Followers */}
                     <div className="drone-detail-item follower-item">
                       <div className="drone-info">
-                        <span className={`drone-id-large follower ${clusterStatus}`}>
+                        <span className={`drone-id-large follower ${clusterTone}`}>
                           {cluster.follower_count}
                         </span>
                         <div className="drone-meta">
                           <span className="drone-role">FOLLOWERS</span>
-                          <span className={`drone-status ${clusterStatus}`}>
-                            {clusterStatus === 'ready'
-                              ? 'Topology linked to uploaded leader trajectory'
-                              : clusterStatus === 'processing'
-                                ? 'Follower paths will appear after processing'
-                                : 'Waiting for leader trajectory upload'}
+                          <span className={`drone-status ${clusterTone}`}>
+                            {clusterTone === 'ready'
+                              ? 'Follower outputs are processed and ready.'
+                              : cluster.state === 'partial_outputs'
+                                ? `${cluster.processed_follower_ids?.length || 0} processed • ${(cluster.missing_follower_ids || []).length} missing`
+                                : clusterTone === 'processing'
+                                  ? 'Follower paths will appear after processing.'
+                                  : 'Waiting for leader trajectory upload.'}
                           </span>
                         </div>
                       </div>
@@ -282,9 +301,29 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                             ? `Follower IDs: ${cluster.follower_ids.join(', ')}`
                             : 'No followers assigned to this leader.'}
                         </span>
+                        {(cluster.missing_follower_ids || []).length > 0 ? (
+                          <span className="preview-btn preview-btn--note">
+                            Missing outputs: {cluster.missing_follower_ids.join(', ')}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
+
+                  {(cluster.issues?.length || cluster.advisories?.length) ? (
+                    <div className="drone-actions">
+                      {(cluster.issues || []).map((issue) => (
+                        <span key={issue} className="preview-btn preview-btn--note">
+                          Issue: {issue}
+                        </span>
+                      ))}
+                      {(cluster.advisories || []).map((advisory) => (
+                        <span key={advisory} className="preview-btn preview-btn--note">
+                          Advisory: {advisory}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

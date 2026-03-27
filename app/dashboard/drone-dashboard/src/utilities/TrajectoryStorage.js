@@ -182,31 +182,7 @@ export class TrajectoryStorage {
         throw new Error(result.error);
       }
 
-      const trajectory = result.trajectory;
-      let content, filename, mimeType;
-
-      switch (format.toLowerCase()) {
-        case 'json':
-          content = JSON.stringify(trajectory, null, 2);
-          filename = `${trajectory.name.replace(/[^a-z0-9]/gi, '_')}.json`;
-          mimeType = 'application/json';
-          break;
-
-        case 'csv':
-          content = this.convertToCSV(trajectory.waypoints);
-          filename = `${trajectory.name.replace(/[^a-z0-9]/gi, '_')}.csv`;
-          mimeType = 'text/csv';
-          break;
-
-        case 'kml':
-          content = this.convertToKML(trajectory);
-          filename = `${trajectory.name.replace(/[^a-z0-9]/gi, '_')}.kml`;
-          mimeType = 'application/vnd.google-earth.kml+xml';
-          break;
-
-        default:
-          throw new Error(`Unsupported export format: ${format}`);
-      }
+      const { content, filename, mimeType } = this.buildExportFile(result.trajectory, format);
 
       // Create download
       this.downloadFile(content, filename, mimeType);
@@ -221,6 +197,38 @@ export class TrajectoryStorage {
       return {
         success: false,
         error: error.message
+      };
+    }
+  }
+
+  /**
+   * Export the current in-memory planner trajectory without requiring a prior save.
+   */
+  async exportCurrentTrajectory(name, waypoints, format = 'json', metadata = {}) {
+    try {
+      const trajectory = {
+        id: this.generateId(),
+        name: name || 'trajectory',
+        waypoints: this.sanitizeWaypoints(waypoints),
+        metadata: {
+          exportedAt: Date.now(),
+          version: this.version,
+          ...metadata,
+        },
+      };
+
+      const { content, filename, mimeType } = this.buildExportFile(trajectory, format);
+      this.downloadFile(content, filename, mimeType);
+
+      return {
+        success: true,
+        message: `Trajectory exported as ${format.toUpperCase()}`
+      };
+    } catch (error) {
+      console.error('Export current trajectory error:', error);
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
@@ -470,6 +478,33 @@ export class TrajectoryStorage {
     </Placemark>`).join('')}
   </Document>
 </kml>`;
+  }
+
+  buildExportFile(trajectory, format = 'json') {
+    const safeName = (trajectory.name || 'trajectory').replace(/[^a-z0-9]/gi, '_');
+
+    switch (format.toLowerCase()) {
+      case 'json':
+        return {
+          content: JSON.stringify(trajectory, null, 2),
+          filename: `${safeName}.json`,
+          mimeType: 'application/json',
+        };
+      case 'csv':
+        return {
+          content: this.convertToCSV(trajectory.waypoints),
+          filename: `${safeName}.csv`,
+          mimeType: 'text/csv',
+        };
+      case 'kml':
+        return {
+          content: this.convertToKML(trajectory),
+          filename: `${safeName}.kml`,
+          mimeType: 'application/vnd.google-earth.kml+xml',
+        };
+      default:
+        throw new Error(`Unsupported export format: ${format}`);
+    }
   }
 
   /**

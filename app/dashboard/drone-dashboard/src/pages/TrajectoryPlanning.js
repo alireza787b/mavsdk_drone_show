@@ -833,7 +833,11 @@ const TrajectoryPlanning = () => {
 
   const handleExportTrajectory = useCallback(async (format) => {
     const name = trajectoryName || 'trajectory';
-    const result = await storageRef.current.exportTrajectory(name, format);
+    const result = await storageRef.current.exportCurrentTrajectory(name, waypoints, format, {
+      source: 'trajectory-planning',
+      stats: trajectoryStats,
+      savedName: trajectoryName || null,
+    });
 
     if (result.success) {
       setShowExportDialog(false);
@@ -841,7 +845,7 @@ const TrajectoryPlanning = () => {
     } else {
       setOperationNotice(`Export failed: ${result.error}`, 'error');
     }
-  }, [setOperationNotice, trajectoryName]);
+  }, [setOperationNotice, trajectoryName, trajectoryStats, waypoints]);
 
   // Scene mode handling
   const handleSceneModeChange = useCallback((mode) => {
