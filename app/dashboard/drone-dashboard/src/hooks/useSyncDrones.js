@@ -19,16 +19,18 @@ export function useSyncDrones() {
       });
       if (!response.ok) {
         toast.error(`Sync failed: server returned ${response.status}`);
-        return;
+        return null;
       }
       const data = await response.json();
       if (data.success) {
-        toast.success(`Sync complete: ${data.synced_drones?.length || 0} drones updated`);
+        toast.success(data.message || `Sync verified: ${data.synced_drones?.length || 0} drones updated`);
       } else {
         toast.warning(data.message || 'Sync completed with issues');
       }
+      return data;
     } catch (error) {
       toast.error(`Sync failed: ${error.message}`);
+      return null;
     } finally {
       setSyncing(false);
     }

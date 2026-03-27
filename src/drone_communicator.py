@@ -229,7 +229,7 @@ class DroneCommunicator:
         elif mission == Mission.QUICKSCOUT.value:
             self._handle_quickscout_command(command_data)
         elif mission in Mission._value2member_map_:
-            self._handle_standard_mission(mission)
+            self._handle_standard_mission(mission, command_data)
         else:
             # Log the error before raising an exception
             logger.error(f"Unknown mission command: {mission}")
@@ -245,10 +245,18 @@ class DroneCommunicator:
         self.drone_config.mission = Mission.TAKE_OFF.value
         self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
-    def _handle_standard_mission(self, mission: int) -> None:
+    def _handle_standard_mission(self, mission: int, command_data: Dict[str, Any]) -> None:
         """Handle standard (non-takeoff) mission commands."""
         mission_enum = Mission(mission)
         logger.info(f"{mission_enum.name.replace('_', ' ').title()} command received.")
+
+        if mission == Mission.UPDATE_CODE.value:
+            self.drone_config.update_branch = command_data.get('update_branch')
+        elif mission == Mission.APPLY_COMMON_PARAMS.value:
+            self.drone_config.reboot_after_params = bool(
+                command_data.get('reboot_after_params', getattr(self.params, 'reboot_after_params', False))
+            )
+
         self.drone_config.mission = mission
         self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 

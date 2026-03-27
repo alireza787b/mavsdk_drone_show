@@ -75,6 +75,8 @@ An amber warning banner appears on all dashboard pages when any drones are out o
 - Re-appears if new drones go out of sync
 - Operator can manually dismiss (non-blocking)
 - "Sync Now" button triggers `POST /sync-repos`
+- the backend now waits for real repo convergence before reporting success, so a green toast means the drone repos actually matched the GCS revision instead of only accepting the command
+- when no explicit target list is provided, the sync path prefers drones with recent heartbeats so an active SITL session does not get polluted by offline config entries from other slots
 
 ## Structured Sync Results
 
@@ -96,6 +98,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | HTTPS remote detected | GCS using HTTPS | Switch to SSH remote for push access |
 | Merge conflict on rebase | Concurrent edits | Auto-resolved: abort rebase, reset, retry |
 | Fetch timeout on drone | Network issue | Graceful degradation: drone continues with cached code |
+| Sync accepted but never verified | Runtime command parameter missing or git update failed on drone | Check drone session logs; success is only reported after branch/commit/status match |
 
 ## API Endpoints
 
@@ -119,6 +122,7 @@ This is parsed by `actions.py` for logging and status tracking.
 
 ### Drone Side
 - `src/drone_api_server.py` - `/get-git-status` endpoint
+- `src/drone_communicator.py` - preserves runtime mission fields like `update_branch` and `reboot_after_params` so operator-triggered sync/param actions execute with the intended payload
 - `actions.py` - `update_code()` action handler
 - `tools/update_repo_ssh.sh` - SSH-based git sync script (production)
 
@@ -149,5 +153,7 @@ For custom forks, org repos, or private customer repos, the following override c
 | `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
 The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dashboard-triggered `UPDATE_CODE` both load `/etc/mds/local.env`, so hardware repo/branch selection stays aligned across boot-time and operator-triggered sync.
+
+Generated SITL provenance files (`.mds_sitl_image_build.env`, `.mds_px4_source_provenance.env`, `.mds_px4_submodules.txt`) are intentionally ignored by git-status reporting. They are runtime metadata, not operator changes, and should not cause false out-of-sync warnings.
 
 For the end-to-end customer/private repo workflow, see [Custom Repo Workflow](../guides/custom-repo-workflow.md).

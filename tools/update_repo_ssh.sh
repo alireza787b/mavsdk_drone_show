@@ -18,8 +18,10 @@ readonly SCRIPT_VERSION="2.2.0"
 readonly SCRIPT_NAME="git-sync"
 
 # Use dynamic variables for user and home directory
-REPO_USER="${REPO_USER:-$USER}"
-REPO_DIR="${REPO_DIR:-$HOME/mavsdk_drone_show}"
+RESOLVED_USER="${USER:-$(whoami 2>/dev/null || echo root)}"
+RESOLVED_HOME="${HOME:-/root}"
+REPO_USER="${REPO_USER:-$RESOLVED_USER}"
+REPO_DIR="${REPO_DIR:-$RESOLVED_HOME/mavsdk_drone_show}"
 
 # Default values - can be overridden by environment variables
 MAX_RETRIES="${MAX_RETRIES:-10}"
@@ -53,10 +55,10 @@ ENVIRONMENT="${ENVIRONMENT:-production}"
 
 # Paths and commands
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
-LOG_FILE="$HOME/logs/drone_git_sync.log"
+LOG_FILE="$RESOLVED_HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
-USER_ENV_FILE="${MDS_USER_ENV_FILE:-$HOME/.config/mds/env}"
+USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 
 # ----------------------------------
 # Enhanced Logging System (FIXED - No variable corruption)

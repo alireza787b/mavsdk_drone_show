@@ -118,6 +118,43 @@ class TestGetLocalGitReport:
         assert ' M src/file.py' in result['uncommitted_changes']
 
     @patch('functions.git_manager.execute_git_command')
+    def test_get_local_git_report_ignores_generated_sitl_metadata(self, mock_exec):
+        """Generated SITL provenance files should not make the repo appear dirty."""
+        from functions.git_manager import get_local_git_report
+
+        def mock_git_cmd(cmd, cwd=None):
+            if 'rev-parse' in cmd and '--abbrev-ref' in cmd and 'HEAD' in cmd:
+                return 'main-candidate'
+            elif 'rev-parse' in cmd and 'HEAD' in cmd:
+                return 'abc123def456789'
+            elif '--format=%an' in cmd:
+                return 'Test Author'
+            elif '--format=%ae' in cmd:
+                return 'test@example.com'
+            elif '--format=%cd' in cmd:
+                return '2026-03-27T10:00:00+00:00'
+            elif '--format=%B' in cmd:
+                return 'Test commit message'
+            elif 'remote.origin.url' in cmd:
+                return 'git@github.com:test/repo.git'
+            elif '@{u}' in cmd:
+                return 'origin/main-candidate'
+            elif '--porcelain' in cmd:
+                return '\n'.join([
+                    '?? .mds_px4_source_provenance.env',
+                    '?? .mds_px4_submodules.txt',
+                    '?? .mds_sitl_image_build.env',
+                ])
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        result = get_local_git_report()
+
+        assert result['status'] == 'clean'
+        assert result['uncommitted_changes'] == []
+
+    @patch('functions.git_manager.execute_git_command')
     def test_get_local_git_report_no_branch(self, mock_exec):
         """Test error when branch can't be determined"""
         from functions.git_manager import get_local_git_report
@@ -173,6 +210,26 @@ class TestGetLocalGitShortStatus:
         result = get_local_git_short_status()
 
         assert result['status'] == 'dirty'
+
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_short_status_ignores_generated_sitl_metadata(self, mock_exec):
+        """Short git status should also ignore generated SITL metadata files."""
+        from functions.git_manager import get_local_git_short_status
+
+        def mock_git_cmd(cmd, cwd=None):
+            if '--abbrev-ref' in cmd:
+                return 'main-candidate'
+            elif '--short' in cmd:
+                return 'abc1234'
+            elif '--porcelain' in cmd:
+                return '?? .mds_sitl_image_build.env'
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        result = get_local_git_short_status()
+
+        assert result['status'] == 'clean'
 
 
 class TestGetRemoteGitStatus:

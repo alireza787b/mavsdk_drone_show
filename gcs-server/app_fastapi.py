@@ -1319,6 +1319,123 @@ async def get_git_status():
 # Module-level sync operation state (protected by _sync_lock)
 _sync_state = {"active": False, "started_at": None, "results": None}
 _sync_lock = asyncio.Lock()
+_SYNC_VERIFY_TIMEOUT_SEC = 45.0
+_SYNC_VERIFY_POLL_SEC = 2.0
+
+
+def _select_sync_target_drones(
+    drones_config: List[Dict[str, Any]],
+    pos_ids: Optional[List[int]],
+) -> tuple[List[Dict[str, Any]], List[int]]:
+    """Choose which drones a sync operation should target.
+
+    When no explicit target list is given, prefer drones with recent heartbeats so
+    the operator sees results for the actively running fleet instead of stale config
+    entries that are not part of the current SITL session.
+    """
+    if pos_ids:
+        requested = {int(pos_id) for pos_id in pos_ids}
+        targets = [d for d in drones_config if int(d.get('pos_id', 0)) in requested]
+        return targets, []
+
+    recent_heartbeats = get_all_heartbeats()
+    if not recent_heartbeats:
+        return drones_config, []
+
+    now = time.time()
+    grace_seconds = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
+    active_hw_ids = set()
+
+    for hw_id, heartbeat in recent_heartbeats.items():
+        timestamp_ms = heartbeat.get('timestamp') if isinstance(heartbeat, dict) else None
+        if not timestamp_ms:
+            continue
+
+        try:
+            age_seconds = now - (float(timestamp_ms) / 1000.0)
+        except (TypeError, ValueError):
+            continue
+
+        if age_seconds <= grace_seconds:
+            active_hw_ids.add(str(hw_id))
+
+    if not active_hw_ids:
+        return drones_config, []
+
+    targets = [d for d in drones_config if str(d.get('hw_id')) in active_hw_ids]
+    skipped = [int(d.get('pos_id', d.get('hw_id', 0))) for d in drones_config if str(d.get('hw_id')) not in active_hw_ids]
+    return targets, skipped
+
+
+def _is_git_sync_verified(
+    git_status: Dict[str, Any],
+    expected_branch: str,
+    expected_commit: str,
+) -> bool:
+    """Check whether a drone repo actually converged to the expected revision."""
+    if not git_status or git_status.get('error'):
+        return False
+
+    if git_status.get('branch') != expected_branch:
+        return False
+
+    if git_status.get('commit') != expected_commit:
+        return False
+
+    if git_status.get('status') != 'clean':
+        return False
+
+    if git_status.get('uncommitted_changes'):
+        return False
+
+    return int(git_status.get('commits_ahead', 0) or 0) == 0 and int(git_status.get('commits_behind', 0) or 0) == 0
+
+
+async def _verify_sync_targets(
+    target_drones: List[Dict[str, Any]],
+    expected_branch: str,
+    expected_commit: str,
+    timeout_sec: float = _SYNC_VERIFY_TIMEOUT_SEC,
+    poll_interval_sec: float = _SYNC_VERIFY_POLL_SEC,
+) -> tuple[List[int], List[int]]:
+    """Poll targeted drones until their repos actually match the expected revision."""
+    if not target_drones:
+        return [], []
+
+    pending: Dict[str, Dict[str, Any]] = {str(d['hw_id']): d for d in target_drones}
+    verified_hw_ids: set[str] = set()
+    deadline = time.monotonic() + timeout_sec
+
+    while pending and time.monotonic() < deadline:
+        tasks = [
+            asyncio.to_thread(
+                _config_get_drone_git_status,
+                f"http://{drone['ip']}:{Params.drone_api_port}",
+            )
+            for drone in pending.values()
+        ]
+        statuses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for drone, git_status in zip(list(pending.values()), statuses):
+            hw_id = str(drone['hw_id'])
+
+            if isinstance(git_status, Exception):
+                continue
+
+            if isinstance(git_status, dict) and not git_status.get('error'):
+                with data_lock_git_status:
+                    git_status_data_all_drones[hw_id] = git_status
+
+            if _is_git_sync_verified(git_status, expected_branch, expected_commit):
+                verified_hw_ids.add(hw_id)
+                pending.pop(hw_id, None)
+
+        if pending:
+            await asyncio.sleep(poll_interval_sec)
+
+    verified_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) in verified_hw_ids)
+    failed_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) not in verified_hw_ids)
+    return verified_pos_ids, failed_pos_ids
 
 
 @app.post("/sync-repos", response_model=SyncReposResponse, tags=["Git"])
@@ -1344,7 +1461,9 @@ async def sync_repos(sync_request: SyncReposRequest):
         _sync_state["results"] = None
 
         # Build UPDATE_CODE command
-        branch = getattr(Params, 'GIT_BRANCH', 'main-candidate')
+        gcs_status = get_gcs_git_report()
+        branch = (gcs_status or {}).get('branch') or getattr(Params, 'GIT_BRANCH', 'main-candidate')
+        expected_commit = (gcs_status or {}).get('commit', '')
         command_data = {
             "missionType": 103,  # Mission.UPDATE_CODE
             "triggerTime": 0,
@@ -1354,19 +1473,16 @@ async def sync_repos(sync_request: SyncReposRequest):
         # Load drone config
         drones_config = load_config()
 
+        target_drones, skipped_offline = _select_sync_target_drones(drones_config, sync_request.pos_ids)
         if sync_request.pos_ids:
-            # Sync specific drones
-            target_drones = [d for d in drones_config if int(d.get('pos_id', 0)) in sync_request.pos_ids]
             command_data["pos_ids"] = sync_request.pos_ids
-        else:
-            target_drones = drones_config
 
         if not target_drones:
             return SyncReposResponse(
                 success=False,
-                message="No target drones found",
+                message="No eligible target drones found for sync",
                 synced_drones=[],
-                failed_drones=[],
+                failed_drones=skipped_offline,
                 total_attempted=0
             )
 
@@ -1379,17 +1495,16 @@ async def sync_repos(sync_request: SyncReposRequest):
             results = send_commands_to_all(drones_config, command_data)
 
         # Parse results - send_commands_to_all returns dict with 'results' dict keyed by hw_id
-        synced = []
-        failed = []
+        accepted_hw_ids = []
+        failed_hw_ids = []
         hw_to_pos = {str(d['hw_id']): int(d.get('pos_id', d['hw_id'])) for d in drones_config}
         per_drone_results = results.get('results', {})
         for hw_id, drone_result in per_drone_results.items():
-            pos_id = hw_to_pos.get(str(hw_id), 0)
             category = drone_result.get('category', 'error') if isinstance(drone_result, dict) else 'error'
             if category == 'accepted':
-                synced.append(pos_id)
+                accepted_hw_ids.append(str(hw_id))
             else:
-                failed.append(pos_id)
+                failed_hw_ids.append(str(hw_id))
 
         # If no per-drone results, fall back to summary counts
         if not per_drone_results:
@@ -1397,18 +1512,52 @@ async def sync_repos(sync_request: SyncReposRequest):
             total_count = results.get('total', 0)
             # Can't map to specific pos_ids without per-drone results
             if success_count > 0:
-                synced = [d.get('pos_id', 0) for d in target_drones[:success_count]]
+                accepted_hw_ids = [str(d['hw_id']) for d in target_drones[:success_count]]
             if total_count > success_count:
-                failed = [d.get('pos_id', 0) for d in target_drones[success_count:]]
+                failed_hw_ids = [str(d['hw_id']) for d in target_drones[success_count:]]
+
+        accepted_targets = [d for d in target_drones if str(d['hw_id']) in set(accepted_hw_ids)]
+        verified_synced, verification_failed = await _verify_sync_targets(
+            accepted_targets,
+            expected_branch=branch,
+            expected_commit=expected_commit,
+        )
+
+        immediate_failed = {
+            hw_to_pos.get(str(hw_id), 0)
+            for hw_id in failed_hw_ids
+            if hw_to_pos.get(str(hw_id), 0)
+        }
+        failed = sorted(immediate_failed.union(set(verification_failed)))
+        synced = verified_synced
 
         _sync_state["results"] = {"synced": synced, "failed": failed}
 
+        total_attempted = len(target_drones)
+        skipped_count = len(skipped_offline)
+        verified_count = len(synced)
+        failed_count = len(failed)
+        success = total_attempted > 0 and verified_count == total_attempted
+
+        if success:
+            message = f"Sync verified: {verified_count} of {total_attempted} drones now match GCS"
+        elif verified_count > 0:
+            message = (
+                f"Sync partially verified: {verified_count} of {total_attempted} drones updated; "
+                f"{failed_count} failed or timed out"
+            )
+        else:
+            message = f"Sync failed: 0 of {total_attempted} drones matched GCS after dispatch"
+
+        if skipped_count > 0 and not sync_request.pos_ids:
+            message += f" ({skipped_count} offline config entries skipped)"
+
         return SyncReposResponse(
-            success=len(synced) > 0,
-            message=f"Sync completed: {len(synced)} succeeded, {len(failed)} failed",
+            success=success,
+            message=message,
             synced_drones=synced,
             failed_drones=failed,
-            total_attempted=len(target_drones)
+            total_attempted=total_attempted
         )
 
     except Exception as e:

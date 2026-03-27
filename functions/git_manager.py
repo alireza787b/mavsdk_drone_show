@@ -20,6 +20,36 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+IGNORED_UNCOMMITTED_PATHS = {
+    '.mds_sitl_image_build.env',
+    '.mds_px4_source_provenance.env',
+    '.mds_px4_submodules.txt',
+}
+
+
+def filter_git_status_lines(status_lines: list[str]) -> list[str]:
+    """Remove generated runtime metadata that should not mark the repo dirty."""
+    filtered_lines: list[str] = []
+
+    for line in status_lines:
+        if not line:
+            continue
+
+        path = line[3:].strip() if len(line) >= 4 else line.strip()
+        if path in IGNORED_UNCOMMITTED_PATHS:
+            continue
+
+        filtered_lines.append(line)
+
+    return filtered_lines
+
+
+def parse_filtered_git_status(status_output: Optional[str]) -> list[str]:
+    """Parse porcelain output and drop generated metadata noise."""
+    if not status_output:
+        return []
+    return filter_git_status_lines(status_output.splitlines())
+
 
 # ============================================================================
 # Local Git Operations (for GCS machine)
@@ -113,6 +143,7 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
         status_output = execute_git_command(
             ['git', 'status', '--porcelain'], cwd=repo_path
         ) or ''
+        filtered_changes = parse_filtered_git_status(status_output)
 
         return {
             'branch': branch,
@@ -123,8 +154,8 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
             'commit_message': commit_message.strip(),
             'remote_url': remote_url,
             'tracking_branch': tracking_branch,
-            'status': 'clean' if not status_output else 'dirty',
-            'uncommitted_changes': status_output.splitlines() if status_output else []
+            'status': 'clean' if not filtered_changes else 'dirty',
+            'uncommitted_changes': filtered_changes,
         }
 
     except Exception as e:
@@ -155,11 +186,12 @@ def get_local_git_short_status(repo_path: Optional[str] = None) -> Dict[str, Any
         status_output = execute_git_command(
             ['git', 'status', '--porcelain'], cwd=repo_path
         )
+        filtered_changes = parse_filtered_git_status(status_output)
 
         return {
             'branch': branch or 'unknown',
             'commit_short': commit or 'unknown',
-            'status': 'clean' if not status_output else 'dirty'
+            'status': 'clean' if not filtered_changes else 'dirty'
         }
     except Exception as e:
         return {'error': str(e)}

@@ -745,6 +745,44 @@ class TestGitStatusEndpoints:
         response = test_client.get("/get-gcs-git-status")
         assert response.status_code == 200
 
+    @patch('app_fastapi._verify_sync_targets')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_sync_repos_verifies_actual_convergence(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        mock_send_commands,
+        mock_verify_targets,
+        test_client,
+    ):
+        """POST /sync-repos should only report success after repo convergence is verified."""
+        mock_load_config.return_value = [
+            {'hw_id': '1', 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': '2', 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+        mock_gcs_git_report.return_value = {
+            'branch': 'main-candidate',
+            'commit': 'abc123def456',
+        }
+        mock_send_commands.return_value = {
+            'results': {
+                '1': {'category': 'accepted'},
+                '2': {'category': 'accepted'},
+            }
+        }
+        mock_verify_targets.return_value = ([1], [2])
+
+        response = test_client.post('/sync-repos', json={})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is False
+        assert data['synced_drones'] == [1]
+        assert data['failed_drones'] == [2]
+        assert 'partially verified' in data['message']
+
 
 # ============================================================================
 # Swarm Management Tests

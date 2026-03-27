@@ -149,6 +149,9 @@ cached_files.txt
 /local_config.xml
 /online_config.json
 /data/origin.json
+/.mds_sitl_image_build.env
+/.mds_px4_source_provenance.env
+/.mds_px4_submodules.txt
 
 # Specific binary and hardware ID files that should not be committed
 /mavsdk_server

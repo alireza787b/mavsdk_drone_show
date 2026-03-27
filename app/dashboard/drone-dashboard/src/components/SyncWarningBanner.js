@@ -48,8 +48,8 @@ const SyncWarningBanner = () => {
 
   const handleSync = async () => {
     await syncDrones();
-    // Refresh status after a brief delay for drones to process
-    syncTimeoutRef.current = setTimeout(fetchGitStatus, 3000);
+    // The backend now waits for verification, so a quick refresh is enough.
+    syncTimeoutRef.current = setTimeout(fetchGitStatus, 500);
   };
 
   // Don't show if no data, dismissed, or no sync needed

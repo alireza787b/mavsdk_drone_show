@@ -565,6 +565,56 @@ class TestDroneCommandReception:
 
         assert mission_int == 10
 
+    def test_update_code_command_preserves_runtime_branch(self):
+        """UPDATE_CODE must carry update_branch into drone runtime state."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=True,
+        )
+        drone_config = create_mock_drone_config()
+        drone_config.update_branch = None
+        communicator = DroneCommunicator(drone_config, params, {})
+
+        communicator.process_command({
+            'missionType': str(Mission.UPDATE_CODE.value),
+            'triggerTime': '0',
+            'update_branch': 'main-candidate',
+        })
+
+        assert drone_config.update_branch == 'main-candidate'
+        assert drone_config.mission == Mission.UPDATE_CODE.value
+        assert drone_config.state == State.MISSION_READY.value
+
+    def test_apply_common_params_command_preserves_reboot_flag(self):
+        """APPLY_COMMON_PARAMS must preserve reboot_after_params into runtime state."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=False,
+        )
+        drone_config = create_mock_drone_config()
+        drone_config.reboot_after_params = None
+        communicator = DroneCommunicator(drone_config, params, {})
+
+        communicator.process_command({
+            'missionType': str(Mission.APPLY_COMMON_PARAMS.value),
+            'triggerTime': '0',
+            'reboot_after_params': True,
+        })
+
+        assert drone_config.reboot_after_params is True
+        assert drone_config.mission == Mission.APPLY_COMMON_PARAMS.value
+        assert drone_config.state == State.MISSION_READY.value
+
 
 # ============================================================================
 # Test: Command Integration with DroneConfig
