@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory runtime validation now budgets the terminal wait window from the processed mission peak altitude instead of the early formation snapshot altitude, so high-altitude RTL descents no longer time out while the aircraft is still descending correctly
+- Swarm Trajectory mission validation now enforces a real initial-climb altitude sample before leaving the takeoff gate, preventing premature path-follow entry on time-only progress
+- Swarm Trajectory planner geodesic math is now self-contained and testable: speed, heading, timing, and trajectory statistics no longer depend on the heavier Turf bundle in `SpeedCalculator`
+- Swarm Trajectory planner statistics now use the same 3D path-distance model as the speed/timing logic, so climb/descent legs are reflected consistently in operator-facing totals and average speed
+- direct frontend utility coverage now exists for Swarm Trajectory planner speed, heading, timing validation, and 3D stats
 - Swarm Trajectory processing/status truth is now richer and less heuristic: recommendations include expected/uploaded/missing leader IDs, processing results now distinguish `success` vs `partial` outcome, cluster status exposes explicit states/issues/advisories, and planner export now uses the current in-memory path instead of stale saved-local-storage state
 - drone `UPDATE_CODE` commands now preserve their runtime `update_branch` payload all the way into mission execution, so dashboard-triggered repo sync actually runs instead of reporting accepted while silently failing branch resolution on the drone
 - git-sync verification now ignores generated SITL provenance metadata files, so stock containers do not stay permanently `dirty` just because they carry build/provenance markers

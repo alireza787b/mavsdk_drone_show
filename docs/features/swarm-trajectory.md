@@ -154,6 +154,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - `Swarm Trajectory` is the processing / review / commit workspace
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
+- planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
+- frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 
 ---
 
