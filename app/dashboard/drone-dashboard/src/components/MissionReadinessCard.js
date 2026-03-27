@@ -142,9 +142,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
           <div className={`overall-status ${overallStatus.status}`}>
             {overallStatus.status === 'ready' ? '✅' :
              overallStatus.status === 'partial' ? '⚠️' : '❌'}
-            {overallStatus.status === 'ready' ? 'Leader Coverage Ready' :
-             overallStatus.status === 'partial' ? `${overallStatus.percentage}% Leaders Ready` :
-             'Leader Coverage Missing'}
+            {overallStatus.status === 'ready' ? 'Mission Trajectories Ready' :
+             overallStatus.status === 'partial' ? `${overallStatus.percentage}% Clusters Ready` :
+             'Mission Trajectories Incomplete'}
           </div>
         </div>
 
