@@ -157,4 +157,6 @@ The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dash
 
 Generated SITL provenance files (`.mds_sitl_image_build.env`, `.mds_px4_source_provenance.env`, `.mds_px4_submodules.txt`) are intentionally ignored by git-status reporting. They are runtime metadata, not operator changes, and should not cause false out-of-sync warnings.
 
+If you are validating a fix that changes the drone-side sync runtime itself, recreate existing SITL containers once so they boot with the corrected updater before you rely on operator-triggered `Sync Now` for later revisions.
+
 For the end-to-end customer/private repo workflow, see [Custom Repo Workflow](../guides/custom-repo-workflow.md).
