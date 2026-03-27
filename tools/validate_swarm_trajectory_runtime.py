@@ -402,10 +402,15 @@ def wait_for_formation(
         ) from exc
 
 
-def max_processed_duration_seconds(repo_root: Path) -> float:
+def max_processed_duration_seconds(repo_root: Path, *, drone_ids: Iterable[int] | None = None) -> float:
     processed_dir = repo_root / "shapes_sitl" / "swarm_trajectory" / "processed"
+    allowed_names = None
+    if drone_ids is not None:
+        allowed_names = {f"Drone {int(drone_id)}.csv" for drone_id in drone_ids}
     durations: list[float] = []
     for csv_path in sorted(processed_dir.glob("Drone *.csv")):
+        if allowed_names is not None and csv_path.name not in allowed_names:
+            continue
         last_t = None
         with csv_path.open() as handle:
             reader = csv.DictReader(handle)
@@ -415,6 +420,46 @@ def max_processed_duration_seconds(repo_root: Path) -> float:
         if last_t is not None:
             durations.append(last_t)
     return max(durations) if durations else 0.0
+
+
+def max_processed_relative_altitude_m(
+    repo_root: Path,
+    baselines: dict[int, float],
+    *,
+    drone_ids: Iterable[int] | None = None,
+) -> float | None:
+    """
+    Estimate the highest mission-relative altitude from processed leader/follower CSVs.
+
+    Validator completion should budget from the actual peak path altitude, not the
+    much earlier formation snapshot altitude. Otherwise long, high-area trajectories
+    can still be descending correctly when the validator times out and triggers
+    unnecessary cleanup.
+    """
+    processed_dir = repo_root / "shapes_sitl" / "swarm_trajectory" / "processed"
+    selected_ids = [int(drone_id) for drone_id in (drone_ids or baselines.keys())]
+    max_relative_altitudes: list[float] = []
+
+    for drone_id in selected_ids:
+        baseline = baselines.get(drone_id)
+        if baseline is None:
+            continue
+        csv_path = processed_dir / f"Drone {drone_id}.csv"
+        if not csv_path.exists():
+            continue
+        with csv_path.open() as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                alt_value = row.get("alt")
+                if alt_value in (None, ""):
+                    continue
+                try:
+                    relative_altitude = max(0.0, float(alt_value) - float(baseline))
+                except (TypeError, ValueError):
+                    continue
+                max_relative_altitudes.append(relative_altitude)
+
+    return max(max_relative_altitudes) if max_relative_altitudes else None
 
 
 def estimate_command_completion_timeout(
@@ -540,15 +585,25 @@ def main() -> int:
         )
         results["formation_max_relative_altitude_m"] = formation_relative_altitude
 
-        duration = max_processed_duration_seconds(args.repo_root)
+        duration = max_processed_duration_seconds(args.repo_root, drone_ids=args.drone_ids)
+        processed_relative_altitude = max_processed_relative_altitude_m(
+            args.repo_root,
+            baselines,
+            drone_ids=args.drone_ids,
+        )
         end_behavior = getattr(Params, "SWARM_TRAJECTORY_END_BEHAVIOR", "return_home")
+        timeout_relative_altitude = formation_relative_altitude
+        if processed_relative_altitude is not None:
+            timeout_relative_altitude = max(timeout_relative_altitude, processed_relative_altitude)
         mission_timeout = estimate_command_completion_timeout(
             duration,
             end_behavior=end_behavior,
-            relative_altitude_m=formation_relative_altitude,
+            relative_altitude_m=timeout_relative_altitude,
         )
         results["expected_duration_sec"] = duration
         results["end_behavior"] = end_behavior
+        results["processed_max_relative_altitude_m"] = processed_relative_altitude
+        results["timeout_relative_altitude_m"] = timeout_relative_altitude
         results["mission_timeout_sec"] = mission_timeout
 
         status = wait_for_command(client, command_id, terminal=True, timeout=mission_timeout)

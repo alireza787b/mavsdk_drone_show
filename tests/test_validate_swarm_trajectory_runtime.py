@@ -1,4 +1,5 @@
 import importlib.util
+import csv
 from pathlib import Path
 
 
@@ -38,3 +39,40 @@ def test_estimate_command_completion_timeout_for_land_current_is_shorter_than_rt
     )
 
     assert land_timeout < rtl_timeout
+
+
+def test_max_processed_duration_seconds_filters_to_selected_drones(tmp_path):
+    validator = _load_validator_module()
+    processed_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "processed"
+    processed_dir.mkdir(parents=True)
+
+    for drone_id, duration in ((1, 120.0), (2, 240.0), (3, 360.0)):
+        with (processed_dir / f"Drone {drone_id}.csv").open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["t", "alt"])
+            writer.writeheader()
+            writer.writerow({"t": 0, "alt": 1200})
+            writer.writerow({"t": duration, "alt": 1300})
+
+    assert validator.max_processed_duration_seconds(tmp_path, drone_ids=[1, 2]) == 240.0
+
+
+def test_max_processed_relative_altitude_uses_processed_peak_over_baseline(tmp_path):
+    validator = _load_validator_module()
+    processed_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "processed"
+    processed_dir.mkdir(parents=True)
+
+    with (processed_dir / "Drone 4.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["t", "alt"])
+        writer.writeheader()
+        writer.writerow({"t": 0, "alt": 1370.0})
+        writer.writerow({"t": 50, "alt": 2600.0})
+
+    with (processed_dir / "Drone 5.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["t", "alt"])
+        writer.writeheader()
+        writer.writerow({"t": 0, "alt": 1369.0})
+        writer.writerow({"t": 50, "alt": 2400.0})
+
+    baselines = {4: 1278.0, 5: 1278.0}
+
+    assert validator.max_processed_relative_altitude_m(tmp_path, baselines, drone_ids=[4, 5]) == 1322.0
