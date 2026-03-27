@@ -44,7 +44,7 @@ describe('MissionReadinessCard', () => {
 
     render(<MissionReadinessCard />);
 
-    expect(await screen.findByText((_, element) => element?.textContent?.includes('50% Clusters Ready'))).toBeInTheDocument();
+    expect(screen.getAllByText((_, element) => element?.textContent?.includes('50% Clusters Ready')).length).toBeGreaterThan(0);
     expect(screen.getAllByText((_, element) => element?.textContent?.includes('Needs Processing')).length).toBeGreaterThan(0);
     expect(screen.getByText(/0 missing upload/i)).toBeInTheDocument();
 
