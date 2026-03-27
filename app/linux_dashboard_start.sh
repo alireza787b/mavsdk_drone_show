@@ -161,6 +161,52 @@ log_error() { echo "[ERROR] $1" >&2; }
 log_success() { echo "[SUCCESS] $1"; }
 log_header() { echo -e "\n=== $1 ==="; }
 
+ensure_nodejs_in_path() {
+    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local candidate_dirs=()
+    local invoking_user="${SUDO_USER:-}"
+    local invoking_home=""
+    local latest_node_dir=""
+
+    if [[ -n "$invoking_user" ]]; then
+        invoking_home=$(getent passwd "$invoking_user" | cut -d: -f6 || true)
+    fi
+
+    if [[ -n "$invoking_home" && -d "$invoking_home/.nvm/versions/node" ]]; then
+        latest_node_dir=$(ls -d "$invoking_home"/.nvm/versions/node/v* 2>/dev/null | sort -V | tail -1 || true)
+        [[ -n "$latest_node_dir" ]] && candidate_dirs+=("$latest_node_dir/bin")
+    fi
+
+    if [[ -d "$HOME/.nvm/versions/node" ]]; then
+        latest_node_dir=$(ls -d "$HOME"/.nvm/versions/node/v* 2>/dev/null | sort -V | tail -1 || true)
+        [[ -n "$latest_node_dir" ]] && candidate_dirs+=("$latest_node_dir/bin")
+    fi
+
+    candidate_dirs+=(
+        "$HOME/.volta/bin"
+        "$HOME/.local/share/fnm"
+        "/usr/local/bin"
+        "/usr/bin"
+        "/bin"
+    )
+
+    local dir
+    for dir in "${candidate_dirs[@]}"; do
+        if [[ -x "$dir/node" && -x "$dir/npm" ]]; then
+            export PATH="$dir:$PATH"
+            log_info "Using Node.js toolchain from: $dir"
+            return 0
+        fi
+    done
+
+    log_error "Node.js and npm are not available in PATH."
+    log_error "If Node.js was installed via nvm, rerun the GCS init flow or ensure the nvm node bin directory is reachable."
+    exit 1
+}
+
 refresh_project_metadata() {
     if [[ -f "$VERSION_FILE_PATH" ]]; then
         PROJECT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE_PATH")"
@@ -326,6 +372,11 @@ run_configuration_check() {
     else
         log_error "React app: MISSING package.json"
         all_ok=false
+    fi
+
+    if [[ "$RUN_GUI_APP" == "true" ]]; then
+        ensure_nodejs_in_path
+        log_success "Node.js/npm: AVAILABLE"
     fi
 
     # Check .env file
@@ -1169,6 +1220,9 @@ echo "-----------------------------------------------------------------------"
 # Execute setup sequence (minimal output)
 handle_real_mode_file
 update_repository
+if [[ "$RUN_GUI_APP" == "true" ]]; then
+    ensure_nodejs_in_path
+fi
 configure_react_version_env
 load_virtualenv
 validate_backend
