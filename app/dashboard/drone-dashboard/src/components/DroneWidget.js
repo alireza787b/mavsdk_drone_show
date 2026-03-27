@@ -26,6 +26,8 @@ const DroneWidget = ({
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
+  const telemetryAvailable = drone[FIELD_NAMES.TELEMETRY_AVAILABLE] !== false;
+  const telemetryTrusted = telemetryAvailable && runtimeStatus.level === 'online';
   const runtimeTooltipId = `runtime-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
   const runtimeTooltipText = `${runtimeStatus.label}. ${runtimeStatus.tooltip}`;
   const promotedField = getPromotedMissionConfigField(drone);
@@ -154,6 +156,8 @@ const DroneWidget = ({
 
   const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
   const gpsQuality = getGpsQualityStatus(drone[FIELD_NAMES.HDOP], drone[FIELD_NAMES.VDOP]);
+  const telemetryPresentationClass = telemetryTrusted ? '' : 'stale';
+  const telemetryUnavailableText = telemetryAvailable ? 'Last known' : 'Unavailable';
 
   // Get drone IP (use snake_case standard)
   const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
@@ -316,16 +320,16 @@ const DroneWidget = ({
         {/* Altitude */}
         <div className="data-item">
           <span className="data-label">Altitude</span>
-          <span className="data-value">
-            {getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT])}
+          <span className={`data-value ${telemetryPresentationClass}`}>
+            {telemetryTrusted ? getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT]) : telemetryUnavailableText}
           </span>
         </div>
 
         {/* Battery */}
         <div className="data-item">
           <span className="data-label">Battery</span>
-          <span className={`data-value ${batteryStatus.class}`}>
-            {batteryStatus.text}
+          <span className={`data-value ${telemetryTrusted ? batteryStatus.class : telemetryPresentationClass}`}>
+            {telemetryTrusted ? batteryStatus.text : telemetryUnavailableText}
           </span>
         </div>
 
@@ -333,8 +337,10 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">GPS Fix</span>
           <div className="gps-status">
-            <span className={`gps-fix-indicator ${getGpsFixClass(gpsFixType)}`}></span>
-            <span className="data-value">{getGpsFixName(gpsFixType)}</span>
+            <span className={`gps-fix-indicator ${telemetryTrusted ? getGpsFixClass(gpsFixType) : 'no-fix'}`}></span>
+            <span className={`data-value ${telemetryPresentationClass}`}>
+              {telemetryTrusted ? getGpsFixName(gpsFixType) : telemetryUnavailableText}
+            </span>
           </div>
         </div>
 
@@ -342,10 +348,10 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">GPS Quality</span>
           <div className="data-value-stack">
-            <span className={`data-value ${gpsQuality.class}`}>
-              {gpsQuality.text}
+            <span className={`data-value ${telemetryTrusted ? gpsQuality.class : telemetryPresentationClass}`}>
+              {telemetryTrusted ? gpsQuality.text : telemetryUnavailableText}
             </span>
-            <span className="data-subvalue">{satellitesVisible} sats</span>
+            <span className="data-subvalue">{telemetryTrusted ? `${satellitesVisible} sats` : 'Waiting for telemetry'}</span>
           </div>
         </div>
       </div>

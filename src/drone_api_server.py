@@ -113,6 +113,7 @@ class DroneStateResponse(BaseModel):
     follow_mode: Any
     update_time: Any
     timestamp: int
+    server_time: int = 0
     flight_mode: Any
     base_mode: Any
     system_status: Any
@@ -223,8 +224,21 @@ class DroneAPIServer:
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
-                    # Add timestamp
-                    drone_state['timestamp'] = int(time.time() * 1000)
+                    raw_update_time = drone_state.get('update_time')
+                    try:
+                        numeric_update_time = float(raw_update_time)
+                    except (TypeError, ValueError):
+                        numeric_update_time = 0.0
+
+                    if numeric_update_time > 0:
+                        if numeric_update_time < 1_000_000_000_000:
+                            drone_state['timestamp'] = int(numeric_update_time * 1000)
+                        else:
+                            drone_state['timestamp'] = int(numeric_update_time)
+                    else:
+                        drone_state['timestamp'] = 0
+
+                    drone_state['server_time'] = int(time.time() * 1000)
                     return drone_state
                 else:
                     raise HTTPException(status_code=404, detail="Drone State not found")

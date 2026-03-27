@@ -250,6 +250,8 @@ class Params:
     # These ports must match the external router configuration:
     mavsdk_port = 14540                # MAVSDK SDK connection
     local_mavlink_port = 12550         # LocalMavlinkController (pymavlink telemetry)
+    LOCAL_MAVLINK_TIMEOUT_SEC = 5      # Per-read timeout for local pymavlink listener
+    LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS = 3  # Re-open listener after repeated silence
     local_mavlink2rest_port = 14569    # mavlink2rest REST API bridge
     gcs_mavlink_port = 14550           # Ground Control Station (QGC)
 

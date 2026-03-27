@@ -206,6 +206,9 @@ class DroneTelemetry(BaseModel):
 
     update_time: Any = Field(..., description="Legacy update time field from the drone API")
     timestamp: int = Field(..., description="Telemetry timestamp (Unix ms)")
+    server_time: Optional[int] = Field(None, description="Drone API response time (Unix ms)")
+    telemetry_available: bool = Field(True, description="Whether the latest telemetry poll succeeded")
+    telemetry_error: Optional[str] = Field(None, description="Latest telemetry fetch issue, if any")
 
     flight_mode: Any = Field(..., description="PX4 custom_mode / derived flight mode value")
     base_mode: Any = Field(..., description="MAVLink base_mode flags")

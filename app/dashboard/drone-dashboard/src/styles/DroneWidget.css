@@ -465,6 +465,12 @@
     animation: pulse-alert 2s infinite;
 }
 
+.data-value.stale {
+    color: var(--color-text-muted);
+    font-style: italic;
+    text-shadow: none;
+}
+
 @keyframes pulse-alert {
     0%, 100% {
         opacity: 1;

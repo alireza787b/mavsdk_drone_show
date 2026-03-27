@@ -13,6 +13,7 @@ import requests
 import threading
 import time
 import logging
+from typing import Any, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
@@ -31,6 +32,43 @@ telemetry_data_all_drones = {}
 last_telemetry_time = {}
 telemetry_stats = {}  # Track success/failure rates per drone
 data_lock = threading.Lock()
+
+
+def _build_link_blocker(now_ms: int, message: str) -> Dict[str, Any]:
+    return {
+        'source': 'link',
+        'severity': 'warning',
+        'message': message,
+        'timestamp': now_ms,
+    }
+
+
+def _build_telemetry_unavailable_record(drone_id: str, drone_ip: str, error_message: str) -> Dict[str, Any]:
+    now_ms = int(time.time() * 1000)
+
+    with last_heartbeats_lock:
+        heartbeat_data = (last_heartbeats.get(drone_id) or {}).copy()
+
+    existing = telemetry_data_all_drones.get(drone_id) or {}
+    degraded = dict(existing)
+    degraded.update({
+        'hw_id': str(existing.get('hw_id', drone_id)),
+        'pos_id': existing.get('pos_id', 'UNKNOWN'),
+        'ip': existing.get('ip', drone_ip),
+        'telemetry_available': False,
+        'telemetry_error': error_message,
+        'is_ready_to_arm': False,
+        'readiness_status': 'unknown',
+        'readiness_summary': 'Telemetry link is stale or lost. Readiness is currently unavailable.',
+        'readiness_checks': [],
+        'preflight_blockers': [_build_link_blocker(now_ms, 'Telemetry link is stale or lost. Readiness is currently unavailable.')],
+        'preflight_warnings': [],
+        'preflight_last_update': now_ms,
+        'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),
+        'heartbeat_network_info': heartbeat_data.get('network_info', {}),
+        'heartbeat_first_seen': _normalize_heartbeat_first_seen(heartbeat_data.get('first_seen')),
+    })
+    return degraded
 
 
 def _normalize_heartbeat_first_seen(value):
@@ -278,6 +316,9 @@ def poll_telemetry(drone):
                         'follow_mode': telemetry_data.get('follow_mode', 0),
                         'update_time': telemetry_data.get('update_time', 'UNKNOWN'),
                         'timestamp': telemetry_data.get('timestamp', time.time()),
+                        'server_time': telemetry_data.get('server_time'),
+                        'telemetry_available': True,
+                        'telemetry_error': None,
                         'trigger_time': telemetry_data.get('trigger_time', 0),
                         'flight_mode': telemetry_data.get('flight_mode', 'UNKNOWN'),  # PX4 custom_mode
                         'base_mode': telemetry_data.get('base_mode', 'UNKNOWN'),  # MAVLink base_mode flags
@@ -348,6 +389,12 @@ def poll_telemetry(drone):
                 error_msg = f"HTTP {response.status_code}: {response.text[:100]}"
                 consecutive_errors += 1
                 update_telemetry_stats(drone_id, False)
+                with data_lock:
+                    telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                        drone_id,
+                        drone_ip,
+                        error_msg,
+                    )
 
                 # Smart error logging: first error + every Nth occurrence
                 if should_log_telemetry_event(drone_id, False):
@@ -363,6 +410,12 @@ def poll_telemetry(drone):
         except requests.Timeout:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
+            with data_lock:
+                telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                    drone_id,
+                    drone_ip,
+                    f'Connection timeout after {Params.HTTP_REQUEST_TIMEOUT}s',
+                )
 
             # Log timeout errors with intelligent throttling
             if should_log_telemetry_event(drone_id, False):
@@ -378,6 +431,12 @@ def poll_telemetry(drone):
         except requests.ConnectionError as e:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
+            with data_lock:
+                telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                    drone_id,
+                    drone_ip,
+                    f'Connection failed to {drone_ip}',
+                )
 
             # Log connection errors with smart throttling
             if should_log_telemetry_event(drone_id, False):
@@ -393,6 +452,12 @@ def poll_telemetry(drone):
         except requests.RequestException as e:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
+            with data_lock:
+                telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                    drone_id,
+                    drone_ip,
+                    'Request exception',
+                )
 
             # Log request errors with professional throttling
             if should_log_telemetry_event(drone_id, False):
@@ -408,6 +473,12 @@ def poll_telemetry(drone):
         except Exception as e:
             consecutive_errors += 1
             update_telemetry_stats(drone_id, False)
+            with data_lock:
+                telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                    drone_id,
+                    drone_ip,
+                    f'Unexpected error: {type(e).__name__}',
+                )
             
             # Log unexpected errors immediately
             _log_drone_telemetry_event(
@@ -426,10 +497,15 @@ def poll_telemetry(drone):
             if current_time - last_telemetry_time.get(drone_id, 0) > Params.HTTP_REQUEST_TIMEOUT * 3:
                 if drone_id in telemetry_data_all_drones and telemetry_data_all_drones[drone_id]:
                     _log_system_event(
-                        f"Purging stale telemetry data for drone {drone_id} (no data for {Params.HTTP_REQUEST_TIMEOUT * 3}s)",
-                        "WARNING", "telemetry"
+                        f"Telemetry stale for drone {drone_id} (no successful poll for {Params.HTTP_REQUEST_TIMEOUT * 3}s); preserving identity and marking data unavailable.",
+                        "WARNING",
+                        "telemetry",
                     )
-                    telemetry_data_all_drones[drone_id] = {}
+                    telemetry_data_all_drones[drone_id] = _build_telemetry_unavailable_record(
+                        drone_id,
+                        drone_ip,
+                        'No successful telemetry poll within the stale-data threshold.',
+                    )
 
         # Wait before next poll
         time.sleep(Params.polling_interval)

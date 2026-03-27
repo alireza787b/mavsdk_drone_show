@@ -287,6 +287,8 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
         **data,
         "hw_id": str(data.get("hw_id", normalized_hw_id)),
         "ip": data.get("ip", ip),
+        "telemetry_available": data.get("telemetry_available", True),
+        "telemetry_error": data.get("telemetry_error"),
         "heartbeat_last_seen": heartbeat_data.get("timestamp"),
         "heartbeat_network_info": heartbeat_data.get("network_info") or {},
         "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
@@ -444,7 +446,10 @@ async def get_telemetry():
 @app.get("/api/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
 async def get_telemetry_typed(response: Response):
     """Get telemetry from all drones with typed response"""
-    online_count = len([d for d in telemetry_data_all_drones.values() if d])
+    online_count = len([
+        d for d in telemetry_data_all_drones.values()
+        if d and d.get("telemetry_available", True)
+    ])
     response.headers["X-MDS-Server-Time"] = str(int(time.time() * 1000))
 
     return TelemetryResponse(

@@ -27,7 +27,7 @@ export function getFleetReferenceClock(drones = [], nowMs = Date.now()) {
     .filter(Boolean)
     .map((drone) => {
       const referenceNowMs = getDroneReferenceNowMs(drone, nowMs);
-      const timestampMs = Number(drone?.timestamp ?? drone?.update_time ?? 0);
+      const timestampMs = Number(drone?.update_time ?? drone?.timestamp ?? 0);
       return {
         referenceNowMs,
         timestampMs,

@@ -79,7 +79,7 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
   const clockOffsetNote = Math.abs(calibratedClockOffsetMs) > CLIENT_CLOCK_SKEW_TOLERANCE_MS
     ? formatClockOffset(calibratedClockOffsetMs)
     : null;
-  const telemetryTimestamp = normalizeTimestampMs(drone?.timestamp ?? drone?.update_time);
+  const telemetryTimestamp = normalizeTimestampMs(drone?.update_time ?? drone?.timestamp);
   const heartbeatTimestamp = normalizeTimestampMs(drone?.heartbeat_last_seen);
   const telemetryAgeSec = toAgeSeconds(referenceNowMs, telemetryTimestamp);
   const heartbeatAgeSec = toAgeSeconds(referenceNowMs, heartbeatTimestamp);

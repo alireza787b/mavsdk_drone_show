@@ -106,4 +106,16 @@ describe('droneRuntimeStatus', () => {
     expect(status.level).toBe('offline');
     expect(status.label).toBe('Link lost');
   });
+
+  test('prefers update_time over request-time timestamp when telemetry is stale', () => {
+    const nowMs = 1_700_000_000_000;
+    const status = getDroneRuntimeStatus({
+      timestamp: nowMs - 2_000,
+      update_time: Math.floor((nowMs - 40_000) / 1000),
+      heartbeat_last_seen: nowMs - 5_000,
+    }, nowMs);
+
+    expect(status.level).toBe('degraded');
+    expect(status.label).toBe('Heartbeat only');
+  });
 });

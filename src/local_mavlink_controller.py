@@ -36,8 +36,13 @@ class LocalMavlinkController:
             'STATUSTEXT'
         ]
         
-        # Create a Mavlink connection using the provided local Mavlink port
-        self.mav = mavutil.mavlink_connection(f"udp:localhost:{params.local_mavlink_port}")
+        self.local_mavlink_port = int(getattr(params, 'local_mavlink_port', 12550))
+        self.local_mavlink_timeout_sec = max(1, int(getattr(params, 'LOCAL_MAVLINK_TIMEOUT_SEC', 5)))
+        self.local_mavlink_reconnect_after_timeouts = max(
+            1,
+            int(getattr(params, 'LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS', 3)),
+        )
+        self.mav = self._open_mavlink_connection()
         self.drone_config = drone_config
         self.local_mavlink_refresh_interval = params.local_mavlink_refresh_interval
         self.require_global_position = bool(getattr(params, 'REQUIRE_GLOBAL_POSITION', False))
@@ -50,6 +55,26 @@ class LocalMavlinkController:
         self.home_position_logged = False
         self._status_text_buffers: Dict[int, Dict[str, Any]] = {}
         self._status_messages: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+    def _open_mavlink_connection(self):
+        """Open a fresh UDP listener for the locally routed MAVLink stream."""
+        connection_string = f"udpin:127.0.0.1:{self.local_mavlink_port}"
+        self.log_debug(f"Opening LocalMavlinkController on {connection_string}")
+        return mavutil.mavlink_connection(connection_string)
+
+    def _reset_mavlink_connection(self, reason: str) -> None:
+        """Close and reopen the local MAVLink listener after repeated silence/errors."""
+        try:
+            self.mav.close()
+        except Exception:
+            pass
+
+        self.mav = self._open_mavlink_connection()
+        logging.warning(
+            "Reinitialized local MAVLink listener on port %s after %s.",
+            self.local_mavlink_port,
+            reason,
+        )
 
     def log_debug(self, message):
         """Logs a debug message if debugging is enabled."""
@@ -70,13 +95,41 @@ class LocalMavlinkController:
         """
         Continuously monitor for incoming Mavlink messages and process them.
         """
+        consecutive_timeouts = 0
+
         while self.run_telemetry_thread.is_set():
-            msg = self.mav.recv_match(type=self.message_filter, blocking=True, timeout=5)  # 5-second timeout
+            try:
+                msg = self.mav.recv_match(
+                    type=self.message_filter,
+                    blocking=True,
+                    timeout=self.local_mavlink_timeout_sec,
+                )
+            except Exception as exc:
+                logging.warning("Local MAVLink receive error: %s", exc)
+                consecutive_timeouts = 0
+                self._reset_mavlink_connection(f"receive error ({type(exc).__name__})")
+                continue
+
             if msg is not None:
+                if consecutive_timeouts > 0:
+                    logging.info(
+                        "Local MAVLink telemetry restored after %s timeout(s).",
+                        consecutive_timeouts,
+                    )
+                    consecutive_timeouts = 0
                 self.process_message(msg)
                 self.latest_messages[msg.get_type()] = msg
-            else:
+                continue
+
+            consecutive_timeouts += 1
+            if consecutive_timeouts == 1:
                 logging.warning('No MAVLink message received within timeout period')
+
+            if consecutive_timeouts >= self.local_mavlink_reconnect_after_timeouts:
+                self._reset_mavlink_connection(
+                    f"{consecutive_timeouts} consecutive timeouts",
+                )
+                consecutive_timeouts = 0
 
     def process_message(self, msg):
         """

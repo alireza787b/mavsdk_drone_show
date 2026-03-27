@@ -96,3 +96,39 @@ def test_process_status_text_surfaces_px4_blocker(mock_drone_config):
     assert mock_drone_config.preflight_blockers
     assert "ekf2 missing data" in mock_drone_config.preflight_blockers[0]["message"].lower()
     assert mock_drone_config.status_messages
+
+
+def test_open_mavlink_connection_uses_explicit_udpin(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    controller.local_mavlink_port = 12550
+
+    captured = {}
+
+    def fake_connection(connection_string):
+        captured["connection_string"] = connection_string
+        return object()
+
+    monkeypatch.setattr("src.local_mavlink_controller.mavutil.mavlink_connection", fake_connection)
+
+    controller._open_mavlink_connection()
+
+    assert captured["connection_string"] == "udpin:127.0.0.1:12550"
+
+
+def test_reset_mavlink_connection_reopens_listener(mock_drone_config, monkeypatch):
+    controller = build_controller(mock_drone_config)
+    controller.local_mavlink_port = 12550
+    closed = {"called": False}
+
+    class FakeMav:
+        def close(self):
+            closed["called"] = True
+
+    controller.mav = FakeMav()
+    new_connection = object()
+    monkeypatch.setattr(controller, "_open_mavlink_connection", lambda: new_connection)
+
+    controller._reset_mavlink_connection("test")
+
+    assert closed["called"] is True
+    assert controller.mav is new_connection
