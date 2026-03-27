@@ -2,8 +2,6 @@
 // CRITICAL FIX: Corrected speed calculation logic
 // FIXED: Each waypoint shows speed FROM current TO next waypoint (not FROM previous TO current)
 
-import { distance, bearing } from '@turf/turf';
-
 /**
  * Drone speed thresholds (m/s)
  * Based on typical commercial drone specifications
@@ -29,10 +27,40 @@ export const YAW_CONSTANTS = {
   DEFAULT_HEADING: 0      // Default heading: 000° (North)
 };
 
+const EARTH_RADIUS_M = 6_371_000;
+
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+const toDegrees = (radians) => (radians * 180) / Math.PI;
+
+const calculateHorizontalDistanceMeters = (fromWaypoint, toWaypoint) => {
+  const lat1 = toRadians(fromWaypoint.latitude);
+  const lat2 = toRadians(toWaypoint.latitude);
+  const dLat = lat2 - lat1;
+  const dLon = toRadians(toWaypoint.longitude - fromWaypoint.longitude);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return EARTH_RADIUS_M * c;
+};
+
+const calculateInitialBearing = (fromPoint, toPoint) => {
+  const lat1 = toRadians(fromPoint.latitude);
+  const lat2 = toRadians(toPoint.latitude);
+  const dLon = toRadians(toPoint.longitude - fromPoint.longitude);
+
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+
+  return toDegrees(Math.atan2(y, x));
+};
+
 const calculateSegmentDistance3D = (fromWaypoint, toWaypoint) => {
-  const point1 = [fromWaypoint.longitude, fromWaypoint.latitude];
-  const point2 = [toWaypoint.longitude, toWaypoint.latitude];
-  const horizontalDistance = distance(point1, point2, { units: 'meters' });
+  const horizontalDistance = calculateHorizontalDistanceMeters(fromWaypoint, toWaypoint);
   const altitudeDifference = Math.abs(
     (toWaypoint.altitude ?? 0) - (fromWaypoint.altitude ?? 0)
   );
@@ -51,11 +79,8 @@ const calculateSegmentDistance3D = (fromWaypoint, toWaypoint) => {
  */
 export const calculateHeading = (fromPoint, toPoint) => {
   try {
-    const point1 = [fromPoint.longitude, fromPoint.latitude];
-    const point2 = [toPoint.longitude, toPoint.latitude];
-    
-    // Turf.js bearing returns -180 to 180, convert to 0-360 aviation standard
-    let heading = bearing(point1, point2);
+    // Convert signed initial bearing to 0-360 aviation standard.
+    let heading = calculateInitialBearing(fromPoint, toPoint);
     if (heading < 0) {
       heading += 360;
     }
