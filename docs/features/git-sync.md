@@ -98,6 +98,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | HTTPS remote detected | GCS using HTTPS | Switch to SSH remote for push access |
 | Merge conflict on rebase | Concurrent edits | Auto-resolved: abort rebase, reset, retry |
 | Fetch timeout on drone | Network issue | Graceful degradation: drone continues with cached code |
+| Connectivity probe fails inside Docker/SITL | ICMP blocked or `ping` unavailable | The probe is advisory only; `git fetch` is the definitive check |
 | Sync accepted but never verified | Runtime command parameter missing or git update failed on drone | Check drone session logs; success is only reported after branch/commit/status match |
 
 ## API Endpoints

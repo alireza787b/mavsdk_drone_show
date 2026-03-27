@@ -343,6 +343,25 @@ retry_with_backoff() {
 # ----------------------------------
 # Network Connectivity Check with Swarm Awareness
 # ----------------------------------
+probe_network_endpoint() {
+    local endpoint="$1"
+    local port="${2:-443}"
+
+    if command -v ping >/dev/null 2>&1; then
+        if ping -c 1 -W "$NETWORK_TIMEOUT" "$endpoint" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    if command -v timeout >/dev/null 2>&1 && command -v bash >/dev/null 2>&1; then
+        if timeout "$NETWORK_TIMEOUT" bash -lc "</dev/tcp/${endpoint}/${port}" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 check_network_connectivity() {
     local component="NETWORK"
     log_info "$component" "Checking network connectivity..."
@@ -355,20 +374,23 @@ check_network_connectivity() {
         sleep "$jitter"
     fi
     
-    # Test multiple endpoints for redundancy
-    local endpoints=("github.com" "8.8.8.8" "1.1.1.1")
+    # Test multiple endpoints for redundancy. This is advisory only; the
+    # subsequent git fetch is the authoritative connectivity test.
+    local endpoints=("github.com:443" "github.com:22" "8.8.8.8:443" "1.1.1.1:443")
     local success=false
     
-    for endpoint in "${endpoints[@]}"; do
-        if ping -c 1 -W "$NETWORK_TIMEOUT" "$endpoint" >/dev/null 2>&1; then
-            log_info "$component" "Network connectivity confirmed via $endpoint"
+    for endpoint_spec in "${endpoints[@]}"; do
+        local endpoint="${endpoint_spec%%:*}"
+        local port="${endpoint_spec##*:}"
+        if probe_network_endpoint "$endpoint" "$port"; then
+            log_info "$component" "Network connectivity confirmed via ${endpoint}:${port}"
             success=true
             break
         fi
     done
     
     if [[ "$success" != "true" ]]; then
-        log_error_and_exit "$component" "No network connectivity to any endpoint after testing: ${endpoints[*]}"
+        log_warn "$component" "Connectivity probe failed (${endpoints[*]}). Proceeding to git fetch for definitive verification."
     fi
 }
 

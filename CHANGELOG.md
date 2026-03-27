@@ -14,6 +14,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - git-sync verification now ignores generated SITL provenance metadata files, so stock containers do not stay permanently `dirty` just because they carry build/provenance markers
 - the `Sync Now` flow now verifies real branch/commit convergence before reporting success, and default all-drone sync now prefers recently active drones instead of counting stale offline config slots from the same host
 - `tools/update_repo_ssh.sh` now resolves user/home robustly even in non-interactive container execution, avoiding `USER: unbound variable` failures during scripted sync actions
+- `tools/update_repo_ssh.sh` no longer treats ICMP `ping` as a hard requirement for connectivity, so Docker/SITL sync uses TCP-aware advisory probing and lets the actual `git fetch` decide whether network access is available
 - mission and action scheduling now present GCS-aligned UTC execution times more clearly, so operator confirmations/toasts stay consistent even when the browser wall clock is off
 - browser/GCS clock-drift notes now appear only for material offsets instead of small harmless differences, reducing operator noise during normal SITL use
 - per-drone overview-card overrides now explain that they are airborne intervention controls, so disarmed or link-unavailable cards no longer look like broken action panels
