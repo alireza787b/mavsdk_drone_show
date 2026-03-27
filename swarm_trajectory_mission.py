@@ -109,6 +109,11 @@ from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
+from src.flight_timeout_utils import (
+    calculate_controlled_landing_timeout,
+    calculate_land_disarm_timeout,
+    calculate_swarm_rtl_completion_timeout,
+)
 from src.params import Params
 
 from drone_show_src.utils import (
@@ -696,7 +701,27 @@ async def controlled_landing(drone: System):
     logger.info("Initiating controlled landing.")
     led_controller = LEDController.get_instance()
     landing_detected = False
-    landing_start_time = time.time()
+    landing_start_time = time.monotonic()
+
+    relative_altitude = await _get_current_relative_altitude(drone)
+    altitude_message = (
+        f"{relative_altitude:.1f}m"
+        if isinstance(relative_altitude, (int, float))
+        else "unknown"
+    )
+    precision_window = float(getattr(Params, "CONTROLLED_LANDING_ALTITUDE", 2.0))
+    if relative_altitude is None or relative_altitude > precision_window:
+        logger.info(
+            "Controlled landing requested at %s AGL; delegating to PX4 native LAND because it exceeds the %.1fm precision-descent window.",
+            altitude_message,
+            precision_window,
+        )
+        await stop_offboard_mode(drone)
+        await perform_landing(drone)
+        led_controller.set_color(0, 255, 0)
+        return
+
+    controlled_timeout = calculate_controlled_landing_timeout(relative_altitude)
 
     logger.info("Switching to controlled descent mode.")
     try:
@@ -725,11 +750,15 @@ async def controlled_landing(drone: System):
                     break
                 break
 
-            if (time.time() - landing_start_time) > Params.LANDING_TIMEOUT:
-                logger.warning("Controlled landing timed out. Initiating PX4 native landing.")
+            if (time.monotonic() - landing_start_time) > controlled_timeout:
+                logger.warning(
+                    "Controlled landing timed out after %.0fs. Initiating PX4 native landing.",
+                    controlled_timeout,
+                )
                 await stop_offboard_mode(drone)
                 await perform_landing(drone)
-                break
+                led_controller.set_color(0, 255, 0)
+                return
 
             await asyncio.sleep(0.1)
 
@@ -749,6 +778,10 @@ async def controlled_landing(drone: System):
     if landing_detected:
         await stop_offboard_mode(drone)
         await disarm_drone(drone)
+        await _wait_until_disarmed(
+            drone,
+            timeout=float(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20)),
+        )
         logger.info("Controlled landing completed successfully.")
     else:
         logger.warning("Landing not detected. Initiating PX4 native landing as fallback.")
@@ -767,50 +800,54 @@ async def wait_for_rtl_completion(drone: System):
     the aircraft lifecycle, not only the moment PX4 accepted the mode change.
     """
     logger = logging.getLogger(__name__)
-    timeout = getattr(Params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600)
+    relative_altitude = await _get_current_relative_altitude(drone)
+    timeout = calculate_swarm_rtl_completion_timeout(relative_altitude)
     disarm_grace = getattr(Params, "SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC", 15)
-    start_time = time.time()
+    altitude_message = (
+        f"{relative_altitude:.1f}m"
+        if isinstance(relative_altitude, (int, float))
+        else "unknown"
+    )
+    logger.info(
+        "Waiting up to %.0fs for RTL completion (current relative altitude: %s).",
+        timeout,
+        altitude_message,
+    )
+    start_time = time.monotonic()
     touchdown_since = None
+    disarm_requested = False
 
     while True:
-        if time.time() - start_time > timeout:
+        if time.monotonic() - start_time > timeout:
             raise TimeoutError("RTL completion timed out before landing/disarm was confirmed")
 
-        landed_state = None
-        is_armed = None
-
-        try:
-            async for current_state in drone.telemetry.landed_state():
-                landed_state = current_state
-                break
-        except Exception as exc:
-            logger.warning(f"RTL completion check: landed_state unavailable: {exc}")
-
-        try:
-            async for current_armed in drone.telemetry.armed():
-                is_armed = current_armed
-                break
-        except Exception as exc:
-            logger.warning(f"RTL completion check: armed status unavailable: {exc}")
+        landed_state = await _get_current_landed_state(drone)
+        is_armed = await _get_current_armed_state(drone)
 
         if landed_state == LandedState.ON_GROUND:
             if touchdown_since is None:
-                touchdown_since = time.time()
+                touchdown_since = time.monotonic()
                 logger.info("RTL touchdown detected; waiting for disarm confirmation.")
 
             if is_armed is False:
                 logger.info("RTL completion confirmed: drone is on ground and disarmed.")
                 return
 
-            if is_armed and (time.time() - touchdown_since) >= disarm_grace:
+            if is_armed and not disarm_requested and (time.monotonic() - touchdown_since) >= disarm_grace:
                 logger.warning(
                     "Drone is on ground after RTL but still armed; issuing explicit disarm to complete mission cleanup."
                 )
                 await disarm_drone(drone)
+                disarm_requested = True
+                await _wait_until_disarmed(
+                    drone,
+                    timeout=float(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20)),
+                )
                 logger.info("RTL completion confirmed after explicit disarm.")
                 return
         else:
             touchdown_since = None
+            disarm_requested = False
 
         await asyncio.sleep(1.0)
 
@@ -920,9 +957,8 @@ async def emergency_land_sequence(drone: System):
         await asyncio.sleep(0.5)
         await drone.action.hold()
         await asyncio.sleep(0.5)
-        await drone.action.land()
         logger.info("Emergency landing initiated")
-        await wait_for_landing(drone)
+        await perform_landing(drone)
     except Exception as e:
         logger.error(f"Emergency land sequence failed: {e}")
         raise
@@ -1208,24 +1244,63 @@ async def perform_landing(drone: System):
     """
     logger = logging.getLogger(__name__)
     try:
-        logger.info("Initiating landing.")
+        relative_altitude = await _get_current_relative_altitude(drone)
+        disarm_timeout = calculate_land_disarm_timeout(relative_altitude)
+        altitude_message = (
+            f"{relative_altitude:.1f}m"
+            if isinstance(relative_altitude, (int, float))
+            else "unknown"
+        )
+        logger.info(
+            "Initiating landing and waiting up to %.0fs for touchdown/disarm confirmation (relative altitude: %s).",
+            disarm_timeout,
+            altitude_message,
+        )
         await drone.action.land()
-
-        start_time = time.time()
+        start_time = time.monotonic()
+        touchdown_since = None
+        disarm_requested = False
+        touchdown_grace = float(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20))
         while True:
-            async for landed_state in drone.telemetry.landed_state():
-                if landed_state == LandedState.ON_GROUND:
-                    logger.info("Drone has landed successfully.")
+            landed_state = await _get_current_landed_state(drone)
+            is_armed = await _get_current_armed_state(drone)
+
+            if landed_state == LandedState.ON_GROUND:
+                if touchdown_since is None:
+                    touchdown_since = time.monotonic()
+                    logger.info("Drone touchdown detected during landing.")
+
+                if is_armed is False:
+                    logger.info("Drone has landed successfully and disarmed.")
                     return
-                break
-            if time.time() - start_time > Params.LANDING_TIMEOUT:
-                logger.error("Landing confirmation timed out.")
-                break
+
+                if is_armed and not disarm_requested and (time.monotonic() - touchdown_since) >= touchdown_grace:
+                    logger.warning(
+                        "Drone is on ground but still armed; issuing explicit disarm to complete landing cleanup."
+                    )
+                    await disarm_drone(drone)
+                    disarm_requested = True
+                    await _wait_until_disarmed(drone, timeout=touchdown_grace)
+                    logger.info("Drone has landed successfully after explicit disarm.")
+                    return
+            else:
+                touchdown_since = None
+                disarm_requested = False
+
+            if time.monotonic() - start_time > disarm_timeout:
+                raise TimeoutError(
+                    f"Landing confirmation timed out after {disarm_timeout:.0f}s before touchdown/disarm was confirmed."
+                )
             await asyncio.sleep(1)
     except ActionError as e:
         logger.error(f"Action error during landing: {e}")
+        raise
+    except TimeoutError:
+        logger.exception("Landing timed out before touchdown/disarm confirmation.")
+        raise
     except Exception:
         logger.exception("Unexpected error during landing.")
+        raise
 
 
 async def wait_for_landing(drone: System):
@@ -1234,18 +1309,10 @@ async def wait_for_landing(drone: System):
     (Identical to drone_show.py implementation)
     """
     logger = logging.getLogger(__name__)
-    start_time = time.time()
     logger.info("Waiting for drone to confirm landing...")
-    while True:
-        async for landed_state in drone.telemetry.landed_state():
-            if landed_state == LandedState.ON_GROUND:
-                logger.info("Drone has landed successfully.")
-                return
-            break
-        if time.time() - start_time > Params.LANDING_TIMEOUT:
-            logger.error("Landing confirmation timed out.")
-            break
-        await asyncio.sleep(1)
+    relative_altitude = await _get_current_relative_altitude(drone)
+    disarm_timeout = calculate_land_disarm_timeout(relative_altitude)
+    await _wait_for_touchdown_and_disarm(drone, timeout=disarm_timeout)
 
 
 async def stop_offboard_mode(drone: System):
@@ -1280,6 +1347,114 @@ async def disarm_drone(drone: System):
         logger.error(f"Error disarming drone: {e}")
     except Exception:
         logger.exception("Unexpected error disarming drone.")
+        raise
+
+
+async def _get_current_relative_altitude(drone: System, timeout: float = 3.0):
+    """Capture the current relative altitude from MAVSDK telemetry."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        position_stream = drone.telemetry.position()
+        try:
+            position = await asyncio.wait_for(
+                anext(position_stream),
+                timeout=max(0.1, deadline - time.monotonic()),
+            )
+            return getattr(position, "relative_altitude_m", None)
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+    return None
+
+
+async def _get_current_landed_state(drone: System, timeout: float = 3.0):
+    """Capture a single landed-state sample."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        landed_state_stream = drone.telemetry.landed_state()
+        try:
+            return await asyncio.wait_for(
+                anext(landed_state_stream),
+                timeout=max(0.1, deadline - time.monotonic()),
+            )
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Landed-state sample unavailable: %s", exc)
+            break
+    return None
+
+
+async def _get_current_armed_state(drone: System, timeout: float = 3.0):
+    """Capture a single armed-state sample."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        armed_state_stream = drone.telemetry.armed()
+        try:
+            return await asyncio.wait_for(
+                anext(armed_state_stream),
+                timeout=max(0.1, deadline - time.monotonic()),
+            )
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Armed-state sample unavailable: %s", exc)
+            break
+    return None
+
+
+async def _wait_until_disarmed(drone: System, timeout: float, poll_interval: float = 1.0):
+    """Wait until the vehicle confirms disarm."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        is_armed = await _get_current_armed_state(drone, timeout=min(1.0, max(0.1, remaining)))
+        if is_armed is False:
+            return
+        if time.monotonic() >= deadline:
+            break
+        await asyncio.sleep(min(poll_interval, max(0.1, deadline - time.monotonic())))
+    raise TimeoutError(f"Timed out waiting for drone to disarm after {timeout:.0f}s")
+
+
+async def _wait_for_touchdown_and_disarm(drone: System, timeout: float):
+    """Wait for touchdown and final disarm confirmation after LAND has been issued."""
+    logger = logging.getLogger(__name__)
+    start_time = time.monotonic()
+    touchdown_since = None
+    disarm_requested = False
+    touchdown_grace = float(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20))
+
+    while True:
+        landed_state = await _get_current_landed_state(drone)
+        is_armed = await _get_current_armed_state(drone)
+
+        if landed_state == LandedState.ON_GROUND:
+            if touchdown_since is None:
+                touchdown_since = time.monotonic()
+                logger.info("Drone touchdown detected while waiting for landing confirmation.")
+
+            if is_armed is False:
+                logger.info("Landing confirmation complete: drone is on ground and disarmed.")
+                return
+
+            if is_armed and not disarm_requested and (time.monotonic() - touchdown_since) >= touchdown_grace:
+                logger.warning(
+                    "Drone is on ground but still armed; issuing explicit disarm to complete landing confirmation."
+                )
+                await disarm_drone(drone)
+                disarm_requested = True
+                await _wait_until_disarmed(drone, timeout=touchdown_grace)
+                logger.info("Landing confirmation complete after explicit disarm.")
+                return
+        else:
+            touchdown_since = None
+            disarm_requested = False
+
+        if time.monotonic() - start_time > timeout:
+            raise TimeoutError(
+                f"Timed out waiting for landing confirmation after {timeout:.0f}s"
+            )
+        await asyncio.sleep(1)
 
 
 # ----------------------------- #

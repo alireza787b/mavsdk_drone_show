@@ -22,6 +22,18 @@ async def _stream_once(value):
     yield value
 
 
+def _stream_side_effect(values):
+    iterator = iter(values)
+
+    def _factory():
+        async def _stream():
+            yield next(iterator)
+
+        return _stream()
+
+    return _factory
+
+
 @pytest.mark.asyncio
 async def test_wait_for_rtl_completion_returns_after_touchdown_and_disarm():
     drone = MagicMock()
@@ -51,3 +63,52 @@ async def test_execute_end_behavior_return_home_waits_for_rtl_completion():
     drone.action.hold.assert_awaited_once()
     drone.action.return_to_launch.assert_awaited_once()
     wait_for_rtl_completion.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_rtl_completion_issues_explicit_disarm_after_touchdown_grace(monkeypatch):
+    drone = MagicMock()
+    drone.telemetry.landed_state.side_effect = _stream_side_effect(
+        [stm.LandedState.ON_GROUND, stm.LandedState.ON_GROUND]
+    )
+    drone.telemetry.armed.side_effect = _stream_side_effect([True, False])
+
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC", 0)
+    monkeypatch.setattr(stm, "calculate_swarm_rtl_completion_timeout", lambda altitude: 30)
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=25.0)):
+        with patch.object(stm, "disarm_drone", new=AsyncMock()) as disarm_drone:
+            await stm.wait_for_rtl_completion(drone)
+
+    disarm_drone.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_controlled_landing_delegates_to_native_land_when_above_precision_window(monkeypatch):
+    drone = MagicMock()
+    monkeypatch.setattr(stm.Params, "CONTROLLED_LANDING_ALTITUDE", 2.0)
+
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=15.0)):
+        with patch.object(stm, "stop_offboard_mode", new=AsyncMock()) as stop_offboard_mode:
+            with patch.object(stm, "perform_landing", new=AsyncMock()) as perform_landing:
+                await stm.controlled_landing(drone)
+
+    stop_offboard_mode.assert_awaited_once_with(drone)
+    perform_landing.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_perform_landing_requires_disarm_before_returning(monkeypatch):
+    drone = MagicMock()
+    drone.action.land = AsyncMock()
+    drone.telemetry.landed_state.side_effect = _stream_side_effect(
+        [stm.LandedState.ON_GROUND, stm.LandedState.ON_GROUND]
+    )
+    drone.telemetry.armed.side_effect = _stream_side_effect([True, False])
+
+    monkeypatch.setattr(stm.Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 0)
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=12.0)):
+        with patch.object(stm, "disarm_drone", new=AsyncMock()) as disarm_drone:
+            await stm.perform_landing(drone)
+
+    drone.action.land.assert_awaited_once()
+    disarm_drone.assert_awaited_once_with(drone)

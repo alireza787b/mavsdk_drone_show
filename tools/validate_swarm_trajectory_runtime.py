@@ -28,15 +28,46 @@ from pathlib import Path
 from typing import Any, Iterable
 
 try:
+    from src.flight_timeout_utils import (
+        calculate_land_disarm_timeout,
+        calculate_swarm_rtl_completion_timeout,
+    )
     from src.params import Params
 except Exception:  # pragma: no cover - validator fallback only
     class _FallbackParams:
         SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
         SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600
+        SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC = 180
+        SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT = 1800
         LANDING_TIMEOUT = 10
+        LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
+        LAND_ACTION_ASSUMED_DESCENT_RATE_MPS = 2.5
+        LAND_ACTION_DISARM_BUFFER_SEC = 30
+        LAND_ACTION_MAX_DISARM_WAIT_SEC = 900
         CONTROLLED_LANDING_TIMEOUT = 7
 
     Params = _FallbackParams()
+
+    def calculate_land_disarm_timeout(relative_altitude_m, *, params=Params):
+        minimum_wait = int(getattr(params, "LAND_ACTION_MIN_DISARM_WAIT_SEC", 45))
+        if relative_altitude_m is None:
+            return minimum_wait
+        altitude_m = max(0.0, float(relative_altitude_m))
+        descent_rate = max(0.1, float(getattr(params, "LAND_ACTION_ASSUMED_DESCENT_RATE_MPS", 2.5)))
+        buffer_sec = max(0, int(getattr(params, "LAND_ACTION_DISARM_BUFFER_SEC", 30)))
+        maximum_wait = max(minimum_wait, int(getattr(params, "LAND_ACTION_MAX_DISARM_WAIT_SEC", 900)))
+        return max(minimum_wait, min(maximum_wait, int(math.ceil(minimum_wait + (altitude_m / descent_rate) + buffer_sec))))
+
+    def calculate_swarm_rtl_completion_timeout(relative_altitude_m, *, params=Params):
+        base_timeout = int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600))
+        rtl_buffer_sec = max(0, int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC", 180)))
+        maximum_timeout = max(
+            base_timeout,
+            int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT", 1800)),
+        )
+        landing_timeout = calculate_land_disarm_timeout(relative_altitude_m, params=params)
+        estimated_wait = landing_timeout + rtl_buffer_sec
+        return max(base_timeout, min(maximum_timeout, estimated_wait))
 
 
 SWARM_TRAJECTORY = 4
@@ -386,7 +417,12 @@ def max_processed_duration_seconds(repo_root: Path) -> float:
     return max(durations) if durations else 0.0
 
 
-def estimate_command_completion_timeout(duration_sec: float, end_behavior: str | None = None) -> int:
+def estimate_command_completion_timeout(
+    duration_sec: float,
+    end_behavior: str | None = None,
+    *,
+    relative_altitude_m: float | None = None,
+) -> int:
     """
     Estimate a realistic validator timeout for Swarm Trajectory completion.
 
@@ -399,16 +435,12 @@ def estimate_command_completion_timeout(duration_sec: float, end_behavior: str |
     base_buffer_sec = 180
 
     if behavior == "return_home":
-        rtl_timeout = int(getattr(Params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600))
-        landing_buffer = max(
-            60,
-            int(getattr(Params, "LANDING_TIMEOUT", 10)) * 3,
-        )
-        return max(300, int(math.ceil(duration_sec + rtl_timeout + landing_buffer + base_buffer_sec)))
+        rtl_timeout = calculate_swarm_rtl_completion_timeout(relative_altitude_m)
+        return max(300, int(math.ceil(duration_sec + rtl_timeout + base_buffer_sec)))
 
     if behavior == "land_current":
         landing_timeout = max(
-            int(getattr(Params, "LANDING_TIMEOUT", 10)),
+            calculate_land_disarm_timeout(relative_altitude_m),
             int(getattr(Params, "CONTROLLED_LANDING_TIMEOUT", 7)),
         )
         return max(300, int(math.ceil(duration_sec + landing_timeout + base_buffer_sec)))
@@ -416,16 +448,27 @@ def estimate_command_completion_timeout(duration_sec: float, end_behavior: str |
     return max(300, int(math.ceil(duration_sec + base_buffer_sec)))
 
 
-def cleanup_land(client: ApiClient, ids: list[int], label: str) -> None:
+def cleanup_land(client: ApiClient, ids: list[int], label: str, baselines: dict[int, float] | None = None) -> None:
     telemetry = client.get_telemetry()
     armed_ids = [idx for idx in ids if telemetry.get(str(idx), {}).get("is_armed")]
     if not armed_ids:
         return
+    relative_altitudes = []
+    if baselines:
+        for idx in armed_ids:
+            current_altitude = telemetry.get(str(idx), {}).get("position_alt")
+            baseline_altitude = baselines.get(idx)
+            try:
+                relative_altitudes.append(max(0.0, float(current_altitude) - float(baseline_altitude)))
+            except (TypeError, ValueError):
+                continue
+    max_relative_altitude = max(relative_altitudes) if relative_altitudes else None
+    cleanup_timeout = max(180, calculate_land_disarm_timeout(max_relative_altitude) + 60)
     log(f"CLEANUP: landing armed drones {armed_ids}")
     response = client.submit_command(LAND, armed_ids, label, trigger_time=0)
-    status = wait_for_command(client, response["command_id"], terminal=True, timeout=180)
+    status = wait_for_command(client, response["command_id"], terminal=True, timeout=cleanup_timeout)
     log(f"CLEANUP RESULT: {command_summary(status)}")
-    wait_for_idle(client, ids, timeout=180)
+    wait_for_idle(client, ids, timeout=cleanup_timeout)
 
 
 def main() -> int:
@@ -491,10 +534,19 @@ def main() -> int:
             timeout=args.formation_timeout,
         )
         results["formation"] = formation["diagnostics"]
+        formation_relative_altitude = max(
+            max(0.0, float(formation["telemetry"][str(idx)]["position_alt"]) - float(baselines[idx]))
+            for idx in args.drone_ids
+        )
+        results["formation_max_relative_altitude_m"] = formation_relative_altitude
 
         duration = max_processed_duration_seconds(args.repo_root)
         end_behavior = getattr(Params, "SWARM_TRAJECTORY_END_BEHAVIOR", "return_home")
-        mission_timeout = estimate_command_completion_timeout(duration, end_behavior=end_behavior)
+        mission_timeout = estimate_command_completion_timeout(
+            duration,
+            end_behavior=end_behavior,
+            relative_altitude_m=formation_relative_altitude,
+        )
         results["expected_duration_sec"] = duration
         results["end_behavior"] = end_behavior
         results["mission_timeout_sec"] = mission_timeout
@@ -513,7 +565,7 @@ def main() -> int:
         results["error"] = str(exc)
         print(json.dumps(results, indent=2))
         try:
-            cleanup_land(client, args.drone_ids, "Swarm Trajectory Validation Cleanup Land")
+            cleanup_land(client, args.drone_ids, "Swarm Trajectory Validation Cleanup Land", baselines if "baselines" in locals() else None)
         except Exception as cleanup_exc:
             log(f"CLEANUP ERROR: {cleanup_exc}")
         return 1

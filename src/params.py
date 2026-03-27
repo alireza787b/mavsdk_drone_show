@@ -374,6 +374,8 @@ class Params:
     MISSION_PROGRESS_THRESHOLD = 0.5       # Minimum mission progress percentage for controlled landing
     CONTROLLED_DESCENT_SPEED = 0.5         # Descent speed during controlled landing in m/s
     CONTROLLED_LANDING_TIMEOUT = 7        # Maximum time to wait during controlled landing
+    CONTROLLED_LANDING_BUFFER_SEC = 5      # Extra touchdown margin for low-altitude precision descent
+    CONTROLLED_LANDING_MAX_TIMEOUT_SEC = 120  # Hard cap for controlled landing fallback wait
 
 
     AUTO_LAUNCH_POSITION = True  # Auto start trajectories at 0,0,0
@@ -468,6 +470,8 @@ class Params:
     SWARM_TRAJECTORY_MAX_VELOCITY = 15.0       # Maximum velocity for trajectory mode
     SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER = 1.2  # Timeout multiplier for mission duration
     SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600  # Max time to wait for RTL end behavior to land/disarm
+    SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC = 180  # Extra RTL leg time before touchdown/disarm should complete
+    SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT = 1800  # Hard cap for very long RTL recoveries
     SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC = 15    # Grace period to auto-disarm after RTL touchdown if PX4 remains armed
     
     # Takeoff Configuration (same as drone show)

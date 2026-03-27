@@ -14,15 +14,27 @@ def _load_validator_module():
 def test_estimate_command_completion_timeout_includes_rtl_window():
     validator = _load_validator_module()
 
-    timeout = validator.estimate_command_completion_timeout(500.0, end_behavior="return_home")
+    timeout = validator.estimate_command_completion_timeout(
+        500.0,
+        end_behavior="return_home",
+        relative_altitude_m=250.0,
+    )
 
-    assert timeout >= 500 + validator.Params.SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT + 60
+    assert timeout >= 500 + validator.calculate_swarm_rtl_completion_timeout(250.0)
 
 
 def test_estimate_command_completion_timeout_for_land_current_is_shorter_than_rtl():
     validator = _load_validator_module()
 
-    rtl_timeout = validator.estimate_command_completion_timeout(500.0, end_behavior="return_home")
-    land_timeout = validator.estimate_command_completion_timeout(500.0, end_behavior="land_current")
+    rtl_timeout = validator.estimate_command_completion_timeout(
+        500.0,
+        end_behavior="return_home",
+        relative_altitude_m=250.0,
+    )
+    land_timeout = validator.estimate_command_completion_timeout(
+        500.0,
+        end_behavior="land_current",
+        relative_altitude_m=250.0,
+    )
 
     assert land_timeout < rtl_timeout

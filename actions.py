@@ -50,7 +50,6 @@ This script executes various drone actions using MAVSDK:
 import argparse
 import asyncio
 import csv
-import math
 import os
 import requests
 import socket
@@ -62,6 +61,7 @@ import psutil
 from mavsdk import System, telemetry, action
 from mavsdk.action import ActionError
 from src.drone_config import ConfigLoader
+from src.flight_timeout_utils import calculate_land_disarm_timeout
 from src.led_controller import LEDController
 from src.params import Params
 
@@ -464,30 +464,6 @@ async def _get_current_landed_state(drone, timeout: float = 3.0):
         except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
             break
     return None
-
-
-def calculate_land_disarm_timeout(relative_altitude_m):
-    """
-    Estimate a realistic disarm wait budget for LAND based on current altitude.
-
-    High-altitude SITL and large-area field missions can spend minutes descending
-    after PX4 has already accepted LAND. Treating a fixed 45-second disarm wait
-    as failure creates false negatives for otherwise healthy landing sequences.
-    """
-    minimum_wait = int(getattr(Params, "LAND_ACTION_MIN_DISARM_WAIT_SEC", 45))
-    if relative_altitude_m is None:
-        return minimum_wait
-
-    try:
-        altitude_m = max(0.0, float(relative_altitude_m))
-    except (TypeError, ValueError):
-        return minimum_wait
-
-    descent_rate = max(0.1, float(getattr(Params, "LAND_ACTION_ASSUMED_DESCENT_RATE_MPS", 2.5)))
-    buffer_sec = max(0, int(getattr(Params, "LAND_ACTION_DISARM_BUFFER_SEC", 30)))
-    maximum_wait = max(minimum_wait, int(getattr(Params, "LAND_ACTION_MAX_DISARM_WAIT_SEC", 900)))
-    estimated_wait = math.ceil(minimum_wait + (altitude_m / descent_rate) + buffer_sec)
-    return max(minimum_wait, min(maximum_wait, estimated_wait))
 
 
 async def wait_until_armed_state(drone, expected: bool, timeout=15):
