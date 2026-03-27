@@ -15,7 +15,7 @@ function normalizeMissionType(missionType) {
 }
 
 function formatCommandLabel(commandData, response) {
-  return commandData?.operatorLabel
+  return commandData?.uiMeta?.operatorLabel
     || response?.mission_name
     || getCommandName(normalizeMissionType(commandData?.missionType));
 }
@@ -25,9 +25,9 @@ function getAcceptedCount(response) {
   return Number(summary.accepted ?? response?.submitted_count ?? 0);
 }
 
-function formatTargetLabel(response) {
+function getTargetCount(response) {
   const count = Array.isArray(response?.target_drones) ? response.target_drones.length : 0;
-  return count === 1 ? '1 drone' : `${count} drones`;
+  return count;
 }
 
 function isFutureTrigger(triggerTime) {
@@ -56,10 +56,14 @@ function buildSubmissionToastMessage(commandData, response) {
   const offline = Number(summary.offline || 0);
   const rejected = Number(summary.rejected || 0);
   const errors = Number(summary.errors || 0);
-  const targetLabel = formatTargetLabel(response);
-  const scheduledTime = isFutureTrigger(commandData?.triggerTime)
-    ? formatTriggerTime(commandData?.triggerTime)
-    : null;
+  const targetCount = getTargetCount(response);
+  const targetSummary = targetCount > 0
+    ? `${accepted}/${targetCount} targeted drone${targetCount === 1 ? '' : 's'} accepted`
+    : `${accepted} drone${accepted === 1 ? '' : 's'} accepted`;
+  const scheduledTime = commandData?.uiMeta?.triggerSummary
+    || (isFutureTrigger(commandData?.triggerTime)
+      ? formatTriggerTime(commandData?.triggerTime)
+      : null);
 
   if (!response?.success) {
     return {
@@ -71,43 +75,68 @@ function buildSubmissionToastMessage(commandData, response) {
   if (scheduledTime) {
     return {
       level: offline > 0 || rejected > 0 || errors > 0 ? 'warning' : 'info',
-      message: `${commandLabel} queued for ${scheduledTime}. ${accepted}/${targetLabel} accepted.`,
+      message: `${commandLabel} scheduled. ${scheduledTime}. ${targetSummary}.`,
     };
   }
 
   if (offline > 0 && rejected === 0 && errors === 0) {
     return {
       level: 'warning',
-      message: `${commandLabel} accepted by ${accepted}/${targetLabel}. ${offline} offline.`,
+      message: `${commandLabel} accepted. ${targetSummary}. ${offline} offline.`,
     };
   }
 
   if (rejected > 0 || errors > 0) {
     return {
       level: 'warning',
-      message: `${commandLabel} accepted by ${accepted}/${targetLabel}. ${rejected} rejected, ${errors} errors.`,
+      message: `${commandLabel} accepted. ${targetSummary}. ${rejected} rejected, ${errors} errors.`,
     };
   }
 
   if (OVERRIDE_COMMANDS.has(normalizeMissionType(commandData?.missionType))) {
     return {
       level: 'info',
-      message: `${commandLabel} accepted for ${targetLabel}. Verifying outcome in background.`,
+      message: `${commandLabel} accepted. ${targetSummary}. Monitoring outcome in background.`,
     };
   }
 
   return {
     level: 'success',
-    message: `${commandLabel} accepted for ${targetLabel}. Verifying outcome in background.`,
+    message: `${commandLabel} accepted. ${targetSummary}. Monitoring outcome in background.`,
   };
 }
 
-function buildTerminalToast(status, commandLabel) {
+function buildTerminalSuffix(status) {
   const executions = status?.executions || {};
-  const expected = Number(executions.expected || 0);
-  const succeeded = Number(executions.succeeded || 0);
   const failed = Number(executions.failed || 0);
-  const summarySuffix = expected > 0 ? ` (${succeeded}/${expected} succeeded)` : '';
+  const expected = Number(status?.acks?.expected || executions.expected || 0);
+  const succeeded = Number(executions.succeeded || 0);
+  const offline = Number(status?.acks?.offline || 0);
+  const rejected = Number(status?.acks?.rejected || 0);
+  const errors = Number(status?.acks?.errors || 0);
+  const parts = [];
+
+  if (expected > 0) {
+    parts.push(`${succeeded}/${expected} succeeded`);
+  }
+  if (offline > 0) {
+    parts.push(`${offline} offline`);
+  }
+  if (rejected > 0) {
+    parts.push(`${rejected} rejected`);
+  }
+  if (errors > 0) {
+    parts.push(`${errors} errors`);
+  }
+  if (failed > 0) {
+    parts.push(`${failed} failed`);
+  }
+
+  return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
+
+function buildTerminalToast(status, commandLabel) {
+  const summarySuffix = buildTerminalSuffix(status);
 
   switch (status?.outcome || status?.status) {
     case 'completed':
@@ -118,12 +147,17 @@ function buildTerminalToast(status, commandLabel) {
     case 'partial':
       return {
         level: 'warning',
-        message: `${commandLabel} finished with issues${summarySuffix || ''}${failed > 0 ? `, ${failed} failed` : ''}.`,
+        message: `${commandLabel} completed with partial coverage${summarySuffix}.`,
+      };
+    case 'superseded':
+      return {
+        level: 'warning',
+        message: `${commandLabel} was superseded by a newer command${summarySuffix}.`,
       };
     case 'cancelled':
       return {
         level: 'warning',
-        message: `${commandLabel} was cancelled.`,
+        message: `${commandLabel} was cancelled${summarySuffix}.`,
       };
     case 'timeout':
       return {
@@ -134,9 +168,14 @@ function buildTerminalToast(status, commandLabel) {
     default:
       return {
         level: 'error',
-        message: status?.error_summary || `${commandLabel} failed.`,
+        message: status?.error_summary || `${commandLabel} failed${summarySuffix}.`,
       };
   }
+}
+
+function stripUiMeta(commandData = {}) {
+  const { uiMeta, ...apiPayload } = commandData;
+  return apiPayload;
 }
 
 function emitToast(level, message) {
@@ -188,7 +227,7 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
 }
 
 export async function submitCommandWithLifecycleFeedback(commandData, options = {}) {
-  const response = await sendDroneCommand(commandData);
+  const response = await sendDroneCommand(stripUiMeta(commandData));
   const commandLabel = formatCommandLabel(commandData, response);
   const submissionToast = buildSubmissionToastMessage(commandData, response);
   emitToast(submissionToast.level, submissionToast.message);

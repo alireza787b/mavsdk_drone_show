@@ -57,13 +57,6 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
     return 'missing';
   };
 
-  const getFollowerStatus = (followerId, cluster) => {
-    // For now, followers inherit leader status
-    // This can be enhanced with individual follower CSV status from backend
-    if (cluster.has_trajectory) return 'ready';
-    return 'missing';
-  };
-
   const openLightbox = (imageSrc, title) => {
     setLightboxImage({ src: imageSrc, title });
   };
@@ -135,9 +128,8 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
   }
 
   const overallStatus = getOverallStatus();
-  const totalDrones = clusterStatus.clusters.reduce((sum, cluster) => sum + cluster.follower_count + 1, 0);
-  const readyDrones = clusterStatus.clusters.filter(c => c.has_trajectory).reduce((sum, cluster) => sum + cluster.follower_count + 1, 0);
-  const missingCount = totalDrones - readyDrones;
+  const readyClusters = clusterStatus.clusters.filter(c => c.has_trajectory).length;
+  const missingCount = clusterStatus.clusters.length - readyClusters;
 
   return (
     <div className="mission-readiness-card">
@@ -148,16 +140,16 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
           <div className={`overall-status ${overallStatus.status}`}>
             {overallStatus.status === 'ready' ? '✅' :
              overallStatus.status === 'partial' ? '⚠️' : '❌'}
-            {overallStatus.status === 'ready' ? 'Mission Ready' :
-             overallStatus.status === 'partial' ? `${overallStatus.percentage}% Ready` :
-             'Not Ready'}
+            {overallStatus.status === 'ready' ? 'Leader Coverage Ready' :
+             overallStatus.status === 'partial' ? `${overallStatus.percentage}% Leaders Ready` :
+             'Leader Coverage Missing'}
           </div>
         </div>
 
         <div className="header-right">
           <div className="quick-stats">
             <div className="stat">{clusterStatus.clusters.length} Clusters</div>
-            <div className="stat">{readyDrones} Ready • {missingCount} Missing</div>
+            <div className="stat">{readyClusters} leaders uploaded • {missingCount} missing</div>
           </div>
           <button
             className="refresh-btn"
@@ -174,7 +166,6 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         {clusterStatus.clusters.map((cluster, index) => {
           const clusterStatus = getClusterStatus(cluster);
           const isExpanded = expandedClusters.has(cluster.leader_id);
-          const followers = Array.from({ length: cluster.follower_count }, (_, i) => cluster.leader_id + i + 1);
 
           return (
             <div key={cluster.leader_id} className={`cluster-card ${clusterStatus} ${isExpanded ? 'expanded' : ''}`}>
@@ -213,23 +204,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                 </div>
                 <span className="followers-label">→</span>
                 <div className="follower-drones">
-                  {followers.slice(0, 5).map(followerId => {
-                    const followerStatus = getFollowerStatus(followerId, cluster);
-                    return (
-                      <span
-                        key={followerId}
-                        className={`drone-id follower ${followerStatus}`}
-                        title={`Drone ${followerId} - ${followerStatus}`}
-                      >
-                        [{followerId}]
-                      </span>
-                    );
-                  })}
-                  {followers.length > 5 && (
-                    <span className="drone-id follower more">
-                      +{followers.length - 5}
-                    </span>
-                  )}
+                  <span className={`drone-id follower ${clusterStatus}`}>
+                    {cluster.follower_count} follower{cluster.follower_count === 1 ? '' : 's'}
+                  </span>
                 </div>
               </div>
 
@@ -257,45 +234,38 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                       <div className="drone-actions">
                         {clusterStatus === 'ready' && (
                           <button
-                            className="preview-btn"
-                            onClick={() => openLightbox(getDroneImagePath(cluster.leader_id), `Drone ${cluster.leader_id} Trajectory`)}
-                            title="Preview trajectory"
-                          >
-                            📊 Preview
-                          </button>
-                        )}
-                      </div>
+                              className="preview-btn"
+                              onClick={() => openLightbox(getDroneImagePath(cluster.leader_id), `Drone ${cluster.leader_id} Trajectory`)}
+                              title="Preview trajectory"
+                            >
+                              📊 Leader preview
+                            </button>
+                          )}
+                        </div>
                     </div>
 
                     {/* Followers */}
-                    {followers.map(followerId => {
-                      const followerStatus = getFollowerStatus(followerId, cluster);
-                      return (
-                        <div key={followerId} className="drone-detail-item follower-item">
-                          <div className="drone-info">
-                            <span className={`drone-id-large follower ${followerStatus}`}>[{followerId}]</span>
-                            <div className="drone-meta">
-                              <span className="drone-role">FOLLOWER</span>
-                              <span className={`drone-status ${followerStatus}`}>
-                                {followerStatus === 'ready' ? '✅ Ready' : '❌ Waiting for Leader'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="drone-actions">
-                            {followerStatus === 'ready' && (
-                              <button
-                                className="preview-btn"
-                                onClick={() => openLightbox(getDroneImagePath(followerId), `Drone ${followerId} Trajectory`)}
-                                title="Preview trajectory"
-                              >
-                                📊 Preview
-                              </button>
-                            )}
-                          </div>
+                    <div className="drone-detail-item follower-item">
+                      <div className="drone-info">
+                        <span className={`drone-id-large follower ${clusterStatus}`}>
+                          {cluster.follower_count}
+                        </span>
+                        <div className="drone-meta">
+                          <span className="drone-role">FOLLOWERS</span>
+                          <span className={`drone-status ${clusterStatus}`}>
+                            {clusterStatus === 'ready'
+                              ? 'Topology linked to uploaded leader trajectory'
+                              : 'Waiting for leader trajectory upload'}
+                          </span>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      <div className="drone-actions">
+                        <span className="preview-btn preview-btn--note">
+                          Individual follower verification is not exposed here yet.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -309,7 +279,7 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         <div className="missing-warning">
           <span className="warning-icon">⚠️</span>
           <div className="warning-text">
-            Action needed: {missingCount} drones missing trajectories
+            Action needed: {missingCount} leader trajectory{missingCount === 1 ? '' : 'ies'} missing
           </div>
           <a href="/swarm-trajectory" className="fix-link">
             Fix in Swarm Trajectory →

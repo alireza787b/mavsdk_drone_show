@@ -234,6 +234,28 @@ class TestCommandTracker:
         assert status['outcome'] == 'partial'
 
     @pytest.mark.asyncio
+    async def test_partial_success_when_some_targets_never_accept(self, tracker):
+        """Commands that only reach part of the target set should not count as full success."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1', '2', '3', '4']
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_ack(command_id, hw_id='2', category='accepted')
+        await tracker.record_ack(command_id, hw_id='3', category='offline')
+        await tracker.record_ack(command_id, hw_id='4', category='offline')
+
+        await tracker.record_execution(command_id, hw_id='1', success=True)
+        await tracker.record_execution(command_id, hw_id='2', success=True)
+
+        status = await tracker.get_status(command_id)
+        assert status['status'] == 'partial'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'partial'
+        assert 'Only 2/4 targets accepted' in status['error_summary']
+
+    @pytest.mark.asyncio
     async def test_superseded_execution_results_surface_superseded_outcome(self, tracker):
         """A fully superseded running mission should not look like a generic execution failure."""
         command_id = await tracker.create_command(
@@ -309,6 +331,24 @@ class TestCommandTracker:
         assert stats['total_commands'] == 2
         assert stats['successful_commands'] == 1
         assert stats['failed_commands'] == 1
+
+    @pytest.mark.asyncio
+    async def test_statistics_count_partial_target_shortfall(self, tracker):
+        """ACK shortfalls should contribute to partial command stats, not full success."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1', '2', '3']
+        )
+        await tracker.record_ack(command_id, '1', category='accepted')
+        await tracker.record_ack(command_id, '2', category='accepted')
+        await tracker.record_ack(command_id, '3', category='offline')
+        await tracker.record_execution(command_id, '1', True)
+        await tracker.record_execution(command_id, '2', True)
+
+        stats = await tracker.get_statistics()
+        assert stats['partial_commands'] == 1
+        assert stats['successful_commands'] == 0
+        assert stats['success_rate'] == 0.0
 
     @pytest.mark.asyncio
     async def test_command_eviction(self):

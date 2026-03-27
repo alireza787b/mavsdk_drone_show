@@ -577,6 +577,13 @@
   box-shadow: var(--shadow-sm);
 }
 
+.preview-btn--note {
+  cursor: default;
+  white-space: normal;
+  text-align: left;
+  line-height: var(--line-height-normal);
+}
+
 /* Professional action guidance */
 .missing-warning {
   display: flex;

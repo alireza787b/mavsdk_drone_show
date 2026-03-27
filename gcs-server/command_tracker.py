@@ -490,12 +490,22 @@ class CommandTracker:
             # Update command status if all executions received
             # Only count drones that accepted the command
             expected_executions = command.acks_accepted
+            ack_shortfall = max(0, command.acks_expected - command.acks_accepted)
             if command.executions_received >= expected_executions and expected_executions > 0:
                 if command.executions_failed == 0:
-                    command.status = CommandStatus.COMPLETED
-                    command.phase = CommandPhase.TERMINAL
-                    command.outcome = CommandOutcome.COMPLETED
-                    self._stats['successful_commands'] += 1
+                    if ack_shortfall > 0:
+                        command.status = CommandStatus.PARTIAL
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.PARTIAL
+                        command.error_summary = (
+                            f"Only {command.acks_accepted}/{command.acks_expected} targets accepted the command"
+                        )
+                        self._stats['partial_commands'] += 1
+                    else:
+                        command.status = CommandStatus.COMPLETED
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.COMPLETED
+                        self._stats['successful_commands'] += 1
                 elif command.executions_succeeded == 0:
                     if self._all_execution_failures_superseded(command):
                         command.status = CommandStatus.CANCELLED
@@ -517,9 +527,10 @@ class CommandTracker:
                     command.status = CommandStatus.PARTIAL
                     command.phase = CommandPhase.TERMINAL
                     command.outcome = CommandOutcome.PARTIAL
-                    command.error_summary = (
-                        f"{command.executions_failed}/{expected_executions} executions failed"
-                    )
+                    error_parts = [f"{command.executions_failed}/{expected_executions} executions failed"]
+                    if ack_shortfall > 0:
+                        error_parts.append(f"{ack_shortfall} targets never accepted")
+                    command.error_summary = ", ".join(error_parts)
                     self._stats['partial_commands'] += 1
 
                 command.completed_at = timestamp

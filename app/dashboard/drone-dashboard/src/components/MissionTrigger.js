@@ -1,5 +1,6 @@
 //app/dashboard/drone-dashboard/src/components/MissionTrigger.js
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
 import {
@@ -9,66 +10,111 @@ import {
   getMissionDescription,
   getCommandName,
 } from '../constants/droneConstants';
+import {
+  buildCommandSchedule,
+  COMMAND_DELAY_PRESETS,
+  COMMAND_SCHEDULE_MODES,
+  formatDateTimeLocalInput,
+} from '../utilities/commandScheduling';
 import '../styles/MissionTrigger.css';
 
-const MissionTrigger = ({ missionTypes, onSendCommand }) => {
+const MissionTrigger = ({
+  missionTypes,
+  onSendCommand,
+  referenceNowMs = Date.now(),
+  clockOffsetLabel = null,
+}) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
-  const [useSlider, setUseSlider] = useState(true);
-  const [selectedTime, setSelectedTime] = useState('');
+  const [scheduleMode, setScheduleMode] = useState(COMMAND_SCHEDULE_MODES.DELAY);
+  const [selectedDateTime, setSelectedDateTime] = useState('');
   const [autoGlobalOrigin, setAutoGlobalOrigin] = useState(true); // Default enabled for precision
   const [useGlobalSetpoints, setUseGlobalSetpoints] = useState(true); // Default to GLOBAL mode
 
   useEffect(() => {
-    const now = new Date();
-    now.setSeconds(now.getSeconds() + 30);
-    setSelectedTime(now.toTimeString().slice(0, 8));
-  }, []);
+    setSelectedDateTime(formatDateTimeLocalInput(referenceNowMs + 30000));
+  }, [referenceNowMs]);
 
   const handleMissionSelect = (missionType) => {
     setSelectedMission(missionType);
     setTimeDelay(defaultTriggerTimeDelay);
+    setScheduleMode(COMMAND_SCHEDULE_MODES.DELAY);
 
     if (missionType === DRONE_MISSION_TYPES.NONE) {
       // Directly send the command for 'Cancel Mission'
       const commandData = {
         missionType: String(missionType),
         triggerTime: "0", // Immediate action (string for API compatibility)
+        uiMeta: {
+          triggerSummary: 'Immediate cancel on acceptance',
+          details: [
+            {
+              label: 'Execution',
+              value: 'Cancels the current mission immediately after drone acceptance.',
+            },
+          ],
+        },
       };
       onSendCommand(commandData);
     }
   };
 
   const handleSend = () => {
-    let triggerTime;
+    const schedule = buildCommandSchedule({
+      scheduleMode,
+      timeDelay,
+      selectedDateTime,
+      referenceNowMs,
+    });
 
-    if (useSlider) {
-      triggerTime = Math.floor(Date.now() / 1000) + parseInt(timeDelay);
-    } else {
-      const now = new Date();
-      const [hours, minutes, seconds] = selectedTime.split(':').map(Number);
-      const selectedDateTime = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        hours,
-        minutes,
-        seconds
-      );
-      triggerTime = Math.floor(selectedDateTime.getTime() / 1000);
-
-      if (selectedDateTime < now) {
-        alert('The selected time has already passed. Please select a future time.');
-        return;
-      }
+    if (schedule.error) {
+      toast.error(schedule.error);
+      return;
     }
 
     const isCustomCsvMission = selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW;
     const commandData = {
       missionType: String(selectedMission),
-      triggerTime: String(triggerTime),
+      triggerTime: String(schedule.triggerTimeSec ?? 0),
       auto_global_origin: isCustomCsvMission ? false : autoGlobalOrigin,
       use_global_setpoints: isCustomCsvMission ? false : useGlobalSetpoints,
+      uiMeta: {
+        triggerSummary: schedule.summary,
+        details: [
+          {
+            label: 'Schedule',
+            value: schedule.detail,
+          },
+          {
+            label: 'Clock source',
+            value: clockOffsetLabel
+              ? `GCS-aligned scheduler (${clockOffsetLabel})`
+              : 'GCS-aligned scheduler',
+          },
+          ...(selectedMission === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
+            ? [
+              {
+                label: 'Control mode',
+                value: isCustomCsvMission
+                  ? 'LOCAL launch-frame only'
+                  : (useGlobalSetpoints ? 'GLOBAL setpoints' : 'LOCAL launch-frame replay'),
+              },
+              ...(useGlobalSetpoints
+                ? [{
+                  label: 'Launch correction',
+                  value: autoGlobalOrigin ? 'Auto Global Launch Corrector enabled' : 'Manual global launch placement',
+                }]
+                : []),
+            ]
+            : []),
+          ...(selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
+            ? [{
+              label: 'Execution mode',
+              value: 'LOCAL launch-frame only',
+            }]
+            : []),
+        ],
+      },
     };
     onSendCommand(commandData);
   };
@@ -120,16 +166,19 @@ const MissionTrigger = ({ missionTypes, onSendCommand }) => {
           }
           label={getCommandName(selectedMission)}
           description={getMissionDescription(selectedMission)}
-          useSlider={useSlider}
+          scheduleMode={scheduleMode}
           timeDelay={timeDelay}
-          selectedTime={selectedTime}
+          selectedDateTime={selectedDateTime}
           onTimeDelayChange={setTimeDelay}
-          onTimePickerChange={setSelectedTime}
-          onSliderToggle={setUseSlider}
+          onTimePickerChange={setSelectedDateTime}
+          onScheduleModeChange={setScheduleMode}
           autoGlobalOrigin={autoGlobalOrigin}
           onAutoGlobalOriginChange={setAutoGlobalOrigin}
           useGlobalSetpoints={useGlobalSetpoints}
           onUseGlobalSetpointsChange={setUseGlobalSetpoints}
+          delayPresets={COMMAND_DELAY_PRESETS}
+          referenceNowMs={referenceNowMs}
+          clockOffsetLabel={clockOffsetLabel}
           onSend={handleSend}
           onBack={handleBack}
         />
