@@ -15,6 +15,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - GCS and drone SSH repo setup now pin repo-local `core.sshCommand` when SSH is used, so pre-existing host `~/.ssh/config` GitHub identities do not silently override the intended MDS deploy key
   - SITL runtime and SITL image preparation now prefer file-backed private GitHub auth via `MDS_GIT_AUTH_TOKEN_FILE`, so private mutable SITL and private custom-image builds avoid exposing raw tokens in process arguments while keeping `MDS_GIT_AUTH_TOKEN` as a legacy fallback
   - fresh headless GCS startup is now robust when Node.js was installed via `nvm`, because the launcher discovers the Node toolchain explicitly and uses absolute `uvicorn` / `gunicorn` / `npm` paths inside tmux panes instead of depending on inherited shell PATH state
+  - SITL image preparation and live SITL runtime no longer blank the repo URL when authenticated GitHub HTTPS is unavailable, and official/custom image builds now stop immediately if runtime filesystem preparation fails instead of flattening a partial container
+  - the official public SITL archive was rebuilt from the corrected release flow, republished on MEGA, and re-linked in the SITL guide after validation on a fresh Hetzner host
 
 ### Added
 - **Custom Repo Workflow Guide**:
