@@ -460,6 +460,8 @@ class Params:
     SWARM_TRAJECTORY_SAFETY_MARGIN = 2.0       # Safety margin for trajectory execution
     SWARM_TRAJECTORY_MAX_VELOCITY = 15.0       # Maximum velocity for trajectory mode
     SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER = 1.2  # Timeout multiplier for mission duration
+    SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600  # Max time to wait for RTL end behavior to land/disarm
+    SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC = 15    # Grace period to auto-disarm after RTL touchdown if PX4 remains armed
     
     # Takeoff Configuration (same as drone show)
     SWARM_TRAJECTORY_TAKEOFF_MODE = "BODY_VELOCITY"  # Use same as drone show

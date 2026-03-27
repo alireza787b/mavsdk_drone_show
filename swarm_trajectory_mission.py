@@ -744,6 +744,63 @@ async def controlled_landing(drone: System):
     led_controller.set_color(0, 255, 0)
 
 
+async def wait_for_rtl_completion(drone: System):
+    """
+    Wait for an RTL handoff to finish with touchdown and disarm.
+
+    Swarm Trajectory should not report mission completion immediately after
+    issuing RTL. Operators need the command tracker to reflect the actual end of
+    the aircraft lifecycle, not only the moment PX4 accepted the mode change.
+    """
+    logger = logging.getLogger(__name__)
+    timeout = getattr(Params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600)
+    disarm_grace = getattr(Params, "SWARM_TRAJECTORY_RTL_DISARM_GRACE_SEC", 15)
+    start_time = time.time()
+    touchdown_since = None
+
+    while True:
+        if time.time() - start_time > timeout:
+            raise TimeoutError("RTL completion timed out before landing/disarm was confirmed")
+
+        landed_state = None
+        is_armed = None
+
+        try:
+            async for current_state in drone.telemetry.landed_state():
+                landed_state = current_state
+                break
+        except Exception as exc:
+            logger.warning(f"RTL completion check: landed_state unavailable: {exc}")
+
+        try:
+            async for current_armed in drone.telemetry.armed():
+                is_armed = current_armed
+                break
+        except Exception as exc:
+            logger.warning(f"RTL completion check: armed status unavailable: {exc}")
+
+        if landed_state == LandedState.ON_GROUND:
+            if touchdown_since is None:
+                touchdown_since = time.time()
+                logger.info("RTL touchdown detected; waiting for disarm confirmation.")
+
+            if is_armed is False:
+                logger.info("RTL completion confirmed: drone is on ground and disarmed.")
+                return
+
+            if is_armed and (time.time() - touchdown_since) >= disarm_grace:
+                logger.warning(
+                    "Drone is on ground after RTL but still armed; issuing explicit disarm to complete mission cleanup."
+                )
+                await disarm_drone(drone)
+                logger.info("RTL completion confirmed after explicit disarm.")
+                return
+        else:
+            touchdown_since = None
+
+        await asyncio.sleep(1.0)
+
+
 async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, launch_lon: float, launch_alt: float, last_velocity=None):
     """
     Execute the specified end-of-mission behavior using PX4 native flight modes.
@@ -764,7 +821,9 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
             await stop_offboard_mode(drone)
             await drone.action.hold()
             await drone.action.return_to_launch()
-            logger.info("RTL mode activated - drone will return home and land automatically")
+            logger.info("RTL mode activated - waiting for landing/disarm confirmation")
+            await wait_for_rtl_completion(drone)
+            logger.info("RTL completion confirmed")
 
         elif behavior == 'land_current':
             logger.info("Executing land_current behavior - using controlled landing")
