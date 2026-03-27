@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import MissionReadinessCard from './MissionReadinessCard';
 import { getSwarmClusterStatus } from '../services/droneApiService';
@@ -44,7 +44,10 @@ describe('MissionReadinessCard', () => {
 
     const { container } = render(<MissionReadinessCard />);
 
-    expect(container.querySelector('.overall-status')?.textContent).toContain('50% Clusters Ready');
+    await waitFor(() => {
+      expect(container.querySelector('.overall-status')?.textContent).toContain('50% Clusters Ready');
+    });
+
     expect(container.querySelectorAll('.csv-indicator')[1]?.textContent).toContain('Needs Processing');
     expect(screen.getByText(/0 missing upload/i)).toBeInTheDocument();
 
