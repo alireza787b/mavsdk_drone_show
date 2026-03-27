@@ -96,7 +96,10 @@ main() {
 
     docker run --name "$temp_container" -d "$BASE_IMAGE" tail -f /dev/null >/dev/null
     docker_sitl_copy_prepare_script "$REPO_ROOT" "$temp_container"
-    docker_sitl_run_prepare_script "$temp_container" "$repo_url" "$branch"
+    if ! docker_sitl_run_prepare_script "$temp_container" "$repo_url" "$branch"; then
+        printf '[ERROR] Failed to prepare runtime filesystem for %s@%s\n' "$repo_url" "$branch" >&2
+        exit 1
+    fi
 
     local commit_hash
     commit_hash=$(docker exec "$temp_container" git -C /root/mavsdk_drone_show rev-parse --short HEAD)

@@ -782,6 +782,7 @@ load_image_build_metadata() {
 bootstrap_repository_checkout() {
     local repo_url="$1"
     local fallback_repo_url="$2"
+    local authenticated_repo_url=""
     local effective_repo_url="$repo_url"
     local clone_parent
     clone_parent=$(mktemp -d)
@@ -826,7 +827,8 @@ bootstrap_repository_checkout() {
         cp "$PX4_SUBMODULE_STATUS_FILE" "$preserve_dir/.mds_px4_submodules.txt"
     fi
 
-    if effective_repo_url=$(github_authenticated_https_url "$repo_url"); then
+    if authenticated_repo_url=$(github_authenticated_https_url "$repo_url"); then
+        effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     fi
 
@@ -894,9 +896,11 @@ update_repository() {
         return 0
     fi
 
+    local authenticated_repo_url=""
     local fallback_repo_url=""
     local effective_repo_url="$GITHUB_REPO_URL"
-    if effective_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
+    if authenticated_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
+        effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
         :

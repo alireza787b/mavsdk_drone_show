@@ -130,7 +130,10 @@ docker run --name "$TEMP_CONTAINER" -d "$BASE_IMAGE" tail -f /dev/null >/dev/nul
 
 log "Preparing runtime filesystem inside temporary container..."
 docker_sitl_copy_prepare_script "$REPO_ROOT" "$TEMP_CONTAINER"
-docker_sitl_run_prepare_script "$TEMP_CONTAINER" "$REPO_URL" "$BRANCH"
+if ! docker_sitl_run_prepare_script "$TEMP_CONTAINER" "$REPO_URL" "$BRANCH"; then
+    printf 'Error: Failed to prepare runtime filesystem for %s@%s\n' "$REPO_URL" "$BRANCH" >&2
+    exit 1
+fi
 
 MDS_COMMIT=$(docker exec "$TEMP_CONTAINER" git -C /root/mavsdk_drone_show rev-parse --short HEAD)
 TARGET_IMAGE="${IMAGE_REPO}:${VERSION_TAG}"

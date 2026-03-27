@@ -103,13 +103,15 @@ docker_sitl_run_prepare_script() {
         docker_exec_args+=(-e "MDS_GIT_AUTH_USERNAME=${MDS_GIT_AUTH_USERNAME}")
     fi
 
+    local exec_status=0
     docker_exec_args+=("$container_name" bash /tmp/mds_sitl_image_prepare.sh)
-    if "${docker_exec_args[@]}"; then
+    "${docker_exec_args[@]}" || exec_status=$?
+
+    if [[ "$exec_status" -eq 0 ]]; then
         docker_sitl_cleanup_git_auth_secret "$container_name"
         return 0
     fi
 
-    local exec_status=$?
     docker_sitl_cleanup_git_auth_secret "$container_name"
     return "$exec_status"
 }

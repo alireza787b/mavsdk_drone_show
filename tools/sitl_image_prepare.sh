@@ -117,6 +117,7 @@ requirements_state_value() {
 }
 
 fresh_clone_mds_repo() {
+    local authenticated_repo_url=""
     local fallback_repo_url=""
     local effective_repo_url="$REPO_URL"
     local clone_parent
@@ -124,7 +125,8 @@ fresh_clone_mds_repo() {
     local preserve_dir
     preserve_dir=$(mktemp -d)
 
-    if effective_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
+    if authenticated_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
+        effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
         :
