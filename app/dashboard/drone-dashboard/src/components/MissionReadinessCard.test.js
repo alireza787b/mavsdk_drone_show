@@ -42,10 +42,10 @@ describe('MissionReadinessCard', () => {
       processed_trajectories: 3,
     });
 
-    render(<MissionReadinessCard />);
+    const { container } = render(<MissionReadinessCard />);
 
-    expect(screen.getAllByText((_, element) => element?.textContent?.includes('50% Clusters Ready')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText((_, element) => element?.textContent?.includes('Needs Processing')).length).toBeGreaterThan(0);
+    expect(container.querySelector('.overall-status')?.textContent).toContain('50% Clusters Ready');
+    expect(container.querySelectorAll('.csv-indicator')[1]?.textContent).toContain('Needs Processing');
     expect(screen.getByText(/0 missing upload/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Leader 5'));
