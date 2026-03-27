@@ -149,10 +149,49 @@
     min-width: 0;
 }
 
+.drone-header__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    cursor: help;
+}
+
+.drone-header__status-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.drone-header__status-label.online {
+    color: var(--color-success);
+}
+
+.drone-header__status-label.degraded {
+    color: var(--color-warning);
+}
+
+.drone-header__status-label.offline {
+    color: var(--color-danger);
+}
+
+.drone-header__status-label.unknown {
+    color: var(--color-text-secondary);
+}
+
 .drone-header__titles {
     display: grid;
     gap: 2px;
     min-width: 0;
+}
+
+.drone-header__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .drone-header__title {
@@ -169,6 +208,29 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.drone-header__link-state {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.03em;
+}
+
+.drone-header__link-state.online {
+    color: var(--color-success);
+}
+
+.drone-header__link-state.degraded {
+    color: var(--color-warning);
+}
+
+.drone-header__link-state.offline {
+    color: var(--color-danger);
+}
+
+.drone-header__link-state.unknown {
+    color: var(--color-text-secondary);
 }
 
 .drone-header__actions {
@@ -317,11 +379,23 @@
     border-color: var(--color-success-border);
 }
 
-.status-badge.not-ready {
+.status-badge.blocked {
     background: linear-gradient(135deg, var(--color-danger), #c62828);
     color: var(--color-text-primary);
     border-color: var(--color-danger-border);
     animation: pulse-critical 2s infinite;
+}
+
+.status-badge.warning {
+    background: linear-gradient(135deg, rgba(237, 137, 54, 0.94), rgba(221, 107, 32, 0.94));
+    color: var(--color-text-primary);
+    border-color: rgba(237, 137, 54, 0.45);
+}
+
+.status-badge.unknown {
+    background: linear-gradient(135deg, var(--color-bg-quaternary), var(--color-bg-tertiary));
+    color: var(--color-text-primary);
+    border-color: var(--color-border-primary);
 }
 
 @keyframes pulse-critical {
@@ -648,8 +722,7 @@
     padding-top: 8px;
     border-top: 1px solid #e5e7eb;
     display: flex;
-    justify-content: center;
-    gap: 6px;
+    justify-content: stretch;
 }
 
 /* Expanded Details Content */
@@ -719,6 +792,10 @@
         max-width: 180px;
     }
 
+    .drone-header__meta {
+        gap: 4px 8px;
+    }
+
     .last-update {
         flex-direction: column;
         align-items: flex-start;
@@ -749,6 +826,11 @@
     }
 
     .drone-header__action-label {
+        font-size: 0.65rem;
+    }
+
+    .drone-header__status-label,
+    .drone-header__link-state {
         font-size: 0.65rem;
     }
 

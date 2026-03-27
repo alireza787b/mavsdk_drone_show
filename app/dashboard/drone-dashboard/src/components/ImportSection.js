@@ -339,6 +339,10 @@ const ImportSection = ({ setUploadCount }) => {
           Upload a SkyBrush ZIP archive to generate the processed Drone Show CSV set, launch plots,
           and operator-facing verification data.
         </Typography>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Standard Drone Show only. If you already authored one protocol-correct CSV that every drone should replay
+          from its own local launch frame, use <strong>Custom Show</strong> instead of this page.
+        </Alert>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 2, mb: 2 }}>
           <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>

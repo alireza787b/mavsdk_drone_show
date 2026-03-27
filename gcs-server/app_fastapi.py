@@ -712,6 +712,8 @@ async def get_trajectory_first_row(pos_id: int = Query(..., description="Positio
             "source": f"Drone {pos_id}.csv (first waypoint)"
         })
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1563,6 +1565,138 @@ def _count_processed_drone_files(directory: str) -> int:
     )
 
 
+CUSTOM_SHOW_REQUIRED_COLUMNS = (
+    't', 'px', 'py', 'pz',
+    'vx', 'vy', 'vz',
+    'ax', 'ay', 'az',
+    'yaw', 'mode',
+)
+
+
+def _custom_show_csv_path() -> str:
+    return os.path.join(shapes_dir, 'active.csv')
+
+
+def _custom_show_preview_path() -> str:
+    return os.path.join(shapes_dir, 'trajectory_plot.png')
+
+
+def _inspect_custom_show_csv(csv_path: str) -> Dict[str, Any]:
+    with open(csv_path, 'r', encoding='utf-8-sig', newline='') as csv_file:
+        reader = csv.DictReader(csv_file)
+        fieldnames = reader.fieldnames or []
+        missing_columns = [column for column in CUSTOM_SHOW_REQUIRED_COLUMNS if column not in fieldnames]
+        if missing_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Custom CSV is missing required protocol columns: "
+                    f"{', '.join(missing_columns)}"
+                ),
+            )
+
+        row_count = 0
+        duration_sec = 0.0
+        max_altitude = 0.0
+        previous_t = None
+        points: List[Dict[str, float]] = []
+
+        for line_no, row in enumerate(reader, start=2):
+            if not any((value or '').strip() for value in row.values()):
+                continue
+
+            try:
+                t_val = float(row['t'])
+                px_val = float(row['px'])
+                py_val = float(row['py'])
+                pz_val = float(row['pz'])
+                vx_val = float(row['vx'])
+                vy_val = float(row['vy'])
+                vz_val = float(row['vz'])
+                ax_val = float(row['ax'])
+                ay_val = float(row['ay'])
+                az_val = float(row['az'])
+                yaw_val = float(row['yaw'])
+                mode_val = int(row['mode'])
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid custom CSV row {line_no}: {exc}",
+                ) from exc
+
+            if t_val < 0:
+                raise HTTPException(status_code=400, detail=f"Invalid custom CSV row {line_no}: time must be non-negative")
+
+            if previous_t is not None and t_val < previous_t:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid custom CSV row {line_no}: time values must be non-decreasing",
+                )
+
+            previous_t = t_val
+            row_count += 1
+            duration_sec = max(duration_sec, t_val)
+            max_altitude = max(max_altitude, -pz_val)
+            points.append({
+                't': t_val,
+                'px': px_val,
+                'py': py_val,
+                'pz': pz_val,
+                'vx': vx_val,
+                'vy': vy_val,
+                'vz': vz_val,
+                'ax': ax_val,
+                'ay': ay_val,
+                'az': az_val,
+                'yaw': yaw_val,
+                'mode': mode_val,
+            })
+
+        if row_count == 0:
+            raise HTTPException(status_code=400, detail="Custom CSV contains no executable trajectory rows")
+
+        return {
+            'row_count': row_count,
+            'duration_sec': round(duration_sec, 2),
+            'max_altitude': round(max_altitude, 2),
+            'points': points,
+        }
+
+
+def _generate_custom_show_preview(points: List[Dict[str, float]], preview_path: str) -> None:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    times = [point['t'] for point in points]
+    north_values = [point['px'] for point in points]
+    east_values = [point['py'] for point in points]
+    altitude_values = [-point['pz'] for point in points]
+
+    fig, (path_ax, altitude_ax) = plt.subplots(1, 2, figsize=(13, 5.5), constrained_layout=True)
+
+    path_ax.plot(east_values, north_values, color='#2563eb', linewidth=2.4)
+    path_ax.scatter(east_values[0], north_values[0], color='#16a34a', s=60, label='Start', zorder=3)
+    path_ax.scatter(east_values[-1], north_values[-1], color='#dc2626', s=60, label='End', zorder=3)
+    path_ax.set_title('Launch-Frame XY Path')
+    path_ax.set_xlabel('East (m)')
+    path_ax.set_ylabel('North (m)')
+    path_ax.grid(alpha=0.25)
+    path_ax.legend(loc='best')
+    path_ax.set_aspect('equal', adjustable='datalim')
+
+    altitude_ax.plot(times, altitude_values, color='#7c3aed', linewidth=2.2)
+    altitude_ax.fill_between(times, altitude_values, color='#c4b5fd', alpha=0.25)
+    altitude_ax.set_title('Altitude Profile')
+    altitude_ax.set_xlabel('Time (s)')
+    altitude_ax.set_ylabel('Altitude above launch (m)')
+    altitude_ax.grid(alpha=0.25)
+
+    fig.suptitle('Custom CSV Preview', fontsize=14, fontweight='bold')
+    fig.savefig(preview_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+
 def _load_saved_metrics_if_current() -> Optional[Dict[str, Any]]:
     metrics_file = _saved_metrics_path()
     if not os.path.exists(metrics_file):
@@ -2080,47 +2214,102 @@ async def get_show_info():
         raise HTTPException(status_code=500, detail=f"Error reading show info: {e}")
 
 
-@app.get("/get-custom-show-info", tags=["Show Management"])
+@app.get("/get-custom-show-info", response_model=CustomShowInfoResponse, tags=["Show Management"])
 async def get_custom_show_info():
     """Get metadata for the advanced custom CSV workflow."""
     try:
-        custom_csv_path = os.path.join(shapes_dir, 'active.csv')
-        preview_path = os.path.join(shapes_dir, 'trajectory_plot.png')
+        custom_csv_path = _custom_show_csv_path()
+        preview_path = _custom_show_preview_path()
 
         if not os.path.exists(custom_csv_path):
             raise HTTPException(status_code=404, detail="Custom CSV not found")
 
-        row_count = 0
-        duration_sec = 0.0
-        max_altitude = 0.0
-
-        with open(custom_csv_path, 'r', newline='') as csv_file:
-            reader = csv.DictReader(csv_file)
-            for row in reader:
-                row_count += 1
-                try:
-                    duration_sec = float(row.get('t', duration_sec))
-                except (TypeError, ValueError):
-                    pass
-
-                try:
-                    max_altitude = max(max_altitude, -float(row.get('pz', 0.0)))
-                except (TypeError, ValueError):
-                    pass
-
+        inspected = _inspect_custom_show_csv(custom_csv_path)
         return JSONResponse(content={
             'exists': True,
             'filename': 'active.csv',
-            'row_count': row_count,
-            'duration_sec': round(duration_sec, 2),
-            'max_altitude': round(max_altitude, 2),
+            'row_count': inspected['row_count'],
+            'duration_sec': inspected['duration_sec'],
+            'max_altitude': inspected['max_altitude'],
             'preview_exists': os.path.exists(preview_path),
+            'execution_mode': 'local per-drone replay',
+            'required_columns': list(CUSTOM_SHOW_REQUIRED_COLUMNS),
         })
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading custom show info: {e}")
+
+
+@app.post("/import-custom-show", response_model=CustomShowImportResponse, tags=["Show Management"])
+async def import_custom_show(file: UploadFile = File(...)):
+    """Upload a ready-to-execute custom CSV, validate it, and regenerate the preview."""
+    try:
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No file part or empty filename")
+        if not file.filename.lower().endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are supported for Custom CSV mode")
+
+        warnings: List[str] = []
+        git_result: Optional[Dict[str, Any]] = None
+        temp_root = os.path.join(BASE_DIR, 'temp')
+        os.makedirs(temp_root, exist_ok=True)
+        os.makedirs(shapes_dir, exist_ok=True)
+
+        with tempfile.TemporaryDirectory(prefix="custom-show-import-", dir=temp_root) as staging_root:
+            staged_csv_path = os.path.join(staging_root, 'active.csv')
+            staged_preview_path = os.path.join(staging_root, 'trajectory_plot.png')
+
+            with open(staged_csv_path, 'wb') as staged_csv:
+                content = await file.read()
+                staged_csv.write(content)
+
+            inspected = _inspect_custom_show_csv(staged_csv_path)
+            _generate_custom_show_preview(inspected['points'], staged_preview_path)
+
+            active_csv_path = _custom_show_csv_path()
+            preview_path = _custom_show_preview_path()
+            if os.path.exists(active_csv_path):
+                warnings.append('Existing active custom CSV was replaced.')
+
+            shutil.copy2(staged_csv_path, active_csv_path)
+            shutil.copy2(staged_preview_path, preview_path)
+
+            if Params.GIT_AUTO_PUSH:
+                loop = asyncio.get_event_loop()
+                git_result = await loop.run_in_executor(
+                    None,
+                    git_operations,
+                    BASE_DIR,
+                    f"custom-show: import {file.filename} ({inspected['row_count']} samples)",
+                )
+                if not git_result.get('success'):
+                    warnings.append(f"Git auto-push failed: {git_result.get('message', 'unknown error')}")
+
+            return CustomShowImportResponse(
+                success=True,
+                message='Custom CSV validated and activated successfully',
+                filename=file.filename,
+                stored_as='active.csv',
+                row_count=inspected['row_count'],
+                duration_sec=inspected['duration_sec'],
+                max_altitude=inspected['max_altitude'],
+                preview_generated=True,
+                warnings=warnings,
+                next_steps=[
+                    'Review the generated preview and confirm the path is correct.',
+                    'Remember: every drone will execute the same CSV in its own local launch frame.',
+                    'Use Mission Config and Overview to confirm spacing and readiness before launch.',
+                ],
+                git_info=git_result,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_system_error(f"Error importing custom show: {e}", "show")
+        raise HTTPException(status_code=500, detail=f"Error importing custom CSV: {e}")
 
 
 @app.get("/get-comprehensive-metrics", tags=["Show Management"])

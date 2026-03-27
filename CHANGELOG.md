@@ -10,6 +10,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- dashboard drone cards now separate warning/unknown link states from true blocked readiness, add clearer link-state hover details, and avoid treating every non-ready state as the same red alarm
+- the Custom CSV workflow now has a real dashboard upload/validate/preview path instead of the old placeholder/CORS-broken preview behavior
+- the Drone Show dashboard now states more clearly that SkyBrush ZIP import and Custom CSV are separate operator workflows, reducing accidental mode confusion
 - **Custom Repo Workflow Validation**:
   - documented the real GitHub behavior that public upstream forks stay public by default, so confidentiality-sensitive customer setups should use a private mirror/custom repo path instead of assuming a private fork
   - GCS and drone SSH repo setup now pin repo-local `core.sshCommand` when SSH is used, so pre-existing host `~/.ssh/config` GitHub identities do not silently override the intended MDS deploy key
@@ -81,6 +84,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- `Show Design` / `Custom Show` operator guidance, Mission Details, and the Drone Show guide now reflect the current split between the normal SkyBrush import pipeline and the expert-only Custom CSV override
 - Bootstrap installers now propagate custom repo/branch selections all the way into `mds_gcs_init.sh` / `mds_init.sh`, including explicit `--repo-url` support and correct persistence of custom branch settings in later config/state
 - Root `README.md` and `docs/README.md` now use a cleaner "start here" / role-based navigation model so testers, operators, deployers, and maintainers can reach the right guide with less duplication and less scrolling
 - Drone git sync now uses the same repo/branch source of truth in both boot-time sync and operator-triggered `UPDATE_CODE` flows by loading `/etc/mds/local.env` before resolving `MDS_REPO_URL` / `MDS_BRANCH`

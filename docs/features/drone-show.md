@@ -188,11 +188,15 @@ For writable production workflows:
 
 ## Custom CSV Operational Note
 
-There is currently no equivalent SkyBrush ZIP upload UX for Custom CSV mode. The active CSV file is still an advanced/manual workflow artifact.
+Custom CSV now has its own dedicated dashboard surface at `Custom Show`.
 
-That is intentional for now:
+That page is intentionally separate from the normal SkyBrush `Show Design` path:
 
-- it avoids mixing the standard imported-show pipeline with a rare expert-only mode
-- it keeps operator expectations clear
+- operators can upload one ready-to-execute protocol CSV
+- MDS validates the file, stores it as `active.csv`, and regenerates the preview
+- no SkyBrush conversion, per-drone file mapping, or shared-origin correction happens there
 
-If later phases add a dedicated upload/editor flow for `active.csv`, it should stay visually separate from the normal Drone Show import flow.
+Keep the workflows mentally separate:
+
+- `Show Design` is the normal multi-drone SkyBrush import path
+- `Custom Show` is an expert-only override path for specialized testing and research

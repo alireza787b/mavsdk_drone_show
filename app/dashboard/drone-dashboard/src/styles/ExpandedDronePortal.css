@@ -163,10 +163,22 @@
     border-color: var(--color-success-border);
 }
 
-.status-badge.not-ready {
+.status-badge.blocked {
+    background: var(--color-danger);
+    color: white;
+    border-color: var(--color-danger-border);
+}
+
+.status-badge.warning {
     background: var(--color-warning);
     color: var(--color-text-primary);
     border-color: var(--color-warning-border);
+}
+
+.status-badge.unknown {
+    background: var(--color-text-tertiary);
+    color: white;
+    border-color: var(--color-border-primary);
 }
 
 /* Main Content Grid */

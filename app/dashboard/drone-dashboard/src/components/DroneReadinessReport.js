@@ -26,13 +26,30 @@ function renderMessageList(messages, emptyLabel) {
   return (
     <ul className="drone-readiness__list">
       {messages.map((message, index) => (
-        <li key={`${message.source}-${message.message}-${index}`} className="drone-readiness__list-item">
-          <span className={`drone-readiness__message-source ${message.source}`}>{message.source}</span>
+        <li
+          key={`${message.source}-${message.message}-${index}`}
+          className={`drone-readiness__list-item ${message.severity || 'warning'}`}
+        >
+          <span className={`drone-readiness__message-source ${message.source} ${message.severity || 'warning'}`}>
+            {message.source}
+          </span>
           <span className="drone-readiness__message-text">{message.message}</span>
         </li>
       ))}
     </ul>
   );
+}
+
+function getCompactDetailsLabel(readiness) {
+  if (readiness.blockers.length === 0 && readiness.warnings.length > 0 && readiness.recentMessages.length === 0) {
+    return `${readiness.warnings.length} ${readiness.warnings.length === 1 ? 'advisory' : 'advisories'}`;
+  }
+
+  if (readiness.issueCount > 0) {
+    return `${readiness.issueCount} active item${readiness.issueCount === 1 ? '' : 's'}`;
+  }
+
+  return 'Show readiness details';
 }
 
 const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'compact' }) => {
@@ -104,11 +121,7 @@ const DroneReadinessReport = ({ drone = {}, runtimeStatus = null, variant = 'com
         <details className="drone-readiness__details">
           <summary className="drone-readiness__details-summary">
             <FaExclamationTriangle aria-hidden="true" />
-            <span>
-              {readiness.issueCount > 0
-                ? `${readiness.issueCount} active item${readiness.issueCount === 1 ? '' : 's'}`
-                : 'Show readiness details'}
-            </span>
+            <span>{getCompactDetailsLabel(readiness)}</span>
           </summary>
           <div className="drone-readiness__details-body">
             <div className="drone-readiness__section">

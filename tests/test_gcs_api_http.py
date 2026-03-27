@@ -25,6 +25,7 @@ import os
 import signal
 import sys
 import zipfile
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
 
@@ -569,6 +570,65 @@ class TestShowManagementEndpoints:
         assert data['duration_sec'] == 2.5
         assert data['max_altitude'] == 5.0
         assert data['preview_exists'] is True
+        assert data['execution_mode'] == 'local per-drone replay'
+        assert 't' in data['required_columns']
+
+    def test_import_custom_show_accepts_valid_protocol_csv(self, test_client, monkeypatch, tmp_path):
+        """Test POST /import-custom-show validates, stages, and activates a custom CSV."""
+        import app_fastapi
+
+        shapes_dir = tmp_path / 'shapes_sitl'
+        temp_dir = tmp_path / 'temp'
+        shapes_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(app_fastapi, 'BASE_DIR', str(tmp_path))
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(shapes_dir))
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
+
+        def fake_generate_preview(points, preview_path):
+            assert len(points) == 2
+            Path(preview_path).write_bytes(b'png')
+
+        monkeypatch.setattr(app_fastapi, '_generate_custom_show_preview', fake_generate_preview)
+
+        csv_buffer = BytesIO(
+            b't,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode\n'
+            b'0.0,0.0,0.0,-0.0,0,0,0,0,0,0,0,70\n'
+            b'2.5,1.0,2.0,-5.0,0,0,0,0,0,0,5,70\n'
+        )
+
+        files = {'file': ('custom_show.csv', csv_buffer, 'text/csv')}
+        response = test_client.post('/import-custom-show', files=files)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['stored_as'] == 'active.csv'
+        assert data['row_count'] == 2
+        assert data['duration_sec'] == 2.5
+        assert data['preview_generated'] is True
+        assert (shapes_dir / 'active.csv').exists()
+        assert (shapes_dir / 'trajectory_plot.png').exists()
+
+    def test_import_custom_show_rejects_missing_protocol_columns(self, test_client, monkeypatch, tmp_path):
+        """Test POST /import-custom-show rejects non-protocol CSV files."""
+        import app_fastapi
+
+        shapes_dir = tmp_path / 'shapes_sitl'
+        temp_dir = tmp_path / 'temp'
+        shapes_dir.mkdir(parents=True, exist_ok=True)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        monkeypatch.setattr(app_fastapi, 'BASE_DIR', str(tmp_path))
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(shapes_dir))
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
+
+        files = {'file': ('bad_custom_show.csv', BytesIO(b't,px,py\n0,0,0\n'), 'text/csv')}
+        response = test_client.post('/import-custom-show', files=files)
+
+        assert response.status_code == 400
+        assert 'required protocol columns' in response.json()['detail']
 
     def test_get_position_deviations_supports_string_hw_id_telemetry_keys(
         self,

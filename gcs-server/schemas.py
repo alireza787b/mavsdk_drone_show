@@ -487,6 +487,33 @@ class ShowImportResponse(BaseModel):
     git_info: Optional[Dict[str, Any]] = Field(None, description="Git auto-push result when enabled")
 
 
+class CustomShowInfoResponse(BaseModel):
+    """Response for GET /get-custom-show-info"""
+    exists: bool = Field(..., description="Whether an active custom CSV exists")
+    filename: str = Field(..., description="Active custom CSV filename")
+    row_count: int = Field(..., ge=0, description="Number of trajectory rows")
+    duration_sec: float = Field(..., ge=0, description="Total trajectory duration in seconds")
+    max_altitude: float = Field(..., ge=0, description="Maximum altitude above launch frame in meters")
+    preview_exists: bool = Field(..., description="Whether a preview image has been generated")
+    execution_mode: str = Field(..., description="Execution mode summary")
+    required_columns: List[str] = Field(default_factory=list, description="Required CSV protocol columns")
+
+
+class CustomShowImportResponse(BaseModel):
+    """Response for POST /import-custom-show"""
+    success: bool = Field(..., description="Import success status")
+    message: str = Field(..., description="Status message")
+    filename: str = Field(..., description="Uploaded source filename")
+    stored_as: str = Field(..., description="Stored active filename on disk")
+    row_count: int = Field(..., ge=0, description="Number of validated trajectory rows")
+    duration_sec: float = Field(..., ge=0, description="Total trajectory duration in seconds")
+    max_altitude: float = Field(..., ge=0, description="Maximum altitude above launch frame in meters")
+    preview_generated: bool = Field(..., description="Whether the preview image was regenerated")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings raised during import")
+    next_steps: List[str] = Field(default_factory=list, description="Operator follow-up actions after import")
+    git_info: Optional[Dict[str, Any]] = Field(None, description="Git auto-push result when enabled")
+
+
 class CommandRequest(BaseModel):
     """Request schema for commands (used internally, not directly exposed)"""
     command: str = Field(..., min_length=1, description="Command to send")

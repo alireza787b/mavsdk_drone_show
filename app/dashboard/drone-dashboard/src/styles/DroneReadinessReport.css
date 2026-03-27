@@ -122,6 +122,14 @@
   background: rgba(15, 23, 42, 0.24);
 }
 
+.drone-readiness__list-item.warning {
+  background: rgba(237, 137, 54, 0.1);
+}
+
+.drone-readiness__list-item.error {
+  background: rgba(229, 62, 62, 0.12);
+}
+
 .drone-readiness__message-source {
   flex-shrink: 0;
   min-width: 68px;
@@ -142,9 +150,15 @@
 }
 
 .drone-readiness__message-source.telemetry,
-.drone-readiness__message-source.link {
+.drone-readiness__message-source.link.error {
   background: rgba(229, 62, 62, 0.12);
   color: var(--color-danger);
+}
+
+.drone-readiness__message-source.link.warning,
+.drone-readiness__message-source.telemetry.warning {
+  background: rgba(237, 137, 54, 0.14);
+  color: var(--color-warning);
 }
 
 .drone-readiness__message-text {

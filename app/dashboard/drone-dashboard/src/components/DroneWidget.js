@@ -26,6 +26,15 @@ const DroneWidget = ({
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
   const runtimeStatus = getDroneRuntimeStatus(drone, currentTimeInMs);
+  const runtimeStatusText = runtimeStatus.level === 'online'
+    ? 'Live'
+    : runtimeStatus.level === 'degraded'
+      ? 'Delayed'
+      : runtimeStatus.level === 'offline'
+        ? 'Lost'
+        : 'Waiting';
+  const runtimeTooltipId = `runtime-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
+  const runtimeTooltipText = `${runtimeStatus.label}. ${runtimeStatus.tooltip}`;
   const promotedField = getPromotedMissionConfigField(drone);
   const operatorAlias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
     ? promotedField.displayValue
@@ -53,6 +62,7 @@ const DroneWidget = ({
   const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
   const readiness = getDroneReadinessModel(drone, runtimeStatus);
   const isReadyToArm = readiness.isReady;
+  const readinessBadgeClass = isReadyToArm ? 'ready' : readiness.status;
 
   // Mission states
   const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
@@ -174,16 +184,35 @@ const DroneWidget = ({
         toggleDroneDetails(drone);
       }}>
         <div className="drone-header">
+          <div
+            className="drone-header__status"
+            title={runtimeStatus.tooltip}
+            data-tooltip-id={runtimeTooltipId}
+            data-tooltip-content={runtimeTooltipText}
+            aria-label={`${runtimeStatus.label}. ${runtimeStatus.tooltip}`}
+          >
           <span
             className={`status-indicator ${runtimeStatus.indicatorClass}`}
-            title={runtimeStatus.tooltip}
-            aria-label={runtimeStatus.label}
           />
+            <span className={`drone-header__status-label ${runtimeStatus.level}`}>
+              {runtimeStatusText}
+            </span>
+          </div>
           <div className="drone-header__titles">
             <span className="drone-header__title">Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
-            {operatorAlias && (
-              <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
-            )}
+            <div className="drone-header__meta">
+              {operatorAlias && (
+                <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
+              )}
+              <span
+                className={`drone-header__link-state ${runtimeStatus.level}`}
+                title={runtimeStatus.tooltip}
+                data-tooltip-id={runtimeTooltipId}
+                data-tooltip-content={runtimeTooltipText}
+              >
+                Link: {runtimeStatus.label}
+              </span>
+            </div>
           </div>
         </div>
         <div className="drone-header__actions">
@@ -215,7 +244,7 @@ const DroneWidget = ({
         <span className={`status-badge ${isArmed ? 'armed' : 'disarmed'}`}>
           {isArmed ? 'ARMED' : 'DISARMED'}
         </span>
-        <span className={`status-badge ${isReadyToArm ? 'ready' : 'not-ready'}`}>
+        <span className={`status-badge ${readinessBadgeClass}`}>
           {isReadyToArm ? 'READY' : readiness.statusLabel.toUpperCase()}
         </span>
       </div>
@@ -349,8 +378,14 @@ const DroneWidget = ({
 
       {/* Action Commands */}
       <div className="drone-critical-commands-section">
-        <DroneCriticalCommands droneId={String(drone[FIELD_NAMES.HW_ID])} />
+        <DroneCriticalCommands
+          droneId={String(drone[FIELD_NAMES.HW_ID])}
+          isArmed={isArmed}
+          runtimeStatus={runtimeStatus}
+        />
       </div>
+
+      <Tooltip id={runtimeTooltipId} place="top" effect="solid" />
 
     </div>
   );

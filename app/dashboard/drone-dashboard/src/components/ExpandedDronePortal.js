@@ -54,6 +54,13 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
 
   // Calculate status information
   const runtimeStatus = getDroneRuntimeStatus(drone, Date.now());
+  const runtimeStatusText = runtimeStatus.level === 'online'
+    ? 'Live'
+    : runtimeStatus.level === 'degraded'
+      ? 'Delayed'
+      : runtimeStatus.level === 'offline'
+        ? 'Lost'
+        : 'Waiting';
 
   const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
   const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;
@@ -64,6 +71,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   const isArmed = drone[FIELD_NAMES.IS_ARMED] || false;
   const readiness = getDroneReadinessModel(drone, runtimeStatus);
   const isReadyToArm = readiness.isReady;
+  const readinessBadgeClass = isReadyToArm ? 'ready' : readiness.status;
 
   const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
   const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
@@ -112,11 +120,16 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
         {/* Header */}
         <header className="expanded-drone-header">
           <div className="drone-header">
-            <span
-              className={`status-indicator ${runtimeStatus.indicatorClass}`}
+            <div
+              className="drone-header__status"
               title={runtimeStatus.tooltip}
-              aria-label={runtimeStatus.label}
-            />
+              aria-label={`${runtimeStatus.label}. ${runtimeStatus.tooltip}`}
+            >
+              <span className={`status-indicator ${runtimeStatus.indicatorClass}`} />
+              <span className={`drone-header__status-label ${runtimeStatus.level}`}>
+                {runtimeStatusText}
+              </span>
+            </div>
             <span>Drone {drone[FIELD_NAMES.HW_ID] || 'Unknown'}</span>
           </div>
         </header>
@@ -126,7 +139,7 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
           <span className={`status-badge ${isArmed ? 'armed' : 'disarmed'}`}>
             {isArmed ? 'ARMED' : 'DISARMED'}
           </span>
-          <span className={`status-badge ${isReadyToArm ? 'ready' : 'not-ready'}`}>
+          <span className={`status-badge ${readinessBadgeClass}`}>
             {isReadyToArm ? 'READY' : readiness.statusLabel.toUpperCase()}
           </span>
         </div>
@@ -196,7 +209,11 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
             {/* Critical Commands */}
             <div className="critical-commands-section">
               <h3>Critical Commands</h3>
-              <DroneCriticalCommands droneId={String(drone[FIELD_NAMES.HW_ID])} />
+              <DroneCriticalCommands
+                droneId={String(drone[FIELD_NAMES.HW_ID])}
+                isArmed={isArmed}
+                runtimeStatus={runtimeStatus}
+              />
             </div>
           </div>
 

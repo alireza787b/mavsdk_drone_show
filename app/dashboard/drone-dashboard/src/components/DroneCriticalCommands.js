@@ -1,74 +1,95 @@
-// src/components/DroneCriticalCommands.js
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
-import { FaSkull, FaHome, FaPlaneArrival, FaHandPaper } from 'react-icons/fa';
+import { FaHandPaper, FaHome, FaPlaneArrival, FaSkull } from 'react-icons/fa';
+
 import ConfirmationModal from './ConfirmationModal';
 import { buildActionCommand } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import '../styles/DroneCriticalCommands.css';
 
-/**
- * DroneCriticalCommands
- *
- * Renders four critical commands (Hold, Land, Return, Kill) for a single drone.
- */
-const DroneCriticalCommands = ({ droneId }) => {
+const COMMAND_DEFINITIONS = [
+  {
+    actionType: DRONE_ACTION_TYPES.HOLD,
+    icon: FaHandPaper,
+    label: 'Hold',
+    description: 'Freeze the drone in place',
+    tone: 'neutral',
+    requiresArmed: true,
+  },
+  {
+    actionType: DRONE_ACTION_TYPES.LAND,
+    icon: FaPlaneArrival,
+    label: 'Land',
+    description: 'Land this drone immediately',
+    tone: 'neutral',
+    requiresArmed: true,
+  },
+  {
+    actionType: DRONE_ACTION_TYPES.RETURN_RTL,
+    icon: FaHome,
+    label: 'RTL',
+    description: 'Return this drone to launch',
+    tone: 'warning',
+    requiresArmed: true,
+  },
+  {
+    actionType: DRONE_ACTION_TYPES.KILL_TERMINATE,
+    icon: FaSkull,
+    label: 'Kill',
+    description: 'Emergency motor stop only',
+    tone: 'danger',
+    requiresArmed: true,
+  },
+];
+
+function getDisabledReason(command, isArmed, runtimeStatus) {
+  if (!runtimeStatus || runtimeStatus.level === 'unknown' || runtimeStatus.level === 'offline') {
+    return 'Command link unavailable. Recover telemetry before sending per-drone overrides.';
+  }
+
+  if (command.requiresArmed && !isArmed) {
+    return 'This override is only relevant while the drone is airborne.';
+  }
+
+  return null;
+}
+
+const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  /**
-   * Limit to 4 commands for now, but easily extensible later.
-   */
-  const CRITICAL_COMMANDS = [
-    {
-      actionType: DRONE_ACTION_TYPES.HOLD, // numeric 102
-      icon: <FaHandPaper style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
-      label: 'Hold',
-      isDanger: false,
-    },
-    {
-      actionType: DRONE_ACTION_TYPES.LAND, // numeric 101
-      icon: <FaPlaneArrival style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
-      label: 'Land',
-      isDanger: false,
-    },
-    {
-      actionType: DRONE_ACTION_TYPES.RETURN_RTL, // numeric 104
-      icon: <FaHome style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
-      label: 'Return',
-      isDanger: false,
-    },
-    {
-      actionType: DRONE_ACTION_TYPES.KILL_TERMINATE, // numeric 105
-      icon: <FaSkull style={{ color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }} />, // white with shadow
-      label: 'Kill',
-      isDanger: true,
-    },
-  ];
+  const commands = useMemo(
+    () => COMMAND_DEFINITIONS.map((command) => ({
+      ...command,
+      disabledReason: getDisabledReason(command, isArmed, runtimeStatus),
+    })),
+    [isArmed, runtimeStatus],
+  );
 
-  // User clicks an icon => open modal
   const handleCommandClick = (command) => {
+    if (command.disabledReason) {
+      toast.info(command.disabledReason);
+      return;
+    }
+
     setPendingAction(command);
     setModalOpen(true);
   };
 
-  // Confirm => send to backend
   const handleConfirm = async () => {
     if (!pendingAction || !droneId) {
       setModalOpen(false);
       return;
     }
 
-    // Close modal
     setModalOpen(false);
 
-    // Build standardized command object
     const commandData = buildActionCommand(
       pendingAction.actionType,
-      [droneId], // single drone
-      0 // immediate
+      [droneId],
+      0,
     );
 
     try {
@@ -81,7 +102,6 @@ const DroneCriticalCommands = ({ droneId }) => {
     }
   };
 
-  // Cancel => close modal
   const handleCancel = () => {
     setModalOpen(false);
     setPendingAction(null);
@@ -89,28 +109,39 @@ const DroneCriticalCommands = ({ droneId }) => {
 
   return (
     <div className="critical-commands-container">
-      {CRITICAL_COMMANDS.map((cmd) => (
-        <button
-          key={cmd.actionType}
-          className={`critical-command-button ${cmd.isDanger ? 'danger' : ''}`}
-          title={cmd.label}
-          onClick={() => handleCommandClick(cmd)}
-        >
-          {cmd.icon}
-        </button>
-      ))}
+      {commands.map((command) => {
+        const Icon = command.icon;
+        const disabled = Boolean(command.disabledReason);
+
+        return (
+          <button
+            key={command.actionType}
+            type="button"
+            className={`critical-command-button ${command.tone}`}
+            title={disabled ? `${command.label}: ${command.disabledReason}` : `${command.label}: ${command.description}`}
+            onClick={() => handleCommandClick(command)}
+            disabled={disabled}
+            aria-disabled={disabled}
+          >
+            <span className="critical-command-button__icon">
+              <Icon aria-hidden="true" />
+            </span>
+            <span className="critical-command-button__label">{command.label}</span>
+          </button>
+        );
+      })}
 
       <ConfirmationModal
         isOpen={modalOpen}
-        title={pendingAction?.isDanger ? 'Confirm Critical Action' : 'Confirm Action'}
+        title={pendingAction?.tone === 'danger' ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
-            ? `Are you sure you want to ${pendingAction.label} drone ${droneId}?`
+            ? `${pendingAction.description}. Are you sure you want to ${pendingAction.label} drone ${droneId}?`
             : ''
         }
-        confirmLabel={pendingAction?.label || 'Yes'}
+        confirmLabel={pendingAction?.label || 'Confirm'}
         cancelLabel="Cancel"
-        isDanger={pendingAction?.isDanger || false}
+        isDanger={pendingAction?.tone === 'danger'}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
@@ -120,6 +151,12 @@ const DroneCriticalCommands = ({ droneId }) => {
 
 DroneCriticalCommands.propTypes = {
   droneId: PropTypes.string.isRequired,
+  isArmed: PropTypes.bool,
+  runtimeStatus: PropTypes.shape({
+    level: PropTypes.string,
+    label: PropTypes.string,
+    tooltip: PropTypes.string,
+  }),
 };
 
 export default DroneCriticalCommands;

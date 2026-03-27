@@ -187,7 +187,7 @@ const MissionDetails = ({
 
   if (customShowHints && !customShowLoading) {
     if (!customShowReady) {
-      customShowBlockers.push('Custom CSV mode requires shapes_sitl/active.csv (or shapes/active.csv in real mode).');
+      customShowBlockers.push('No active custom CSV is loaded. Open Custom Show and upload one ready-to-execute protocol CSV first.');
     }
 
     if (customShowError && !customShowReady) {
@@ -195,7 +195,7 @@ const MissionDetails = ({
     }
 
     if (customShowReady && !customShowInfo.preview_exists) {
-      customShowWarnings.push('Preview image is missing. Regenerate the custom trajectory plot if operators need a visual cross-check.');
+      customShowWarnings.push('Preview image is missing. Re-upload the custom CSV from Custom Show if operators need a visual cross-check.');
     }
   }
 
@@ -599,6 +599,7 @@ const MissionDetails = ({
               <li>Each drone runs the same CSV relative to its own launch point.</li>
               <li>GLOBAL origin correction and shared-origin placement checks do not apply in this mode.</li>
               <li>Use this for advanced/manual testing, not for the normal SkyBrush multi-drone show pipeline.</li>
+              <li>The uploaded CSV must already follow the MDS custom trajectory protocol; no conversion is done here.</li>
             </ul>
 
             <p>

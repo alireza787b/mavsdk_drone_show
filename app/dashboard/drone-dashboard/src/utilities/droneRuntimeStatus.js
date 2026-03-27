@@ -1,7 +1,8 @@
 import { DRONE_RUNTIME_CLOCK_PROP } from '../constants/fieldMappings';
 
-const LIVE_TELEMETRY_THRESHOLD_MS = 7_000;
-const HEARTBEAT_GRACE_THRESHOLD_MS = 25_000;
+// Keep link-state conservative without flickering on slower VPSes or brief polling gaps.
+const LIVE_TELEMETRY_THRESHOLD_MS = 10_000;
+const HEARTBEAT_GRACE_THRESHOLD_MS = 35_000;
 const CLIENT_CLOCK_SKEW_TOLERANCE_MS = 30_000;
 const MS_PER_SECOND = 1_000;
 const UNIX_MS_THRESHOLD = 1_000_000_000_000;
