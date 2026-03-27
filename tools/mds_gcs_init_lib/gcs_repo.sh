@@ -543,7 +543,7 @@ run_repository_phase() {
     # Track if using default repo for read-only warning
     local using_default_repo="true"
 
-    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -z "${REPO_URL:-}" ]]; then
+    if can_prompt && [[ -z "${REPO_URL:-}" ]]; then
         echo ""
         echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
         echo -e "${CYAN}│${NC}  ${WHITE}Do you have your own fork of the MDS repository?${NC}"
@@ -626,7 +626,7 @@ run_repository_phase() {
     fi
 
     # Prompt for branch change (interactive mode, default repo only)
-    if [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -z "${REPO_URL:-}" ]]; then
+    if can_prompt && [[ -z "${REPO_URL:-}" ]]; then
         local current_branch_display="${BRANCH:-$GCS_DEFAULT_BRANCH}"
         echo -e "  Current branch: ${CYAN}${current_branch_display}${NC}"
         local new_branch=""
@@ -646,7 +646,7 @@ run_repository_phase() {
     if [[ "${USE_HTTPS:-}" != "true" ]]; then
         print_section "Step 2: Access Mode"
 
-        if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        if can_prompt; then
             echo ""
             echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
             echo -e "${CYAN}│${NC}  ${WHITE}How do you want to access the repository?${NC}"
@@ -680,6 +680,9 @@ run_repository_phase() {
             fi
             echo ""
         else
+            if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+                log_warn "No interactive TTY detected; defaulting to SSH access mode"
+            fi
             log_info "Access mode: SSH (non-interactive default)"
             echo ""
         fi

@@ -125,6 +125,13 @@ normalize_github_repo_path() {
     printf '%s\n' "$spec"
 }
 
+enable_non_interactive_without_tty() {
+    if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ ! -r /dev/tty ]]; then
+        NON_INTERACTIVE="true"
+    fi
+    export NON_INTERACTIVE
+}
+
 # =============================================================================
 # HELP TEXT
 # =============================================================================
@@ -543,6 +550,7 @@ run_all_phases() {
 main() {
     # Parse command line arguments
     parse_args "$@"
+    enable_non_interactive_without_tty
 
     # Initialize logging
     init_logging

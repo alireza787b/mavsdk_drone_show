@@ -311,7 +311,7 @@ run_nodejs_phase() {
     local invoking_user="${SUDO_USER:-$(whoami)}"
     local install_method="nvm"
 
-    if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+    if can_prompt; then
         echo ""
         echo -e "  ${WHITE}How should Node.js ${GCS_NODE_TARGET_VERSION}.x be installed?${NC}"
         echo ""
@@ -326,6 +326,8 @@ run_nodejs_phase() {
             2) install_method="apt" ;;
             *) install_method="nvm" ;;
         esac
+    elif [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        log_warn "No interactive TTY detected; using default Node.js install method: nvm"
     fi
 
     if [[ "$install_method" == "nvm" ]]; then

@@ -88,6 +88,13 @@ export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
 export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG
 export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 
+enable_non_interactive_without_tty() {
+    if [[ "${NON_INTERACTIVE}" != "true" ]] && [[ ! -r /dev/tty ]]; then
+        NON_INTERACTIVE="true"
+    fi
+    export NON_INTERACTIVE
+}
+
 # =============================================================================
 # HELP TEXT
 # =============================================================================
@@ -512,6 +519,7 @@ gcs_cleanup_handler() {
 main() {
     # Parse command line arguments
     parse_arguments "$@"
+    enable_non_interactive_without_tty
 
     # Setup signal handlers
     trap 'gcs_error_handler $LINENO' ERR

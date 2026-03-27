@@ -370,6 +370,11 @@ get_architecture() {
     esac
 }
 
+# Returns success when interactive prompting is safe.
+can_prompt() {
+    [[ "${NON_INTERACTIVE:-false}" != "true" ]] && [[ -r /dev/tty ]]
+}
+
 # Prompt for input with default value
 # Uses /dev/tty to work correctly when script is piped (curl | bash)
 prompt_input() {
@@ -378,7 +383,7 @@ prompt_input() {
     local var_name="$3"
     local is_password="${4:-false}"
 
-    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    if ! can_prompt; then
         eval "$var_name=\"$default\""
         return 0
     fi
@@ -400,7 +405,7 @@ confirm() {
     local prompt="$1"
     local default="${2:-y}"
 
-    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    if ! can_prompt; then
         return 0
     fi
 
@@ -421,7 +426,7 @@ confirm() {
 wait_for_keypress() {
     local prompt="${1:-Press any key to continue...}"
 
-    if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
+    if ! can_prompt; then
         return 0
     fi
 

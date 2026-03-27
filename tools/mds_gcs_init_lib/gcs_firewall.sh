@@ -210,13 +210,13 @@ run_firewall_phase() {
     fi
 
     # Ask for custom ports in interactive mode - cleaner UX
-    if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+    if can_prompt; then
         echo -e "  ${WHITE}Additional ports (optional):${NC}"
         echo -e "  ${DIM}Enter extra ports if needed, or press Enter to skip${NC}"
         echo -e "  ${DIM}Format: 8080 or 8080,9000 or 8080/udp${NC}"
         echo ""
 
-        local custom_ports
+        local custom_ports=""
         read -p "  Extra ports [none]: " custom_ports </dev/tty
 
         if [[ -n "$custom_ports" ]]; then
@@ -256,6 +256,8 @@ run_firewall_phase() {
             echo ""
             return 0
         fi
+    elif [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+        log_warn "No interactive TTY detected; applying default firewall configuration"
     fi
 
     print_section "Applying Rules"
