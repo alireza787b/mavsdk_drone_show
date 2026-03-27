@@ -53,7 +53,8 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
   };
 
   const getClusterStatus = (cluster) => {
-    if (cluster.has_trajectory) return 'ready';
+    if (cluster.ready) return 'ready';
+    if (cluster.leader_uploaded) return 'processing';
     return 'missing';
   };
 
@@ -117,9 +118,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
           <span className="empty-icon">🤖</span>
           <div className="empty-text">
             <h4>No Clusters Found</h4>
-            <p>Configure your swarm structure in the Swarm Trajectory page</p>
+            <p>Configure the swarm in Swarm Design, then upload leader trajectories in Swarm Trajectory.</p>
           </div>
-          <a href="/swarm-trajectory" className="fix-link">
+          <a href="/swarm-design" className="fix-link">
             Configure Swarm →
           </a>
         </div>
@@ -128,7 +129,7 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
   }
 
   const overallStatus = getOverallStatus();
-  const readyClusters = clusterStatus.clusters.filter(c => c.has_trajectory).length;
+  const readyClusters = clusterStatus.clusters.filter(c => c.ready).length;
   const missingCount = clusterStatus.clusters.length - readyClusters;
 
   return (
@@ -181,19 +182,25 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
 
                 <div className="header-actions">
                   <span className="csv-indicator">
-                    {clusterStatus === 'ready' ? '✅' : '❌'}
-                    {clusterStatus === 'ready' ? 'Ready' : 'Missing CSV'}
+                    {clusterStatus === 'ready' ? '✅' : clusterStatus === 'processing' ? '⏳' : '❌'}
+                    {clusterStatus === 'ready'
+                      ? 'Ready'
+                      : clusterStatus === 'processing'
+                        ? 'Needs Processing'
+                        : 'Missing CSV'}
                   </span>
-                  <button
-                    className="preview-cluster-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openLightbox(getClusterImagePath(cluster.leader_id), `Cluster ${cluster.leader_id} Formation`);
-                    }}
-                    title="Preview cluster formation"
-                  >
-                    👁️
-                  </button>
+                  {cluster.cluster_plot_available && (
+                    <button
+                      className="preview-cluster-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openLightbox(getClusterImagePath(cluster.leader_id), `Cluster ${cluster.leader_id} Formation`);
+                      }}
+                      title="Preview cluster formation"
+                    >
+                      👁️
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -226,13 +233,17 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                         <div className="drone-meta">
                           <span className="drone-role">LEADER</span>
                           <span className={`drone-status ${clusterStatus}`}>
-                            {clusterStatus === 'ready' ? '✅ Ready' : '❌ Missing CSV'}
+                            {clusterStatus === 'ready'
+                              ? '✅ Ready'
+                              : clusterStatus === 'processing'
+                                ? '⏳ Uploaded, processing required'
+                                : '❌ Missing CSV'}
                           </span>
                         </div>
                       </div>
 
                       <div className="drone-actions">
-                        {clusterStatus === 'ready' && (
+                        {cluster.leader_plot_available && (
                           <button
                               className="preview-btn"
                               onClick={() => openLightbox(getDroneImagePath(cluster.leader_id), `Drone ${cluster.leader_id} Trajectory`)}
@@ -255,14 +266,18 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                           <span className={`drone-status ${clusterStatus}`}>
                             {clusterStatus === 'ready'
                               ? 'Topology linked to uploaded leader trajectory'
-                              : 'Waiting for leader trajectory upload'}
+                              : clusterStatus === 'processing'
+                                ? 'Follower paths will appear after processing'
+                                : 'Waiting for leader trajectory upload'}
                           </span>
                         </div>
                       </div>
 
                       <div className="drone-actions">
                         <span className="preview-btn preview-btn--note">
-                          Individual follower verification is not exposed here yet.
+                          {cluster.follower_ids?.length > 0
+                            ? `Follower IDs: ${cluster.follower_ids.join(', ')}`
+                            : 'No followers assigned to this leader.'}
                         </span>
                       </div>
                     </div>

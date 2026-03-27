@@ -25,6 +25,7 @@ class ProcessingSession:
     processed_leaders: List[int]
     total_drones: int
     parameters_hash: str
+    raw_inputs_hash: str = ""
 
 class SwarmSessionManager:
     """Manages swarm trajectory processing sessions and change detection"""
@@ -80,6 +81,40 @@ class SwarmSessionManager:
             logger.error(f"Failed to generate parameters hash: {e}")
             return "unknown"
 
+    def generate_raw_inputs_hash(self) -> str:
+        """Generate hash of uploaded raw trajectory contents."""
+        try:
+            raw_dir = self.folders['raw']
+            if not os.path.exists(raw_dir):
+                return "empty"
+
+            file_fingerprints = []
+            for filename in sorted(os.listdir(raw_dir)):
+                if not (filename.endswith('.csv') and filename.startswith('Drone ')):
+                    continue
+
+                file_path = os.path.join(raw_dir, filename)
+                if not os.path.isfile(file_path):
+                    continue
+
+                with open(file_path, 'rb') as trajectory_file:
+                    content_hash = hashlib.sha256(trajectory_file.read()).hexdigest()
+
+                file_fingerprints.append({
+                    'filename': filename,
+                    'content_hash': content_hash,
+                })
+
+            if not file_fingerprints:
+                return "empty"
+
+            fingerprint_str = json.dumps(file_fingerprints, sort_keys=True)
+            return hashlib.sha256(fingerprint_str.encode()).hexdigest()
+
+        except Exception as e:
+            logger.error(f"Failed to generate raw inputs hash: {e}")
+            return "unknown"
+
     def get_current_session(self) -> Optional[ProcessingSession]:
         """Get the current processing session if it exists"""
         try:
@@ -133,12 +168,14 @@ class SwarmSessionManager:
         current_session = self.get_current_session()
         current_fingerprint = self.generate_swarm_fingerprint()
         current_params = self.generate_parameters_hash()
+        current_raw_inputs = self.generate_raw_inputs_hash()
         uploaded_leaders = self.get_uploaded_leaders()
 
         changes = {
             'has_previous_session': current_session is not None,
             'swarm_structure_changed': False,
             'parameters_changed': False,
+            'trajectory_files_changed': False,
             'new_uploads': [],
             'missing_uploads': [],
             'leader_structure_changed': False,
@@ -165,6 +202,12 @@ class SwarmSessionManager:
             changes['requires_full_reprocess'] = True
             changes['safe_to_incremental'] = False
             logger.warning("Processing parameters changed - full reprocess required")
+
+        if current_raw_inputs != (current_session.raw_inputs_hash or ""):
+            changes['trajectory_files_changed'] = True
+            changes['requires_full_reprocess'] = True
+            changes['safe_to_incremental'] = False
+            logger.warning("Uploaded trajectory contents changed - full reprocess required")
 
         # Check upload changes
         previous_leaders = set(current_session.processed_leaders)
@@ -193,7 +236,8 @@ class SwarmSessionManager:
             swarm_fingerprint=self.generate_swarm_fingerprint(),
             processed_leaders=processed_leaders,
             total_drones=total_drones,
-            parameters_hash=self.generate_parameters_hash()
+            parameters_hash=self.generate_parameters_hash(),
+            raw_inputs_hash=self.generate_raw_inputs_hash(),
         )
 
         self.save_session(session)
@@ -250,6 +294,17 @@ class SwarmSessionManager:
                         'Processing parameters have been modified',
                         'Existing trajectories may be inconsistent',
                         'All data will be cleared and reprocessed'
+                    ],
+                    'requires_confirmation': True
+                })
+            elif changes['trajectory_files_changed']:
+                recommendation.update({
+                    'action': 'mandatory_full_reprocess',
+                    'message': 'Uploaded trajectories changed - full reprocess required',
+                    'details': [
+                        'One or more uploaded leader CSV files changed',
+                        'Existing processed outputs are no longer authoritative',
+                        'All cluster trajectories will be regenerated from the updated raw inputs'
                     ],
                     'requires_confirmation': True
                 })

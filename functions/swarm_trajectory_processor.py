@@ -227,7 +227,12 @@ def process_swarm_trajectories(force_clear: bool = False, auto_reload: bool = Tr
             }
 
         # Continue with actual processing
-        return _execute_trajectory_processing(all_available_leaders, session_manager, recommendation)
+        return _execute_trajectory_processing(
+            all_available_leaders,
+            session_manager,
+            recommendation,
+            reloaded_leaders=reloaded_leaders,
+        )
 
     except Exception as e:
         logger.error(f"Smart processing failed: {e}")
@@ -237,9 +242,15 @@ def process_swarm_trajectories(force_clear: bool = False, auto_reload: bool = Tr
             'processing_stage': 'initialization'
         }
 
-def _execute_trajectory_processing(available_leaders: List[int], session_manager: SwarmSessionManager, recommendation: Dict[str, Any]) -> Dict[str, Any]:
+def _execute_trajectory_processing(
+    available_leaders: List[int],
+    session_manager: SwarmSessionManager,
+    recommendation: Dict[str, Any],
+    reloaded_leaders: List[int] | None = None,
+) -> Dict[str, Any]:
     """Execute the actual trajectory processing"""
     mode_str = "SITL" if Params.sim_mode else "real"
+    reloaded_leaders = sorted(reloaded_leaders or [])
 
     try:
         # Get folder structure
@@ -366,7 +377,8 @@ def _execute_trajectory_processing(available_leaders: List[int], session_manager
             'recommendation': recommendation,
             'processed_leaders': processed_leaders,
             'missing_leaders': missing_leaders,
-            'auto_reloaded': extra_leaders  # Leaders that were auto-included
+            'auto_reloaded': reloaded_leaders,
+            'ignored_leaders': extra_leaders,
         }
 
     except Exception as e:

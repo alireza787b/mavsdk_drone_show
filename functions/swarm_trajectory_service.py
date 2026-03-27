@@ -102,6 +102,15 @@ def save_uploaded_trajectory(leader_id: int, filename: str, content: bytes) -> D
     if not filename or not filename.endswith(".csv"):
         raise SwarmTrajectoryError("File must be CSV format", status_code=400)
 
+    structure = _load_swarm_structure()
+    valid_leaders = set(structure["top_leaders"])
+    if leader_id not in valid_leaders:
+        valid_leader_list = ", ".join(str(current_leader) for current_leader in sorted(valid_leaders)) or "none"
+        raise SwarmTrajectoryError(
+            f"Drone {leader_id} is not a current top-level leader. Valid leaders: {valid_leader_list}",
+            status_code=400,
+        )
+
     folders = get_swarm_trajectory_folders()
     raw_dir = Path(folders["raw"])
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -136,16 +145,46 @@ def get_processing_status_payload() -> Dict:
     raw_count = len(list(raw_dir.glob("*.csv"))) if raw_dir.exists() else 0
     processed_count = len(list(processed_dir.glob("*.csv"))) if processed_dir.exists() else 0
     plot_count = len(list(plots_dir.glob("*.jpg"))) if plots_dir.exists() else 0
+    raw_leaders = _collect_drone_ids(folders["raw"])
     processed_drones = _collect_drone_ids(folders["processed"])
 
     try:
         structure = _load_swarm_structure()
-        processed_leaders = [drone_id for drone_id in processed_drones if drone_id in structure["top_leaders"]]
-        processed_followers = [drone_id for drone_id in processed_drones if drone_id not in structure["top_leaders"]]
+        top_leaders = structure["top_leaders"]
+        processed_leaders = [drone_id for drone_id in processed_drones if drone_id in top_leaders]
+        processed_followers = [drone_id for drone_id in processed_drones if drone_id not in top_leaders]
+        processed_drone_set = set(processed_drones)
+        raw_leader_set = set(raw_leaders)
+        clusters = []
+
+        for leader_id in top_leaders:
+            follower_ids = structure["hierarchies"].get(leader_id, [])
+            processed_follower_ids = [drone_id for drone_id in follower_ids if drone_id in processed_drone_set]
+            missing_follower_ids = [drone_id for drone_id in follower_ids if drone_id not in processed_drone_set]
+            leader_plot_path = plots_dir / f"drone_{leader_id}_trajectory.jpg"
+            cluster_plot_path = plots_dir / f"cluster_leader_{leader_id}.jpg"
+
+            clusters.append({
+                "leader_id": leader_id,
+                "follower_ids": follower_ids,
+                "follower_count": len(follower_ids),
+                "leader_uploaded": leader_id in raw_leader_set,
+                "leader_processed": leader_id in processed_drone_set,
+                "processed_follower_ids": processed_follower_ids,
+                "missing_follower_ids": missing_follower_ids,
+                "leader_plot_available": leader_plot_path.exists(),
+                "cluster_plot_available": cluster_plot_path.exists(),
+                "ready": (
+                    leader_id in raw_leader_set
+                    and leader_id in processed_drone_set
+                    and not missing_follower_ids
+                ),
+            })
     except Exception as e:
         logger.warning("Could not analyze swarm structure for status: %s", e)
         processed_leaders = processed_drones
         processed_followers = []
+        clusters = []
 
     return {
         "success": True,
@@ -153,12 +192,15 @@ def get_processing_status_payload() -> Dict:
             "raw_trajectories": raw_count,
             "processed_trajectories": processed_count,
             "generated_plots": plot_count,
+            "raw_leaders": raw_leaders,
             "processed_drones": processed_drones,
             "processed_leaders": processed_leaders,
             "processed_followers": processed_followers,
             "leader_count": len(processed_leaders),
             "follower_count": len(processed_followers),
-            "has_results": processed_count > 0 and plot_count > 0,
+            "has_results": processed_count > 0,
+            "plots_available": plot_count > 0,
+            "clusters": clusters,
         },
         "folders": folders,
     }

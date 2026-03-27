@@ -56,17 +56,40 @@ export const getSwarmClusterStatus = async () => {
       throw new Error('Failed to fetch cluster information');
     }
 
-    // Transform the data to match the UI expectations
-    const clusters = leadersData.leaders.map(leaderId => ({
-      leader_id: leaderId,
-      follower_count: leadersData.hierarchies[leaderId] || 0,
-      has_trajectory: leadersData.uploaded_leaders.includes(leaderId) && statusData.status.processed_trajectories > 0
-    }));
+    const backendClusters = statusData.status.clusters || [];
+
+    const clusters = backendClusters.length > 0
+      ? backendClusters.map(cluster => ({
+          leader_id: cluster.leader_id,
+          follower_ids: cluster.follower_ids || leadersData.follower_details?.[cluster.leader_id] || [],
+          follower_count: cluster.follower_count ?? (cluster.follower_ids || []).length,
+          has_trajectory: Boolean(cluster.ready),
+          ready: Boolean(cluster.ready),
+          leader_uploaded: Boolean(cluster.leader_uploaded),
+          leader_processed: Boolean(cluster.leader_processed),
+          missing_follower_ids: cluster.missing_follower_ids || [],
+          processed_follower_ids: cluster.processed_follower_ids || [],
+          leader_plot_available: Boolean(cluster.leader_plot_available),
+          cluster_plot_available: Boolean(cluster.cluster_plot_available),
+        }))
+      : leadersData.leaders.map(leaderId => ({
+          leader_id: leaderId,
+          follower_ids: leadersData.follower_details?.[leaderId] || [],
+          follower_count: leadersData.hierarchies[leaderId] || 0,
+          has_trajectory: leadersData.uploaded_leaders.includes(leaderId) && statusData.status.processed_trajectories > 0,
+          ready: leadersData.uploaded_leaders.includes(leaderId) && statusData.status.processed_trajectories > 0,
+          leader_uploaded: leadersData.uploaded_leaders.includes(leaderId),
+          leader_processed: statusData.status.processed_leaders?.includes?.(leaderId) || false,
+          missing_follower_ids: [],
+          processed_follower_ids: [],
+          leader_plot_available: false,
+          cluster_plot_available: false,
+        }));
 
     return {
       clusters,
       total_leaders: leadersData.leaders.length,
-      total_followers: Object.values(leadersData.hierarchies).reduce((sum, count) => sum + count, 0),
+      total_followers: clusters.reduce((sum, cluster) => sum + cluster.follower_count, 0),
       processed_trajectories: statusData.status.processed_trajectories || 0
     };
   } catch (error) {
