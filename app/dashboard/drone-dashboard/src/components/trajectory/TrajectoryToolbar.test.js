@@ -1,6 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen } from '@testing-library/react';
 import TrajectoryToolbar from './TrajectoryToolbar';
 
 const renderToolbar = (overrides = {}) => {
@@ -41,10 +40,9 @@ describe('TrajectoryToolbar', () => {
   });
 
   it('calls send callback when enabled', async () => {
-    const user = userEvent.setup();
     const { props } = renderToolbar({ canSendToSwarm: true });
 
-    await user.click(screen.getByRole('button', { name: /send to swarm/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send to swarm/i }));
 
     expect(props.onSendToSwarm).toHaveBeenCalledTimes(1);
   });
