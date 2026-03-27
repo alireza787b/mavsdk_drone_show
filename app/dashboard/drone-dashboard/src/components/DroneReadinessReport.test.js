@@ -80,6 +80,8 @@ describe('DroneReadinessReport', () => {
   });
 
   test('keeps only the advisory summary visible when the drone is ready with link warnings', () => {
+    const nowMs = Date.now();
+
     render(
       <DroneReadinessReport
         drone={{
@@ -87,15 +89,10 @@ describe('DroneReadinessReport', () => {
           [FIELD_NAMES.READINESS_STATUS]: 'ready',
           [FIELD_NAMES.READINESS_SUMMARY]: 'Ready to fly',
           [FIELD_NAMES.PREFLIGHT_BLOCKERS]: [],
-          [FIELD_NAMES.PREFLIGHT_WARNINGS]: [
-            {
-              source: 'link',
-              severity: 'warning',
-              message: 'Telemetry is delayed.',
-            },
-          ],
+          [FIELD_NAMES.PREFLIGHT_WARNINGS]: [],
           [FIELD_NAMES.STATUS_MESSAGES]: [],
           [FIELD_NAMES.READINESS_CHECKS]: [],
+          [FIELD_NAMES.PREFLIGHT_LAST_UPDATE]: nowMs,
         }}
         runtimeStatus={{ level: 'degraded' }}
         variant="compact"

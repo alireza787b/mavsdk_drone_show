@@ -25,7 +25,7 @@ describe('MissionTrigger', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('CUSTOM CSV DRONE SHOW'));
+    fireEvent.click(screen.getByText('Custom CSV Drone Show'));
     fireEvent.click(screen.getByText('send'));
 
     expect(onSendCommand).toHaveBeenCalledWith(
