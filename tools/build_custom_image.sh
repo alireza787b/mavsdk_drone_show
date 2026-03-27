@@ -78,7 +78,7 @@ main() {
     docker_sitl_check_image_exists "$BASE_IMAGE"
 
     local temp_container="mds-custom-build-$(date +%s)-$$"
-    trap 'docker_sitl_cleanup_container "$temp_container"' EXIT
+    trap "docker_sitl_cleanup_container '$temp_container'" EXIT
 
     log_info "Base image : ${BASE_IMAGE}"
     log_info "Repo       : ${repo_url}"
