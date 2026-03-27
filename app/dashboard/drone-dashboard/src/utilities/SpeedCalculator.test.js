@@ -42,10 +42,10 @@ describe('SpeedCalculator', () => {
 
     const result = calculateWaypointSpeeds(waypoints);
 
-    expect(result[0].estimatedSpeed).toBeCloseTo(14.9, 1);
+    expect(result[0].estimatedSpeed).toBe(15);
     expect(result[0].heading).toBeCloseTo(0, 1);
 
-    expect(result[1].estimatedSpeed).toBeCloseTo(9.1, 1);
+    expect(result[1].estimatedSpeed).toBe(9.1);
     expect(result[1].headingMode).toBe(YAW_CONSTANTS.AUTO);
     expect(result[1].heading).toBeCloseTo(90, 0);
 
@@ -76,7 +76,7 @@ describe('SpeedCalculator', () => {
     expect(second.calculatedHeading).toBeCloseTo(90, 0);
   });
 
-  test('validateWaypointSequence flags time conflicts and impossible speeds', () => {
+  test('validateWaypointSequence flags time conflicts and impossible speeds on separate invalid legs', () => {
     const result = validateWaypointSequence([
       {
         name: 'Waypoint 1',
@@ -91,6 +91,13 @@ describe('SpeedCalculator', () => {
         longitude: 51.0,
         altitude: 100,
         timeFromStart: 10,
+      },
+      {
+        name: 'Waypoint 3',
+        latitude: 35.02,
+        longitude: 51.0,
+        altitude: 100,
+        timeFromStart: 20,
       },
     ]);
 
@@ -117,7 +124,7 @@ describe('SpeedCalculator', () => {
     const stats = calculateTrajectoryStats([fromWaypoint, toWaypoint]);
     expect(stats.totalDistance).toBeGreaterThan(140);
     expect(stats.totalDistance).toBeCloseTo(149.5, 0);
-    expect(stats.avgSpeed).toBeCloseTo(14.9, 1);
+    expect(stats.avgSpeed).toBe(15);
     expect(stats.speedWarnings).toBe(1);
 
     const suggestedTime = suggestOptimalTime(
