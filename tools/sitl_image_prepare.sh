@@ -8,6 +8,7 @@ BASE_DIR="${MDS_BASE_DIR:-/root/mavsdk_drone_show}"
 PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"
 BRANCH="${2:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
+GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 VENV_DIR="$BASE_DIR/venv"
@@ -29,6 +30,13 @@ fail() {
 
 require_cmd() {
     command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+load_git_auth_token() {
+    if [[ -n "$GIT_AUTH_TOKEN_FILE" ]]; then
+        [[ -r "$GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $GIT_AUTH_TOKEN_FILE"
+        GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+    fi
 }
 
 retry_cmd() {
@@ -297,6 +305,7 @@ EOF
 }
 
 main() {
+    load_git_auth_token
     require_cmd git
     require_cmd python3
     require_cmd sha256sum

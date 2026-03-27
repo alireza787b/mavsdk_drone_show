@@ -58,6 +58,8 @@ For confidentiality-sensitive customers, prefer an org-owned private repo instea
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
 ```
 
+For a first-time private SSH bootstrap, omit `-y` unless the deploy key is already authorized on GitHub. Non-interactive `-y` is safe only after that prerequisite is already satisfied.
+
 **Using an explicit repository URL:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y

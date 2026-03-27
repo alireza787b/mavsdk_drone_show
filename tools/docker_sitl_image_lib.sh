@@ -36,6 +36,42 @@ docker_sitl_copy_prepare_script() {
     docker cp "$repo_root/tools/sitl_image_prepare.sh" "$container_name:/tmp/mds_sitl_image_prepare.sh"
 }
 
+docker_sitl_stage_git_auth_secret() {
+    local container_name="$1"
+    local secret_mount_path="/run/secrets/mds_git_auth_token"
+    local host_secret_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+    local local_secret_file=""
+
+    if [[ -z "$host_secret_file" && -z "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$host_secret_file" ]]; then
+        [[ -r "$host_secret_file" ]] || {
+            printf 'Error: MDS_GIT_AUTH_TOKEN_FILE is not readable: %s\n' "$host_secret_file" >&2
+            exit 1
+        }
+        local_secret_file="$host_secret_file"
+    else
+        local_secret_file=$(mktemp)
+        chmod 600 "$local_secret_file"
+        printf '%s' "$MDS_GIT_AUTH_TOKEN" > "$local_secret_file"
+    fi
+
+    docker exec "$container_name" mkdir -p /run/secrets >/dev/null
+    docker cp "$local_secret_file" "${container_name}:${secret_mount_path}"
+    docker exec "$container_name" chmod 600 "$secret_mount_path" >/dev/null
+
+    if [[ "$local_secret_file" != "$host_secret_file" ]]; then
+        rm -f "$local_secret_file"
+    fi
+}
+
+docker_sitl_cleanup_git_auth_secret() {
+    local container_name="$1"
+    docker exec "$container_name" rm -f /run/secrets/mds_git_auth_token >/dev/null 2>&1 || true
+}
+
 docker_sitl_run_prepare_script() {
     local container_name="$1"
     local repo_url="$2"
@@ -58,8 +94,9 @@ docker_sitl_run_prepare_script() {
         docker_exec_args+=(-e "MDS_SITL_KEEP_ARM_TOOLCHAIN=${MDS_SITL_KEEP_ARM_TOOLCHAIN}")
     fi
 
-    if [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
-        docker_exec_args+=(-e "MDS_GIT_AUTH_TOKEN=${MDS_GIT_AUTH_TOKEN}")
+    if [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" || -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
+        docker_sitl_stage_git_auth_secret "$container_name"
+        docker_exec_args+=(-e "MDS_GIT_AUTH_TOKEN_FILE=/run/secrets/mds_git_auth_token")
     fi
 
     if [[ -n "${MDS_GIT_AUTH_USERNAME:-}" ]]; then
@@ -67,7 +104,14 @@ docker_sitl_run_prepare_script() {
     fi
 
     docker_exec_args+=("$container_name" bash /tmp/mds_sitl_image_prepare.sh)
-    "${docker_exec_args[@]}"
+    if "${docker_exec_args[@]}"; then
+        docker_sitl_cleanup_git_auth_secret "$container_name"
+        return 0
+    fi
+
+    local exec_status=$?
+    docker_sitl_cleanup_git_auth_secret "$container_name"
+    return "$exec_status"
 }
 
 docker_sitl_flatten_container() {

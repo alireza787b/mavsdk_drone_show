@@ -94,6 +94,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
    - **Enable "Allow write access"**
 3. The installer verifies the connection before proceeding
    It now tests and pins the intended deploy key explicitly, so pre-existing `~/.ssh/config` GitHub identities do not silently hijack the repo connection.
+   For a first-time private SSH bootstrap, non-interactive `-y` only works if that deploy key is already authorized on GitHub.
 
 ### Access Modes
 

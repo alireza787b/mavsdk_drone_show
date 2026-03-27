@@ -45,7 +45,7 @@ What it does **not** auto-update:
 - baked `mavsdk_server`
 
 That means runtime git sync is useful for development, but it is not a full image refresh and not a reproducible release process.
-For private GitHub repos, add `MDS_GIT_AUTH_TOKEN` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo.
+For private GitHub repos, add `MDS_GIT_AUTH_TOKEN_FILE` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo. `MDS_GIT_AUTH_TOKEN` remains a legacy fallback, but the file-based path avoids putting the raw token into process arguments during containerized flows.
 
 ## Official Tested Archive Workflow
 

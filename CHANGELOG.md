@@ -13,7 +13,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - **Custom Repo Workflow Validation**:
   - documented the real GitHub behavior that public upstream forks stay public by default, so confidentiality-sensitive customer setups should use a private mirror/custom repo path instead of assuming a private fork
   - GCS and drone SSH repo setup now pin repo-local `core.sshCommand` when SSH is used, so pre-existing host `~/.ssh/config` GitHub identities do not silently override the intended MDS deploy key
-  - SITL runtime and SITL image preparation now support private GitHub repos through authenticated HTTPS with `MDS_GIT_AUTH_TOKEN`, making private mutable SITL and private custom-image builds practical without injecting SSH keys into every container
+  - SITL runtime and SITL image preparation now prefer file-backed private GitHub auth via `MDS_GIT_AUTH_TOKEN_FILE`, so private mutable SITL and private custom-image builds avoid exposing raw tokens in process arguments while keeping `MDS_GIT_AUTH_TOKEN` as a legacy fallback
 
 ### Added
 - **Custom Repo Workflow Guide**:

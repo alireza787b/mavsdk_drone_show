@@ -45,7 +45,7 @@ echo "For ADVANCED USERS - Custom Repository Configuration:"
 echo "  Set environment variables before running this script:"
 echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
 echo "    export MDS_BRANCH=\"your-branch\""
-echo "    export MDS_GIT_AUTH_TOKEN=\"read-only-github-token\"   # for private GitHub repos over HTTPS"
+echo "    export MDS_GIT_AUTH_TOKEN_FILE=\"/secure/path/github_read_token\""
 echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
 echo "  Then run: bash create_dockers.sh <number>"
 echo "  All MDS_* environment variables are forwarded into the container runtime."
@@ -71,7 +71,7 @@ echo
 #     export MDS_DOCKER_IMAGE="company-mds-sitl:v1.0"
 #     export MDS_REPO_URL="git@github.com:company/fork.git"
 #     export MDS_BRANCH="production"
-#     export MDS_GIT_AUTH_TOKEN="read-only-github-token"   # private GitHub HTTPS only
+#     export MDS_GIT_AUTH_TOKEN_FILE="/secure/path/github_read_token"   # private GitHub HTTPS only
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
@@ -106,6 +106,7 @@ USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-false}"
 DOCKER_RESTART_POLICY="${MDS_SITL_DOCKER_RESTART_POLICY:-unless-stopped}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
+DOCKER_SECRET_ARGS=()
 CREATED_CONTAINERS=()
 READY_CONTAINERS=()
 FAILED_CONTAINERS=()
@@ -133,16 +134,52 @@ collect_mds_env_args() {
         -e "MDS_BASE_DIR=/root/mavsdk_drone_show"
         -e "MDS_HWID_DIR=${HWID_CONTAINER_DIR}"
     )
+    DOCKER_SECRET_ARGS=()
 
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_HWID_DIR)
+            MDS_BASE_DIR|MDS_HWID_DIR|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE)
                 continue
                 ;;
         esac
         DOCKER_ENV_ARGS+=(-e "$env_name")
     done < <(env | sort | grep '^MDS_[A-Za-z0-9_]*=' || true)
+
+    prepare_git_auth_secret_args
+}
+
+prepare_git_auth_secret_args() {
+    local host_secret_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+    local generated_secret_file=""
+    local secret_dir=""
+    local container_secret_file="/run/secrets/mds_git_auth_token"
+
+    if [[ -z "$host_secret_file" && -z "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
+        return 0
+    fi
+
+    if [[ -n "$host_secret_file" ]]; then
+        if [[ ! -r "$host_secret_file" ]]; then
+            printf "Error: MDS_GIT_AUTH_TOKEN_FILE is not readable: %s\n" "$host_secret_file" >&2
+            exit 1
+        fi
+    else
+        secret_dir="${HOST_RUNTIME_ROOT}/_secrets"
+        mkdir -p "$secret_dir"
+        chmod 700 "$secret_dir"
+        generated_secret_file="${secret_dir}/mds_git_auth_token"
+        local old_umask
+        old_umask=$(umask)
+        umask 077
+        printf '%s' "$MDS_GIT_AUTH_TOKEN" > "$generated_secret_file"
+        umask "$old_umask"
+        chmod 600 "$generated_secret_file"
+        host_secret_file="$generated_secret_file"
+    fi
+
+    DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
+    DOCKER_ENV_ARGS+=(-e "MDS_GIT_AUTH_TOKEN_FILE=${container_secret_file}")
 }
 
 print_launcher_configuration() {
@@ -398,6 +435,7 @@ create_instance() {
         --ip "$IP_ADDRESS"
         --restart "$DOCKER_RESTART_POLICY"
         "${DOCKER_ENV_ARGS[@]}"
+        "${DOCKER_SECRET_ARGS[@]}"
         -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro"
     )
 

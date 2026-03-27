@@ -46,8 +46,9 @@ set -euo pipefail
 # ENVIRONMENT VARIABLES SUPPORTED:
 #   MDS_REPO_URL         - Git repository URL (SSH or HTTPS format)
 #   MDS_BRANCH           - Git branch name to checkout and use
-#   MDS_GIT_AUTH_TOKEN   - Optional authenticated HTTPS token for private GitHub repos
-#   MDS_GIT_AUTH_USERNAME- Optional HTTPS username for token auth (default: x-access-token)
+#   MDS_GIT_AUTH_TOKEN_FILE - Preferred path to an authenticated HTTPS token file for private GitHub repos
+#   MDS_GIT_AUTH_TOKEN      - Legacy fallback authenticated HTTPS token for private GitHub repos
+#   MDS_GIT_AUTH_USERNAME   - Optional HTTPS username for token auth (default: x-access-token)
 #
 # NOTE: These variables are checked at container startup time
 # =============================================================================
@@ -56,6 +57,7 @@ set -euo pipefail
 DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 
@@ -225,6 +227,17 @@ EOF
 log_message() {
     local message="$1"
     echo "$(date +"%Y-%m-%d %H:%M:%S") - $message"
+}
+
+load_git_auth_token() {
+    if [[ -n "$GIT_AUTH_TOKEN_FILE" ]]; then
+        if [[ ! -r "$GIT_AUTH_TOKEN_FILE" ]]; then
+            log_message "ERROR: MDS_GIT_AUTH_TOKEN_FILE is not readable: $GIT_AUTH_TOKEN_FILE"
+            exit 1
+        fi
+
+        GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+    fi
 }
 
 # Function to handle script termination and cleanup
@@ -1429,6 +1442,7 @@ run_coordinator() {
 
 # Parse script arguments
 parse_args "$@"
+load_git_auth_token
 
 # Trap SIGINT and SIGTERM to execute cleanup
 trap 'cleanup' INT TERM

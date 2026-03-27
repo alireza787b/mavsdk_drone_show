@@ -46,7 +46,7 @@ Use the same variable names everywhere:
 |--------|-----------------|------|
 | GCS | `/etc/mds/gcs.env` | `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTO_PUSH` |
 | Real drone hardware | `/etc/mds/local.env` | `MDS_REPO_URL`, `MDS_BRANCH` |
-| SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_GIT_AUTH_TOKEN`, optional `MDS_DOCKER_IMAGE` |
+| SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_GIT_AUTH_TOKEN_FILE`, optional `MDS_DOCKER_IMAGE` |
 | GCS backend defaults | `src/params.py` | fallback only when env files are absent |
 
 Important rules:
@@ -63,19 +63,19 @@ Important rules:
 | GCS read-only evaluation | HTTPS + `MDS_GIT_AUTO_PUSH=false` | simplest safe demo path |
 | Real drones | SSH deploy key or HTTPS read-only | drones normally pull only |
 | SITL development (public repo) | HTTPS | easiest when many containers come and go |
-| SITL development (private GitHub repo) | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN` | easiest non-interactive path for many containers |
-| Custom SITL image build for private repo | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN` or a pre-authenticated build environment | build happens inside a containerized prep flow |
+| SITL development (private GitHub repo) | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` | easiest non-interactive path for many containers without leaking the token into process args |
+| Custom SITL image build for private repo | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` or a pre-authenticated build environment | build happens inside a containerized prep flow |
 
 Practical recommendation:
 - GCS: SSH if it must push customer changes
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
-- SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN` unless you deliberately provision SSH credentials into the build/runtime environment
+- SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN_FILE` unless you deliberately provision SSH credentials into the build/runtime environment
 
 ## GitHub Fork Versus Private Mirror
 
 GitHub behavior matters here:
 
-- a normal fork of the public upstream repo stays public by default
+- GitHub keeps all forks in a fork network on the same visibility, so a fork of the public upstream stays public and cannot simply be flipped private later
 - that is fine for open collaboration or public demos
 - that is not the right answer when the customer needs confidential configs, UI changes, or mission assets
 
@@ -154,6 +154,10 @@ What matters after install:
 - dashboard saves/imports use those values for commit/push behavior
 - repo-local `core.sshCommand` is pinned when SSH is used, so pre-existing `~/.ssh/config` GitHub identities do not silently hijack the intended MDS deploy key
 
+First-time SSH note:
+- a non-interactive `-y` run can only succeed if the target repo deploy key is already authorized on GitHub
+- otherwise run interactively once, add the generated key, then rerun or continue
+
 If the GCS repo is intentionally read-only:
 
 ```bash
@@ -204,6 +208,10 @@ What matters after install:
 
 This removes a major source of drift between startup behavior and dashboard-triggered sync.
 
+First-time SSH note:
+- a non-interactive `-y` run can only succeed if the target repo deploy key is already authorized on GitHub
+- otherwise run interactively once, add the generated key, then rerun or continue
+
 ## SITL Workflow
 
 For mutable development SITL:
@@ -217,18 +225,24 @@ export MDS_SITL_REQUIREMENTS_SYNC=true
 bash multiple_sitl/create_dockers.sh 5
 ```
 
-For a private GitHub repo, add an authenticated token:
+For a private GitHub repo, add an authenticated token file:
 
 ```bash
 export MDS_REPO_URL="https://github.com/yourorg/customer-mds.git"
 export MDS_BRANCH="customer-demo"
-export MDS_GIT_AUTH_TOKEN="YOUR_READ_ONLY_GITHUB_TOKEN"
+install -m 600 /dev/null ~/.mds_git_read_token
+printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > ~/.mds_git_read_token
+export MDS_GIT_AUTH_TOKEN_FILE="$HOME/.mds_git_read_token"
 export MDS_GIT_AUTH_USERNAME="x-access-token"
 export MDS_SITL_GIT_SYNC=true
 export MDS_SITL_REQUIREMENTS_SYNC=true
 
 bash multiple_sitl/create_dockers.sh 5
 ```
+
+Legacy fallback:
+- `MDS_GIT_AUTH_TOKEN` still works if you already have automation built around it
+- `MDS_GIT_AUTH_TOKEN_FILE` is now preferred because the launcher/builder can pass only a mounted secret file path into containers instead of placing the raw token in process arguments
 
 For a pinned validated customer image:
 
@@ -267,7 +281,7 @@ Important:
 - the final image is the correct artifact for redistribution
 - do not use `docker commit` as the release workflow
 
-For private repo builds, make sure the build environment has real Git access. Authenticated HTTPS is usually easier than injecting SSH keys into the containerized image-prep flow.
+For private repo builds, make sure the build environment has real Git access. Authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` is usually easier than injecting SSH keys into the containerized image-prep flow.
 
 ## Upstream Sync Strategy
 
@@ -308,7 +322,7 @@ These areas matter:
 | Hardware bootstrap | choose customer repo/branch and write `/etc/mds/local.env` |
 | Dashboard save/import flow | may need writable Git credentials |
 | SITL launch | export `MDS_REPO_URL` / `MDS_BRANCH` or use a custom image |
-| Private GitHub SITL auth | export `MDS_GIT_AUTH_TOKEN` for mutable runtime sync or image prep |
+| Private GitHub SITL auth | export `MDS_GIT_AUTH_TOKEN_FILE` for mutable runtime sync or image prep |
 | Release packaging | customer image/tag/archive naming now belongs to the customer workflow |
 | Upstream maintenance | customer repo must deliberately fetch and review official updates |
 
