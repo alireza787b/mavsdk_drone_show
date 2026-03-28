@@ -19,8 +19,6 @@ import {
   calculateTrajectoryStats, 
   recalculateAfterDrag,
   calculateWaypointSpeeds, // ADDED: New correct speed calculation
-  calculateSpeedForNewWaypoint, // ADDED: For waypoint creation
-  calculateHeadingForNewWaypoint, // ADDED: For heading calculation
   YAW_CONSTANTS // ADDED: Yaw constants
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
@@ -159,19 +157,6 @@ const TrajectoryPlanning = () => {
     setAvailableTrajectories(trajectories);
   }, []);
 
-  // Initialize services on component mount
-  useEffect(() => {
-    initializeServices();
-    loadAvailableTrajectories();
-  }, [initializeServices, loadAvailableTrajectories]);
-
-  useEffect(() => {
-    const autoSaveInterval = setInterval(autoSave, 30000);
-    return () => {
-      clearInterval(autoSaveInterval);
-    };
-  }, [autoSave]);
-
   // Update history status when waypoints change
   useEffect(() => {
     const status = stateManagerRef.current.getHistoryStatus();
@@ -221,22 +206,8 @@ const TrajectoryPlanning = () => {
     return calculateTrajectoryStats(waypoints);
   }, [waypoints]);
 
-  // Get previous waypoint for speed calculation
-  const getPreviousWaypoint = useCallback(() => {
-    return waypoints.length > 0 ? waypoints[waypoints.length - 1] : null;
-  }, [waypoints]);
-
   // CRITICAL FIX: Enhanced waypoint management with corrected speed logic
   const addWaypointWithData = useCallback((position, waypointData) => {
-    const previousWaypoint = getPreviousWaypoint();
-    
-    // FIXED: Calculate speed correctly - this will be applied to the PREVIOUS waypoint
-    // The new waypoint itself will get its speed in the recalculation phase
-    let estimatedSpeed = 0;
-    if (previousWaypoint) {
-      estimatedSpeed = calculateSpeedForNewWaypoint(position, waypointData, waypoints);
-    }
-
     // Always allow waypoint creation (Phase 3 requirement)
     const speedFeasible = true;
 
@@ -275,7 +246,7 @@ const TrajectoryPlanning = () => {
     setWaypoints(waypointsWithCorrectSpeeds);
     setSelectedWaypointId(newState.selectedWaypointId);
     setIsAddingWaypoint(false);
-  }, [waypoints, getPreviousWaypoint]);
+  }, [waypoints]);
 
   // FIXED: Update waypoint with speed recalculation
   const updateWaypoint = useCallback((waypointId, updates) => {
@@ -430,7 +401,7 @@ const TrajectoryPlanning = () => {
     } else {
       setOperationNotice(`Save failed: ${result.error}`, 'error');
     }
-  }, [setOperationNotice, trajectoryStats, waypoints]);
+  }, [loadAvailableTrajectories, setOperationNotice, trajectoryStats, waypoints]);
 
   // FIXED: Load trajectory with speed recalculation
   const handleLoad = useCallback(async (identifier) => {
@@ -471,7 +442,7 @@ const TrajectoryPlanning = () => {
     } else {
       setOperationNotice(`Import failed: ${result.error}`, 'error');
     }
-  }, [applyTrajectoryToPlanner, setOperationNotice]);
+  }, [applyTrajectoryToPlanner, loadAvailableTrajectories, setOperationNotice]);
 
   // Auto-save functionality
   const autoSave = useCallback(async () => {
@@ -486,6 +457,19 @@ const TrajectoryPlanning = () => {
       setSaveStatus(prev => ({ ...prev, autoSaveTime: Date.now() }));
     }
   }, [waypoints, trajectoryStats]);
+
+  // Initialize services on component mount
+  useEffect(() => {
+    initializeServices();
+    loadAvailableTrajectories();
+  }, [initializeServices, loadAvailableTrajectories]);
+
+  useEffect(() => {
+    const autoSaveInterval = setInterval(autoSave, 30000);
+    return () => {
+      clearInterval(autoSaveInterval);
+    };
+  }, [autoSave]);
 
   // Enhanced map interaction handlers
   const handleMapClick = useCallback((event) => {
@@ -904,7 +888,7 @@ const TrajectoryPlanning = () => {
           onClose={handleModalClose}
           onConfirm={handleModalConfirm}
           position={pendingWaypointPosition}
-          previousWaypoint={getPreviousWaypoint()}
+          previousWaypoint={waypoints.length > 0 ? waypoints[waypoints.length - 1] : null}
           waypointIndex={waypoints.length + 1}
           mapRef={mapRef}
         />
@@ -1175,7 +1159,7 @@ const TrajectoryPlanning = () => {
         onClose={handleModalClose}
         onConfirm={handleModalConfirm}
         position={pendingWaypointPosition}
-        previousWaypoint={getPreviousWaypoint()}
+        previousWaypoint={waypoints.length > 0 ? waypoints[waypoints.length - 1] : null}
         waypointIndex={waypoints.length + 1} // FIXED: Correct index for display
         mapRef={mapRef} // CRITICAL: Pass map reference for real terrain queries
       />
