@@ -175,6 +175,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place
   - timing, altitude-input, heading, and terrain-confidence mixes are shown together instead of being buried per waypoint
   - planner-to-swarm transfer now carries those same attention items forward so the leader assignment step does not hide speed or terrain caveats
+- dashboard launch preflight now surfaces the processed mission package more explicitly:
+  - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
+  - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats

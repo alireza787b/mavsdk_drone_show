@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getSwarmClusterStatus } from '../services/droneApiService';
 import '../styles/MissionReadinessCard.css';
 
@@ -138,9 +139,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
             <h4>No Clusters Found</h4>
             <p>Configure the swarm in Swarm Design, then upload leader trajectories in Swarm Trajectory.</p>
           </div>
-          <a href="/swarm-design" className="fix-link">
+          <Link to="/swarm-design" className="fix-link">
             Configure Swarm →
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -148,9 +149,45 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
 
   const overallStatus = getOverallStatus();
   const summary = clusterStatus.cluster_summary || {};
+  const session = clusterStatus.session || {};
   const readyClusters = summary.ready_cluster_count ?? clusterStatus.clusters.filter(c => c.ready).length;
   const processingCount = (summary.needs_processing_cluster_count ?? 0) + (summary.partial_output_cluster_count ?? 0);
   const missingCount = summary.missing_upload_cluster_count ?? clusterStatus.clusters.filter(c => !c.leader_uploaded).length;
+  const totalClusters = summary.cluster_count ?? clusterStatus.clusters.length;
+  const processedDroneCount = clusterStatus.processed_drones?.length ?? 0;
+  const expectedDroneCount = session.total_drones
+    || clusterStatus.clusters.reduce(
+      (count, cluster) => count + (cluster.expected_drone_count ?? ((cluster.follower_count || 0) + 1)),
+      0,
+    );
+  const actionItems = [];
+
+  if (missingCount > 0) {
+    actionItems.push({
+      tone: 'danger',
+      text: `${missingCount} top-leader upload${missingCount === 1 ? '' : 's'} are still missing.`,
+    });
+  }
+
+  if (processingCount > 0) {
+    actionItems.push({
+      tone: 'warning',
+      text: `${processingCount} cluster${processingCount === 1 ? ' still needs' : 's still need'} follower regeneration or output review.`,
+    });
+  }
+
+  if (missingCount === 0 && processingCount === 0 && readyClusters === totalClusters && processedDroneCount > 0) {
+    actionItems.push({
+      tone: 'success',
+      text: `Mission package is ready for launch preflight with ${processedDroneCount} processed drone output${processedDroneCount === 1 ? '' : 's'}.`,
+    });
+  }
+
+  const actionLinks = [
+    { label: 'Swarm Design', to: '/swarm-design' },
+    { label: 'Trajectory Planning', to: '/trajectory-planning' },
+    { label: 'Swarm Trajectory', to: '/swarm-trajectory' },
+  ];
 
   return (
     <div className="mission-readiness-card">
@@ -159,8 +196,6 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         <div className="header-left">
           <h3>Swarm Mission Readiness</h3>
           <div className={`overall-status ${overallStatus.status}`}>
-            {overallStatus.status === 'ready' ? '✅' :
-             overallStatus.status === 'partial' ? '⚠️' : '❌'}
             {overallStatus.status === 'ready' ? 'Mission Trajectories Ready' :
              overallStatus.status === 'partial' ? `${overallStatus.percentage}% Clusters Ready` :
              'Mission Trajectories Incomplete'}
@@ -182,6 +217,49 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
             ↻
           </button>
         </div>
+      </div>
+
+      <div className="readiness-summary-grid">
+        <div className="readiness-summary-tile">
+          <span className="readiness-summary-tile__label">Ready Clusters</span>
+          <strong className="readiness-summary-tile__value">{readyClusters}/{totalClusters}</strong>
+        </div>
+        <div className="readiness-summary-tile">
+          <span className="readiness-summary-tile__label">Processed Drones</span>
+          <strong className="readiness-summary-tile__value">{processedDroneCount}/{expectedDroneCount || processedDroneCount}</strong>
+        </div>
+        <div className="readiness-summary-tile">
+          <span className="readiness-summary-tile__label">Missing Uploads</span>
+          <strong className="readiness-summary-tile__value">{missingCount}</strong>
+        </div>
+        <div className="readiness-summary-tile">
+          <span className="readiness-summary-tile__label">Active Session</span>
+          <strong className="readiness-summary-tile__value">{session.exists ? session.session_id : 'None'}</strong>
+        </div>
+      </div>
+
+      {session.exists ? (
+        <div className="readiness-session-note">
+          Current processed package: <strong>{session.session_id}</strong> • leaders {session.processed_leaders?.length || 0} • drones {session.total_drones || processedDroneCount}
+        </div>
+      ) : null}
+
+      {actionItems.length > 0 ? (
+        <div className="readiness-action-items">
+          {actionItems.map((item) => (
+            <div key={item.text} className={`readiness-action-item readiness-action-item--${item.tone}`}>
+              {item.text}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="readiness-quick-links">
+        {actionLinks.map((link) => (
+          <Link key={link.to} to={link.to} className="readiness-quick-link">
+            {link.label}
+          </Link>
+        ))}
       </div>
 
       {/* Clusters grid with accordion */}
@@ -343,9 +421,9 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
                 ? `${missingCount} leader trajectory upload${missingCount === 1 ? '' : 's'} missing`
                 : `${processingCount} uploaded cluster${processingCount === 1 ? '' : 's'} still need processing`}
           </div>
-          <a href="/swarm-trajectory" className="fix-link">
+          <Link to="/swarm-trajectory" className="fix-link">
             Fix in Swarm Trajectory →
-          </a>
+          </Link>
         </div>
       )}
 
