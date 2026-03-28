@@ -111,6 +111,9 @@ export const ACTION_TYPES = {
             ? payload.selectedWaypointId 
             : this.currentState.selectedWaypointId;
           break;
+
+        default:
+          break;
       }
       
       this.currentState.lastModified = timestamp;

@@ -122,6 +122,9 @@ Important:
 - this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
 - planner waypoint altitude is currently authored in **MSL**
 - terrain lookup is used to show **derived AGL context**, not to switch the mission into a separate AGL-authoring mode
+- every non-initial waypoint now supports two explicit segment-planning modes:
+  - **Auto from leg speed**: operator chooses preferred speed and the planner derives arrival time
+  - **Manual arrival time**: operator pins the arrival time and the planner shows the required speed
 
 **CSV Format Required:**
 ```csv
@@ -157,9 +160,14 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
 - planner-side destructive and validation flows now use inline notices instead of blocking browser `alert()` / `confirm()` popups
 - waypoint editing, modal validation, and planner shortcuts are now exposed in-place so the operator can stay inside the workspace without losing mission context
+- the planner now treats waypoint timing as explicit operator intent instead of an implicit time-only field:
+  - modal defaults are speed-driven for later waypoints
+  - the waypoint panel now shows `Segment Plan` and `Leg Speed` inline
+  - derived arrival times are shown as derived, not as a misleading free-edit field
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
+- save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number
 - runtime launch now uses a stricter initial-climb gate before path-follow entry, so a drone cannot silently burn through its mission clock while still stuck in climb
 - the mission tracker now reflects the real per-drone terminal result once each drone script exits; long `return_home` end behavior can keep the command legitimately active for several additional minutes after the formation phase is already correct
 - validated SITL acceptance now includes a clean 5-drone end-to-end run: process -> launch -> climb gate -> in-flight formation tolerance -> return-home -> terminal command completion -> fleet idle reset
@@ -234,6 +242,11 @@ Current truth model:
 - processing can return `success: true` with `outcome: partial`
 - operators should treat cluster readiness as authoritative, not only processed file counts
 - runtime completion should be judged from the command tracker plus fleet idle state, not only from early in-flight geometry success
+- planner state now keeps a richer waypoint contract through modal -> panel -> save/load/export -> undo/redo:
+  - `timingMode`
+  - `preferredSpeed`
+  - `groundElevation`
+  - `terrainAccurate`
 
 #### `smooth_trajectory_with_waypoints(waypoints_df, dt=0.05)`
 Converts waypoint trajectories to smooth interpolated paths.

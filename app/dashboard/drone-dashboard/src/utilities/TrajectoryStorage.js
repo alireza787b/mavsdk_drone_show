@@ -508,7 +508,6 @@ export class TrajectoryStorage {
    */
   parseCSV(content, filename) {
     const lines = content.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
     
     const waypoints = lines.slice(1).map((line, index) => {
       const values = line.split(',').map(v => v.trim());
