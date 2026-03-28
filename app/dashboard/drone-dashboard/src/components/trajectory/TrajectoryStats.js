@@ -86,7 +86,7 @@ const TrajectoryStats = ({ stats }) => {
   } else if (stats.speedWarnings > 0) {
     attentionItems.push({
       tone: 'warning',
-      text: `${stats.speedWarnings} leg${stats.speedWarnings === 1 ? '' : 's'} require elevated speed review.`,
+      text: `${stats.speedWarnings} leg${stats.speedWarnings === 1 ? ' requires' : 's require'} elevated speed review.`,
     });
   }
 
