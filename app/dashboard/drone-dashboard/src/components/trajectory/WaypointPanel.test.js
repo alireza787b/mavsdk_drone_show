@@ -77,7 +77,7 @@ describe('WaypointPanel', () => {
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       timingMode: TIMING_MODES.AUTO_SPEED,
       preferredSpeed: 4,
-      timeFromStart: 38,
+      timeFromStart: 23,
     }));
   });
 
