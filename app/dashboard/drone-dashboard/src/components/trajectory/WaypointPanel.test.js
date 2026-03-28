@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import WaypointPanel from './WaypointPanel';
-import { TIMING_MODES, YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
+import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
 
 const baseWaypoint = {
   id: 'wp-1',
@@ -110,5 +110,30 @@ describe('WaypointPanel', () => {
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       timingMode: TIMING_MODES.MANUAL_TIME,
     }));
+  });
+
+  it('shows stored altitude reference and derived AGL context when terrain data exists', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      altitude: 320,
+      groundElevation: 200,
+      targetAgl: 120,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    expect(screen.getByText('Height AGL:')).toBeInTheDocument();
+    expect(screen.getByText('120.0m')).toBeInTheDocument();
+    expect(screen.getByText('Target AGL')).toBeInTheDocument();
   });
 });

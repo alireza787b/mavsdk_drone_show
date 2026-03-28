@@ -30,6 +30,11 @@ export const TIMING_MODES = {
   MANUAL_TIME: 'manual_time',
 };
 
+export const ALTITUDE_REFERENCE = {
+  MSL: 'msl',
+  AGL: 'agl',
+};
+
 const EARTH_RADIUS_M = 6_371_000;
 
 const toRadians = (degrees) => (degrees * Math.PI) / 180;

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { 
+  ALTITUDE_REFERENCE,
   calculateSpeed, 
   getSpeedStatus, 
   calculateHeadingForNewWaypoint, 
@@ -24,6 +25,8 @@ const WaypointModal = ({
   waypointIndex = 1,
 }) => {
   const [altitude, setAltitude] = useState(100);
+  const [altitudeReference, setAltitudeReference] = useState(ALTITUDE_REFERENCE.MSL);
+  const [targetAgl, setTargetAgl] = useState(100);
   const [timeFromStart, setTimeFromStart] = useState(0);
   const [timingMode, setTimingMode] = useState(TIMING_MODES.MANUAL_TIME);
   const [preferredSpeed, setPreferredSpeed] = useState(8);
@@ -70,10 +73,15 @@ const WaypointModal = ({
       setValidationMessage(null);
       // Initialize altitude based on previous waypoint or intelligent defaults
       let defaultAltitude = 100; // Base default
+      let defaultAltitudeReference = previousWaypoint?.altitudeReference || ALTITUDE_REFERENCE.MSL;
+      let defaultTargetAgl = 100;
       
       if (previousWaypoint) {
         // Use previous waypoint's altitude as starting point
         defaultAltitude = previousWaypoint.altitude;
+        defaultTargetAgl = previousWaypoint.targetAgl !== undefined
+          ? previousWaypoint.targetAgl
+          : Math.max(0, previousWaypoint.altitude - (previousWaypoint.groundElevation || 0));
       }
       
       // Initialize time based on distance and speed logic
@@ -89,6 +97,8 @@ const WaypointModal = ({
       }
       
       setAltitude(defaultAltitude);
+      setAltitudeReference(defaultAltitudeReference);
+      setTargetAgl(defaultTargetAgl);
       setTimeFromStart(defaultTime);
       setPreferredSpeed(recommendedSpeed);
       setTimingMode(nextTimingMode);
@@ -115,6 +125,24 @@ const WaypointModal = ({
 
     setTimeFromStart((current) => (current === suggestedTime ? current : suggestedTime));
   }, [altitude, position, preferredSpeed, previousWaypoint, timingMode]);
+
+  useEffect(() => {
+    if (altitudeReference !== ALTITUDE_REFERENCE.AGL) {
+      return;
+    }
+
+    const derivedAltitude = groundElevation + targetAgl;
+    setAltitude((current) => (current === derivedAltitude ? current : derivedAltitude));
+  }, [altitudeReference, groundElevation, targetAgl]);
+
+  useEffect(() => {
+    if (altitudeReference !== ALTITUDE_REFERENCE.MSL) {
+      return;
+    }
+
+    const derivedAgl = Math.max(0, altitude - groundElevation);
+    setTargetAgl((current) => (current === derivedAgl ? current : derivedAgl));
+  }, [altitude, altitudeReference, groundElevation]);
 
   useEffect(() => {
     if (!isOpen || !position) return;
@@ -271,6 +299,8 @@ const WaypointModal = ({
 
     const waypointData = {
       altitude: parseFloat(altitude),
+      altitudeReference,
+      targetAgl: parseFloat(targetAgl),
       timeFromStart: parseFloat(timeFromStart),
       timingMode,
       preferredSpeed: parseFloat(preferredSpeed),
@@ -296,9 +326,14 @@ const WaypointModal = ({
   handleCancelRef.current = handleCancel;
 
   const handleAltitudeChange = (e) => {
-    const newAltitude = parseFloat(e.target.value) || 0;
+    const newAltitudeValue = parseFloat(e.target.value) || 0;
     setValidationMessage(null);
-    setAltitude(newAltitude);
+    if (altitudeReference === ALTITUDE_REFERENCE.AGL) {
+      setTargetAgl(Math.max(0, newAltitudeValue));
+      setAltitude(groundElevation + Math.max(0, newAltitudeValue));
+      return;
+    }
+    setAltitude(newAltitudeValue);
   };
 
   const handleTimeChange = (e) => {
@@ -327,6 +362,14 @@ const WaypointModal = ({
     const nextSpeed = parseFloat(e.target.value);
     setValidationMessage(null);
     setPreferredSpeed(Number.isFinite(nextSpeed) ? Math.max(0.5, nextSpeed) : 0.5);
+  };
+
+  const handleAltitudeReferenceChange = (newReference) => {
+    setValidationMessage(null);
+    if (newReference === ALTITUDE_REFERENCE.AGL) {
+      setTargetAgl(Math.max(0, altitude - groundElevation));
+    }
+    setAltitudeReference(newReference);
   };
 
   const handleHeadingModeChange = (newMode) => {
@@ -443,19 +486,43 @@ const WaypointModal = ({
               </div>
             )}
 
+            <div className="timing-mode-selector">
+              <label className="input-label">🏔️ Altitude Entry</label>
+              <div className="radio-group">
+                <label className="radio-option">
+                  <input
+                    type="radio"
+                    name="altitudeReference"
+                    checked={altitudeReference === ALTITUDE_REFERENCE.MSL}
+                    onChange={() => handleAltitudeReferenceChange(ALTITUDE_REFERENCE.MSL)}
+                  />
+                  <span className="radio-label">MSL input</span>
+                </label>
+                <label className="radio-option">
+                  <input
+                    type="radio"
+                    name="altitudeReference"
+                    checked={altitudeReference === ALTITUDE_REFERENCE.AGL}
+                    onChange={() => handleAltitudeReferenceChange(ALTITUDE_REFERENCE.AGL)}
+                  />
+                  <span className="radio-label">Target AGL</span>
+                </label>
+              </div>
+            </div>
+
             <div className="altitude-input-group">
               <label htmlFor="altitude" className="input-label">
-                🏔️ Altitude (MSL)
+                {altitudeReference === ALTITUDE_REFERENCE.AGL ? '🏔️ Target Height (AGL)' : '🏔️ Altitude (MSL)'}
                 {isLoadingTerrain && <span className="loading-indicator"> ⟳</span>}
               </label>
               <input
                 ref={altitudeRef}
                 id="altitude"
                 type="number"
-                value={altitude}
+                value={altitudeReference === ALTITUDE_REFERENCE.AGL ? targetAgl : altitude}
                 onChange={handleAltitudeChange}
                 className={`waypoint-input ${isUnderground ? 'validation-error' : ''}`}
-                placeholder="Altitude in meters MSL"
+                placeholder={altitudeReference === ALTITUDE_REFERENCE.AGL ? 'Height above ground in meters' : 'Altitude in meters MSL'}
                 step="1"
                 min="0"
                 max="10000"
@@ -467,6 +534,9 @@ const WaypointModal = ({
                 </small>
                 <small className="agl-note">
                   Above ground: <strong>{aglAltitude.toFixed(1)}m AGL</strong>
+                </small>
+                <small className="agl-note">
+                  Mission stores altitude as <strong>{altitude.toFixed(1)}m MSL</strong>
                 </small>
                 {previousWaypoint && (
                   <small className="altitude-source">

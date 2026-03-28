@@ -1,6 +1,11 @@
 // src/utilities/TrajectoryStorage.js
 
-import { TIMING_MODES, validateWaypointSequence, calculateTrajectoryStats } from './SpeedCalculator';
+import {
+  ALTITUDE_REFERENCE,
+  TIMING_MODES,
+  validateWaypointSequence,
+  calculateTrajectoryStats,
+} from './SpeedCalculator';
 
 /**
  * TrajectoryStorage - Professional trajectory persistence
@@ -400,6 +405,8 @@ export class TrajectoryStorage {
       latitude: Number(wp.latitude),
       longitude: Number(wp.longitude),
       altitude: Number(wp.altitude),
+      altitudeReference: wp.altitudeReference || ALTITUDE_REFERENCE.MSL,
+      targetAgl: Number(wp.targetAgl || 0),
       timeFromStart: Number(wp.timeFromStart || wp.time || 0),
       timingMode: wp.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: Number(wp.preferredSpeed || 0),
@@ -517,6 +524,8 @@ export class TrajectoryStorage {
         latitude: parseFloat(values[1]) || 0,
         longitude: parseFloat(values[2]) || 0,
         altitude: parseFloat(values[3]) || 100,
+        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        targetAgl: 0,
         timeFromStart: parseFloat(values[4]) || 0,
         timingMode: TIMING_MODES.MANUAL_TIME,
         preferredSpeed: 0,

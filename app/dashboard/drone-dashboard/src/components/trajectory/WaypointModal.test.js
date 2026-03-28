@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import WaypointModal from './WaypointModal';
 import { getTerrainElevation } from '../../services/ElevationService';
-import { TIMING_MODES } from '../../utilities/SpeedCalculator';
+import { ALTITUDE_REFERENCE, TIMING_MODES } from '../../utilities/SpeedCalculator';
 
 jest.mock('../../services/ElevationService', () => ({
   getTerrainElevation: jest.fn(),
@@ -131,6 +131,38 @@ describe('WaypointModal', () => {
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       timingMode: TIMING_MODES.MANUAL_TIME,
       timeFromStart: 44,
+    }));
+  });
+
+  it('can author altitude from target AGL while still storing MSL mission altitude', async () => {
+    const onConfirm = jest.fn();
+
+    render(
+      <WaypointModal
+        isOpen
+        onClose={jest.fn()}
+        onConfirm={onConfirm}
+        position={{ latitude: 35.727, longitude: 51.272 }}
+        previousWaypoint={null}
+        waypointIndex={1}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/ground elevation:/i)).toBeInTheDocument();
+      expect(screen.getByText(/200\.0m msl/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
+    fireEvent.change(screen.getByLabelText(/target height \(agl\)/i), {
+      target: { value: '120' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      targetAgl: 120,
+      altitude: 320,
     }));
   });
 });

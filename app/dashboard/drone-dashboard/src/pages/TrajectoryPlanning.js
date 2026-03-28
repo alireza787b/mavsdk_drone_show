@@ -12,6 +12,7 @@ import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTraject
 import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
 
 import { 
+  ALTITUDE_REFERENCE,
   calculateTrajectoryStats, 
   recalculateAfterDrag,
   calculateWaypointSpeeds,
@@ -200,6 +201,8 @@ const TrajectoryPlanning = () => {
       latitude: position.latitude,
       longitude: position.longitude,
       altitude: waypointData.altitude,
+      altitudeReference: waypointData.altitudeReference || ALTITUDE_REFERENCE.MSL,
+      targetAgl: waypointData.targetAgl || 0,
       timeFromStart: waypointData.timeFromStart,
       timingMode: waypointData.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: waypointData.preferredSpeed || 0,

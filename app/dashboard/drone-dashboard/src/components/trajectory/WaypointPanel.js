@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { 
+  ALTITUDE_REFERENCE,
   getSpeedStatus, 
   suggestOptimalTime,
   TIMING_MODES,
@@ -298,6 +299,18 @@ const WaypointPanel = ({
 
   const getTimingMode = (waypoint) => waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
 
+  const getAltitudeReference = (waypoint) => waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL;
+
+  const getTargetAgl = (waypoint) => {
+    if (Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl > 0) {
+      return waypoint.targetAgl;
+    }
+    if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
+      return Math.max(0, waypoint.altitude - waypoint.groundElevation);
+    }
+    return 0;
+  };
+
   const getPreferredSpeed = (waypoint) => {
     if (Number.isFinite(waypoint.preferredSpeed) && waypoint.preferredSpeed > 0) {
       return waypoint.preferredSpeed;
@@ -527,6 +540,23 @@ const WaypointPanel = ({
                   `${waypoint.altitude.toFixed(1)}m`
                 )}
               </div>
+
+              {(Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) || getTargetAgl(waypoint) > 0 ? (
+                <>
+                  <div className="detail-row timing-row">
+                    <span className="detail-label">Height AGL:</span>
+                    <span className="detail-value">
+                      {getTargetAgl(waypoint).toFixed(1)}m
+                    </span>
+                  </div>
+                  <div className="detail-row timing-row">
+                    <span className="detail-label">Altitude Plan:</span>
+                    <span className="detail-value">
+                      {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input'}
+                    </span>
+                  </div>
+                </>
+              ) : null}
               
               <div className="detail-row">
                 <span className="detail-label">Time:</span>

@@ -1,4 +1,4 @@
-import { TIMING_MODES, YAW_CONSTANTS } from './SpeedCalculator';
+import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS } from './SpeedCalculator';
 import { TrajectoryStorage } from './TrajectoryStorage';
 
 describe('TrajectoryStorage', () => {
@@ -16,6 +16,8 @@ describe('TrajectoryStorage', () => {
         latitude: 35.7262,
         longitude: 51.2721,
         altitude: 320,
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        targetAgl: 120,
         timeFromStart: 24,
         timingMode: TIMING_MODES.AUTO_SPEED,
         preferredSpeed: 6,
@@ -36,6 +38,8 @@ describe('TrajectoryStorage', () => {
     expect(loadResult.trajectory.waypoints[0]).toEqual(expect.objectContaining({
       timingMode: TIMING_MODES.AUTO_SPEED,
       preferredSpeed: 6,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      targetAgl: 120,
       groundElevation: 200,
       terrainAccurate: true,
       headingMode: YAW_CONSTANTS.AUTO,
