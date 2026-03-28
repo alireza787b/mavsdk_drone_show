@@ -293,6 +293,7 @@
 
 .toolbar-help {
   order: 5;
+  position: relative;
 }
 
 /* View mode selector */
@@ -374,4 +375,62 @@
 .status-text {
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
+}
+
+.toolbar-shortcut-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(320px, 90vw);
+  padding: 0.85rem 1rem;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.toolbar-shortcut-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-bottom: 0.75rem;
+  color: var(--color-text-primary);
+}
+
+.toolbar-shortcut-popover__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.toolbar-shortcut-popover__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.toolbar-shortcut-popover__list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-shortcut-popover__list kbd {
+  border: 1px solid var(--color-border-primary);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: 0.7rem;
 }

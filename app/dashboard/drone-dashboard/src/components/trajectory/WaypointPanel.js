@@ -24,6 +24,7 @@ const WaypointPanel = ({
   const [editValues, setEditValues] = useState({});
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [editFeedback, setEditFeedback] = useState(null);
   const editInputRef = useRef(null);
 
   // Auto-focus when entering edit mode
@@ -70,6 +71,7 @@ const WaypointPanel = ({
 
   // PHASE 1: Inline editing handlers
   const handleEditStart = (waypoint, field) => {
+    setEditFeedback(null);
     setEditingWaypointId(waypoint.id);
     setEditValues({
       field,
@@ -97,7 +99,10 @@ const WaypointPanel = ({
           updates.latitude = lat;
           updates.longitude = lng;
         } else {
-          alert('Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180');
+          setEditFeedback({
+            tone: 'error',
+            text: 'Coordinates must stay within valid latitude and longitude ranges.',
+          });
           return;
         }
         break;
@@ -107,7 +112,10 @@ const WaypointPanel = ({
         if (!isNaN(alt) && alt >= 1 && alt <= 10000) {
           updates.altitude = alt;
         } else {
-          alert('Altitude must be between 1 and 10000 meters MSL');
+          setEditFeedback({
+            tone: 'error',
+            text: 'Altitude must stay between 1 m and 10,000 m MSL.',
+          });
           return;
         }
         break;
@@ -121,17 +129,26 @@ const WaypointPanel = ({
         if (!isNaN(time) && time >= 0) {
           // Validate time constraints
           if (prevWaypoint && time <= (prevWaypoint.timeFromStart || 0)) {
-            alert(`Time must be greater than previous waypoint time (${(prevWaypoint.timeFromStart || 0)}s)`);
+            setEditFeedback({
+              tone: 'error',
+              text: `Time must stay after waypoint ${waypointIndex} at ${(prevWaypoint.timeFromStart || 0)}s.`,
+            });
             return;
           }
           if (nextWaypoint && time >= (nextWaypoint.timeFromStart || 0)) {
-            alert(`Time must be less than next waypoint time (${(nextWaypoint.timeFromStart || 0)}s)`);
+            setEditFeedback({
+              tone: 'error',
+              text: `Time must stay before waypoint ${waypointIndex + 2} at ${(nextWaypoint.timeFromStart || 0)}s.`,
+            });
             return;
           }
           updates.timeFromStart = time;
           updates.time = time; // Legacy compatibility
         } else {
-          alert('Time must be a positive number');
+          setEditFeedback({
+            tone: 'error',
+            text: 'Time from start must be zero or greater.',
+          });
           return;
         }
         break;
@@ -144,7 +161,10 @@ const WaypointPanel = ({
           // Switch to manual mode when heading is manually edited
           updates.headingMode = YAW_CONSTANTS.MANUAL;
         } else {
-          alert('Heading must be a valid number (0-360 degrees)');
+          setEditFeedback({
+            tone: 'error',
+            text: 'Heading must be a valid 0° to 360° value.',
+          });
           return;
         }
         break;
@@ -169,6 +189,7 @@ const WaypointPanel = ({
   const handleEditCancel = () => {
     setEditingWaypointId(null);
     setEditValues({});
+    setEditFeedback(null);
   };
 
   const handleEditKeyPress = (e) => {
@@ -336,6 +357,11 @@ const WaypointPanel = ({
       
       {!isCollapsed && (
         <div className="waypoint-list">
+          {editFeedback && (
+            <div className={`waypoint-panel-feedback ${editFeedback.tone || 'info'}`} aria-live="polite">
+              {editFeedback.text}
+            </div>
+          )}
           {waypoints.map((waypoint, index) => (
           <div 
             key={waypoint.id}

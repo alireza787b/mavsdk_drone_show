@@ -34,6 +34,7 @@ const WaypointModal = ({
   const [terrainError, setTerrainError] = useState(null);
   const [terrainElapsed, setTerrainElapsed] = useState(0);
   const [terrainFallbackMsg, setTerrainFallbackMsg] = useState(null);
+  const [validationMessage, setValidationMessage] = useState(null);
 
   // Heading state (aviation standard)
   const [heading, setHeading] = useState(0);
@@ -66,6 +67,7 @@ const WaypointModal = ({
   // Enhanced pre-population logic based on waypoint index and previous waypoint data
   useEffect(() => {
     if (isOpen && position) {
+      setValidationMessage(null);
       // Initialize altitude based on previous waypoint or intelligent defaults
       let defaultAltitude = 100; // Base default
       
@@ -150,7 +152,6 @@ const WaypointModal = ({
             setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
           }
 
-          console.info(`Terrain elevation (${result.source}): Ground ${elevation.toFixed(1)}m MSL`);
         } else {
           setTerrainError('No elevation data available');
           const estimatedGround = estimateBasicElevation(latitude, longitude);
@@ -165,7 +166,6 @@ const WaypointModal = ({
         }
       } catch (error) {
         if (abortController.signal.aborted) return;
-        console.error('Elevation fetch failed:', error);
         setTerrainError('Query failed, using estimated data');
         setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
@@ -258,7 +258,11 @@ const WaypointModal = ({
     const isUnderground = altitude < groundElevation;
 
     if (isUnderground) {
-      alert(`⚠️ Altitude ${altitude}m is below ground level (${groundElevation.toFixed(1)}m MSL). Please adjust altitude above ground level.`);
+      setValidationMessage({
+        tone: 'error',
+        text: `Altitude must stay above ground. Minimum safe entry here is ${groundElevation.toFixed(1)} m MSL.`,
+      });
+      altitudeRef.current?.focus();
       return;
     }
 
@@ -288,11 +292,13 @@ const WaypointModal = ({
 
   const handleAltitudeChange = (e) => {
     const newAltitude = parseFloat(e.target.value) || 0;
+    setValidationMessage(null);
     setAltitude(newAltitude);
   };
 
   const handleTimeChange = (e) => {
     const newTime = parseFloat(e.target.value) || 0;
+    setValidationMessage(null);
     setTimeFromStart(Math.max(0, newTime));
   };
 
@@ -309,6 +315,7 @@ const WaypointModal = ({
   const handleHeadingChange = (e) => {
     const newHeading = parseFloat(e.target.value) || 0;
     const normalizedHeading = normalizeHeading(newHeading);
+    setValidationMessage(null);
     setHeading(normalizedHeading);
     
     // Switch to manual mode when user enters custom heading
@@ -553,6 +560,12 @@ const WaypointModal = ({
                   From waypoint {waypointIndex - 1} to waypoint {waypointIndex}
                 </small>
               </div>
+            </div>
+          )}
+
+          {validationMessage && (
+            <div className={`validation-message ${validationMessage.tone || 'warning'}`} aria-live="polite">
+              {validationMessage.text}
             </div>
           )}
         </div>

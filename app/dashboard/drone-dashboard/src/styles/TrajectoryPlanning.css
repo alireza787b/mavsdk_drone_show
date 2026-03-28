@@ -1986,6 +1986,12 @@
   line-height: 1.45;
 }
 
+.trajectory-planner-notice__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .trajectory-planner-notice button {
   border: 1px solid var(--color-border-light);
   background: transparent;
@@ -1993,6 +1999,12 @@
   border-radius: var(--border-radius-sm);
   padding: 0.45rem 0.8rem;
   cursor: pointer;
+}
+
+.trajectory-planner-notice__action {
+  background: var(--color-bg-light) !important;
+  border-color: currentColor !important;
+  font-weight: var(--font-weight-medium);
 }
 
 .trajectory-export-options {

@@ -1,0 +1,50 @@
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import WaypointPanel from './WaypointPanel';
+import { YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
+
+const baseWaypoint = {
+  id: 'wp-1',
+  name: 'Waypoint 1',
+  latitude: 35.7262,
+  longitude: 51.2721,
+  altitude: 100,
+  timeFromStart: 0,
+  estimatedSpeed: 0,
+  speedFeasible: true,
+  heading: 0,
+  headingMode: YAW_CONSTANTS.AUTO,
+};
+
+const renderPanel = (overrides = {}) => {
+  const props = {
+    waypoints: [baseWaypoint],
+    selectedWaypointId: baseWaypoint.id,
+    onSelectWaypoint: jest.fn(),
+    onUpdateWaypoint: jest.fn(),
+    onDeleteWaypoint: jest.fn(),
+    onMoveWaypoint: jest.fn(),
+    onFlyTo: jest.fn(),
+    ...overrides,
+  };
+
+  return {
+    ...render(<WaypointPanel {...props} />),
+    props,
+  };
+};
+
+describe('WaypointPanel', () => {
+  it('shows inline validation when altitude edits are out of range', () => {
+    const { props } = renderPanel();
+
+    fireEvent.click(screen.getByText('100.0m'));
+    fireEvent.change(screen.getByPlaceholderText('Altitude MSL (m)'), {
+      target: { value: '0' },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(screen.getByText(/altitude must stay between 1 m and 10,000 m msl/i)).toBeInTheDocument();
+    expect(props.onUpdateWaypoint).not.toHaveBeenCalled();
+  });
+});

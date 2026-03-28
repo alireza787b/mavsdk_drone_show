@@ -1,7 +1,7 @@
 // src/components/trajectory/TrajectoryToolbar.js
 // PHASE 2 ENHANCEMENTS: Undo/redo, save/load, enhanced controls
 
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import '../../styles/TrajectoryToolbar.css';
 
@@ -30,6 +30,8 @@ const TrajectoryToolbar = ({
   trajectoryName = '',
   canSendToSwarm = false
 }) => {
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+
   // Format auto-save time for display
   const formatAutoSaveTime = (timestamp) => {
     if (!timestamp) return '';
@@ -207,25 +209,38 @@ const TrajectoryToolbar = ({
       <div className="toolbar-group toolbar-help">
         <button 
           className="toolbar-btn help-btn"
-          title="Keyboard Shortcuts"
-          onClick={() => {
-            const shortcuts = `
-Keyboard Shortcuts:
-• A - Toggle Add Waypoint mode
-• Ctrl+Z - Undo last action
-• Ctrl+Y - Redo last action  
-• Ctrl+S - Save trajectory
-• Ctrl+O - Load trajectory
-• Delete - Delete selected waypoint
-• Escape - Cancel current operation
-• Enter - Confirm waypoint creation
-• Click any value - Edit inline
-• Drag waypoints - Reposition`;
-            alert(shortcuts);
-          }}
+          title="Show planner shortcuts"
+          aria-label="Show planner shortcuts"
+          aria-expanded={showShortcutHelp}
+          onClick={() => setShowShortcutHelp((prev) => !prev)}
         >
           <span className="btn-icon">⌨️</span>
         </button>
+        {showShortcutHelp && (
+          <div className="toolbar-shortcut-popover" role="dialog" aria-label="Planner shortcuts">
+            <div className="toolbar-shortcut-popover__header">
+              <strong>Planner shortcuts</strong>
+              <button
+                type="button"
+                className="toolbar-shortcut-popover__close"
+                onClick={() => setShowShortcutHelp(false)}
+                aria-label="Close planner shortcuts"
+              >
+                ✕
+              </button>
+            </div>
+            <ul className="toolbar-shortcut-popover__list">
+              <li><kbd>A</kbd> Toggle Add Waypoint mode</li>
+              <li><kbd>Ctrl</kbd> + <kbd>Z</kbd> Undo last action</li>
+              <li><kbd>Ctrl</kbd> + <kbd>Y</kbd> Redo last action</li>
+              <li><kbd>Ctrl</kbd> + <kbd>S</kbd> Save trajectory</li>
+              <li><kbd>Ctrl</kbd> + <kbd>O</kbd> Load trajectory</li>
+              <li><kbd>Delete</kbd> Delete selected waypoint</li>
+              <li><kbd>Esc</kbd> Cancel current operation</li>
+              <li><kbd>Enter</kbd> Save inline field edit</li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

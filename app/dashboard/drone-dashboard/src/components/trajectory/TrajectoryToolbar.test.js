@@ -46,4 +46,17 @@ describe('TrajectoryToolbar', () => {
 
     expect(props.onSendToSwarm).toHaveBeenCalledTimes(1);
   });
+
+  it('shows shortcuts in an inline popover instead of a blocking alert', () => {
+    renderToolbar();
+
+    fireEvent.click(screen.getByRole('button', { name: /show planner shortcuts/i }));
+
+    expect(screen.getByRole('dialog', { name: /planner shortcuts/i })).toBeInTheDocument();
+    expect(screen.getByText(/toggle add waypoint mode/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /close planner shortcuts/i }));
+
+    expect(screen.queryByRole('dialog', { name: /planner shortcuts/i })).not.toBeInTheDocument();
+  });
 });

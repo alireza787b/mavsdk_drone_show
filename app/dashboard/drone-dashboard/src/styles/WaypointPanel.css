@@ -165,6 +165,27 @@
   transition: opacity 0.3s ease;
 }
 
+.waypoint-panel-feedback {
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.waypoint-panel-feedback.error {
+  background: rgba(220, 53, 69, 0.12);
+  border-color: rgba(220, 53, 69, 0.35);
+  color: #ff9aa5;
+}
+
+.waypoint-panel-feedback.warning {
+  background: rgba(255, 193, 7, 0.12);
+  border-color: rgba(255, 193, 7, 0.35);
+  color: #ffd76b;
+}
+
 .waypoint-panel.collapsed .waypoint-list {
   display: none;
 }

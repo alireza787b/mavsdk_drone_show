@@ -16,9 +16,7 @@ import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDia
 
 // FIXED IMPORTS: Add new speed calculation functions and yaw utilities
 import { 
-  calculateSpeed, 
   calculateTrajectoryStats, 
-  suggestOptimalTime, 
   recalculateAfterDrag,
   calculateWaypointSpeeds, // ADDED: New correct speed calculation
   calculateSpeedForNewWaypoint, // ADDED: For waypoint creation
@@ -53,57 +51,9 @@ try {
   
   require('mapbox-gl/dist/mapbox-gl.css');
   mapboxAvailable = true;
-} catch (error) {
-  console.warn('Mapbox not available:', error.message);
+} catch {
   mapboxAvailable = false;
 }
-
-/**
- * PHASE 3: Basic elevation estimation for waypoint creation
- * Simple geographic-based elevation estimation until terrain service is ready
- */
-const estimateGroundElevation = (latitude, longitude) => {
-  // Basic elevation estimation based on geographic regions
-  // This provides reasonable defaults until full terrain integration
-  
-  // Mountain ranges (rough approximation)
-  const mountainRanges = [
-    { lat: [25, 50], lng: [-125, -100], elevation: 1500 }, // Rocky Mountains
-    { lat: [35, 70], lng: [60, 150], elevation: 2000 },    // Asian mountains  
-    { lat: [40, 50], lng: [-10, 50], elevation: 800 },     // European mountains
-    { lat: [25, 45], lng: [35, 60], elevation: 1200 },     // Middle East mountains
-  ];
-
-  // Check if location is in a mountain range
-  for (const range of mountainRanges) {
-    if (latitude >= range.lat[0] && latitude <= range.lat[1] &&
-        longitude >= range.lng[0] && longitude <= range.lng[1]) {
-      return range.elevation;
-    }
-  }
-
-  // Polar regions
-  if (latitude > 60 || latitude < -60) {
-    return 200; // Moderate elevation for polar regions
-  }
-  
-  // Tropical/equatorial regions (generally lower)
-  if (Math.abs(latitude) < 30) {
-    return 50;
-  }
-
-  // Coastal areas (detect by proximity to common coastal coordinates)
-  const coastalProximity = Math.min(
-    Math.abs(longitude % 180), 
-    Math.abs(latitude % 90)
-  );
-  if (coastalProximity < 5) {
-    return 10; // Near sea level for coastal areas
-  }
-
-  // Default elevation for most continental areas
-  return 150;
-};
 
 /**
  * TrajectoryPlanning Component - ALL PHASE 3 FIXES INTEGRATED
@@ -197,66 +147,46 @@ const TrajectoryPlanning = () => {
     bearing: 0
   });
 
+  const initializeServices = useCallback(() => {
+    stateManagerRef.current.setInitialState({
+      waypoints: [],
+      selectedWaypointId: null,
+    });
+  }, []);
+
+  const loadAvailableTrajectories = useCallback(() => {
+    const trajectories = storageRef.current.getAllTrajectories();
+    setAvailableTrajectories(trajectories);
+  }, []);
+
   // Initialize services on component mount
   useEffect(() => {
     initializeServices();
     loadAvailableTrajectories();
-    
-    // Auto-save every 30 seconds
+  }, [initializeServices, loadAvailableTrajectories]);
+
+  useEffect(() => {
     const autoSaveInterval = setInterval(autoSave, 30000);
-    
     return () => {
       clearInterval(autoSaveInterval);
     };
-  }, []);
+  }, [autoSave]);
 
   // Update history status when waypoints change
   useEffect(() => {
     const status = stateManagerRef.current.getHistoryStatus();
     setHistoryStatus(status);
-    
-    // Mark as unsaved when waypoints change
     setSaveStatus(prev => ({ ...prev, saved: false }));
   }, [waypoints]);
 
-  // Optional: Debug speed calculation (can be removed in production)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && waypoints.length > 0) {
-      console.group('🎯 Speed Calculation Debug - FIXED LOGIC');
-      waypoints.forEach((wp, index) => {
-        if (index < waypoints.length - 1) {
-          console.log(`Waypoint ${index + 1}: ${wp.estimatedSpeed?.toFixed(1) || '0.0'} m/s to reach Waypoint ${index + 2}`);
-        } else {
-          console.log(`Waypoint ${index + 1}: ${wp.estimatedSpeed?.toFixed(1) || '0.0'} m/s (final waypoint)`);
-        }
-      });
-      console.groupEnd();
-    }
-  }, [waypoints]);
-
-  // Initialize services
-  const initializeServices = async () => {
-    try {
-      // Set initial state in state manager
-      stateManagerRef.current.setInitialState({
-        waypoints: [],
-        selectedWaypointId: null
-      });
-      
-      console.info('Trajectory services initialized');
-    } catch (error) {
-      console.warn('Service initialization failed:', error);
-    }
-  };
-
-  // Load available trajectories for UI
-  const loadAvailableTrajectories = () => {
-    const trajectories = storageRef.current.getAllTrajectories();
-    setAvailableTrajectories(trajectories);
-  };
-
-  const setOperationNotice = useCallback((text, tone = 'info') => {
-    setPlannerNotice({ text, tone });
+  const setOperationNotice = useCallback((text, tone = 'info', options = {}) => {
+    setPlannerNotice({
+      text,
+      tone,
+      actionLabel: options.actionLabel || '',
+      actionHandler: options.actionHandler || null,
+      dismissLabel: options.dismissLabel || '',
+    });
   }, []);
 
   const clearOperationNotice = useCallback(() => {
@@ -347,37 +277,6 @@ const TrajectoryPlanning = () => {
     setIsAddingWaypoint(false);
   }, [waypoints, getPreviousWaypoint]);
 
-  // Legacy addWaypoint function with elevation estimation
-  const addWaypoint = useCallback((longitude, latitude, altitude = null, timeFromStart = null) => {
-    const previousWaypoint = getPreviousWaypoint();
-    const calculatedTime = timeFromStart || (previousWaypoint ? previousWaypoint.timeFromStart + 10 : 10);
-    
-    // PHASE 3: If no altitude provided, estimate ground elevation + 100m
-    let finalAltitude = altitude;
-    if (finalAltitude === null) {
-      const groundElevation = estimateGroundElevation(latitude, longitude);
-      finalAltitude = groundElevation + 100; // 100m above estimated ground
-    }
-    
-    // Calculate heading data for the new waypoint (aviation standard)
-    const headingData = calculateHeadingForNewWaypoint(
-      { latitude, longitude }, 
-      { headingMode: YAW_CONSTANTS.AUTO }, 
-      waypoints
-    );
-    
-    const waypointData = {
-      altitude: finalAltitude,
-      timeFromStart: calculatedTime,
-      estimatedSpeed: 0,
-      speedFeasible: true,
-      // Include heading data
-      ...headingData
-    };
-
-    addWaypointWithData({ latitude, longitude }, waypointData);
-  }, [addWaypointWithData, getPreviousWaypoint]);
-
   // FIXED: Update waypoint with speed recalculation
   const updateWaypoint = useCallback((waypointId, updates) => {
     const updatedWaypoints = waypoints.map(wp => 
@@ -387,7 +286,7 @@ const TrajectoryPlanning = () => {
     // CRITICAL FIX: Recalculate speeds after waypoint update
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(updatedWaypoints);
     
-    const newState = stateManagerRef.current.executeAction(
+    stateManagerRef.current.executeAction(
       ACTION_TYPES.UPDATE_WAYPOINT,
       { waypointId, updates, waypoints: waypointsWithCorrectSpeeds },
       `Update waypoint ${waypointId}`
@@ -406,7 +305,7 @@ const TrajectoryPlanning = () => {
     // CRITICAL FIX: Recalculate speeds after waypoint deletion
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(filteredWaypoints);
     
-    const newState = stateManagerRef.current.executeAction(
+    stateManagerRef.current.executeAction(
       ACTION_TYPES.DELETE_WAYPOINT,
       { waypointId, waypoints: waypointsWithCorrectSpeeds },
       `Delete waypoint ${waypointId}`
@@ -432,7 +331,7 @@ const TrajectoryPlanning = () => {
     // CRITICAL FIX: Use corrected drag recalculation logic
     const waypointsWithRecalculatedSpeeds = recalculateAfterDrag(updatedWaypoints, waypointId);
 
-    const newState = stateManagerRef.current.executeAction(
+    stateManagerRef.current.executeAction(
       ACTION_TYPES.UPDATE_WAYPOINT,
       { 
         waypointId, 
@@ -452,30 +351,6 @@ const TrajectoryPlanning = () => {
     setSaveStatus({ saved: false, autoSaveTime: null });
   }, [waypoints]);
 
-  // Enhanced drag-drop with state tracking
-  const handleWaypointDrag = useCallback((event, waypointId) => {
-    if (!isDragging) return;
-    
-    const { lng, lat } = event.lngLat;
-    
-    setWaypoints(prev => prev.map(wp => 
-      wp.id === waypointId 
-        ? { ...wp, latitude: lat, longitude: lng }
-        : wp
-    ));
-  }, [isDragging]);
-
-  const handleWaypointDragStart = useCallback((waypointId) => {
-    setIsDragging(true);
-    setDraggedWaypointId(waypointId);
-    setSelectedWaypointId(waypointId);
-  }, []);
-
-  const handleWaypointDragEnd = useCallback((event, waypointId) => {
-    const { lng, lat } = event.lngLat;
-    handleMarkerDragEnd(waypointId, { latitude: lat, longitude: lng });
-  }, [handleMarkerDragEnd]);
-
   // Handle marker click
   const handleMarkerClick = useCallback((waypointId) => {
     setSelectedWaypointId(waypointId);
@@ -484,24 +359,28 @@ const TrajectoryPlanning = () => {
   // FIXED: Clear trajectory function
   const clearTrajectory = useCallback(() => {
     if (waypoints.length === 0) return;
-    
-    const confirmation = window.confirm(
-      `Delete all ${waypoints.length} waypoints? This action cannot be undone.`
-    );
-    
-    if (confirmation) {
-      stateManagerRef.current.executeAction(
-        ACTION_TYPES.CLEAR_TRAJECTORY,
-        { waypoints: [], selectedWaypointId: null },
-        'Clear trajectory'
-      );
 
-      setWaypoints([]);
-      setSelectedWaypointId(null);
-      setSaveStatus({ saved: false, autoSaveTime: null });
-      clearOperationNotice();
-    }
-  }, [clearOperationNotice, waypoints.length]);
+    setOperationNotice(
+      `Clear all ${waypoints.length} waypoint${waypoints.length === 1 ? '' : 's'} from the planner?`,
+      'warning',
+      {
+        actionLabel: 'Clear Path',
+        dismissLabel: 'Keep Path',
+        actionHandler: () => {
+          stateManagerRef.current.executeAction(
+            ACTION_TYPES.CLEAR_TRAJECTORY,
+            { waypoints: [], selectedWaypointId: null },
+            'Clear trajectory'
+          );
+
+          setWaypoints([]);
+          setSelectedWaypointId(null);
+          setSaveStatus({ saved: false, autoSaveTime: null });
+          clearOperationNotice();
+        },
+      }
+    );
+  }, [clearOperationNotice, setOperationNotice, waypoints.length]);
 
   // FIXED: Undo/Redo with correct speed handling
   const handleUndo = useCallback(() => {
@@ -618,32 +497,6 @@ const TrajectoryPlanning = () => {
     setModalOpen(true);
   }, [isAddingWaypoint, isDragging]);
 
-  // Handle manual coordinate entry (fallback mode)
-  const handleManualWaypointAdd = useCallback((lat, lng, alt) => {
-    const previousWaypoint = getPreviousWaypoint();
-    const suggestedTime = previousWaypoint 
-      ? suggestOptimalTime(previousWaypoint, { latitude: lat, longitude: lng }, 8, alt)
-      : 10;
-
-    // Calculate heading data for manual waypoint (aviation standard)
-    const headingData = calculateHeadingForNewWaypoint(
-      { latitude: lat, longitude: lng }, 
-      { headingMode: YAW_CONSTANTS.AUTO }, 
-      waypoints
-    );
-
-    const waypointData = {
-      altitude: alt,
-      timeFromStart: suggestedTime,
-      estimatedSpeed: 0,
-      speedFeasible: true,
-      // Include heading data
-      ...headingData
-    };
-
-    addWaypointWithData({ latitude: lat, longitude: lng }, waypointData);
-  }, [addWaypointWithData, getPreviousWaypoint]);
-
   // FIXED: Modal confirm handler for real terrain + correct speeds
   const handleModalConfirm = useCallback((waypointData) => {
     if (pendingWaypointPosition) {
@@ -668,9 +521,7 @@ const TrajectoryPlanning = () => {
           pitch: 60,
           duration: 2000
         });
-      } catch (err) {
-        console.warn('Navigation error:', err);
-      }
+      } catch (err) {}
     } else {
       // Leaflet mode: update viewState so map re-centers
       setViewState(prev => ({
@@ -683,7 +534,7 @@ const TrajectoryPlanning = () => {
   }, [useLeaflet]);
 
   // Enhanced location select with elevation estimation
-  const handleLocationSelect = useCallback(async (longitude, latitude, altitude = null) => {
+  const handleLocationSelect = useCallback((longitude, latitude) => {
     if (mapRef.current && mapboxAvailable && !useLeaflet) {
       try {
         mapRef.current.flyTo({
@@ -691,9 +542,7 @@ const TrajectoryPlanning = () => {
           zoom: 12,
           duration: 3000
         });
-      } catch (err) {
-        console.warn('Location select error:', err);
-      }
+      } catch (err) {}
     } else {
       // Leaflet mode: update viewState
       setViewState(prev => ({
@@ -704,11 +553,6 @@ const TrajectoryPlanning = () => {
       }));
     }
 
-    // PHASE 3: Log estimated elevation for user awareness
-    if (altitude === null) {
-      const groundElevation = estimateGroundElevation(latitude, longitude);
-      console.info(`Estimated ground elevation: ${groundElevation}m MSL at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-    }
   }, [useLeaflet]);
 
   const openSwarmTransferDialog = useCallback(() => {
@@ -878,22 +722,6 @@ const TrajectoryPlanning = () => {
     });
   }, []);
 
-  // PHASE 3: Enhanced trajectory line with dynamic speed-based coloring
-  const trajectoryLineData = useMemo(() => {
-    if (waypoints.length < 2 || !mapboxAvailable) return null;
-
-    return {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: waypoints.map(wp => [wp.longitude, wp.latitude, wp.altitude])
-      },
-      properties: {
-        speeds: waypoints.slice(0, -1).map(wp => wp.estimatedSpeed || 0) // FIXED: Use correct speed mapping
-      }
-    };
-  }, [waypoints]);
-
   // FIXED: Get waypoint color based on index and corrected speed status
   const getWaypointColor = useCallback((waypoint, index) => {
     if (index === 0) return '#28a745'; // Start - Green
@@ -905,9 +733,20 @@ const TrajectoryPlanning = () => {
   const plannerNoticeBanner = plannerNotice ? (
     <div className={`trajectory-planner-notice ${plannerNotice.tone || 'info'}`}>
       <div className="trajectory-planner-notice__copy">{plannerNotice.text}</div>
-      <button type="button" onClick={clearOperationNotice}>
-        Dismiss
-      </button>
+      <div className="trajectory-planner-notice__actions">
+        {plannerNotice.actionLabel && plannerNotice.actionHandler && (
+          <button
+            type="button"
+            className="trajectory-planner-notice__action"
+            onClick={plannerNotice.actionHandler}
+          >
+            {plannerNotice.actionLabel}
+          </button>
+        )}
+        <button type="button" onClick={clearOperationNotice}>
+          {plannerNotice.dismissLabel || 'Dismiss'}
+        </button>
+      </div>
     </div>
   ) : null;
 
@@ -1191,9 +1030,6 @@ const TrajectoryPlanning = () => {
                 isAddingWaypoint ? 'crosshair' :
                 'default'
               }
-              onLoad={() => {
-                console.info('Map loaded with terrain source for elevation queries');
-              }}
             >
               {/* FIXED: Terrain source for real elevation queries */}
               {showTerrain && (
