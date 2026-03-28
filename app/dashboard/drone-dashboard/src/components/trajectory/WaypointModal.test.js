@@ -88,7 +88,7 @@ describe('WaypointModal', () => {
     });
 
     expect(screen.getAllByText(/segment plan/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/auto from leg speed/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/auto from leg speed/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/4\.0 m\/s target -> 38s eta/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
