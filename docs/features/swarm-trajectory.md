@@ -192,6 +192,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping
+- the `Swarm Trajectory` processing workspace now mirrors that same staged operator model:
+  - a single workspace-status card tells the operator whether uploads are blocked, outputs need processing, or the mission package is ready for dashboard preflight
+  - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review, Commit, and Launch`) are summarized at the top with direct navigation back to the relevant page
+  - processing recommendations now live inside Step 2, and commit / Mission Control actions now live inside Step 3 instead of being scattered across the page
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats

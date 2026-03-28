@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import ConfirmationModal from '../components/ConfirmationModal';
+import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import { getBackendURL } from '../utilities/utilities';
 import {
   clearProcessedData,
@@ -13,6 +14,10 @@ import {
   buildSwarmTrajectoryViewModel,
   getClusterStateMeta,
 } from '../utilities/swarmTrajectoryViewModel';
+import {
+  buildSwarmTrajectoryStages,
+  buildSwarmTrajectoryWorkspaceStatus,
+} from '../utilities/swarmTrajectoryWorkspaceModel';
 import '../styles/SwarmTrajectory.css';
 
 const buildListLabel = (values = []) => (values.length > 0 ? values.join(', ') : 'None');
@@ -77,6 +82,14 @@ const SwarmTrajectory = () => {
   );
   const processedDroneSet = useMemo(() => new Set(viewModel.processedDroneList), [viewModel.processedDroneList]);
   const hasProcessedOutputs = Boolean(status?.has_results || results?.success || viewModel.processedDroneCount > 0);
+  const workspaceStatus = useMemo(
+    () => buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation, hasProcessedOutputs }),
+    [viewModel, recommendation, hasProcessedOutputs],
+  );
+  const workflowStages = useMemo(
+    () => buildSwarmTrajectoryStages({ viewModel, recommendation, hasProcessedOutputs }),
+    [viewModel, recommendation, hasProcessedOutputs],
+  );
 
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
@@ -694,56 +707,6 @@ const SwarmTrajectory = () => {
     });
   };
 
-  const clusterInsights = [];
-
-  if (viewModel.missingLeaderIds.length > 0) {
-    clusterInsights.push({
-      tone: 'warning',
-      title: 'Leader uploads still missing',
-      body: `Missing leader CSVs: ${buildListLabel(viewModel.missingLeaderIds)}.`,
-    });
-  }
-
-  if (viewModel.clusterSummary.needs_processing_cluster_count > 0) {
-    clusterInsights.push({
-      tone: 'info',
-      title: 'Clusters need processing',
-      body: `${viewModel.clusterSummary.needs_processing_cluster_count} cluster${viewModel.clusterSummary.needs_processing_cluster_count === 1 ? '' : 's'} have leader CSVs but no fresh follower outputs yet.`,
-    });
-  }
-
-  if (viewModel.clusterSummary.partial_output_cluster_count > 0) {
-    clusterInsights.push({
-      tone: 'warning',
-      title: 'Partial outputs detected',
-      body: `${viewModel.clusterSummary.partial_output_cluster_count} cluster${viewModel.clusterSummary.partial_output_cluster_count === 1 ? '' : 's'} still have missing follower outputs.`,
-    });
-  }
-
-  if (viewModel.orphanUploadedLeaderIds.length > 0) {
-    clusterInsights.push({
-      tone: 'warning',
-      title: 'Uploaded leaders are no longer top leaders',
-      body: `Unexpected leader uploads: ${buildListLabel(viewModel.orphanUploadedLeaderIds)}.`,
-    });
-  }
-
-  if (viewModel.clusterSummary.all_clusters_ready && viewModel.processedDroneCount > 0) {
-    clusterInsights.push({
-      tone: 'success',
-      title: 'Mission package is ready for dashboard preflight',
-      body: `${viewModel.processedDroneCount} drone outputs are ready. Review plots, then dispatch Mission Type 4 from the dashboard.`,
-    });
-  }
-
-  if (viewModel.session.exists) {
-    clusterInsights.push({
-      tone: 'neutral',
-      title: 'Active processing session',
-      body: `${viewModel.session.session_id} • ${viewModel.session.total_drones} processed drone${viewModel.session.total_drones === 1 ? '' : 's'}.`,
-    });
-  }
-
   return (
     <div className="swarm-trajectory">
       <div className="header">
@@ -829,64 +792,11 @@ const SwarmTrajectory = () => {
           </div>
         ) : null}
 
-        {clusterInsights.length > 0 ? (
-          <div className="status-insights">
-            {clusterInsights.map((insight) => (
-              <div key={`${insight.tone}-${insight.title}`} className={`status-insight status-insight--${insight.tone}`}>
-                <strong>{insight.title}</strong>
-                <span>{insight.body}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {recommendation ? (
-          <div className={`processing-recommendation ${formatRecommendationTone(recommendation.action)}`}>
-            <div className="recommendation-header">
-              <span className="recommendation-title">{recommendation.message}</span>
-            </div>
-
-            {recommendation.details?.length ? (
-              <div className="recommendation-details">
-                {recommendation.details.map((detail) => (
-                  <div key={detail} className="recommendation-detail">• {detail}</div>
-                ))}
-              </div>
-            ) : null}
-
-            {viewModel.uploadedLeaderIds.length > 0 ? (
-              <div className="advanced-processing-options">
-                <button
-                  className="process-option-btn primary"
-                  onClick={() => requestProcessing(false)}
-                  disabled={processing}
-                >
-                  {processing
-                    ? 'Processing...'
-                    : recommendation.action === 'safe_incremental'
-                      ? 'Process Current Uploads'
-                      : 'Process with Recommendation'}
-                </button>
-
-                <button
-                  className="process-option-btn secondary"
-                  onClick={() => requestProcessing(true)}
-                  disabled={processing}
-                >
-                  Start Fresh
-                </button>
-
-                <button
-                  className="process-option-btn tertiary"
-                  onClick={handleExplicitClear}
-                  disabled={clearingData}
-                >
-                  {clearingData ? 'Clearing...' : 'Clear Processed Only'}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <SwarmTrajectoryWorkspaceSummary
+          workspaceStatus={workspaceStatus}
+          stages={workflowStages}
+          session={viewModel.session}
+        />
       </div>
 
       {leaders.length > 0 ? (
@@ -1008,6 +918,22 @@ const SwarmTrajectory = () => {
               </div>
             </div>
 
+            {recommendation ? (
+              <div className={`processing-recommendation ${formatRecommendationTone(recommendation.action)}`}>
+                <div className="recommendation-header">
+                  <span className="recommendation-title">{recommendation.message}</span>
+                </div>
+
+                {recommendation.details?.length ? (
+                  <div className="recommendation-details">
+                    {recommendation.details.map((detail) => (
+                      <div key={detail} className="recommendation-detail">• {detail}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="process-controls">
               <button
                 className={`process-btn ${processing ? 'processing' : ''} ${viewModel.uploadedLeaderIds.length === 0 ? 'disabled' : ''}`}
@@ -1020,7 +946,9 @@ const SwarmTrajectory = () => {
                     Processing Cluster Outputs...
                   </>
                 ) : (
-                  'Process Swarm Trajectory Package'
+                  recommendation?.action === 'safe_incremental'
+                    ? 'Process Current Uploads'
+                    : 'Process Swarm Trajectory Package'
                 )}
               </button>
 
@@ -1031,6 +959,26 @@ const SwarmTrajectory = () => {
                   Recommended order: confirm the swarm hierarchy, upload each changed leader path, then process once for the full formation.
                 </p>
               )}
+
+              {viewModel.uploadedLeaderIds.length > 0 ? (
+                <div className="advanced-processing-options">
+                  <button
+                    className="process-option-btn secondary"
+                    onClick={() => requestProcessing(true)}
+                    disabled={processing}
+                  >
+                    Start Fresh
+                  </button>
+
+                  <button
+                    className="process-option-btn tertiary"
+                    onClick={handleExplicitClear}
+                    disabled={clearingData}
+                  >
+                    {clearingData ? 'Clearing...' : 'Clear Processed Only'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1082,6 +1030,15 @@ const SwarmTrajectory = () => {
                   <p>
                     <strong>Next:</strong> review the cluster plots below, commit the generated outputs, then launch Mission Type 4 from the dashboard with preflight checks enabled.
                   </p>
+                </div>
+
+                <div className="review-actions">
+                  <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing}>
+                    {committing ? 'Committing...' : 'Commit & Push Outputs'}
+                  </button>
+                  <Link className="utility-btn" to="/">
+                    Open Mission Control
+                  </Link>
                 </div>
 
                 <div className="advanced-section">
@@ -1283,12 +1240,6 @@ const SwarmTrajectory = () => {
             <button className="utility-btn" onClick={() => refreshOperationalState({ reloadStructure: true })}>
               Refresh Status
             </button>
-
-            {hasProcessedOutputs ? (
-              <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing}>
-                {committing ? 'Committing...' : 'Commit & Push Outputs'}
-              </button>
-            ) : null}
 
             <button className="utility-btn danger" onClick={clearAll}>
               Clear Workspace

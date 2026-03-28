@@ -396,6 +396,224 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.swarm-workspace-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-base);
+  margin-top: var(--spacing-xl);
+}
+
+.swarm-workspace-status {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.swarm-workspace-status--ready {
+  background: linear-gradient(135deg, var(--color-success-light), var(--color-bg-secondary));
+  border-color: var(--color-success-border);
+}
+
+.swarm-workspace-status--attention {
+  background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-secondary));
+  border-color: var(--color-warning-border);
+}
+
+.swarm-workspace-status--processing,
+.swarm-workspace-status--neutral {
+  background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-secondary));
+  border-color: var(--color-info-border);
+}
+
+.swarm-workspace-status--blocked {
+  background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-secondary));
+  border-color: var(--color-danger-border);
+}
+
+.swarm-workspace-status__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.swarm-workspace-status__eyebrow {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-workspace-status__body strong {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+}
+
+.swarm-workspace-status__body p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.swarm-workspace-status__details {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  color: var(--color-text-secondary);
+}
+
+.swarm-workspace-session {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-base);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  align-self: flex-start;
+}
+
+.swarm-workspace-session__label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-workspace-session strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+.swarm-workspace-session span:last-child {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-base);
+}
+
+.swarm-stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.swarm-stage-card--ready {
+  border-color: var(--color-success-border);
+  background: var(--color-success-light);
+}
+
+.swarm-stage-card--attention {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-light);
+}
+
+.swarm-stage-card--processing,
+.swarm-stage-card--neutral {
+  border-color: var(--color-info-border);
+  background: var(--color-info-light);
+}
+
+.swarm-stage-card--blocked {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-light);
+}
+
+.swarm-stage-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.swarm-stage-card__step {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-stage-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-stage-card__badge--ready {
+  background: var(--color-success);
+  color: var(--color-text-primary);
+}
+
+.swarm-stage-card__badge--attention {
+  background: var(--color-warning);
+  color: var(--color-text-primary);
+}
+
+.swarm-stage-card__badge--processing,
+.swarm-stage-card__badge--neutral {
+  background: var(--color-info);
+  color: var(--color-text-primary);
+}
+
+.swarm-stage-card__badge--blocked {
+  background: var(--color-danger);
+  color: var(--color-text-primary);
+}
+
+.swarm-stage-card h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.swarm-stage-card p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.swarm-stage-card__details {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-stage-card__link {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  text-decoration: none;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-stage-card__link:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
 .swarm-status-banner {
   display: flex;
   justify-content: space-between;
@@ -992,6 +1210,13 @@
   margin: 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-base);
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-base);
 }
 
 .error-card {
@@ -1798,6 +2023,15 @@
     align-self: flex-start;
   }
 
+  .swarm-workspace-status {
+    flex-direction: column;
+  }
+
+  .swarm-workspace-session {
+    min-width: 0;
+    align-self: stretch;
+  }
+
   .status-insights,
   .process-summary {
     grid-template-columns: 1fr;
@@ -1824,6 +2058,7 @@
     gap: var(--spacing-sm);
   }
 
+  .review-actions,
   .utility-actions {
     flex-direction: column;
     align-items: center;
