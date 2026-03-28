@@ -39,7 +39,7 @@ describe('WaypointModal', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/ground elevation:/i)).toBeInTheDocument();
-      expect(screen.getByText(/200\.0m msl/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/200\.0m msl/i).length).toBeGreaterThan(0);
     });
 
     fireEvent.change(screen.getByLabelText(/altitude \(msl\)/i), {
@@ -154,7 +154,7 @@ describe('WaypointModal', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/ground elevation:/i)).toBeInTheDocument();
-      expect(screen.getByText(/200\.0m msl/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/200\.0m msl/i).length).toBeGreaterThan(0);
     });
 
     fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));

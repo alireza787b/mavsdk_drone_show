@@ -135,9 +135,9 @@ describe('WaypointPanel', () => {
 
     expect(screen.getByText('Height AGL:')).toBeInTheDocument();
     expect(screen.getByText('120.0m')).toBeInTheDocument();
-    expect(screen.getByText('Target AGL')).toBeInTheDocument();
-    expect(screen.getByText('Auto from speed')).toBeInTheDocument();
-    expect(screen.getByText('Auto heading')).toBeInTheDocument();
+    expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Auto from speed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Auto heading').length).toBeGreaterThan(0);
     expect(screen.getByText('Terrain estimated')).toBeInTheDocument();
   });
 });
