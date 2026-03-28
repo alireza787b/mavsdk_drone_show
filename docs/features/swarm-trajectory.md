@@ -120,6 +120,8 @@ Important:
 - only **top leaders** are authored/uploaded in this mode
 - follower paths are **generated later** from the current swarm hierarchy and offsets
 - this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
+- planner waypoint altitude is currently authored in **MSL**
+- terrain lookup is used to show **derived AGL context**, not to switch the mission into a separate AGL-authoring mode
 
 **CSV Format Required:**
 ```csv
@@ -153,6 +155,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - `Trajectory Planning` is the authoring workspace
 - `Swarm Trajectory` is the processing / review / commit workspace
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
+- planner-side destructive and validation flows now use inline notices instead of blocking browser `alert()` / `confirm()` popups
+- waypoint editing, modal validation, and planner shortcuts are now exposed in-place so the operator can stay inside the workspace without losing mission context
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
