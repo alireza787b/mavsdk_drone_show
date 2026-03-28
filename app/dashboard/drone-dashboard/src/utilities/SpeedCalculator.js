@@ -1,14 +1,20 @@
 // src/utilities/SpeedCalculator.js
 
+import {
+  TRAJECTORY_ALTITUDE_POLICY,
+  TRAJECTORY_SPEED_POLICY,
+} from '../constants/trajectoryMissionPolicy';
+
 /**
  * Drone speed thresholds (m/s)
- * Based on typical commercial drone specifications
+ * Backed by the shared trajectory mission policy so the planner UI, validation,
+ * and operator messaging all use the same envelope.
  */
 export const SPEED_THRESHOLDS = {
-  MIN_SPEED: 0.1,        // Minimum practical speed
-  OPTIMAL_MAX: 12,       // Optimal max speed for most operations
-  MARGINAL_MAX: 20,      // High speed but still feasible
-  ABSOLUTE_MAX: 30,      // Beyond safe operational limits
+  MIN_SPEED: TRAJECTORY_SPEED_POLICY.MIN_PREFERRED,
+  OPTIMAL_MAX: TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX,
+  MARGINAL_MAX: TRAJECTORY_SPEED_POLICY.MARGINAL_MAX,
+  ABSOLUTE_MAX: TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX,
 };
 
 /**
@@ -689,11 +695,16 @@ export const calculateTrajectoryStats = (waypoints) => {
  * Suggest optimal time for a waypoint based on distance and preferred speed
  * @param {Object} fromWaypoint - Previous waypoint
  * @param {Object} toPosition - Target position
- * @param {number} preferredSpeed - Preferred speed in m/s (default: 8 m/s)
+ * @param {number} preferredSpeed - Preferred speed in m/s (defaults to mission policy)
  * @param {number} altitude - Target altitude
  * @returns {number} Suggested time from start
  */
-export const suggestOptimalTime = (fromWaypoint, toPosition, preferredSpeed = 8, altitude = 100) => {
+export const suggestOptimalTime = (
+  fromWaypoint,
+  toPosition,
+  preferredSpeed = TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED,
+  altitude = TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL
+) => {
   try {
     const totalDistance = calculateSegmentDistance3D(fromWaypoint, {
       ...toPosition,

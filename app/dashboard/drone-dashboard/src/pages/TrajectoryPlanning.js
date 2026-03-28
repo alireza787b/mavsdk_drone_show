@@ -24,6 +24,11 @@ import {
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
 import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
+import {
+  formatTrajectoryAltitudeEnvelope,
+  formatTrajectorySpeedEnvelope,
+  formatTrajectorySpeedEnvelopeDetail,
+} from '../constants/trajectoryMissionPolicy';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -229,6 +234,11 @@ const TrajectoryPlanning = () => {
           : estimatedTerrainCount > 0
             ? `Verify ${estimatedTerrainCount} terrain estimate${estimatedTerrainCount === 1 ? '' : 's'} before launch.`
             : 'Send to Swarm, then process follower outputs on Swarm Trajectory.',
+      },
+      {
+        label: 'Mission Envelope',
+        value: formatTrajectorySpeedEnvelope(),
+        detail: `${formatTrajectoryAltitudeEnvelope()} • ${formatTrajectorySpeedEnvelopeDetail()}`,
       },
     ];
   }, [plannerAttentionItems, trajectoryStats, waypoints.length]);

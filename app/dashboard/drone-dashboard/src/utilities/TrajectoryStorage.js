@@ -6,6 +6,7 @@ import {
   validateWaypointSequence,
   calculateTrajectoryStats,
 } from './SpeedCalculator';
+import { TRAJECTORY_ALTITUDE_POLICY } from '../constants/trajectoryMissionPolicy';
 
 /**
  * TrajectoryStorage - Professional trajectory persistence
@@ -523,7 +524,7 @@ export class TrajectoryStorage {
         name: values[0] || `Waypoint ${index + 1}`,
         latitude: parseFloat(values[1]) || 0,
         longitude: parseFloat(values[2]) || 0,
-        altitude: parseFloat(values[3]) || 100,
+        altitude: parseFloat(values[3]) || TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL,
         altitudeReference: ALTITUDE_REFERENCE.MSL,
         targetAgl: 0,
         timeFromStart: parseFloat(values[4]) || 0,

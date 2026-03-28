@@ -11,6 +11,12 @@ import {
   normalizeHeading,
   formatHeading 
 } from '../../utilities/SpeedCalculator';
+import {
+  TRAJECTORY_ALTITUDE_POLICY,
+  TRAJECTORY_SPEED_POLICY,
+  clampPreferredLegSpeed,
+  getNominalPreferredLegSpeed,
+} from '../../constants/trajectoryMissionPolicy';
 
 const WaypointPanel = ({
   waypoints,
@@ -83,7 +89,7 @@ const WaypointPanel = ({
       altitude: waypoint.altitude,
       timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
       timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
-      preferredSpeed: waypoint.preferredSpeed || waypoint.estimatedSpeed || 8,
+      preferredSpeed: waypoint.preferredSpeed || waypoint.estimatedSpeed || TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED,
       heading: waypoint.heading || waypoint.yaw || 0,
       headingMode: waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO
     });
@@ -118,12 +124,12 @@ const WaypointPanel = ({
       
       case 'altitude':
         const alt = parseFloat(editValues.altitude);
-        if (!isNaN(alt) && alt >= 1 && alt <= 10000) {
+        if (!isNaN(alt) && alt >= TRAJECTORY_ALTITUDE_POLICY.MIN_MSL && alt <= TRAJECTORY_ALTITUDE_POLICY.MAX_MSL) {
           updates.altitude = alt;
         } else {
           setEditFeedback({
             tone: 'error',
-            text: 'Altitude must stay between 1 m and 10,000 m MSL.',
+            text: `Altitude must stay between ${TRAJECTORY_ALTITUDE_POLICY.MIN_MSL} m and ${TRAJECTORY_ALTITUDE_POLICY.MAX_MSL.toLocaleString()} m MSL.`,
           });
           return;
         }
@@ -173,7 +179,9 @@ const WaypointPanel = ({
 
         if (nextTimingMode === TIMING_MODES.AUTO_SPEED) {
           const legSpeed = Number.parseFloat(editValues.preferredSpeed);
-          const normalizedSpeed = Number.isFinite(legSpeed) ? Math.max(0.5, legSpeed) : 8;
+          const normalizedSpeed = Number.isFinite(legSpeed)
+            ? clampPreferredLegSpeed(legSpeed)
+            : TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED;
           updates.preferredSpeed = normalizedSpeed;
 
           if (prevWaypoint && currentWaypoint) {
@@ -192,10 +200,14 @@ const WaypointPanel = ({
       case 'preferredSpeed':
         const preferredSpeed = Number.parseFloat(editValues.preferredSpeed);
 
-        if (!Number.isFinite(preferredSpeed) || preferredSpeed < 0.5 || preferredSpeed > 30) {
+        if (
+          !Number.isFinite(preferredSpeed) ||
+          preferredSpeed < TRAJECTORY_SPEED_POLICY.MIN_PREFERRED ||
+          preferredSpeed > TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX
+        ) {
           setEditFeedback({
             tone: 'error',
-            text: 'Preferred leg speed must stay between 0.5 m/s and 30 m/s.',
+            text: `Preferred leg speed must stay between ${TRAJECTORY_SPEED_POLICY.MIN_PREFERRED} m/s and ${TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX} m/s.`,
           });
           return;
         }
@@ -318,7 +330,7 @@ const WaypointPanel = ({
     if (Number.isFinite(waypoint.estimatedSpeed) && waypoint.estimatedSpeed > 0) {
       return waypoint.estimatedSpeed;
     }
-    return 8;
+    return getNominalPreferredLegSpeed(TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED);
   };
 
   const buildIntentTags = (waypoint, index) => {
@@ -428,9 +440,9 @@ const WaypointPanel = ({
               <input
                 ref={editInputRef}
                 type="number"
-                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? '0.5' : 'any'}
-                min={field === 'preferredSpeed' ? '0.5' : field === 'heading' ? '0' : undefined}
-                max={field === 'preferredSpeed' ? '30' : field === 'heading' ? '360' : undefined}
+                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : 'any'}
+                min={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'heading' ? '0' : undefined}
+                max={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX) : field === 'heading' ? '360' : undefined}
                 value={editValues[
                   field === 'altitude'
                     ? 'altitude'
@@ -649,7 +661,7 @@ const WaypointPanel = ({
                     <span className={`detail-value speed-value speed-${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
                       {formatSpeed(waypoint.estimatedSpeed)}m/s
                     </span>
-                    {waypoint.estimatedSpeed > 15 && (
+                    {waypoint.estimatedSpeed > TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX && (
                       <span className="speed-warning-text">
                         ({(waypoint.estimatedSpeed * 3.6).toFixed(1)} km/h)
                       </span>

@@ -13,6 +13,14 @@ import {
   normalizeHeading,
   formatHeading
 } from '../../utilities/SpeedCalculator';
+import {
+  TRAJECTORY_ALTITUDE_POLICY,
+  TRAJECTORY_SPEED_POLICY,
+  clampPreferredLegSpeed,
+  getNominalPreferredLegSpeed,
+  getSafeTerrainAdjustedAltitude,
+  needsTerrainSafetyAdjustment,
+} from '../../constants/trajectoryMissionPolicy';
 import { getTerrainElevation } from '../../services/ElevationService';
 import '../../styles/WaypointModal.css';
 
@@ -24,12 +32,12 @@ const WaypointModal = ({
   previousWaypoint,
   waypointIndex = 1,
 }) => {
-  const [altitude, setAltitude] = useState(100);
+  const [altitude, setAltitude] = useState(TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL);
   const [altitudeReference, setAltitudeReference] = useState(ALTITUDE_REFERENCE.MSL);
-  const [targetAgl, setTargetAgl] = useState(100);
+  const [targetAgl, setTargetAgl] = useState(TRAJECTORY_ALTITUDE_POLICY.DEFAULT_TARGET_AGL);
   const [timeFromStart, setTimeFromStart] = useState(0);
   const [timingMode, setTimingMode] = useState(TIMING_MODES.MANUAL_TIME);
-  const [preferredSpeed, setPreferredSpeed] = useState(8);
+  const [preferredSpeed, setPreferredSpeed] = useState(TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED);
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
   const [speedStatus, setSpeedStatus] = useState('unknown');
   const [groundElevation, setGroundElevation] = useState(0);
@@ -72,9 +80,9 @@ const WaypointModal = ({
     if (isOpen && position) {
       setValidationMessage(null);
       // Initialize altitude based on previous waypoint or intelligent defaults
-      let defaultAltitude = 100; // Base default
+      let defaultAltitude = TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL;
       let defaultAltitudeReference = previousWaypoint?.altitudeReference || ALTITUDE_REFERENCE.MSL;
-      let defaultTargetAgl = 100;
+      let defaultTargetAgl = TRAJECTORY_ALTITUDE_POLICY.DEFAULT_TARGET_AGL;
       
       if (previousWaypoint) {
         // Use previous waypoint's altitude as starting point
@@ -86,13 +94,13 @@ const WaypointModal = ({
       
       // Initialize time based on distance and speed logic
       let defaultTime = 10; // Base default for first waypoint
-      let recommendedSpeed = 8;
+      let recommendedSpeed = TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED;
       let nextTimingMode = previousWaypoint ? TIMING_MODES.AUTO_SPEED : TIMING_MODES.MANUAL_TIME;
       
       if (previousWaypoint) {
         recommendedSpeed = waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0
-          ? Math.min(previousWaypoint.estimatedSpeed, 15)
-          : 8;
+          ? getNominalPreferredLegSpeed(previousWaypoint.preferredSpeed || previousWaypoint.estimatedSpeed)
+          : TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED;
         defaultTime = suggestOptimalTime(previousWaypoint, position, recommendedSpeed, defaultAltitude);
       }
       
@@ -119,7 +127,7 @@ const WaypointModal = ({
     const suggestedTime = suggestOptimalTime(
       previousWaypoint,
       position,
-      Math.max(0.5, preferredSpeed || 0),
+      clampPreferredLegSpeed(preferredSpeed),
       altitude
     );
 
@@ -172,8 +180,8 @@ const WaypointModal = ({
           setGroundElevation(elevation);
 
           setAltitude(prev => {
-            if (prev < elevation + 50) {
-              return elevation + 100;
+            if (needsTerrainSafetyAdjustment(prev, elevation)) {
+              return getSafeTerrainAdjustedAltitude(elevation);
             }
             return prev;
           });
@@ -189,8 +197,8 @@ const WaypointModal = ({
           setGroundElevation(estimatedGround);
           setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
           setAltitude(prev => {
-            if (prev < estimatedGround + 50) {
-              return estimatedGround + 100;
+            if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
+              return getSafeTerrainAdjustedAltitude(estimatedGround);
             }
             return prev;
           });
@@ -202,8 +210,8 @@ const WaypointModal = ({
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
         setAltitude(prev => {
-          if (prev < estimatedGround + 50) {
-            return estimatedGround + 100;
+          if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
+            return getSafeTerrainAdjustedAltitude(estimatedGround);
           }
           return prev;
         });
@@ -278,8 +286,8 @@ const WaypointModal = ({
     setTerrainError('Using estimate (skipped API)');
     setTerrainFallbackMsg('Using estimated elevation (skipped by user)');
     setAltitude((prev) => {
-      if (prev < estimatedGround + 50) {
-        return estimatedGround + 100;
+      if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
+        return getSafeTerrainAdjustedAltitude(estimatedGround);
       }
       return prev;
     });
@@ -351,7 +359,7 @@ const WaypointModal = ({
         suggestOptimalTime(
           previousWaypoint,
           position,
-          Math.max(0.5, preferredSpeed || 0),
+          clampPreferredLegSpeed(preferredSpeed),
           altitude
         )
       );
@@ -361,7 +369,7 @@ const WaypointModal = ({
   const handlePreferredSpeedChange = (e) => {
     const nextSpeed = parseFloat(e.target.value);
     setValidationMessage(null);
-    setPreferredSpeed(Number.isFinite(nextSpeed) ? Math.max(0.5, nextSpeed) : 0.5);
+    setPreferredSpeed(clampPreferredLegSpeed(nextSpeed, TRAJECTORY_SPEED_POLICY.MIN_PREFERRED));
   };
 
   const handleAltitudeReferenceChange = (newReference) => {
@@ -580,7 +588,7 @@ const WaypointModal = ({
                 placeholder={altitudeReference === ALTITUDE_REFERENCE.AGL ? 'Height above ground in meters' : 'Altitude in meters MSL'}
                 step="1"
                 min="0"
-                max="10000"
+                max={String(TRAJECTORY_ALTITUDE_POLICY.MAX_MSL)}
               />
               <div className="altitude-context">
                 <small className="terrain-note">
@@ -592,6 +600,9 @@ const WaypointModal = ({
                 </small>
                 <small className="agl-note">
                   Mission stores altitude as <strong>{altitude.toFixed(1)}m MSL</strong>
+                </small>
+                <small className="agl-note">
+                  Planner envelope: <strong>{TRAJECTORY_ALTITUDE_POLICY.MIN_MSL}-{TRAJECTORY_ALTITUDE_POLICY.MAX_MSL.toLocaleString()}m MSL</strong>
                 </small>
                 {previousWaypoint && (
                   <small className="altitude-source">
@@ -643,12 +654,15 @@ const WaypointModal = ({
                   value={preferredSpeed}
                   onChange={handlePreferredSpeedChange}
                   className="waypoint-input"
-                  min="0.5"
-                  max="30"
-                  step="0.5"
+                  min={String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED)}
+                  max={String(TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX)}
+                  step={String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED)}
                 />
                 <small className="time-calculation">
                   Auto mode derives arrival time from the 3D leg distance and your preferred speed.
+                </small>
+                <small className="time-calculation">
+                  Nominal envelope: {TRAJECTORY_SPEED_POLICY.MIN_PREFERRED}-{TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX} m/s.
                 </small>
               </div>
             )}

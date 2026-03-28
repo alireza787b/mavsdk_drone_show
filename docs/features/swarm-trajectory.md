@@ -186,6 +186,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - save shows the current path summary before committing a name
   - load shows duration, distance, max speed, modified time, and an explicit `Autosave` badge
   - manual saves are prioritized ahead of autosaves so reusable mission plans stay easier to find during operations
+- trajectory authoring defaults and validation limits now come from one explicit mission-policy source:
+  - default MSL altitude, target AGL, and preferred leg speed are shared instead of duplicated across modal/panel/search/import code
+  - the planner surface now declares the active mission envelope (`0.5-12 m/s nominal`, `12-20 m/s review`, altitude `1-10,000 m MSL`) so operators do not have to infer those rules from warnings after the fact
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping
