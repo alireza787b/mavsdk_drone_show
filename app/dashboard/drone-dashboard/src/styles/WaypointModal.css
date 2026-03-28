@@ -333,6 +333,22 @@
   font-style: italic;
 }
 
+.timing-mode-selector,
+.preferred-speed-group {
+  margin-bottom: 1rem;
+}
+
+.timing-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  margin-top: 0.75rem;
+}
+
 .loading-indicator {
   color: #00d4ff;
   animation: spin 1s linear infinite;

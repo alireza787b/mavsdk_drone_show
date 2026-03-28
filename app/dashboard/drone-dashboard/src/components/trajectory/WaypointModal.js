@@ -6,6 +6,8 @@ import {
   calculateSpeed, 
   getSpeedStatus, 
   calculateHeadingForNewWaypoint, 
+  suggestOptimalTime,
+  TIMING_MODES,
   YAW_CONSTANTS,
   normalizeHeading,
   formatHeading
@@ -23,6 +25,8 @@ const WaypointModal = ({
 }) => {
   const [altitude, setAltitude] = useState(100);
   const [timeFromStart, setTimeFromStart] = useState(0);
+  const [timingMode, setTimingMode] = useState(TIMING_MODES.MANUAL_TIME);
+  const [preferredSpeed, setPreferredSpeed] = useState(8);
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
   const [speedStatus, setSpeedStatus] = useState('unknown');
   const [groundElevation, setGroundElevation] = useState(0);
@@ -74,32 +78,20 @@ const WaypointModal = ({
       
       // Initialize time based on distance and speed logic
       let defaultTime = 10; // Base default for first waypoint
+      let recommendedSpeed = 8;
+      let nextTimingMode = previousWaypoint ? TIMING_MODES.AUTO_SPEED : TIMING_MODES.MANUAL_TIME;
       
       if (previousWaypoint) {
-        // Calculate distance to this new position
-        const distanceToNew = Math.sqrt(
-          Math.pow((position.latitude - previousWaypoint.latitude) * 111000, 2) + // Rough lat to meters
-          Math.pow((position.longitude - previousWaypoint.longitude) * 111000 * Math.cos(position.latitude * Math.PI / 180), 2) // Rough lng to meters
-        );
-        
-        // Determine recommended speed based on waypoint sequence
-        let recommendedSpeed = 8; // Default moderate speed
-        
-        if (waypointIndex === 2) {
-          // Second waypoint: use default moderate speed
-          recommendedSpeed = 8;
-        } else if (waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0) {
-          // Third waypoint onwards: use speed from previous leg
-          recommendedSpeed = Math.min(previousWaypoint.estimatedSpeed, 15); // Cap at 15 m/s for safety
-        }
-        
-        // Calculate recommended time based on distance and speed
-        const recommendedTimeIncrement = Math.max(3, distanceToNew / recommendedSpeed);
-        defaultTime = (previousWaypoint.timeFromStart || 0) + Math.ceil(recommendedTimeIncrement);
+        recommendedSpeed = waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0
+          ? Math.min(previousWaypoint.estimatedSpeed, 15)
+          : 8;
+        defaultTime = suggestOptimalTime(previousWaypoint, position, recommendedSpeed, defaultAltitude);
       }
       
       setAltitude(defaultAltitude);
       setTimeFromStart(defaultTime);
+      setPreferredSpeed(recommendedSpeed);
+      setTimingMode(nextTimingMode);
       
       // Initialize heading data - calculate default heading to next waypoint (aviation standard)
       const headingData = calculateHeadingForNewWaypoint(position, { headingMode: YAW_CONSTANTS.AUTO }, previousWaypoint ? [previousWaypoint] : []);
@@ -108,6 +100,21 @@ const WaypointModal = ({
       setCalculatedHeading(headingData.calculatedHeading);
     }
   }, [isOpen, previousWaypoint, position, waypointIndex]);
+
+  useEffect(() => {
+    if (!previousWaypoint || !position || timingMode !== TIMING_MODES.AUTO_SPEED) {
+      return;
+    }
+
+    const suggestedTime = suggestOptimalTime(
+      previousWaypoint,
+      position,
+      Math.max(0.5, preferredSpeed || 0),
+      altitude
+    );
+
+    setTimeFromStart((current) => (current === suggestedTime ? current : suggestedTime));
+  }, [altitude, position, preferredSpeed, previousWaypoint, timingMode]);
 
   useEffect(() => {
     if (!isOpen || !position) return;
@@ -265,6 +272,8 @@ const WaypointModal = ({
     const waypointData = {
       altitude: parseFloat(altitude),
       timeFromStart: parseFloat(timeFromStart),
+      timingMode,
+      preferredSpeed: parseFloat(preferredSpeed),
       estimatedSpeed,
       speedFeasible: true,
       groundElevation,
@@ -296,6 +305,28 @@ const WaypointModal = ({
     const newTime = parseFloat(e.target.value) || 0;
     setValidationMessage(null);
     setTimeFromStart(Math.max(0, newTime));
+  };
+
+  const handleTimingModeChange = (newMode) => {
+    setTimingMode(newMode);
+    setValidationMessage(null);
+
+    if (newMode === TIMING_MODES.AUTO_SPEED && previousWaypoint && position) {
+      setTimeFromStart(
+        suggestOptimalTime(
+          previousWaypoint,
+          position,
+          Math.max(0.5, preferredSpeed || 0),
+          altitude
+        )
+      );
+    }
+  };
+
+  const handlePreferredSpeedChange = (e) => {
+    const nextSpeed = parseFloat(e.target.value);
+    setValidationMessage(null);
+    setPreferredSpeed(Number.isFinite(nextSpeed) ? Math.max(0.5, nextSpeed) : 0.5);
   };
 
   const handleHeadingModeChange = (newMode) => {
@@ -331,6 +362,8 @@ const WaypointModal = ({
 
   const isUnderground = altitude < groundElevation;
   const aglAltitude = Math.max(0, altitude - groundElevation);
+  const previousTime = previousWaypoint?.timeFromStart || 0;
+  const legDuration = Math.max(0, timeFromStart - previousTime);
 
   if (!isOpen) return null;
 
@@ -359,9 +392,7 @@ const WaypointModal = ({
             {previousWaypoint && (
               <div className="smart-defaults-info">
                 <small className="defaults-note">
-                  💡 Smart defaults: Altitude from previous waypoint
-                  {waypointIndex === 2 && ', moderate speed (8 m/s)'}
-                  {waypointIndex > 2 && previousWaypoint.estimatedSpeed > 0 && `, continuing at ${Math.min(previousWaypoint.estimatedSpeed, 15).toFixed(1)} m/s`}
+                  💡 Smart defaults: altitude continues from the previous waypoint and leg timing starts in speed-driven mode
                 </small>
               </div>
             )}
@@ -452,21 +483,72 @@ const WaypointModal = ({
           </div>
 
           <div className="time-input-group">
+            {previousWaypoint && (
+              <div className="timing-mode-selector">
+                <label className="input-label">🗓️ Segment Planning</label>
+                <div className="radio-group">
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="timingMode"
+                      checked={timingMode === TIMING_MODES.AUTO_SPEED}
+                      onChange={() => handleTimingModeChange(TIMING_MODES.AUTO_SPEED)}
+                    />
+                    <span className="radio-label">Auto from leg speed</span>
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="timingMode"
+                      checked={timingMode === TIMING_MODES.MANUAL_TIME}
+                      onChange={() => handleTimingModeChange(TIMING_MODES.MANUAL_TIME)}
+                    />
+                    <span className="radio-label">Manual arrival time</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {previousWaypoint && timingMode === TIMING_MODES.AUTO_SPEED && (
+              <div className="preferred-speed-group">
+                <label htmlFor="preferredSpeed" className="input-label">Preferred Leg Speed</label>
+                <input
+                  id="preferredSpeed"
+                  type="number"
+                  value={preferredSpeed}
+                  onChange={handlePreferredSpeedChange}
+                  className="waypoint-input"
+                  min="0.5"
+                  max="30"
+                  step="0.5"
+                />
+                <small className="time-calculation">
+                  Auto mode derives arrival time from the 3D leg distance and your preferred speed.
+                </small>
+              </div>
+            )}
+
             <label htmlFor="timeFromStart" className="input-label">⏱️ Time from Start</label>
             <input
               id="timeFromStart"
               type="number"
               value={timeFromStart}
               onChange={handleTimeChange}
-              className="waypoint-input"
+              className={`waypoint-input ${timingMode === TIMING_MODES.AUTO_SPEED && previousWaypoint ? 'disabled-input' : ''}`}
               placeholder="Seconds from mission start"
               step="1"
               min="0"
+              disabled={timingMode === TIMING_MODES.AUTO_SPEED && Boolean(previousWaypoint)}
             />
             {previousWaypoint && (
-              <small className="time-calculation">
-                Calculated based on distance and {waypointIndex === 2 ? 'moderate speed (8 m/s)' : 'previous leg speed'}
-              </small>
+              <div className="timing-summary">
+                <small className="time-calculation">
+                  Leg duration: <strong>{legDuration.toFixed(1)}s</strong>
+                </small>
+                <small className="time-calculation">
+                  Mode: <strong>{timingMode === TIMING_MODES.AUTO_SPEED ? 'Speed-driven' : 'Time-driven'}</strong>
+                </small>
+              </div>
             )}
           </div>
 
@@ -555,6 +637,15 @@ const WaypointModal = ({
                 <small className="speed-note">
                   From waypoint {waypointIndex - 1} to waypoint {waypointIndex}
                 </small>
+                {timingMode === TIMING_MODES.AUTO_SPEED ? (
+                  <small className="speed-note">
+                    Preferred speed target: {preferredSpeed.toFixed(1)} m/s
+                  </small>
+                ) : (
+                  <small className="speed-note">
+                    Manual arrival time drives the required speed for this leg.
+                  </small>
+                )}
               </div>
             </div>
           )}

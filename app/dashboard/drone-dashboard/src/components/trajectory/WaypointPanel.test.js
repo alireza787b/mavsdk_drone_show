@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import WaypointPanel from './WaypointPanel';
-import { YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
+import { TIMING_MODES, YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
 
 const baseWaypoint = {
   id: 'wp-1',
@@ -46,5 +46,67 @@ describe('WaypointPanel', () => {
 
     expect(screen.getByText(/altitude must stay between 1 m and 10,000 m msl/i)).toBeInTheDocument();
     expect(props.onUpdateWaypoint).not.toHaveBeenCalled();
+  });
+
+  it('updates preferred speed for auto-planned segments and derives arrival time', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      latitude: 35.727,
+      longitude: 51.2721,
+      altitude: 100,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    const { props } = renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    fireEvent.click(screen.getByText('8.0m/s'));
+    fireEvent.change(screen.getByPlaceholderText(/preferred speed \(m\/s\)/i), {
+      target: { value: '4' },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 4,
+      timeFromStart: 38,
+    }));
+  });
+
+  it('can switch a segment from auto speed planning to manual arrival time', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      latitude: 35.727,
+      longitude: 51.2721,
+      altitude: 100,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    const { props } = renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    fireEvent.click(screen.getByText(/auto from speed/i));
+    fireEvent.change(screen.getByDisplayValue(/auto from leg speed/i), {
+      target: { value: TIMING_MODES.MANUAL_TIME },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
+      timingMode: TIMING_MODES.MANUAL_TIME,
+    }));
   });
 });

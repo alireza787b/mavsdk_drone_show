@@ -7,6 +7,10 @@
   margin-top: 0.75rem;
 }
 
+.timing-row {
+  align-items: flex-start;
+}
+
 .heading-display {
   display: flex;
   align-items: center;
@@ -18,6 +22,21 @@
   color: #888;
   font-size: 0.8rem;
   font-style: italic;
+}
+
+.timing-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.derived-value {
+  color: #8fd3ff;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.18);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
 }
 
 .edit-heading-mode {

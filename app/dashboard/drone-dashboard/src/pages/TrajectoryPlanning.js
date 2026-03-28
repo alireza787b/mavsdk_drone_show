@@ -15,6 +15,7 @@ import {
   calculateTrajectoryStats, 
   recalculateAfterDrag,
   calculateWaypointSpeeds,
+  TIMING_MODES,
   YAW_CONSTANTS
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
@@ -200,9 +201,13 @@ const TrajectoryPlanning = () => {
       longitude: position.longitude,
       altitude: waypointData.altitude,
       timeFromStart: waypointData.timeFromStart,
+      timingMode: waypointData.timingMode || TIMING_MODES.MANUAL_TIME,
+      preferredSpeed: waypointData.preferredSpeed || 0,
       estimatedSpeed: 0, // Will be calculated in the recalculation phase
       speedFeasible: speedFeasible,
       terrainInfo: waypointData.terrainInfo,
+      groundElevation: waypointData.groundElevation || 0,
+      terrainAccurate: waypointData.terrainAccurate !== false,
       time: waypointData.timeFromStart,
       speed: 0, // Legacy compatibility
       index: waypoints.length + 1,

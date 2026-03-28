@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { 
   getSpeedStatus, 
+  suggestOptimalTime,
+  TIMING_MODES,
   YAW_CONSTANTS,
   normalizeHeading,
   formatHeading 
@@ -77,6 +79,8 @@ const WaypointPanel = ({
       longitude: waypoint.longitude,
       altitude: waypoint.altitude,
       timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
+      preferredSpeed: waypoint.preferredSpeed || waypoint.estimatedSpeed || 8,
       heading: waypoint.heading || waypoint.yaw || 0,
       headingMode: waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO
     });
@@ -87,6 +91,10 @@ const WaypointPanel = ({
 
     const updates = {};
     const { field } = editValues;
+    const waypointIndex = waypoints.findIndex((wp) => wp.id === editingWaypointId);
+    const currentWaypoint = waypointIndex >= 0 ? waypoints[waypointIndex] : null;
+    const prevWaypoint = waypointIndex > 0 ? waypoints[waypointIndex - 1] : null;
+    const nextWaypoint = waypointIndex < waypoints.length - 1 ? waypoints[waypointIndex + 1] : null;
 
     // Validate and apply changes based on field type
     switch (field) {
@@ -120,10 +128,15 @@ const WaypointPanel = ({
       
       case 'time':
         const time = parseFloat(editValues.timeFromStart);
-        const waypointIndex = waypoints.findIndex(wp => wp.id === editingWaypointId);
-        const prevWaypoint = waypointIndex > 0 ? waypoints[waypointIndex - 1] : null;
-        const nextWaypoint = waypointIndex < waypoints.length - 1 ? waypoints[waypointIndex + 1] : null;
         
+        if ((currentWaypoint?.timingMode || TIMING_MODES.MANUAL_TIME) === TIMING_MODES.AUTO_SPEED) {
+          setEditFeedback({
+            tone: 'warning',
+            text: 'This arrival time is derived from leg speed. Switch Segment Plan to Manual arrival if you want to type a time.',
+          });
+          return;
+        }
+
         if (!isNaN(time) && time >= 0) {
           // Validate time constraints
           if (prevWaypoint && time <= (prevWaypoint.timeFromStart || 0)) {
@@ -148,6 +161,54 @@ const WaypointPanel = ({
             text: 'Time from start must be zero or greater.',
           });
           return;
+        }
+        break;
+
+      case 'timingMode':
+        const nextTimingMode = editValues.timingMode || TIMING_MODES.MANUAL_TIME;
+        updates.timingMode = nextTimingMode;
+
+        if (nextTimingMode === TIMING_MODES.AUTO_SPEED) {
+          const legSpeed = Number.parseFloat(editValues.preferredSpeed);
+          const normalizedSpeed = Number.isFinite(legSpeed) ? Math.max(0.5, legSpeed) : 8;
+          updates.preferredSpeed = normalizedSpeed;
+
+          if (prevWaypoint && currentWaypoint) {
+            const suggestedTime = suggestOptimalTime(
+              prevWaypoint,
+              currentWaypoint,
+              normalizedSpeed,
+              currentWaypoint.altitude
+            );
+            updates.timeFromStart = suggestedTime;
+            updates.time = suggestedTime;
+          }
+        }
+        break;
+
+      case 'preferredSpeed':
+        const preferredSpeed = Number.parseFloat(editValues.preferredSpeed);
+
+        if (!Number.isFinite(preferredSpeed) || preferredSpeed < 0.5 || preferredSpeed > 30) {
+          setEditFeedback({
+            tone: 'error',
+            text: 'Preferred leg speed must stay between 0.5 m/s and 30 m/s.',
+          });
+          return;
+        }
+
+        updates.preferredSpeed = preferredSpeed;
+        updates.timingMode = TIMING_MODES.AUTO_SPEED;
+
+        if (prevWaypoint && currentWaypoint) {
+          const suggestedTime = suggestOptimalTime(
+            prevWaypoint,
+            currentWaypoint,
+            preferredSpeed,
+            currentWaypoint.altitude
+          );
+          updates.timeFromStart = suggestedTime;
+          updates.time = suggestedTime;
         }
         break;
       
@@ -233,6 +294,21 @@ const WaypointPanel = ({
     return `${minutes}m ${seconds}s`;
   };
 
+  const getTimingMode = (waypoint) => waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
+
+  const getPreferredSpeed = (waypoint) => {
+    if (Number.isFinite(waypoint.preferredSpeed) && waypoint.preferredSpeed > 0) {
+      return waypoint.preferredSpeed;
+    }
+    if (Number.isFinite(waypoint.estimatedSpeed) && waypoint.estimatedSpeed > 0) {
+      return waypoint.estimatedSpeed;
+    }
+    return 8;
+  };
+
+  const formatTimingMode = (waypoint) =>
+    getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'Auto from speed' : 'Manual arrival';
+
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
     
@@ -266,18 +342,30 @@ const WaypointPanel = ({
           </div>
         );
       } else {
-        if (field === 'headingMode') {
+        if (field === 'headingMode' || field === 'timingMode') {
           return (
             <div className="edit-heading-mode">
               <select
                 ref={editInputRef}
-                value={editValues.headingMode}
-                onChange={(e) => setEditValues(prev => ({ ...prev, headingMode: e.target.value }))}
+                value={field === 'headingMode' ? editValues.headingMode : editValues.timingMode}
+                onChange={(e) => setEditValues(prev => ({
+                  ...prev,
+                  [field === 'headingMode' ? 'headingMode' : 'timingMode']: e.target.value
+                }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input edit-select"
               >
-                <option value={YAW_CONSTANTS.AUTO}>Auto (to next waypoint)</option>
-                <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
+                {field === 'headingMode' ? (
+                  <>
+                    <option value={YAW_CONSTANTS.AUTO}>Auto (to next waypoint)</option>
+                    <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
+                  </>
+                ) : (
+                  <>
+                    <option value={TIMING_MODES.AUTO_SPEED}>Auto from leg speed</option>
+                    <option value={TIMING_MODES.MANUAL_TIME}>Manual arrival time</option>
+                  </>
+                )}
               </select>
               <div className="edit-buttons">
                 <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
@@ -291,20 +379,39 @@ const WaypointPanel = ({
               <input
                 ref={editInputRef}
                 type="number"
-                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : 'any'}
-                min={field === 'heading' ? '0' : undefined}
-                max={field === 'heading' ? '360' : undefined}
-                value={editValues[field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']}
-                onChange={(e) => setEditValues(prev => ({ 
-                  ...prev, 
-                  [field === 'altitude' ? 'altitude' : field === 'time' ? 'timeFromStart' : field === 'heading' ? 'heading' : 'value']: e.target.value 
+                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? '0.5' : 'any'}
+                min={field === 'preferredSpeed' ? '0.5' : field === 'heading' ? '0' : undefined}
+                max={field === 'preferredSpeed' ? '30' : field === 'heading' ? '360' : undefined}
+                value={editValues[
+                  field === 'altitude'
+                    ? 'altitude'
+                    : field === 'time'
+                      ? 'timeFromStart'
+                      : field === 'heading'
+                        ? 'heading'
+                        : field === 'preferredSpeed'
+                          ? 'preferredSpeed'
+                          : 'value'
+                ]}
+                onChange={(e) => setEditValues(prev => ({
+                  ...prev,
+                  [field === 'altitude'
+                    ? 'altitude'
+                    : field === 'time'
+                      ? 'timeFromStart'
+                      : field === 'heading'
+                        ? 'heading'
+                      : field === 'preferredSpeed'
+                          ? 'preferredSpeed'
+                          : 'value']: e.target.value
                 }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input"
                 placeholder={
                   field === 'altitude' ? 'Altitude MSL (m)' : 
                   field === 'time' ? 'Time (s)' : 
-                  field === 'heading' ? 'Heading (0-360°)' : ''
+                  field === 'heading' ? 'Heading (0-360°)' :
+                  field === 'preferredSpeed' ? 'Preferred speed (m/s)' : ''
                 }
               />
               <div className="edit-buttons">
@@ -421,13 +528,45 @@ const WaypointPanel = ({
               
               <div className="detail-row">
                 <span className="detail-label">Time:</span>
-                {renderEditableField(
-                  waypoint, 
-                  'time', 
-                  waypoint.timeFromStart || waypoint.time || 0,
-                  formatTime(waypoint.timeFromStart || waypoint.time || 0)
+                {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
+                  <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Segment Plan or Leg Speed to change it.">
+                    {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
+                  </span>
+                ) : (
+                  renderEditableField(
+                    waypoint,
+                    'time',
+                    waypoint.timeFromStart || waypoint.time || 0,
+                    formatTime(waypoint.timeFromStart || waypoint.time || 0)
+                  )
                 )}
               </div>
+
+              {index > 0 && (
+                <div className="detail-row timing-row">
+                  <span className="detail-label">Segment Plan:</span>
+                  <div className="timing-display">
+                    {renderEditableField(
+                      waypoint,
+                      'timingMode',
+                      getTimingMode(waypoint),
+                      formatTimingMode(waypoint)
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {index > 0 && getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED && (
+                <div className="detail-row timing-row">
+                  <span className="detail-label">Leg Speed:</span>
+                  {renderEditableField(
+                    waypoint,
+                    'preferredSpeed',
+                    getPreferredSpeed(waypoint),
+                    `${getPreferredSpeed(waypoint).toFixed(1)}m/s`
+                  )}
+                </div>
+              )}
               
               {index > 0 && (
                 <div className="detail-row speed-row">

@@ -1,6 +1,6 @@
 // src/utilities/TrajectoryStorage.js
 
-import { validateWaypointSequence, calculateTrajectoryStats } from './SpeedCalculator';
+import { TIMING_MODES, validateWaypointSequence, calculateTrajectoryStats } from './SpeedCalculator';
 
 /**
  * TrajectoryStorage - Professional trajectory persistence
@@ -401,8 +401,12 @@ export class TrajectoryStorage {
       longitude: Number(wp.longitude),
       altitude: Number(wp.altitude),
       timeFromStart: Number(wp.timeFromStart || wp.time || 0),
+      timingMode: wp.timingMode || TIMING_MODES.MANUAL_TIME,
+      preferredSpeed: Number(wp.preferredSpeed || 0),
       estimatedSpeed: Number(wp.estimatedSpeed || 0),
       speedFeasible: Boolean(wp.speedFeasible),
+      groundElevation: Number(wp.groundElevation || 0),
+      terrainAccurate: wp.terrainAccurate !== false,
       
       // AVIATION STANDARD HEADING DATA (clean, single source of truth)
       heading: wp.heading !== undefined ? Number(wp.heading) : (wp.yaw !== undefined ? Number(wp.yaw) : 0),
@@ -515,6 +519,8 @@ export class TrajectoryStorage {
         longitude: parseFloat(values[2]) || 0,
         altitude: parseFloat(values[3]) || 100,
         timeFromStart: parseFloat(values[4]) || 0,
+        timingMode: TIMING_MODES.MANUAL_TIME,
+        preferredSpeed: 0,
         estimatedSpeed: parseFloat(values[5]) || 0,
         speedFeasible: true,
         // Aviation standard heading data with backwards compatibility

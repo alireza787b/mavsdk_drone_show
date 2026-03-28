@@ -25,6 +25,11 @@ export const YAW_CONSTANTS = {
   DEFAULT_HEADING: 0      // Default heading: 000° (North)
 };
 
+export const TIMING_MODES = {
+  AUTO_SPEED: 'auto_speed',
+  MANUAL_TIME: 'manual_time',
+};
+
 const EARTH_RADIUS_M = 6_371_000;
 
 const toRadians = (degrees) => (degrees * Math.PI) / 180;
