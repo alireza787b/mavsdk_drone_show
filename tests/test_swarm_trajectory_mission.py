@@ -26,6 +26,13 @@ async def _stream_once_position(relative_altitude_m):
     yield types.SimpleNamespace(relative_altitude_m=relative_altitude_m)
 
 
+async def _stream_once_position_full(relative_altitude_m, absolute_altitude_m):
+    yield types.SimpleNamespace(
+        relative_altitude_m=relative_altitude_m,
+        absolute_altitude_m=absolute_altitude_m,
+    )
+
+
 def _stream_side_effect(values):
     iterator = iter(values)
 
@@ -56,6 +63,18 @@ async def test_has_reached_initial_climb_altitude_requires_real_height_when_avai
 
 
 @pytest.mark.asyncio
+async def test_has_reached_initial_climb_altitude_accepts_launch_referenced_absolute_gain():
+    drone = MagicMock()
+    drone.telemetry.position.return_value = _stream_once_position_full(None, 1285.5)
+
+    assert await stm._has_reached_initial_climb_altitude(
+        drone,
+        4.0,
+        launch_altitude_m=1280.0,
+    ) is True
+
+
+@pytest.mark.asyncio
 async def test_has_reached_initial_climb_altitude_accepts_missing_telemetry():
     drone = MagicMock()
 
@@ -66,6 +85,57 @@ async def test_has_reached_initial_climb_altitude_accepts_missing_telemetry():
     drone.telemetry.position.return_value = _broken_stream()
 
     assert await stm._has_reached_initial_climb_altitude(drone, 4.0) is True
+
+
+@pytest.mark.asyncio
+async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeypatch):
+    drone = MagicMock()
+    drone.offboard.set_velocity_ned = AsyncMock()
+    drone.offboard.set_position_global = AsyncMock()
+
+    led_controller = MagicMock()
+    monkeypatch.setattr(stm.LEDController, "get_instance", MagicMock(return_value=led_controller))
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_INITIAL_CLIMB_TIME", 0.0)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED", 1.0)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT", 5.0)
+    monkeypatch.setattr(stm.Params, "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_VERBOSE_LOGGING", False)
+
+    fake_now = {"value": 100.0}
+
+    def _fake_time():
+        fake_now["value"] += 0.1
+        return fake_now["value"]
+
+    waypoints = [
+        (0.0, 35.0, 51.0, 1280.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 90.0, 0, 255, 255, 255),
+        (1.0, 35.0, 51.0, 1281.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 90.0, 0, 255, 255, 255),
+    ]
+
+    with patch.object(stm.time, "time", side_effect=_fake_time):
+        with patch.object(
+            stm,
+            "_get_initial_climb_altitude_sample",
+            new=AsyncMock(return_value={"relative_altitude_m": 0.0, "absolute_altitude_gain_m": 0.0}),
+        ):
+            with patch.object(stm.asyncio, "sleep", new=AsyncMock()) as sleep_mock:
+                with patch.object(stm, "execute_end_behavior", new=AsyncMock()) as execute_end_behavior:
+                    with pytest.raises(RuntimeError, match="Initial climb did not achieve the required altitude gain"):
+                        await stm.perform_swarm_trajectory(
+                            drone,
+                            waypoints,
+                            home_position=None,
+                            start_time=100.0,
+                            launch_lat=35.0,
+                            launch_lon=51.0,
+                            launch_alt=1280.0,
+                            end_behavior="return_home",
+                        )
+
+    assert drone.offboard.set_velocity_ned.await_count >= 1
+    drone.offboard.set_position_global.assert_not_awaited()
+    execute_end_behavior.assert_not_awaited()
+    sleep_mock.assert_awaited()
 
 
 @pytest.mark.asyncio

@@ -446,11 +446,16 @@ async def perform_swarm_trajectory(
     mission_completed = False
     led_controller = LEDController.get_instance()
 
-    # Initial climb state tracking for velocity-based climb control
-    in_initial_climb = True
     initial_climb_completed = False
     initial_climb_start_time = time.time()
-    climb_target_reached = False
+    initial_climb_timeout = max(
+        float(Params.SWARM_TRAJECTORY_INITIAL_CLIMB_TIME),
+        float(getattr(Params, "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC", 60)),
+    )
+    climb_log_period_sec = float(
+        getattr(Params, "SWARM_TRAJECTORY_INITIAL_CLIMB_LOG_PERIOD_SEC", 2.0)
+    )
+    last_climb_log_time = initial_climb_start_time - climb_log_period_sec
 
     # Time step between CSV rows (for drift‐skip calculations)
     csv_step = (waypoints[1][0] - waypoints[0][0]) \
@@ -504,15 +509,39 @@ async def perform_swarm_trajectory(
                     altitude_condition = time_in_climb >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_TIME
                     height_condition = (time_in_climb * Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED) >= Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT
 
-                    # Additional safety check: verify actual altitude when telemetry is available.
-                    actual_altitude_ok = await _has_reached_initial_climb_altitude(
+                    # Confirm climb from telemetry using relative altitude when available,
+                    # with an absolute-altitude fallback anchored to the captured launch altitude.
+                    climb_sample = await _get_initial_climb_altitude_sample(
                         drone,
+                        launch_altitude_m=launch_alt,
+                    )
+                    actual_altitude_ok = _climb_altitude_gate_satisfied(
+                        climb_sample,
                         Params.SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT * 0.8,
                     )
 
-                    in_initial_climb = not (altitude_condition and height_condition and actual_altitude_ok)
+                    if (
+                        altitude_condition
+                        and height_condition
+                        and actual_altitude_ok
+                    ):
+                        initial_climb_completed = True
+                        logger.info(
+                            "Enhanced initial climb completed after %.1fs "
+                            "(relative gain=%s, absolute gain=%s) - switching to CSV trajectory",
+                            time_in_climb,
+                            _format_altitude_value(climb_sample.get("relative_altitude_m")),
+                            _format_altitude_value(climb_sample.get("absolute_altitude_gain_m")),
+                        )
+                    else:
+                        if time_in_climb > initial_climb_timeout:
+                            raise RuntimeError(
+                                "Initial climb did not achieve the required altitude gain "
+                                f"within {initial_climb_timeout:.1f}s "
+                                f"(relative gain={_format_altitude_value(climb_sample.get('relative_altitude_m'))}, "
+                                f"absolute gain={_format_altitude_value(climb_sample.get('absolute_altitude_gain_m'))})."
+                            )
 
-                    if in_initial_climb:
                         # Enhanced velocity commands for initial climb with safety limits
                         climb_vz = -min(Params.SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED, 2.0)  # Cap at 2 m/s
 
@@ -531,15 +560,22 @@ async def perform_swarm_trajectory(
                         # LED white during climb
                         led_controller.set_color(255, 255, 255)
 
-                        if Params.SWARM_TRAJECTORY_VERBOSE_LOGGING and waypoint_index % 50 == 0:
-                            logger.debug(f"Enhanced climb: t={time_in_climb:.1f}s, vz={climb_vz:.1f}m/s, alt_ok={actual_altitude_ok}")
+                        if (
+                            Params.SWARM_TRAJECTORY_VERBOSE_LOGGING
+                            and (now - last_climb_log_time) >= climb_log_period_sec
+                        ):
+                            last_climb_log_time = now
+                            logger.debug(
+                                "Enhanced climb: t=%.1fs, vz=%.1fm/s, rel_gain=%s, abs_gain=%s, alt_ok=%s",
+                                time_in_climb,
+                                climb_vz,
+                                _format_altitude_value(climb_sample.get("relative_altitude_m")),
+                                _format_altitude_value(climb_sample.get("absolute_altitude_gain_m")),
+                                actual_altitude_ok,
+                            )
 
-                        waypoint_index += 1
+                        await asyncio.sleep(min(max(csv_step, 0.05), 0.2))
                         continue
-                    else:
-                        # Initial climb completed - switch to CSV trajectory following
-                        initial_climb_completed = True
-                        logger.info(f"Enhanced initial climb completed after {time_in_climb:.1f}s - switching to CSV trajectory")
 
                 # Update LED color for feedback (after climb or normal trajectory)
                 led_controller.set_color(ledr, ledg, ledb)
@@ -667,11 +703,12 @@ async def perform_swarm_trajectory(
                 await asyncio.sleep(0.5)
                 continue
             except Exception:
-                break
+                logger.exception("Offboard recovery failed; aborting swarm trajectory mission.")
+                raise
         except Exception as e:
             logger.exception(f"Critical error in trajectory loop at waypoint {waypoint_index}: {e}")
             led_controller.set_color(255, 0, 0)
-            break
+            raise
 
     # -----------------------------------
     # End-of-Mission Behavior Execution
@@ -1387,9 +1424,61 @@ async def _get_current_relative_altitude(drone: System, timeout: float = 3.0):
     return None
 
 
+def _format_altitude_value(value) -> str:
+    """Render altitude values consistently in mission logs."""
+    if value is None:
+        return "unknown"
+    try:
+        return f"{float(value):.2f}m"
+    except (TypeError, ValueError):
+        return "unknown"
+
+
+def _climb_altitude_gate_satisfied(sample: dict, minimum_relative_altitude_m: float) -> bool:
+    """Accept either MAVSDK relative altitude or launch-referenced absolute gain."""
+    relative_altitude = sample.get("relative_altitude_m")
+    if relative_altitude is not None:
+        return float(relative_altitude) >= float(minimum_relative_altitude_m)
+
+    absolute_gain = sample.get("absolute_altitude_gain_m")
+    if absolute_gain is not None:
+        return float(absolute_gain) >= float(minimum_relative_altitude_m)
+
+    # Preserve the previous fallback behavior when telemetry is unavailable.
+    return True
+
+
+async def _get_initial_climb_altitude_sample(
+    drone: System,
+    *,
+    launch_altitude_m: float | None = None,
+):
+    """Capture the best available altitude sample for initial-climb confirmation."""
+    sample = {
+        "relative_altitude_m": None,
+        "absolute_altitude_gain_m": None,
+    }
+    try:
+        async for position in drone.telemetry.position():
+            relative_altitude = getattr(position, "relative_altitude_m", None)
+            absolute_altitude = getattr(position, "absolute_altitude_m", None)
+
+            if relative_altitude is not None:
+                sample["relative_altitude_m"] = float(relative_altitude)
+
+            if absolute_altitude is not None and launch_altitude_m is not None:
+                sample["absolute_altitude_gain_m"] = float(absolute_altitude) - float(launch_altitude_m)
+
+            return sample
+    except Exception:
+        return sample
+    return sample
+
+
 async def _has_reached_initial_climb_altitude(
     drone: System,
     minimum_relative_altitude_m: float,
+    launch_altitude_m: float | None = None,
 ) -> bool:
     """
     Confirm the aircraft has actually climbed before leaving the takeoff phase.
@@ -1397,15 +1486,11 @@ async def _has_reached_initial_climb_altitude(
     If telemetry is unavailable, fall back to the existing time-based guard.
     If a real sample is available, it must satisfy the minimum relative altitude.
     """
-    try:
-        async for position in drone.telemetry.position():
-            current_alt = getattr(position, "relative_altitude_m", None)
-            if current_alt is None:
-                return True
-            return float(current_alt) >= float(minimum_relative_altitude_m)
-    except Exception:
-        return True
-    return True
+    sample = await _get_initial_climb_altitude_sample(
+        drone,
+        launch_altitude_m=launch_altitude_m,
+    )
+    return _climb_altitude_gate_satisfied(sample, minimum_relative_altitude_m)
 
 
 def _get_local_drone_state_snapshot(timeout: float = 1.0):
@@ -1799,6 +1884,7 @@ async def run_swarm_trajectory_mission(
     """
     logger = logging.getLogger(__name__)
     mavsdk_server = None
+    drone = None
     
     try:
         global HW_ID, position_id
@@ -1907,6 +1993,17 @@ async def run_swarm_trajectory_mission(
 
     except Exception:
         logger.exception("Error running drone.")
+        if drone is not None:
+            try:
+                await stop_offboard_mode(drone)
+            except Exception:
+                logger.debug("Offboard stop during failure cleanup also failed.", exc_info=True)
+            try:
+                if await _get_current_armed_state(drone):
+                    logger.warning("Mission failed while vehicle was armed; initiating landing cleanup.")
+                    await perform_landing(drone)
+            except Exception:
+                logger.debug("Landing cleanup during mission failure also failed.", exc_info=True)
         sys.exit(1)
     finally:
         if mavsdk_server:
