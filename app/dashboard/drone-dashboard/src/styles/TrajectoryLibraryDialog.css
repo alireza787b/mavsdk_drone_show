@@ -1,0 +1,99 @@
+.trajectory-library-dialog {
+  width: min(640px, 92vw) !important;
+  min-height: auto !important;
+}
+
+.trajectory-library-dialog__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--spacing-base);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-base);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.trajectory-library-dialog__summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.trajectory-library-dialog__summary-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trajectory-library-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.trajectory-library-dialog__field span {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.trajectory-library-dialog__list {
+  max-height: 360px !important;
+}
+
+.trajectory-library-dialog__item {
+  align-items: flex-start !important;
+  gap: var(--spacing-base);
+}
+
+.trajectory-library-dialog__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.trajectory-library-dialog__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.trajectory-library-dialog__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trajectory-library-dialog__empty {
+  margin: 0;
+  padding: var(--spacing-lg);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .trajectory-library-dialog {
+    width: calc(100vw - 1.5rem) !important;
+    padding: var(--spacing-lg) !important;
+  }
+
+  .trajectory-library-dialog__item {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .trajectory-library-dialog__item button {
+    width: 100%;
+  }
+}

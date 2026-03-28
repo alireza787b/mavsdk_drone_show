@@ -182,6 +182,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and manual-arrival legs explain what is derived versus what is operator-pinned
+- planner trajectory-library actions now use one shared save/load flow instead of separate duplicated dialogs:
+  - save shows the current path summary before committing a name
+  - load shows duration, distance, max speed, modified time, and an explicit `Autosave` badge
+  - manual saves are prioritized ahead of autosaves so reusable mission plans stay easier to find during operations
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping

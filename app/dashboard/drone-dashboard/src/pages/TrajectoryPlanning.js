@@ -10,6 +10,7 @@ import TrajectoryStats from '../components/trajectory/TrajectoryStats';
 import WaypointModal from '../components/trajectory/WaypointModal';
 import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTrajectoryTransferDialog';
 import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
+import TrajectoryLibraryDialog from '../components/trajectory/TrajectoryLibraryDialog';
 
 import { 
   ALTITUDE_REFERENCE,
@@ -789,6 +790,28 @@ const TrajectoryPlanning = () => {
     />
   );
 
+  const saveDialog = (
+    <TrajectoryLibraryDialog
+      mode="save"
+      isOpen={showSaveDialog}
+      onClose={() => setShowSaveDialog(false)}
+      onSave={handleSave}
+      initialName={trajectoryName}
+      currentStats={trajectoryStats}
+      currentWaypointCount={waypoints.length}
+    />
+  );
+
+  const loadDialog = (
+    <TrajectoryLibraryDialog
+      mode="load"
+      isOpen={showLoadDialog}
+      onClose={() => setShowLoadDialog(false)}
+      onLoad={handleLoad}
+      trajectories={availableTrajectories}
+    />
+  );
+
   // Leaflet fallback: show Leaflet map when Mapbox unavailable
   if (useLeaflet || (!mapboxAvailable && !mapboxToken) || !mapboxToken) {
     return (
@@ -937,59 +960,8 @@ const TrajectoryPlanning = () => {
           mapRef={mapRef}
         />
 
-        {/* Save Dialog */}
-        {showSaveDialog && (
-          <div className="dialog-overlay" onClick={() => setShowSaveDialog(false)}>
-            <div className="dialog-content" onClick={e => e.stopPropagation()}>
-              <h3>Save Trajectory</h3>
-              <input
-                type="text"
-                placeholder="Enter trajectory name"
-                defaultValue={trajectoryName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSave(e.target.value);
-                  else if (e.key === 'Escape') setShowSaveDialog(false);
-                }}
-                autoFocus
-              />
-              <div className="dialog-buttons">
-                <button onClick={() => setShowSaveDialog(false)}>Cancel</button>
-                <button onClick={(e) => {
-                  const input = e.target.parentElement.parentElement.querySelector('input');
-                  handleSave(input.value);
-                }}>Save</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Load Dialog */}
-        {showLoadDialog && (
-          <div className="dialog-overlay" onClick={() => setShowLoadDialog(false)}>
-            <div className="dialog-content" onClick={e => e.stopPropagation()}>
-              <h3>Load Trajectory</h3>
-              <div className="trajectory-list">
-                {availableTrajectories.length === 0 ? (
-                  <p>No saved trajectories found</p>
-                ) : (
-                  availableTrajectories.map(traj => (
-                    <div key={traj.id} className="trajectory-item">
-                      <div className="trajectory-info">
-                        <strong>{traj.name}</strong>
-                        <small>{traj.waypoints.length} waypoints</small>
-                      </div>
-                      <button onClick={() => handleLoad(traj.id)}>Load</button>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="dialog-buttons">
-                <button onClick={() => setShowLoadDialog(false)}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        )}
-
+        {saveDialog}
+        {loadDialog}
         {exportDialog}
         {swarmTransferDialog}
       </div>
@@ -1225,62 +1197,8 @@ const TrajectoryPlanning = () => {
         waypointIndex={waypoints.length + 1}
       />
 
-      {/* Save Dialog */}
-      {showSaveDialog && (
-        <div className="dialog-overlay" onClick={() => setShowSaveDialog(false)}>
-          <div className="dialog-content" onClick={e => e.stopPropagation()}>
-            <h3>Save Trajectory</h3>
-            <input
-              type="text"
-              placeholder="Enter trajectory name"
-              defaultValue={trajectoryName}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSave(e.target.value);
-                } else if (e.key === 'Escape') {
-                  setShowSaveDialog(false);
-                }
-              }}
-              autoFocus
-            />
-            <div className="dialog-buttons">
-              <button onClick={() => setShowSaveDialog(false)}>Cancel</button>
-              <button onClick={(e) => {
-                const input = e.target.parentElement.parentElement.querySelector('input');
-                handleSave(input.value);
-              }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Load Dialog */}
-      {showLoadDialog && (
-        <div className="dialog-overlay" onClick={() => setShowLoadDialog(false)}>
-          <div className="dialog-content" onClick={e => e.stopPropagation()}>
-            <h3>Load Trajectory</h3>
-            <div className="trajectory-list">
-              {availableTrajectories.length === 0 ? (
-                <p>No saved trajectories found</p>
-              ) : (
-                availableTrajectories.map(traj => (
-                  <div key={traj.id} className="trajectory-item">
-                    <div className="trajectory-info">
-                      <strong>{traj.name}</strong>
-                      <small>{traj.waypoints.length} waypoints</small>
-                    </div>
-                    <button onClick={() => handleLoad(traj.id)}>Load</button>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="dialog-buttons">
-              <button onClick={() => setShowLoadDialog(false)}>Cancel</button>
-            </div>
-            </div>
-          </div>
-        )}
-
+      {saveDialog}
+      {loadDialog}
       {exportDialog}
       {swarmTransferDialog}
     </div>
