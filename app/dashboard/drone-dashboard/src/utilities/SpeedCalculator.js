@@ -1,6 +1,4 @@
 // src/utilities/SpeedCalculator.js
-// CRITICAL FIX: Corrected speed calculation logic
-// FIXED: Each waypoint shows speed FROM current TO next waypoint (not FROM previous TO current)
 
 /**
  * Drone speed thresholds (m/s)
@@ -86,8 +84,7 @@ export const calculateHeading = (fromPoint, toPoint) => {
     }
     
     return Math.round(heading * 10) / 10; // Round to 1 decimal place
-  } catch (error) {
-    console.warn('Heading calculation error:', error);
+  } catch {
     return YAW_CONSTANTS.DEFAULT_HEADING;
   }
 };
@@ -143,8 +140,7 @@ export const calculateSpeed = (fromWaypoint, toWaypoint, currentPosition = null)
     const requiredSpeed = totalDistance / timeDifference;
     
     return Math.round(requiredSpeed * 10) / 10; // Round to 1 decimal place
-  } catch (error) {
-    console.warn('Speed calculation error:', error);
+  } catch {
     return 0;
   }
 };
@@ -200,10 +196,10 @@ export const getSpeedDescription = (speed) => {
 };
 
 /**
- * CRITICAL FIX: Calculate waypoint speeds and yaw with correct FROM current TO next logic
- * - Each waypoint (except last) shows speed needed FROM current to NEXT waypoint
+ * Calculate waypoint speeds and yaw using the outgoing leg as the authoritative segment.
+ * - Each waypoint (except last) shows the speed needed from current to next waypoint
  * - Yaw calculation: auto = heading to next waypoint, manual = user-specified
- * - Last waypoint shows the speed that was used to reach it (maintains consistency)
+ * - The last waypoint preserves the inbound-leg speed for consistent review
  * @param {Array} waypoints - Array of all waypoints
  * @returns {Array} Updated waypoints with corrected speed and yaw calculations
  */
@@ -581,8 +577,7 @@ export const suggestOptimalTime = (fromWaypoint, toPosition, preferredSpeed = 8,
     const suggestedTime = (fromWaypoint.timeFromStart || 0) + Math.ceil(requiredTime);
     
     return suggestedTime;
-  } catch (error) {
-    console.warn('Time suggestion error:', error);
+  } catch {
     return (fromWaypoint.timeFromStart || 0) + 10; // Default fallback
   }
 };

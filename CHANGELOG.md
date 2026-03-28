@@ -10,6 +10,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory initial climb is now a real safety gate instead of a time-only phase: waypoint progression no longer advances while the climb gate is still unresolved, launch altitude confirmation can fall back to launch-referenced absolute altitude when relative altitude lags, and a failed climb now terminates loudly with safe cleanup instead of silently exhausting the mission in the background
+- Swarm Trajectory 5-drone SITL runtime validation now passes end to end on the hardened mission engine, including process -> climb gate -> in-flight follower geometry -> long return-home completion -> command tracker terminal success -> fleet idle reset
+- Swarm Trajectory planner utilities and authoring components no longer emit routine browser-console warning noise for handled fallback paths, and the trajectory authoring surface was cleaned of stale phase-specific banner comments that no longer described the maintained behavior
 - Swarm Trajectory runtime validation now budgets the terminal wait window from the processed mission peak altitude instead of the early formation snapshot altitude, so high-altitude RTL descents no longer time out while the aircraft is still descending correctly
 - Swarm Trajectory mission validation now enforces a real initial-climb altitude sample before leaving the takeoff gate, preventing premature path-follow entry on time-only progress
 - Swarm Trajectory planner geodesic math is now self-contained and testable: speed, heading, timing, and trajectory statistics no longer depend on the heavier Turf bundle in `SpeedCalculator`

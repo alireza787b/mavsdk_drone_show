@@ -1,5 +1,4 @@
 // src/components/trajectory/TrajectoryToolbar.js
-// PHASE 2 ENHANCEMENTS: Undo/redo, save/load, enhanced controls
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
@@ -15,7 +14,6 @@ const TrajectoryToolbar = ({
   sceneMode,
   onSceneModeChange,
   waypointCount,
-  // PHASE 2: Enhanced props
   canUndo = false,
   canRedo = false,
   undoDescription = '',
@@ -46,7 +44,6 @@ const TrajectoryToolbar = ({
 
   return (
     <div className="trajectory-toolbar">
-      {/* PHASE 2: Primary Actions Group */}
       <div className="toolbar-group toolbar-primary">
         <button 
           className={`toolbar-btn ${isAddingWaypoint ? 'active' : ''}`}
@@ -59,7 +56,6 @@ const TrajectoryToolbar = ({
         
         <div className="toolbar-separator" />
         
-        {/* PHASE 2: Undo/Redo controls */}
         <button 
           className={`toolbar-btn undo-btn ${!canUndo ? 'disabled' : ''}`}
           onClick={onUndo}
@@ -81,7 +77,6 @@ const TrajectoryToolbar = ({
         </button>
       </div>
 
-      {/* PHASE 2: File Operations Group */}
       <div className="toolbar-group toolbar-file">
         <button 
           className="toolbar-btn save-btn"
@@ -142,7 +137,6 @@ const TrajectoryToolbar = ({
         </button>
       </div>
       
-      {/* PHASE 2: View Controls Group */}
       <div className="toolbar-group toolbar-view">
         <button 
           className={`toolbar-btn terrain-btn ${showTerrain ? 'active' : ''}`}
@@ -168,7 +162,6 @@ const TrajectoryToolbar = ({
         </div>
       </div>
       
-      {/* PHASE 2: Status Information */}
       <div className="toolbar-group toolbar-status">
         {/* Trajectory name display */}
         {trajectoryName && (
@@ -205,7 +198,6 @@ const TrajectoryToolbar = ({
         </div>
       </div>
 
-      {/* PHASE 2: Keyboard shortcuts help (collapsible) */}
       <div className="toolbar-group toolbar-help">
         <button 
           className="toolbar-btn help-btn"
@@ -258,7 +250,6 @@ TrajectoryToolbar.propTypes = {
   onSceneModeChange: PropTypes.func.isRequired,
   waypointCount: PropTypes.number.isRequired,
   
-  // PHASE 2: Enhanced props
   canUndo: PropTypes.bool,
   canRedo: PropTypes.bool,
   undoDescription: PropTypes.string,

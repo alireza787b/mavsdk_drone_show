@@ -1,5 +1,4 @@
 // src/utilities/TrajectoryStateManager.js
-// PHASE 2: Professional undo/redo state management for trajectory operations
 
 /**
  * Action types for trajectory operations
@@ -385,7 +384,6 @@ export const ACTION_TYPES = {
       // Validate imported state
       const validation = this.validateState();
       if (!validation.valid) {
-        console.warn('Imported state has issues:', validation.issues);
         // Reset to safe state if validation fails
         this.setInitialState({ waypoints: [], selectedWaypointId: null });
       }

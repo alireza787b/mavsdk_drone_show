@@ -1,7 +1,4 @@
 // src/components/trajectory/WaypointModal.js
-// UPDATED: Use Mapbox Tilequery API for terrain elevation fetching
-// REMOVED: queryTerrainElevation usage and mapRef dependency for terrain queries
-// ADDED: Fetch elevation via HTTP with error handling and fallback
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
@@ -23,7 +20,6 @@ const WaypointModal = ({
   position,
   previousWaypoint,
   waypointIndex = 1,
-  // mapRef // no longer needed for elevation queries, keep if used elsewhere
 }) => {
   const [altitude, setAltitude] = useState(100);
   const [timeFromStart, setTimeFromStart] = useState(0);

@@ -1,5 +1,4 @@
 // src/utilities/TrajectoryStorage.js
-// PHASE 2: Professional save/load functionality with validation and backup
 
 import { validateWaypointSequence, calculateTrajectoryStats } from './SpeedCalculator';
 
@@ -77,7 +76,6 @@ export class TrajectoryStorage {
       };
 
     } catch (error) {
-      console.error('Save trajectory error:', error);
       return {
         success: false,
         error: error.message
@@ -103,7 +101,10 @@ export class TrajectoryStorage {
       // Validate loaded trajectory
       const validation = this.validateTrajectoryData(trajectory);
       if (!validation.valid) {
-        console.warn('Loaded trajectory has validation issues:', validation.issues);
+        trajectory.metadata = {
+          ...trajectory.metadata,
+          validationIssues: validation.issues,
+        };
       }
 
       // Update last accessed
@@ -116,7 +117,6 @@ export class TrajectoryStorage {
       };
 
     } catch (error) {
-      console.error('Load trajectory error:', error);
       return {
         success: false,
         error: error.message
@@ -132,7 +132,6 @@ export class TrajectoryStorage {
       const data = this.getStorageData(this.storageKey);
       return data?.trajectories || [];
     } catch (error) {
-      console.error('Get trajectories error:', error);
       return [];
     }
   }
@@ -164,7 +163,6 @@ export class TrajectoryStorage {
       };
 
     } catch (error) {
-      console.error('Delete trajectory error:', error);
       return {
         success: false,
         error: error.message
@@ -193,7 +191,6 @@ export class TrajectoryStorage {
       };
 
     } catch (error) {
-      console.error('Export trajectory error:', error);
       return {
         success: false,
         error: error.message
@@ -225,7 +222,6 @@ export class TrajectoryStorage {
         message: `Trajectory exported as ${format.toUpperCase()}`
       };
     } catch (error) {
-      console.error('Export current trajectory error:', error);
       return {
         success: false,
         error: error.message,
@@ -281,7 +277,6 @@ export class TrajectoryStorage {
       };
 
     } catch (error) {
-      console.error('Import trajectory error:', error);
       return {
         success: false,
         error: error.message
@@ -306,7 +301,6 @@ export class TrajectoryStorage {
       
       return { success: true };
     } catch (error) {
-      console.warn('Auto-save failed:', error);
       return { success: false, error: error.message };
     }
   }
@@ -329,7 +323,6 @@ export class TrajectoryStorage {
       
       return { success: true };
     } catch (error) {
-      console.warn('Backup creation failed:', error);
       return { success: false, error: error.message };
     }
   }
@@ -345,8 +338,7 @@ export class TrajectoryStorage {
     try {
       const data = JSON.stringify(this.getStorageData(this.storageKey) || {});
       storageUsed = new Blob([data]).size;
-    } catch (error) {
-      console.warn('Storage size calculation failed:', error);
+    } catch {
     }
 
     return {
@@ -549,8 +541,7 @@ export class TrajectoryStorage {
     try {
       const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.warn('Storage read error:', error);
+    } catch {
       return null;
     }
   }
@@ -577,7 +568,6 @@ export class TrajectoryStorage {
     // Remove old autosaves
     this.cleanupAutoSaves();
     
-    console.warn('Storage quota exceeded - cleaned up old data');
   }
 
   /**

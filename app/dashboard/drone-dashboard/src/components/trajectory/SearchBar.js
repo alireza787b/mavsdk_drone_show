@@ -1,5 +1,4 @@
 // src/components/trajectory/SearchBar.js
-// PHASE 2 ENHANCEMENTS: Real geocoding search with location suggestions
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
@@ -22,7 +21,6 @@ const SearchBar = ({ onLocationSelect }) => {
   const debounceRef = useRef(null);
   const lastRequestTimeRef = useRef(0);
 
-  // PHASE 2: Enhanced geocoding with multiple providers
   const geocodeLocation = async (query) => {
     try {
       setError('');
@@ -75,8 +73,6 @@ const SearchBar = ({ onLocationSelect }) => {
       }));
 
     } catch (error) {
-      console.warn('Geocoding error:', error);
-      
       // Fallback to coordinate parsing with error handling
       const coordFallback = query.match(/(-?\d+\.?\d+)[\s,]+(-?\d+\.?\d+)/);
       if (coordFallback) {

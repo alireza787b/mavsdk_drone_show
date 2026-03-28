@@ -160,6 +160,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
+- runtime launch now uses a stricter initial-climb gate before path-follow entry, so a drone cannot silently burn through its mission clock while still stuck in climb
+- the mission tracker now reflects the real per-drone terminal result once each drone script exits; long `return_home` end behavior can keep the command legitimately active for several additional minutes after the formation phase is already correct
+- validated SITL acceptance now includes a clean 5-drone end-to-end run: process -> launch -> climb gate -> in-flight formation tolerance -> return-home -> terminal command completion -> fleet idle reset
 
 ---
 
@@ -230,12 +233,20 @@ Current truth model:
 
 - processing can return `success: true` with `outcome: partial`
 - operators should treat cluster readiness as authoritative, not only processed file counts
+- runtime completion should be judged from the command tracker plus fleet idle state, not only from early in-flight geometry success
 
 #### `smooth_trajectory_with_waypoints(waypoints_df, dt=0.05)`
 Converts waypoint trajectories to smooth interpolated paths.
 
 **Input:** CSV waypoints  
 **Output:** Smooth trajectory at 0.05s intervals with velocities/accelerations
+
+### Runtime Execution Notes
+
+- `swarm_trajectory_mission.py` now keeps the initial climb phase separate from waypoint progression
+- if the initial climb cannot be confirmed, the mission fails loudly instead of silently consuming waypoints and falling into end behavior
+- return-home terminal timing in this mode can be materially longer than the authored path duration when the processed path peaks far above the launch baseline
+- validator timeout budgeting therefore uses processed peak relative altitude, not just the earlier formation snapshot altitude
 
 ---
 

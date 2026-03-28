@@ -1,5 +1,4 @@
 // src/components/trajectory/WaypointPanel.js
-// PHASE 1 ENHANCEMENTS: Inline waypoint editing + MSL labeling
 
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
@@ -69,7 +68,6 @@ const WaypointPanel = ({
     );
   }
 
-  // PHASE 1: Inline editing handlers
   const handleEditStart = (waypoint, field) => {
     setEditFeedback(null);
     setEditingWaypointId(waypoint.id);
@@ -235,7 +233,6 @@ const WaypointPanel = ({
     return `${minutes}m ${seconds}s`;
   };
 
-  // PHASE 1: Render editable field
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
     
@@ -490,7 +487,6 @@ const WaypointPanel = ({
               </div>
             )}
 
-            {/* PHASE 1: Edit mode help text */}
             {editingWaypointId === waypoint.id && (
               <div className="edit-help">
                 <small>Press Enter to save, Escape to cancel</small>

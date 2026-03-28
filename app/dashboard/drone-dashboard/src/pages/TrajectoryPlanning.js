@@ -1,7 +1,4 @@
 // src/pages/TrajectoryPlanning.js
-// PHASE 3 FIXES: Numbered waypoints, speed cautions, elevation estimation
-// CRITICAL FIXES: Map markers show numbers, speed violations as warnings only
-// ALL FIXES INTEGRATED: Search z-index, real terrain, corrected speed logic
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 
@@ -14,12 +11,11 @@ import WaypointModal from '../components/trajectory/WaypointModal';
 import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTrajectoryTransferDialog';
 import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
 
-// FIXED IMPORTS: Add new speed calculation functions and yaw utilities
 import { 
   calculateTrajectoryStats, 
   recalculateAfterDrag,
-  calculateWaypointSpeeds, // ADDED: New correct speed calculation
-  YAW_CONSTANTS // ADDED: Yaw constants
+  calculateWaypointSpeeds,
+  YAW_CONSTANTS
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
@@ -53,18 +49,6 @@ try {
   mapboxAvailable = false;
 }
 
-/**
- * TrajectoryPlanning Component - ALL PHASE 3 FIXES INTEGRATED
- * Fixed Features:
- * - Search suggestions appear above toolbar (z-index fix)
- * - Real terrain elevation API integration in waypoint modal
- * - CORRECTED speed logic: each waypoint shows speed FROM current TO next
- * - Numbered waypoint markers clearly visible on map
- * - Speed violations treated as cautions only (non-blocking)
- * - Dynamic color updates when speed issues resolve
- * - Basic elevation estimation (ground + 100m) for new waypoints
- * - Consistent integration with existing app architecture
- */
 // Leaflet click handler component for adding waypoints
 const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick }) => {
   useMapEvents({
@@ -201,12 +185,10 @@ const TrajectoryPlanning = () => {
     }
   }, [clearOperationNotice, setOperationNotice]);
 
-  // FIXED: Calculate trajectory statistics using corrected speed calculations
   const trajectoryStats = useMemo(() => {
     return calculateTrajectoryStats(waypoints);
   }, [waypoints]);
 
-  // CRITICAL FIX: Enhanced waypoint management with corrected speed logic
   const addWaypointWithData = useCallback((position, waypointData) => {
     // Always allow waypoint creation (Phase 3 requirement)
     const speedFeasible = true;
@@ -233,7 +215,6 @@ const TrajectoryPlanning = () => {
     // Create new waypoints array with the added waypoint
     const newWaypoints = [...waypoints, newWaypoint];
     
-    // CRITICAL FIX: Recalculate all speeds with correct FROM current TO next logic
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(newWaypoints);
 
     // Use state manager for undo/redo support
@@ -248,13 +229,11 @@ const TrajectoryPlanning = () => {
     setIsAddingWaypoint(false);
   }, [waypoints]);
 
-  // FIXED: Update waypoint with speed recalculation
   const updateWaypoint = useCallback((waypointId, updates) => {
     const updatedWaypoints = waypoints.map(wp => 
       wp.id === waypointId ? { ...wp, ...updates } : wp
     );
     
-    // CRITICAL FIX: Recalculate speeds after waypoint update
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(updatedWaypoints);
     
     stateManagerRef.current.executeAction(
@@ -269,11 +248,9 @@ const TrajectoryPlanning = () => {
     setSaveStatus({ saved: false, autoSaveTime: null });
   }, [waypoints]);
 
-  // FIXED: Delete waypoint with speed recalculation  
   const deleteWaypoint = useCallback((waypointId) => {
     const filteredWaypoints = waypoints.filter(wp => wp.id !== waypointId);
     
-    // CRITICAL FIX: Recalculate speeds after waypoint deletion
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(filteredWaypoints);
     
     stateManagerRef.current.executeAction(
@@ -291,7 +268,6 @@ const TrajectoryPlanning = () => {
     setSaveStatus({ saved: false, autoSaveTime: null });
   }, [waypoints, selectedWaypointId]);
 
-  // FIXED: Drag-drop handler with correct speed recalculation
   const handleMarkerDragEnd = useCallback((waypointId, newPosition) => {
     const updatedWaypoints = waypoints.map(wp =>
       wp.id === waypointId
@@ -299,7 +275,6 @@ const TrajectoryPlanning = () => {
         : wp
     );
 
-    // CRITICAL FIX: Use corrected drag recalculation logic
     const waypointsWithRecalculatedSpeeds = recalculateAfterDrag(updatedWaypoints, waypointId);
 
     stateManagerRef.current.executeAction(
@@ -327,7 +302,6 @@ const TrajectoryPlanning = () => {
     setSelectedWaypointId(waypointId);
   }, []);
 
-  // FIXED: Clear trajectory function
   const clearTrajectory = useCallback(() => {
     if (waypoints.length === 0) return;
 
@@ -353,11 +327,9 @@ const TrajectoryPlanning = () => {
     );
   }, [clearOperationNotice, setOperationNotice, waypoints.length]);
 
-  // FIXED: Undo/Redo with correct speed handling
   const handleUndo = useCallback(() => {
     const previousState = stateManagerRef.current.undo();
     if (previousState?.state) {
-      // CRITICAL FIX: Ensure undone state has correct speeds
       const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(previousState.state.waypoints || []);
 
       setWaypoints(waypointsWithCorrectSpeeds);
@@ -370,7 +342,6 @@ const TrajectoryPlanning = () => {
   const handleRedo = useCallback(() => {
     const nextState = stateManagerRef.current.redo();
     if (nextState?.state) {
-      // CRITICAL FIX: Ensure redone state has correct speeds
       const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(nextState.state.waypoints || []);
 
       setWaypoints(waypointsWithCorrectSpeeds);
@@ -706,7 +677,6 @@ const TrajectoryPlanning = () => {
     });
   }, []);
 
-  // FIXED: Get waypoint color based on index and corrected speed status
   const getWaypointColor = useCallback((waypoint, index) => {
     if (index === 0) return '#28a745'; // Start - Green
     if (index === waypoints.length - 1) return '#dc3545'; // End - Red
@@ -952,7 +922,6 @@ const TrajectoryPlanning = () => {
     );
   }
 
-  // Full Mapbox implementation with ALL PHASE 3 FIXES
   return (
     <div className="trajectory-planning">
       <input
@@ -1015,7 +984,6 @@ const TrajectoryPlanning = () => {
                 'default'
               }
             >
-              {/* FIXED: Terrain source for real elevation queries */}
               {showTerrain && (
                 <Source
                   id="mapbox-dem"
@@ -1026,7 +994,6 @@ const TrajectoryPlanning = () => {
                 />
               )}
 
-              {/* FIXED: Trajectory line visualization with corrected speed logic */}
               {waypoints.length > 1 && (
                 <Source
                   id="trajectory-line"
@@ -1063,7 +1030,6 @@ const TrajectoryPlanning = () => {
                 </Source>
               )}
 
-              {/* FIXED: Enhanced waypoint markers with numbers and speed warnings */}
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
@@ -1110,7 +1076,6 @@ const TrajectoryPlanning = () => {
                       {index + 1}
                     </div>
                     
-                    {/* PHASE 3: Speed warning badge */}
                     {!waypoint.speedFeasible && (
                       <div className="speed-warning-badge" title="Speed warning - check timing">
                         ⚠
@@ -1126,7 +1091,7 @@ const TrajectoryPlanning = () => {
               <div className="map-instruction-overlay">
                 <div className="instruction-content">
                   <span className="instruction-icon">📍</span>
-                  <span className="instruction-text">Click on the map to add waypoint with real terrain elevation</span>
+                  <span className="instruction-text">Click on the map to add a waypoint with terrain-aware altitude context</span>
                 </div>
               </div>
             )}
@@ -1135,7 +1100,7 @@ const TrajectoryPlanning = () => {
               <div className="map-instruction-overlay drag-mode">
                 <div className="instruction-content">
                   <span className="instruction-icon">✋</span>
-                  <span className="instruction-text">Dragging waypoint - speeds will recalculate automatically</span>
+                  <span className="instruction-text">Dragging a waypoint recalculates timing and speed automatically</span>
                 </div>
               </div>
             )}
@@ -1153,15 +1118,13 @@ const TrajectoryPlanning = () => {
         />
       </div>
 
-      {/* FIXED: Enhanced Waypoint Modal with real terrain integration */}
       <WaypointModal
         isOpen={modalOpen}
         onClose={handleModalClose}
         onConfirm={handleModalConfirm}
         position={pendingWaypointPosition}
         previousWaypoint={waypoints.length > 0 ? waypoints[waypoints.length - 1] : null}
-        waypointIndex={waypoints.length + 1} // FIXED: Correct index for display
-        mapRef={mapRef} // CRITICAL: Pass map reference for real terrain queries
+        waypointIndex={waypoints.length + 1}
       />
 
       {/* Save Dialog */}
