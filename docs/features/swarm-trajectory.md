@@ -171,6 +171,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - planner modal supports `MSL input` and `Target AGL`
   - waypoint review keeps the stored MSL altitude visible
   - terrain context (`groundElevation`, `terrainAccurate`, target AGL) is preserved through save/load/export
+- the planner header now publishes a mission brief before transfer:
+  - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place
+  - timing, altitude-input, heading, and terrain-confidence mixes are shown together instead of being buried per waypoint
+  - planner-to-swarm transfer now carries those same attention items forward so the leader assignment step does not hide speed or terrain caveats
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats

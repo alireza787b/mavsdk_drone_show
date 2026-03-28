@@ -74,6 +74,21 @@
   color: var(--color-success);
 }
 
+.swarm-transfer-alert--warning {
+  border: 1px solid rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--color-text-primary);
+}
+
+.swarm-transfer-alert__list {
+  margin: 0.45rem 0 0 1rem;
+  padding: 0;
+}
+
+.swarm-transfer-alert__list li + li {
+  margin-top: 0.25rem;
+}
+
 .swarm-transfer-loading,
 .swarm-transfer-empty,
 .swarm-transfer-note {

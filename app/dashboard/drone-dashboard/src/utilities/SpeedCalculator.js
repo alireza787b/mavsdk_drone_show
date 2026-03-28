@@ -509,15 +509,74 @@ export const validateWaypointSequence = (waypoints) => {
  * @returns {Object} Trajectory statistics
  */
 export const calculateTrajectoryStats = (waypoints) => {
+  const timingModeCounts = {
+    [TIMING_MODES.AUTO_SPEED]: 0,
+    [TIMING_MODES.MANUAL_TIME]: 0,
+  };
+  const altitudeReferenceCounts = {
+    [ALTITUDE_REFERENCE.MSL]: 0,
+    [ALTITUDE_REFERENCE.AGL]: 0,
+  };
+  const headingModeCounts = {
+    [YAW_CONSTANTS.AUTO]: 0,
+    [YAW_CONSTANTS.MANUAL]: 0,
+  };
+  const terrainCoverage = {
+    accurate: 0,
+    estimated: 0,
+    unknown: 0,
+  };
+  const speedStatusCounts = {
+    feasible: 0,
+    marginal: 0,
+    impossible: 0,
+    unknown: 0,
+  };
+
+  if (waypoints?.length) {
+    waypoints.forEach((waypoint, index) => {
+      const timingMode = waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
+      const altitudeReference = waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL;
+      const headingMode = waypoint.headingMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO);
+
+      timingModeCounts[timingMode] = (timingModeCounts[timingMode] || 0) + 1;
+      altitudeReferenceCounts[altitudeReference] = (altitudeReferenceCounts[altitudeReference] || 0) + 1;
+      headingModeCounts[headingMode] = (headingModeCounts[headingMode] || 0) + 1;
+
+      if (typeof waypoint.groundElevation === 'number') {
+        if (waypoint.terrainAccurate === true) {
+          terrainCoverage.accurate += 1;
+        } else {
+          terrainCoverage.estimated += 1;
+        }
+      } else {
+        terrainCoverage.unknown += 1;
+      }
+    });
+  }
+
   if (!waypoints || waypoints.length < 2) {
+    const soloAltitude = waypoints[0]?.altitude || 0;
+    const soloGroundElevation = typeof waypoints[0]?.groundElevation === 'number'
+      ? waypoints[0].groundElevation
+      : null;
+
     return {
       totalDistance: 0,
       totalTime: 0,
       maxSpeed: 0,
       avgSpeed: 0,
       speedWarnings: 0,
-      maxAltitude: waypoints[0]?.altitude || 0,
-      minAltitude: waypoints[0]?.altitude || 0,
+      maxAltitude: soloAltitude,
+      minAltitude: soloAltitude,
+      maxAgl: soloGroundElevation === null ? 0 : Math.max(0, soloAltitude - soloGroundElevation),
+      minAgl: soloGroundElevation === null ? 0 : Math.max(0, soloAltitude - soloGroundElevation),
+      timingModeCounts,
+      altitudeReferenceCounts,
+      headingModeCounts,
+      terrainCoverage,
+      speedStatusCounts,
+      maxSpeedStatus: 'unknown',
     };
   }
 
@@ -526,6 +585,12 @@ export const calculateTrajectoryStats = (waypoints) => {
   let speedWarnings = 0;
   let maxAlt = waypoints[0].altitude;
   let minAlt = waypoints[0].altitude;
+  let maxAgl = typeof waypoints[0].groundElevation === 'number'
+    ? Math.max(0, waypoints[0].altitude - waypoints[0].groundElevation)
+    : 0;
+  let minAgl = typeof waypoints[0].groundElevation === 'number'
+    ? Math.max(0, waypoints[0].altitude - waypoints[0].groundElevation)
+    : 0;
 
   // Calculate stats using corrected speed logic
   for (let i = 0; i < waypoints.length - 1; i++) {
@@ -535,14 +600,22 @@ export const calculateTrajectoryStats = (waypoints) => {
     // Calculate segment distance and speed FROM current TO next
     const segmentSpeed = calculateSpeed(curr, next);
     const segmentDistance = calculateSegmentDistance3D(curr, next);
+    const speedStatus = validateSpeed(segmentSpeed);
     
     totalDistance += segmentDistance;
     maxSpeed = Math.max(maxSpeed, segmentSpeed);
     maxAlt = Math.max(maxAlt, next.altitude);
     minAlt = Math.min(minAlt, next.altitude);
+    speedStatusCounts[speedStatus] = (speedStatusCounts[speedStatus] || 0) + 1;
+
+    if (typeof next.groundElevation === 'number') {
+      const nextAgl = Math.max(0, next.altitude - next.groundElevation);
+      maxAgl = Math.max(maxAgl, nextAgl);
+      minAgl = Math.min(minAgl, nextAgl);
+    }
 
     // Count speed warnings
-    if (validateSpeed(segmentSpeed) !== 'feasible') {
+    if (speedStatus !== 'feasible') {
       speedWarnings++;
     }
   }
@@ -565,6 +638,14 @@ export const calculateTrajectoryStats = (waypoints) => {
     speedWarnings,
     maxAltitude: maxAlt,
     minAltitude: minAlt,
+    maxAgl,
+    minAgl,
+    timingModeCounts,
+    altitudeReferenceCounts,
+    headingModeCounts,
+    terrainCoverage,
+    speedStatusCounts,
+    maxSpeedStatus: validateSpeed(maxSpeed),
   };
 };
 

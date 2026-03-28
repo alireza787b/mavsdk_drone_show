@@ -1,4 +1,6 @@
 import {
+  ALTITUDE_REFERENCE,
+  TIMING_MODES,
   YAW_CONSTANTS,
   calculateHeadingForNewWaypoint,
   calculateTrajectoryStats,
@@ -112,13 +114,24 @@ describe('SpeedCalculator', () => {
       latitude: 35.0,
       longitude: 51.0,
       altitude: 100,
+      altitudeReference: ALTITUDE_REFERENCE.MSL,
+      groundElevation: 80,
+      terrainAccurate: true,
+      timingMode: TIMING_MODES.MANUAL_TIME,
       timeFromStart: 0,
+      headingMode: YAW_CONSTANTS.MANUAL,
     };
     const toWaypoint = {
       latitude: 35.001,
       longitude: 51.0,
       altitude: 200,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      targetAgl: 120,
+      groundElevation: 85,
+      terrainAccurate: false,
+      timingMode: TIMING_MODES.AUTO_SPEED,
       timeFromStart: 10,
+      headingMode: YAW_CONSTANTS.AUTO,
     };
 
     const stats = calculateTrajectoryStats([fromWaypoint, toWaypoint]);
@@ -126,6 +139,27 @@ describe('SpeedCalculator', () => {
     expect(stats.totalDistance).toBeCloseTo(149.5, 0);
     expect(stats.avgSpeed).toBe(15);
     expect(stats.speedWarnings).toBe(1);
+    expect(stats.maxSpeedStatus).toBe('marginal');
+    expect(stats.minAgl).toBe(20);
+    expect(stats.maxAgl).toBe(115);
+    expect(stats.timingModeCounts).toEqual({
+      [TIMING_MODES.AUTO_SPEED]: 1,
+      [TIMING_MODES.MANUAL_TIME]: 1,
+    });
+    expect(stats.altitudeReferenceCounts).toEqual({
+      [ALTITUDE_REFERENCE.MSL]: 1,
+      [ALTITUDE_REFERENCE.AGL]: 1,
+    });
+    expect(stats.headingModeCounts).toEqual({
+      [YAW_CONSTANTS.AUTO]: 1,
+      [YAW_CONSTANTS.MANUAL]: 1,
+    });
+    expect(stats.terrainCoverage).toEqual({
+      accurate: 1,
+      estimated: 1,
+      unknown: 0,
+    });
+    expect(stats.speedStatusCounts.marginal).toBe(1);
 
     const suggestedTime = suggestOptimalTime(
       fromWaypoint,

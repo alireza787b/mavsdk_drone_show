@@ -20,6 +20,39 @@ const formatTime = (time = 0) => {
   return `${Math.round(time)}s`;
 };
 
+const formatAltitudeMix = (stats = {}) => {
+  const counts = stats.altitudeReferenceCounts || {};
+  return `MSL ${counts.msl || 0} · AGL ${counts.agl || 0}`;
+};
+
+const formatTerrainMix = (stats = {}) => {
+  const terrain = stats.terrainCoverage || {};
+  return `Accurate ${terrain.accurate || 0} · Estimated ${(terrain.estimated || 0) + (terrain.unknown || 0)}`;
+};
+
+const buildAttentionItems = (stats = {}) => {
+  const items = [];
+  const terrain = stats.terrainCoverage || {};
+  const speedStatusCounts = stats.speedStatusCounts || {};
+
+  if ((speedStatusCounts.impossible || 0) > 0) {
+    items.push(`${speedStatusCounts.impossible} leg${speedStatusCounts.impossible === 1 ? '' : 's'} exceed the safe speed envelope.`);
+  } else if ((stats.speedWarnings || 0) > 0) {
+    items.push(`${stats.speedWarnings} leg${stats.speedWarnings === 1 ? '' : 's'} require elevated speed review.`);
+  }
+
+  const terrainAttentionCount = (terrain.estimated || 0) + (terrain.unknown || 0);
+  if (terrainAttentionCount > 0) {
+    items.push(`${terrainAttentionCount} waypoint${terrainAttentionCount === 1 ? '' : 's'} use estimated or missing terrain data.`);
+  }
+
+  if ((stats.altitudeReferenceCounts?.agl || 0) > 0) {
+    items.push('AGL entries are stored as MSL after applying the current ground estimate.');
+  }
+
+  return items;
+};
+
 const getClusterStatusLabel = (cluster) => {
   if (cluster.ready) {
     return 'Ready';
@@ -67,10 +100,13 @@ const SwarmTrajectoryTransferDialog = ({
   waypointCount = 0,
   totalDistance = 0,
   totalTime = 0,
+  stats = {},
 }) => {
   if (!isOpen) {
     return null;
   }
+
+  const attentionItems = buildAttentionItems(stats);
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -106,7 +142,26 @@ const SwarmTrajectoryTransferDialog = ({
             <span className="swarm-transfer-summary__label">Duration</span>
             <strong>{formatTime(totalTime)}</strong>
           </div>
+          <div className="swarm-transfer-summary__item">
+            <span className="swarm-transfer-summary__label">Altitude Plan</span>
+            <strong>{formatAltitudeMix(stats)}</strong>
+          </div>
+          <div className="swarm-transfer-summary__item">
+            <span className="swarm-transfer-summary__label">Terrain</span>
+            <strong>{formatTerrainMix(stats)}</strong>
+          </div>
         </div>
+
+        {attentionItems.length > 0 ? (
+          <div className="swarm-transfer-alert swarm-transfer-alert--warning" role="status">
+            <strong>Mission brief attention items</strong>
+            <ul className="swarm-transfer-alert__list">
+              {attentionItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="swarm-transfer-alert swarm-transfer-alert--error" role="alert">
@@ -230,6 +285,7 @@ SwarmTrajectoryTransferDialog.propTypes = {
   waypointCount: PropTypes.number,
   totalDistance: PropTypes.number,
   totalTime: PropTypes.number,
+  stats: PropTypes.object,
 };
 
 export default SwarmTrajectoryTransferDialog;

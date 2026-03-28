@@ -735,6 +735,7 @@ const TrajectoryPlanning = () => {
       waypointCount={waypoints.length}
       totalDistance={trajectoryStats.totalDistance}
       totalTime={trajectoryStats.totalTime}
+      stats={trajectoryStats}
     />
   );
 
