@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
+import { buildTrajectoryAttentionItems } from '../../utilities/SpeedCalculator';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
 
@@ -28,29 +29,6 @@ const formatAltitudeMix = (stats = {}) => {
 const formatTerrainMix = (stats = {}) => {
   const terrain = stats.terrainCoverage || {};
   return `Accurate ${terrain.accurate || 0} · Estimated ${(terrain.estimated || 0) + (terrain.unknown || 0)}`;
-};
-
-const buildAttentionItems = (stats = {}) => {
-  const items = [];
-  const terrain = stats.terrainCoverage || {};
-  const speedStatusCounts = stats.speedStatusCounts || {};
-
-  if ((speedStatusCounts.impossible || 0) > 0) {
-    items.push(`${speedStatusCounts.impossible} leg${speedStatusCounts.impossible === 1 ? '' : 's'} exceed the safe speed envelope.`);
-  } else if ((stats.speedWarnings || 0) > 0) {
-    items.push(`${stats.speedWarnings} leg${stats.speedWarnings === 1 ? '' : 's'} require elevated speed review.`);
-  }
-
-  const terrainAttentionCount = (terrain.estimated || 0) + (terrain.unknown || 0);
-  if (terrainAttentionCount > 0) {
-    items.push(`${terrainAttentionCount} waypoint${terrainAttentionCount === 1 ? '' : 's'} use estimated or missing terrain data.`);
-  }
-
-  if ((stats.altitudeReferenceCounts?.agl || 0) > 0) {
-    items.push('AGL entries are stored as MSL after applying the current ground estimate.');
-  }
-
-  return items;
 };
 
 const getClusterStatusLabel = (cluster) => {
@@ -106,7 +84,7 @@ const SwarmTrajectoryTransferDialog = ({
     return null;
   }
 
-  const attentionItems = buildAttentionItems(stats);
+  const attentionItems = buildTrajectoryAttentionItems(stats).map((item) => item.text);
 
   return (
     <div className="dialog-overlay" onClick={onClose}>

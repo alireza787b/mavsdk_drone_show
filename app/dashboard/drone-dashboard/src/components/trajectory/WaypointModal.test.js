@@ -87,6 +87,10 @@ describe('WaypointModal', () => {
       expect(Number(screen.getByLabelText(/time from start/i).value)).toBe(38);
     });
 
+    expect(screen.getByText(/segment plan/i)).toBeInTheDocument();
+    expect(screen.getByText(/auto from leg speed/i)).toBeInTheDocument();
+    expect(screen.getByText(/4\.0 m\/s target -> 38s eta/i)).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
@@ -157,6 +161,10 @@ describe('WaypointModal', () => {
     fireEvent.change(screen.getByLabelText(/target height \(agl\)/i), {
       target: { value: '120' },
     });
+
+    expect(screen.getByText(/stored as 320\.0m msl/i)).toBeInTheDocument();
+    expect(screen.getByText(/estimated terrain/i)).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({

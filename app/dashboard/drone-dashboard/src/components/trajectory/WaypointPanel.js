@@ -321,6 +321,40 @@ const WaypointPanel = ({
     return 8;
   };
 
+  const buildIntentTags = (waypoint, index) => {
+    const tags = [];
+    tags.push({
+      tone: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
+      text: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input',
+    });
+
+    if (index > 0) {
+      tags.push({
+        tone: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'info' : 'neutral',
+        text: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'Auto from speed' : 'Manual arrival',
+      });
+    } else {
+      tags.push({
+        tone: 'neutral',
+        text: 'Mission start',
+      });
+    }
+
+    tags.push({
+      tone: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
+      text: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading',
+    });
+
+    if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
+      tags.push({
+        tone: waypoint.terrainAccurate === false ? 'warning' : 'success',
+        text: waypoint.terrainAccurate === false ? 'Terrain estimated' : 'Terrain verified',
+      });
+    }
+
+    return tags;
+  };
+
   const formatTimingMode = (waypoint) =>
     getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'Auto from speed' : 'Manual arrival';
 
@@ -519,6 +553,14 @@ const WaypointPanel = ({
                 </button>
               </div>
             </div>
+
+            <div className="waypoint-intent-tags">
+              {buildIntentTags(waypoint, index).map((tag) => (
+                <span key={`${waypoint.id}-${tag.text}`} className={`waypoint-intent-tag waypoint-intent-tag--${tag.tone}`}>
+                  {tag.text}
+                </span>
+              ))}
+            </div>
             
             <div className="waypoint-details">
               <div className="detail-row">
@@ -559,7 +601,7 @@ const WaypointPanel = ({
               ) : null}
               
               <div className="detail-row">
-                <span className="detail-label">Time:</span>
+                <span className="detail-label">Arrival:</span>
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
                   <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Segment Plan or Leg Speed to change it.">
                     {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
@@ -615,6 +657,17 @@ const WaypointPanel = ({
                   </div>
                 </div>
               )}
+
+              {index > 0 && getSpeedStatus(waypoint.estimatedSpeed || 0) !== 'feasible' ? (
+                <div className="detail-row timing-row">
+                  <span className="detail-label">Leg Review:</span>
+                  <span className={`detail-value speed-review speed-review--${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
+                    {getSpeedStatus(waypoint.estimatedSpeed || 0) === 'marginal'
+                      ? 'Review timing or spacing before launch'
+                      : 'Outside nominal envelope; adjust timing before launch'}
+                  </span>
+                </div>
+              ) : null}
               
               <div className="detail-row heading-row">
                 <span className="detail-label">Heading:</span>

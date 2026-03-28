@@ -205,6 +205,42 @@ export const getSpeedDescription = (speed) => {
   }
 };
 
+export const buildTrajectoryAttentionItems = (stats = {}) => {
+  const items = [];
+  const terrainCoverage = stats.terrainCoverage || {};
+  const altitudeModes = stats.altitudeReferenceCounts || {};
+  const speedStatusCounts = stats.speedStatusCounts || {};
+
+  if ((speedStatusCounts.impossible || 0) > 0) {
+    items.push({
+      tone: 'danger',
+      text: `${speedStatusCounts.impossible} leg${speedStatusCounts.impossible === 1 ? '' : 's'} exceed the safe speed envelope.`,
+    });
+  } else if ((stats.speedWarnings || 0) > 0) {
+    items.push({
+      tone: 'warning',
+      text: `${stats.speedWarnings} leg${stats.speedWarnings === 1 ? ' requires' : 's require'} elevated speed review.`,
+    });
+  }
+
+  const terrainAttentionCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
+  if (terrainAttentionCount > 0) {
+    items.push({
+      tone: 'warning',
+      text: `${terrainAttentionCount} waypoint${terrainAttentionCount === 1 ? '' : 's'} use estimated or missing terrain data.`,
+    });
+  }
+
+  if ((altitudeModes.agl || 0) > 0) {
+    items.push({
+      tone: 'info',
+      text: 'AGL entries are stored as MSL after applying the current ground estimate.',
+    });
+  }
+
+  return items;
+};
+
 /**
  * Calculate waypoint speeds and yaw using the outgoing leg as the authoritative segment.
  * - Each waypoint (except last) shows the speed needed from current to next waypoint

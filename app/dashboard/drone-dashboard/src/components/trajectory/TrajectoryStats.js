@@ -1,6 +1,7 @@
 //app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryStats.js
 import React from 'react';
 import PropTypes from 'prop-types';
+import { buildTrajectoryAttentionItems } from '../../utilities/SpeedCalculator';
 import '../../styles/TrajectoryStats.css';
 
 const TrajectoryStats = ({ stats }) => {
@@ -35,7 +36,6 @@ const TrajectoryStats = ({ stats }) => {
   const altitudeModes = stats.altitudeReferenceCounts || {};
   const headingModes = stats.headingModeCounts || {};
   const terrainCoverage = stats.terrainCoverage || {};
-  const speedStatusCounts = stats.speedStatusCounts || {};
 
   const briefSignals = [
     {
@@ -76,34 +76,7 @@ const TrajectoryStats = ({ stats }) => {
     },
   ];
 
-  const attentionItems = [];
-
-  if ((speedStatusCounts.impossible || 0) > 0) {
-    attentionItems.push({
-      tone: 'danger',
-      text: `${speedStatusCounts.impossible} leg${speedStatusCounts.impossible === 1 ? '' : 's'} exceed the safe speed envelope.`,
-    });
-  } else if (stats.speedWarnings > 0) {
-    attentionItems.push({
-      tone: 'warning',
-      text: `${stats.speedWarnings} leg${stats.speedWarnings === 1 ? ' requires' : 's require'} elevated speed review.`,
-    });
-  }
-
-  if ((terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0) > 0) {
-    const terrainAttentionCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
-    attentionItems.push({
-      tone: 'warning',
-      text: `${terrainAttentionCount} waypoint${terrainAttentionCount === 1 ? '' : 's'} use estimated or missing terrain data.`,
-    });
-  }
-
-  if ((altitudeModes.agl || 0) > 0) {
-    attentionItems.push({
-      tone: 'info',
-      text: 'AGL entries are stored as MSL after applying the current ground estimate.',
-    });
-  }
+  const attentionItems = buildTrajectoryAttentionItems(stats);
 
   return (
     <div className="trajectory-brief" aria-label="Trajectory mission brief">

@@ -475,6 +475,57 @@
   border-left: 3px solid #dc3545;
 }
 
+.waypoint-authoring-brief {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.waypoint-authoring-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.waypoint-authoring-card--success {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.waypoint-authoring-card--info {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.waypoint-authoring-card--warning {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.waypoint-authoring-card--danger {
+  border-color: rgba(220, 38, 38, 0.45);
+}
+
+.waypoint-authoring-card__label {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.waypoint-authoring-card__value {
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.waypoint-authoring-card__detail {
+  font-size: 0.76rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
 /* =============================================== */
 /* VALIDATION MESSAGES */
 /* =============================================== */
@@ -742,6 +793,9 @@
 }
 
 @media (max-width: 480px) {
+  .waypoint-authoring-brief {
+    grid-template-columns: 1fr;
+  }
   .waypoint-modal {
     width: 98%;
     margin: 0.5rem;

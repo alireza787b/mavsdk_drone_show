@@ -276,11 +276,92 @@
   gap: var(--spacing-lg);
 }
 
+.trajectory-workflow-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem var(--spacing-lg) 0.95rem;
+  background: rgba(15, 23, 42, 0.78);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.trajectory-workflow-brief__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.trajectory-workflow-brief__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(30, 41, 59, 0.54);
+}
+
+.trajectory-workflow-brief__label {
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.92);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trajectory-workflow-brief__value {
+  font-size: 0.96rem;
+  color: #f8fafc;
+}
+
+.trajectory-workflow-brief__detail {
+  font-size: 0.78rem;
+  color: rgba(203, 213, 225, 0.86);
+  line-height: 1.45;
+}
+
+.trajectory-workflow-brief__alerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.trajectory-workflow-brief__alert {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.trajectory-workflow-brief__alert--info {
+  color: #0f172a;
+  background: rgba(56, 189, 248, 0.9);
+}
+
+.trajectory-workflow-brief__alert--warning {
+  color: #111827;
+  background: rgba(245, 158, 11, 0.9);
+}
+
+.trajectory-workflow-brief__alert--danger {
+  color: #f8fafc;
+  background: rgba(220, 38, 38, 0.9);
+}
+
 /* =============================================== */
 /* RESPONSIVE IMPROVEMENTS */
 /* =============================================== */
 
 @media (max-width: 768px) {
+  .trajectory-workflow-brief {
+    padding: 0.75rem 1rem;
+  }
+
+  .trajectory-workflow-brief__cards {
+    grid-template-columns: 1fr;
+  }
+
   .features-grid {
     grid-template-columns: 1fr;
   }

@@ -403,10 +403,65 @@ const WaypointModal = ({
     }
   };
 
+  const getSpeedStatusLabel = (status) => {
+    switch (status) {
+      case 'feasible':
+        return 'Nominal';
+      case 'marginal':
+        return 'Attention';
+      case 'impossible':
+        return 'Outside Envelope';
+      default:
+        return 'Pending';
+    }
+  };
+
   const isUnderground = altitude < groundElevation;
   const aglAltitude = Math.max(0, altitude - groundElevation);
   const previousTime = previousWaypoint?.timeFromStart || 0;
   const legDuration = Math.max(0, timeFromStart - previousTime);
+  const authoringCards = [
+    {
+      label: 'Altitude Plan',
+      value: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input',
+      detail: `Stored as ${altitude.toFixed(1)}m MSL`,
+      tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
+    },
+    {
+      label: 'Segment Plan',
+      value: previousWaypoint
+        ? timingMode === TIMING_MODES.AUTO_SPEED
+          ? 'Auto from leg speed'
+          : 'Manual arrival'
+        : 'Mission start',
+      detail: previousWaypoint
+        ? timingMode === TIMING_MODES.AUTO_SPEED
+          ? `${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s ETA • ${getSpeedStatusLabel(speedStatus)}`
+          : `${timeFromStart.toFixed(0)}s ETA -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}`
+        : 'Sets the mission entry point for this leader.',
+      tone: previousWaypoint
+        ? speedStatus === 'impossible'
+          ? 'danger'
+          : speedStatus === 'marginal'
+            ? 'warning'
+            : 'neutral'
+        : 'neutral',
+    },
+    {
+      label: 'Heading',
+      value: headingMode === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading',
+      detail: headingMode === YAW_CONSTANTS.AUTO
+        ? `${formatHeading(calculatedHeading)} toward next leg`
+        : `${formatHeading(heading)} locked by operator`,
+      tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
+    },
+    {
+      label: 'Terrain',
+      value: terrainError ? 'Estimated terrain' : 'Accurate terrain',
+      detail: `Ground ${groundElevation.toFixed(1)}m MSL`,
+      tone: terrainError ? 'warning' : 'success',
+    },
+  ];
 
   if (!isOpen) return null;
 
@@ -719,6 +774,16 @@ const WaypointModal = ({
               </div>
             </div>
           )}
+
+          <div className="waypoint-authoring-brief" aria-label="Waypoint authoring brief">
+            {authoringCards.map((card) => (
+              <div key={card.label} className={`waypoint-authoring-card waypoint-authoring-card--${card.tone}`}>
+                <span className="waypoint-authoring-card__label">{card.label}</span>
+                <strong className="waypoint-authoring-card__value">{card.value}</strong>
+                <span className="waypoint-authoring-card__detail">{card.detail}</span>
+              </div>
+            ))}
+          </div>
 
           {validationMessage && (
             <div className={`validation-message ${validationMessage.tone || 'warning'}`} aria-live="polite">

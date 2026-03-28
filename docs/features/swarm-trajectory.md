@@ -175,6 +175,13 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place
   - timing, altitude-input, heading, and terrain-confidence mixes are shown together instead of being buried per waypoint
   - planner-to-swarm transfer now carries those same attention items forward so the leader assignment step does not hide speed or terrain caveats
+- the planner workspace itself now repeats that same operator truth before transfer:
+  - `Trajectory Planning` now declares that it authors top-leader paths only
+  - launch readiness, speed-review needs, and terrain caveats stay visible above the map instead of being hidden inside the waypoint modal
+  - per-waypoint cards now show altitude-reference, timing-mode, heading-mode, and terrain-confidence tags for faster audit before launch
+- the waypoint modal now closes the last ambiguity around operator intent:
+  - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
+  - speed-driven legs and manual-arrival legs explain what is derived versus what is operator-pinned
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping

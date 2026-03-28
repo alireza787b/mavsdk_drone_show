@@ -121,6 +121,7 @@ describe('WaypointPanel', () => {
       groundElevation: 200,
       targetAgl: 120,
       altitudeReference: ALTITUDE_REFERENCE.AGL,
+      terrainAccurate: false,
       timeFromStart: 24,
       estimatedSpeed: 8,
       timingMode: TIMING_MODES.AUTO_SPEED,
@@ -135,5 +136,8 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Height AGL:')).toBeInTheDocument();
     expect(screen.getByText('120.0m')).toBeInTheDocument();
     expect(screen.getByText('Target AGL')).toBeInTheDocument();
+    expect(screen.getByText('Auto from speed')).toBeInTheDocument();
+    expect(screen.getByText('Auto heading')).toBeInTheDocument();
+    expect(screen.getByText('Terrain estimated')).toBeInTheDocument();
   });
 });

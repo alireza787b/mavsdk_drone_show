@@ -2,6 +2,7 @@ import {
   ALTITUDE_REFERENCE,
   TIMING_MODES,
   YAW_CONSTANTS,
+  buildTrajectoryAttentionItems,
   calculateHeadingForNewWaypoint,
   calculateTrajectoryStats,
   calculateWaypointSpeeds,
@@ -168,5 +169,41 @@ describe('SpeedCalculator', () => {
       200
     );
     expect(suggestedTime).toBe(15);
+  });
+
+  test('buildTrajectoryAttentionItems surfaces speed, terrain, and AGL caveats from shared stats truth', () => {
+    const items = buildTrajectoryAttentionItems({
+      speedWarnings: 2,
+      altitudeReferenceCounts: {
+        [ALTITUDE_REFERENCE.MSL]: 1,
+        [ALTITUDE_REFERENCE.AGL]: 2,
+      },
+      terrainCoverage: {
+        accurate: 1,
+        estimated: 1,
+        unknown: 1,
+      },
+      speedStatusCounts: {
+        feasible: 1,
+        marginal: 2,
+        impossible: 0,
+        unknown: 0,
+      },
+    });
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        tone: 'warning',
+        text: '2 legs require elevated speed review.',
+      }),
+      expect.objectContaining({
+        tone: 'warning',
+        text: '2 waypoints use estimated or missing terrain data.',
+      }),
+      expect.objectContaining({
+        tone: 'info',
+        text: 'AGL entries are stored as MSL after applying the current ground estimate.',
+      }),
+    ]);
   });
 });
