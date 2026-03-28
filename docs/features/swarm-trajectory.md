@@ -120,8 +120,11 @@ Important:
 - only **top leaders** are authored/uploaded in this mode
 - follower paths are **generated later** from the current swarm hierarchy and offsets
 - this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
-- planner waypoint altitude is currently authored in **MSL**
-- terrain lookup is used to show **derived AGL context**, not to switch the mission into a separate AGL-authoring mode
+- mission altitude is still stored and executed in **MSL**
+- planner altitude entry now supports:
+  - **MSL input** for direct altitude authoring
+  - **Target AGL** for terrain-assisted planning
+- terrain lookup provides the ground reference used for AGL entry and always shows the canonical stored MSL altitude alongside it
 - every non-initial waypoint now supports two explicit segment-planning modes:
   - **Auto from leg speed**: operator chooses preferred speed and the planner derives arrival time
   - **Manual arrival time**: operator pins the arrival time and the planner shows the required speed
@@ -164,6 +167,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - modal defaults are speed-driven for later waypoints
   - the waypoint panel now shows `Segment Plan` and `Leg Speed` inline
   - derived arrival times are shown as derived, not as a misleading free-edit field
+- altitude authoring now makes operator intent explicit too:
+  - planner modal supports `MSL input` and `Target AGL`
+  - waypoint review keeps the stored MSL altitude visible
+  - terrain context (`groundElevation`, `terrainAccurate`, target AGL) is preserved through save/load/export
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
@@ -243,6 +250,8 @@ Current truth model:
 - operators should treat cluster readiness as authoritative, not only processed file counts
 - runtime completion should be judged from the command tracker plus fleet idle state, not only from early in-flight geometry success
 - planner state now keeps a richer waypoint contract through modal -> panel -> save/load/export -> undo/redo:
+  - `altitudeReference`
+  - `targetAgl`
   - `timingMode`
   - `preferredSpeed`
   - `groundElevation`
