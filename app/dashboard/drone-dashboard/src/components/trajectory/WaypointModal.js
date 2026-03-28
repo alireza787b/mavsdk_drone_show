@@ -22,7 +22,7 @@ const WaypointModal = ({
   onConfirm,
   position,
   previousWaypoint,
-  waypointIndex,
+  waypointIndex = 1,
   // mapRef // no longer needed for elevation queries, keep if used elsewhere
 }) => {
   const [altitude, setAltitude] = useState(100);
@@ -601,12 +601,6 @@ WaypointModal.propTypes = {
   previousWaypoint: PropTypes.object,
   waypointIndex: PropTypes.number,
   // mapRef: PropTypes.object.isRequired, // Remove if not used elsewhere
-};
-
-WaypointModal.defaultProps = {
-  position: null,
-  previousWaypoint: null,
-  waypointIndex: 1,
 };
 
 export default WaypointModal;
