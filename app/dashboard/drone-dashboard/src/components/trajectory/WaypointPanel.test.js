@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import WaypointPanel from './WaypointPanel';
 import { TIMING_MODES, YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
 
@@ -67,7 +67,8 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    fireEvent.click(screen.getByText('8.0m/s'));
+    const legSpeedRow = screen.getByText(/leg speed:/i).closest('.detail-row');
+    fireEvent.click(within(legSpeedRow).getByText('8.0m/s'));
     fireEvent.change(screen.getByPlaceholderText(/preferred speed \(m\/s\)/i), {
       target: { value: '4' },
     });
@@ -99,8 +100,9 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    fireEvent.click(screen.getByText(/auto from speed/i));
-    fireEvent.change(screen.getByDisplayValue(/auto from leg speed/i), {
+    const segmentPlanRow = screen.getByText(/segment plan:/i).closest('.detail-row');
+    fireEvent.click(within(segmentPlanRow).getByText(/auto from speed/i));
+    fireEvent.change(screen.getByRole('combobox'), {
       target: { value: TIMING_MODES.MANUAL_TIME },
     });
     fireEvent.click(screen.getByTitle('Save (Enter)'));

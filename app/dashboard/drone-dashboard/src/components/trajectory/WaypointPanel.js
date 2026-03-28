@@ -32,7 +32,9 @@ const WaypointPanel = ({
   useEffect(() => {
     if (editingWaypointId && editInputRef.current) {
       editInputRef.current.focus();
-      editInputRef.current.select();
+      if (typeof editInputRef.current.select === 'function') {
+        editInputRef.current.select();
+      }
     }
   }, [editingWaypointId]);
 
