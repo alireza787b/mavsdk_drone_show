@@ -62,7 +62,7 @@ describe('MissionReadinessCard', () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <MissionReadinessCard refreshTrigger={0} />
       </MemoryRouter>
     );
@@ -77,7 +77,7 @@ describe('MissionReadinessCard', () => {
     expect(screen.getByText('Processed Drones')).toBeInTheDocument();
     expect(screen.getByText('4/5')).toBeInTheDocument();
     expect(screen.getByText('Active Session')).toBeInTheDocument();
-    expect(screen.getByText('20260328_173515')).toBeInTheDocument();
+    expect(screen.getAllByText('20260328_173515')).toHaveLength(2);
     expect(screen.getByText('1 cluster still needs follower regeneration or output review.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByRole('link', { name: 'Swarm Trajectory' })).toHaveAttribute('href', '/swarm-trajectory');
