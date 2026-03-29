@@ -4,10 +4,12 @@ import '../styles/MissionDetails.css';
 import { DRONE_MISSION_IMAGES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import MissionReadinessCard from './MissionReadinessCard';
 import useFetch from '../hooks/useFetch';
+import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
 import {
   buildCommandSchedule,
   COMMAND_SCHEDULE_MODES,
 } from '../utilities/commandScheduling';
+import { buildSwarmTrajectoryLaunchReadiness } from '../utilities/swarmTrajectoryLaunchReadiness';
 
 const MissionDetails = ({
   missionType,
@@ -56,6 +58,7 @@ const MissionDetails = ({
   const showModeHints = missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV;
   const customShowHints = missionType === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW;
   const smartSwarmHints = missionType === DRONE_MISSION_TYPES.SMART_SWARM;
+  const swarmTrajectoryHints = missionType === DRONE_MISSION_TYPES.SWARM_TRAJECTORY;
   const { data: showInfo, error: showInfoError, loading: showInfoLoading } = useFetch(
     showModeHints ? '/get-show-info' : null
   );
@@ -65,6 +68,24 @@ const MissionDetails = ({
   const { data: smartSwarmInfo, error: smartSwarmError, loading: smartSwarmLoading } = useFetch(
     smartSwarmHints ? '/api/swarm/leaders' : null
   );
+  const {
+    data: swarmTrajectoryStatus,
+    error: swarmTrajectoryStatusError,
+    loading: swarmTrajectoryStatusLoading,
+    refresh: refreshSwarmTrajectoryStatus,
+  } = useSwarmClusterStatus({
+    enabled: swarmTrajectoryHints,
+    intervalMs: 5000,
+    refreshTrigger: 0,
+  });
+  const swarmTrajectoryReadiness = buildSwarmTrajectoryLaunchReadiness({
+    clusterStatus: swarmTrajectoryStatus,
+    loading: swarmTrajectoryStatusLoading,
+    error: swarmTrajectoryStatusError,
+  });
+  const swarmTrajectoryBlockers = swarmTrajectoryReadiness.blockers;
+  const swarmTrajectoryWarnings = swarmTrajectoryReadiness.warnings;
+  const swarmTrajectorySummary = swarmTrajectoryReadiness.summary;
   
   // Extract deviation summary
   const deviationSummary = deviationData?.summary || null;
@@ -162,6 +183,7 @@ const MissionDetails = ({
   const customShowWarnings = [];
   const smartSwarmBlockers = [];
   const smartSwarmWarnings = [];
+  const swarmTrajectoryWarningsList = [...swarmTrajectoryWarnings];
 
   if (showModeHints && showInfoLoading) {
     droneShowBlockers.push('Verifying imported Drone Show package...');
@@ -243,20 +265,34 @@ const MissionDetails = ({
     }
   }
 
+  if (
+    swarmTrajectoryHints
+    && swarmTrajectoryReadiness.canLaunch
+    && swarmTrajectorySummary.session.exists
+    && swarmTrajectorySummary.readyClusterCount > 0
+    && swarmTrajectorySummary.advisoryCount === 0
+  ) {
+    swarmTrajectoryWarningsList.push('Processed swarm package is active. Confirm the final plots match the intended leader paths before launch.');
+  }
+
   const missionBlockers = showModeHints
     ? droneShowBlockers
     : customShowHints
       ? customShowBlockers
       : smartSwarmHints
         ? smartSwarmBlockers
-        : [];
+        : swarmTrajectoryHints
+          ? swarmTrajectoryBlockers
+          : [];
   const missionWarnings = showModeHints
     ? droneShowWarnings
     : customShowHints
       ? customShowWarnings
       : smartSwarmHints
         ? smartSwarmWarnings
-        : [];
+        : swarmTrajectoryHints
+          ? swarmTrajectoryWarningsList
+          : [];
   const canSendMission = missionBlockers.length === 0 && !schedulePreview.error;
   
   // Find drones with worst deviation (with tolerance for floating point comparison)
@@ -553,7 +589,72 @@ const MissionDetails = ({
 
       {/* Enhanced Mission Readiness for Swarm Trajectory Mode */}
       {missionType === DRONE_MISSION_TYPES.SWARM_TRAJECTORY && (
-        <MissionReadinessCard refreshTrigger={0} />
+        <MissionReadinessCard
+          refreshTrigger={0}
+          clusterStatus={swarmTrajectoryStatus}
+          loading={swarmTrajectoryStatusLoading}
+          error={swarmTrajectoryStatusError}
+          onRefresh={refreshSwarmTrajectoryStatus}
+        />
+      )}
+
+      {swarmTrajectoryHints && (
+        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
+          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-content">
+            <strong>Swarm Trajectory Launch Snapshot</strong>
+            <div className="origin-confirmation">
+              <div className="origin-info-row">
+                <span className="origin-label">Ready clusters:</span>
+                <span className="origin-coords">
+                  {swarmTrajectorySummary.readyClusterCount}/{swarmTrajectorySummary.clusterCount || 0}
+                </span>
+              </div>
+              <div className="origin-info-row">
+                <span className="origin-label">Processed drones:</span>
+                <span className="origin-coords">
+                  {swarmTrajectorySummary.processedDroneCount}/{swarmTrajectorySummary.expectedDroneCount || swarmTrajectorySummary.processedDroneCount || 0}
+                </span>
+              </div>
+              <div className="origin-info-row">
+                <span className="origin-label">Active package:</span>
+                <span className="origin-coords">
+                  {swarmTrajectorySummary.session.exists
+                    ? swarmTrajectorySummary.session.session_id
+                    : 'Not processed yet'}
+                </span>
+              </div>
+            </div>
+
+            {missionBlockers.length > 0 && (
+              <ul>
+                {missionBlockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            )}
+
+            {missionWarnings.length > 0 && (
+              <ul>
+                {missionWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            )}
+
+            <p>
+              Review the authored leaders in{' '}
+              <Link to="/trajectory-planning" className="origin-link">
+                Trajectory Planning
+              </Link>{' '}
+              and the processed package in{' '}
+              <Link to="/swarm-trajectory" className="origin-link">
+                Swarm Trajectory
+              </Link>{' '}
+              before scheduling Mission Type 4.
+            </p>
+          </div>
+        </div>
       )}
 
       {smartSwarmHints && (

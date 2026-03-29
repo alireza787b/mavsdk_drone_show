@@ -1,33 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getSwarmClusterStatus } from '../services/droneApiService';
+import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
 import '../styles/MissionReadinessCard.css';
 
-const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
-  const [clusterStatus, setClusterStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+const MissionReadinessCard = ({
+  refreshTrigger = 0,
+  clusterStatus: externalClusterStatus = null,
+  loading: externalLoading = null,
+  error: externalError = null,
+  onRefresh = null,
+}) => {
   const [expandedClusters, setExpandedClusters] = useState(new Set());
   const [lightboxImage, setLightboxImage] = useState(null);
 
-  useEffect(() => {
-    fetchMissionReadiness();
-  }, [refreshTrigger]);
+  const hasExternalState = externalClusterStatus !== null || externalLoading !== null || externalError !== null;
+  const {
+    data: fetchedClusterStatus,
+    loading: fetchedLoading,
+    error: fetchedError,
+    refresh: refreshClusterStatus,
+  } = useSwarmClusterStatus({
+    enabled: !hasExternalState,
+    intervalMs: null,
+    refreshTrigger,
+  });
 
-  const fetchMissionReadiness = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getSwarmClusterStatus();
-      setClusterStatus(data);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch mission readiness:', err);
-      setError('Failed to load mission status');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const clusterStatus = hasExternalState ? externalClusterStatus : fetchedClusterStatus;
+  const loading = hasExternalState ? Boolean(externalLoading) : fetchedLoading;
+  const error = hasExternalState
+    ? (typeof externalError === 'string' ? externalError : externalError?.message || null)
+    : (fetchedError?.message || null);
+  const handleRefresh = onRefresh || refreshClusterStatus;
 
   const toggleCluster = (clusterId) => {
     setExpandedClusters(prev => {
@@ -122,9 +125,6 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
         <div className="error-content">
           <span className="error-icon">⚠️</span>
           <span className="error-text">{error}</span>
-          <button className="retry-btn" onClick={fetchMissionReadiness}>
-            ↻ Retry
-          </button>
         </div>
       </div>
     );
@@ -211,7 +211,7 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
           </div>
           <button
             className="refresh-btn"
-            onClick={fetchMissionReadiness}
+            onClick={handleRefresh}
             title="Refresh status"
           >
             ↻

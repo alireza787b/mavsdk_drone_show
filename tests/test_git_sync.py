@@ -97,6 +97,52 @@ class TestGitOperationsNonInteractiveAuth:
         assert 'disable GIT_AUTO_PUSH' in result['message']
         fake_git.reset.assert_called_once_with('--mixed', 'HEAD~1')
 
+    def test_git_operations_skips_pull_and_push_when_auto_push_disabled(self, monkeypatch):
+        gcs_utils = load_gcs_utils_module()
+        monkeypatch.setattr(gcs_utils.Params, 'GIT_AUTO_PUSH', False)
+
+        fake_git = MagicMock()
+        fake_repo = MagicMock()
+        fake_repo.git = fake_git
+        fake_repo.is_dirty.return_value = True
+        fake_repo.index.commit.return_value = type(
+            'Commit',
+            (),
+            {'hexsha': 'abc12345', 'stats': type('Stats', (), {'files': {'a.txt': {}}})()},
+        )()
+
+        monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
+
+        result = gcs_utils.git_operations('/tmp/repo', 'test commit')
+
+        assert result['success'] is True
+        assert result['pushed'] is False
+        assert result['auto_push_enabled'] is False
+        assert 'Auto-push is disabled' in result['message']
+        fake_git.fetch.assert_called_once()
+        fake_git.pull.assert_not_called()
+        fake_git.push.assert_not_called()
+
+    def test_git_operations_reports_clean_local_state_when_auto_push_disabled(self, monkeypatch):
+        gcs_utils = load_gcs_utils_module()
+        monkeypatch.setattr(gcs_utils.Params, 'GIT_AUTO_PUSH', False)
+
+        fake_git = MagicMock()
+        fake_repo = MagicMock()
+        fake_repo.git = fake_git
+        fake_repo.is_dirty.return_value = False
+
+        monkeypatch.setattr('git.Repo', lambda *_args, **_kwargs: fake_repo)
+
+        result = gcs_utils.git_operations('/tmp/repo', 'test commit')
+
+        assert result['success'] is True
+        assert result['commit_hash'] is None
+        assert result['pushed'] is False
+        assert 'No new git commit was needed' in result['message']
+        fake_git.pull.assert_not_called()
+        fake_git.push.assert_not_called()
+
 
 class TestGitStatusSchemas:
     """Test schema changes for git sync"""

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 
 import ConfirmationModal from '../components/ConfirmationModal';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
+import useFetch from '../hooks/useFetch';
 import { getBackendURL } from '../utilities/utilities';
 import {
   clearProcessedData,
@@ -57,6 +58,7 @@ const SwarmTrajectory = () => {
   const [pageError, setPageError] = useState('');
   const [operatorNotice, setOperatorNotice] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const { data: gcsConfig } = useFetch('/get-gcs-config');
 
   useEffect(() => {
     // This screen intentionally boots once, then refreshes from explicit operator actions.
@@ -90,6 +92,11 @@ const SwarmTrajectory = () => {
     () => buildSwarmTrajectoryStages({ viewModel, recommendation, hasProcessedOutputs }),
     [viewModel, recommendation, hasProcessedOutputs],
   );
+  const commitMode = gcsConfig == null
+    ? 'unknown'
+    : gcsConfig.git_auto_push
+      ? 'commit_and_push'
+      : 'local_commit';
 
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
@@ -644,27 +651,43 @@ const SwarmTrajectory = () => {
       return;
     }
 
+    const isPushMode = commitMode === 'commit_and_push';
+    const title = isPushMode ? 'Commit and push mission outputs?' : 'Commit mission outputs locally?';
+    const summary = isPushMode
+      ? 'This stages the generated cluster outputs, creates a git commit, and pushes the result to the active repository.'
+      : 'This stages the generated cluster outputs and creates a local git commit on the GCS. Repository push is disabled for this deployment.';
+    const warning = isPushMode
+      ? 'Only commit when the plots and readiness summary reflect the exact mission package you want operators to fly.'
+      : 'Use this to preserve a traceable local mission package. Launch can still use the current processed outputs even when repo push is disabled.';
+    const confirmLabel = isPushMode ? 'Commit & Push' : 'Commit Locally';
+
     openConfirmDialog({
-      title: 'Commit processed mission outputs?',
-      summary: 'This stages the generated cluster outputs, creates a git commit, and pushes the results to the active repository.',
+      title,
+      summary,
       details: [
         `Processed drones: ${viewModel.processedDroneCount}`,
         `Ready clusters: ${viewModel.clusterSummary.ready_cluster_count}/${viewModel.clusterSummary.cluster_count}`,
         `Session: ${viewModel.session.session_id || 'No active processing session'}`,
       ],
-      warning: 'Only commit when the plots and readiness summary reflect the exact mission package you want operators to fly.',
-      confirmLabel: 'Commit & Push',
+      warning,
+      confirmLabel,
       onConfirm: async () => {
         setCommitting(true);
         setCommitProgress({ step: 'Preparing files...', progress: 10 });
 
         try {
-          const progressSteps = [
-            { step: 'Staging trajectory outputs...', progress: 25 },
-            { step: 'Creating git commit...', progress: 50 },
-            { step: 'Pushing to repository...', progress: 75 },
-            { step: 'Finalizing...', progress: 90 },
-          ];
+          const progressSteps = isPushMode
+            ? [
+                { step: 'Staging trajectory outputs...', progress: 25 },
+                { step: 'Creating git commit...', progress: 50 },
+                { step: 'Pushing to repository...', progress: 75 },
+                { step: 'Finalizing...', progress: 90 },
+              ]
+            : [
+                { step: 'Staging trajectory outputs...', progress: 35 },
+                { step: 'Creating local git commit...', progress: 70 },
+                { step: 'Finalizing...', progress: 90 },
+              ];
 
           for (const progressStep of progressSteps) {
             setCommitProgress(progressStep);
@@ -692,8 +715,8 @@ const SwarmTrajectory = () => {
             setCommitProgress(null);
             showNotice(
               'success',
-              'Swarm trajectory outputs committed',
-              data.git_info?.message || 'Outputs were committed and pushed successfully.',
+              isPushMode ? 'Swarm trajectory outputs committed and pushed' : 'Swarm trajectory outputs committed locally',
+              data.git_info?.message || data.message || 'Mission outputs were recorded successfully.',
             );
           }, 500);
         } catch (error) {
@@ -983,11 +1006,11 @@ const SwarmTrajectory = () => {
           </div>
 
           {hasProcessedOutputs ? (
-            <div className="workflow-step">
-              <div className="step-header">
-                <h3><span className="step-number">3</span>Review, Commit, and Dispatch</h3>
-                <p>Inspect generated cluster outputs, confirm readiness, then commit the mission package before launch.</p>
-              </div>
+          <div className="workflow-step">
+            <div className="step-header">
+              <h3><span className="step-number">3</span>Review and Dispatch</h3>
+              <p>Inspect generated cluster outputs, confirm readiness, then optionally record the mission package to git before launch.</p>
+            </div>
 
               <div className={`success-card ${viewModel.currentOutcome === 'partial' ? 'success-card--warning' : ''}`}>
                 <div className="success-header">
@@ -1028,13 +1051,19 @@ const SwarmTrajectory = () => {
 
                 <div className="next-steps">
                   <p>
-                    <strong>Next:</strong> review the cluster plots below, commit the generated outputs, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.
+                    <strong>Next:</strong> review the cluster plots below, optionally record the generated outputs to git, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.
                   </p>
                 </div>
 
                 <div className="review-actions">
                   <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing}>
-                    {committing ? 'Committing...' : 'Commit & Push Outputs'}
+                    {committing
+                      ? 'Saving...'
+                      : commitMode === 'local_commit'
+                        ? 'Commit Outputs Locally'
+                        : commitMode === 'commit_and_push'
+                          ? 'Commit & Push Outputs'
+                          : 'Commit Mission Outputs'}
                   </button>
                   <Link className="utility-btn" to="/">
                     Open Dashboard

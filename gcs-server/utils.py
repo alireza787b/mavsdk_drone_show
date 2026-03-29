@@ -181,6 +181,20 @@ def git_operations(base_dir, commit_message, timeout=30):
             except Exception as verify_error:
                 logger.warning(f"Could not verify committed files: {verify_error}")
 
+        if not Params.GIT_AUTO_PUSH:
+            if commit_hash:
+                success_message = "Changes committed locally. Auto-push is disabled on this GCS."
+            else:
+                success_message = "No new git commit was needed. Auto-push is disabled on this GCS."
+            logger.info(success_message)
+            return {
+                'success': True,
+                'message': success_message,
+                'commit_hash': commit_hash,
+                'auto_push_enabled': False,
+                'pushed': False,
+            }
+
         # Pull latest changes with rebase (with timeout)
         logger.info("Rebasing local changes on top of remote changes...")
         try:
@@ -214,7 +228,13 @@ def git_operations(base_dir, commit_message, timeout=30):
 
         success_message = "Changes pushed to repository successfully."
         logger.info(success_message)
-        return {'success': True, 'message': success_message, 'commit_hash': commit_hash}
+        return {
+            'success': True,
+            'message': success_message,
+            'commit_hash': commit_hash,
+            'auto_push_enabled': True,
+            'pushed': True,
+        }
 
     except GitCommandError as e:
         error_str = str(e)
