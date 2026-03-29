@@ -1,9 +1,9 @@
 """
 Swarm Global Coordinate Calculator
-Calculates follower positions in global coordinates using offset configurations
+Calculates follower positions in global coordinates using per-leader offset
+configurations.
 """
 import logging
-import math
 import navpy
 from smart_swarm_src.utils import transform_body_to_nea
 
@@ -33,26 +33,23 @@ def calculate_formation_origin(leader_trajectories):
     logger.info(f"Formation origin: {origin['lat']:.6f}, {origin['lon']:.6f}, {origin['alt']:.1f}m")
     return origin
 
-def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leader_yaw, 
-                                     offset_config, formation_origin):
+def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leader_yaw,
+                                     offset_config, formation_origin=None):
     """
-    Calculate follower position in global coordinates
-    Uses local NED for offset calculations, returns global lat/lon/alt
+    Calculate follower position in global coordinates.
+
+    Offsets are applied in the leader's instantaneous local NED frame so the
+    generated follower geometry remains accurate even when the route spans far
+    beyond any original formation centroid.
     
     Args:
         leader_lat, leader_lon, leader_alt: Leader's global position
         leader_yaw: Leader's yaw angle in degrees
         offset_config: Dict with offset_x, offset_y, offset_z, frame
-        formation_origin: Formation center point for NED calculations
+        formation_origin: Retained for backward compatibility; no longer used
+            for offset geometry.
     """
     try:
-        # Convert leader position to local NED for offset calculations
-        leader_ned = navpy.lla2ned(
-            leader_lat, leader_lon, leader_alt,
-            formation_origin['lat'], formation_origin['lon'], formation_origin['alt'],
-            latlon_unit='deg', alt_unit='m', model='wgs84'
-        )
-        
         # Apply offset based on coordinate frame
         if offset_config['frame'] == "body":
             # Body coordinate mode: offset_x=Forward, offset_y=Right
@@ -66,17 +63,18 @@ def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leade
             offset_y_ned = offset_config['offset_y']
             logger.debug(f"NED offset: N={offset_x_ned}, E={offset_y_ned}")
 
-        # Calculate follower NED position
+        # Swarm Design defines positive offset_z as Up. Convert to NED down.
         follower_ned = [
-            leader_ned[0] + offset_x_ned,  # North
-            leader_ned[1] + offset_y_ned,  # East
-            leader_ned[2] + offset_config['offset_z']  # Down (altitude offset)
+            offset_x_ned,
+            offset_y_ned,
+            -offset_config['offset_z'],
         ]
-        
-        # Convert back to global coordinates
+
+        # Convert back to global coordinates around the leader's instantaneous
+        # position instead of a fixed mission centroid.
         follower_lla = navpy.ned2lla(
             follower_ned,
-            formation_origin['lat'], formation_origin['lon'], formation_origin['alt'],
+            leader_lat, leader_lon, leader_alt,
             latlon_unit='deg', alt_unit='m', model='wgs84'
         )
         

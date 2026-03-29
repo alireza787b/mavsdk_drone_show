@@ -72,6 +72,8 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
   # offset_x=5m North, offset_y=3m East → fixed geographic formation
   # Formation maintains geographic orientation regardless of heading
   ```
+- follower offsets are now applied around each leader waypoint's instantaneous global position, not a fixed formation centroid, so long routes do not accumulate avoidable geometry distortion
+- `offset_z` follows the Swarm Design convention `Up = positive`; it is converted into the appropriate NED down sign only inside the math layer
 
 **Final Output**: All drones receive global lat/lon/alt trajectories for mission execution.
 
