@@ -1105,6 +1105,9 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
                 continue
         else:
             logger.critical("All recovery attempts failed!")
+            raise RuntimeError(
+                f"End behavior '{behavior}' failed and all recovery attempts were exhausted"
+            ) from e
 
 
 async def emergency_rtl_sequence(drone: System):

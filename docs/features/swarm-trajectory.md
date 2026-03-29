@@ -349,6 +349,7 @@ Converts waypoint trajectories to smooth interpolated paths.
 - return-home terminal timing in this mode can be materially longer than the authored path duration when the processed path peaks far above the launch baseline
 - validator timeout budgeting therefore uses processed peak relative altitude, not just the earlier formation snapshot altitude
 - `return_home` end behavior now verifies that PX4 actually enters RTL instead of assuming the command engaged; if RTL never transitions out of hold/offboard, the mission retries once and then degrades to bounded LAND fallback instead of hanging indefinitely on one drone
+- if `return_home` and all fallback recovery paths still fail, the mission now exits as a hard failure instead of incorrectly reporting `Mission completed successfully`
 
 ---
 

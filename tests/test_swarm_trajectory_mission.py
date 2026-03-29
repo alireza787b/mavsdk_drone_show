@@ -184,6 +184,76 @@ async def test_execute_end_behavior_return_home_falls_back_to_land_when_rtl_neve
 
 
 @pytest.mark.asyncio
+async def test_execute_end_behavior_raises_when_all_recoveries_fail():
+    drone = MagicMock()
+
+    with patch.object(stm, "stop_offboard_mode", new=AsyncMock(side_effect=RuntimeError("offboard stop failed"))):
+        with patch.object(stm, "controlled_landing", new=AsyncMock(side_effect=RuntimeError("land failed"))) as controlled_landing:
+            with patch.object(stm, "emergency_rtl_sequence", new=AsyncMock(side_effect=RuntimeError("rtl failed"))) as emergency_rtl:
+                with patch.object(stm, "emergency_land_sequence", new=AsyncMock(side_effect=RuntimeError("emergency land failed"))) as emergency_land:
+                    with pytest.raises(
+                        RuntimeError,
+                        match="all recovery attempts were exhausted",
+                    ):
+                        await stm.execute_end_behavior(
+                            drone,
+                            "return_home",
+                            launch_lat=35.0,
+                            launch_lon=51.0,
+                            launch_alt=1200.0,
+                        )
+
+    controlled_landing.assert_awaited_once_with(drone)
+    emergency_rtl.assert_awaited_once_with(drone)
+    emergency_land.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_run_swarm_trajectory_mission_exits_failure_when_mission_runtime_raises():
+    drone = MagicMock()
+    drone.telemetry.position.return_value = _stream_once(
+        types.SimpleNamespace(
+            latitude_deg=35.0,
+            longitude_deg=51.0,
+            absolute_altitude_m=1280.0,
+        )
+    )
+
+    waypoints = [
+        (float(index), 35.0, 51.0, 1280.0 + index, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 90.0, 0, 255, 255, 255)
+        for index in range(11)
+    ]
+    mavsdk_server = object()
+
+    with patch.object(stm, "start_mavsdk_server", return_value=mavsdk_server):
+        with patch.object(stm.asyncio, "sleep", new=AsyncMock()):
+            with patch.object(stm, "initial_setup_and_connection", new=AsyncMock(return_value=drone)):
+                with patch.object(stm, "pre_flight_checks", new=AsyncMock(return_value=MagicMock())):
+                    with patch.object(stm, "arming_and_starting_offboard_mode", new=AsyncMock()):
+                        with patch.object(stm, "read_swarm_trajectory_file", return_value=waypoints):
+                            with patch.object(
+                                stm,
+                                "perform_swarm_trajectory",
+                                new=AsyncMock(side_effect=RuntimeError("end behavior exhausted")),
+                            ):
+                                with patch.object(stm, "stop_offboard_mode", new=AsyncMock()) as stop_offboard_mode:
+                                    with patch.object(stm, "_get_current_armed_state", new=AsyncMock(return_value=False)):
+                                        with patch.object(stm, "perform_landing", new=AsyncMock()) as perform_landing:
+                                            with patch.object(stm, "stop_mavsdk_server") as stop_mavsdk_server:
+                                                with pytest.raises(SystemExit) as exc:
+                                                    await stm.run_swarm_trajectory_mission(
+                                                        synchronized_start_time=None,
+                                                        position_id_override=1,
+                                                        end_behavior_override="return_home",
+                                                    )
+
+    assert exc.value.code == 1
+    stop_offboard_mode.assert_awaited_once_with(drone)
+    perform_landing.assert_not_awaited()
+    stop_mavsdk_server.assert_called_once_with(mavsdk_server)
+
+
+@pytest.mark.asyncio
 async def test_engage_rtl_confirms_return_mode_after_action_ack():
     drone = MagicMock()
     drone.action.return_to_launch = AsyncMock()
