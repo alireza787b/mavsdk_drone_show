@@ -114,7 +114,7 @@ graph LR
     A[Swarm Design] --> B[Confirm top leaders and cluster offsets]
     B --> C[Trajectory Planning]
     C --> D[Author or import leader path]
-    D --> E[Send to Swarm or export CSV]
+    D --> E[Assign to Cluster or export CSV]
 ```
 
 Important:
@@ -144,7 +144,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 
 1. **Open** `Swarm Design` and confirm the intended top leaders / follower hierarchy first
 2. **Open** `Trajectory Planning` to author/import the leader route
-3. **Send to Swarm** from the planner, or export CSV and upload manually in `Swarm Trajectory`
+3. **Assign to Cluster** from the planner, or export CSV and upload manually in `Swarm Trajectory`
 4. **Assign** the route to the intended top leader cluster
 5. **Review** cluster truth:
    - leaders with uploaded CSVs
@@ -166,7 +166,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 ### First-Run Checklist
 
 1. `Swarm Design`: verify the correct top leaders and follower hierarchy
-2. `Trajectory Planning`: author the leader route and `Send to Swarm`
+2. `Trajectory Planning`: author the leader route and `Assign to Cluster`
 3. `Swarm Trajectory`: confirm uploads, run processing, review plots, commit outputs
 4. `Dashboard -> Command Control -> Mission Trigger`: launch Mission Type 4 with preflight checks
 
@@ -206,7 +206,12 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner mission readiness now uses one explicit operator model before transfer:
   - routes with timing conflicts, impossible-speed legs, or only a single waypoint are marked `Draft only`
   - review-only caveats (terrain estimates, elevated speed review, AGL storage notes) are separated from hard blockers instead of being mixed into one undifferentiated warning list
-  - `Send to Swarm` keeps draft upload possible for collaboration, but the dialog now states clearly whether the path is `Draft only`, `Review required`, or `Ready to process`
+- `Assign to Cluster` keeps draft upload possible for collaboration, but the dialog now states clearly whether a path is `Draft only`, `Review required`, or `Ready to process`
+- authoring guidance now comes from one shared source across planner, modal, panel, and transfer dialog:
+  - `MSL input` vs `Target AGL` explain what the operator enters and what the mission stores
+  - `Speed-driven ETA` vs `Time-driven speed` explain whether ETA or speed is the operator-owned value
+  - waypoint tags now use hover hints instead of duplicating long inline prose on every card
+- the first waypoint heading is now always explicit/manual in the modal, matching the mission-start-anchor model instead of silently defaulting to auto heading
 - planner trajectory-library actions now use one shared save/load flow instead of separate duplicated dialogs:
   - save shows the current path summary before committing a name
   - load shows duration, distance, max speed, modified time, and an explicit `Autosave` badge
