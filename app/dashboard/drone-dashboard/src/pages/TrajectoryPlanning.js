@@ -171,8 +171,38 @@ const TrajectoryPlanning = () => {
     setPlannerNotice(null);
   }, []);
 
-  const applyTrajectoryToPlanner = useCallback((trajectory, successMessage) => {
+  const buildTrajectorySourceNotice = useCallback((sourceLabel, trajectory, readiness) => {
+    const waypointCount = (trajectory.waypoints || []).length;
+    const name = trajectory.name || 'trajectory';
+
+    if (readiness.blockers.length > 0) {
+      return {
+        tone: 'warning',
+        message: `${sourceLabel} ${name} with ${waypointCount} waypoint${waypointCount === 1 ? '' : 's'}. ${readiness.posture.summary}`,
+      };
+    }
+
+    if (readiness.advisories.length > 0) {
+      return {
+        tone: 'info',
+        message: `${sourceLabel} ${name} with ${waypointCount} waypoint${waypointCount === 1 ? '' : 's'}. ${readiness.posture.summary}`,
+      };
+    }
+
+    return {
+      tone: 'success',
+      message: `${sourceLabel} ${name} with ${waypointCount} waypoint${waypointCount === 1 ? '' : 's'}. Ready for swarm assignment.`,
+    };
+  }, []);
+
+  const applyTrajectoryToPlanner = useCallback((trajectory, sourceLabel) => {
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(trajectory.waypoints || []);
+    const nextStats = calculateTrajectoryStats(waypointsWithCorrectSpeeds);
+    const nextReadiness = buildTrajectoryMissionReadiness({
+      waypoints: waypointsWithCorrectSpeeds,
+      stats: nextStats,
+    });
+    const notice = buildTrajectorySourceNotice(sourceLabel, trajectory, nextReadiness);
 
     stateManagerRef.current.executeAction(
       ACTION_TYPES.LOAD_TRAJECTORY,
@@ -189,10 +219,8 @@ const TrajectoryPlanning = () => {
     setSaveStatus({ saved: true, autoSaveTime: Date.now() });
     clearOperationNotice();
 
-    if (successMessage) {
-      setOperationNotice(successMessage, 'success');
-    }
-  }, [clearOperationNotice, setOperationNotice]);
+    setOperationNotice(notice.message, notice.tone);
+  }, [buildTrajectorySourceNotice, clearOperationNotice, setOperationNotice]);
 
   const trajectoryStats = useMemo(() => {
     return calculateTrajectoryStats(waypoints);
@@ -447,7 +475,7 @@ const TrajectoryPlanning = () => {
       const trajectory = result.trajectory;
       applyTrajectoryToPlanner(
         trajectory,
-        `Loaded ${trajectory.name} with ${(trajectory.waypoints || []).length} waypoints.`
+        'Loaded'
       );
       setShowLoadDialog(false);
     } else {
@@ -472,7 +500,7 @@ const TrajectoryPlanning = () => {
     if (result.success) {
       applyTrajectoryToPlanner(
         result.trajectory,
-        `Imported ${file.name} and loaded it into the planner.`
+        'Imported'
       );
       loadAvailableTrajectories();
     } else {
@@ -634,14 +662,21 @@ const TrajectoryPlanning = () => {
     const csvContent = storageRef.current.convertToCSV(waypoints);
     const csvBlob = new Blob([csvContent], { type: 'text/csv' });
     const result = await uploadSwarmTrajectory(leaderId, csvBlob, `Drone ${leaderId}.csv`);
+    const uploadTone = plannerMissionReadiness.blockers.length > 0
+      ? 'warning'
+      : plannerMissionReadiness.advisories.length > 0
+        ? 'info'
+        : 'success';
+    const uploadMessage = plannerMissionReadiness.blockers.length > 0
+      ? `Leader ${leaderId} trajectory uploaded as a draft. ${plannerMissionReadiness.posture.summary}`
+      : plannerMissionReadiness.advisories.length > 0
+        ? `Leader ${leaderId} trajectory uploaded. ${plannerMissionReadiness.posture.summary}`
+        : result.message || `Leader ${leaderId} trajectory uploaded. Review and process the formation on Swarm Trajectory.`;
 
-    setOperationNotice(
-      result.message || `Leader ${leaderId} trajectory uploaded. Review and process the formation on Swarm Trajectory.`,
-      'success'
-    );
+    setOperationNotice(uploadMessage, uploadTone);
 
     return result;
-  }, [setOperationNotice, waypoints]);
+  }, [plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, plannerMissionReadiness.posture.summary, setOperationNotice, waypoints]);
 
   const handleSendTrajectoryToSwarm = useCallback(async () => {
     const leaderId = swarmTransferState.selectedLeaderId;
@@ -664,8 +699,12 @@ const TrajectoryPlanning = () => {
         ...prev,
         submitting: false,
         successMessage:
-          result.message ||
-          `Trajectory uploaded for Leader ${leaderId}. Next step: process the swarm formation.`,
+          plannerMissionReadiness.blockers.length > 0
+            ? `Trajectory uploaded for Leader ${leaderId} as a draft. Resolve blockers before processing or launch.`
+            : plannerMissionReadiness.advisories.length > 0
+              ? `Trajectory uploaded for Leader ${leaderId}. Operator review is still required before processing or launch.`
+              : result.message ||
+                `Trajectory uploaded for Leader ${leaderId}. Next step: process the swarm formation.`,
       }));
 
       const refreshed = await getSwarmClusterStatus();
@@ -684,7 +723,7 @@ const TrajectoryPlanning = () => {
         error: submitError?.response?.data?.error || submitError.message || 'Failed to upload trajectory.',
       }));
     }
-  }, [handleUploadCurrentTrajectory, swarmTransferState.selectedLeaderId, waypoints.length]);
+  }, [handleUploadCurrentTrajectory, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, swarmTransferState.selectedLeaderId, waypoints.length]);
 
   const openExportDialog = useCallback(() => {
     if (waypoints.length === 0) {
