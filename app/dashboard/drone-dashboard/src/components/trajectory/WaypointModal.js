@@ -15,8 +15,12 @@ import {
 } from '../../utilities/SpeedCalculator';
 import {
   getTrajectoryAltitudeReferenceLabel,
+  getTrajectoryAltitudeReferenceDescription,
+  getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
+  getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
+  getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
 import {
@@ -438,7 +442,7 @@ const WaypointModal = ({
     {
       label: 'Altitude Plan',
       value: getTrajectoryAltitudeReferenceLabel(altitudeReference),
-      detail: `Stored as ${altitude.toFixed(1)}m MSL`,
+      detail: `${getTrajectoryAltitudeReferenceDescription(altitudeReference)} Stored as ${altitude.toFixed(1)}m MSL.`,
       tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
     },
     {
@@ -448,9 +452,9 @@ const WaypointModal = ({
         : getTrajectoryMissionAnchorLabel(0),
       detail: previousWaypoint
         ? timingMode === TIMING_MODES.AUTO_SPEED
-          ? `${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s arrival • ${getSpeedStatusLabel(speedStatus)}`
-          : `${timeFromStart.toFixed(0)}s arrival -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}`
-        : `${timeFromStart.toFixed(0)}s after mission start the leader should reach this first route point.`,
+          ? `${getTrajectoryTimingModeDescription(timingMode)} ${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s arrival • ${getSpeedStatusLabel(speedStatus)}.`
+          : `${getTrajectoryTimingModeDescription(timingMode)} ${timeFromStart.toFixed(0)}s arrival -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}.`
+        : `${getTrajectoryMissionAnchorDescription(0)} ${timeFromStart.toFixed(0)}s after mission start.`,
       tone: previousWaypoint
         ? speedStatus === 'impossible'
           ? 'danger'
@@ -463,8 +467,8 @@ const WaypointModal = ({
       label: 'Heading',
       value: getTrajectoryHeadingModeLabel(headingMode),
       detail: headingMode === YAW_CONSTANTS.AUTO && previousWaypoint
-        ? `${formatHeading(calculatedHeading)} on the arrival leg`
-        : `${formatHeading(heading)} locked by operator`,
+        ? `${getTrajectoryHeadingModeDescription(headingMode)} ${formatHeading(calculatedHeading)} on the arrival leg.`
+        : `${getTrajectoryHeadingModeDescription(headingMode, { isMissionAnchor: !previousWaypoint })} ${formatHeading(heading)} locked by operator.`,
       tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
     },
     {

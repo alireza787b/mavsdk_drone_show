@@ -670,10 +670,10 @@ const TrajectoryPlanning = () => {
         ? 'info'
         : 'success';
     const uploadMessage = plannerMissionReadiness.blockers.length > 0
-      ? `Leader ${leaderId} trajectory uploaded as a draft. ${plannerMissionReadiness.posture.summary}`
+      ? `Leader ${leaderId} path assigned as a draft. ${plannerMissionReadiness.posture.summary}`
       : plannerMissionReadiness.advisories.length > 0
-        ? `Leader ${leaderId} trajectory uploaded. ${plannerMissionReadiness.posture.summary}`
-        : result.message || `Leader ${leaderId} trajectory uploaded. Review and process the formation on Swarm Trajectory.`;
+        ? `Leader ${leaderId} path assigned. ${plannerMissionReadiness.posture.summary}`
+        : result.message || `Leader ${leaderId} path assigned. Review and process the formation on Swarm Trajectory.`;
 
     setOperationNotice(uploadMessage, uploadTone);
 
@@ -702,11 +702,11 @@ const TrajectoryPlanning = () => {
         submitting: false,
         successMessage:
           plannerMissionReadiness.blockers.length > 0
-            ? `Trajectory uploaded for Leader ${leaderId} as a draft. Resolve blockers before processing or launch.`
+            ? `Path assigned to Leader ${leaderId} as a draft. Resolve blockers before processing or launch.`
             : plannerMissionReadiness.advisories.length > 0
-              ? `Trajectory uploaded for Leader ${leaderId}. Operator review is still required before processing or launch.`
+              ? `Path assigned to Leader ${leaderId}. Operator review is still required before processing or launch.`
               : result.message ||
-                `Trajectory uploaded for Leader ${leaderId}. Next step: process the swarm formation.`,
+                `Path assigned to Leader ${leaderId}. Next step: process the swarm formation.`,
       }));
 
       const refreshed = await getSwarmClusterStatus();

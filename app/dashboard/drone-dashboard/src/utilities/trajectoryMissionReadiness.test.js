@@ -23,7 +23,7 @@ describe('trajectoryMissionReadiness', () => {
     expect(readiness.posture).toMatchObject({
       tone: 'danger',
       label: 'Draft only',
-      transferLabel: 'Send Draft to Leader',
+      transferLabel: 'Assign Draft to Cluster',
     });
     expect(readiness.blockers).toEqual(
       expect.arrayContaining([
@@ -109,7 +109,7 @@ describe('trajectoryMissionReadiness', () => {
     expect(readiness.posture).toMatchObject({
       tone: 'success',
       label: 'Ready to process',
-      transferLabel: 'Send to Leader',
+      transferLabel: 'Assign to Cluster',
     });
     expect(readiness.blockers).toHaveLength(0);
     expect(readiness.advisories).toHaveLength(0);

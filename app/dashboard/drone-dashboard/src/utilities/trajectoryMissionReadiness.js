@@ -49,7 +49,7 @@ export const buildTrajectoryMissionReadiness = ({ waypoints = [], stats = {} }) 
         tone: 'neutral',
         label: 'Not ready',
         summary: 'Add waypoints before assigning this path to a swarm leader.',
-        transferLabel: 'Send to Leader',
+        transferLabel: 'Assign to Cluster',
       },
     };
   }
@@ -63,7 +63,7 @@ export const buildTrajectoryMissionReadiness = ({ waypoints = [], stats = {} }) 
         tone: 'danger',
         label: 'Draft only',
         summary: 'This path can be uploaded for draft review, but launch blockers still need correction before processing or execution.',
-        transferLabel: 'Send Draft to Leader',
+        transferLabel: 'Assign Draft to Cluster',
       },
     };
   }
@@ -77,7 +77,7 @@ export const buildTrajectoryMissionReadiness = ({ waypoints = [], stats = {} }) 
         tone: 'warning',
         label: 'Review required',
         summary: 'This path is internally usable, but operator review is still required before processing and mission launch.',
-        transferLabel: 'Send for Review',
+        transferLabel: 'Assign for Review',
       },
     };
   }
@@ -86,11 +86,11 @@ export const buildTrajectoryMissionReadiness = ({ waypoints = [], stats = {} }) 
     blockers,
     advisories,
     notes,
-    posture: {
+      posture: {
       tone: 'success',
       label: 'Ready to process',
       summary: 'This path is internally consistent and ready to assign to a leader cluster for swarm processing.',
-      transferLabel: 'Send to Leader',
+      transferLabel: 'Assign to Cluster',
     },
   };
 };

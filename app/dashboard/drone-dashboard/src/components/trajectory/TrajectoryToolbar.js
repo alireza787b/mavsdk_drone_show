@@ -120,10 +120,10 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn primary-btn ${!canSendToSwarm ? 'disabled' : ''}`}
           onClick={onSendToSwarm}
           disabled={!canSendToSwarm}
-          title={canSendToSwarm ? 'Send current trajectory to a swarm cluster leader' : 'Add at least one waypoint before sending to swarm'}
+          title={canSendToSwarm ? 'Assign the current leader path to a swarm cluster' : 'Add at least one waypoint before assigning a leader path to a cluster'}
         >
           <span className="btn-icon">🧭</span>
-          <span className="btn-text">Send to Swarm</span>
+          <span className="btn-text">Assign to Cluster</span>
         </button>
         
         <button 

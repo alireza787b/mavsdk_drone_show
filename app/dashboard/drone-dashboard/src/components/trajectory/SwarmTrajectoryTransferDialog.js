@@ -78,9 +78,9 @@ const SwarmTrajectoryTransferDialog = ({
         aria-labelledby="swarm-transfer-dialog-title"
       >
         <div className="swarm-transfer-dialog__header">
-          <h3 id="swarm-transfer-dialog-title">Send Trajectory to Swarm</h3>
+          <h3 id="swarm-transfer-dialog-title">Assign Leader Path</h3>
           <p>
-            Assign the current planned path to a top leader. Follower paths are regenerated later
+            Assign the current planned path to a top leader cluster. Follower paths are regenerated later
             from the current <Link to="/swarm-design">Swarm Design</Link> during processing.
           </p>
         </div>

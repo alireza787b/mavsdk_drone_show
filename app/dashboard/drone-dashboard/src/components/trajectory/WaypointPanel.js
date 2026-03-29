@@ -19,8 +19,12 @@ import {
 } from '../../constants/trajectoryMissionPolicy';
 import {
   getTrajectoryAltitudeReferenceLabel,
+  getTrajectoryAltitudeReferenceDescription,
+  getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
+  getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
+  getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
 
@@ -409,23 +413,30 @@ const WaypointPanel = ({
     tags.push({
       tone: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
       text: getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input',
+      title: getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint)),
     });
 
     if (index > 0) {
       tags.push({
         tone: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'info' : 'neutral',
         text: getTrajectoryTimingModeLabel(getTimingMode(waypoint)),
+        title: getTrajectoryTimingModeDescription(getTimingMode(waypoint)),
       });
     } else {
       tags.push({
         tone: 'neutral',
         text: getTrajectoryMissionAnchorLabel(index),
+        title: getTrajectoryMissionAnchorDescription(index),
       });
     }
 
     tags.push({
       tone: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
       text: getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO),
+      title: getTrajectoryHeadingModeDescription(
+        waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+        { isMissionAnchor: index === 0 }
+      ),
     });
 
     if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
@@ -659,7 +670,11 @@ const WaypointPanel = ({
 
             <div className="waypoint-intent-tags">
               {buildIntentTags(waypoint, index).map((tag) => (
-                <span key={`${waypoint.id}-${tag.text}`} className={`waypoint-intent-tag waypoint-intent-tag--${tag.tone}`}>
+                <span
+                  key={`${waypoint.id}-${tag.text}`}
+                  className={`waypoint-intent-tag waypoint-intent-tag--${tag.tone}`}
+                  title={tag.title || tag.text}
+                >
                   {tag.text}
                 </span>
               ))}
@@ -749,7 +764,12 @@ const WaypointPanel = ({
               {index === 0 && (
                 <div className="detail-row start-point">
                   <span className="detail-label">Route Role:</span>
-                  <span className="detail-value start-indicator">{getTrajectoryMissionAnchorLabel(index)}</span>
+                  <span
+                    className="detail-value start-indicator"
+                    title={getTrajectoryMissionAnchorDescription(index)}
+                  >
+                    {getTrajectoryMissionAnchorLabel(index)}
+                  </span>
                 </div>
               )}
 

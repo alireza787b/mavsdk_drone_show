@@ -68,7 +68,7 @@ jest.mock('../components/trajectory/TrajectoryToolbar', () => (props) => (
       Toggle Add
     </button>
     <button type="button" onClick={props.onSendToSwarm} disabled={!props.canSendToSwarm}>
-      Send to Swarm
+      Assign to Cluster
     </button>
     <span data-testid="toolbar-waypoint-count">{props.waypointCount}</span>
   </div>

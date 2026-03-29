@@ -33,16 +33,16 @@ const renderToolbar = (overrides = {}) => {
 };
 
 describe('TrajectoryToolbar', () => {
-  it('shows disabled send-to-swarm action when no mission handoff is allowed', () => {
+  it('shows disabled cluster-assignment action when no mission handoff is allowed', () => {
     renderToolbar({ canSendToSwarm: false });
 
-    expect(screen.getByRole('button', { name: /send to swarm/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /assign to cluster/i })).toBeDisabled();
   });
 
   it('calls send callback when enabled', async () => {
     const { props } = renderToolbar({ canSendToSwarm: true });
 
-    fireEvent.click(screen.getByRole('button', { name: /send to swarm/i }));
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
 
     expect(props.onSendToSwarm).toHaveBeenCalledTimes(1);
   });

@@ -45,7 +45,7 @@ const renderDialog = (overrides = {}) => {
         tone: 'success',
         label: 'Ready to process',
         summary: 'This path is internally consistent and ready to assign to a leader cluster for swarm processing.',
-        transferLabel: 'Send to Leader',
+        transferLabel: 'Assign to Cluster',
       },
     },
     ...overrides,
@@ -77,7 +77,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
   it('submits when the selected leader is ready to send', () => {
     const { props } = renderDialog({ selectedLeaderId: 5 });
 
-    fireEvent.click(screen.getByRole('button', { name: /send to leader/i }));
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
 
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
   });
@@ -92,13 +92,13 @@ describe('SwarmTrajectoryTransferDialog', () => {
           tone: 'danger',
           label: 'Draft only',
           summary: 'This path can be uploaded for draft review, but launch blockers still need correction before processing or execution.',
-          transferLabel: 'Send Draft to Leader',
+          transferLabel: 'Assign Draft to Cluster',
         },
       },
     });
 
     expect(screen.getAllByText('Draft only').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /send draft to leader/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /assign draft to cluster/i })).toBeInTheDocument();
     expect(screen.getAllByText(/launch blockers/i).length).toBeGreaterThan(0);
   });
 
