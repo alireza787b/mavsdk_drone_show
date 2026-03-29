@@ -123,6 +123,7 @@ TrajectoryStats.propTypes = {
     minAltitude: PropTypes.number.isRequired,
     maxAgl: PropTypes.number,
     minAgl: PropTypes.number,
+    routeEntryDelaySeconds: PropTypes.number,
     maxSpeedStatus: PropTypes.string,
     timingModeCounts: PropTypes.object,
     altitudeReferenceCounts: PropTypes.object,

@@ -136,6 +136,7 @@ describe('trajectoryAuthoringGuidance', () => {
 
   test('formats operator-facing timing and heading summaries without counting the route entry anchor as a normal leg', () => {
     const stats = {
+      routeEntryDelaySeconds: 12,
       authoringBreakdown: {
         routeEntryAnchors: 1,
         speedDrivenLegs: 2,
@@ -146,7 +147,7 @@ describe('trajectoryAuthoringGuidance', () => {
       },
     };
 
-    expect(getTrajectoryTimingPlanSummary(stats)).toBe('Route entry 1 · Speed-driven ETA 2 · Time-driven speed 1');
+    expect(getTrajectoryTimingPlanSummary(stats)).toBe('Entry +12s · Speed-driven ETA 2 · Time-driven speed 1');
     expect(getTrajectoryHeadingPlanSummary(stats)).toBe('Entry heading 1 · Auto arrival 2 · Manual arrival 0');
   });
 

@@ -16,6 +16,7 @@ describe('TrajectoryStats', () => {
           minAltitude: 1320,
           maxAgl: 120,
           minAgl: 40,
+          routeEntryDelaySeconds: 12,
           maxSpeedStatus: 'marginal',
           timingModeCounts: { auto_speed: 2, manual_time: 3 },
           altitudeReferenceCounts: { msl: 4, agl: 1 },
@@ -34,7 +35,7 @@ describe('TrajectoryStats', () => {
       />
     );
 
-    expect(screen.getByText('Route entry 1 · Speed-driven ETA 2 · Time-driven speed 2')).toBeInTheDocument();
+    expect(screen.getByText('Entry +12s · Speed-driven ETA 2 · Time-driven speed 2')).toBeInTheDocument();
     expect(screen.getByText('Entry heading 1 · Auto arrival 3 · Manual arrival 1')).toBeInTheDocument();
     expect(screen.getByText('1320-1450 m MSL')).toBeInTheDocument();
     expect(screen.getByText('Route Time')).toBeInTheDocument();

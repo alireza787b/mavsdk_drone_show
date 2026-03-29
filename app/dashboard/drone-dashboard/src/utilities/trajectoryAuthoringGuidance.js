@@ -257,6 +257,9 @@ export const getTrajectoryTimingPlanSummary = (stats = {}) => {
   const routeEntryCount = authoringBreakdown.routeEntryAnchors || 0;
   const speedDrivenCount = authoringBreakdown.speedDrivenLegs || 0;
   const timeDrivenCount = authoringBreakdown.timeDrivenLegs || 0;
+  if (Number.isFinite(stats.routeEntryDelaySeconds)) {
+    return `Entry +${formatSeconds(stats.routeEntryDelaySeconds)} · Speed-driven ETA ${speedDrivenCount} · Time-driven speed ${timeDrivenCount}`;
+  }
   return `Route entry ${routeEntryCount} · Speed-driven ETA ${speedDrivenCount} · Time-driven speed ${timeDrivenCount}`;
 };
 

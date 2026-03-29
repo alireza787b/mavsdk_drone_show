@@ -533,6 +533,9 @@ export const validateWaypointSequence = (waypoints) => {
 export const calculateTrajectoryStats = (waypoints) => {
   const waypointCount = waypoints?.length || 0;
   const routeEntryAnchorCount = waypointCount > 0 ? 1 : 0;
+  const routeEntryDelaySeconds = waypointCount > 0
+    ? Number(waypoints[0]?.timeFromStart || waypoints[0]?.time || 0)
+    : 0;
   const timingModeCounts = {
     [TIMING_MODES.AUTO_SPEED]: 0,
     [TIMING_MODES.MANUAL_TIME]: 0,
@@ -605,6 +608,7 @@ export const calculateTrajectoryStats = (waypoints) => {
       minAltitude: soloAltitude,
       maxAgl: soloGroundElevation === null ? 0 : Math.max(0, soloAltitude - soloGroundElevation),
       minAgl: soloGroundElevation === null ? 0 : Math.max(0, soloAltitude - soloGroundElevation),
+      routeEntryDelaySeconds,
       timingModeCounts,
       altitudeReferenceCounts,
       headingModeCounts,
@@ -687,6 +691,7 @@ export const calculateTrajectoryStats = (waypoints) => {
     minAltitude: minAlt,
     maxAgl,
     minAgl,
+    routeEntryDelaySeconds,
     timingModeCounts,
     altitudeReferenceCounts,
     headingModeCounts,

@@ -222,6 +222,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - waypoint 1 defaults to a `10s` route-entry delay after mission start
   - later legs still derive timing from speed or derive speed from pinned arrival time
   - the same default/fallback timing policy is shared by the planner UI and timing helpers instead of living as hidden magic numbers
+  - planner and transfer summaries now show the actual authored route-entry delay (for example `Entry +12s`) instead of only counting that an anchor exists
 - heading ownership is now explicit too:
   - the first waypoint always uses an explicit manual heading because it is the mission-start anchor
   - every later waypoint owns the speed and auto-heading of the arrival leg that reaches it
