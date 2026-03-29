@@ -291,6 +291,12 @@
   gap: 0.75rem;
 }
 
+.trajectory-workflow-brief__stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
 .trajectory-workflow-brief__card {
   display: flex;
   flex-direction: column;
@@ -316,6 +322,47 @@
 .trajectory-workflow-brief__detail {
   font-size: 0.78rem;
   color: rgba(203, 213, 225, 0.86);
+  line-height: 1.45;
+}
+
+.trajectory-workflow-brief__stage {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.54);
+}
+
+.trajectory-workflow-brief__stage-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.trajectory-workflow-brief__stage-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.trajectory-workflow-brief__stage-copy strong {
+  color: #f8fafc;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.trajectory-workflow-brief__stage-copy span {
+  color: rgba(203, 213, 225, 0.84);
+  font-size: 0.76rem;
   line-height: 1.45;
 }
 
@@ -359,6 +406,10 @@
   }
 
   .trajectory-workflow-brief__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .trajectory-workflow-brief__stages {
     grid-template-columns: 1fr;
   }
 

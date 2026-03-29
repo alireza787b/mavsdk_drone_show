@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { getClusterStateMeta } from '../../utilities/swarmTrajectoryViewModel';
+import { getTrajectoryWorkflowStages } from '../../utilities/trajectoryAuthoringGuidance';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
 
@@ -62,6 +63,13 @@ const SwarmTrajectoryTransferDialog = ({
 
   const selectedCluster = clusters.find((cluster) => Number(cluster.leader_id) === Number(selectedLeaderId));
   const selectedClusterMeta = selectedCluster ? getClusterStateMeta(selectedCluster) : null;
+  const selectedClusterExpectedDroneCount = selectedCluster?.expected_drone_count
+    || (selectedCluster ? 1 + (selectedCluster.follower_count || 0) : null);
+  const workflowStages = getTrajectoryWorkflowStages({
+    leaderId: selectedCluster ? Number(selectedCluster.leader_id) : null,
+    followerCount: selectedCluster?.follower_count || 0,
+    expectedDroneCount: selectedClusterExpectedDroneCount,
+  });
   const missionAlerts = [
     ...missionReadiness.blockers,
     ...missionReadiness.advisories,
@@ -242,12 +250,30 @@ const SwarmTrajectoryTransferDialog = ({
                   Selected cluster: Leader {selectedCluster.leader_id} · {selectedClusterMeta.label}
                 </strong>
                 <p>{selectedClusterMeta.summary}</p>
+                {selectedClusterExpectedDroneCount ? (
+                  <p>
+                    The next processing pass will prepare {selectedClusterExpectedDroneCount} drone output
+                    {selectedClusterExpectedDroneCount === 1 ? '' : 's'} for this cluster.
+                  </p>
+                ) : null}
                 <p>
                   Uploading this path replaces the current leader CSV for the selected cluster.
                   Run processing on <Link to="/swarm-trajectory">Swarm Trajectory</Link> afterward to refresh follower outputs and review plots.
                 </p>
               </div>
             ) : null}
+
+            <div className="swarm-transfer-workflow" aria-label="Swarm trajectory handoff stages">
+              {workflowStages.map((stage, index) => (
+                <div key={stage.key} className="swarm-transfer-workflow__stage">
+                  <span className="swarm-transfer-workflow__index">{index + 1}</span>
+                  <div className="swarm-transfer-workflow__copy">
+                    <strong>{stage.label}</strong>
+                    <span>{stage.detail}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <div className="swarm-transfer-note">
               <strong>Execution note:</strong> this step uploads only the selected leader CSV.

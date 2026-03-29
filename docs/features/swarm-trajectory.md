@@ -133,6 +133,13 @@ Important:
   - **Speed-driven ETA**: operator chooses preferred speed and the planner derives arrival time
   - **Time-driven speed**: operator pins the arrival time and the planner shows the required speed
 
+Operator doctrine for this mode:
+
+1. **Author** only the top-leader path in `Trajectory Planning`
+2. **Define** route-entry time/heading at waypoint 1, then choose speed-driven or time-driven control for later waypoints
+3. **Assign** the route to one leader cluster; this replaces only that leader CSV
+4. **Process and review** in `Swarm Trajectory`, then launch Mission Type 4 from `Dashboard`
+
 **CSV Format Required:**
 ```csv
 Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode

@@ -153,6 +153,8 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByText('Not ready')).toBeInTheDocument();
     expect(screen.getByText('No path yet')).toBeInTheDocument();
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
+    expect(screen.getByText('Author top-leader path')).toBeInTheDocument();
+    expect(screen.getByText(/Waypoint 1 anchors route-entry time and heading/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Toggle Add'));
     fireEvent.click(screen.getByTestId('mock-map'));

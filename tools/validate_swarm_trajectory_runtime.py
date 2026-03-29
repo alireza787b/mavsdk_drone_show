@@ -27,6 +27,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+USING_FALLBACK_TIMEOUT_PARAMS = False
+
 try:
     from src.flight_timeout_utils import (
         calculate_land_disarm_timeout,
@@ -34,6 +40,8 @@ try:
     )
     from src.params import Params
 except Exception:  # pragma: no cover - validator fallback only
+    USING_FALLBACK_TIMEOUT_PARAMS = True
+
     class _FallbackParams:
         SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
         SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT = 600

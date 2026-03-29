@@ -2,6 +2,9 @@ import importlib.util
 import csv
 from pathlib import Path
 
+from src.flight_timeout_utils import calculate_swarm_rtl_completion_timeout
+from src.params import Params as RepoParams
+
 
 def _load_validator_module():
     module_path = Path(__file__).resolve().parents[1] / "tools" / "validate_swarm_trajectory_runtime.py"
@@ -10,6 +13,25 @@ def _load_validator_module():
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
+
+def test_validator_uses_repo_timeout_model():
+    validator = _load_validator_module()
+
+    assert validator.USING_FALLBACK_TIMEOUT_PARAMS is False
+    assert validator.Params.LAND_ACTION_ASSUMED_DESCENT_RATE_MPS == RepoParams.LAND_ACTION_ASSUMED_DESCENT_RATE_MPS
+
+    timeout = validator.estimate_command_completion_timeout(
+        500.0,
+        end_behavior="return_home",
+        relative_altitude_m=1321.946,
+    )
+
+    expected = max(
+        300,
+        int(500.0 + calculate_swarm_rtl_completion_timeout(1321.946) + 180),
+    )
+    assert timeout == expected
 
 
 def test_estimate_command_completion_timeout_includes_rtl_window():

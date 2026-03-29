@@ -277,6 +277,53 @@
   margin-top: var(--spacing-base);
 }
 
+.swarm-transfer-workflow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-base);
+}
+
+.swarm-transfer-workflow__stage {
+  display: flex;
+  gap: 0.75rem;
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-light);
+  border: 1px solid var(--color-border-light);
+}
+
+.swarm-transfer-workflow__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  flex-shrink: 0;
+}
+
+.swarm-transfer-workflow__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.swarm-transfer-workflow__copy strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-transfer-workflow__copy span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+
 .swarm-transfer-inline-actions {
   display: flex;
   justify-content: flex-end;
@@ -304,6 +351,10 @@
   }
 
   .swarm-transfer-clusters {
+    grid-template-columns: 1fr;
+  }
+
+  .swarm-transfer-workflow {
     grid-template-columns: 1fr;
   }
 

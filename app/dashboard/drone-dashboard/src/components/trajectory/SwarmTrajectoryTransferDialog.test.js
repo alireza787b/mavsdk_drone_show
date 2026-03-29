@@ -68,6 +68,9 @@ describe('SwarmTrajectoryTransferDialog', () => {
     expect(screen.getByText('ridge-line-pass')).toBeInTheDocument();
     expect(screen.getByText('1.25 km')).toBeInTheDocument();
     expect(screen.getByText('1m 32s')).toBeInTheDocument();
+    expect(screen.getByText('Author top-leader path')).toBeInTheDocument();
+    expect(screen.getByText('Assign Leader 1')).toBeInTheDocument();
+    expect(screen.getByText(/prepare 3 drone outputs/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Leader 5'));
 

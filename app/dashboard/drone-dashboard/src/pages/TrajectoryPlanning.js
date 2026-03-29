@@ -30,6 +30,7 @@ import {
   formatTrajectorySpeedEnvelope,
   formatTrajectorySpeedEnvelopeDetail,
 } from '../constants/trajectoryMissionPolicy';
+import { getTrajectoryWorkflowStages } from '../utilities/trajectoryAuthoringGuidance';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -277,6 +278,8 @@ const TrajectoryPlanning = () => {
       },
     ];
   }, [plannerMissionReadiness, trajectoryStats, waypoints.length]);
+
+  const plannerWorkflowStages = useMemo(() => getTrajectoryWorkflowStages(), []);
 
   const addWaypointWithData = useCallback((position, waypointData) => {
     // Always allow waypoint creation (Phase 3 requirement)
@@ -901,6 +904,17 @@ const TrajectoryPlanning = () => {
               </div>
             ))}
           </div>
+          <div className="trajectory-workflow-brief__stages" aria-label="Trajectory planning mission stages">
+            {plannerWorkflowStages.map((stage, index) => (
+              <div key={stage.key} className="trajectory-workflow-brief__stage">
+                <span className="trajectory-workflow-brief__stage-index">{index + 1}</span>
+                <div className="trajectory-workflow-brief__stage-copy">
+                  <strong>{stage.label}</strong>
+                  <span>{stage.detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
           {plannerBriefItems.length > 0 ? (
             <div className="trajectory-workflow-brief__alerts">
               {plannerBriefItems.map((item) => (
@@ -1052,6 +1066,17 @@ const TrajectoryPlanning = () => {
               <span className="trajectory-workflow-brief__label">{card.label}</span>
               <strong className="trajectory-workflow-brief__value">{card.value}</strong>
               <span className="trajectory-workflow-brief__detail">{card.detail}</span>
+            </div>
+          ))}
+        </div>
+        <div className="trajectory-workflow-brief__stages" aria-label="Trajectory planning mission stages">
+          {plannerWorkflowStages.map((stage, index) => (
+            <div key={stage.key} className="trajectory-workflow-brief__stage">
+              <span className="trajectory-workflow-brief__stage-index">{index + 1}</span>
+              <div className="trajectory-workflow-brief__stage-copy">
+                <strong>{stage.label}</strong>
+                <span>{stage.detail}</span>
+              </div>
             </div>
           ))}
         </div>
