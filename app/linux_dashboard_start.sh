@@ -900,10 +900,10 @@ get_gcs_server_command() {
         fi
         if backend_reload_enabled; then
             development_reload_args=" --reload"
-            log_warn "Backend auto-reload is enabled via MDS_GCS_BACKEND_RELOAD."
-            log_warn "Use this only for backend code editing. Telemetry, heartbeat, command-tracker, and other in-memory runtime state may be inconsistent during live operations."
+            log_warn "Backend auto-reload is enabled via MDS_GCS_BACKEND_RELOAD." >&2
+            log_warn "Use this only for backend code editing. Telemetry, heartbeat, command-tracker, and other in-memory runtime state may be inconsistent during live operations." >&2
         else
-            log_info "Launching development FastAPI without backend auto-reload to preserve operational state."
+            log_info "Launching development FastAPI without backend auto-reload to preserve operational state." >&2
         fi
         echo "cd '$GCS_SERVER_DIR' && $python_path '$uvicorn_bin' app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT${development_reload_args}${development_access_log_args}"
     fi
