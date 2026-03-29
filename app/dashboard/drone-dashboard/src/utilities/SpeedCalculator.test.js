@@ -207,6 +207,10 @@ describe('SpeedCalculator', () => {
         tone: 'info',
         text: 'AGL entries are stored as MSL after applying the current ground estimate.',
       }),
+      expect.objectContaining({
+        tone: 'info',
+        text: 'Terrain assist is waypoint-based only. Long terrain-changing legs still need denser waypoints or later terrain-follow review.',
+      }),
     ]);
   });
 

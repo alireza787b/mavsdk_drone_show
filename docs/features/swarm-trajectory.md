@@ -194,6 +194,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - waypoint review keeps the stored MSL altitude visible as the canonical mission value
   - inline waypoint edits can now switch `Altitude Input` between `MSL input` and `Target AGL`, and terrain-backed waypoints let the operator edit `Clearance AGL` directly without manually recomputing the stored MSL altitude
   - terrain context (`groundElevation`, `terrainAccurate`, target AGL) is preserved through save/load/export
+  - current terrain assistance is still waypoint-based, not full corridor terrain following; long terrain-changing legs need denser waypoint sampling or a later terrain-follow validation pass
 - the planner header now publishes a mission brief before transfer:
   - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place
   - timing, altitude-input, heading, and terrain-confidence mixes are shown together instead of being buried per waypoint
