@@ -185,6 +185,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - altitude authoring now makes operator intent explicit too:
   - planner modal supports `MSL input` and `Target AGL`
   - waypoint review keeps the stored MSL altitude visible as the canonical mission value
+  - inline waypoint edits can now switch `Altitude Input` between `MSL input` and `Target AGL`, and terrain-backed waypoints let the operator edit `Clearance AGL` directly without manually recomputing the stored MSL altitude
   - terrain context (`groundElevation`, `terrainAccurate`, target AGL) is preserved through save/load/export
 - the planner header now publishes a mission brief before transfer:
   - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place

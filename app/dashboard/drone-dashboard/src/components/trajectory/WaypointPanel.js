@@ -93,6 +93,10 @@ const WaypointPanel = ({
       latitude: waypoint.latitude,
       longitude: waypoint.longitude,
       altitude: waypoint.altitude,
+      altitudeReference: waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL,
+      targetAgl: Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl > 0
+        ? waypoint.targetAgl
+        : (Number.isFinite(waypoint.groundElevation) ? Math.max(0, waypoint.altitude - waypoint.groundElevation) : 0),
       timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
       timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: waypoint.preferredSpeed || waypoint.estimatedSpeed || TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED,
@@ -132,6 +136,12 @@ const WaypointPanel = ({
         const alt = parseFloat(editValues.altitude);
         if (!isNaN(alt) && alt >= TRAJECTORY_ALTITUDE_POLICY.MIN_MSL && alt <= TRAJECTORY_ALTITUDE_POLICY.MAX_MSL) {
           updates.altitude = alt;
+          if (
+            currentWaypoint?.altitudeReference === ALTITUDE_REFERENCE.AGL &&
+            Number.isFinite(currentWaypoint.groundElevation)
+          ) {
+            updates.targetAgl = Math.max(0, alt - currentWaypoint.groundElevation);
+          }
         } else {
           setEditFeedback({
             tone: 'error',
@@ -140,6 +150,61 @@ const WaypointPanel = ({
           return;
         }
         break;
+
+      case 'altitudeReference':
+        if (editValues.altitudeReference === ALTITUDE_REFERENCE.AGL) {
+          if (!currentWaypoint || !Number.isFinite(currentWaypoint.groundElevation)) {
+            setEditFeedback({
+              tone: 'error',
+              text: 'Terrain data is required before switching this waypoint to Target AGL.',
+            });
+            return;
+          }
+
+          updates.altitudeReference = ALTITUDE_REFERENCE.AGL;
+          updates.targetAgl = Math.max(0, currentWaypoint.altitude - currentWaypoint.groundElevation);
+        } else {
+          updates.altitudeReference = ALTITUDE_REFERENCE.MSL;
+          updates.targetAgl = 0;
+        }
+        break;
+
+      case 'targetAgl': {
+        if (!currentWaypoint || !Number.isFinite(currentWaypoint.groundElevation)) {
+          setEditFeedback({
+            tone: 'error',
+            text: 'Terrain data is required before editing Target AGL for this waypoint.',
+          });
+          return;
+        }
+
+        const targetAgl = parseFloat(editValues.targetAgl);
+        const derivedAltitude = currentWaypoint.groundElevation + targetAgl;
+
+        if (!Number.isFinite(targetAgl) || targetAgl < 0) {
+          setEditFeedback({
+            tone: 'error',
+            text: 'Target AGL must be zero or greater.',
+          });
+          return;
+        }
+
+        if (
+          derivedAltitude < TRAJECTORY_ALTITUDE_POLICY.MIN_MSL ||
+          derivedAltitude > TRAJECTORY_ALTITUDE_POLICY.MAX_MSL
+        ) {
+          setEditFeedback({
+            tone: 'error',
+            text: `Target AGL results in an altitude outside the ${TRAJECTORY_ALTITUDE_POLICY.MIN_MSL}-${TRAJECTORY_ALTITUDE_POLICY.MAX_MSL.toLocaleString()} m MSL envelope.`,
+          });
+          return;
+        }
+
+        updates.altitudeReference = ALTITUDE_REFERENCE.AGL;
+        updates.targetAgl = targetAgl;
+        updates.altitude = derivedAltitude;
+        break;
+      }
       
       case 'time':
         const time = parseFloat(editValues.timeFromStart);
@@ -409,15 +474,25 @@ const WaypointPanel = ({
           </div>
         );
       } else {
-        if (field === 'headingMode' || field === 'timingMode') {
+        if (field === 'headingMode' || field === 'timingMode' || field === 'altitudeReference') {
           return (
             <div className="edit-heading-mode">
               <select
                 ref={editInputRef}
-                value={field === 'headingMode' ? editValues.headingMode : editValues.timingMode}
+                value={
+                  field === 'headingMode'
+                    ? editValues.headingMode
+                    : field === 'timingMode'
+                      ? editValues.timingMode
+                      : editValues.altitudeReference
+                }
                 onChange={(e) => setEditValues(prev => ({
                   ...prev,
-                  [field === 'headingMode' ? 'headingMode' : 'timingMode']: e.target.value
+                  [field === 'headingMode'
+                    ? 'headingMode'
+                    : field === 'timingMode'
+                      ? 'timingMode'
+                      : 'altitudeReference']: e.target.value
                 }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input edit-select"
@@ -427,10 +502,15 @@ const WaypointPanel = ({
                     <option value={YAW_CONSTANTS.AUTO}>Auto (arrival leg)</option>
                     <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
                   </>
-                ) : (
+                ) : field === 'timingMode' ? (
                   <>
                     <option value={TIMING_MODES.AUTO_SPEED}>{getTrajectoryTimingModeLabel(TIMING_MODES.AUTO_SPEED)}</option>
                     <option value={TIMING_MODES.MANUAL_TIME}>{getTrajectoryTimingModeLabel(TIMING_MODES.MANUAL_TIME)}</option>
+                  </>
+                ) : (
+                  <>
+                    <option value={ALTITUDE_REFERENCE.MSL}>{getTrajectoryAltitudeReferenceLabel(ALTITUDE_REFERENCE.MSL)}</option>
+                    <option value={ALTITUDE_REFERENCE.AGL}>{getTrajectoryAltitudeReferenceLabel(ALTITUDE_REFERENCE.AGL)}</option>
                   </>
                 )}
               </select>
@@ -446,8 +526,8 @@ const WaypointPanel = ({
               <input
                 ref={editInputRef}
                 type="number"
-                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : 'any'}
-                min={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'heading' ? '0' : undefined}
+                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'targetAgl' ? '1' : 'any'}
+                min={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'heading' ? '0' : field === 'targetAgl' ? '0' : undefined}
                 max={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX) : field === 'heading' ? '360' : undefined}
                 value={editValues[
                   field === 'altitude'
@@ -456,7 +536,9 @@ const WaypointPanel = ({
                       ? 'timeFromStart'
                       : field === 'heading'
                         ? 'heading'
-                        : field === 'preferredSpeed'
+                        : field === 'targetAgl'
+                          ? 'targetAgl'
+                          : field === 'preferredSpeed'
                           ? 'preferredSpeed'
                           : 'value'
                 ]}
@@ -468,6 +550,8 @@ const WaypointPanel = ({
                       ? 'timeFromStart'
                       : field === 'heading'
                         ? 'heading'
+                      : field === 'targetAgl'
+                        ? 'targetAgl'
                       : field === 'preferredSpeed'
                           ? 'preferredSpeed'
                           : 'value']: e.target.value
@@ -476,6 +560,7 @@ const WaypointPanel = ({
                 className="edit-input"
                 placeholder={
                   field === 'altitude' ? 'Altitude MSL (m)' : 
+                  field === 'targetAgl' ? 'Target clearance AGL (m)' :
                   field === 'time' ? 'Time (s)' : 
                   field === 'heading' ? 'Heading (0-360°)' :
                   field === 'preferredSpeed' ? 'Preferred speed (m/s)' : ''
@@ -592,7 +677,7 @@ const WaypointPanel = ({
               </div>
               
               <div className="detail-row">
-                <span className="detail-label">Stored Altitude:</span>
+                <span className="detail-label">Stored Altitude (MSL):</span>
                 {renderEditableField(
                   waypoint, 
                   'altitude', 
@@ -601,19 +686,32 @@ const WaypointPanel = ({
                 )}
               </div>
 
+              <div className="detail-row timing-row">
+                <span className="detail-label">Altitude Input:</span>
+                {renderEditableField(
+                  waypoint,
+                  'altitudeReference',
+                  getAltitudeReference(waypoint),
+                  getTrajectoryAltitudeReferenceLabel(getAltitudeReference(waypoint))
+                )}
+              </div>
+
               {(Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) || getTargetAgl(waypoint) > 0 ? (
                 <>
                   <div className="detail-row timing-row">
                     <span className="detail-label">Clearance AGL:</span>
-                    <span className="detail-value">
-                      {getTargetAgl(waypoint).toFixed(1)}m
-                    </span>
-                  </div>
-                  <div className="detail-row timing-row">
-                    <span className="detail-label">Altitude Input:</span>
-                    <span className="detail-value">
-                      {getTrajectoryAltitudeReferenceLabel(getAltitudeReference(waypoint))}
-                    </span>
+                    {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL && Number.isFinite(waypoint.groundElevation) ? (
+                      renderEditableField(
+                        waypoint,
+                        'targetAgl',
+                        getTargetAgl(waypoint),
+                        `${getTargetAgl(waypoint).toFixed(1)}m`
+                      )
+                    ) : (
+                      <span className="detail-value">
+                        {getTargetAgl(waypoint).toFixed(1)}m
+                      </span>
+                    )}
                   </div>
                 </>
               ) : null}

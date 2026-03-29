@@ -141,6 +141,68 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Terrain estimated')).toBeInTheDocument();
   });
 
+  it('can switch a terrain-backed waypoint from MSL input to Target AGL', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      altitude: 320,
+      groundElevation: 200,
+      altitudeReference: ALTITUDE_REFERENCE.MSL,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+    };
+
+    const { props } = renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    const altitudeInputRow = screen.getByText(/altitude input:/i).closest('.detail-row');
+    fireEvent.click(within(altitudeInputRow).getByText(/msl input/i));
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: ALTITUDE_REFERENCE.AGL },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      targetAgl: 120,
+    }));
+  });
+
+  it('updates stored altitude when an AGL-authored waypoint clearance is edited', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      altitude: 320,
+      groundElevation: 200,
+      targetAgl: 120,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+    };
+
+    const { props } = renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    const clearanceRow = screen.getByText(/clearance agl:/i).closest('.detail-row');
+    fireEvent.click(within(clearanceRow).getByText('120.0m'));
+    fireEvent.change(screen.getByPlaceholderText(/target clearance agl \(m\)/i), {
+      target: { value: '140' },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      targetAgl: 140,
+      altitude: 340,
+    }));
+  });
+
   it('marks the first waypoint as the mission start anchor', () => {
     renderPanel();
 
