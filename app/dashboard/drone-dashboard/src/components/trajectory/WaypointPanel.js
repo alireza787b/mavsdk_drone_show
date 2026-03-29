@@ -424,7 +424,7 @@ const WaypointPanel = ({
               >
                 {field === 'headingMode' ? (
                   <>
-                    <option value={YAW_CONSTANTS.AUTO}>Auto (to next waypoint)</option>
+                    <option value={YAW_CONSTANTS.AUTO}>Auto (arrival leg)</option>
                     <option value={YAW_CONSTANTS.MANUAL}>Manual</option>
                   </>
                 ) : (
@@ -657,7 +657,7 @@ const WaypointPanel = ({
 
               {index > 0 && getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED && (
                 <div className="detail-row timing-row">
-                  <span className="detail-label">Leg Speed:</span>
+                  <span className="detail-label">Target Speed:</span>
                   {renderEditableField(
                     waypoint,
                     'preferredSpeed',
@@ -669,7 +669,7 @@ const WaypointPanel = ({
               
               {index > 0 && (
                 <div className="detail-row speed-row">
-                  <span className="detail-label">Speed:</span>
+                  <span className="detail-label">Arrival Speed:</span>
                   <div className="speed-display">
                     <span className={`detail-value speed-value speed-${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
                       {formatSpeed(waypoint.estimatedSpeed)}m/s
@@ -695,7 +695,7 @@ const WaypointPanel = ({
               ) : null}
               
               <div className="detail-row heading-row">
-                <span className="detail-label">Heading:</span>
+                <span className="detail-label">{index === 0 ? 'Heading:' : 'Arrival Heading:'}</span>
                 <div className="heading-display">
                   {renderEditableField(
                     waypoint, 
@@ -704,12 +704,14 @@ const WaypointPanel = ({
                     formatHeading(waypoint.heading || waypoint.yaw || 0)
                   )}
                   <span className="heading-mode-indicator">
-                    ({renderEditableField(
-                      waypoint,
-                      'headingMode',
-                      waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
-                      getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO)
-                    )})
+                    ({index === 0
+                      ? getTrajectoryHeadingModeLabel(YAW_CONSTANTS.MANUAL)
+                      : renderEditableField(
+                        waypoint,
+                        'headingMode',
+                        waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                        getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO)
+                      )})
                   </span>
                 </div>
               </div>

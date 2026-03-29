@@ -392,7 +392,7 @@ export class TrajectoryStorage {
    * CORE FLIGHT DATA:
    * - heading: 0-360° aviation standard (000° = North)
    * - headingMode: 'auto' or 'manual' (single source of truth)
-   * - calculatedHeading: what auto heading would be (for UI display)
+   * - calculatedHeading: auto heading for the arrival leg (for UI display)
    * 
    * BACKWARDS COMPATIBILITY:
    * - Automatically converts old 'yaw'/'yawMode' fields

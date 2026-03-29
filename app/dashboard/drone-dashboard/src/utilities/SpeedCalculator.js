@@ -26,7 +26,7 @@ export const SPEED_THRESHOLDS = {
  * - Clean data structure without redundant flags
  */
 export const YAW_CONSTANTS = {
-  AUTO: 'auto',           // Automatic: calculate heading to next waypoint
+  AUTO: 'auto',           // Automatic: align with the arrival leg into this waypoint
   MANUAL: 'manual',       // Manual: user-specified fixed heading
   DEFAULT_HEADING: 0      // Default heading: 000° (North)
 };
@@ -247,89 +247,67 @@ export const buildTrajectoryAttentionItems = (stats = {}) => {
   return items;
 };
 
+const getStoredHeadingMode = (waypoint, index) =>
+  waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO);
+
+const getStoredHeadingValue = (waypoint, fallback = YAW_CONSTANTS.DEFAULT_HEADING) => {
+  if (waypoint.heading !== undefined) {
+    return normalizeHeading(waypoint.heading);
+  }
+
+  if (waypoint.yaw !== undefined) {
+    return normalizeHeading(waypoint.yaw);
+  }
+
+  return normalizeHeading(fallback);
+};
+
 /**
- * Calculate waypoint speeds and yaw using the outgoing leg as the authoritative segment.
- * - Each waypoint (except last) shows the speed needed from current to next waypoint
- * - Yaw calculation: auto = heading to next waypoint, manual = user-specified
- * - The last waypoint preserves the inbound-leg speed for consistent review
+ * Calculate waypoint speeds and heading using the arrival leg as the authoritative segment.
+ * - Waypoint 0 is the route-entry anchor, so it has no inbound leg speed
+ * - Every later waypoint owns the speed and auto-heading for the leg that reaches it
+ * - Auto heading aligns with the arrival leg from the previous waypoint
  * @param {Array} waypoints - Array of all waypoints
- * @returns {Array} Updated waypoints with corrected speed and yaw calculations
+ * @returns {Array} Updated waypoints with consistent arrival-leg speed and heading
  */
 export const calculateWaypointSpeeds = (waypoints) => {
-  if (!waypoints || waypoints.length < 2) {
-    // Single waypoint: set default heading values
-    return waypoints.map(waypoint => ({
-      ...waypoint,
-      heading: waypoint.heading !== undefined ? waypoint.heading : YAW_CONSTANTS.DEFAULT_HEADING,
-      headingMode: waypoint.headingMode || YAW_CONSTANTS.AUTO,
-      calculatedHeading: YAW_CONSTANTS.DEFAULT_HEADING
-    }));
+  if (!waypoints || waypoints.length === 0) {
+    return [];
   }
 
   return waypoints.map((waypoint, index) => {
-    // FIXED LOGIC: Calculate speed and yaw FROM current waypoint TO next waypoint
-    if (index < waypoints.length - 1) {
-      // Current waypoint shows speed needed to reach NEXT waypoint
-      const nextWaypoint = waypoints[index + 1];
-      const speedToNext = calculateSpeed(waypoint, nextWaypoint);
-      const speedStatus = validateSpeed(speedToNext);
-      
-      // Calculate automatic heading to next waypoint
-      const calculatedHeading = calculateHeading(waypoint, nextWaypoint);
-      
-      // Determine actual heading based on mode
-      let actualHeading;
-      let headingMode = waypoint.headingMode || YAW_CONSTANTS.AUTO;
-      
-      if (headingMode === YAW_CONSTANTS.AUTO) {
-        actualHeading = calculatedHeading;
-      } else {
-        actualHeading = waypoint.heading !== undefined ? normalizeHeading(waypoint.heading) : calculatedHeading;
-      }
-      
+    if (index === 0) {
+      const initialHeading = getStoredHeadingValue(waypoint);
       return {
         ...waypoint,
-        estimatedSpeed: speedToNext,
-        speed: speedToNext, // Legacy compatibility
-        speedFeasible: speedStatus === 'feasible',
-        heading: actualHeading,
-        headingMode: headingMode,
-        calculatedHeading: calculatedHeading
-      };
-    } else {
-      // LAST WAYPOINT: Maintain the speed from the previous leg and set appropriate heading
-      const previousWaypoint = waypoints[index - 1];
-      let maintainedSpeed = 0;
-      let actualHeading = YAW_CONSTANTS.DEFAULT_HEADING;
-      let calculatedHeading = YAW_CONSTANTS.DEFAULT_HEADING;
-      
-      if (previousWaypoint) {
-        // Calculate what speed was needed to reach this final waypoint
-        maintainedSpeed = calculateSpeed(previousWaypoint, waypoint);
-        // For last waypoint, calculated heading could be the same as previous or user-specified
-        calculatedHeading = previousWaypoint.calculatedHeading || YAW_CONSTANTS.DEFAULT_HEADING;
-      }
-      
-      let headingMode = waypoint.headingMode || YAW_CONSTANTS.MANUAL; // Last waypoint defaults to manual
-      
-      if (headingMode === YAW_CONSTANTS.AUTO && previousWaypoint) {
-        // Auto mode: maintain heading from previous waypoint
-        actualHeading = calculatedHeading;
-      } else {
-        // Manual mode: use user-specified heading or default
-        actualHeading = waypoint.heading !== undefined ? normalizeHeading(waypoint.heading) : YAW_CONSTANTS.DEFAULT_HEADING;
-      }
-      
-      return {
-        ...waypoint,
-        estimatedSpeed: maintainedSpeed,
-        speed: maintainedSpeed, // Legacy compatibility  
-        speedFeasible: validateSpeed(maintainedSpeed) === 'feasible',
-        heading: actualHeading,
-        headingMode: headingMode,
-        calculatedHeading: calculatedHeading
+        estimatedSpeed: 0,
+        speed: 0,
+        speedFeasible: true,
+        heading: initialHeading,
+        // The mission-start anchor always uses an explicit heading.
+        headingMode: YAW_CONSTANTS.MANUAL,
+        calculatedHeading: initialHeading,
       };
     }
+
+    const previousWaypoint = waypoints[index - 1];
+    const arrivalSpeed = calculateSpeed(previousWaypoint, waypoint);
+    const speedStatus = validateSpeed(arrivalSpeed);
+    const calculatedHeading = calculateHeading(previousWaypoint, waypoint);
+    const headingMode = getStoredHeadingMode(waypoint, index);
+    const actualHeading = headingMode === YAW_CONSTANTS.AUTO
+      ? calculatedHeading
+      : getStoredHeadingValue(waypoint, calculatedHeading);
+
+    return {
+      ...waypoint,
+      estimatedSpeed: arrivalSpeed,
+      speed: arrivalSpeed,
+      speedFeasible: speedStatus === 'feasible',
+      heading: actualHeading,
+      headingMode,
+      calculatedHeading,
+    };
   });
 };
 
@@ -343,7 +321,9 @@ export const recalculateAllSpeeds = (waypoints) => {
 };
 
 /**
- * FIXED: Recalculate speeds after waypoint drag-drop operation  
+ * Recalculate the trajectory after waypoint drag-drop.
+ * Drag operations are infrequent and the planner path is modest in size, so the
+ * authoritative full recompute is safer than trying to hand-maintain partial legs.
  * @param {Array} waypoints - Array of all waypoints
  * @param {string} movedWaypointId - ID of the waypoint that was moved
  * @returns {Array} Updated waypoints with recalculated speeds
@@ -353,67 +333,7 @@ export const recalculateAfterDrag = (waypoints, movedWaypointId) => {
 
   const movedIndex = waypoints.findIndex(wp => wp.id === movedWaypointId);
   if (movedIndex === -1) return waypoints;
-
-  // FIXED: Recalculate with correct FROM current TO next logic including yaw
-  return waypoints.map((waypoint, index) => {
-    // Recalculate speed and yaw for affected waypoints:
-    // 1. The moved waypoint (if it has a next waypoint)
-    // 2. The waypoint before the moved one (if it exists)
-    // 3. Handle last waypoint special case
-    const needsRecalc = (
-      index === movedIndex || // The moved waypoint itself
-      index === movedIndex - 1 // The waypoint before the moved one
-    );
-
-    if (needsRecalc) {
-      if (index < waypoints.length - 1) {
-        // Calculate speed and yaw FROM current TO next waypoint
-        const nextWaypoint = waypoints[index + 1];
-        const recalculatedSpeed = calculateSpeed(waypoint, nextWaypoint);
-        const speedStatus = validateSpeed(recalculatedSpeed);
-        
-        // Recalculate heading (aviation standard)
-        const calculatedHeading = calculateHeading(waypoint, nextWaypoint);
-        let actualHeading;
-        const headingMode = waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO;
-        
-        if (headingMode === YAW_CONSTANTS.AUTO) {
-          actualHeading = calculatedHeading;
-        } else {
-          actualHeading = waypoint.heading !== undefined ? normalizeHeading(waypoint.heading) : (waypoint.yaw !== undefined ? normalizeHeading(waypoint.yaw) : calculatedHeading);
-        }
-
-        return {
-          ...waypoint,
-          estimatedSpeed: recalculatedSpeed,
-          speed: recalculatedSpeed, // Legacy compatibility
-          speedFeasible: speedStatus === 'feasible',
-          heading: actualHeading,
-          calculatedHeading: calculatedHeading
-        };
-      } else if (index === waypoints.length - 1 && index > 0) {
-        // Last waypoint: calculate speed from previous waypoint to this one
-        const prevWaypoint = waypoints[index - 1];
-        const speedToHere = calculateSpeed(prevWaypoint, waypoint);
-        const speedStatus = validateSpeed(speedToHere);
-        
-        // For last waypoint, maintain heading mode and value (aviation standard)
-        let actualHeading = waypoint.heading !== undefined ? normalizeHeading(waypoint.heading) : (waypoint.yaw !== undefined ? normalizeHeading(waypoint.yaw) : YAW_CONSTANTS.DEFAULT_HEADING);
-        const calculatedHeading = prevWaypoint.calculatedHeading || prevWaypoint.calculatedYaw || YAW_CONSTANTS.DEFAULT_HEADING;
-
-        return {
-          ...waypoint,
-          estimatedSpeed: speedToHere,
-          speed: speedToHere, // Legacy compatibility
-          speedFeasible: speedStatus === 'feasible',
-          heading: actualHeading,
-          calculatedHeading: calculatedHeading
-        };
-      }
-    }
-
-    return waypoint;
-  });
+  return calculateWaypointSpeeds(waypoints);
 };
 
 /**
@@ -445,13 +365,11 @@ export const calculateSpeedForNewWaypoint = (position, waypointData, existingWay
 };
 
 /**
- * CALCULATE HEADING FOR NEW WAYPOINT (Aviation Standard)
- * 
- * Clean, professional implementation:
+ * Calculate heading for a new waypoint.
  * - Single source of truth: headingMode determines all behavior
- * - Auto mode: points to next waypoint
- * - Manual mode: user-specified fixed heading
- * - First waypoint: defaults to manual (user sets initial drone orientation)
+ * - Auto mode aligns with the arrival leg from the previous waypoint
+ * - Manual mode keeps a user-specified fixed heading
+ * - First waypoint defaults to manual because it is the route-entry anchor
  * 
  * @param {Object} position - New waypoint lat/lng position
  * @param {Object} waypointData - Waypoint config (headingMode, heading if manual)
@@ -464,7 +382,7 @@ export const calculateHeadingForNewWaypoint = (position, waypointData, existingW
   let actualHeading = YAW_CONSTANTS.DEFAULT_HEADING;
 
   if (existingWaypoints && existingWaypoints.length > 0) {
-    // Not first waypoint: calculate heading from previous waypoint
+    // Not first waypoint: align auto heading with the arrival leg from the previous waypoint.
     const previousWaypoint = existingWaypoints[existingWaypoints.length - 1];
     calculatedHeading = calculateHeading(previousWaypoint, position);
     
@@ -478,11 +396,10 @@ export const calculateHeadingForNewWaypoint = (position, waypointData, existingW
     headingMode = waypointData.headingMode || YAW_CONSTANTS.MANUAL;
   }
 
-  // Clean return - single source of truth
   return {
-    heading: actualHeading,         // The actual heading value (0-360°)
-    headingMode: headingMode,       // 'auto' or 'manual' - determines behavior
-    calculatedHeading: calculatedHeading  // What auto heading would be (for UI display)
+    heading: actualHeading,
+    headingMode: headingMode,
+    calculatedHeading: calculatedHeading,
   };
 };
 
@@ -513,29 +430,13 @@ export const validateWaypointSequence = (waypoints) => {
       });
     }
 
-    // Check speeds using corrected logic - both TO next and FROM previous
-    if (i < waypoints.length - 1) {
-      const nextWaypoint = waypoints[i + 1];
-      const speedToNext = calculateSpeed(current, nextWaypoint);
-      
-      if (speedToNext > SPEED_THRESHOLDS.ABSOLUTE_MAX) {
-        issues.push({
-          waypoint: current.name,
-          issue: 'impossible_speed',
-          message: `Speed to next waypoint (${speedToNext.toFixed(1)} m/s) exceeds safe operational limits`
-        });
-      }
-    } else if (i === waypoints.length - 1 && i > 0) {
-      // For last waypoint, check the speed needed to reach it
-      const speedToHere = calculateSpeed(previous, current);
-      
-      if (speedToHere > SPEED_THRESHOLDS.ABSOLUTE_MAX) {
-        issues.push({
-          waypoint: current.name,
-          issue: 'impossible_speed',
-          message: `Speed to reach this waypoint (${speedToHere.toFixed(1)} m/s) exceeds safe operational limits`
-        });
-      }
+    const arrivalLegSpeed = calculateSpeed(previous, current);
+    if (arrivalLegSpeed > SPEED_THRESHOLDS.ABSOLUTE_MAX) {
+      issues.push({
+        waypoint: current.name,
+        issue: 'impossible_speed',
+        message: `Arrival leg speed (${arrivalLegSpeed.toFixed(1)} m/s) exceeds safe operational limits`
+      });
     }
   }
 

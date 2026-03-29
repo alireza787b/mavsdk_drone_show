@@ -72,14 +72,14 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/target leg speed/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/target arrival speed/i)).toBeInTheDocument();
     });
 
     const timeInput = screen.getByLabelText(/time from start/i);
     expect(timeInput).toBeDisabled();
     expect(Number(timeInput.value)).toBe(24);
 
-    fireEvent.change(screen.getByLabelText(/target leg speed/i), {
+    fireEvent.change(screen.getByLabelText(/target arrival speed/i), {
       target: { value: '4' },
     });
 
@@ -193,5 +193,7 @@ describe('WaypointModal', () => {
 
     expect(screen.getByText(/leader should reach this first route point/i)).toBeInTheDocument();
     expect(screen.getByText(/this first waypoint anchors when the leader should reach the route after mission start/i)).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /auto \(arrival leg\)/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/first waypoint: set the initial route-entry heading explicitly/i)).toBeInTheDocument();
   });
 });

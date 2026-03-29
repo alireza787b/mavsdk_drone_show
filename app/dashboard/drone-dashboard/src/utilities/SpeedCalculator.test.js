@@ -11,7 +11,7 @@ import {
 } from './SpeedCalculator';
 
 describe('SpeedCalculator', () => {
-  test('calculateWaypointSpeeds assigns speed to the outgoing leg and preserves manual final heading', () => {
+  test('calculateWaypointSpeeds assigns speed and auto heading to the arrival leg while preserving manual final heading', () => {
     const waypoints = [
       {
         id: 'wp-1',
@@ -45,14 +45,16 @@ describe('SpeedCalculator', () => {
 
     const result = calculateWaypointSpeeds(waypoints);
 
-    expect(result[0].estimatedSpeed).toBe(15);
+    expect(result[0].estimatedSpeed).toBe(0);
+    expect(result[0].headingMode).toBe(YAW_CONSTANTS.MANUAL);
     expect(result[0].heading).toBeCloseTo(0, 1);
 
-    expect(result[1].estimatedSpeed).toBe(9.1);
+    expect(result[1].estimatedSpeed).toBe(15);
     expect(result[1].headingMode).toBe(YAW_CONSTANTS.AUTO);
-    expect(result[1].heading).toBeCloseTo(90, 0);
+    expect(result[1].heading).toBeCloseTo(0, 0);
 
-    expect(result[2].estimatedSpeed).toBeCloseTo(result[1].estimatedSpeed, 1);
+    expect(result[2].estimatedSpeed).toBeCloseTo(9.1, 1);
+    expect(result[2].calculatedHeading).toBeCloseTo(90, 0);
     expect(result[2].headingMode).toBe(YAW_CONSTANTS.MANUAL);
     expect(result[2].heading).toBe(270);
   });

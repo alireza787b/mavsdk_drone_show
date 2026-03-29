@@ -117,7 +117,7 @@ const WaypointModal = ({
       setPreferredSpeed(recommendedSpeed);
       setTimingMode(nextTimingMode);
       
-      // Initialize heading data - calculate default heading to next waypoint (aviation standard)
+      // Initialize heading data - auto heading follows the arrival leg from the previous waypoint.
       const headingData = calculateHeadingForNewWaypoint(position, { headingMode: YAW_CONSTANTS.AUTO }, previousWaypoint ? [previousWaypoint] : []);
       setHeading(headingData.heading);
       setHeadingMode(headingData.headingMode);
@@ -462,8 +462,8 @@ const WaypointModal = ({
     {
       label: 'Heading',
       value: getTrajectoryHeadingModeLabel(headingMode),
-      detail: headingMode === YAW_CONSTANTS.AUTO
-        ? `${formatHeading(calculatedHeading)} toward next leg`
+      detail: headingMode === YAW_CONSTANTS.AUTO && previousWaypoint
+        ? `${formatHeading(calculatedHeading)} on the arrival leg`
         : `${formatHeading(heading)} locked by operator`,
       tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
     },
@@ -651,7 +651,7 @@ const WaypointModal = ({
 
             {previousWaypoint && timingMode === TIMING_MODES.AUTO_SPEED && (
               <div className="preferred-speed-group">
-                <label htmlFor="preferredSpeed" className="input-label">Target Leg Speed</label>
+                <label htmlFor="preferredSpeed" className="input-label">Target Arrival Speed</label>
                 <input
                   id="preferredSpeed"
                   type="number"
@@ -663,7 +663,7 @@ const WaypointModal = ({
                   step={String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED)}
                 />
                 <small className="time-calculation">
-                  Auto mode derives arrival time from the 3D leg distance and your preferred speed.
+                  Auto mode derives arrival time from the inbound 3D leg distance and your preferred speed.
                 </small>
                 <small className="time-calculation">
                   Nominal envelope: {TRAJECTORY_SPEED_POLICY.MIN_PREFERRED}-{TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX} m/s.
@@ -713,18 +713,20 @@ const WaypointModal = ({
               
               <div className="heading-mode-selector">
                 <div className="radio-group">
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="headingMode"
-                      checked={headingMode === YAW_CONSTANTS.AUTO}
-                      onChange={() => handleHeadingModeChange(YAW_CONSTANTS.AUTO)}
-                    />
-                    <span className="radio-label">
-                      Auto (to next waypoint)
-                      {previousWaypoint && <span className="auto-heading-value"> - {formatHeading(calculatedHeading)}</span>}
-                    </span>
-                  </label>
+                  {previousWaypoint && (
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="headingMode"
+                        checked={headingMode === YAW_CONSTANTS.AUTO}
+                        onChange={() => handleHeadingModeChange(YAW_CONSTANTS.AUTO)}
+                      />
+                      <span className="radio-label">
+                        Auto (arrival leg)
+                        <span className="auto-heading-value"> - {formatHeading(calculatedHeading)}</span>
+                      </span>
+                    </label>
+                  )}
                   <label className="radio-option">
                     <input
                       type="radio"
@@ -756,7 +758,7 @@ const WaypointModal = ({
                 </small>
                 {headingMode === YAW_CONSTANTS.AUTO && previousWaypoint && (
                   <small className="auto-heading-note">
-                    Auto mode: Points toward next waypoint ({formatHeading(calculatedHeading)})
+                    Auto mode: Aligns with the arrival leg from waypoint {waypointIndex - 1} ({formatHeading(calculatedHeading)})
                   </small>
                 )}
                 {headingMode === YAW_CONSTANTS.MANUAL && (
@@ -766,7 +768,7 @@ const WaypointModal = ({
                 )}
                 {!previousWaypoint && (
                   <small className="first-waypoint-note">
-                    First waypoint: Set initial drone heading
+                    First waypoint: Set the initial route-entry heading explicitly
                   </small>
                 )}
               </div>

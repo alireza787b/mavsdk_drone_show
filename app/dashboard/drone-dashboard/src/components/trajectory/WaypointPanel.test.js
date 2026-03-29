@@ -67,7 +67,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const legSpeedRow = screen.getByText(/leg speed:/i).closest('.detail-row');
+    const legSpeedRow = screen.getByText(/target speed:/i).closest('.detail-row');
     fireEvent.click(within(legSpeedRow).getByText('8.0m/s'));
     fireEvent.change(screen.getByPlaceholderText(/preferred speed \(m\/s\)/i), {
       target: { value: '4' },
@@ -147,5 +147,7 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Route Role:')).toBeInTheDocument();
     expect(screen.getAllByText('Mission start anchor').length).toBeGreaterThan(0);
     expect(screen.getByText('Start Arrival:')).toBeInTheDocument();
+    expect(screen.getByText('Heading:')).toBeInTheDocument();
+    expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
   });
 });

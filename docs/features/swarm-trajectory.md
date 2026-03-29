@@ -198,6 +198,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned
   - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, and `Mission start anchor` mean the same thing everywhere
+- heading ownership is now explicit too:
+  - the first waypoint always uses an explicit manual heading because it is the mission-start anchor
+  - every later waypoint owns the speed and auto-heading of the arrival leg that reaches it
+  - auto heading therefore aligns with the inbound leg from the previous waypoint, not an imagined future leg
 - planner mission readiness now uses one explicit operator model before transfer:
   - routes with timing conflicts, impossible-speed legs, or only a single waypoint are marked `Draft only`
   - review-only caveats (terrain estimates, elevated speed review, AGL storage notes) are separated from hard blockers instead of being mixed into one undifferentiated warning list
