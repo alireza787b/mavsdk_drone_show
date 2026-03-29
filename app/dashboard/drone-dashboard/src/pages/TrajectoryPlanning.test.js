@@ -13,24 +13,25 @@ jest.mock('react-map-gl', () => {
     { lng: 51.2733, lat: 35.7274 },
     { lng: 51.2745, lat: 35.7286 },
   ];
+  const MockMap = React.forwardRef(({ children, onClick }, ref) => (
+    <div ref={ref}>
+      <button
+        type="button"
+        data-testid="mock-map"
+        onClick={() => {
+          const point = clickPoints[mockMapClickIndex] || clickPoints[clickPoints.length - 1];
+          mockMapClickIndex += 1;
+          onClick?.({ lngLat: point });
+        }}
+      >
+        Mock Map
+      </button>
+      {children}
+    </div>
+  ));
 
   return {
-    Map: ({ children, onClick }) => (
-      <div>
-        <button
-          type="button"
-          data-testid="mock-map"
-          onClick={() => {
-            const point = clickPoints[mockMapClickIndex] || clickPoints[clickPoints.length - 1];
-            mockMapClickIndex += 1;
-            onClick?.({ lngLat: point });
-          }}
-        >
-          Mock Map
-        </button>
-        {children}
-      </div>
-    ),
+    Map: MockMap,
     Source: ({ children }) => <div>{children}</div>,
     Layer: () => null,
     Marker: ({ children, onClick }) => (
@@ -136,21 +137,10 @@ jest.mock('../services/droneApiService', () => ({
   uploadSwarmTrajectory: jest.fn().mockResolvedValue({ success: true, message: 'uploaded' }),
 }));
 
-jest.mock('../utilities/TrajectoryStorage', () => ({
-  TrajectoryStorage: jest.fn().mockImplementation(() => ({
-    getAllTrajectories: jest.fn(() => []),
-    autoSave: jest.fn().mockResolvedValue({ success: true }),
-    saveTrajectory: jest.fn().mockResolvedValue({ success: true, message: 'saved' }),
-    loadTrajectory: jest.fn(),
-    importTrajectory: jest.fn(),
-    exportCurrentTrajectory: jest.fn().mockResolvedValue({ success: true, message: 'exported' }),
-    convertToCSV: jest.fn(() => 'csv'),
-  })),
-}));
-
 describe('TrajectoryPlanning', () => {
   beforeEach(() => {
     mockMapClickIndex = 0;
+    window.localStorage.clear();
   });
 
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {
