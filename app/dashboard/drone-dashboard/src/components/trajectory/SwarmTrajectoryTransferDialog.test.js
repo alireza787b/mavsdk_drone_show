@@ -99,7 +99,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
 
     expect(screen.getAllByText('Draft only').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /send draft to leader/i })).toBeInTheDocument();
-    expect(screen.getByText(/launch blockers/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/launch blockers/i).length).toBeGreaterThan(0);
   });
 
   it('directs the user to swarm design when no leaders are available', () => {
