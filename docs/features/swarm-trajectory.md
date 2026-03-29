@@ -254,10 +254,12 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review and Dispatch`) are summarized at the top with direct navigation back to the relevant page
   - the workspace also repeats the execution boundary in one compact policy strip, so operators do not forget that only top leaders are authored here, processed drones fly individual generated global paths, and Smart Swarm remains the separate live-follow mode
   - processing recommendations now live inside Step 2, and git-record / dashboard launch actions now live inside Step 3 instead of being scattered across the page
+  - partial-output review now stays visibly separate from full launch-ready posture, so operators are told to resolve attention items and reprocess before treating the package as a normal full-formation candidate
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - Mission Type 4 dashboard dispatch is now gated by that backend cluster truth:
   - missing leader uploads, pending processing, partial outputs, missing active session truth, and explicit cluster issues all block launch
   - advisory items stay visible as warnings without pretending the package is unavailable
+  - the workspace handoff back to the command surface is labeled `Open Dashboard Preflight` to reinforce that final launch approval still happens in dashboard preflight, not on the processing page alone
 - selected-drone dispatch is now **scope-aware** instead of all-or-nothing:
   - a partial launch is allowed when every selected drone has a processed output and the full required leader chain is included in the same target set
   - unrelated incomplete clusters stay visible as review warnings, but no longer block a valid selected-cluster launch

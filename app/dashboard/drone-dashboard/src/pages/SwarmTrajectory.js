@@ -97,6 +97,7 @@ const SwarmTrajectory = () => {
     : gcsConfig.git_auto_push
       ? 'commit_and_push'
       : 'local_commit';
+  const isPartialPackage = viewModel.currentOutcome === 'partial';
 
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
@@ -659,6 +660,9 @@ const SwarmTrajectory = () => {
     const warning = isPushMode
       ? 'Only commit when the plots and readiness summary reflect the exact mission package you want operators to fly.'
       : 'Use this to preserve a traceable local mission package. Launch can still use the current processed outputs even when repo push is disabled.';
+    const finalWarning = isPartialPackage
+      ? `${warning} Current outputs still have attention items, so treat this as a partial or review package until processing issues are resolved.`
+      : warning;
     const confirmLabel = isPushMode ? 'Commit & Push' : 'Commit Locally';
 
     openConfirmDialog({
@@ -669,7 +673,7 @@ const SwarmTrajectory = () => {
         `Ready clusters: ${viewModel.clusterSummary.ready_cluster_count}/${viewModel.clusterSummary.cluster_count}`,
         `Session: ${viewModel.session.session_id || 'No active processing session'}`,
       ],
-      warning,
+      warning: finalWarning,
       confirmLabel,
       onConfirm: async () => {
         setCommitting(true);
@@ -1051,7 +1055,10 @@ const SwarmTrajectory = () => {
 
                 <div className="next-steps">
                   <p>
-                    <strong>Next:</strong> review the cluster plots below, optionally record the generated outputs to git, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.
+                    <strong>Next:</strong>{' '}
+                    {isPartialPackage
+                      ? 'review the cluster plots below, resolve the listed attention items, and reprocess before treating this as a full-formation launch package. Dashboard preflight can still be used later to validate any intentional subset plan.'
+                      : 'review the cluster plots below, optionally record the generated outputs to git, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.'}
                   </p>
                 </div>
 
@@ -1066,7 +1073,7 @@ const SwarmTrajectory = () => {
                           : 'Commit Mission Outputs'}
                   </button>
                   <Link className="utility-btn" to="/">
-                    Open Dashboard
+                    Open Dashboard Preflight
                   </Link>
                 </div>
 
