@@ -366,6 +366,13 @@ class Params:
     PREFLIGHT_MAX_RETRIES = 40       # Maximum number of retries for pre-flight checks
     PRE_FLIGHT_TIMEOUT = 80          # Timeout for pre-flight checks in seconds
     LANDING_TIMEOUT = 10            # Timeout during landing phase in seconds
+    OFFBOARD_ARM_HEALTH_TIMEOUT_SEC = 15.0   # Wait budget for PX4 armability after preflight already passed
+    OFFBOARD_ARM_HEALTH_POLL_SEC = 0.5       # Max wait between MAVSDK health samples during mission startup
+    OFFBOARD_ARM_HEALTH_STABLE_SAMPLES = 1   # Consecutive healthy samples required before arming
+    OFFBOARD_ARM_MAX_ATTEMPTS = 3            # Bounded arm retries for transient PX4 pre-arm denials
+    OFFBOARD_ARM_RETRY_DELAY_SEC = 2.0       # Delay between arm retries after COMMAND_DENIED
+    OFFBOARD_START_MAX_ATTEMPTS = 3          # Bounded retries when starting offboard mode
+    OFFBOARD_START_RETRY_DELAY_SEC = 1.0     # Delay between offboard-start retries
 
     # Trajectory and Landing Configuration
     GROUND_ALTITUDE_THRESHOLD = 1.0        # Threshold to determine if trajectory ends at ground level

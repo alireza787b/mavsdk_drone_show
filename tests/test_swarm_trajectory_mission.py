@@ -91,6 +91,7 @@ async def test_has_reached_initial_climb_altitude_accepts_missing_telemetry():
 async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeypatch):
     drone = MagicMock()
     drone.offboard.set_velocity_ned = AsyncMock()
+    drone.offboard.set_velocity_body = AsyncMock()
     drone.offboard.set_position_global = AsyncMock()
 
     led_controller = MagicMock()
@@ -206,6 +207,26 @@ async def test_execute_end_behavior_raises_when_all_recoveries_fail():
     controlled_landing.assert_awaited_once_with(drone)
     emergency_rtl.assert_awaited_once_with(drone)
     emergency_land.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_arming_and_starting_offboard_mode_uses_shared_prearm_gate(monkeypatch):
+    drone = MagicMock()
+    drone.action.hold = AsyncMock()
+    drone.offboard.set_velocity_body = AsyncMock()
+    drone.offboard.start = AsyncMock()
+
+    led_controller = MagicMock()
+    monkeypatch.setattr(stm.LEDController, "get_instance", MagicMock(return_value=led_controller))
+    monkeypatch.setattr(stm.Params, "REQUIRE_GLOBAL_POSITION", False)
+
+    with patch.object(stm, "arm_with_preflight_gate", new=AsyncMock()) as arm_with_preflight_gate:
+        await stm.arming_and_starting_offboard_mode(drone, home_position=None)
+
+    drone.action.hold.assert_awaited_once()
+    arm_with_preflight_gate.assert_awaited_once()
+    assert arm_with_preflight_gate.await_args.kwargs["require_global_position"] is False
+    drone.offboard.start.assert_awaited_once()
 
 
 @pytest.mark.asyncio

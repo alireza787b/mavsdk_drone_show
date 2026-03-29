@@ -184,6 +184,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - local Docker SITL now mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated shared runtime path, so processed leader/follower outputs stay live for same-host SITL execution without dirtying the container repo
 - real hardware and remote drone repos still depend on the normal git commit / push / sync flow; the shared trajectory workspace is a SITL-only convenience path
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
+- mission startup now waits for MAVSDK/PX4 armability before arming, so transient pre-arm denials are handled with a bounded startup gate instead of immediately failing the route
 - planner-side destructive and validation flows now use inline notices instead of blocking browser `alert()` / `confirm()` popups
 - waypoint editing, modal validation, and planner shortcuts are now exposed in-place so the operator can stay inside the workspace without losing mission context
 - the planner now treats waypoint timing as explicit operator intent instead of an implicit time-only field:

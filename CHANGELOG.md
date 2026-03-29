@@ -78,6 +78,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - SITL image preparation and live SITL runtime no longer blank the repo URL when authenticated GitHub HTTPS is unavailable, and official/custom image builds now stop immediately if runtime filesystem preparation fails instead of flattening a partial container
 - the official public SITL archive was rebuilt from the corrected release flow, republished on MEGA, and re-linked in the SITL guide after validation on a fresh Hetzner host
 - dashboard runtime freshness now uses a server-derived telemetry clock hint instead of blindly trusting the operator browser clock, so fresh remote SITL sessions no longer show false stale-link readiness states just because the client clock is skewed
+- Drone Show and Swarm Trajectory offboard startup now share a bounded MAVSDK armability gate before arming, reducing transient PX4 pre-arm denials during SITL and hardware mission launch
 - drone readiness cards now preserve a recent PX4 readiness snapshot as a warning-only link issue instead of immediately flipping the whole card to `Unverified`, so low-bandwidth or briefly delayed telemetry is shown more cleanly for operators
 - the Custom CSV page now uses the served image endpoint directly instead of a cross-origin `fetch()` blob path, which removes the false preview error caused by browser CORS on `:3030 -> :5000`
 - drone card position-ID comparison now normalizes numeric/string values before flagging a mismatch, so matching IDs no longer show a false warning icon

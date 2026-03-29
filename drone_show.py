@@ -120,6 +120,7 @@ from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
+from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
 from src import origin_cache  # Phase 2: Origin caching system
 
@@ -1459,7 +1460,6 @@ async def pre_flight_checks(drone: System, require_global_position: bool):
         led_controller.set_color(255, 0, 0)
         raise
 
-@retry(stop=stop_after_attempt(Params.PREFLIGHT_MAX_RETRIES), wait=wait_fixed(2))
 async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
     """
     Arm the drone and start offboard mode, while computing the initial position offset in NED coordinates.
@@ -1493,9 +1493,12 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
         logger.info("Setting Hold flight mode.")
         await drone.action.hold()
 
-        # Step 3: Arm the drone
-        logger.info("Arming the drone.")
-        await drone.action.arm()
+        # Step 3: Wait for PX4 armability, then arm with bounded retries.
+        await arm_with_preflight_gate(
+            drone,
+            require_global_position=bool(Params.REQUIRE_GLOBAL_POSITION and home_position),
+            logger=logger,
+        )
 
         # Step 4: Set an initial offboard velocity setpoint
         logger.info("Setting initial velocity setpoint for offboard mode.")
@@ -1503,7 +1506,21 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
 
         # Step 5: Start offboard mode
         logger.info("Starting offboard mode.")
-        await drone.offboard.start()
+        offboard_attempts = 0
+        max_offboard_attempts = max(1, int(getattr(Params, "OFFBOARD_START_MAX_ATTEMPTS", 3)))
+
+        while offboard_attempts < max_offboard_attempts:
+            try:
+                await drone.offboard.start()
+                logger.info("Offboard mode started successfully.")
+                break
+            except OffboardError as e:
+                offboard_attempts += 1
+                logger.warning(f"Offboard start attempt {offboard_attempts} failed: {e}")
+                if offboard_attempts >= max_offboard_attempts:
+                    raise
+                await asyncio.sleep(float(getattr(Params, "OFFBOARD_START_RETRY_DELAY_SEC", 1.0)))
+                await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
 
         # Indicate readiness with LED color
         led_controller.set_color(255, 255, 255)  # White: Ready to fly
