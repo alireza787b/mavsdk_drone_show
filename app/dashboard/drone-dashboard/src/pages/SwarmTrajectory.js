@@ -732,11 +732,11 @@ const SwarmTrajectory = () => {
               {' → '}
               2. <Link to="/trajectory-planning" className="guide-link">Author leader path</Link>
               {' → '}
-              3. Upload leader CSVs here
+              3. Send from planner or upload leader CSVs here
               {' → '}
               4. Process follower outputs
               {' → '}
-              5. Review plots and commit
+              5. Review plots, commit, then launch from Dashboard
             </span>
           </div>
         </div>
@@ -1028,7 +1028,7 @@ const SwarmTrajectory = () => {
 
                 <div className="next-steps">
                   <p>
-                    <strong>Next:</strong> review the cluster plots below, commit the generated outputs, then launch Mission Type 4 from the dashboard with preflight checks enabled.
+                    <strong>Next:</strong> review the cluster plots below, commit the generated outputs, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.
                   </p>
                 </div>
 
@@ -1037,7 +1037,7 @@ const SwarmTrajectory = () => {
                     {committing ? 'Committing...' : 'Commit & Push Outputs'}
                   </button>
                   <Link className="utility-btn" to="/">
-                    Open Mission Control
+                    Open Dashboard
                   </Link>
                 </div>
 

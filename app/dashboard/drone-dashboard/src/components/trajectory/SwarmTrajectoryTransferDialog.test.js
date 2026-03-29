@@ -114,4 +114,14 @@ describe('SwarmTrajectoryTransferDialog', () => {
 
     expect(props.onOpenSwarmDesign).toHaveBeenCalledTimes(1);
   });
+
+  it('opens the swarm trajectory workspace after a successful upload', () => {
+    const { props } = renderDialog({
+      successMessage: 'Trajectory uploaded for Leader 1. Next step: process the swarm formation.',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /open swarm trajectory/i }));
+
+    expect(props.onOpenSwarmTrajectory).toHaveBeenCalledTimes(1);
+  });
 });

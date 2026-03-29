@@ -1,6 +1,7 @@
 // src/pages/TrajectoryPlanning.js
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // Import existing trajectory components
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -81,6 +82,7 @@ const createWaypointIcon = (index, color) =>
   });
 
 const TrajectoryPlanning = () => {
+  const navigate = useNavigate();
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable;
 
@@ -833,6 +835,8 @@ const TrajectoryPlanning = () => {
       totalTime={trajectoryStats.totalTime}
       stats={trajectoryStats}
       missionReadiness={plannerMissionReadiness}
+      onOpenSwarmTrajectory={() => navigate('/swarm-trajectory')}
+      onOpenSwarmDesign={() => navigate('/swarm-design')}
     />
   );
 

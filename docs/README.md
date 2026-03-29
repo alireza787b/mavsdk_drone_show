@@ -15,6 +15,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | get a working SITL demo fast | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
+| author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy Raspberry Pi hardware | [MDS Init Setup](guides/mds-init-setup.md) |
@@ -28,6 +29,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | Tester / pilot / evaluator | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | Drone Show operator | [Drone Show Guide](features/drone-show.md) |
 | Smart Swarm operator | [Smart Swarm Guide](features/smart-swarm.md) |
+| Swarm Trajectory operator | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | Deployment engineer | [GCS Setup Guide](guides/gcs-setup.md) and [MDS Init Setup](guides/mds-init-setup.md) |
 | Customer maintainer | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | SITL release maintainer | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
@@ -81,7 +83,7 @@ Detailed documentation for MDS features:
 |---------|-------------|
 | **[Drone Show](features/drone-show.md)** | SkyBrush ZIP import, control-mode selection, trigger timing, custom CSV distinction, and launch-readiness workflow |
 | **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, first SITL flow, and validator tool |
-| **[Swarm Trajectory](features/swarm-trajectory.md)** | Processed cluster trajectories, leader-follow offsets, plotting, and KML export |
+| **[Swarm Trajectory](features/swarm-trajectory.md)** | Swarm Design -> Trajectory Planning -> Swarm Trajectory -> Dashboard mission workflow for processed leader/follower trajectories |
 | **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
 | **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |

@@ -63,7 +63,7 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
       message: `${buildDroneLabel(viewModel.processedDroneCount)} are available across ${buildClusterLabel(readyClusterCount)}.`,
       details: [
         `Processing session: ${viewModel.session.session_id || 'Unavailable'}`,
-        'Next step: review plots, commit the package, then launch Mission Type 4 from Mission Control.',
+        'Next step: review plots, commit the package, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
       ],
     };
   }
@@ -191,7 +191,7 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       `Attention items: ${attentionItemCount}`,
     ];
-    reviewStage.actionLabel = 'Open Mission Control';
+    reviewStage.actionLabel = 'Open Dashboard';
     reviewStage.actionHref = '/';
   } else {
     reviewStage.tone = 'ready';
@@ -199,9 +199,9 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     reviewStage.summary = 'Plots, outputs, and cluster readiness are clear for commit and dashboard dispatch.';
     reviewStage.details = [
       `Session: ${viewModel.session.session_id || 'Unavailable'}`,
-      'Commit the package, then launch Mission Type 4 from Mission Control.',
+      'Commit the package, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
     ];
-    reviewStage.actionLabel = 'Open Mission Control';
+    reviewStage.actionLabel = 'Open Dashboard';
     reviewStage.actionHref = '/';
   }
 

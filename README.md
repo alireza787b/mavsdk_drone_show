@@ -22,6 +22,7 @@ MDS combines the drone-side runtime, GCS/backend services, and React operator da
 | run the first demo quickly | [SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md) |
 | import and launch a drone show | [Drone Show Guide](docs/features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](docs/features/smart-swarm.md) |
+| author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](docs/features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](docs/guides/custom-repo-workflow.md) |
 | install a GCS on a VPS or Ubuntu box | [GCS Setup Guide](docs/guides/gcs-setup.md) |
 | deploy real drone hardware | [MDS Init Setup Guide](docs/guides/mds-init-setup.md) |

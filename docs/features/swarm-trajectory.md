@@ -111,12 +111,15 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 ### Step 1: Build a Leader Path
 ```mermaid
 graph LR
-    A[Trajectory Planning] --> B[Author or import leader path]
-    B --> C[Export or Send to Swarm]
+    A[Swarm Design] --> B[Confirm top leaders and cluster offsets]
+    B --> C[Trajectory Planning]
+    C --> D[Author or import leader path]
+    D --> E[Send to Swarm or export CSV]
 ```
 
 Important:
 
+- start in **Swarm Design** first so the current top leaders and follower clusters are correct
 - only **top leaders** are authored/uploaded in this mode
 - follower paths are **generated later** from the current swarm hierarchy and offsets
 - this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
@@ -139,23 +142,33 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 
 ### Step 2: Assign, Upload, and Process
 
-1. **Open** `Trajectory Planning` to author/import the leader route
-2. **Send to Swarm** from the planner, or export CSV and upload manually in `Swarm Trajectory`
-3. **Assign** the route to the intended top leader cluster
-4. **Review** cluster truth:
+1. **Open** `Swarm Design` and confirm the intended top leaders / follower hierarchy first
+2. **Open** `Trajectory Planning` to author/import the leader route
+3. **Send to Swarm** from the planner, or export CSV and upload manually in `Swarm Trajectory`
+4. **Assign** the route to the intended top leader cluster
+5. **Review** cluster truth:
    - leaders with uploaded CSVs
    - leaders still missing uploads
    - clusters needing processing
    - clusters with partial outputs
-5. **Process** the formation to regenerate follower outputs and plots
-6. **Verify** processed outputs and previews before launch
-7. **Commit / push** if the generated artifacts must be synced to SITL or hardware repos
+6. **Process** the formation to regenerate follower outputs and plots
+7. **Verify** processed outputs and previews before launch
+8. **Commit / push** if the generated artifacts must be synced to SITL or hardware repos
 
 ### Step 3: Mission Execution
 
-1. **Set Mission Type** to 4 (Swarm Trajectory) on all drones
-2. **Trigger Mission** - each drone reads its individual trajectory
-3. **Monitor** execution through existing telemetry systems
+1. **Open** `Dashboard`
+2. **Use** `Command Control` -> `Mission Trigger`
+3. **Set Mission Type** to 4 (Swarm Trajectory) on all drones
+4. **Launch** the mission after the Swarm Trajectory preflight summary is clear
+5. **Monitor** execution through existing telemetry systems
+
+### First-Run Checklist
+
+1. `Swarm Design`: verify the correct top leaders and follower hierarchy
+2. `Trajectory Planning`: author the leader route and `Send to Swarm`
+3. `Swarm Trajectory`: confirm uploads, run processing, review plots, commit outputs
+4. `Dashboard -> Command Control -> Mission Trigger`: launch Mission Type 4 with preflight checks
 
 ### Current Operator Notes
 
@@ -202,7 +215,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - the `Swarm Trajectory` processing workspace now mirrors that same staged operator model:
   - a single workspace-status card tells the operator whether uploads are blocked, outputs need processing, or the mission package is ready for dashboard preflight
   - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review, Commit, and Launch`) are summarized at the top with direct navigation back to the relevant page
-  - processing recommendations now live inside Step 2, and commit / Mission Control actions now live inside Step 3 instead of being scattered across the page
+  - processing recommendations now live inside Step 2, and commit / dashboard launch actions now live inside Step 3 instead of being scattered across the page
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats

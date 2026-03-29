@@ -137,7 +137,7 @@ const MissionReadinessCard = ({ refreshTrigger = 0 }) => {
           <span className="empty-icon">🤖</span>
           <div className="empty-text">
             <h4>No Clusters Found</h4>
-            <p>Configure the swarm in Swarm Design, then upload leader trajectories in Swarm Trajectory.</p>
+            <p>Configure the swarm in Swarm Design, then send leader paths from Trajectory Planning or upload them in Swarm Trajectory.</p>
           </div>
           <Link to="/swarm-design" className="fix-link">
             Configure Swarm →
