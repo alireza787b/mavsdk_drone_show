@@ -277,11 +277,9 @@ const TrajectoryPlanning = () => {
     const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
     const altitudeReferenceCounts = trajectoryStats.altitudeReferenceCounts || {};
     const authoringBreakdown = trajectoryStats.authoringBreakdown || {};
-    const routeEntryDelay = Number.isFinite(waypoints[0]?.timeFromStart)
-      ? waypoints[0].timeFromStart
-      : Number.isFinite(waypoints[0]?.time)
-        ? waypoints[0].time
-        : 0;
+    const routeEntryDelay = Number.isFinite(trajectoryStats.routeEntryDelaySeconds)
+      ? trajectoryStats.routeEntryDelaySeconds
+      : 0;
     const routeMotionTime = Number.isFinite(trajectoryStats.routeMotionTime)
       ? trajectoryStats.routeMotionTime
       : Math.max(0, trajectoryStats.totalTime - routeEntryDelay);
