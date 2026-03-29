@@ -87,6 +87,8 @@ describe('TrajectoryStorage', () => {
     expect(csvExport.filename).toBe('route_alpha.csv');
     expect(csvExport.content).toContain('Heading_deg,HeadingMode');
     expect(csvExport.content).toContain('90.0,auto');
+    expect(csvExport.content).toContain('AltitudeReference,TargetAgl_m,GroundElevation_m,TerrainAccurate,TimingMode,PreferredSpeed_ms,CalculatedHeading_deg');
+    expect(csvExport.content).toContain('agl,120.0,200.0,true,auto_speed,6.0,90.0');
 
     expect(kmlExport.filename).toBe('route_alpha.kml');
     expect(kmlExport.content).toContain('<name>route-alpha</name>');
@@ -119,6 +121,41 @@ describe('TrajectoryStorage', () => {
         estimatedSpeed: 6.2,
         heading: 135,
         headingMode: 'manual',
+      })
+    );
+  });
+
+  it('round-trips extended planner CSV metadata without breaking legacy mission columns', () => {
+    const storage = new TrajectoryStorage();
+    const csv = [
+      'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode,AltitudeReference,TargetAgl_m,GroundElevation_m,TerrainAccurate,TimingMode,PreferredSpeed_ms,CalculatedHeading_deg',
+      'Waypoint 1,35.72620000,51.27210000,320.00,24.0,5.8,90.0,auto,agl,120.0,200.0,true,auto_speed,6.0,90.0',
+      'Waypoint 2,35.72720000,51.27310000,340.00,44.0,6.2,135.0,manual,msl,0.0,220.0,false,manual_time,0.0,135.0',
+    ].join('\n');
+
+    const parsed = storage.parseCSV(csv, 'route-alpha.csv');
+
+    expect(parsed.waypoints[0]).toEqual(
+      expect.objectContaining({
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        targetAgl: 120,
+        groundElevation: 200,
+        terrainAccurate: true,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        preferredSpeed: 6,
+        calculatedHeading: 90,
+      })
+    );
+
+    expect(parsed.waypoints[1]).toEqual(
+      expect.objectContaining({
+        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        targetAgl: 0,
+        groundElevation: 220,
+        terrainAccurate: false,
+        timingMode: TIMING_MODES.MANUAL_TIME,
+        preferredSpeed: 0,
+        calculatedHeading: 135,
       })
     );
   });

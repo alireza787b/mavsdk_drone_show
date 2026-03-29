@@ -436,7 +436,14 @@ export class TrajectoryStorage {
       'TimeFromStart_s', 
       'EstimatedSpeed_ms', 
       'Heading_deg',        // Aviation standard: 0-360°
-      'HeadingMode'         // 'auto' or 'manual' - single source of truth
+      'HeadingMode',        // 'auto' or 'manual' - single source of truth
+      'AltitudeReference',
+      'TargetAgl_m',
+      'GroundElevation_m',
+      'TerrainAccurate',
+      'TimingMode',
+      'PreferredSpeed_ms',
+      'CalculatedHeading_deg'
     ];
     
     const rows = waypoints.map(wp => [
@@ -447,7 +454,14 @@ export class TrajectoryStorage {
       (wp.timeFromStart || 0).toFixed(1),
       (wp.estimatedSpeed || 0).toFixed(1),
       (wp.heading || wp.yaw || 0).toFixed(1), // Backwards compatibility with old 'yaw' field
-      wp.headingMode || wp.yawMode || 'auto'  // Backwards compatibility with old 'yawMode' field
+      wp.headingMode || wp.yawMode || 'auto', // Backwards compatibility with old 'yawMode' field
+      wp.altitudeReference || ALTITUDE_REFERENCE.MSL,
+      Number(wp.targetAgl || 0).toFixed(1),
+      Number(wp.groundElevation || 0).toFixed(1),
+      wp.terrainAccurate !== false ? 'true' : 'false',
+      wp.timingMode || TIMING_MODES.MANUAL_TIME,
+      Number(wp.preferredSpeed || 0).toFixed(1),
+      Number(wp.calculatedHeading || 0).toFixed(1),
     ]);
 
     return [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -515,27 +529,55 @@ export class TrajectoryStorage {
    * Parse CSV content to trajectory data
    */
   parseCSV(content, filename) {
-    const lines = content.trim().split('\n');
+    const lines = content.trim().split('\n').filter((line) => line.trim().length > 0);
+    const headers = (lines[0] || '').split(',').map((value) => value.trim());
+    const headerIndex = new Map(headers.map((header, index) => [header, index]));
+    const readValue = (values, headerName, fallbackIndex, fallbackValue = '') => {
+      const index = headerIndex.get(headerName);
+
+      if (index !== undefined) {
+        return values[index] ?? fallbackValue;
+      }
+
+      return values[fallbackIndex] ?? fallbackValue;
+    };
+    const normalizeAltitudeReference = (value) =>
+      String(value || '').toLowerCase() === ALTITUDE_REFERENCE.AGL ? ALTITUDE_REFERENCE.AGL : ALTITUDE_REFERENCE.MSL;
+    const normalizeTimingMode = (value) =>
+      String(value || '').toLowerCase() === TIMING_MODES.AUTO_SPEED ? TIMING_MODES.AUTO_SPEED : TIMING_MODES.MANUAL_TIME;
+    const normalizeHeadingMode = (value) =>
+      String(value || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
     
     const waypoints = lines.slice(1).map((line, index) => {
       const values = line.split(',').map(v => v.trim());
+      const altitudeReference = normalizeAltitudeReference(readValue(values, 'AltitudeReference', 8, ALTITUDE_REFERENCE.MSL));
+      const targetAgl = parseFloat(readValue(values, 'TargetAgl_m', 9, '0')) || 0;
+      const groundElevation = parseFloat(readValue(values, 'GroundElevation_m', 10, '0')) || 0;
+      const terrainAccurateRaw = readValue(values, 'TerrainAccurate', 11, 'true');
+      const terrainAccurate = String(terrainAccurateRaw).toLowerCase() !== 'false';
+      const timingMode = normalizeTimingMode(readValue(values, 'TimingMode', 12, TIMING_MODES.MANUAL_TIME));
+      const preferredSpeed = parseFloat(readValue(values, 'PreferredSpeed_ms', 13, '0')) || 0;
+      const calculatedHeading = parseFloat(readValue(values, 'CalculatedHeading_deg', 14, '0')) || 0;
+
       return {
         id: `waypoint-${Date.now()}-${index}`,
-        name: values[0] || `Waypoint ${index + 1}`,
-        latitude: parseFloat(values[1]) || 0,
-        longitude: parseFloat(values[2]) || 0,
-        altitude: parseFloat(values[3]) || TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL,
-        altitudeReference: ALTITUDE_REFERENCE.MSL,
-        targetAgl: 0,
-        timeFromStart: parseFloat(values[4]) || 0,
-        timingMode: TIMING_MODES.MANUAL_TIME,
-        preferredSpeed: 0,
-        estimatedSpeed: parseFloat(values[5]) || 0,
+        name: readValue(values, 'Name', 0, `Waypoint ${index + 1}`) || `Waypoint ${index + 1}`,
+        latitude: parseFloat(readValue(values, 'Latitude', 1, '0')) || 0,
+        longitude: parseFloat(readValue(values, 'Longitude', 2, '0')) || 0,
+        altitude: parseFloat(readValue(values, 'Altitude_MSL_m', 3, String(TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL))) || TRAJECTORY_ALTITUDE_POLICY.DEFAULT_MSL,
+        altitudeReference,
+        targetAgl,
+        groundElevation,
+        terrainAccurate,
+        timeFromStart: parseFloat(readValue(values, 'TimeFromStart_s', 4, '0')) || 0,
+        timingMode,
+        preferredSpeed,
+        estimatedSpeed: parseFloat(readValue(values, 'EstimatedSpeed_ms', 5, '0')) || 0,
         speedFeasible: true,
         // Aviation standard heading data with backwards compatibility
-        heading: values[6] !== undefined ? parseFloat(values[6]) || 0 : 0,
-        headingMode: values[7] || 'auto',
-        calculatedHeading: 0 // Will be recalculated
+        heading: parseFloat(readValue(values, 'Heading_deg', 6, '0')) || 0,
+        headingMode: normalizeHeadingMode(readValue(values, 'HeadingMode', 7, 'auto')),
+        calculatedHeading,
       };
     });
 
