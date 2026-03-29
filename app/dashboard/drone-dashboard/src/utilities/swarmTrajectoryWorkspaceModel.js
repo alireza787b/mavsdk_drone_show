@@ -2,6 +2,7 @@ const buildListLabel = (values = []) => (values.length > 0 ? values.join(', ') :
 
 const buildClusterLabel = (count = 0) => `${count} cluster${count === 1 ? '' : 's'}`;
 const buildDroneLabel = (count = 0) => `${count} drone output${count === 1 ? '' : 's'}`;
+const clusterVerb = (count = 0, singular = 'has', plural = 'have') => (count === 1 ? singular : plural);
 
 export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation, hasProcessedOutputs }) {
   const clusterCount = viewModel.clusterSummary.cluster_count || 0;
@@ -36,7 +37,7 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
     return {
       tone: 'attention',
       title: 'Processed outputs need another review pass',
-      message: `${buildClusterLabel(partialOutputCount)} still have missing or stale follower outputs before launch.`,
+      message: `${buildClusterLabel(partialOutputCount)} still ${clusterVerb(partialOutputCount)} missing or stale follower outputs before launch.`,
       details: [
         `Ready clusters: ${readyClusterCount}/${clusterCount}`,
         `Attention items: ${viewModel.issueCount + viewModel.advisoryCount}`,
@@ -157,7 +158,7 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
   } else if (partialOutputCount > 0) {
     processingStage.tone = 'attention';
     processingStage.label = 'Action Needed';
-    processingStage.summary = `${buildClusterLabel(partialOutputCount)} still have missing follower outputs.`;
+    processingStage.summary = `${buildClusterLabel(partialOutputCount)} still ${clusterVerb(partialOutputCount)} missing follower outputs.`;
     processingStage.details = [
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       'Run a fresh processing pass after clearing or replacing invalid cluster outputs.',

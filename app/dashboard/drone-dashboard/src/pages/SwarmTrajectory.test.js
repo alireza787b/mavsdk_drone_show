@@ -201,6 +201,6 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
     expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-fleet launch package/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open mission trigger/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /open mission trigger/i })).toHaveLength(2);
   });
 });
