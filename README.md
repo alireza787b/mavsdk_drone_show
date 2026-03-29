@@ -45,6 +45,8 @@ bash app/linux_dashboard_start.sh --sitl
 
 Then open `http://<host>:3030`.
 
+`bash app/linux_dashboard_start.sh --sitl` now keeps the FastAPI backend single-process by default, even in development mode, so telemetry, heartbeats, command tracking, and other in-memory operational state stay coherent during live SITL runs. Only enable backend auto-reload for backend code editing with `MDS_GCS_BACKEND_RELOAD=true`.
+
 For the stock official SITL package, Mission Config starts from the tracked Azadi Stadium demo origin in `data/origin.sitl.default.json`. If you later set a different origin in the dashboard or via the API, MDS writes a local runtime override to `data/origin.json` on that server. Remove that local file when you want the stock Azadi default to apply again.
 
 For the default official HTTPS demo path, the GCS now treats git write-back as disabled by default (`MDS_GIT_AUTO_PUSH=false`). That keeps imports/config saves clean on read-only evaluation setups; move to the fork/SSH workflow when you want the GCS to commit and push changes.

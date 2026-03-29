@@ -45,6 +45,7 @@ PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_WSGI_BIND="0.0.0.0:5000"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
+DEV_BACKEND_RELOAD="${MDS_GCS_BACKEND_RELOAD:-false}"
 DEV_REACT_PORT=3030
 DEV_GCS_PORT=5000  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
@@ -67,6 +68,11 @@ apply_logging_mode_defaults() {
     export MDS_LOG_LEVEL="$GCS_CONSOLE_LOG_LEVEL"
 
     export MDS_LOG_FILE_LEVEL="${MDS_LOG_FILE_LEVEL:-DEBUG}"
+}
+
+backend_reload_enabled() {
+    local normalized="${DEV_BACKEND_RELOAD,,}"
+    [[ "$normalized" == "1" || "$normalized" == "true" || "$normalized" == "yes" || "$normalized" == "on" ]]
 }
 
 # ===========================================
@@ -253,6 +259,7 @@ show_current_status() {
 Drone Mode:       $(get_current_drone_mode)
 Real Mode File:   $([[ -f "$REAL_MODE_FILE" ]] && echo "EXISTS" || echo "NOT PRESENT")
 Backend:          $GCS_BACKEND
+Backend Reload:   $([[ "$DEPLOYMENT_MODE" == "production" ]] && echo "DISABLED (production)" || (backend_reload_enabled && echo "ENABLED (dev override)" || echo "DISABLED (state-safe default)"))
 Virtual Env:      $([[ -d "$VENV_PATH" ]] && echo "OK ($VENV_PATH)" || echo "MISSING")
 React Build:      $([[ -d "$BUILD_DIR" ]] && echo "EXISTS" || echo "NOT BUILT")
 .env File:        $([[ -f "$ENV_FILE_PATH" ]] && echo "EXISTS" || echo "MISSING")
@@ -885,12 +892,20 @@ get_gcs_server_command() {
         fi
         echo "cd '$GCS_SERVER_DIR' && $python_path '$gunicorn_bin' -w $PROD_WSGI_WORKERS -k uvicorn.workers.UvicornWorker -b $PROD_WSGI_BIND --timeout $PROD_GUNICORN_TIMEOUT --log-level $PROD_LOG_LEVEL${production_access_log_args} app_fastapi:app"
     else
-        # Development: Uvicorn with auto-reload
+        # Development: default to single-process FastAPI to preserve in-memory state.
         local development_access_log_args=" --no-access-log"
+        local development_reload_args=""
         if [[ "${ENABLE_GCS_ACCESS_LOGS,,}" == "true" ]]; then
             development_access_log_args=""
         fi
-        echo "cd '$GCS_SERVER_DIR' && $python_path '$uvicorn_bin' app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT --reload${development_access_log_args}"
+        if backend_reload_enabled; then
+            development_reload_args=" --reload"
+            log_warn "Backend auto-reload is enabled via MDS_GCS_BACKEND_RELOAD."
+            log_warn "Use this only for backend code editing. Telemetry, heartbeat, command-tracker, and other in-memory runtime state may be inconsistent during live operations."
+        else
+            log_info "Launching development FastAPI without backend auto-reload to preserve operational state."
+        fi
+        echo "cd '$GCS_SERVER_DIR' && $python_path '$uvicorn_bin' app_fastapi:app --host 0.0.0.0 --port $DEV_GCS_PORT${development_reload_args}${development_access_log_args}"
     fi
 }
 

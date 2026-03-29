@@ -268,6 +268,8 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ```
 
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
+- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI on port `5000`, but the backend now stays single-process by default so telemetry, heartbeats, command tracking, and other in-memory runtime state remain coherent during live SITL operations.
+- Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
 - Production serves the React build with SPA route fallback, so direct browser refresh on routes like `/logs` or `/mission-config` keeps working.

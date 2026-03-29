@@ -452,6 +452,7 @@ After successful installation, start the dashboard:
 cd ~/mavsdk_drone_show/app
 
 # SITL mode (simulation) - development mode, runs in tmux by default
+# React hot-reloads; backend stays single-process unless you explicitly enable MDS_GCS_BACKEND_RELOAD=true
 ./linux_dashboard_start.sh --sitl
 
 # Real mode (hardware drones)
@@ -487,7 +488,10 @@ cd ~/mavsdk_drone_show/app
 ./linux_dashboard_start.sh --status
 ```
 
-Production note: the FastAPI backend currently keeps heartbeats, command tracking, and background pollers in process memory, so `--prod` intentionally runs a single Gunicorn worker. This is by design for correctness, not a misconfiguration.
+Operational note: the FastAPI backend currently keeps heartbeats, command tracking, telemetry polling, and other live runtime state in process memory. For that reason:
+- `--prod` intentionally runs a single Gunicorn worker
+- `--sitl` / `--dev` now keep the backend single-process by default as well
+- backend auto-reload is an explicit debug override only: `export MDS_GCS_BACKEND_RELOAD=true`
 
 ### Managing the Services
 
