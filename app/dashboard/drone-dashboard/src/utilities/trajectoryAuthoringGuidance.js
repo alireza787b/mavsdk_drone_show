@@ -212,6 +212,7 @@ export const getTrajectoryOperatorPolicyNotes = ({
   const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
   const speedDrivenCount = timingModes.auto_speed || 0;
   const timeDrivenCount = Math.max(0, (timingModes.manual_time || 0) - (waypointCount > 0 ? 1 : 0));
+  const aglVerb = aglCount === 1 ? 'uses' : 'use';
 
   const terrainDetail = estimatedTerrainCount > 0
     ? `${estimatedTerrainCount} waypoint${estimatedTerrainCount === 1 ? '' : 's'} still rely on estimated or missing terrain and need operator review before launch.`
@@ -224,7 +225,7 @@ export const getTrajectoryOperatorPolicyNotes = ({
       key: 'altitude',
       label: 'Altitude execution',
       detail: aglCount > 0
-        ? `${aglCount} waypoint${aglCount === 1 ? '' : 's'} use Target AGL authoring, but the mission still stores and executes canonical MSL altitude.`
+        ? `${aglCount} waypoint${aglCount === 1 ? '' : 's'} ${aglVerb} Target AGL authoring, but the mission still stores and executes canonical MSL altitude.`
         : 'All current waypoints use direct MSL altitude input, which is also the altitude the mission executes.',
     },
     {

@@ -167,7 +167,9 @@ describe('WaypointModal', () => {
       target: { value: '120' },
     });
 
-    expect(screen.getByText(/mission stores altitude as 320\.0m msl/i)).toBeInTheDocument();
+    expect(screen.getByText(/mission stores altitude as/i).closest('.agl-note')).toHaveTextContent(
+      'Mission stores altitude as 320.0m MSL'
+    );
     expect(screen.queryByText(/estimated terrain/i)).not.toBeInTheDocument();
     expect(screen.getByText(/accurate terrain/i)).toBeInTheDocument();
 
