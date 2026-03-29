@@ -158,7 +158,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const altitudeInputRow = screen.getByText(/altitude input:/i).closest('.detail-row');
+    const altitudeInputRow = screen.getAllByText(/altitude input:/i)[1].closest('.detail-row');
     fireEvent.click(within(altitudeInputRow).getByText(/msl input/i));
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: ALTITUDE_REFERENCE.AGL },
