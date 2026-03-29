@@ -59,7 +59,7 @@ async def wait_until_offboard_armable(
     consecutive_ready = 0
     last_summary = None
 
-    health_iter = drone.telemetry.health().__aiter__()
+    health_iter = None
 
     while True:
         remaining = deadline - time.monotonic()
@@ -69,12 +69,18 @@ async def wait_until_offboard_armable(
                 f"Last health state: {last_summary or 'no health samples received'}"
             )
 
+        if health_iter is None:
+            health_iter = drone.telemetry.health().__aiter__()
+
         try:
             health = await asyncio.wait_for(health_iter.__anext__(), timeout=min(sample_timeout, remaining))
         except asyncio.TimeoutError:
             continue
-        except StopAsyncIteration as exc:
-            raise RuntimeError("MAVSDK health stream ended before startup readiness was confirmed") from exc
+        except StopAsyncIteration:
+            logger.warning("Mission startup health stream ended; resubscribing while readiness wait remains active.")
+            health_iter = None
+            await asyncio.sleep(min(0.1, remaining))
+            continue
 
         state = summarize_offboard_health(health, require_global_position=require_global_position)
         if state["summary"] != last_summary:

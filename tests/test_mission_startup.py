@@ -94,6 +94,27 @@ async def test_wait_until_offboard_armable_times_out_when_armability_never_clear
 
 
 @pytest.mark.asyncio
+async def test_wait_until_offboard_armable_resubscribes_after_stream_end():
+    drone = MagicMock()
+
+    async def _first_stream():
+        yield _health(is_armable=False)
+
+    async def _second_stream():
+        yield _health()
+
+    drone.telemetry.health = MagicMock(side_effect=[_first_stream(), _second_stream()])
+
+    result = await mission_startup.wait_until_offboard_armable(
+        drone,
+        require_global_position=True,
+    )
+
+    assert result.is_armable is True
+    assert drone.telemetry.health.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_arm_with_preflight_gate_retries_command_denied(monkeypatch):
     drone = MagicMock()
     drone.action.arm = AsyncMock(side_effect=[mission_startup.ActionError("COMMAND_DENIED"), None])
