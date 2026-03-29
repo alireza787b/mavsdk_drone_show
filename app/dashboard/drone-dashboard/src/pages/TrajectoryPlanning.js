@@ -313,9 +313,6 @@ const TrajectoryPlanning = () => {
   );
 
   const addWaypointWithData = useCallback((position, waypointData) => {
-    // Always allow waypoint creation (Phase 3 requirement)
-    const speedFeasible = true;
-
     const newWaypoint = {
       id: `waypoint-${Date.now()}`,
       name: `Waypoint ${waypoints.length + 1}`,
@@ -328,7 +325,8 @@ const TrajectoryPlanning = () => {
       timingMode: waypointData.timingMode || TIMING_MODES.MANUAL_TIME,
       preferredSpeed: waypointData.preferredSpeed || 0,
       estimatedSpeed: 0, // Will be calculated in the recalculation phase
-      speedFeasible: speedFeasible,
+      // Recalculated immediately after insertion; keep the transient shape stable.
+      speedFeasible: true,
       terrainInfo: waypointData.terrainInfo,
       groundElevation: waypointData.groundElevation || 0,
       terrainAccurate: waypointData.terrainAccurate !== false,
@@ -503,7 +501,6 @@ const TrajectoryPlanning = () => {
     }
   }, [loadAvailableTrajectories, setOperationNotice, trajectoryStats, waypoints]);
 
-  // FIXED: Load trajectory with speed recalculation
   const handleLoad = useCallback(async (identifier) => {
     const result = await storageRef.current.loadTrajectory(identifier);
     
@@ -581,7 +578,6 @@ const TrajectoryPlanning = () => {
     setModalOpen(true);
   }, [isAddingWaypoint, isDragging]);
 
-  // FIXED: Modal confirm handler for real terrain + correct speeds
   const handleModalConfirm = useCallback((waypointData) => {
     if (pendingWaypointPosition) {
       addWaypointWithData(pendingWaypointPosition, waypointData);

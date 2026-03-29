@@ -467,7 +467,7 @@ const WaypointModal = ({
     altitude,
     targetAgl: aglAltitude,
     groundElevation,
-    terrainAccurate: !terrainError,
+    terrainAccurate: terrainResolved && !terrainError,
   });
   const timingIntent = getTrajectoryTimingIntentSummary({
     isMissionAnchor: !previousWaypoint,

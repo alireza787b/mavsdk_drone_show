@@ -416,7 +416,7 @@ export const recalculateAfterDrag = (waypoints, movedWaypointId) => {
 };
 
 /**
- * FIXED: Calculate speed for new waypoint during creation
+ * Calculate the inbound-leg speed for a newly proposed waypoint.
  * @param {Object} position - New waypoint position
  * @param {Object} waypointData - New waypoint data (altitude, time, etc.)
  * @param {Array} existingWaypoints - Current waypoints array
@@ -428,8 +428,7 @@ export const calculateSpeedForNewWaypoint = (position, waypointData, existingWay
     return 0;
   }
 
-  // FIXED: For a new waypoint, we need to calculate the speed FROM the previous waypoint TO this new one
-  // But we'll display this as the speed that the PREVIOUS waypoint needs to reach this new one
+  // Preview the inbound leg from the previous waypoint to the proposed waypoint.
   const previousWaypoint = existingWaypoints[existingWaypoints.length - 1];
   
   if (!previousWaypoint) return 0;
