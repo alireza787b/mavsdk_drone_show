@@ -40,6 +40,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
           totalTime={90}
           stats={{
             routeEntryDelaySeconds: 12,
+            routeMotionTime: 78,
             altitudeReferenceCounts: { msl: 2, agl: 1 },
             timingModeCounts: { auto_speed: 1, manual_time: 2 },
             headingModeCounts: { auto: 2, manual: 1 },
@@ -69,7 +70,9 @@ describe('SwarmTrajectoryTransferDialog', () => {
     );
 
     expect(screen.getByText('Timing Plan')).toBeInTheDocument();
-    expect(screen.getByText('Route Time')).toBeInTheDocument();
+    expect(screen.getByText('Mission Clock')).toBeInTheDocument();
+    expect(screen.getByText('Route Motion')).toBeInTheDocument();
+    expect(screen.getByText('1m 18s')).toBeInTheDocument();
     expect(screen.getByText('Entry +12s · Speed-driven ETA 1 · Time-driven speed 1')).toBeInTheDocument();
     expect(screen.getByText('Heading Plan')).toBeInTheDocument();
     expect(screen.getByText('Entry heading 1 · Auto arrival 2 · Manual arrival 0')).toBeInTheDocument();

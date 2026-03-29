@@ -18,14 +18,17 @@ describe('TrajectoryLibraryDialog', () => {
         currentStats={{
           totalDistance: 1250,
           totalTime: 92,
+          routeMotionTime: 80,
           maxSpeed: 8.6,
         }}
       />
     );
 
-    expect(screen.getByText('Route time')).toBeInTheDocument();
+    expect(screen.getByText('Mission clock')).toBeInTheDocument();
+    expect(screen.getByText('Route motion')).toBeInTheDocument();
     expect(screen.getByText('1.25 km')).toBeInTheDocument();
     expect(screen.getByText('1m 32s')).toBeInTheDocument();
+    expect(screen.getByText('1m 20s')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/enter trajectory name/i), {
       target: { value: 'coastal-search-alpha' },
@@ -49,6 +52,7 @@ describe('TrajectoryLibraryDialog', () => {
         currentStats={{
           totalDistance: 400,
           totalTime: 40,
+          routeMotionTime: 32,
           maxSpeed: 6.2,
         }}
       />
@@ -85,6 +89,7 @@ describe('TrajectoryLibraryDialog', () => {
               stats: {
                 totalDistance: 400,
                 totalTime: 40,
+                routeMotionTime: 32,
                 maxSpeed: 6.2,
               },
             },
@@ -98,6 +103,7 @@ describe('TrajectoryLibraryDialog', () => {
               stats: {
                 totalDistance: 1425,
                 totalTime: 186,
+                routeMotionTime: 174,
                 maxSpeed: 14.6,
               },
             },
@@ -110,7 +116,7 @@ describe('TrajectoryLibraryDialog', () => {
       .getAllByRole('button', { name: /^load$/i })
       .map((button) => button.closest('.trajectory-library-dialog__item'));
     expect(within(items[0]).getByText('coastal-sweep')).toBeInTheDocument();
-    expect(within(items[0]).getByText(/Route 3m 6s/i)).toBeInTheDocument();
+    expect(within(items[0]).getByText(/Mission 3m 6s • Motion 2m 54s/i)).toBeInTheDocument();
     expect(within(items[0]).getByText('1.43 km', { exact: false })).toBeInTheDocument();
     expect(within(items[0]).getByText(/max 14\.6 m\/s/i)).toBeInTheDocument();
 

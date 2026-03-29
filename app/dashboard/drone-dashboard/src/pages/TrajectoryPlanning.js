@@ -282,12 +282,16 @@ const TrajectoryPlanning = () => {
       : Number.isFinite(waypoints[0]?.time)
         ? waypoints[0].time
         : 0;
+    const routeMotionTime = Number.isFinite(trajectoryStats.routeMotionTime)
+      ? trajectoryStats.routeMotionTime
+      : Math.max(0, trajectoryStats.totalTime - routeEntryDelay);
     const speedDrivenLegCount = authoringBreakdown.speedDrivenLegs || 0;
     const timeDrivenLegCount = authoringBreakdown.timeDrivenLegs || 0;
     const terrainAssistedWaypointCount = altitudeReferenceCounts[ALTITUDE_REFERENCE.AGL] || 0;
     const currentPathDetail = waypoints.length > 0
       ? [
-          `${trajectoryStats.totalTime.toFixed(0)}s authored route`,
+          `${trajectoryStats.totalTime.toFixed(0)}s mission clock`,
+          `${routeMotionTime.toFixed(0)}s route motion`,
           `entry delay ${routeEntryDelay.toFixed(0)}s`,
           `${speedDrivenLegCount} speed-driven leg${speedDrivenLegCount === 1 ? '' : 's'}`,
           `${timeDrivenLegCount} time-driven leg${timeDrivenLegCount === 1 ? '' : 's'}`,

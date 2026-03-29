@@ -66,6 +66,13 @@ const TrajectoryStats = ({ stats }) => {
       ),
     },
   ];
+  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
+  const routeMotionTime = Number.isFinite(stats.routeMotionTime)
+    ? stats.routeMotionTime
+    : Math.max(0, (stats.totalTime || 0) - routeEntryDelay);
+  const missionClockDetail = routeEntryDelay > 0
+    ? `Entry +${formatTime(routeEntryDelay)} • Motion ${formatTime(routeMotionTime)}`
+    : `Motion ${formatTime(routeMotionTime)}`;
 
   return (
     <div className="trajectory-brief" aria-label="Trajectory mission brief">
@@ -75,9 +82,9 @@ const TrajectoryStats = ({ stats }) => {
           <span className="trajectory-brief__value">{formatDistance(stats.totalDistance)}</span>
         </div>
         <div className="trajectory-brief__metric">
-          <span className="trajectory-brief__label">Route Time</span>
+          <span className="trajectory-brief__label">Mission Clock</span>
           <span className="trajectory-brief__value">{formatTime(stats.totalTime)}</span>
-          <span className="trajectory-brief__detail">Excludes climb and end behavior</span>
+          <span className="trajectory-brief__detail">{missionClockDetail}</span>
         </div>
         <div className="trajectory-brief__metric">
           <span className="trajectory-brief__label">Altitude Envelope</span>
@@ -117,6 +124,7 @@ TrajectoryStats.propTypes = {
   stats: PropTypes.shape({
     totalDistance: PropTypes.number.isRequired,
     totalTime: PropTypes.number.isRequired,
+    routeMotionTime: PropTypes.number,
     maxSpeed: PropTypes.number.isRequired,
     speedWarnings: PropTypes.number.isRequired,
     maxAltitude: PropTypes.number.isRequired,

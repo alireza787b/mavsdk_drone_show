@@ -141,6 +141,7 @@ describe('SpeedCalculator', () => {
     const stats = calculateTrajectoryStats([fromWaypoint, toWaypoint]);
     expect(stats.totalDistance).toBeGreaterThan(140);
     expect(stats.totalDistance).toBeCloseTo(149.5, 0);
+    expect(stats.routeMotionTime).toBe(10);
     expect(stats.avgSpeed).toBe(15);
     expect(stats.speedWarnings).toBe(1);
     expect(stats.maxSpeedStatus).toBe('marginal');
@@ -172,6 +173,27 @@ describe('SpeedCalculator', () => {
       200
     );
     expect(suggestedTime).toBe(15);
+  });
+
+  test('single-waypoint stats keep mission clock separate from route motion', () => {
+    const waypoint = {
+      latitude: 35.0,
+      longitude: 51.0,
+      altitude: 120,
+      groundElevation: 100,
+      terrainAccurate: true,
+      timeFromStart: 14,
+      timingMode: TIMING_MODES.MANUAL_TIME,
+      headingMode: YAW_CONSTANTS.MANUAL,
+      altitudeReference: ALTITUDE_REFERENCE.MSL,
+    };
+
+    const stats = calculateTrajectoryStats([waypoint]);
+
+    expect(stats.totalTime).toBe(14);
+    expect(stats.routeMotionTime).toBe(0);
+    expect(stats.routeEntryDelaySeconds).toBe(14);
+    expect(stats.avgSpeed).toBe(0);
   });
 
   test('buildTrajectoryAttentionItems surfaces speed, terrain, and AGL caveats from shared stats truth', () => {

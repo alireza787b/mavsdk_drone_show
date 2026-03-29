@@ -33,6 +33,14 @@ const formatAltitudeMix = (stats = {}) => {
   return `MSL ${counts.msl || 0} · AGL ${counts.agl || 0}`;
 };
 
+const getRouteMotionTime = (stats = {}, totalTime = 0) => {
+  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
+  if (Number.isFinite(stats.routeMotionTime)) {
+    return stats.routeMotionTime;
+  }
+  return Math.max(0, Number(totalTime || 0) - routeEntryDelay);
+};
+
 const formatTerrainMix = (stats = {}) => {
   const terrain = stats.terrainCoverage || {};
   return `Accurate ${terrain.accurate || 0} · Estimated ${(terrain.estimated || 0) + (terrain.unknown || 0)}`;
@@ -77,6 +85,7 @@ const SwarmTrajectoryTransferDialog = ({
     expectedDroneCount: selectedClusterExpectedDroneCount,
   });
   const policyNotes = getTrajectoryOperatorPolicyNotes({ stats, waypointCount });
+  const routeMotionTime = getRouteMotionTime(stats, totalTime);
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -109,8 +118,12 @@ const SwarmTrajectoryTransferDialog = ({
             <strong>{formatDistance(totalDistance)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
-            <span className="swarm-transfer-summary__label">Route Time</span>
+            <span className="swarm-transfer-summary__label">Mission Clock</span>
             <strong>{formatTime(totalTime)}</strong>
+          </div>
+          <div className="swarm-transfer-summary__item">
+            <span className="swarm-transfer-summary__label">Route Motion</span>
+            <strong>{formatTime(routeMotionTime)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Altitude Plan</span>

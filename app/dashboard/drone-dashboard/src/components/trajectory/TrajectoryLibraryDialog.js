@@ -22,6 +22,14 @@ const formatDuration = (seconds = 0) => {
   return `${Math.round(seconds)}s`;
 };
 
+const getRouteMotionTime = (stats = {}) => {
+  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
+  if (Number.isFinite(stats.routeMotionTime)) {
+    return stats.routeMotionTime;
+  }
+  return Math.max(0, Number(stats.totalTime || 0) - routeEntryDelay);
+};
+
 const formatModifiedTime = (timestamp) => {
   if (!timestamp) {
     return 'Unknown save time';
@@ -57,8 +65,12 @@ const TrajectorySummary = ({ stats, waypointCount }) => (
       <strong>{formatDistance(stats.totalDistance)}</strong>
     </div>
     <div>
-      <span className="trajectory-library-dialog__summary-label">Route time</span>
+      <span className="trajectory-library-dialog__summary-label">Mission clock</span>
       <strong>{formatDuration(stats.totalTime)}</strong>
+    </div>
+    <div>
+      <span className="trajectory-library-dialog__summary-label">Route motion</span>
+      <strong>{formatDuration(getRouteMotionTime(stats))}</strong>
     </div>
     <div>
       <span className="trajectory-library-dialog__summary-label">Max speed</span>
@@ -72,6 +84,8 @@ TrajectorySummary.propTypes = {
     maxSpeed: PropTypes.number,
     totalDistance: PropTypes.number,
     totalTime: PropTypes.number,
+    routeMotionTime: PropTypes.number,
+    routeEntryDelaySeconds: PropTypes.number,
   }).isRequired,
   waypointCount: PropTypes.number.isRequired,
 };
@@ -199,8 +213,8 @@ const TrajectoryLibraryDialog = ({
                           ) : null}
                         </div>
                         <small>
-                          {trajectory.waypoints.length} waypoint{trajectory.waypoints.length === 1 ? '' : 's'} • Route{' '}
-                          {formatDuration(stats.totalTime)} • {formatDistance(stats.totalDistance)}
+                          {trajectory.waypoints.length} waypoint{trajectory.waypoints.length === 1 ? '' : 's'} • Mission{' '}
+                          {formatDuration(stats.totalTime)} • Motion {formatDuration(getRouteMotionTime(stats))} • {formatDistance(stats.totalDistance)}
                         </small>
                         <small>
                           Max {stats.maxSpeed.toFixed(1)} m/s • Updated {formatModifiedTime(modifiedAt)}

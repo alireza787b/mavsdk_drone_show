@@ -295,8 +295,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - waypoint chronology is now enforced at the authoring modal boundary:
   - manual arrival times must move forward relative to the previous waypoint before the planner will confirm the leg
   - timing conflicts are blocked at entry instead of waiting until later mission-readiness review
-- planner timing labels now distinguish **route time** from full terminal mission time:
-  - planner / transfer / library summaries show the authored route duration only
+- planner timing labels now distinguish **mission clock** from **route motion** and from full terminal mission time:
+  - planner / transfer / library summaries now show the full authored mission clock from mission start to final waypoint, and separately show route motion after the route-entry delay
   - initial climb, return-home, landing, and other end-behavior cleanup can materially extend the real command completion time beyond that authored route clock
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats

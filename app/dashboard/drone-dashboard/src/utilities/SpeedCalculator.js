@@ -595,12 +595,14 @@ export const calculateTrajectoryStats = (waypoints) => {
     const soloGroundElevation = typeof waypoints[0]?.groundElevation === 'number'
       ? waypoints[0].groundElevation
       : null;
+    const routeMotionTime = 0;
 
     return {
       waypointCount,
       legCount: Math.max(0, waypointCount - 1),
       totalDistance: 0,
-      totalTime: 0,
+      totalTime: routeEntryDelaySeconds,
+      routeMotionTime,
       maxSpeed: 0,
       avgSpeed: 0,
       speedWarnings: 0,
@@ -667,7 +669,8 @@ export const calculateTrajectoryStats = (waypoints) => {
   });
 
   const totalTime = waypoints[waypoints.length - 1]?.timeFromStart || 0;
-  const avgSpeed = totalTime > 0 ? totalDistance / totalTime : 0;
+  const routeMotionTime = Math.max(0, totalTime - routeEntryDelaySeconds);
+  const avgSpeed = routeMotionTime > 0 ? totalDistance / routeMotionTime : 0;
   authoringBreakdown.speedDrivenLegs = timingModeCounts[TIMING_MODES.AUTO_SPEED] || 0;
   authoringBreakdown.timeDrivenLegs = Math.max(
     0,
@@ -684,6 +687,7 @@ export const calculateTrajectoryStats = (waypoints) => {
     legCount: Math.max(0, waypointCount - 1),
     totalDistance,
     totalTime,
+    routeMotionTime,
     maxSpeed,
     avgSpeed: Math.round(avgSpeed * 10) / 10,
     speedWarnings,
