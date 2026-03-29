@@ -10,6 +10,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory Mission Type 4 launch readiness is now scope-aware instead of globally all-or-nothing: a selected subset can launch when every selected drone has a processed output and the full required leader chain is included, while unrelated incomplete clusters stay as warnings instead of false blockers
+- Swarm Trajectory selected-target safety is now enforced in both layers: the dashboard preflight blocks broken leader chains or missing processed outputs, and the backend `/submit_command` path rejects the same unsafe subset even if the UI is bypassed
 - the standard `linux_dashboard_start.sh --sitl` / development launcher path no longer starts FastAPI with `--reload` by default, because backend auto-reload splits in-memory telemetry, heartbeat, and command-tracker state across processes; backend reload is now an explicit opt-in debug override only
 - Swarm Trajectory planner, transfer dialog, docs, and validation tooling now share one clearer four-stage operator model (`author leader path -> define route entry/leg intent -> assign leader -> process/review/launch`), and the runtime validator now imports the real repo timeout model instead of silently falling back to stale internal timeout constants when run from the `tools/` path
 - Swarm Trajectory authoring and transfer now use the real operator wording end to end: the planner action is `Assign to Cluster`, readiness transfer labels match that cluster-assignment model, planner notices now say when a leader path was assigned rather than vaguely "sent", and the transfer dialog title/copy no longer hides that this is a leader-cluster handoff

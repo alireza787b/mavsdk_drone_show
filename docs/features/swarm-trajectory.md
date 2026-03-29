@@ -239,6 +239,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - Mission Type 4 dashboard dispatch is now gated by that backend cluster truth:
   - missing leader uploads, pending processing, partial outputs, missing active session truth, and explicit cluster issues all block launch
   - advisory items stay visible as warnings without pretending the package is unavailable
+- selected-drone dispatch is now **scope-aware** instead of all-or-nothing:
+  - a partial launch is allowed when every selected drone has a processed output and the full required leader chain is included in the same target set
+  - unrelated incomplete clusters stay visible as review warnings, but no longer block a valid selected-cluster launch
+  - follower-only or broken-chain target sets are rejected in both the dashboard preflight and the backend `/submit_command` API
 - the Step 3 git action now follows the actual GCS writeback mode:
   - writable GCS setups show `Commit & Push Outputs`
   - read-only/demo GCS setups show `Commit Outputs Locally`
