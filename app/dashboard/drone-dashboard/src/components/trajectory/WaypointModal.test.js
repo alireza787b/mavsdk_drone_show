@@ -51,6 +51,56 @@ describe('WaypointModal', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('locks confirmation until terrain is resolved or intentionally estimated', async () => {
+    const onConfirm = jest.fn();
+    let resolveTerrain;
+    getTerrainElevation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTerrain = resolve;
+      })
+    );
+
+    render(
+      <WaypointModal
+        isOpen
+        onClose={jest.fn()}
+        onConfirm={onConfirm}
+        position={{ latitude: 35.7262, longitude: 51.2721 }}
+        previousWaypoint={{
+          latitude: 35.726,
+          longitude: 51.272,
+          altitude: 350,
+          timeFromStart: 10,
+          estimatedSpeed: 8,
+        }}
+        waypointIndex={2}
+      />
+    );
+
+    expect(
+      screen.getByText(/waypoint confirmation stays locked until terrain resolves or you choose use estimate/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add waypoint/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /use estimate/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /add waypoint/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
+      terrainAccurate: false,
+    }));
+
+    resolveTerrain({
+      elevation: 200,
+      source: 'mock-terrain',
+      error: null,
+    });
+  });
+
   it('derives waypoint arrival time from preferred leg speed in auto mode', async () => {
     const onConfirm = jest.fn();
 

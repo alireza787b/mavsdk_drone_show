@@ -278,6 +278,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - the runtime prefers PX4 GPS global origin as the launch-time global reference
   - if that RPC is temporarily unavailable, it can fall back to the current global position sample strictly for execution gating and recovery context
   - this reference does **not** redefine the authored global route; it only supports readiness, initial climb, drift handling, and RTL/LAND recovery
+- waypoint terrain intent is now locked before authoring confirmation:
+  - the planner will not confirm a waypoint while terrain lookup is still unresolved
+  - the operator must either wait for the terrain result or explicitly choose the estimated-terrain fallback
+  - stored `terrainAccurate` truth now reflects resolved terrain state instead of treating “still loading” as accurate
 - planner timing labels now distinguish **route time** from full terminal mission time:
   - planner / transfer / library summaries show the authored route duration only
   - initial climb, return-home, landing, and other end-behavior cleanup can materially extend the real command completion time beyond that authored route clock

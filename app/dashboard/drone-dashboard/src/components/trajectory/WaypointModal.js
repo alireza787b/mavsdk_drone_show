@@ -54,6 +54,7 @@ const WaypointModal = ({
   const [estimatedSpeed, setEstimatedSpeed] = useState(0);
   const [speedStatus, setSpeedStatus] = useState('unknown');
   const [groundElevation, setGroundElevation] = useState(0);
+  const [terrainResolved, setTerrainResolved] = useState(false);
   const [isLoadingTerrain, setIsLoadingTerrain] = useState(false);
   const [terrainError, setTerrainError] = useState(null);
   const [terrainElapsed, setTerrainElapsed] = useState(0);
@@ -188,9 +189,11 @@ const WaypointModal = ({
 
     const fetchElevation = async (latitude, longitude) => {
       try {
+        setTerrainResolved(false);
         setIsLoadingTerrain(true);
         setTerrainError(null);
         setTerrainFallbackMsg(null);
+        setGroundElevation(0);
 
         const result = await getTerrainElevation(latitude, longitude);
 
@@ -214,6 +217,8 @@ const WaypointModal = ({
             setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
           }
 
+          setTerrainResolved(true);
+
         } else {
           setTerrainError('No elevation data available');
           const estimatedGround = estimateBasicElevation(latitude, longitude);
@@ -225,6 +230,7 @@ const WaypointModal = ({
             }
             return prev;
           });
+          setTerrainResolved(true);
         }
       } catch (error) {
         if (abortController.signal.aborted) return;
@@ -238,6 +244,7 @@ const WaypointModal = ({
           }
           return prev;
         });
+        setTerrainResolved(true);
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoadingTerrain(false);
@@ -308,6 +315,7 @@ const WaypointModal = ({
     setGroundElevation(estimatedGround);
     setTerrainError('Using estimate (skipped API)');
     setTerrainFallbackMsg('Using estimated elevation (skipped by user)');
+    setTerrainResolved(true);
     setAltitude((prev) => {
       if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
         return getSafeTerrainAdjustedAltitude(estimatedGround);
@@ -317,6 +325,14 @@ const WaypointModal = ({
   };
 
   const handleConfirm = () => {
+    if (!terrainResolved) {
+      setValidationMessage({
+        tone: 'warning',
+        text: 'Wait for terrain elevation to resolve or choose Use Estimate before adding this waypoint.',
+      });
+      return;
+    }
+
     const isUnderground = altitude < groundElevation;
 
     if (isUnderground) {
@@ -338,7 +354,7 @@ const WaypointModal = ({
       estimatedSpeed,
       speedFeasible: true,
       groundElevation,
-      terrainAccurate: !terrainError,
+      terrainAccurate: terrainResolved && !terrainError,
       // Aviation standard heading data
       heading: parseFloat(heading),
       headingMode,
@@ -487,9 +503,15 @@ const WaypointModal = ({
     },
     {
       label: 'Terrain',
-      value: terrainError ? 'Estimated terrain' : 'Accurate terrain',
-      detail: `Ground ${groundElevation.toFixed(1)}m MSL`,
-      tone: terrainError ? 'warning' : 'success',
+      value: !terrainResolved
+        ? 'Resolving terrain'
+        : terrainError
+          ? 'Estimated terrain'
+          : 'Accurate terrain',
+      detail: !terrainResolved
+        ? 'Wait for terrain lookup or choose Use Estimate'
+        : `Ground ${groundElevation.toFixed(1)}m MSL`,
+      tone: !terrainResolved ? 'info' : terrainError ? 'warning' : 'success',
     },
   ];
 
@@ -614,7 +636,7 @@ const WaypointModal = ({
               />
               <div className="altitude-context">
                 <small className="terrain-note">
-                  Ground elevation: <strong>{groundElevation.toFixed(1)}m MSL</strong>
+                  Ground elevation: <strong>{terrainResolved ? `${groundElevation.toFixed(1)}m MSL` : 'resolving...'}</strong>
                   {terrainError && <span className="terrain-warning"> ({terrainError})</span>}
                 </small>
                 <small className="agl-note">
@@ -629,6 +651,11 @@ const WaypointModal = ({
                 {previousWaypoint && (
                   <small className="altitude-source">
                     Pre-filled from previous waypoint ({previousWaypoint.altitude.toFixed(1)}m MSL)
+                  </small>
+                )}
+                {!terrainResolved && (
+                  <small className="terrain-warning">
+                    Waypoint confirmation stays locked until terrain resolves or you choose Use Estimate.
                   </small>
                 )}
               </div>
@@ -850,6 +877,7 @@ const WaypointModal = ({
             onClick={handleConfirm}
             className="modal-btn primary"
             title="Add waypoint (Ctrl+Enter)"
+            disabled={!terrainResolved}
           >
             Add Waypoint
           </button>
