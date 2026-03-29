@@ -353,6 +353,47 @@ async def test_wait_for_rtl_completion_forces_land_when_near_ground_without_touc
     perform_landing.assert_awaited_once_with(drone)
 
 
+def test_update_rtl_near_ground_timer_keeps_timer_during_small_ground_motion(monkeypatch):
+    monkeypatch.setattr(stm.time, "monotonic", lambda: 42.0)
+
+    started = stm._update_rtl_near_ground_timer(
+        stm.logging.getLogger(__name__),
+        {
+            "velocity_north": 0.2,
+            "velocity_east": 0.1,
+            "velocity_down": 0.0,
+        },
+        relative_altitude_m=0.2,
+        stall_since=None,
+        near_ground_altitude_m=0.75,
+        horizontal_speed_eps_mps=0.5,
+        descent_eps_mps=0.3,
+        release_altitude_m=1.5,
+        release_horizontal_speed_eps_mps=2.5,
+        release_descent_eps_mps=0.6,
+    )
+
+    sustained = stm._update_rtl_near_ground_timer(
+        stm.logging.getLogger(__name__),
+        {
+            "velocity_north": 1.2,
+            "velocity_east": 0.1,
+            "velocity_down": 0.04,
+        },
+        relative_altitude_m=0.3,
+        stall_since=started,
+        near_ground_altitude_m=0.75,
+        horizontal_speed_eps_mps=0.5,
+        descent_eps_mps=0.3,
+        release_altitude_m=1.5,
+        release_horizontal_speed_eps_mps=2.5,
+        release_descent_eps_mps=0.6,
+    )
+
+    assert started == 42.0
+    assert sustained == 42.0
+
+
 @pytest.mark.asyncio
 async def test_controlled_landing_delegates_to_native_land_when_above_precision_window(monkeypatch):
     drone = MagicMock()

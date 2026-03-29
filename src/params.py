@@ -477,8 +477,11 @@ class Params:
     SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS = 0.3  # Smaller descent rates are treated as effectively stalled
     SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC = 20  # Time to tolerate home-hover stall before forcing LAND fallback
     SWARM_TRAJECTORY_RTL_NEAR_GROUND_ALTITUDE_M = 0.75  # Treat RTL as effectively down once relative altitude is near ground
-    SWARM_TRAJECTORY_RTL_NEAR_GROUND_SPEED_EPS_MPS = 0.5  # Horizontal motion below this is treated as stationary during near-ground cleanup
+    SWARM_TRAJECTORY_RTL_NEAR_GROUND_SPEED_EPS_MPS = 1.5  # Horizontal motion below this starts the near-ground RTL cleanup timer
     SWARM_TRAJECTORY_RTL_NEAR_GROUND_STALL_TRIGGER_SEC = 10  # Time to tolerate a near-ground low-motion RTL state before forcing LAND fallback
+    SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_ALTITUDE_M = 1.5  # Once the timer starts, keep it armed until the aircraft climbs well clear of the ground again
+    SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_SPEED_EPS_MPS = 2.5  # Near-ground cleanup tolerates some skid/drift before resetting the timer
+    SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_DESCENT_EPS_MPS = 0.6  # Release the timer only when vertical motion meaningfully departs from the near-ground state
     SWARM_TRAJECTORY_ACTION_COMMAND_TIMEOUT_SEC = 10  # Bound MAVSDK action RPCs so cleanup cannot hang indefinitely
     SWARM_TRAJECTORY_RTL_MODE_TRANSITION_TIMEOUT_SEC = 15  # PX4 should enter RTL promptly after command acceptance
     SWARM_TRAJECTORY_RTL_ENGAGE_MAX_ATTEMPTS = 2  # Retry RTL once before degrading to LAND fallback

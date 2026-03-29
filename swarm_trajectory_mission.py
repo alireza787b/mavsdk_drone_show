@@ -867,6 +867,15 @@ async def wait_for_rtl_completion(
     near_ground_speed_eps = float(
         getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_SPEED_EPS_MPS", 0.5)
     )
+    near_ground_release_altitude_m = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_ALTITUDE_M", max(1.5, near_ground_altitude_m * 2.0))
+    )
+    near_ground_release_speed_eps = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_SPEED_EPS_MPS", max(2.5, near_ground_speed_eps * 2.0))
+    )
+    near_ground_release_descent_eps = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_RELEASE_DESCENT_EPS_MPS", max(0.6, rtl_stall_descent_eps * 2.0))
+    )
 
     while True:
         if time.monotonic() - start_time > timeout:
@@ -909,6 +918,9 @@ async def wait_for_rtl_completion(
                 near_ground_altitude_m=near_ground_altitude_m,
                 horizontal_speed_eps_mps=near_ground_speed_eps,
                 descent_eps_mps=rtl_stall_descent_eps,
+                release_altitude_m=near_ground_release_altitude_m,
+                release_horizontal_speed_eps_mps=near_ground_release_speed_eps,
+                release_descent_eps_mps=near_ground_release_descent_eps,
             )
             rtl_stall_since = _update_rtl_stall_timer(
                 logger,
@@ -1747,6 +1759,9 @@ def _update_rtl_near_ground_timer(
     near_ground_altitude_m: float,
     horizontal_speed_eps_mps: float,
     descent_eps_mps: float,
+    release_altitude_m: float,
+    release_horizontal_speed_eps_mps: float,
+    release_descent_eps_mps: float,
 ):
     """
     Track a near-ground, low-motion RTL state when PX4 never reports touchdown.
@@ -1773,21 +1788,28 @@ def _update_rtl_near_ground_timer(
     except (TypeError, ValueError):
         return None
 
+    if stall_since is not None:
+        if (
+            ground_clearance_m <= release_altitude_m
+            and horizontal_speed_mps <= release_horizontal_speed_eps_mps
+            and descent_rate_mps <= release_descent_eps_mps
+        ):
+            return stall_since
+        return None
+
     if (
         ground_clearance_m <= near_ground_altitude_m
         and horizontal_speed_mps <= horizontal_speed_eps_mps
         and descent_rate_mps <= descent_eps_mps
     ):
-        if stall_since is None:
-            logger.warning(
-                "RTL drone is near ground (%.2fm) with low motion (horizontal %.2fm/s, vertical %.2fm/s); "
-                "starting near-ground stall timer.",
-                ground_clearance_m,
-                horizontal_speed_mps,
-                descent_rate_mps,
-            )
-            return time.monotonic()
-        return stall_since
+        logger.warning(
+            "RTL drone is near ground (%.2fm) with low motion (horizontal %.2fm/s, vertical %.2fm/s); "
+            "starting near-ground stall timer.",
+            ground_clearance_m,
+            horizontal_speed_mps,
+            descent_rate_mps,
+        )
+        return time.monotonic()
 
     return None
 
