@@ -291,6 +291,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number
+- planner coordinate edits and dragged waypoint moves now refresh terrain truth at the new coordinates:
+  - `Target AGL` waypoints preserve the operator's clearance intent and recompute the stored MSL altitude against the refreshed ground elevation
+  - `MSL input` waypoints keep the stored mission altitude but update derived terrain/clearance review from the new location
+  - stale async terrain responses are ignored so rapid waypoint moves cannot overwrite newer planner edits with old terrain data
 - runtime launch now uses a stricter initial-climb gate before path-follow entry, so a drone cannot silently burn through its mission clock while still stuck in climb
 - the mission tracker now reflects the real per-drone terminal result once each drone script exits; long `return_home` end behavior can keep the command legitimately active for several additional minutes after the formation phase is already correct
 - validated SITL acceptance now includes a clean 5-drone end-to-end run: process -> launch -> climb gate -> in-flight formation tolerance -> return-home -> terminal command completion -> fleet idle reset

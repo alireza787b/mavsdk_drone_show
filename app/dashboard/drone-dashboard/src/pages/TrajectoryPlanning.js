@@ -19,7 +19,6 @@ import {
   ALTITUDE_REFERENCE,
   buildTrajectorySegments,
   calculateTrajectoryStats, 
-  recalculateAfterDrag,
   calculateWaypointSpeeds,
   getTrajectorySegmentColor,
   TIMING_MODES,
@@ -38,6 +37,7 @@ import {
   getTrajectoryOperatorPolicyNotes,
   getTrajectoryWorkflowStages,
 } from '../utilities/trajectoryAuthoringGuidance';
+import { resolveWaypointTerrainContext } from '../utilities/trajectoryTerrainContext';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -99,6 +99,8 @@ const TrajectoryPlanning = () => {
   const importInputRef = useRef(null);
   const stateManagerRef = useRef(new TrajectoryStateManager());
   const storageRef = useRef(new TrajectoryStorage());
+  const terrainRefreshTokenRef = useRef(new Map());
+  const waypointsRef = useRef([]);
   
   // Core state
   const [waypoints, setWaypoints] = useState([]);
@@ -162,6 +164,10 @@ const TrajectoryPlanning = () => {
 
   // Update history status when waypoints change
   useEffect(() => {
+    waypointsRef.current = waypoints;
+  }, [waypoints]);
+
+  useEffect(() => {
     const status = stateManagerRef.current.getHistoryStatus();
     setHistoryStatus(status);
     setSaveStatus(prev => ({ ...prev, saved: false }));
@@ -180,6 +186,17 @@ const TrajectoryPlanning = () => {
   const clearOperationNotice = useCallback(() => {
     setPlannerNotice(null);
   }, []);
+
+  const advanceTerrainRefreshToken = useCallback((waypointId) => {
+    const nextToken = (terrainRefreshTokenRef.current.get(waypointId) || 0) + 1;
+    terrainRefreshTokenRef.current.set(waypointId, nextToken);
+    return nextToken;
+  }, []);
+
+  const isLatestTerrainRefresh = useCallback(
+    (waypointId, token) => terrainRefreshTokenRef.current.get(waypointId) === token,
+    []
+  );
 
   const buildTrajectorySourceNotice = useCallback((sourceLabel, trajectory, readiness) => {
     const waypointCount = (trajectory.waypoints || []).length;
@@ -356,24 +373,73 @@ const TrajectoryPlanning = () => {
     setIsAddingWaypoint(false);
   }, [waypoints]);
 
-  const updateWaypoint = useCallback((waypointId, updates) => {
-    const updatedWaypoints = waypoints.map(wp => 
-      wp.id === waypointId ? { ...wp, ...updates } : wp
+  const commitWaypointUpdate = useCallback(async (
+    waypointId,
+    updates,
+    historyLabel = `Update waypoint ${waypointId}`
+  ) => {
+    const currentWaypoints = waypointsRef.current;
+    const currentWaypoint = currentWaypoints.find((wp) => wp.id === waypointId);
+    if (!currentWaypoint) {
+      return false;
+    }
+
+    let normalizedUpdates = { ...updates };
+    const hasCoordinateUpdate =
+      Object.prototype.hasOwnProperty.call(updates, 'latitude') ||
+      Object.prototype.hasOwnProperty.call(updates, 'longitude');
+    const refreshToken = advanceTerrainRefreshToken(waypointId);
+
+    if (hasCoordinateUpdate) {
+      const latitude = updates.latitude ?? currentWaypoint.latitude;
+      const longitude = updates.longitude ?? currentWaypoint.longitude;
+      const terrainPatch = await resolveWaypointTerrainContext(
+        { ...currentWaypoint, ...updates, latitude, longitude },
+        { latitude, longitude }
+      );
+
+      if (!isLatestTerrainRefresh(waypointId, refreshToken)) {
+        return false;
+      }
+
+      normalizedUpdates = {
+        ...normalizedUpdates,
+        ...terrainPatch,
+      };
+
+      if (terrainPatch.terrainAccurate === false) {
+        setOperationNotice(
+          `${currentWaypoint.name || 'Waypoint'} terrain context was refreshed with estimated elevation at the new coordinates. Review clearance before launch.`,
+          'warning'
+        );
+      }
+    }
+
+    const latestWaypoints = waypointsRef.current;
+    const updatedWaypoints = latestWaypoints.map((wp) =>
+      wp.id === waypointId ? { ...wp, ...normalizedUpdates } : wp
     );
-    
+
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(updatedWaypoints);
-    
+
     stateManagerRef.current.executeAction(
       ACTION_TYPES.UPDATE_WAYPOINT,
-      { waypointId, updates, waypoints: waypointsWithCorrectSpeeds },
-      `Update waypoint ${waypointId}`
+      { waypointId, updates: normalizedUpdates, waypoints: waypointsWithCorrectSpeeds },
+      historyLabel
     );
 
     setWaypoints(waypointsWithCorrectSpeeds);
-    
-    // Mark as unsaved
     setSaveStatus({ saved: false, autoSaveTime: null });
-  }, [waypoints]);
+    return true;
+  }, [
+    advanceTerrainRefreshToken,
+    isLatestTerrainRefresh,
+    setOperationNotice,
+  ]);
+
+  const updateWaypoint = useCallback(async (waypointId, updates) => {
+    await commitWaypointUpdate(waypointId, updates, `Update waypoint ${waypointId}`);
+  }, [commitWaypointUpdate]);
 
   const deleteWaypoint = useCallback((waypointId) => {
     const filteredWaypoints = waypoints.filter(wp => wp.id !== waypointId);
@@ -395,34 +461,21 @@ const TrajectoryPlanning = () => {
     setSaveStatus({ saved: false, autoSaveTime: null });
   }, [waypoints, selectedWaypointId]);
 
-  const handleMarkerDragEnd = useCallback((waypointId, newPosition) => {
-    const updatedWaypoints = waypoints.map(wp =>
-      wp.id === waypointId
-        ? { ...wp, latitude: newPosition.latitude, longitude: newPosition.longitude }
-        : wp
-    );
-
-    const waypointsWithRecalculatedSpeeds = recalculateAfterDrag(updatedWaypoints, waypointId);
-
-    stateManagerRef.current.executeAction(
-      ACTION_TYPES.UPDATE_WAYPOINT,
-      { 
-        waypointId, 
-        updates: { 
-          latitude: newPosition.latitude, 
-          longitude: newPosition.longitude 
+  const handleMarkerDragEnd = useCallback(async (waypointId, newPosition) => {
+    try {
+      await commitWaypointUpdate(
+        waypointId,
+        {
+          latitude: newPosition.latitude,
+          longitude: newPosition.longitude,
         },
-        waypoints: waypointsWithRecalculatedSpeeds 
-      },
-      `Move waypoint ${waypointId}`
-    );
-
-    setWaypoints(waypointsWithRecalculatedSpeeds);
-    setIsDragging(false);
-    setDraggedWaypointId(null);
-    
-    setSaveStatus({ saved: false, autoSaveTime: null });
-  }, [waypoints]);
+        `Move waypoint ${waypointId}`
+      );
+    } finally {
+      setIsDragging(false);
+      setDraggedWaypointId(null);
+    }
+  }, [commitWaypointUpdate]);
 
   // Handle marker click
   const handleMarkerClick = useCallback((waypointId) => {

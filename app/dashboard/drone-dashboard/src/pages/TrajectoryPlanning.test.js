@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import TrajectoryPlanning from './TrajectoryPlanning';
 import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
+import { getTerrainElevation } from '../services/ElevationService';
 
 let mockMapClickIndex = 0;
 
@@ -77,18 +78,39 @@ jest.mock('../components/trajectory/TrajectoryToolbar', () => (props) => (
     <span data-testid="toolbar-waypoint-count">{props.waypointCount}</span>
   </div>
 ));
-jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints }) => (
-  <div data-testid="waypoint-panel-state">
-    {JSON.stringify(
-      waypoints.map((waypoint) => ({
-        headingMode: waypoint.headingMode,
-        estimatedSpeed: waypoint.estimatedSpeed,
-        altitudeReference: waypoint.altitudeReference,
-        targetAgl: waypoint.targetAgl,
-      }))
+jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdateWaypoint }) => (
+  <div>
+    <div data-testid="waypoint-panel-state">
+      {JSON.stringify(
+        waypoints.map((waypoint) => ({
+          headingMode: waypoint.headingMode,
+          estimatedSpeed: waypoint.estimatedSpeed,
+          altitudeReference: waypoint.altitudeReference,
+          targetAgl: waypoint.targetAgl,
+          altitude: waypoint.altitude,
+          groundElevation: waypoint.groundElevation,
+          terrainAccurate: waypoint.terrainAccurate,
+        }))
+      )}
+    </div>
+    {waypoints[1] && (
+      <button
+        type="button"
+        onClick={() =>
+          onUpdateWaypoint(waypoints[1].id, {
+            latitude: 35.73,
+            longitude: 51.28,
+          })
+        }
+      >
+        Refresh terrain on waypoint 2
+      </button>
     )}
   </div>
 ));
+jest.mock('../services/ElevationService', () => ({
+  getTerrainElevation: jest.fn().mockResolvedValue({ elevation: 0, source: 'backend' }),
+}));
 jest.mock('../components/trajectory/WaypointModal', () => (props) => {
   if (!props.isOpen) {
     return null;
@@ -157,6 +179,7 @@ describe('TrajectoryPlanning', () => {
   beforeEach(() => {
     mockMapClickIndex = 0;
     window.localStorage.clear();
+    getTerrainElevation.mockResolvedValue({ elevation: 0, source: 'backend' });
     getSwarmClusterStatus.mockResolvedValue({
       clusters: [
         {
@@ -214,6 +237,37 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
+  });
+
+  it('refreshes terrain context when a waypoint is moved and preserves target AGL intent', async () => {
+    getTerrainElevation.mockResolvedValue({
+      elevation: 85,
+      source: 'backend',
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrajectoryPlanning />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText('Toggle Add'));
+    fireEvent.click(screen.getByTestId('mock-map'));
+    fireEvent.click(await screen.findByText('Confirm waypoint 1'));
+
+    fireEvent.click(screen.getByText('Toggle Add'));
+    fireEvent.click(screen.getByTestId('mock-map'));
+    fireEvent.click(await screen.findByText('Confirm waypoint 2'));
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh terrain on waypoint 2/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"groundElevation":85');
+    });
+
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitude":205');
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"terrainAccurate":true');
   });
 
   it('offers a direct handoff into Swarm Trajectory after assigning the current leader path', async () => {
