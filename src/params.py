@@ -476,6 +476,10 @@ class Params:
     SWARM_TRAJECTORY_RTL_HOME_STALL_RADIUS_M = 25.0  # Treat the drone as "back home" when within this horizontal radius
     SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS = 0.3  # Smaller descent rates are treated as effectively stalled
     SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC = 20  # Time to tolerate home-hover stall before forcing LAND fallback
+    SWARM_TRAJECTORY_ACTION_COMMAND_TIMEOUT_SEC = 10  # Bound MAVSDK action RPCs so cleanup cannot hang indefinitely
+    SWARM_TRAJECTORY_RTL_MODE_TRANSITION_TIMEOUT_SEC = 15  # PX4 should enter RTL promptly after command acceptance
+    SWARM_TRAJECTORY_RTL_ENGAGE_MAX_ATTEMPTS = 2  # Retry RTL once before degrading to LAND fallback
+    SWARM_TRAJECTORY_LAND_TRANSITION_TIMEOUT_SEC = 15  # LAND should reach a landing/touchdown state promptly once commanded
     
     # Takeoff Configuration (same as drone show)
     SWARM_TRAJECTORY_TAKEOFF_MODE = "BODY_VELOCITY"  # Use same as drone show

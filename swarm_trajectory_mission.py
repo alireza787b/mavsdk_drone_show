@@ -105,7 +105,7 @@ from mavsdk.offboard import (
     AccelerationNed,
     OffboardError,
 )
-from mavsdk.telemetry import LandedState
+from mavsdk.telemetry import FlightMode, LandedState
 from mavsdk.action import ActionError
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -910,6 +910,98 @@ async def wait_for_rtl_completion(
         await asyncio.sleep(1.0)
 
 
+async def wait_for_flight_mode(drone: System, expected_mode: FlightMode, timeout: float = 15.0):
+    """Wait until MAVSDK reports the requested PX4 flight mode."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        flight_mode_stream = drone.telemetry.flight_mode()
+        try:
+            mode = await asyncio.wait_for(
+                anext(flight_mode_stream),
+                timeout=max(0.1, deadline - time.monotonic()),
+            )
+        except (StopAsyncIteration, TimeoutError, asyncio.TimeoutError):
+            break
+        if mode == expected_mode:
+            return mode
+    raise TimeoutError(f"Timed out waiting for flight mode {expected_mode.name}")
+
+
+async def wait_for_landed_state_transition(
+    drone: System,
+    expected_states: set[LandedState],
+    timeout: float = 15.0,
+):
+    """Wait for LAND to begin transitioning instead of assuming the RPC succeeded."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        landed_state = await _get_current_landed_state(
+            drone,
+            timeout=max(0.1, deadline - time.monotonic()),
+        )
+        if landed_state in expected_states:
+            return landed_state
+    expected_names = ", ".join(sorted(state.name for state in expected_states))
+    raise TimeoutError(f"Timed out waiting for landed state transition: {expected_names}")
+
+
+async def invoke_action_with_timeout(action_awaitable, description: str, timeout: float):
+    """Bound MAVSDK action RPCs so mission cleanup cannot hang forever on a lost ACK."""
+    try:
+        return await asyncio.wait_for(action_awaitable, timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise TimeoutError(f"{description} command timed out after {timeout:.1f}s") from exc
+
+
+def _describe_local_flight_mode(local_state: dict | None) -> str:
+    """Render local raw custom_mode values into a readable diagnostic string."""
+    if not local_state:
+        return "unknown"
+
+    mode = local_state.get("flight_mode")
+    mode_map = {
+        262147: "Hold",
+        262149: "Return",
+        262150: "Land",
+        393216: "Offboard",
+        50593792: "Hold (GPS-less)",
+    }
+    return mode_map.get(mode, str(mode))
+
+
+async def engage_rtl(drone: System) -> bool:
+    """Issue RTL and confirm PX4 actually transitions into RETURN_TO_LAUNCH."""
+    logger = logging.getLogger(__name__)
+    action_timeout = float(getattr(Params, "SWARM_TRAJECTORY_ACTION_COMMAND_TIMEOUT_SEC", 10))
+    mode_timeout = float(getattr(Params, "SWARM_TRAJECTORY_RTL_MODE_TRANSITION_TIMEOUT_SEC", 15))
+
+    try:
+        await invoke_action_with_timeout(
+            drone.action.return_to_launch(),
+            "RTL",
+            action_timeout,
+        )
+    except TimeoutError as exc:
+        logger.warning("%s Checking whether PX4 transitioned to RTL anyway.", exc)
+
+    try:
+        await wait_for_flight_mode(
+            drone,
+            FlightMode.RETURN_TO_LAUNCH,
+            timeout=mode_timeout,
+        )
+        logger.info("RTL flight mode confirmed.")
+        return True
+    except TimeoutError:
+        local_state = _get_local_drone_state_snapshot(timeout=1.0)
+        logger.warning(
+            "RTL did not engage within %.1fs. Current flight mode: %s.",
+            mode_timeout,
+            _describe_local_flight_mode(local_state),
+        )
+        return False
+
+
 async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, launch_lon: float, launch_alt: float, last_velocity=None):
     """
     Execute the specified end-of-mission behavior using PX4 native flight modes.
@@ -928,8 +1020,31 @@ async def execute_end_behavior(drone: System, behavior: str, launch_lat: float, 
         if behavior == 'return_home':
             logger.info("Executing return_home behavior - switching to PX4 RTL mode")
             await stop_offboard_mode(drone)
-            await drone.action.hold()
-            await drone.action.return_to_launch()
+            await asyncio.sleep(0.5)
+
+            max_attempts = max(
+                1,
+                int(getattr(Params, "SWARM_TRAJECTORY_RTL_ENGAGE_MAX_ATTEMPTS", 2)),
+            )
+            rtl_engaged = False
+            for attempt in range(1, max_attempts + 1):
+                if attempt > 1:
+                    logger.warning("Retrying RTL engagement (attempt %d/%d).", attempt, max_attempts)
+                    await asyncio.sleep(1.0)
+
+                rtl_engaged = await engage_rtl(drone)
+                if rtl_engaged:
+                    break
+
+            if not rtl_engaged:
+                logger.warning(
+                    "RTL did not engage after %d attempt(s); degrading to LAND at current position.",
+                    max_attempts,
+                )
+                await perform_landing(drone)
+                logger.info("LAND fallback completed after failed RTL engagement.")
+                return
+
             logger.info("RTL mode activated - waiting for landing/disarm confirmation")
             await wait_for_rtl_completion(drone, home_lat=launch_lat, home_lon=launch_lon)
             logger.info("RTL completion confirmed")
@@ -998,9 +1113,8 @@ async def emergency_rtl_sequence(drone: System):
     try:
         await stop_offboard_mode(drone)
         await asyncio.sleep(0.5)
-        await drone.action.hold()
-        await asyncio.sleep(0.5)
-        await drone.action.return_to_launch()
+        if not await engage_rtl(drone):
+            raise TimeoutError("Emergency RTL did not engage")
         logger.info("Emergency RTL initiated")
     except Exception as e:
         logger.error(f"Emergency RTL sequence failed: {e}")
@@ -1304,6 +1418,12 @@ async def perform_landing(drone: System):
     try:
         relative_altitude = await _get_current_relative_altitude(drone)
         disarm_timeout = calculate_land_disarm_timeout(relative_altitude)
+        land_command_timeout = float(
+            getattr(Params, "SWARM_TRAJECTORY_ACTION_COMMAND_TIMEOUT_SEC", 10)
+        )
+        transition_timeout = float(
+            getattr(Params, "SWARM_TRAJECTORY_LAND_TRANSITION_TIMEOUT_SEC", 15)
+        )
         altitude_message = (
             f"{relative_altitude:.1f}m"
             if isinstance(relative_altitude, (int, float))
@@ -1314,7 +1434,20 @@ async def perform_landing(drone: System):
             disarm_timeout,
             altitude_message,
         )
-        await drone.action.land()
+        try:
+            await invoke_action_with_timeout(
+                drone.action.land(),
+                "LAND",
+                land_command_timeout,
+            )
+        except TimeoutError as exc:
+            logger.warning("%s Continuing to verify whether landing transition started anyway.", exc)
+
+        await wait_for_landed_state_transition(
+            drone,
+            {LandedState.LANDING, LandedState.ON_GROUND},
+            timeout=transition_timeout,
+        )
         start_time = time.monotonic()
         touchdown_since = None
         disarm_requested = False

@@ -141,23 +141,75 @@ async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeyp
 @pytest.mark.asyncio
 async def test_execute_end_behavior_return_home_waits_for_rtl_completion():
     drone = MagicMock()
-    drone.action.hold = AsyncMock()
-    drone.action.return_to_launch = AsyncMock()
 
     with patch.object(stm, "stop_offboard_mode", new=AsyncMock()) as stop_offboard_mode:
-        with patch.object(stm, "wait_for_rtl_completion", new=AsyncMock()) as wait_for_rtl_completion:
-            await stm.execute_end_behavior(
-                drone,
-                "return_home",
-                launch_lat=35.0,
-                launch_lon=51.0,
-                launch_alt=1200.0,
-            )
+        with patch.object(stm, "engage_rtl", new=AsyncMock(return_value=True)) as engage_rtl:
+            with patch.object(stm.asyncio, "sleep", new=AsyncMock()):
+                with patch.object(stm, "wait_for_rtl_completion", new=AsyncMock()) as wait_for_rtl_completion:
+                    await stm.execute_end_behavior(
+                        drone,
+                        "return_home",
+                        launch_lat=35.0,
+                        launch_lon=51.0,
+                        launch_alt=1200.0,
+                    )
 
     stop_offboard_mode.assert_awaited_once()
-    drone.action.hold.assert_awaited_once()
-    drone.action.return_to_launch.assert_awaited_once()
+    engage_rtl.assert_awaited_once_with(drone)
     wait_for_rtl_completion.assert_awaited_once_with(drone, home_lat=35.0, home_lon=51.0)
+
+
+@pytest.mark.asyncio
+async def test_execute_end_behavior_return_home_falls_back_to_land_when_rtl_never_engages(monkeypatch):
+    drone = MagicMock()
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_ENGAGE_MAX_ATTEMPTS", 2)
+
+    with patch.object(stm, "stop_offboard_mode", new=AsyncMock()) as stop_offboard_mode:
+        with patch.object(stm, "engage_rtl", new=AsyncMock(side_effect=[False, False])) as engage_rtl:
+            with patch.object(stm.asyncio, "sleep", new=AsyncMock()):
+                with patch.object(stm, "perform_landing", new=AsyncMock()) as perform_landing:
+                    with patch.object(stm, "wait_for_rtl_completion", new=AsyncMock()) as wait_for_rtl_completion:
+                        await stm.execute_end_behavior(
+                            drone,
+                            "return_home",
+                            launch_lat=35.0,
+                            launch_lon=51.0,
+                            launch_alt=1200.0,
+                        )
+
+    stop_offboard_mode.assert_awaited_once()
+    assert engage_rtl.await_count == 2
+    perform_landing.assert_awaited_once_with(drone)
+    wait_for_rtl_completion.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_engage_rtl_confirms_return_mode_after_action_ack():
+    drone = MagicMock()
+    drone.action.return_to_launch = AsyncMock()
+
+    with patch.object(stm, "wait_for_flight_mode", new=AsyncMock(return_value=stm.FlightMode.RETURN_TO_LAUNCH)) as wait_for_flight_mode:
+        engaged = await stm.engage_rtl(drone)
+
+    assert engaged is True
+    drone.action.return_to_launch.assert_awaited_once()
+    wait_for_flight_mode.assert_awaited_once_with(
+        drone,
+        stm.FlightMode.RETURN_TO_LAUNCH,
+        timeout=stm.Params.SWARM_TRAJECTORY_RTL_MODE_TRANSITION_TIMEOUT_SEC,
+    )
+
+
+@pytest.mark.asyncio
+async def test_engage_rtl_returns_false_when_mode_never_changes():
+    drone = MagicMock()
+    drone.action.return_to_launch = AsyncMock()
+
+    with patch.object(stm, "wait_for_flight_mode", new=AsyncMock(side_effect=TimeoutError("no rtl"))):
+        with patch.object(stm, "_get_local_drone_state_snapshot", return_value={"flight_mode": 50593792}):
+            engaged = await stm.engage_rtl(drone)
+
+    assert engaged is False
 
 
 @pytest.mark.asyncio
@@ -232,3 +284,42 @@ async def test_perform_landing_requires_disarm_before_returning(monkeypatch):
 
     drone.action.land.assert_awaited_once()
     disarm_drone.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
+async def test_perform_landing_continues_when_land_ack_times_out_but_landing_starts(monkeypatch):
+    drone = MagicMock()
+    drone.telemetry.landed_state.side_effect = _stream_side_effect(
+        [stm.LandedState.LANDING, stm.LandedState.ON_GROUND, stm.LandedState.ON_GROUND]
+    )
+    drone.telemetry.armed.side_effect = _stream_side_effect([True, True, False])
+
+    monkeypatch.setattr(stm.Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 0)
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=12.0)):
+        with patch.object(stm, "invoke_action_with_timeout", new=AsyncMock(side_effect=TimeoutError("land ack timeout"))):
+            with patch.object(stm, "disarm_drone", new=AsyncMock()) as disarm_drone:
+                with patch.object(stm, "_wait_until_disarmed", new=AsyncMock()) as wait_until_disarmed:
+                    await stm.perform_landing(drone)
+
+    disarm_drone.assert_awaited_once_with(drone)
+    wait_until_disarmed.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_perform_landing_requires_landing_transition():
+    drone = MagicMock()
+    drone.action.land = AsyncMock()
+
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(return_value=12.0)):
+        with patch.object(stm, "wait_for_landed_state_transition", new=AsyncMock(side_effect=TimeoutError("no transition"))):
+            with pytest.raises(TimeoutError, match="no transition"):
+                await stm.perform_landing(drone)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_flight_mode_raises_when_expected_mode_missing():
+    drone = MagicMock()
+    drone.telemetry.flight_mode.return_value = _stream_once(stm.FlightMode.HOLD)
+
+    with pytest.raises(TimeoutError, match="RETURN_TO_LAUNCH"):
+        await stm.wait_for_flight_mode(drone, stm.FlightMode.RETURN_TO_LAUNCH, timeout=0.01)
