@@ -51,7 +51,7 @@ describe('WaypointModal', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it('derives arrival time from preferred leg speed in auto mode', async () => {
+  it('derives waypoint arrival time from preferred leg speed in auto mode', async () => {
     const onConfirm = jest.fn();
 
     render(
@@ -72,24 +72,24 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/target arrival speed/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/preferred leg speed/i)).toBeInTheDocument();
     });
 
-    const timeInput = screen.getByLabelText(/time from start/i);
+    const timeInput = screen.getByLabelText(/waypoint arrival time/i);
     expect(timeInput).toBeDisabled();
     expect(Number(timeInput.value)).toBe(24);
 
-    fireEvent.change(screen.getByLabelText(/target arrival speed/i), {
+    fireEvent.change(screen.getByLabelText(/preferred leg speed/i), {
       target: { value: '4' },
     });
 
     await waitFor(() => {
-      expect(Number(screen.getByLabelText(/time from start/i).value)).toBe(38);
+      expect(Number(screen.getByLabelText(/waypoint arrival time/i).value)).toBe(38);
     });
 
     expect(screen.getAllByText(/segment plan/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/4\.0 m\/s target -> 38s arrival/i)).toBeInTheDocument();
+    expect(screen.getByText(/4\.0 m\/s preferred leg speed -> 38s waypoint arrival time/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
@@ -126,7 +126,7 @@ describe('WaypointModal', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /time-driven speed/i }));
 
-    const timeInput = screen.getByLabelText(/time from start/i);
+    const timeInput = screen.getByLabelText(/waypoint arrival time/i);
     expect(timeInput).not.toBeDisabled();
 
     fireEvent.change(timeInput, { target: { value: '44' } });
@@ -192,11 +192,12 @@ describe('WaypointModal', () => {
     });
 
     expect(
-      screen.getAllByText(/this first waypoint anchors when the leader should reach the route after mission start/i).length
+      screen.getAllByText(/this first waypoint anchors when the leader should enter the route after mission start/i).length
     ).toBeGreaterThan(0);
     expect(screen.queryByRole('radio', { name: /auto \(arrival leg\)/i })).not.toBeInTheDocument();
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
-    expect(screen.getByRole('spinbutton', { name: /heading/i })).not.toBeDisabled();
+    expect(screen.getByRole('spinbutton', { name: /entry heading/i })).not.toBeDisabled();
+    expect(screen.getByLabelText(/route entry time/i)).toBeInTheDocument();
     expect(screen.getByText(/first waypoint: set the initial route-entry heading explicitly/i)).toBeInTheDocument();
   });
 });

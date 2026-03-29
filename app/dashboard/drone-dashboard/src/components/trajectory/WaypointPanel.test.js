@@ -48,7 +48,7 @@ describe('WaypointPanel', () => {
     expect(props.onUpdateWaypoint).not.toHaveBeenCalled();
   });
 
-  it('updates preferred speed for auto-planned segments and derives arrival time', () => {
+  it('updates preferred leg speed for auto-planned segments and derives waypoint arrival time', () => {
     const secondWaypoint = {
       ...baseWaypoint,
       id: 'wp-2',
@@ -67,7 +67,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const legSpeedRow = screen.getByText(/target speed:/i).closest('.detail-row');
+    const legSpeedRow = screen.getByText(/preferred leg speed:/i).closest('.detail-row');
     fireEvent.click(within(legSpeedRow).getByText('8.0m/s'));
     fireEvent.change(screen.getByPlaceholderText(/preferred speed \(m\/s\)/i), {
       target: { value: '4' },
@@ -208,8 +208,8 @@ describe('WaypointPanel', () => {
 
     expect(screen.getByText('Route Role:')).toBeInTheDocument();
     expect(screen.getAllByText('Mission start anchor').length).toBeGreaterThan(0);
-    expect(screen.getByText('Start Arrival:')).toBeInTheDocument();
-    expect(screen.getByText('Heading:')).toBeInTheDocument();
+    expect(screen.getByText('Route entry time:')).toBeInTheDocument();
+    expect(screen.getByText('Entry heading:')).toBeInTheDocument();
     expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
   });
 });

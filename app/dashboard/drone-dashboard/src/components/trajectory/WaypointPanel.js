@@ -20,10 +20,14 @@ import {
 import {
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
+  getTrajectoryHeadingFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
+  getTrajectoryPreferredSpeedLabel,
+  getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
@@ -216,7 +220,7 @@ const WaypointPanel = ({
         if ((currentWaypoint?.timingMode || TIMING_MODES.MANUAL_TIME) === TIMING_MODES.AUTO_SPEED) {
           setEditFeedback({
             tone: 'warning',
-            text: 'This arrival time is derived from the leg speed target. Switch Timing Mode to Time-driven speed if you want to type a time.',
+            text: 'This waypoint arrival time is derived from the preferred leg speed. Switch Timing Mode to Time-driven speed if you want to type a time.',
           });
           return;
         }
@@ -732,7 +736,7 @@ const WaypointPanel = ({
               ) : null}
               
               <div className="detail-row">
-                <span className="detail-label">{index === 0 ? 'Start Arrival:' : 'Arrival:'}</span>
+                <span className="detail-label">{`${getTrajectoryTimeFieldLabel({ isMissionAnchor: index === 0 })}:`}</span>
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
                   <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Timing Mode or Leg Speed to change it.">
                     {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
@@ -775,7 +779,7 @@ const WaypointPanel = ({
 
               {index > 0 && getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED && (
                 <div className="detail-row timing-row">
-                  <span className="detail-label">Target Speed:</span>
+                  <span className="detail-label">{`${getTrajectoryPreferredSpeedLabel()}:`}</span>
                   {renderEditableField(
                     waypoint,
                     'preferredSpeed',
@@ -787,7 +791,7 @@ const WaypointPanel = ({
               
               {index > 0 && (
                 <div className="detail-row speed-row">
-                  <span className="detail-label">Arrival Speed:</span>
+                  <span className="detail-label">{`${getTrajectoryRequiredSpeedLabel()}:`}</span>
                   <div className="speed-display">
                     <span className={`detail-value speed-value speed-${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
                       {formatSpeed(waypoint.estimatedSpeed)}m/s
@@ -813,7 +817,7 @@ const WaypointPanel = ({
               ) : null}
               
               <div className="detail-row heading-row">
-                <span className="detail-label">{index === 0 ? 'Heading:' : 'Arrival Heading:'}</span>
+                <span className="detail-label">{`${getTrajectoryHeadingFieldLabel({ isMissionAnchor: index === 0 })}:`}</span>
                 <div className="heading-display">
                   {renderEditableField(
                     waypoint, 

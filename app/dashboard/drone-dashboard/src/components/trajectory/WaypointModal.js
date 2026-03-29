@@ -16,10 +16,14 @@ import {
 import {
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
+  getTrajectoryHeadingFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
+  getTrajectoryPreferredSpeedLabel,
+  getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
@@ -462,8 +466,8 @@ const WaypointModal = ({
         : getTrajectoryMissionAnchorLabel(0),
       detail: previousWaypoint
         ? timingMode === TIMING_MODES.AUTO_SPEED
-          ? `${getTrajectoryTimingModeDescription(timingMode)} ${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s arrival • ${getSpeedStatusLabel(speedStatus)}.`
-          : `${getTrajectoryTimingModeDescription(timingMode)} ${timeFromStart.toFixed(0)}s arrival -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}.`
+          ? `${getTrajectoryTimingModeDescription(timingMode)} ${preferredSpeed.toFixed(1)} m/s ${getTrajectoryPreferredSpeedLabel().toLowerCase()} -> ${timeFromStart.toFixed(0)}s ${getTrajectoryTimeFieldLabel().toLowerCase()} • ${getSpeedStatusLabel(speedStatus)}.`
+          : `${getTrajectoryTimingModeDescription(timingMode)} ${timeFromStart.toFixed(0)}s ${getTrajectoryTimeFieldLabel().toLowerCase()} -> ${estimatedSpeed.toFixed(1)} m/s ${getTrajectoryRequiredSpeedLabel().toLowerCase()} • ${getSpeedStatusLabel(speedStatus)}.`
         : `${getTrajectoryMissionAnchorDescription(0)} ${timeFromStart.toFixed(0)}s after mission start.`,
       tone: previousWaypoint
         ? speedStatus === 'impossible'
@@ -665,7 +669,7 @@ const WaypointModal = ({
 
             {previousWaypoint && timingMode === TIMING_MODES.AUTO_SPEED && (
               <div className="preferred-speed-group">
-                <label htmlFor="preferredSpeed" className="input-label">Target Arrival Speed</label>
+                <label htmlFor="preferredSpeed" className="input-label">{getTrajectoryPreferredSpeedLabel()}</label>
                 <input
                   id="preferredSpeed"
                   type="number"
@@ -677,7 +681,7 @@ const WaypointModal = ({
                   step={String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED)}
                 />
                 <small className="time-calculation">
-                  Auto mode derives arrival time from the inbound 3D leg distance and your preferred speed.
+                  Auto mode derives waypoint arrival time from the inbound 3D leg distance and your preferred leg speed.
                 </small>
                 <small className="time-calculation">
                   Nominal envelope: {TRAJECTORY_SPEED_POLICY.MIN_PREFERRED}-{TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX} m/s.
@@ -686,7 +690,7 @@ const WaypointModal = ({
             )}
 
             <label htmlFor="timeFromStart" className="input-label">
-              {previousWaypoint ? '⏱️ Arrival Time from Start' : '⏱️ Mission Start Arrival'}
+              {`⏱️ ${getTrajectoryTimeFieldLabel({ isMissionAnchor: !previousWaypoint })}`}
             </label>
             <input
               id="timeFromStart"
@@ -712,7 +716,7 @@ const WaypointModal = ({
             {!previousWaypoint && (
               <div className="timing-summary">
                 <small className="time-calculation">
-                  This first waypoint anchors when the leader should reach the route after mission start.
+                  This first waypoint anchors when the leader should enter the route after mission start.
                 </small>
               </div>
             )}
@@ -721,7 +725,7 @@ const WaypointModal = ({
           <div className="heading-section">
             <div className="heading-input-group">
               <label htmlFor="heading" className="input-label">
-                🧭 Heading
+                {`🧭 ${getTrajectoryHeadingFieldLabel({ isMissionAnchor: !previousWaypoint })}`}
                 <span className="heading-display">({formatHeading(heading)})</span>
               </label>
               
@@ -772,12 +776,12 @@ const WaypointModal = ({
                 </small>
                 {headingMode === YAW_CONSTANTS.AUTO && previousWaypoint && (
                   <small className="auto-heading-note">
-                    Auto mode: Aligns with the arrival leg from waypoint {waypointIndex - 1} ({formatHeading(calculatedHeading)})
+                    Auto mode: Aligns with the inbound leg from waypoint {waypointIndex - 1} ({formatHeading(calculatedHeading)})
                   </small>
                 )}
                 {headingMode === YAW_CONSTANTS.MANUAL && (
                   <small className="manual-heading-note">
-                    Manual mode: Custom heading ({formatHeading(heading)})
+                    Manual mode: Operator-locked heading ({formatHeading(heading)})
                   </small>
                 )}
                 {!previousWaypoint && (
@@ -793,7 +797,7 @@ const WaypointModal = ({
             <div className="speed-section">
               <div className="speed-display" style={getSpeedStatusStyle(speedStatus)}>
                 <div className="speed-header">
-                  <span className="speed-label">Required Speed</span>
+                  <span className="speed-label">{getTrajectoryRequiredSpeedLabel()}</span>
                   <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>
                   <span className="speed-kmh">({(estimatedSpeed * 3.6).toFixed(1)} km/h)</span>
                 </div>
@@ -807,11 +811,11 @@ const WaypointModal = ({
                 </small>
                 {timingMode === TIMING_MODES.AUTO_SPEED ? (
                   <small className="speed-note">
-                    Preferred speed target: {preferredSpeed.toFixed(1)} m/s
+                    {getTrajectoryPreferredSpeedLabel()}: {preferredSpeed.toFixed(1)} m/s
                   </small>
                 ) : (
                   <small className="speed-note">
-                    Time-driven speed mode uses your chosen arrival time to derive the required leg speed.
+                    Time-driven speed mode uses your chosen waypoint arrival time to derive the required leg speed.
                   </small>
                 )}
               </div>
