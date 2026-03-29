@@ -45,4 +45,81 @@ describe('TrajectoryStorage', () => {
       headingMode: YAW_CONSTANTS.AUTO,
     }));
   });
+
+  it('builds export files from the current in-memory planner trajectory without requiring a prior save', () => {
+    const storage = new TrajectoryStorage();
+    const trajectory = {
+      name: 'route-alpha',
+      waypoints: [
+        {
+          id: 'wp-1',
+          name: 'Waypoint 1',
+          latitude: 35.7262,
+          longitude: 51.2721,
+          altitude: 320,
+          altitudeReference: ALTITUDE_REFERENCE.AGL,
+          targetAgl: 120,
+          timeFromStart: 24,
+          timingMode: TIMING_MODES.AUTO_SPEED,
+          preferredSpeed: 6,
+          estimatedSpeed: 5.8,
+          speedFeasible: true,
+          groundElevation: 200,
+          terrainAccurate: true,
+          heading: 90,
+          headingMode: YAW_CONSTANTS.AUTO,
+          calculatedHeading: 90,
+        },
+      ],
+      metadata: {
+        exportedAt: 1234,
+      },
+    };
+
+    const jsonExport = storage.buildExportFile(trajectory, 'json');
+    const csvExport = storage.buildExportFile(trajectory, 'csv');
+    const kmlExport = storage.buildExportFile(trajectory, 'kml');
+
+    expect(jsonExport.filename).toBe('route_alpha.json');
+    expect(jsonExport.content).toContain('"timingMode": "auto_speed"');
+    expect(jsonExport.content).toContain('"altitudeReference": "agl"');
+
+    expect(csvExport.filename).toBe('route_alpha.csv');
+    expect(csvExport.content).toContain('Heading_deg,HeadingMode');
+    expect(csvExport.content).toContain('90.0,auto');
+
+    expect(kmlExport.filename).toBe('route_alpha.kml');
+    expect(kmlExport.content).toContain('<name>route-alpha</name>');
+    expect(kmlExport.content).toContain('Heading: 090° (Auto)');
+  });
+
+  it('parses trajectory CSVs with heading mode columns using the current planner defaults', () => {
+    const storage = new TrajectoryStorage();
+    const parsed = storage.parseCSV(
+      [
+        'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode',
+        'Waypoint 1,35.72620000,51.27210000,320.00,24.0,5.8,90.0,auto',
+        'Waypoint 2,35.72720000,51.27310000,340.00,44.0,6.2,135.0,manual',
+      ].join('\n'),
+      'route-alpha.csv'
+    );
+
+    expect(parsed.name).toBe('route-alpha');
+    expect(parsed.waypoints).toHaveLength(2);
+    expect(parsed.waypoints[0]).toEqual(
+      expect.objectContaining({
+        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        timingMode: TIMING_MODES.MANUAL_TIME,
+        heading: 90,
+        headingMode: 'auto',
+      })
+    );
+    expect(parsed.waypoints[1]).toEqual(
+      expect.objectContaining({
+        estimatedSpeed: 6.2,
+        heading: 135,
+        headingMode: 'manual',
+      })
+    );
+  });
 });
