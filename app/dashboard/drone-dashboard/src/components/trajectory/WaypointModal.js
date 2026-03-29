@@ -121,8 +121,18 @@ const WaypointModal = ({
       setPreferredSpeed(recommendedSpeed);
       setTimingMode(nextTimingMode);
       
-      // Initialize heading data - auto heading follows the arrival leg from the previous waypoint.
-      const headingData = calculateHeadingForNewWaypoint(position, { headingMode: YAW_CONSTANTS.AUTO }, previousWaypoint ? [previousWaypoint] : []);
+      // The first waypoint is the mission-start anchor and must stay explicit/manual.
+      const headingData = previousWaypoint
+        ? calculateHeadingForNewWaypoint(
+            position,
+            { headingMode: YAW_CONSTANTS.AUTO },
+            [previousWaypoint]
+          )
+        : {
+            heading: 0,
+            headingMode: YAW_CONSTANTS.MANUAL,
+            calculatedHeading: 0,
+          };
       setHeading(headingData.heading);
       setHeadingMode(headingData.headingMode);
       setCalculatedHeading(headingData.calculatedHeading);
