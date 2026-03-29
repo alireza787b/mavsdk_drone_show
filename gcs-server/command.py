@@ -60,6 +60,14 @@ _CRITICAL_MISSIONS = {
     Mission.RETURN_RTL,
     Mission.KILL_TERMINATE,
 }
+_MISSIONS_REQUIRING_ARMABILITY_GATE = {
+    Mission.TAKE_OFF,
+    Mission.DRONE_SHOW_FROM_CSV,
+    Mission.CUSTOM_CSV_DRONE_SHOW,
+    Mission.SWARM_TRAJECTORY,
+    Mission.QUICKSCOUT,
+    Mission.HOVER_TEST,
+}
 _COMMAND_HEARTBEAT_GRACE_SECONDS = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
 
 def normalize_drone_id(drone_id: Any) -> str:
@@ -143,6 +151,20 @@ def resolve_mission_type(mission_type: Any) -> Mission | None:
     if isinstance(mission_type, Mission):
         return mission_type
 
+    enum_value = getattr(mission_type, "value", None)
+    if enum_value is not None:
+        try:
+            mission = Mission._value2member_map_.get(int(enum_value))
+        except (TypeError, ValueError):
+            mission = None
+        if mission is not None:
+            return mission
+
+        enum_name = getattr(mission_type, "name", None)
+        if isinstance(enum_name, str):
+            normalized_name = enum_name.strip().upper().replace("-", "_").replace(" ", "_")
+            return _MISSION_NAME_ALIASES.get(normalized_name) or Mission.__members__.get(normalized_name)
+
     if isinstance(mission_type, int):
         return Mission._value2member_map_.get(mission_type)
 
@@ -176,6 +198,11 @@ def normalize_mission_type(mission_type: Any) -> Tuple[str, str, Mission | None]
 def is_critical_mission(mission: Mission | None) -> bool:
     """Identify commands worth always logging at INFO/WARNING on first attempt."""
     return mission in _CRITICAL_MISSIONS
+
+
+def mission_requires_launch_armability_probe(mission: Mission | None) -> bool:
+    """Launch-style missions should be gated on a live MAVSDK armability probe."""
+    return resolve_mission_type(mission) in _MISSIONS_REQUIRING_ARMABILITY_GATE
 
 
 def _log_command_event(message: str, level: str = "INFO", drone_id: Any | None = None) -> None:
@@ -329,6 +356,102 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     # Offline drones are logged at DEBUG level (not worth cluttering logs)
 
     return False, last_error, last_category
+
+
+def probe_live_armability_for_drone(
+    drone: Dict[str, Any],
+    *,
+    require_global_position: bool = True,
+    timeout: float | None = None,
+) -> Dict[str, Any]:
+    """Query the drone-side live armability endpoint."""
+    drone_id = normalize_drone_id(drone['hw_id'])
+    drone_ip = drone['ip']
+    request_timeout = float(timeout or getattr(Params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0) + 1.0)
+
+    try:
+        response = requests.get(
+            f"http://{drone_ip}:{Params.drone_api_port}/api/live-armability",
+            params={"require_global_position": str(bool(require_global_position)).lower()},
+            timeout=request_timeout,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        ready = bool(payload.get("ready"))
+        return {
+            "drone_id": drone_id,
+            "success": bool(payload.get("success", True)),
+            "ready": ready,
+            "summary": str(payload.get("summary") or ("Ready for launch" if ready else "Live armability probe reported not ready")),
+            "details": payload,
+            "category": "ready" if ready else "blocked",
+        }
+    except (Timeout, ConnectionError) as exc:
+        return {
+            "drone_id": drone_id,
+            "success": False,
+            "ready": False,
+            "summary": f"Live armability probe unreachable: {exc.__class__.__name__}",
+            "details": None,
+            "category": CommandResultCategory.OFFLINE.value,
+        }
+    except Exception as exc:
+        return {
+            "drone_id": drone_id,
+            "success": False,
+            "ready": False,
+            "summary": f"Live armability probe failed: {str(exc)[:120]}",
+            "details": None,
+            "category": CommandResultCategory.ERROR.value,
+        }
+
+
+def probe_live_armability_for_drones(
+    drones: List[Dict[str, Any]],
+    *,
+    require_global_position: bool = True,
+    timeout: float | None = None,
+) -> Dict[str, Any]:
+    """Run a bounded live armability probe across target drones."""
+    if not drones:
+        return {
+            "all_ready": True,
+            "blocked_ids": [],
+            "unavailable_ids": [],
+            "results": {},
+        }
+
+    results: Dict[str, Dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=max(1, min(len(drones), 10))) as executor:
+        future_to_drone = {
+            executor.submit(
+                probe_live_armability_for_drone,
+                drone,
+                require_global_position=require_global_position,
+                timeout=timeout,
+            ): drone
+            for drone in drones
+        }
+
+        for future in as_completed(future_to_drone):
+            result = future.result()
+            results[result["drone_id"]] = result
+
+    blocked_ids = sorted(
+        drone_id for drone_id, result in results.items()
+        if result.get("category") == "blocked"
+    )
+    unavailable_ids = sorted(
+        drone_id for drone_id, result in results.items()
+        if result.get("category") in {CommandResultCategory.OFFLINE.value, CommandResultCategory.ERROR.value}
+    )
+
+    return {
+        "all_ready": not blocked_ids and not unavailable_ids,
+        "blocked_ids": blocked_ids,
+        "unavailable_ids": unavailable_ids,
+        "results": results,
+    }
 
 def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, Any]) -> Dict[str, Any]:
     """

@@ -46,6 +46,39 @@ class TestDroneState:
         assert data['battery_voltage'] == 12.6
         assert data['is_armed'] is False
 
+    def test_get_live_armability_success(self, test_client, monkeypatch):
+        from src.drone_api_server import DroneAPIServer
+
+        async def _mock_probe(self, require_global_position=True):
+            return {
+                "success": True,
+                "ready": True,
+                "summary": "ready for mission startup",
+                "blockers": [],
+                "armable": True,
+                "global_position_ok": True,
+                "home_position_ok": True,
+                "local_position_ok": True,
+                "gyro_ok": True,
+                "accel_ok": True,
+                "mag_ok": True,
+                "timed_out": False,
+                "elapsed_sec": 0.2,
+                "require_global_position": require_global_position,
+                "timestamp": 123,
+                "probe_error": None,
+            }
+
+        monkeypatch.setattr(DroneAPIServer, "_probe_live_armability", _mock_probe)
+
+        response = test_client.get("/api/live-armability")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ready"] is True
+        assert data["summary"] == "ready for mission startup"
+        assert data["require_global_position"] is True
+
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
         """Test /get_drone_state when no data available"""
         mock_drone_communicator.get_drone_state.return_value = None

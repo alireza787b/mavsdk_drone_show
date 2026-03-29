@@ -1,7 +1,7 @@
 import sys
 import types
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
@@ -72,7 +72,8 @@ async def test_wait_until_offboard_armable_returns_when_armable():
         require_global_position=True,
     )
 
-    assert result.is_armable is True
+    assert result["armable"] is True
+    assert result["ready"] is True
 
 
 @pytest.mark.asyncio
@@ -110,14 +111,40 @@ async def test_wait_until_offboard_armable_resubscribes_after_stream_end():
         require_global_position=True,
     )
 
-    assert result.is_armable is True
+    assert result["armable"] is True
     assert drone.telemetry.health.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_probe_offboard_armability_returns_last_state_on_timeout(monkeypatch):
+    async def _stuck_stream():
+        while True:
+            yield _health(is_armable=False, is_home_position_ok=False)
+
+    drone = MagicMock()
+    drone.telemetry.health = _stuck_stream
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_HEALTH_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_HEALTH_POLL_SEC", 0.01)
+
+    result = await mission_startup.probe_offboard_armability(
+        drone,
+        require_global_position=True,
+    )
+
+    assert result["ready"] is False
+    assert result["timed_out"] is True
+    assert "PX4 armability" in result["blockers"]
 
 
 @pytest.mark.asyncio
 async def test_arm_with_preflight_gate_retries_command_denied(monkeypatch):
     drone = MagicMock()
-    drone.action.arm = AsyncMock(side_effect=[mission_startup.ActionError("COMMAND_DENIED"), None])
+    action_result = Mock()
+    action_result.result = "COMMAND_DENIED"
+    action_result.result_str = "COMMAND_DENIED"
+    drone.action.arm = AsyncMock(
+        side_effect=[mission_startup.ActionError(action_result, "unit-test"), None]
+    )
 
     wait_mock = AsyncMock()
     monkeypatch.setattr(mission_startup, "wait_until_offboard_armable", wait_mock)

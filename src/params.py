@@ -373,6 +373,8 @@ class Params:
     OFFBOARD_ARM_RETRY_DELAY_SEC = 2.0       # Delay between arm retries after COMMAND_DENIED
     OFFBOARD_START_MAX_ATTEMPTS = 3          # Bounded retries when starting offboard mode
     OFFBOARD_START_RETRY_DELAY_SEC = 1.0     # Delay between offboard-start retries
+    LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0  # Local MAVSDK connect wait for on-demand launch probes
+    LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0          # Bounded wait for live MAVSDK armability probes
 
     # Trajectory and Landing Configuration
     GROUND_ALTITUDE_THRESHOLD = 1.0        # Threshold to determine if trajectory ends at ground level

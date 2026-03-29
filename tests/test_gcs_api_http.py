@@ -995,11 +995,18 @@ class TestSwarmTrajectoryEndpoints:
 class TestCommandEndpoints:
     """Test command submission endpoints"""
 
+    @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.load_config')
-    def test_submit_command(self, mock_load, mock_send, test_client, mock_config):
+    def test_submit_command(self, mock_load, mock_send, mock_probe, test_client, mock_config):
         """Test POST /submit_command - new SubmitCommandResponse format"""
         mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
         # Mock needs all expected fields from the updated command.py
         mock_send.return_value = {
             'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
@@ -1027,6 +1034,38 @@ class TestCommandEndpoints:
         assert 'target_drones' in data
         assert 'submitted_count' in data
         assert data['tracking_phase'] == 'pending_execution'
+
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.load_config')
+    def test_submit_command_rejects_takeoff_when_live_probe_fails(
+        self,
+        mock_load,
+        mock_probe,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': False,
+            'blocked_ids': ['1'],
+            'unavailable_ids': [],
+            'results': {
+                '1': {
+                    'summary': 'waiting for PX4 armability',
+                },
+            },
+        }
+
+        response = test_client.post(
+            "/submit_command",
+            json={
+                'missionType': 10,
+                'triggerTime': 0,
+            },
+        )
+
+        assert response.status_code == 400
+        assert 'Live launch readiness probe failed' in response.json()['detail']
 
     @patch('app_fastapi.send_commands_to_selected')
     @patch('app_fastapi.load_config')

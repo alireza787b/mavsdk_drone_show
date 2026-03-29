@@ -140,6 +140,7 @@ Operational guidance:
 - verify the fleet is already `READY` before scheduling the trigger
 - if the browser and GCS clocks diverge materially, the dashboard warns about the offset, but scheduling still follows the GCS clock
 - offboard startup now also waits for MAVSDK/PX4 armability before arming, so transient pre-arm blockers are retried locally instead of immediately failing the mission start
+- GCS launch dispatch now also performs a live per-drone MAVSDK armability probe for launch-from-ground missions, so passive telemetry alone cannot falsely clear a drone that PX4 would still refuse to arm
 
 ## Launch Readiness
 

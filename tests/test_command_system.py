@@ -88,6 +88,14 @@ class TestGcsLoggingImports:
 
         assert get_logger.__module__ == 'mds_logging.server'
 
+    def test_launch_missions_require_live_armability_probe(self):
+        from command import mission_requires_launch_armability_probe
+        from src.enums import Mission
+
+        assert mission_requires_launch_armability_probe(Mission.TAKE_OFF) is True
+        assert mission_requires_launch_armability_probe(Mission.SWARM_TRAJECTORY) is True
+        assert mission_requires_launch_armability_probe(Mission.SMART_SWARM) is False
+
 
 # ============================================================================
 # CommandTracker Tests
@@ -512,6 +520,26 @@ class TestGcsCommandDistribution:
         assert results['success'] == 2
         assert results['offline'] == 0
         assert mock_send.call_count == 2
+
+    def test_probe_live_armability_for_drones_collects_blocked_and_unavailable(self):
+        from command import probe_live_armability_for_drones
+
+        drones = [
+            {'hw_id': 1, 'ip': '172.18.0.2'},
+            {'hw_id': 2, 'ip': '172.18.0.3'},
+            {'hw_id': 3, 'ip': '172.18.0.4'},
+        ]
+
+        with patch('command.probe_live_armability_for_drone', side_effect=[
+            {'drone_id': '1', 'category': 'ready', 'ready': True, 'summary': 'ok'},
+            {'drone_id': '2', 'category': 'blocked', 'ready': False, 'summary': 'waiting for PX4 armability'},
+            {'drone_id': '3', 'category': 'offline', 'ready': False, 'summary': 'probe unreachable'},
+        ]):
+            result = probe_live_armability_for_drones(drones)
+
+        assert result['all_ready'] is False
+        assert result['blocked_ids'] == ['2']
+        assert result['unavailable_ids'] == ['3']
 
 
 # ============================================================================

@@ -55,7 +55,13 @@ sys.path.append(os.path.join(BASE_DIR, 'src'))
 sys.path.append(BASE_DIR)  # For functions module
 
 from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
-from command import resolve_mission_type, send_commands_to_all, send_commands_to_selected
+from command import (
+    mission_requires_launch_armability_probe,
+    probe_live_armability_for_drones,
+    resolve_mission_type,
+    send_commands_to_all,
+    send_commands_to_selected,
+)
 from config import (
     get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
@@ -963,6 +969,25 @@ async def submit_command(request: Request):
                         "Unsafe Swarm Trajectory target set. "
                         + "; ".join(formatted_issues[:4])
                     ),
+                )
+
+        if mission_requires_launch_armability_probe(resolved_mission):
+            launch_probe = probe_live_armability_for_drones(
+                actual_targets,
+                require_global_position=True,
+            )
+            if not launch_probe["all_ready"]:
+                formatted = []
+                for drone_id in launch_probe["blocked_ids"][:4]:
+                    summary = launch_probe["results"][drone_id]["summary"]
+                    formatted.append(f"Drone {drone_id}: {summary}")
+                for drone_id in launch_probe["unavailable_ids"][:4]:
+                    summary = launch_probe["results"][drone_id]["summary"]
+                    formatted.append(f"Drone {drone_id}: {summary}")
+
+                raise HTTPException(
+                    status_code=400,
+                    detail="Live launch readiness probe failed. " + "; ".join(formatted),
                 )
 
         # Create tracked command

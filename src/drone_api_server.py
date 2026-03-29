@@ -40,6 +40,7 @@ import uvicorn
 import requests
 import asyncio
 import json
+from mavsdk.system import System
 
 from mds_logging import get_logger
 
@@ -47,7 +48,9 @@ logger = get_logger("drone_api")
 
 # Project imports
 from src.drone_config import DroneConfig
+from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from src.mission_startup import probe_offboard_armability
 from functions.data_utils import safe_float, safe_get
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
@@ -155,6 +158,25 @@ class CommandAckResponse(BaseModel):
     timestamp: int = Field(..., description="Response timestamp in milliseconds")
 
 
+class LiveArmabilityResponse(BaseModel):
+    success: bool = True
+    ready: bool
+    summary: str
+    blockers: List[str] = Field(default_factory=list)
+    armable: bool = False
+    global_position_ok: bool = False
+    home_position_ok: bool = False
+    local_position_ok: bool = False
+    gyro_ok: bool = False
+    accel_ok: bool = False
+    mag_ok: bool = False
+    timed_out: bool = False
+    elapsed_sec: float = 0.0
+    require_global_position: bool = True
+    timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
+    probe_error: Optional[str] = None
+
+
 # ============================================================================
 # DroneAPIServer Class (FastAPI Version)
 # ============================================================================
@@ -215,6 +237,68 @@ class DroneAPIServer:
         """Setter for injecting the DroneCommunicator dependency after initialization."""
         self.drone_communicator = drone_communicator
 
+    async def _wait_for_mavsdk_connection(self, drone: System) -> None:
+        connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
+        deadline = time.monotonic() + connect_timeout
+        connection_iter = drone.core.connection_state().__aiter__()
+
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Timed out waiting for local MAVSDK connection.")
+
+            try:
+                state = await asyncio.wait_for(connection_iter.__anext__(), timeout=min(1.0, remaining))
+            except asyncio.TimeoutError:
+                continue
+            except StopAsyncIteration as exc:
+                raise RuntimeError("MAVSDK connection stream ended before connection was confirmed.") from exc
+
+            if state.is_connected:
+                return
+
+    async def _probe_live_armability(self, require_global_position: bool = True) -> Dict[str, Any]:
+        probe_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0))
+
+        try:
+            drone = System(
+                mavsdk_server_address="127.0.0.1",
+                port=getattr(self.params, "DEFAULT_GRPC_PORT", NetworkDefaults.GRPC_BASE_PORT),
+            )
+            await drone.connect(system_address=f"udp://:{self.params.mavsdk_port}")
+            await self._wait_for_mavsdk_connection(drone)
+            result = await probe_offboard_armability(
+                drone,
+                require_global_position=require_global_position,
+                timeout=probe_timeout,
+                logger=logger,
+            )
+            return {
+                "success": True,
+                **result,
+                "timestamp": int(time.time() * 1000),
+                "probe_error": None,
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "ready": False,
+                "summary": f"Live armability probe unavailable: {exc}",
+                "blockers": ["live armability probe unavailable"],
+                "armable": False,
+                "global_position_ok": False,
+                "home_position_ok": False,
+                "local_position_ok": False,
+                "gyro_ok": False,
+                "accel_ok": False,
+                "mag_ok": False,
+                "timed_out": isinstance(exc, TimeoutError),
+                "elapsed_sec": 0.0,
+                "require_global_position": require_global_position,
+                "timestamp": int(time.time() * 1000),
+                "probe_error": str(exc),
+            }
+
     def setup_routes(self):
         """Define all API routes (same as Flask version)"""
 
@@ -246,6 +330,12 @@ class DroneAPIServer:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"error_in_get_drone_state: {str(e)}")
+
+        @self.app.get("/api/live-armability", response_model=LiveArmabilityResponse)
+        async def get_live_armability(require_global_position: bool = True):
+            """Run an on-demand MAVSDK launch-readiness probe."""
+            result = await self._probe_live_armability(require_global_position=require_global_position)
+            return LiveArmabilityResponse(**result)
 
         @self.app.post(f"/{Params.send_drone_command_URI}", response_model=CommandAckResponse)
         async def send_drone_command(command: CommandRequest) -> CommandAckResponse:
