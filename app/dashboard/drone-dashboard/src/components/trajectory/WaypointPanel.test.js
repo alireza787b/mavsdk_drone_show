@@ -100,8 +100,8 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const segmentPlanRow = screen.getByText(/segment plan:/i).closest('.detail-row');
-    fireEvent.click(within(segmentPlanRow).getByText(/auto from speed/i));
+    const segmentPlanRow = screen.getByText(/timing mode:/i).closest('.detail-row');
+    fireEvent.click(within(segmentPlanRow).getByText(/speed-driven eta/i));
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: TIMING_MODES.MANUAL_TIME },
     });
@@ -133,11 +133,19 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    expect(screen.getByText('Height AGL:')).toBeInTheDocument();
+    expect(screen.getByText('Clearance AGL:')).toBeInTheDocument();
     expect(screen.getByText('120.0m')).toBeInTheDocument();
     expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Auto from speed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Speed-driven ETA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Auto heading').length).toBeGreaterThan(0);
     expect(screen.getByText('Terrain estimated')).toBeInTheDocument();
+  });
+
+  it('marks the first waypoint as the mission start anchor', () => {
+    renderPanel();
+
+    expect(screen.getByText('Route Role:')).toBeInTheDocument();
+    expect(screen.getByText('Mission start anchor')).toBeInTheDocument();
+    expect(screen.getByText('Start Arrival:')).toBeInTheDocument();
   });
 });

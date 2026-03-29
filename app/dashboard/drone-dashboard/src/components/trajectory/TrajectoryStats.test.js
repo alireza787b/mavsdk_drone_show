@@ -51,7 +51,7 @@ describe('TrajectoryStats', () => {
     expect(screen.getByText('35-160 m AGL')).toBeInTheDocument();
     expect(screen.getByText('MSL 2 · AGL 3')).toBeInTheDocument();
     expect(screen.getByText('Accurate 3 · Estimated 2')).toBeInTheDocument();
-    expect(screen.getByText('1 leg requires elevated speed review.')).toBeInTheDocument();
-    expect(screen.getByText('AGL entries are stored as MSL after applying the current ground estimate.')).toBeInTheDocument();
+    expect(screen.queryByText('1 leg requires elevated speed review.')).not.toBeInTheDocument();
+    expect(screen.queryByText('AGL entries are stored as MSL after applying the current ground estimate.')).not.toBeInTheDocument();
   });
 });

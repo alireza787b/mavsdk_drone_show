@@ -17,6 +17,12 @@ import {
   clampPreferredLegSpeed,
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
+import {
+  getTrajectoryAltitudeReferenceLabel,
+  getTrajectoryHeadingModeLabel,
+  getTrajectoryMissionAnchorLabel,
+  getTrajectoryTimingModeLabel,
+} from '../../utilities/trajectoryAuthoringGuidance';
 
 const WaypointPanel = ({
   waypoints,
@@ -141,7 +147,7 @@ const WaypointPanel = ({
         if ((currentWaypoint?.timingMode || TIMING_MODES.MANUAL_TIME) === TIMING_MODES.AUTO_SPEED) {
           setEditFeedback({
             tone: 'warning',
-            text: 'This arrival time is derived from leg speed. Switch Segment Plan to Manual arrival if you want to type a time.',
+            text: 'This arrival time is derived from the leg speed target. Switch Timing Mode to Time-driven speed if you want to type a time.',
           });
           return;
         }
@@ -343,18 +349,18 @@ const WaypointPanel = ({
     if (index > 0) {
       tags.push({
         tone: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'info' : 'neutral',
-        text: getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'Auto from speed' : 'Manual arrival',
+        text: getTrajectoryTimingModeLabel(getTimingMode(waypoint)),
       });
     } else {
       tags.push({
         tone: 'neutral',
-        text: 'Mission start',
+        text: getTrajectoryMissionAnchorLabel(index),
       });
     }
 
     tags.push({
       tone: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
-      text: (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading',
+      text: getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO),
     });
 
     if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
@@ -368,7 +374,7 @@ const WaypointPanel = ({
   };
 
   const formatTimingMode = (waypoint) =>
-    getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? 'Auto from speed' : 'Manual arrival';
+    getTrajectoryTimingModeLabel(getTimingMode(waypoint));
 
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
@@ -423,8 +429,8 @@ const WaypointPanel = ({
                   </>
                 ) : (
                   <>
-                    <option value={TIMING_MODES.AUTO_SPEED}>Auto from leg speed</option>
-                    <option value={TIMING_MODES.MANUAL_TIME}>Manual arrival time</option>
+                    <option value={TIMING_MODES.AUTO_SPEED}>{getTrajectoryTimingModeLabel(TIMING_MODES.AUTO_SPEED)}</option>
+                    <option value={TIMING_MODES.MANUAL_TIME}>{getTrajectoryTimingModeLabel(TIMING_MODES.MANUAL_TIME)}</option>
                   </>
                 )}
               </select>
@@ -586,7 +592,7 @@ const WaypointPanel = ({
               </div>
               
               <div className="detail-row">
-                <span className="detail-label">Altitude MSL:</span>
+                <span className="detail-label">Stored Altitude:</span>
                 {renderEditableField(
                   waypoint, 
                   'altitude', 
@@ -598,24 +604,24 @@ const WaypointPanel = ({
               {(Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) || getTargetAgl(waypoint) > 0 ? (
                 <>
                   <div className="detail-row timing-row">
-                    <span className="detail-label">Height AGL:</span>
+                    <span className="detail-label">Clearance AGL:</span>
                     <span className="detail-value">
                       {getTargetAgl(waypoint).toFixed(1)}m
                     </span>
                   </div>
                   <div className="detail-row timing-row">
-                    <span className="detail-label">Altitude Plan:</span>
+                    <span className="detail-label">Altitude Input:</span>
                     <span className="detail-value">
-                      {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input'}
+                      {getTrajectoryAltitudeReferenceLabel(getAltitudeReference(waypoint))}
                     </span>
                   </div>
                 </>
               ) : null}
               
               <div className="detail-row">
-                <span className="detail-label">Arrival:</span>
+                <span className="detail-label">{index === 0 ? 'Start Arrival:' : 'Arrival:'}</span>
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
-                  <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Segment Plan or Leg Speed to change it.">
+                  <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Timing Mode or Leg Speed to change it.">
                     {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
                   </span>
                 ) : (
@@ -630,7 +636,7 @@ const WaypointPanel = ({
 
               {index > 0 && (
                 <div className="detail-row timing-row">
-                  <span className="detail-label">Segment Plan:</span>
+                  <span className="detail-label">Timing Mode:</span>
                   <div className="timing-display">
                     {renderEditableField(
                       waypoint,
@@ -639,6 +645,13 @@ const WaypointPanel = ({
                       formatTimingMode(waypoint)
                     )}
                   </div>
+                </div>
+              )}
+
+              {index === 0 && (
+                <div className="detail-row start-point">
+                  <span className="detail-label">Route Role:</span>
+                  <span className="detail-value start-indicator">{getTrajectoryMissionAnchorLabel(index)}</span>
                 </div>
               )}
 
@@ -695,19 +708,12 @@ const WaypointPanel = ({
                       waypoint,
                       'headingMode',
                       waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
-                      (waypoint.headingMode || waypoint.yawMode) === YAW_CONSTANTS.AUTO ? 'Auto' : 'Manual'
+                      getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO)
                     )})
                   </span>
                 </div>
               </div>
-              
-              {index === 0 && (
-                <div className="detail-row start-point">
-                  <span className="detail-label">Type:</span>
-                  <span className="detail-value start-indicator">Start Point</span>
-                </div>
-              )}
-              
+
               {index === waypoints.length - 1 && waypoints.length > 1 && (
                 <div className="detail-row end-point">
                   <span className="detail-label">Type:</span>

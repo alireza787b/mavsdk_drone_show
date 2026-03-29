@@ -248,7 +248,7 @@ const TrajectoryPlanning = () => {
       {
         label: 'Planner Scope',
         value: 'Top leaders only',
-        detail: 'Followers are generated later from the current Swarm Design hierarchy and offsets.',
+        detail: 'Followers are generated later from the current Swarm Design hierarchy and offsets. The first waypoint anchors when the leader should reach the route after mission start.',
       },
       {
         label: 'Current Path',

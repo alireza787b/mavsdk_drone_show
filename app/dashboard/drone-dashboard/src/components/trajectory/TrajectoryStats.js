@@ -1,7 +1,6 @@
 //app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryStats.js
 import React from 'react';
 import PropTypes from 'prop-types';
-import { buildTrajectoryAttentionItems } from '../../utilities/SpeedCalculator';
 import '../../styles/TrajectoryStats.css';
 
 const TrajectoryStats = ({ stats }) => {
@@ -76,8 +75,6 @@ const TrajectoryStats = ({ stats }) => {
     },
   ];
 
-  const attentionItems = buildTrajectoryAttentionItems(stats);
-
   return (
     <div className="trajectory-brief" aria-label="Trajectory mission brief">
       <div className="trajectory-brief__metrics">
@@ -119,16 +116,6 @@ const TrajectoryStats = ({ stats }) => {
           </div>
         ))}
       </div>
-
-      {attentionItems.length > 0 ? (
-        <div className="trajectory-brief__alerts">
-          {attentionItems.map((item) => (
-            <div key={item.text} className={`trajectory-brief__alert trajectory-brief__alert--${item.tone}`}>
-              {item.text}
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 };

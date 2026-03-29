@@ -125,9 +125,10 @@ Important:
   - **MSL input** for direct altitude authoring
   - **Target AGL** for terrain-assisted planning
 - terrain lookup provides the ground reference used for AGL entry and always shows the canonical stored MSL altitude alongside it
+- the first waypoint is the **mission start anchor**: it defines when the leader should reach the route after mission start
 - every non-initial waypoint now supports two explicit segment-planning modes:
-  - **Auto from leg speed**: operator chooses preferred speed and the planner derives arrival time
-  - **Manual arrival time**: operator pins the arrival time and the planner shows the required speed
+  - **Speed-driven ETA**: operator chooses preferred speed and the planner derives arrival time
+  - **Time-driven speed**: operator pins the arrival time and the planner shows the required speed
 
 **CSV Format Required:**
 ```csv
@@ -165,11 +166,12 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - waypoint editing, modal validation, and planner shortcuts are now exposed in-place so the operator can stay inside the workspace without losing mission context
 - the planner now treats waypoint timing as explicit operator intent instead of an implicit time-only field:
   - modal defaults are speed-driven for later waypoints
-  - the waypoint panel now shows `Segment Plan` and `Leg Speed` inline
+  - the first waypoint is explicitly called out as the mission-start anchor instead of looking like just another generic leg
+  - the waypoint panel now shows `Timing Mode` and `Leg Speed` inline
   - derived arrival times are shown as derived, not as a misleading free-edit field
 - altitude authoring now makes operator intent explicit too:
   - planner modal supports `MSL input` and `Target AGL`
-  - waypoint review keeps the stored MSL altitude visible
+  - waypoint review keeps the stored MSL altitude visible as the canonical mission value
   - terrain context (`groundElevation`, `terrainAccurate`, target AGL) is preserved through save/load/export
 - the planner header now publishes a mission brief before transfer:
   - distance, duration, altitude envelope, and max-leg-speed posture are summarized in one place
@@ -181,7 +183,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - per-waypoint cards now show altitude-reference, timing-mode, heading-mode, and terrain-confidence tags for faster audit before launch
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
-  - speed-driven legs and manual-arrival legs explain what is derived versus what is operator-pinned
+  - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned
+  - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, and `Mission start anchor` mean the same thing everywhere
 - planner mission readiness now uses one explicit operator model before transfer:
   - routes with timing conflicts, impossible-speed legs, or only a single waypoint are marked `Draft only`
   - review-only caveats (terrain estimates, elevated speed review, AGL storage notes) are separated from hard blockers instead of being mixed into one undifferentiated warning list

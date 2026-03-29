@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { 
+import {
   ALTITUDE_REFERENCE,
   calculateSpeed, 
   getSpeedStatus, 
@@ -13,6 +13,12 @@ import {
   normalizeHeading,
   formatHeading
 } from '../../utilities/SpeedCalculator';
+import {
+  getTrajectoryAltitudeReferenceLabel,
+  getTrajectoryHeadingModeLabel,
+  getTrajectoryMissionAnchorLabel,
+  getTrajectoryTimingModeLabel,
+} from '../../utilities/trajectoryAuthoringGuidance';
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
@@ -431,22 +437,20 @@ const WaypointModal = ({
   const authoringCards = [
     {
       label: 'Altitude Plan',
-      value: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'Target AGL' : 'MSL input',
+      value: getTrajectoryAltitudeReferenceLabel(altitudeReference),
       detail: `Stored as ${altitude.toFixed(1)}m MSL`,
       tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
     },
     {
-      label: 'Segment Plan',
+      label: previousWaypoint ? 'Segment Plan' : 'Route Role',
       value: previousWaypoint
-        ? timingMode === TIMING_MODES.AUTO_SPEED
-          ? 'Auto from leg speed'
-          : 'Manual arrival'
-        : 'Mission start',
+        ? getTrajectoryTimingModeLabel(timingMode)
+        : getTrajectoryMissionAnchorLabel(0),
       detail: previousWaypoint
         ? timingMode === TIMING_MODES.AUTO_SPEED
-          ? `${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s ETA • ${getSpeedStatusLabel(speedStatus)}`
-          : `${timeFromStart.toFixed(0)}s ETA -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}`
-        : 'Sets the mission entry point for this leader.',
+          ? `${preferredSpeed.toFixed(1)} m/s target -> ${timeFromStart.toFixed(0)}s arrival • ${getSpeedStatusLabel(speedStatus)}`
+          : `${timeFromStart.toFixed(0)}s arrival -> ${estimatedSpeed.toFixed(1)} m/s required • ${getSpeedStatusLabel(speedStatus)}`
+        : `${timeFromStart.toFixed(0)}s after mission start the leader should reach this first route point.`,
       tone: previousWaypoint
         ? speedStatus === 'impossible'
           ? 'danger'
@@ -457,7 +461,7 @@ const WaypointModal = ({
     },
     {
       label: 'Heading',
-      value: headingMode === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading',
+      value: getTrajectoryHeadingModeLabel(headingMode),
       detail: headingMode === YAW_CONSTANTS.AUTO
         ? `${formatHeading(calculatedHeading)} toward next leg`
         : `${formatHeading(heading)} locked by operator`,
@@ -498,7 +502,7 @@ const WaypointModal = ({
             {previousWaypoint && (
               <div className="smart-defaults-info">
                 <small className="defaults-note">
-                  💡 Smart defaults: altitude continues from the previous waypoint and leg timing starts in speed-driven mode
+                  Smart defaults continue altitude from the previous waypoint and start the new leg in speed-driven ETA mode.
                 </small>
               </div>
             )}
@@ -575,7 +579,7 @@ const WaypointModal = ({
 
             <div className="altitude-input-group">
               <label htmlFor="altitude" className="input-label">
-                {altitudeReference === ALTITUDE_REFERENCE.AGL ? '🏔️ Target Height (AGL)' : '🏔️ Altitude (MSL)'}
+                {altitudeReference === ALTITUDE_REFERENCE.AGL ? '🏔️ Target Clearance (AGL)' : '🏔️ Altitude (MSL)'}
                 {isLoadingTerrain && <span className="loading-indicator"> ⟳</span>}
               </label>
               <input
@@ -630,7 +634,7 @@ const WaypointModal = ({
                       checked={timingMode === TIMING_MODES.AUTO_SPEED}
                       onChange={() => handleTimingModeChange(TIMING_MODES.AUTO_SPEED)}
                     />
-                    <span className="radio-label">Auto from leg speed</span>
+                    <span className="radio-label">{getTrajectoryTimingModeLabel(TIMING_MODES.AUTO_SPEED)}</span>
                   </label>
                   <label className="radio-option">
                     <input
@@ -639,7 +643,7 @@ const WaypointModal = ({
                       checked={timingMode === TIMING_MODES.MANUAL_TIME}
                       onChange={() => handleTimingModeChange(TIMING_MODES.MANUAL_TIME)}
                     />
-                    <span className="radio-label">Manual arrival time</span>
+                    <span className="radio-label">{getTrajectoryTimingModeLabel(TIMING_MODES.MANUAL_TIME)}</span>
                   </label>
                 </div>
               </div>
@@ -647,7 +651,7 @@ const WaypointModal = ({
 
             {previousWaypoint && timingMode === TIMING_MODES.AUTO_SPEED && (
               <div className="preferred-speed-group">
-                <label htmlFor="preferredSpeed" className="input-label">Preferred Leg Speed</label>
+                <label htmlFor="preferredSpeed" className="input-label">Target Leg Speed</label>
                 <input
                   id="preferredSpeed"
                   type="number"
@@ -667,7 +671,9 @@ const WaypointModal = ({
               </div>
             )}
 
-            <label htmlFor="timeFromStart" className="input-label">⏱️ Time from Start</label>
+            <label htmlFor="timeFromStart" className="input-label">
+              {previousWaypoint ? '⏱️ Arrival Time from Start' : '⏱️ Mission Start Arrival'}
+            </label>
             <input
               id="timeFromStart"
               type="number"
@@ -685,7 +691,14 @@ const WaypointModal = ({
                   Leg duration: <strong>{legDuration.toFixed(1)}s</strong>
                 </small>
                 <small className="time-calculation">
-                  Mode: <strong>{timingMode === TIMING_MODES.AUTO_SPEED ? 'Speed-driven' : 'Time-driven'}</strong>
+                  Mode: <strong>{getTrajectoryTimingModeLabel(timingMode)}</strong>
+                </small>
+              </div>
+            )}
+            {!previousWaypoint && (
+              <div className="timing-summary">
+                <small className="time-calculation">
+                  This first waypoint anchors when the leader should reach the route after mission start.
                 </small>
               </div>
             )}
@@ -782,7 +795,7 @@ const WaypointModal = ({
                   </small>
                 ) : (
                   <small className="speed-note">
-                    Manual arrival time drives the required speed for this leg.
+                    Time-driven speed mode uses your chosen arrival time to derive the required leg speed.
                   </small>
                 )}
               </div>

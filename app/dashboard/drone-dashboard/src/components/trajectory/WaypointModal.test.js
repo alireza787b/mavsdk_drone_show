@@ -88,8 +88,8 @@ describe('WaypointModal', () => {
     });
 
     expect(screen.getAllByText(/segment plan/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/auto from leg speed/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/4\.0 m\/s target -> 38s eta/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/4\.0 m\/s target -> 38s arrival/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
@@ -121,10 +121,10 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('radio', { name: /manual arrival time/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /time-driven speed/i })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('radio', { name: /manual arrival time/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /time-driven speed/i }));
 
     const timeInput = screen.getByLabelText(/time from start/i);
     expect(timeInput).not.toBeDisabled();
@@ -158,7 +158,7 @@ describe('WaypointModal', () => {
     });
 
     fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
-    fireEvent.change(screen.getByLabelText(/target height \(agl\)/i), {
+    fireEvent.change(screen.getByLabelText(/target clearance \(agl\)|target height \(agl\)|target agl/i), {
       target: { value: '120' },
     });
 
@@ -173,5 +173,25 @@ describe('WaypointModal', () => {
       targetAgl: 120,
       altitude: 320,
     }));
+  });
+
+  it('explains that the first waypoint is the mission start anchor', async () => {
+    render(
+      <WaypointModal
+        isOpen
+        onClose={jest.fn()}
+        onConfirm={jest.fn()}
+        position={{ latitude: 35.727, longitude: 51.272 }}
+        previousWaypoint={null}
+        waypointIndex={1}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/mission start anchor/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/leader should reach this first route point/i)).toBeInTheDocument();
+    expect(screen.getByText(/this first waypoint anchors when the leader should reach the route after mission start/i)).toBeInTheDocument();
   });
 });
