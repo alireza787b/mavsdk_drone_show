@@ -7,6 +7,7 @@ import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneA
 import { getTerrainElevation } from '../services/ElevationService';
 
 let mockMapClickIndex = 0;
+const originalMapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
 
 jest.mock('react-map-gl', () => {
   const React = require('react');
@@ -178,6 +179,7 @@ jest.mock('../services/droneApiService', () => ({
 describe('TrajectoryPlanning', () => {
   beforeEach(() => {
     mockMapClickIndex = 0;
+    process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = 'test-mapbox-token';
     window.localStorage.clear();
     getTerrainElevation.mockResolvedValue({ elevation: 0, source: 'backend' });
     getSwarmClusterStatus.mockResolvedValue({
@@ -192,6 +194,10 @@ describe('TrajectoryPlanning', () => {
       ],
     });
     uploadSwarmTrajectory.mockResolvedValue({ success: true, message: 'uploaded' });
+  });
+
+  afterAll(() => {
+    process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = originalMapboxToken;
   });
 
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {

@@ -43,7 +43,7 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryHeadingModeDescription(YAW_CONSTANTS.MANUAL, { isMissionAnchor: true })).toMatch(/initial route-entry heading/i);
     expect(getTrajectoryMissionAnchorLabel(0)).toBe('Mission start anchor');
     expect(getTrajectoryMissionAnchorLabel(2)).toBe('Waypoint arrival');
-    expect(getTrajectoryMissionAnchorDescription(0)).toMatch(/leader should enter the route after mission start/i);
+    expect(getTrajectoryMissionAnchorDescription(0)).toMatch(/delay after mission start/i);
     expect(getTrajectoryMissionAnchorDescription(2)).toMatch(/evaluated by the arrival leg/i);
   });
 
