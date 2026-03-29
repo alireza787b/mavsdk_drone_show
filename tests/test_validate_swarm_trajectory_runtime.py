@@ -159,6 +159,41 @@ def test_selected_top_leaders_filters_to_active_top_leaders():
     assert validator.selected_top_leaders(assignments, active_ids=[1, 2, 3, 4, 5]) == [1, 4]
 
 
+def test_max_selected_horizontal_offset_uses_active_followers_of_selected_leaders():
+    validator = _load_validator_module()
+
+    assignments = [
+        {"hw_id": 1, "follow": 0},
+        {"hw_id": 2, "follow": 1, "offset_x": 5, "offset_y": 50},
+        {"hw_id": 3, "follow": 1, "offset_x": 25, "offset_y": 0},
+        {"hw_id": 5, "follow": 4, "offset_x": 100, "offset_y": 0},
+    ]
+
+    offset = validator.max_selected_horizontal_offset_m(
+        assignments,
+        leader_ids=[1],
+        active_ids=[1, 2, 3],
+    )
+
+    assert offset == pytest.approx(50.2493781056)
+
+
+def test_recommend_short_profile_entry_delay_scales_with_offset_and_altitude():
+    validator = _load_validator_module()
+
+    assert validator.recommend_short_profile_entry_delay(
+        default_entry_delay_s=8.0,
+        relative_altitude_m=12.0,
+        max_horizontal_offset_m=50.0,
+    ) == 26.3
+
+    assert validator.recommend_short_profile_entry_delay(
+        default_entry_delay_s=30.0,
+        relative_altitude_m=12.0,
+        max_horizontal_offset_m=50.0,
+    ) == 30.0
+
+
 def test_build_short_validation_profile_rows_uses_route_entry_and_leg_defaults():
     validator = _load_validator_module()
 
@@ -221,6 +256,46 @@ def test_write_short_validation_profiles_creates_raw_csvs(tmp_path):
     assert rows[0]["HeadingMode"] == "manual"
     assert rows[1]["HeadingMode"] == "auto"
     assert rows[0]["TimeFromStart_s"] == "6.0"
+
+
+def test_wait_for_formation_reports_inactive_mission_state_when_geometry_window_is_missed(monkeypatch):
+    validator = _load_validator_module()
+
+    class SequencedClient:
+        def __init__(self, snapshots):
+            self._snapshots = list(snapshots)
+            self._index = 0
+
+        def get_telemetry(self):
+            snapshot = self._snapshots[min(self._index, len(self._snapshots) - 1)]
+            self._index += 1
+            return snapshot
+
+    client = SequencedClient(
+        [
+            {
+                "1": {"mission": 4, "state": 2, "is_armed": True, "position_lat": 35.0, "position_long": 51.0, "position_alt": 100.0},
+                "2": {"mission": 4, "state": 2, "is_armed": True, "position_lat": 35.0, "position_long": 51.0, "position_alt": 100.0},
+            },
+            {
+                "1": {"mission": 0, "state": 0, "is_armed": False, "position_lat": 35.0, "position_long": 51.0, "position_alt": 100.0},
+                "2": {"mission": 0, "state": 0, "is_armed": False, "position_lat": 35.0, "position_long": 51.0, "position_alt": 100.0},
+            },
+        ]
+    )
+    fake_time = itertools.count(start=0, step=1)
+
+    monkeypatch.setattr(validator.time, "time", lambda: next(fake_time))
+    monkeypatch.setattr(validator.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(RuntimeError, match="Last mission-state issues"):
+        validator.wait_for_formation(
+            client,
+            {2: {"leader_id": 1, "offset_x": 5.0, "offset_y": 50.0, "offset_z": 5.0, "frame": "ned"}},
+            horiz_tolerance=5.0,
+            vert_tolerance=5.0,
+            timeout=4,
+        )
 
 
 def test_wait_for_altitude_gain_tracks_per_drone_peak_over_time(monkeypatch):

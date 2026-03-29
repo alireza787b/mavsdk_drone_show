@@ -369,6 +369,46 @@ def selected_top_leaders(assignments: list[dict], *, active_ids: Iterable[int]) 
     return sorted(leaders)
 
 
+def max_selected_horizontal_offset_m(
+    assignments: list[dict],
+    *,
+    leader_ids: Iterable[int],
+    active_ids: Iterable[int],
+) -> float:
+    active_set = {int(drone_id) for drone_id in active_ids}
+    leader_set = {int(drone_id) for drone_id in leader_ids}
+    max_offset = 0.0
+
+    for assignment in assignments:
+        follower_id = int(assignment["hw_id"])
+        leader_id = int(assignment.get("follow", 0) or 0)
+        if follower_id not in active_set or leader_id not in leader_set:
+            continue
+        offset_x = float(assignment.get("offset_x", 0.0) or 0.0)
+        offset_y = float(assignment.get("offset_y", 0.0) or 0.0)
+        max_offset = max(max_offset, math.hypot(offset_x, offset_y))
+
+    return max_offset
+
+
+def recommend_short_profile_entry_delay(
+    *,
+    default_entry_delay_s: float,
+    relative_altitude_m: float,
+    max_horizontal_offset_m: float,
+) -> float:
+    """
+    Give followers enough route-entry time to climb and form before geometry checks begin.
+
+    Short leader-only routes can otherwise end before large-offset followers ever stabilize,
+    which produces misleading post-mission geometry diagnostics instead of a true runtime signal.
+    """
+    horizontal_formup_time = (max(20.0, float(max_horizontal_offset_m) + 20.0)) / 4.0
+    vertical_climb_time = max(0.0, float(relative_altitude_m)) / 2.5
+    recommended = max(float(default_entry_delay_s), horizontal_formup_time + vertical_climb_time + 4.0)
+    return round(recommended, 1)
+
+
 def build_short_validation_profile_rows(
     leader_id: int,
     telemetry_row: dict[str, Any],
@@ -552,10 +592,54 @@ def wait_for_formation(
     timeout: int = 120,
 ) -> dict:
     last_diagnostics: list[dict] | None = None
+    last_state_issues: list[dict] | None = None
+
+    def _active_swarm_row(row: dict[str, Any] | None) -> bool:
+        if not row:
+            return False
+        mission = int(row.get("mission", 0) or 0)
+        state = int(row.get("state", 0) or 0)
+        return mission == SWARM_TRAJECTORY and state == 2 and bool(row.get("is_armed"))
 
     def _formed():
-        nonlocal last_diagnostics
+        nonlocal last_diagnostics, last_state_issues
         telemetry = client.get_telemetry()
+        state_issues: list[dict] = []
+
+        for follower_id, expectation in expectations.items():
+            leader_id = expectation["leader_id"]
+            leader = telemetry.get(str(leader_id))
+            follower = telemetry.get(str(follower_id))
+
+            if not _active_swarm_row(leader):
+                state_issues.append(
+                    {
+                        "drone_id": leader_id,
+                        "role": "leader",
+                        "issue": "not_actively_executing",
+                        "mission": None if leader is None else leader.get("mission"),
+                        "state": None if leader is None else leader.get("state"),
+                        "armed": None if leader is None else leader.get("is_armed"),
+                    }
+                )
+
+            if not _active_swarm_row(follower):
+                state_issues.append(
+                    {
+                        "drone_id": follower_id,
+                        "role": "follower",
+                        "issue": "not_actively_executing",
+                        "mission": None if follower is None else follower.get("mission"),
+                        "state": None if follower is None else follower.get("state"),
+                        "armed": None if follower is None else follower.get("is_armed"),
+                    }
+                )
+
+        if state_issues:
+            last_state_issues = state_issues
+            return False
+
+        last_state_issues = None
         ok, diagnostics = evaluate_formation_snapshot(
             telemetry,
             expectations,
@@ -573,8 +657,13 @@ def wait_for_formation(
     try:
         return wait_for(_formed, label="follower geometry within tolerance", timeout=timeout, interval=2.0)
     except Exception as exc:
+        state_issue_suffix = (
+            f" Last mission-state issues: {json.dumps(last_state_issues, indent=2)}"
+            if last_state_issues
+            else ""
+        )
         raise RuntimeError(
-            f"Formation did not converge within tolerance. Last diagnostics: {json.dumps(last_diagnostics or [], indent=2)}"
+            f"Formation did not converge within tolerance. Last diagnostics: {json.dumps(last_diagnostics or [], indent=2)}.{state_issue_suffix}"
         ) from exc
 
 
@@ -740,16 +829,28 @@ def main() -> int:
         if args.prepare_short_profile:
             leader_ids = selected_top_leaders(assignments, active_ids=args.drone_ids)
             require(leader_ids, f"No top leaders found inside selected mission set {args.drone_ids}")
+            max_horizontal_offset = max_selected_horizontal_offset_m(
+                assignments,
+                leader_ids=leader_ids,
+                active_ids=args.drone_ids,
+            )
+            entry_delay_s = recommend_short_profile_entry_delay(
+                default_entry_delay_s=args.short_profile_entry_delay,
+                relative_altitude_m=args.short_profile_altitude_gain,
+                max_horizontal_offset_m=max_horizontal_offset,
+            )
             prepared = write_short_validation_profiles(
                 args.repo_root,
                 baseline,
                 leader_ids,
                 relative_altitude_m=args.short_profile_altitude_gain,
-                entry_delay_s=args.short_profile_entry_delay,
+                entry_delay_s=entry_delay_s,
                 leg_duration_s=args.short_profile_leg_duration,
             )
             log(f"Prepared short validation profiles for leaders {leader_ids}")
             results["prepared_short_profiles"] = prepared
+            results["prepared_short_profile_entry_delay_s"] = entry_delay_s
+            results["prepared_short_profile_max_horizontal_offset_m"] = max_horizontal_offset
 
         status_before = client.get_json("/api/swarm/trajectory/status")
         require(status_before.get("success") is True, f"Status unavailable: {status_before}")
