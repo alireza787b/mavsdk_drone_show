@@ -72,14 +72,14 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/preferred leg speed/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/target leg speed/i)).toBeInTheDocument();
     });
 
     const timeInput = screen.getByLabelText(/time from start/i);
     expect(timeInput).toBeDisabled();
     expect(Number(timeInput.value)).toBe(24);
 
-    fireEvent.change(screen.getByLabelText(/preferred leg speed/i), {
+    fireEvent.change(screen.getByLabelText(/target leg speed/i), {
       target: { value: '4' },
     });
 
@@ -158,7 +158,7 @@ describe('WaypointModal', () => {
     });
 
     fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
-    fireEvent.change(screen.getByLabelText(/target clearance \(agl\)|target height \(agl\)|target agl/i), {
+    fireEvent.change(screen.getByRole('spinbutton', { name: /target clearance \(agl\)|target height \(agl\)/i }), {
       target: { value: '120' },
     });
 
