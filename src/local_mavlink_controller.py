@@ -436,6 +436,17 @@ class LocalMavlinkController:
             self.drone_config.preflight_last_update = now_ms
             return
 
+        px4_blockers = [
+            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
+            for message in recent_status_messages
+            if message.get('category') == 'preflight' and message.get('blocks_readiness')
+        ]
+        px4_warnings = [
+            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
+            for message in recent_status_messages
+            if message.get('category') == 'preflight' and not message.get('blocks_readiness')
+        ]
+
         system_ready = self.drone_config.system_status >= mavutil.mavlink.MAV_STATE_STANDBY
         imu_sensors_ready = (
             self.drone_config.is_gyrometer_calibration_ok and
@@ -463,23 +474,39 @@ class LocalMavlinkController:
             gps_ready = True
 
         sensors_ready = imu_sensors_ready and mag_ready
-        px4_blockers = [
-            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
-            for message in recent_status_messages
-            if message.get('category') == 'preflight' and message.get('blocks_readiness')
-        ]
-        px4_warnings = [
-            self._build_message('px4', message['severity'], message['message'], message['timestamp'])
-            for message in recent_status_messages
-            if message.get('category') == 'preflight' and not message.get('blocks_readiness')
-        ]
+
+        has_strong_live_signal = any([
+            bool(getattr(self.drone_config, 'base_mode', 0)),
+            bool(getattr(self.drone_config, 'custom_mode', 0)),
+            bool(getattr(self.drone_config, 'home_position', None)),
+            getattr(self.drone_config, 'gps_fix_type', 0) >= 3,
+        ])
+        system_state_name = self._get_system_status_name(self.drone_config.system_status)
+        system_state_advisory = None
+        system_ready_effective = system_ready
+        if (
+            not system_ready
+            and self.drone_config.system_status == mavutil.mavlink.MAV_STATE_UNINIT
+            and has_strong_live_signal
+            and len(px4_blockers) == 0
+        ):
+            system_ready_effective = True
+            system_state_advisory = self._build_message(
+                'telemetry',
+                'warning',
+                (
+                    f"Vehicle system state reports {system_state_name}, but PX4 preflight is healthy and "
+                    "live telemetry is present. Treating the MAVLink system-state field as advisory."
+                ),
+                now_ms,
+            )
 
         heuristic_blockers: List[Dict[str, Any]] = []
-        if not system_ready:
+        if not system_ready and not system_state_advisory:
             heuristic_blockers.append(self._build_message(
                 'telemetry',
                 'error',
-                f"Vehicle system state is {self._get_system_status_name(self.drone_config.system_status)}; not yet ready for arming.",
+                f"Vehicle system state is {system_state_name}; not yet ready for arming.",
                 now_ms,
             ))
         if not imu_sensors_ready:
@@ -513,6 +540,8 @@ class LocalMavlinkController:
             ))
 
         heuristic_warnings: List[Dict[str, Any]] = []
+        if system_state_advisory:
+            heuristic_warnings.append(system_state_advisory)
         if not gps_required and getattr(self.drone_config, 'gps_fix_type', 0) < 3:
             heuristic_warnings.append(self._build_message(
                 'telemetry',
@@ -527,8 +556,13 @@ class LocalMavlinkController:
             {
                 'id': 'system',
                 'label': 'Vehicle status',
-                'ready': system_ready,
-                'detail': f"PX4 system state: {self._get_system_status_name(self.drone_config.system_status)}",
+                'ready': system_ready_effective,
+                'detail': (
+                    f"PX4 system state: {system_state_name} "
+                    "(treated as advisory because live PX4 preflight is healthy)"
+                    if system_state_advisory else
+                    f"PX4 system state: {system_state_name}"
+                ),
             },
             {
                 'id': 'imu',
@@ -573,16 +607,26 @@ class LocalMavlinkController:
             },
         ]
 
-        self.drone_config.is_ready_to_arm = system_ready and sensors_ready and gps_ready and ((not gps_required) or home_ready) and not blockers
+        self.drone_config.is_ready_to_arm = (
+            system_ready_effective
+            and sensors_ready
+            and gps_ready
+            and ((not gps_required) or home_ready)
+            and not blockers
+        )
         if blockers:
             readiness_status = "blocked"
             readiness_summary = blockers[0]['message']
-        elif warnings:
+        elif warnings and not system_state_advisory:
             readiness_status = "warning"
             readiness_summary = warnings[0]['message']
         else:
             readiness_status = "ready"
-            readiness_summary = "Ready to fly"
+            readiness_summary = (
+                "Ready to fly with telemetry advisory"
+                if system_state_advisory else
+                "Ready to fly"
+            )
 
         self.drone_config.readiness_status = readiness_status
         self.drone_config.readiness_summary = readiness_summary
@@ -594,7 +638,7 @@ class LocalMavlinkController:
 
         self.log_debug(
             "Pre-arm checks: "
-            f"system={system_ready}, imu={imu_sensors_ready}, mag={mag_ready}, "
+            f"system={system_ready_effective} (raw={system_state_name}), imu={imu_sensors_ready}, mag={mag_ready}, "
             f"gps_required={gps_required}, gps_ready={gps_ready}, home_ready={home_ready} "
             f"(fix={getattr(self.drone_config, 'gps_fix_type', 0)}, hdop={self.drone_config.hdop}) "
             f"px4_blockers={len(px4_blockers)} -> ready={self.drone_config.is_ready_to_arm}"

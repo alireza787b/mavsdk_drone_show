@@ -80,6 +80,29 @@ def test_update_pre_arm_status_allows_missing_home_when_already_airborne(mock_dr
     assert home_check["ready"] is True
 
 
+def test_update_pre_arm_status_treats_uninit_system_state_as_advisory_when_px4_health_is_good(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.system_status = 0
+    mock_drone_config.base_mode = 29
+    mock_drone_config.custom_mode = 100925440
+    mock_drone_config.home_position = {"lat": 35.0, "long": 51.0, "alt": 1278.0}
+    mock_drone_config.is_armed = False
+
+    controller._update_pre_arm_status()
+
+    assert mock_drone_config.is_ready_to_arm is True
+    assert mock_drone_config.readiness_status == "ready"
+    assert "telemetry advisory" in mock_drone_config.readiness_summary.lower()
+    assert mock_drone_config.preflight_blockers == []
+    assert any(
+        "system state reports uninit" in warning["message"].lower()
+        for warning in mock_drone_config.preflight_warnings
+    )
+    system_check = next(check for check in mock_drone_config.readiness_checks if check["id"] == "system")
+    assert system_check["ready"] is True
+    assert "treated as advisory" in system_check["detail"].lower()
+
+
 def test_process_status_text_surfaces_px4_blocker(mock_drone_config):
     controller = build_controller(mock_drone_config)
     msg = SimpleNamespace(

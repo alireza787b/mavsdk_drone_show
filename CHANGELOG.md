@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory / live readiness validation now treats a lone MAVLink `system_status=UNINIT` report as an advisory when PX4 preflight data and live telemetry are otherwise healthy, preventing false launch blocks after SITL mission recovery while still surfacing the discrepancy to operators
 - Swarm Trajectory Mission Type 4 launch readiness is now scope-aware instead of globally all-or-nothing: a selected subset can launch when every selected drone has a processed output and the full required leader chain is included, while unrelated incomplete clusters stay as warnings instead of false blockers
 - Swarm Trajectory selected-target safety is now enforced in both layers: the dashboard preflight blocks broken leader chains or missing processed outputs, and the backend `/submit_command` path rejects the same unsafe subset even if the UI is bypassed
 - the standard `linux_dashboard_start.sh --sitl` / development launcher path no longer starts FastAPI with `--reload` by default, because backend auto-reload splits in-memory telemetry, heartbeat, and command-tracker state across processes; backend reload is now an explicit opt-in debug override only
