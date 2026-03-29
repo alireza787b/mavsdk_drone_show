@@ -204,6 +204,8 @@ describe('TrajectoryPlanning', () => {
     });
 
     expect(screen.getByText('2 waypoints')).toBeInTheDocument();
+    expect(screen.getByText(/1 speed-driven leg/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 terrain-assisted waypoint/i)).toBeInTheDocument();
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('2');
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');

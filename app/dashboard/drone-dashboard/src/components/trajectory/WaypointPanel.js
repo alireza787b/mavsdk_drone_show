@@ -18,15 +18,18 @@ import {
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
 import {
+  getTrajectoryAltitudeIntentSummary,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
+  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
@@ -456,6 +459,32 @@ const WaypointPanel = ({
   const formatTimingMode = (waypoint) =>
     getTrajectoryTimingModeLabel(getTimingMode(waypoint));
 
+  const getAltitudeIntent = (waypoint) =>
+    getTrajectoryAltitudeIntentSummary({
+      altitudeReference: getAltitudeReference(waypoint),
+      altitude: waypoint.altitude,
+      targetAgl: getTargetAgl(waypoint),
+      groundElevation: waypoint.groundElevation,
+      terrainAccurate: waypoint.terrainAccurate !== false,
+    });
+
+  const getTimingIntent = (waypoint, index) =>
+    getTrajectoryTimingIntentSummary({
+      isMissionAnchor: index === 0,
+      timingMode: getTimingMode(waypoint),
+      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      preferredSpeed: getPreferredSpeed(waypoint),
+      requiredSpeed: waypoint.estimatedSpeed || 0,
+    });
+
+  const getHeadingIntent = (waypoint, index) =>
+    getTrajectoryHeadingIntentSummary({
+      isMissionAnchor: index === 0,
+      headingMode: waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
+      heading: waypoint.heading || waypoint.yaw || 0,
+      calculatedHeading: waypoint.calculatedHeading || waypoint.heading || waypoint.yaw || 0,
+    });
+
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
     
@@ -633,7 +662,12 @@ const WaypointPanel = ({
               {editFeedback.text}
             </div>
           )}
-          {waypoints.map((waypoint, index) => (
+          {waypoints.map((waypoint, index) => {
+            const altitudeIntent = getAltitudeIntent(waypoint);
+            const timingIntent = getTimingIntent(waypoint, index);
+            const headingIntent = getHeadingIntent(waypoint, index);
+
+            return (
           <div 
             key={waypoint.id}
             className={`waypoint-item ${selectedWaypointId === waypoint.id ? 'selected' : ''} ${
@@ -734,6 +768,13 @@ const WaypointPanel = ({
                   </div>
                 </>
               ) : null}
+
+              <div className="detail-row timing-row">
+                <span className="detail-label">{`${altitudeIntent.label}:`}</span>
+                <span className="detail-value" title={`${altitudeIntent.control} ${altitudeIntent.derived}`}>
+                  {altitudeIntent.compact}
+                </span>
+              </div>
               
               <div className="detail-row">
                 <span className="detail-label">{`${getTrajectoryTimeFieldLabel({ isMissionAnchor: index === 0 })}:`}</span>
@@ -838,12 +879,26 @@ const WaypointPanel = ({
                 </div>
               </div>
 
+              <div className="detail-row timing-row">
+                <span className="detail-label">{`${timingIntent.label}:`}</span>
+                <span className="detail-value" title={`${timingIntent.control} ${timingIntent.derived}`}>
+                  {timingIntent.compact}
+                </span>
+              </div>
+
               {index === waypoints.length - 1 && waypoints.length > 1 && (
                 <div className="detail-row end-point">
                   <span className="detail-label">Type:</span>
                   <span className="detail-value end-indicator">End Point</span>
                 </div>
               )}
+
+              <div className="detail-row heading-row">
+                <span className="detail-label">{`${headingIntent.label}:`}</span>
+                <span className="detail-value" title={`${headingIntent.control} ${headingIntent.derived}`}>
+                  {headingIntent.compact}
+                </span>
+              </div>
             </div>
             
             {/* Speed warning for high-speed segments */}
@@ -859,7 +914,8 @@ const WaypointPanel = ({
               </div>
             )}
           </div>
-          ))}
+            );
+          })}
         </div>
       )}
       

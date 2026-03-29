@@ -1,13 +1,16 @@
 import {
+  getTrajectoryAltitudeIntentSummary,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
+  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
@@ -38,5 +41,56 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryMissionAnchorLabel(2)).toBe('Waypoint arrival');
     expect(getTrajectoryMissionAnchorDescription(0)).toMatch(/leader should enter the route after mission start/i);
     expect(getTrajectoryMissionAnchorDescription(2)).toMatch(/evaluated by the arrival leg/i);
+  });
+
+  test('builds concise control-versus-derived summaries for altitude, timing, and heading intent', () => {
+    expect(
+      getTrajectoryAltitudeIntentSummary({
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        altitude: 160,
+        targetAgl: 120,
+        groundElevation: 40,
+        terrainAccurate: true,
+      })
+    ).toEqual(
+      expect.objectContaining({
+        compact: '120.0m AGL → 160.0m MSL',
+      })
+    );
+
+    expect(
+      getTrajectoryTimingIntentSummary({
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        timeFromStart: 30,
+        preferredSpeed: 8,
+        requiredSpeed: 8.1,
+      })
+    ).toEqual(
+      expect.objectContaining({
+        compact: '8.0 m/s → 30s',
+      })
+    );
+
+    expect(
+      getTrajectoryHeadingIntentSummary({
+        headingMode: YAW_CONSTANTS.AUTO,
+        calculatedHeading: 90,
+      })
+    ).toEqual(
+      expect.objectContaining({
+        compact: 'Auto 090°',
+      })
+    );
+
+    expect(
+      getTrajectoryTimingIntentSummary({
+        isMissionAnchor: true,
+        timeFromStart: 12,
+      })
+    ).toEqual(
+      expect.objectContaining({
+        compact: 'Entry 12s',
+      })
+    );
   });
 });

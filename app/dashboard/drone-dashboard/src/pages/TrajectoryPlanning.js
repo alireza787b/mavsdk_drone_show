@@ -254,6 +254,24 @@ const TrajectoryPlanning = () => {
   const plannerWorkflowCards = useMemo(() => {
     const terrainCoverage = trajectoryStats.terrainCoverage || {};
     const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
+    const timingModeCounts = trajectoryStats.timingModeCounts || {};
+    const altitudeReferenceCounts = trajectoryStats.altitudeReferenceCounts || {};
+    const speedDrivenLegCount = timingModeCounts[TIMING_MODES.AUTO_SPEED] || 0;
+    const timeDrivenLegCount = Math.max(
+      0,
+      (timingModeCounts[TIMING_MODES.MANUAL_TIME] || 0) - (waypoints.length > 0 ? 1 : 0)
+    );
+    const terrainAssistedWaypointCount = altitudeReferenceCounts[ALTITUDE_REFERENCE.AGL] || 0;
+    const currentPathDetail = waypoints.length > 0
+      ? [
+          `${trajectoryStats.totalTime.toFixed(0)}s mission body`,
+          `${speedDrivenLegCount} speed-driven leg${speedDrivenLegCount === 1 ? '' : 's'}`,
+          `${timeDrivenLegCount} time-driven leg${timeDrivenLegCount === 1 ? '' : 's'}`,
+          terrainAssistedWaypointCount > 0
+            ? `${terrainAssistedWaypointCount} terrain-assisted waypoint${terrainAssistedWaypointCount === 1 ? '' : 's'}`
+            : null,
+        ].filter(Boolean).join(' • ')
+      : 'Add the first waypoint or import a route to begin authoring.';
 
     return [
       {
@@ -264,9 +282,7 @@ const TrajectoryPlanning = () => {
       {
         label: 'Current Path',
         value: waypoints.length > 0 ? `${waypoints.length} waypoint${waypoints.length === 1 ? '' : 's'}` : 'No path yet',
-        detail: waypoints.length > 0
-          ? `${trajectoryStats.totalTime.toFixed(0)}s mission body • max ${trajectoryStats.maxSpeed.toFixed(1)} m/s`
-          : 'Add the first waypoint or import a route to begin authoring.',
+        detail: currentPathDetail,
       },
       {
         label: 'Launch Readiness',

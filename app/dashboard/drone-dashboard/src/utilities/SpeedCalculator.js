@@ -3,6 +3,7 @@
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TERRAIN_POLICY,
 } from '../constants/trajectoryMissionPolicy';
 
 /**
@@ -296,6 +297,17 @@ export const buildTrajectoryAttentionItems = (stats = {}) => {
     items.push({
       tone: 'info',
       text: 'Terrain assist is waypoint-based only. Long terrain-changing legs still need denser waypoints or later terrain-follow review.',
+    });
+  }
+
+  if (
+    Number.isFinite(stats.minAgl)
+    && stats.minAgl > 0
+    && stats.minAgl < TRAJECTORY_TERRAIN_POLICY.MIN_SAFE_CLEARANCE_M
+  ) {
+    items.push({
+      tone: 'warning',
+      text: `Waypoint clearance dips below ${TRAJECTORY_TERRAIN_POLICY.MIN_SAFE_CLEARANCE_M}m AGL. Verify terrain intent and separation before launch.`,
     });
   }
 

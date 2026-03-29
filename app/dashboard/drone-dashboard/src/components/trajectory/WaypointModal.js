@@ -14,15 +14,18 @@ import {
   formatHeading
 } from '../../utilities/SpeedCalculator';
 import {
+  getTrajectoryAltitudeIntentSummary,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
+  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
@@ -452,23 +455,39 @@ const WaypointModal = ({
   const aglAltitude = Math.max(0, altitude - groundElevation);
   const previousTime = previousWaypoint?.timeFromStart || 0;
   const legDuration = Math.max(0, timeFromStart - previousTime);
+  const altitudeIntent = getTrajectoryAltitudeIntentSummary({
+    altitudeReference,
+    altitude,
+    targetAgl: aglAltitude,
+    groundElevation,
+    terrainAccurate: !terrainError,
+  });
+  const timingIntent = getTrajectoryTimingIntentSummary({
+    isMissionAnchor: !previousWaypoint,
+    timingMode,
+    timeFromStart,
+    preferredSpeed,
+    requiredSpeed: estimatedSpeed,
+  });
+  const headingIntent = getTrajectoryHeadingIntentSummary({
+    isMissionAnchor: !previousWaypoint,
+    headingMode,
+    heading,
+    calculatedHeading,
+  });
   const authoringCards = [
     {
-      label: 'Altitude Plan',
+      label: altitudeIntent.label,
       value: getTrajectoryAltitudeReferenceLabel(altitudeReference),
-      detail: `${getTrajectoryAltitudeReferenceDescription(altitudeReference)} Stored as ${altitude.toFixed(1)}m MSL.`,
+      detail: `${altitudeIntent.control} ${altitudeIntent.derived}`,
       tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
     },
     {
-      label: previousWaypoint ? 'Segment Plan' : 'Route Role',
+      label: timingIntent.label,
       value: previousWaypoint
         ? getTrajectoryTimingModeLabel(timingMode)
         : getTrajectoryMissionAnchorLabel(0),
-      detail: previousWaypoint
-        ? timingMode === TIMING_MODES.AUTO_SPEED
-          ? `${getTrajectoryTimingModeDescription(timingMode)} ${preferredSpeed.toFixed(1)} m/s ${getTrajectoryPreferredSpeedLabel().toLowerCase()} -> ${timeFromStart.toFixed(0)}s ${getTrajectoryTimeFieldLabel().toLowerCase()} • ${getSpeedStatusLabel(speedStatus)}.`
-          : `${getTrajectoryTimingModeDescription(timingMode)} ${timeFromStart.toFixed(0)}s ${getTrajectoryTimeFieldLabel().toLowerCase()} -> ${estimatedSpeed.toFixed(1)} m/s ${getTrajectoryRequiredSpeedLabel().toLowerCase()} • ${getSpeedStatusLabel(speedStatus)}.`
-        : `${getTrajectoryMissionAnchorDescription(0)} ${timeFromStart.toFixed(0)}s after mission start.`,
+      detail: `${timingIntent.control} ${timingIntent.derived}`,
       tone: previousWaypoint
         ? speedStatus === 'impossible'
           ? 'danger'
@@ -478,11 +497,9 @@ const WaypointModal = ({
         : 'neutral',
     },
     {
-      label: 'Heading',
+      label: headingIntent.label,
       value: getTrajectoryHeadingModeLabel(headingMode),
-      detail: headingMode === YAW_CONSTANTS.AUTO && previousWaypoint
-        ? `${getTrajectoryHeadingModeDescription(headingMode)} ${formatHeading(calculatedHeading)} on the arrival leg.`
-        : `${getTrajectoryHeadingModeDescription(headingMode, { isMissionAnchor: !previousWaypoint })} ${formatHeading(heading)} locked by operator.`,
+      detail: `${headingIntent.control} ${headingIntent.derived}`,
       tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
     },
     {

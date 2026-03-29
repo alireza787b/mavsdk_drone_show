@@ -177,6 +177,7 @@ describe('SpeedCalculator', () => {
   test('buildTrajectoryAttentionItems surfaces speed, terrain, and AGL caveats from shared stats truth', () => {
     const items = buildTrajectoryAttentionItems({
       speedWarnings: 2,
+      minAgl: 35,
       altitudeReferenceCounts: {
         [ALTITUDE_REFERENCE.MSL]: 1,
         [ALTITUDE_REFERENCE.AGL]: 2,
@@ -202,6 +203,10 @@ describe('SpeedCalculator', () => {
       expect.objectContaining({
         tone: 'warning',
         text: '2 waypoints use estimated or missing terrain data.',
+      }),
+      expect.objectContaining({
+        tone: 'warning',
+        text: 'Waypoint clearance dips below 50m AGL. Verify terrain intent and separation before launch.',
       }),
       expect.objectContaining({
         tone: 'info',
