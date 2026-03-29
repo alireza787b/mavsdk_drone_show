@@ -16,18 +16,14 @@ import {
 import {
   getTrajectoryAltitudeIntentSummary,
   getTrajectoryAltitudeReferenceLabel,
-  getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
   getTrajectoryHeadingIntentSummary,
-  getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
-  getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
   getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
-  getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
 import {
@@ -435,19 +431,6 @@ const WaypointModal = ({
       case 'marginal': return { color: '#ffc107', backgroundColor: '#fff3cd' };
       case 'impossible': return { color: '#dc3545', backgroundColor: '#f8d7da' };
       default: return { color: '#6c757d', backgroundColor: '#e9ecef' };
-    }
-  };
-
-  const getSpeedStatusLabel = (status) => {
-    switch (status) {
-      case 'feasible':
-        return 'Nominal';
-      case 'marginal':
-        return 'Attention';
-      case 'impossible':
-        return 'Outside Envelope';
-      default:
-        return 'Pending';
     }
   };
 
