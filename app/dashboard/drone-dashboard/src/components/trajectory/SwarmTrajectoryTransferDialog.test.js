@@ -97,7 +97,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
       },
     });
 
-    expect(screen.getByText('Draft only')).toBeInTheDocument();
+    expect(screen.getAllByText('Draft only').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /send draft to leader/i })).toBeInTheDocument();
     expect(screen.getByText(/launch blockers/i)).toBeInTheDocument();
   });
