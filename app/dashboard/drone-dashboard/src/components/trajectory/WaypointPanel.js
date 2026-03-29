@@ -29,6 +29,8 @@ import {
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTerrainConfidenceDescription,
+  getTrajectoryTerrainConfidenceLabel,
   getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
@@ -106,7 +108,7 @@ const WaypointPanel = ({
       longitude: waypoint.longitude,
       altitude: waypoint.altitude,
       altitudeReference: waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL,
-      targetAgl: Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl > 0
+      targetAgl: Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl >= 0
         ? waypoint.targetAgl
         : (Number.isFinite(waypoint.groundElevation) ? Math.max(0, waypoint.altitude - waypoint.groundElevation) : 0),
       timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
@@ -433,11 +435,13 @@ const WaypointPanel = ({
 
   const getAltitudeReference = (waypoint) => waypoint.altitudeReference || ALTITUDE_REFERENCE.MSL;
 
+  const hasGroundReference = (waypoint) => Number.isFinite(waypoint.groundElevation);
+
   const getTargetAgl = (waypoint) => {
-    if (Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl > 0) {
+    if (Number.isFinite(waypoint.targetAgl) && waypoint.targetAgl >= 0) {
       return waypoint.targetAgl;
     }
-    if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
+    if (hasGroundReference(waypoint)) {
       return Math.max(0, waypoint.altitude - waypoint.groundElevation);
     }
     return 0;
@@ -484,10 +488,18 @@ const WaypointPanel = ({
       ),
     });
 
-    if (Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) {
+    if (hasGroundReference(waypoint)) {
       tags.push({
         tone: waypoint.terrainAccurate === false ? 'warning' : 'success',
-        text: waypoint.terrainAccurate === false ? 'Terrain estimated' : 'Terrain verified',
+        text: getTrajectoryTerrainConfidenceLabel({
+          terrainResolved: true,
+          terrainAccurate: waypoint.terrainAccurate !== false,
+        }),
+        title: getTrajectoryTerrainConfidenceDescription({
+          terrainResolved: true,
+          terrainAccurate: waypoint.terrainAccurate !== false,
+          groundElevation: waypoint.groundElevation,
+        }),
       });
     }
 
@@ -783,7 +795,12 @@ const WaypointPanel = ({
               </div>
 
               <div className="detail-row timing-row">
-                <span className="detail-label">Altitude Input:</span>
+                <span
+                  className="detail-label"
+                  title={getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint))}
+                >
+                  Altitude Input:
+                </span>
                 {renderEditableField(
                   waypoint,
                   'altitudeReference',
@@ -792,11 +809,31 @@ const WaypointPanel = ({
                 )}
               </div>
 
-              {(Number.isFinite(waypoint.groundElevation) && waypoint.groundElevation > 0) || getTargetAgl(waypoint) > 0 ? (
+              {hasGroundReference(waypoint) || getTargetAgl(waypoint) > 0 ? (
                 <>
+                  {hasGroundReference(waypoint) && (
+                    <div className="detail-row timing-row">
+                      <span
+                        className="detail-label"
+                        title={getTrajectoryTerrainConfidenceDescription({
+                          terrainResolved: true,
+                          terrainAccurate: waypoint.terrainAccurate !== false,
+                          groundElevation: waypoint.groundElevation,
+                        })}
+                      >
+                        Terrain:
+                      </span>
+                      <span className="detail-value">
+                        {`${getTrajectoryTerrainConfidenceLabel({
+                          terrainResolved: true,
+                          terrainAccurate: waypoint.terrainAccurate !== false,
+                        })} • ${waypoint.groundElevation.toFixed(1)}m MSL`}
+                      </span>
+                    </div>
+                  )}
                   <div className="detail-row timing-row">
                     <span className="detail-label">Clearance AGL:</span>
-                    {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL && Number.isFinite(waypoint.groundElevation) ? (
+                    {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL && hasGroundReference(waypoint) ? (
                       renderEditableField(
                         waypoint,
                         'targetAgl',
@@ -820,7 +857,14 @@ const WaypointPanel = ({
               </div>
               
               <div className="detail-row">
-                <span className="detail-label">{`${getTrajectoryTimeFieldLabel({ isMissionAnchor: index === 0 })}:`}</span>
+                <span
+                  className="detail-label"
+                  title={index === 0
+                    ? getTrajectoryMissionAnchorDescription(index)
+                    : getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
+                >
+                  {`${getTrajectoryTimeFieldLabel({ isMissionAnchor: index === 0 })}:`}
+                </span>
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
                   <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Timing Mode or Leg Speed to change it.">
                     {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
@@ -837,7 +881,12 @@ const WaypointPanel = ({
 
               {index > 0 && (
                 <div className="detail-row timing-row">
-                  <span className="detail-label">Timing Mode:</span>
+                  <span
+                    className="detail-label"
+                    title={getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
+                  >
+                    Timing Mode:
+                  </span>
                   <div className="timing-display">
                     {renderEditableField(
                       waypoint,
@@ -901,7 +950,17 @@ const WaypointPanel = ({
               ) : null}
               
               <div className="detail-row heading-row">
-                <span className="detail-label">{`${getTrajectoryHeadingFieldLabel({ isMissionAnchor: index === 0 })}:`}</span>
+                <span
+                  className="detail-label"
+                  title={getTrajectoryHeadingModeDescription(
+                    index === 0
+                      ? YAW_CONSTANTS.MANUAL
+                      : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                    { isMissionAnchor: index === 0 }
+                  )}
+                >
+                  {`${getTrajectoryHeadingFieldLabel({ isMissionAnchor: index === 0 })}:`}
+                </span>
                 <div className="heading-display">
                   {renderEditableField(
                     waypoint, 
@@ -909,7 +968,15 @@ const WaypointPanel = ({
                     waypoint.heading || waypoint.yaw || 0,
                     formatHeading(waypoint.heading || waypoint.yaw || 0)
                   )}
-                  <span className="heading-mode-indicator">
+                  <span
+                    className="heading-mode-indicator"
+                    title={getTrajectoryHeadingModeDescription(
+                      index === 0
+                        ? YAW_CONSTANTS.MANUAL
+                        : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                      { isMissionAnchor: index === 0 }
+                    )}
+                  >
                     ({index === 0
                       ? getTrajectoryHeadingModeLabel(YAW_CONSTANTS.MANUAL)
                       : renderEditableField(

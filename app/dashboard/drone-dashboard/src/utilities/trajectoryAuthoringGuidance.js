@@ -82,6 +82,30 @@ export const getTrajectoryMissionAnchorDescription = (waypointIndex = 0) =>
     ? 'This first waypoint anchors the delay after mission start when the leader should enter the route.'
     : 'This waypoint is evaluated by the arrival leg that reaches it from the previous waypoint.';
 
+export const getTrajectoryTerrainConfidenceLabel = ({
+  terrainResolved = true,
+  terrainAccurate = true,
+} = {}) => {
+  if (!terrainResolved) {
+    return 'Resolving terrain';
+  }
+
+  return terrainAccurate === false ? 'Estimated terrain' : 'Verified terrain';
+};
+
+export const getTrajectoryTerrainConfidenceDescription = ({
+  terrainResolved = true,
+  terrainAccurate = true,
+  groundElevation = 0,
+} = {}) => {
+  if (!terrainResolved) {
+    return 'Wait for terrain lookup or choose the estimated-terrain fallback before confirming this waypoint.';
+  }
+
+  const confidence = terrainAccurate === false ? 'estimated terrain' : 'verified terrain';
+  return `Ground reference is ${formatAltitude(groundElevation)} using ${confidence}.`;
+};
+
 export const getTrajectoryAltitudeIntentSummary = ({
   altitudeReference = ALTITUDE_REFERENCE.MSL,
   altitude = 0,

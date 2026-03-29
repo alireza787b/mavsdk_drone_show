@@ -138,7 +138,35 @@ describe('WaypointPanel', () => {
     expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Speed-driven ETA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Auto heading').length).toBeGreaterThan(0);
-    expect(screen.getByText('Terrain estimated')).toBeInTheDocument();
+    expect(screen.getByText('Estimated terrain')).toBeInTheDocument();
+  });
+
+  it('keeps terrain confidence and AGL context visible when ground elevation is exactly sea level', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      altitude: 120,
+      groundElevation: 0,
+      targetAgl: 120,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      terrainAccurate: true,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    expect(screen.getByText('Terrain:')).toBeInTheDocument();
+    expect(screen.getByText('Verified terrain • 0.0m MSL')).toBeInTheDocument();
+    expect(screen.getByText('Clearance AGL:')).toBeInTheDocument();
+    expect(screen.getAllByText('120.0m').length).toBeGreaterThan(0);
+    expect(screen.getByText('Verified terrain')).toBeInTheDocument();
   });
 
   it('can switch a terrain-backed waypoint from MSL input to Target AGL', () => {

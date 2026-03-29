@@ -137,7 +137,7 @@ describe('WaypointModal', () => {
       expect(Number(screen.getByLabelText(/waypoint arrival time/i).value)).toBe(38);
     });
 
-    expect(screen.getAllByText(/segment plan/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/leg planning/i)).toBeInTheDocument();
     expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
     expect(
       screen.getByText(/operator sets preferred inbound-leg speed 4\.0 m\/s\./i)
@@ -257,7 +257,7 @@ describe('WaypointModal', () => {
       'Mission stores altitude as 320.0m MSL'
     );
     expect(screen.queryByText(/estimated terrain/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/accurate terrain/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/verified terrain/i).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 

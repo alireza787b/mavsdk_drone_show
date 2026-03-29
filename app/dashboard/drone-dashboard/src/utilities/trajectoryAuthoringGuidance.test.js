@@ -13,6 +13,8 @@ import {
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTerrainConfidenceDescription,
+  getTrajectoryTerrainConfidenceLabel,
   getTrajectoryTimingPlanSummary,
   getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
@@ -45,6 +47,16 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryMissionAnchorLabel(2)).toBe('Waypoint arrival');
     expect(getTrajectoryMissionAnchorDescription(0)).toMatch(/delay after mission start/i);
     expect(getTrajectoryMissionAnchorDescription(2)).toMatch(/evaluated by the arrival leg/i);
+    expect(getTrajectoryTerrainConfidenceLabel({ terrainResolved: false })).toBe('Resolving terrain');
+    expect(getTrajectoryTerrainConfidenceLabel({ terrainResolved: true, terrainAccurate: false })).toBe('Estimated terrain');
+    expect(getTrajectoryTerrainConfidenceLabel({ terrainResolved: true, terrainAccurate: true })).toBe('Verified terrain');
+    expect(
+      getTrajectoryTerrainConfidenceDescription({
+        terrainResolved: true,
+        terrainAccurate: false,
+        groundElevation: 0,
+      })
+    ).toMatch(/0\.0m MSL using estimated terrain/i);
   });
 
   test('builds concise control-versus-derived summaries for altitude, timing, and heading intent', () => {

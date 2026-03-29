@@ -16,13 +16,18 @@ import {
 import {
   getTrajectoryAltitudeIntentSummary,
   getTrajectoryAltitudeReferenceLabel,
+  getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
   getTrajectoryHeadingIntentSummary,
+  getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTerrainConfidenceDescription,
+  getTrajectoryTerrainConfidenceLabel,
   getTrajectoryTimingIntentSummary,
+  getTrajectoryTimingModeDescription,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
@@ -483,6 +488,15 @@ const WaypointModal = ({
     heading,
     calculatedHeading,
   });
+  const terrainConfidenceLabel = getTrajectoryTerrainConfidenceLabel({
+    terrainResolved,
+    terrainAccurate: terrainResolved && !terrainError,
+  });
+  const terrainConfidenceDescription = getTrajectoryTerrainConfidenceDescription({
+    terrainResolved,
+    terrainAccurate: terrainResolved && !terrainError,
+    groundElevation,
+  });
   const authoringCards = [
     {
       label: altitudeIntent.label,
@@ -511,15 +525,9 @@ const WaypointModal = ({
       tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
     },
     {
-      label: 'Terrain',
-      value: !terrainResolved
-        ? 'Resolving terrain'
-        : terrainError
-          ? 'Estimated terrain'
-          : 'Accurate terrain',
-      detail: !terrainResolved
-        ? 'Wait for terrain lookup or choose Use Estimate'
-        : `Ground ${groundElevation.toFixed(1)}m MSL`,
+      label: 'Terrain Confidence',
+      value: terrainConfidenceLabel,
+      detail: terrainConfidenceDescription,
       tone: !terrainResolved ? 'info' : terrainError ? 'warning' : 'success',
     },
   ];
@@ -605,7 +613,10 @@ const WaypointModal = ({
             <div className="timing-mode-selector">
               <label className="input-label">🏔️ Altitude Entry</label>
               <div className="radio-group">
-                <label className="radio-option">
+                <label
+                  className="radio-option"
+                  title={getTrajectoryAltitudeReferenceDescription(ALTITUDE_REFERENCE.MSL)}
+                >
                   <input
                     type="radio"
                     name="altitudeReference"
@@ -614,7 +625,10 @@ const WaypointModal = ({
                   />
                   <span className="radio-label">MSL input</span>
                 </label>
-                <label className="radio-option">
+                <label
+                  className="radio-option"
+                  title={getTrajectoryAltitudeReferenceDescription(ALTITUDE_REFERENCE.AGL)}
+                >
                   <input
                     type="radio"
                     name="altitudeReference"
@@ -679,9 +693,12 @@ const WaypointModal = ({
           <div className="time-input-group">
             {previousWaypoint && (
               <div className="timing-mode-selector">
-                <label className="input-label">🗓️ Segment Planning</label>
+                <label className="input-label">🗓️ Leg Planning</label>
                 <div className="radio-group">
-                  <label className="radio-option">
+                  <label
+                    className="radio-option"
+                    title={getTrajectoryTimingModeDescription(TIMING_MODES.AUTO_SPEED)}
+                  >
                     <input
                       type="radio"
                       name="timingMode"
@@ -690,7 +707,10 @@ const WaypointModal = ({
                     />
                     <span className="radio-label">{getTrajectoryTimingModeLabel(TIMING_MODES.AUTO_SPEED)}</span>
                   </label>
-                  <label className="radio-option">
+                  <label
+                    className="radio-option"
+                    title={getTrajectoryTimingModeDescription(TIMING_MODES.MANUAL_TIME)}
+                  >
                     <input
                       type="radio"
                       name="timingMode"
@@ -771,7 +791,10 @@ const WaypointModal = ({
               <div className="heading-mode-selector">
                 <div className="radio-group">
                   {previousWaypoint && (
-                    <label className="radio-option">
+                    <label
+                      className="radio-option"
+                      title={getTrajectoryHeadingModeDescription(YAW_CONSTANTS.AUTO)}
+                    >
                       <input
                         type="radio"
                         name="headingMode"
@@ -784,7 +807,12 @@ const WaypointModal = ({
                       </span>
                     </label>
                   )}
-                  <label className="radio-option">
+                  <label
+                    className="radio-option"
+                    title={getTrajectoryHeadingModeDescription(YAW_CONSTANTS.MANUAL, {
+                      isMissionAnchor: !previousWaypoint,
+                    })}
+                  >
                     <input
                       type="radio"
                       name="headingMode"

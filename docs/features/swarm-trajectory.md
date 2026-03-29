@@ -217,7 +217,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - terrain confidence and low-clearance review stay visible during both planning and leader assignment instead of only appearing later during processing
   - waypoint 1 owns route-entry delay/heading, while later legs own the ETA-versus-speed planning intent
 - the waypoint modal now closes the last ambiguity around operator intent:
-  - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
+  - every new waypoint shows an authoring brief for altitude plan, leg plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned
   - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, `Mission start anchor`, `Route entry delay`, `Waypoint arrival time`, `Preferred leg speed`, and `Required leg speed` mean the same thing everywhere
 - route-entry timing now comes from one shared planner policy:
@@ -306,6 +306,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - `MSL input` waypoints keep the stored mission altitude but update derived terrain/clearance review from the new location
   - stale async terrain responses are ignored so rapid waypoint moves cannot overwrite newer planner edits with old terrain data
   - waypoint-panel coordinate saves now surface that terrain/clearance are being refreshed instead of hiding the async update behind an instant silent save
+- terrain confidence is now treated as valid even when the resolved ground elevation is exactly `0.0m MSL`:
+  - sea-level terrain references remain visible in waypoint review instead of being mistaken for "missing terrain"
+  - AGL-authored waypoints keep their clearance and terrain-confidence context at sea-level launch areas just like any other terrain reference
 - runtime launch now uses a stricter initial-climb gate before path-follow entry, so a drone cannot silently burn through its mission clock while still stuck in climb
 - the mission tracker now reflects the real per-drone terminal result once each drone script exits; long `return_home` end behavior can keep the command legitimately active for several additional minutes after the formation phase is already correct
 - validated SITL acceptance now includes a clean 5-drone end-to-end run: process -> launch -> climb gate -> in-flight formation tolerance -> return-home -> terminal command completion -> fleet idle reset
