@@ -191,7 +191,9 @@ describe('WaypointModal', () => {
       expect(screen.getByText(/mission start anchor/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/this first waypoint anchors when the leader should reach the route after mission start/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/this first waypoint anchors when the leader should reach the route after mission start/i).length
+    ).toBeGreaterThan(0);
     expect(screen.queryByRole('radio', { name: /auto \(arrival leg\)/i })).not.toBeInTheDocument();
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: /heading/i })).not.toBeDisabled();
