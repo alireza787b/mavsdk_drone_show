@@ -193,6 +193,42 @@ describe('WaypointModal', () => {
     }));
   });
 
+  it('blocks non-increasing manual arrival times at the modal boundary', async () => {
+    const onConfirm = jest.fn();
+
+    render(
+      <WaypointModal
+        isOpen
+        onClose={jest.fn()}
+        onConfirm={onConfirm}
+        position={{ latitude: 35.727, longitude: 51.272 }}
+        previousWaypoint={{
+          latitude: 35.726,
+          longitude: 51.272,
+          altitude: 350,
+          timeFromStart: 10,
+          estimatedSpeed: 8,
+        }}
+        waypointIndex={2}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /time-driven speed/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('radio', { name: /time-driven speed/i }));
+    fireEvent.change(screen.getByLabelText(/waypoint arrival time/i), {
+      target: { value: '10' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    expect(
+      await screen.findByText(/waypoint arrival time must be later than the previous waypoint/i)
+    ).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it('can author altitude from target AGL while still storing MSL mission altitude', async () => {
     const onConfirm = jest.fn();
 

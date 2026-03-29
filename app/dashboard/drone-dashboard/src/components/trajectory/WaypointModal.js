@@ -333,6 +333,14 @@ const WaypointModal = ({
       return;
     }
 
+    if (previousWaypoint && timeFromStart <= previousTime) {
+      setValidationMessage({
+        tone: 'error',
+        text: `Waypoint arrival time must be later than the previous waypoint (${previousTime.toFixed(1)}s).`,
+      });
+      return;
+    }
+
     const isUnderground = altitude < groundElevation;
 
     if (isUnderground) {
