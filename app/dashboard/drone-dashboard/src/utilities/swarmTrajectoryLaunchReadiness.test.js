@@ -46,7 +46,7 @@ describe('buildSwarmTrajectoryLaunchReadiness', () => {
 
     expect(readiness.canLaunch).toBe(false);
     expect(readiness.blockers).toContain('1 cluster still has partial outputs.');
-    expect(readiness.blockers).toContain('1 cluster issue still require operator correction before launch.');
+    expect(readiness.blockers).toContain('1 cluster issue still requires operator correction before launch.');
     expect(readiness.warnings).toContain('1 advisory item should be reviewed before launch.');
     expect(readiness.summary.readyClusterCount).toBe(1);
     expect(readiness.summary.processedDroneCount).toBe(4);
