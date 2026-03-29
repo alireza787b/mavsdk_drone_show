@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { buildTrajectoryAttentionItems } from '../../utilities/SpeedCalculator';
+import { getClusterStateMeta } from '../../utilities/swarmTrajectoryViewModel';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
 
@@ -31,34 +31,9 @@ const formatTerrainMix = (stats = {}) => {
   return `Accurate ${terrain.accurate || 0} · Estimated ${(terrain.estimated || 0) + (terrain.unknown || 0)}`;
 };
 
-const getClusterStatusLabel = (cluster) => {
-  if (cluster.ready) {
-    return 'Ready';
-  }
-  if (cluster.leader_uploaded) {
-    return 'Needs Processing';
-  }
-  return 'Missing CSV';
-};
-
 const getClusterStatusTone = (cluster) => {
-  if (cluster.ready) {
-    return 'ready';
-  }
-  if (cluster.leader_uploaded) {
-    return 'processing';
-  }
-  return 'missing';
-};
-
-const getClusterStatusDetail = (cluster) => {
-  if (cluster.ready) {
-    return 'Leader and followers already have processed trajectory outputs.';
-  }
-  if (cluster.leader_uploaded) {
-    return 'A leader CSV exists, but this cluster still needs a fresh processing pass.';
-  }
-  return 'No leader trajectory is uploaded for this cluster yet.';
+  const meta = getClusterStateMeta(cluster);
+  return meta.tone === 'warning' ? 'attention' : meta.tone;
 };
 
 const SwarmTrajectoryTransferDialog = ({
@@ -79,12 +54,19 @@ const SwarmTrajectoryTransferDialog = ({
   totalDistance = 0,
   totalTime = 0,
   stats = {},
+  missionReadiness,
 }) => {
   if (!isOpen) {
     return null;
   }
 
-  const attentionItems = buildTrajectoryAttentionItems(stats).map((item) => item.text);
+  const selectedCluster = clusters.find((cluster) => Number(cluster.leader_id) === Number(selectedLeaderId));
+  const selectedClusterMeta = selectedCluster ? getClusterStateMeta(selectedCluster) : null;
+  const missionAlerts = [
+    ...missionReadiness.blockers,
+    ...missionReadiness.advisories,
+    ...missionReadiness.notes,
+  ];
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -128,14 +110,52 @@ const SwarmTrajectoryTransferDialog = ({
             <span className="swarm-transfer-summary__label">Terrain</span>
             <strong>{formatTerrainMix(stats)}</strong>
           </div>
+          <div className="swarm-transfer-summary__item">
+            <span className="swarm-transfer-summary__label">Transfer Posture</span>
+            <strong>{missionReadiness.posture.label}</strong>
+          </div>
         </div>
 
-        {attentionItems.length > 0 ? (
-          <div className="swarm-transfer-alert swarm-transfer-alert--warning" role="status">
-            <strong>Mission brief attention items</strong>
+        <div className={`swarm-transfer-posture swarm-transfer-posture--${missionReadiness.posture.tone}`}>
+          <strong>{missionReadiness.posture.label}</strong>
+          <p>{missionReadiness.posture.summary}</p>
+          {missionAlerts.length > 0 ? (
+            <ul className="swarm-transfer-posture__list">
+              {missionAlerts.map((item) => (
+                <li key={`${item.code}-${item.text}`}>{item.text}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        {missionReadiness.blockers.length > 0 ? (
+          <div className="swarm-transfer-alert swarm-transfer-alert--error" role="alert">
+            <strong>Launch blockers</strong>
             <ul className="swarm-transfer-alert__list">
-              {attentionItems.map((item) => (
-                <li key={item}>{item}</li>
+              {missionReadiness.blockers.map((item) => (
+                <li key={`${item.code}-${item.text}`}>{item.text}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {missionReadiness.advisories.length > 0 ? (
+          <div className="swarm-transfer-alert swarm-transfer-alert--warning" role="status">
+            <strong>Operator review items</strong>
+            <ul className="swarm-transfer-alert__list">
+              {missionReadiness.advisories.map((item) => (
+                <li key={`${item.code}-${item.text}`}>{item.text}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {missionReadiness.notes.length > 0 ? (
+          <div className="swarm-transfer-alert swarm-transfer-alert--info" role="status">
+            <strong>Mission notes</strong>
+            <ul className="swarm-transfer-alert__list">
+              {missionReadiness.notes.map((item) => (
+                <li key={`${item.code}-${item.text}`}>{item.text}</li>
               ))}
             </ul>
           </div>
@@ -174,6 +194,7 @@ const SwarmTrajectoryTransferDialog = ({
               {clusters.map((cluster) => {
                 const selected = Number(selectedLeaderId) === Number(cluster.leader_id);
                 const tone = getClusterStatusTone(cluster);
+                const meta = getClusterStateMeta(cluster);
                 const followerPreview = cluster.follower_ids.length > 0
                   ? cluster.follower_ids.join(', ')
                   : 'No followers';
@@ -191,19 +212,42 @@ const SwarmTrajectoryTransferDialog = ({
                         <p>{cluster.follower_count} follower{cluster.follower_count === 1 ? '' : 's'}</p>
                       </div>
                       <span className={`swarm-transfer-status-badge ${tone}`}>
-                        {getClusterStatusLabel(cluster)}
+                        {meta.label}
                       </span>
                     </div>
                     <p className="swarm-transfer-cluster-card__detail">
-                      {getClusterStatusDetail(cluster)}
+                      {meta.summary}
                     </p>
                     <p className="swarm-transfer-cluster-card__followers">
                       Followers: {followerPreview}
                     </p>
+                    {(cluster.issues?.length || cluster.advisories?.length) ? (
+                      <div className="swarm-transfer-cluster-card__flags">
+                        {(cluster.issues || []).slice(0, 2).map((issue) => (
+                          <span key={issue} className="swarm-transfer-flag swarm-transfer-flag--issue">{issue}</span>
+                        ))}
+                        {(cluster.advisories || []).slice(0, 2).map((advisory) => (
+                          <span key={advisory} className="swarm-transfer-flag swarm-transfer-flag--advisory">{advisory}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
+
+            {selectedCluster && selectedClusterMeta ? (
+              <div className="swarm-transfer-selected-cluster">
+                <strong>
+                  Selected cluster: Leader {selectedCluster.leader_id} · {selectedClusterMeta.label}
+                </strong>
+                <p>{selectedClusterMeta.summary}</p>
+                <p>
+                  Uploading this path replaces the current leader CSV for the selected cluster.
+                  Run processing on <Link to="/swarm-trajectory">Swarm Trajectory</Link> afterward to refresh follower outputs and review plots.
+                </p>
+              </div>
+            ) : null}
 
             <div className="swarm-transfer-note">
               <strong>Execution note:</strong> this step uploads only the selected leader CSV.
@@ -230,7 +274,7 @@ const SwarmTrajectoryTransferDialog = ({
             onClick={onSubmit}
             disabled={loading || submitting || !selectedLeaderId || clusters.length === 0}
           >
-            {submitting ? 'Uploading...' : 'Send to Leader'}
+            {submitting ? 'Uploading...' : missionReadiness.posture.transferLabel}
           </button>
         </div>
       </div>
@@ -264,6 +308,29 @@ SwarmTrajectoryTransferDialog.propTypes = {
   totalDistance: PropTypes.number,
   totalTime: PropTypes.number,
   stats: PropTypes.object,
+  missionReadiness: PropTypes.shape({
+    blockers: PropTypes.arrayOf(PropTypes.shape({
+      code: PropTypes.string,
+      text: PropTypes.string,
+      tone: PropTypes.string,
+    })),
+    advisories: PropTypes.arrayOf(PropTypes.shape({
+      code: PropTypes.string,
+      text: PropTypes.string,
+      tone: PropTypes.string,
+    })),
+    notes: PropTypes.arrayOf(PropTypes.shape({
+      code: PropTypes.string,
+      text: PropTypes.string,
+      tone: PropTypes.string,
+    })),
+    posture: PropTypes.shape({
+      tone: PropTypes.string,
+      label: PropTypes.string,
+      summary: PropTypes.string,
+      transferLabel: PropTypes.string,
+    }).isRequired,
+  }).isRequired,
 };
 
 export default SwarmTrajectoryTransferDialog;

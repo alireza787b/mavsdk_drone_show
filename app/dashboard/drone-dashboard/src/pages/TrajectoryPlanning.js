@@ -14,7 +14,6 @@ import TrajectoryLibraryDialog from '../components/trajectory/TrajectoryLibraryD
 
 import { 
   ALTITUDE_REFERENCE,
-  buildTrajectoryAttentionItems,
   calculateTrajectoryStats, 
   recalculateAfterDrag,
   calculateWaypointSpeeds,
@@ -24,6 +23,7 @@ import {
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
 import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
+import { buildTrajectoryMissionReadiness } from '../utilities/trajectoryMissionReadiness';
 import {
   formatTrajectoryAltitudeEnvelope,
   formatTrajectorySpeedEnvelope,
@@ -198,9 +198,18 @@ const TrajectoryPlanning = () => {
     return calculateTrajectoryStats(waypoints);
   }, [waypoints]);
 
-  const plannerAttentionItems = useMemo(
-    () => buildTrajectoryAttentionItems(trajectoryStats),
-    [trajectoryStats]
+  const plannerMissionReadiness = useMemo(
+    () => buildTrajectoryMissionReadiness({ waypoints, stats: trajectoryStats }),
+    [trajectoryStats, waypoints]
+  );
+
+  const plannerBriefItems = useMemo(
+    () => [
+      ...plannerMissionReadiness.blockers,
+      ...plannerMissionReadiness.advisories,
+      ...plannerMissionReadiness.notes,
+    ],
+    [plannerMissionReadiness]
   );
 
   const plannerWorkflowCards = useMemo(() => {
@@ -224,16 +233,12 @@ const TrajectoryPlanning = () => {
         label: 'Launch Readiness',
         value: waypoints.length === 0
           ? 'Not ready'
-          : plannerAttentionItems.some((item) => item.tone === 'danger')
-            ? 'Needs correction'
-            : plannerAttentionItems.length > 0
-              ? 'Needs operator review'
-              : 'Ready to transfer',
+          : plannerMissionReadiness.posture.label,
         detail: waypoints.length === 0
           ? 'Author the leader route first, then send it to a swarm cluster.'
-          : estimatedTerrainCount > 0
+          : estimatedTerrainCount > 0 && plannerMissionReadiness.advisories.length === 0 && plannerMissionReadiness.blockers.length === 0
             ? `Verify ${estimatedTerrainCount} terrain estimate${estimatedTerrainCount === 1 ? '' : 's'} before launch.`
-            : 'Send to Swarm, then process follower outputs on Swarm Trajectory.',
+            : plannerMissionReadiness.posture.summary,
       },
       {
         label: 'Mission Envelope',
@@ -241,7 +246,7 @@ const TrajectoryPlanning = () => {
         detail: `${formatTrajectoryAltitudeEnvelope()} • ${formatTrajectorySpeedEnvelopeDetail()}`,
       },
     ];
-  }, [plannerAttentionItems, trajectoryStats, waypoints.length]);
+  }, [plannerMissionReadiness, trajectoryStats, waypoints.length]);
 
   const addWaypointWithData = useCallback((position, waypointData) => {
     // Always allow waypoint creation (Phase 3 requirement)
@@ -788,6 +793,7 @@ const TrajectoryPlanning = () => {
       totalDistance={trajectoryStats.totalDistance}
       totalTime={trajectoryStats.totalTime}
       stats={trajectoryStats}
+      missionReadiness={plannerMissionReadiness}
     />
   );
 
@@ -852,11 +858,11 @@ const TrajectoryPlanning = () => {
               </div>
             ))}
           </div>
-          {plannerAttentionItems.length > 0 ? (
+          {plannerBriefItems.length > 0 ? (
             <div className="trajectory-workflow-brief__alerts">
-              {plannerAttentionItems.map((item) => (
+              {plannerBriefItems.map((item) => (
                 <div
-                  key={item.text}
+                  key={`${item.code}-${item.text}`}
                   className={`trajectory-workflow-brief__alert trajectory-workflow-brief__alert--${item.tone}`}
                 >
                   {item.text}
@@ -1006,11 +1012,11 @@ const TrajectoryPlanning = () => {
             </div>
           ))}
         </div>
-        {plannerAttentionItems.length > 0 ? (
+        {plannerBriefItems.length > 0 ? (
           <div className="trajectory-workflow-brief__alerts">
-            {plannerAttentionItems.map((item) => (
+            {plannerBriefItems.map((item) => (
               <div
-                key={item.text}
+                key={`${item.code}-${item.text}`}
                 className={`trajectory-workflow-brief__alert trajectory-workflow-brief__alert--${item.tone}`}
               >
                 {item.text}

@@ -182,6 +182,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and manual-arrival legs explain what is derived versus what is operator-pinned
+- planner mission readiness now uses one explicit operator model before transfer:
+  - routes with timing conflicts, impossible-speed legs, or only a single waypoint are marked `Draft only`
+  - review-only caveats (terrain estimates, elevated speed review, AGL storage notes) are separated from hard blockers instead of being mixed into one undifferentiated warning list
+  - `Send to Swarm` keeps draft upload possible for collaboration, but the dialog now states clearly whether the path is `Draft only`, `Review required`, or `Ready to process`
 - planner trajectory-library actions now use one shared save/load flow instead of separate duplicated dialogs:
   - save shows the current path summary before committing a name
   - load shows duration, distance, max speed, modified time, and an explicit `Autosave` badge

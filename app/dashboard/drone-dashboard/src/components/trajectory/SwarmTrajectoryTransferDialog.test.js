@@ -37,6 +37,17 @@ const renderDialog = (overrides = {}) => {
     waypointCount: 4,
     totalDistance: 1250,
     totalTime: 92,
+    missionReadiness: {
+      blockers: [],
+      advisories: [],
+      notes: [],
+      posture: {
+        tone: 'success',
+        label: 'Ready to process',
+        summary: 'This path is internally consistent and ready to assign to a leader cluster for swarm processing.',
+        transferLabel: 'Send to Leader',
+      },
+    },
     ...overrides,
   };
 
@@ -69,6 +80,26 @@ describe('SwarmTrajectoryTransferDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /send to leader/i }));
 
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows draft posture and adjusted button labeling when mission blockers exist', () => {
+    renderDialog({
+      missionReadiness: {
+        blockers: [{ code: 'time_conflict', tone: 'danger', text: '1 timing conflict breaks mission chronology.' }],
+        advisories: [],
+        notes: [],
+        posture: {
+          tone: 'danger',
+          label: 'Draft only',
+          summary: 'This path can be uploaded for draft review, but launch blockers still need correction before processing or execution.',
+          transferLabel: 'Send Draft to Leader',
+        },
+      },
+    });
+
+    expect(screen.getByText('Draft only')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send draft to leader/i })).toBeInTheDocument();
+    expect(screen.getByText(/launch blockers/i)).toBeInTheDocument();
   });
 
   it('directs the user to swarm design when no leaders are available', () => {
