@@ -541,6 +541,32 @@ class TestGcsCommandDistribution:
         assert result['blocked_ids'] == ['2']
         assert result['unavailable_ids'] == ['3']
 
+    def test_probe_live_armability_for_drone_uses_total_request_budget(self):
+        from command import probe_live_armability_for_drone
+        from src.mission_startup import calculate_live_armability_request_timeout
+
+        drone = {'hw_id': 3, 'ip': '172.18.0.4'}
+        response = Mock()
+        response.raise_for_status = Mock()
+        response.json.return_value = {
+            'success': True,
+            'ready': True,
+            'summary': 'ready for mission startup',
+        }
+
+        params = Mock()
+        params.LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
+        params.LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
+        params.LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
+
+        with patch('command.requests.get', return_value=response) as mock_get:
+            with patch('command.Params', params):
+                result = probe_live_armability_for_drone(drone)
+
+        expected_timeout = calculate_live_armability_request_timeout(params=params)
+        assert result['ready'] is True
+        assert mock_get.call_args.kwargs['timeout'] == pytest.approx(expected_timeout)
+
 
 # ============================================================================
 # Command Validation Tests

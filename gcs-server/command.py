@@ -17,6 +17,7 @@ from typing import List, Dict, Any, Tuple, Iterable
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from params import Params
+from live_armability_utils import calculate_live_armability_request_timeout
 from enums import CommandResultCategory, Mission
 from heartbeat import get_all_heartbeats
 
@@ -367,7 +368,7 @@ def probe_live_armability_for_drone(
     """Query the drone-side live armability endpoint."""
     drone_id = normalize_drone_id(drone['hw_id'])
     drone_ip = drone['ip']
-    request_timeout = float(timeout or getattr(Params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0) + 1.0)
+    request_timeout = float(timeout or calculate_live_armability_request_timeout(params=Params))
 
     try:
         response = requests.get(

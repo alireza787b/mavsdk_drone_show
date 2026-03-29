@@ -326,6 +326,7 @@ class DroneAPIServer:
 
     async def _probe_live_armability(self, require_global_position: bool = True) -> Dict[str, Any]:
         probe_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0))
+        connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
 
         try:
             async with self._live_probe_lock:
@@ -337,7 +338,10 @@ class DroneAPIServer:
                         mavsdk_server_address="127.0.0.1",
                         port=grpc_port,
                     )
-                    await drone.connect(system_address=system_address)
+                    await asyncio.wait_for(
+                        drone.connect(system_address=system_address),
+                        timeout=connect_timeout,
+                    )
                     await self._wait_for_mavsdk_connection(drone)
                     result = await probe_offboard_armability(
                         drone,

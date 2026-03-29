@@ -355,3 +355,84 @@ def test_wait_for_altitude_gain_reports_peak_gains_on_timeout(monkeypatch):
 
     with pytest.raises(RuntimeError, match=r"Peak gains: \{1: 1.2, 2: 0.8\}"):
         validator.wait_for_altitude_gain(StaticClient(), {1: 100.0, 2: 200.0}, min_gain=2.0, timeout=3)
+
+
+def test_format_http_error_prefers_json_detail_message():
+    validator = _load_validator_module()
+
+    class FakeHttpError:
+        code = 400
+        reason = "Bad Request"
+
+        def __init__(self, payload: str):
+            self._payload = payload.encode("utf-8")
+
+        def read(self):
+            return self._payload
+
+    exc = FakeHttpError('{"detail":"Unsafe Swarm Trajectory target set"}')
+
+    assert validator.format_http_error(exc) == "HTTP 400: Unsafe Swarm Trajectory target set"
+
+
+def test_collect_live_armability_results_uses_selected_telemetry_rows(monkeypatch):
+    validator = _load_validator_module()
+
+    class FakeClient:
+        def get_telemetry(self):
+            return {
+                "1": {"ip": "10.0.0.1"},
+                "2": {"ip": "10.0.0.2"},
+                "9": {"ip": "10.0.0.9"},
+            }
+
+    def fake_probe(drone_id, drone_ip, **_kwargs):
+        return {
+            "drone_id": drone_id,
+            "drone_ip": drone_ip,
+            "success": True,
+            "ready": drone_id == 1,
+            "summary": "ok" if drone_id == 1 else "blocked",
+            "category": "ready" if drone_id == 1 else "blocked",
+            "details": {"ready": drone_id == 1},
+        }
+
+    monkeypatch.setattr(validator, "probe_live_armability_for_drone", fake_probe)
+
+    results = validator.collect_live_armability_results(FakeClient(), [1, 2])
+
+    assert results["all_ready"] is False
+    assert results["blocked_ids"] == [2]
+    assert results["unavailable_ids"] == []
+    assert set(results["results"].keys()) == {"1", "2"}
+    assert results["results"]["1"]["drone_ip"] == "10.0.0.1"
+
+
+def test_wait_for_live_launch_readiness_reports_last_probe(monkeypatch):
+    validator = _load_validator_module()
+
+    snapshot = {
+        "all_ready": False,
+        "blocked_ids": [3],
+        "unavailable_ids": [],
+        "results": {
+            "3": {
+                "drone_id": 3,
+                "summary": "waiting for PX4 armability",
+                "category": "blocked",
+            }
+        },
+    }
+
+    monkeypatch.setattr(validator, "collect_live_armability_results", lambda client, ids: snapshot)
+
+    def fake_wait_for(predicate, **_kwargs):
+        predicate()
+        raise RuntimeError("timeout")
+
+    monkeypatch.setattr(validator, "wait_for", fake_wait_for)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        validator.wait_for_live_launch_readiness(object(), [1, 2, 3], timeout=5)
+
+    assert "waiting for PX4 armability" in str(exc_info.value)

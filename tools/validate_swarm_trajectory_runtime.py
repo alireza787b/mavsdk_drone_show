@@ -22,7 +22,9 @@ import json
 import math
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
@@ -38,6 +40,7 @@ try:
         calculate_land_disarm_timeout,
         calculate_swarm_rtl_completion_timeout,
     )
+    from src.live_armability_utils import calculate_live_armability_request_timeout
     from src.params import Params
 except Exception:  # pragma: no cover - validator fallback only
     USING_FALLBACK_TIMEOUT_PARAMS = True
@@ -53,6 +56,9 @@ except Exception:  # pragma: no cover - validator fallback only
         LAND_ACTION_DISARM_BUFFER_SEC = 30
         LAND_ACTION_MAX_DISARM_WAIT_SEC = 900
         CONTROLLED_LANDING_TIMEOUT = 7
+        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
+        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
+        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
 
     Params = _FallbackParams()
 
@@ -77,6 +83,21 @@ except Exception:  # pragma: no cover - validator fallback only
         estimated_wait = landing_timeout + rtl_buffer_sec
         return max(base_timeout, min(maximum_timeout, estimated_wait))
 
+    def calculate_live_armability_request_timeout(*, params=Params):
+        connect_timeout = max(
+            0.1,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)),
+        )
+        probe_timeout = max(
+            0.1,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0)),
+        )
+        http_buffer_sec = max(
+            0.5,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)),
+        )
+        return connect_timeout + probe_timeout + http_buffer_sec
+
 
 SWARM_TRAJECTORY = 4
 LAND = 101
@@ -87,13 +108,47 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def decode_http_error_detail(exc: urllib.error.HTTPError) -> str:
+    """Return the most useful detail embedded in an HTTP error body."""
+    try:
+        raw_body = exc.read()
+    except Exception:
+        raw_body = b""
+
+    if not raw_body:
+        return str(getattr(exc, "reason", "") or f"HTTP {getattr(exc, 'code', 'error')}")
+
+    body_text = raw_body.decode("utf-8", errors="replace").strip()
+    if not body_text:
+        return str(getattr(exc, "reason", "") or f"HTTP {getattr(exc, 'code', 'error')}")
+
+    try:
+        payload = json.loads(body_text)
+    except Exception:
+        return body_text
+
+    if isinstance(payload, dict):
+        detail = payload.get("detail") or payload.get("error") or payload.get("message")
+        if detail not in (None, ""):
+            return str(detail)
+
+    return body_text
+
+
+def format_http_error(exc: urllib.error.HTTPError) -> str:
+    return f"HTTP {exc.code}: {decode_http_error_detail(exc)}"
+
+
 class ApiClient:
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
 
     def get_json(self, path: str) -> dict:
-        with urllib.request.urlopen(f"{self.base_url}{path}", timeout=20) as response:
-            return json.load(response)
+        try:
+            with urllib.request.urlopen(f"{self.base_url}{path}", timeout=20) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(format_http_error(exc)) from exc
 
     def post_json(self, path: str, payload: dict) -> dict:
         body = json.dumps(payload).encode("utf-8")
@@ -103,8 +158,11 @@ class ApiClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            return json.load(response)
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(format_http_error(exc)) from exc
 
     def get_telemetry(self) -> dict[str, dict]:
         payload = self.get_json("/api/telemetry")
@@ -211,6 +269,169 @@ def wait_for_idle(client: ApiClient, ids: list[int], timeout: int = 180) -> dict
         return False
 
     return wait_for(_ready, label=f"idle baseline for drones {ids}", timeout=timeout, interval=2.0)
+
+
+def probe_live_armability_for_drone(
+    drone_id: int,
+    drone_ip: str | None,
+    *,
+    require_global_position: bool = True,
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Query the drone-side live armability endpoint used by launch gating."""
+    normalized_id = int(drone_id)
+    normalized_ip = str(drone_ip or "").strip()
+
+    if not normalized_ip or normalized_ip.upper() == "N/A":
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": drone_ip,
+            "success": False,
+            "ready": False,
+            "summary": "Drone IP unavailable for live armability probe",
+            "category": "error",
+            "details": None,
+        }
+
+    query = urllib.parse.urlencode(
+        {"require_global_position": str(bool(require_global_position)).lower()}
+    )
+    url = f"http://{normalized_ip}:7070/api/live-armability?{query}"
+    request_timeout = float(timeout or calculate_live_armability_request_timeout(params=Params))
+
+    try:
+        with urllib.request.urlopen(url, timeout=request_timeout) as response:
+            payload = json.load(response)
+        ready = bool(payload.get("ready"))
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": normalized_ip,
+            "success": bool(payload.get("success", True)),
+            "ready": ready,
+            "summary": str(
+                payload.get("summary")
+                or ("ready for mission startup" if ready else "Live armability probe reported not ready")
+            ),
+            "category": "ready" if ready else "blocked",
+            "details": payload,
+        }
+    except urllib.error.HTTPError as exc:
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": normalized_ip,
+            "success": False,
+            "ready": False,
+            "summary": format_http_error(exc),
+            "category": "error",
+            "details": None,
+        }
+    except (urllib.error.URLError, TimeoutError) as exc:
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": normalized_ip,
+            "success": False,
+            "ready": False,
+            "summary": f"Live armability probe unreachable: {exc}",
+            "category": "offline",
+            "details": None,
+        }
+    except Exception as exc:
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": normalized_ip,
+            "success": False,
+            "ready": False,
+            "summary": f"Live armability probe failed: {exc}",
+            "category": "error",
+            "details": None,
+        }
+
+
+def collect_live_armability_results(
+    client: ApiClient,
+    ids: Iterable[int],
+    *,
+    require_global_position: bool = True,
+    timeout: float | None = None,
+) -> dict[str, Any]:
+    """Collect per-drone live armability truth for the selected mission set."""
+    telemetry = client.get_telemetry()
+    target_ids = sorted({int(drone_id) for drone_id in ids})
+    results: dict[str, dict[str, Any]] = {}
+
+    with ThreadPoolExecutor(max_workers=max(1, min(len(target_ids), 10))) as executor:
+        future_to_id = {}
+
+        for drone_id in target_ids:
+            row = telemetry.get(str(drone_id))
+            drone_ip = None if row is None else row.get("ip")
+            if row is None:
+                results[str(drone_id)] = {
+                    "drone_id": drone_id,
+                    "drone_ip": None,
+                    "success": False,
+                    "ready": False,
+                    "summary": "No telemetry row available for live armability probe",
+                    "category": "error",
+                    "details": None,
+                }
+                continue
+
+            future = executor.submit(
+                probe_live_armability_for_drone,
+                drone_id,
+                drone_ip,
+                require_global_position=require_global_position,
+                timeout=timeout,
+            )
+            future_to_id[future] = drone_id
+
+        for future in as_completed(future_to_id):
+            drone_id = future_to_id[future]
+            results[str(drone_id)] = future.result()
+
+    blocked_ids = sorted(
+        int(drone_id)
+        for drone_id, result in results.items()
+        if result.get("category") == "blocked"
+    )
+    unavailable_ids = sorted(
+        int(drone_id)
+        for drone_id, result in results.items()
+        if result.get("category") in {"offline", "error"}
+    )
+
+    return {
+        "all_ready": not blocked_ids and not unavailable_ids,
+        "blocked_ids": blocked_ids,
+        "unavailable_ids": unavailable_ids,
+        "results": results,
+    }
+
+
+def wait_for_live_launch_readiness(client: ApiClient, ids: list[int], timeout: int = 60) -> dict[str, Any]:
+    """Wait until the live launch gate agrees the selected drones are armable."""
+    last_results: dict[str, Any] | None = None
+
+    def _ready():
+        nonlocal last_results
+        last_results = collect_live_armability_results(client, ids)
+        if last_results["all_ready"]:
+            return last_results
+        return False
+
+    try:
+        return wait_for(
+            _ready,
+            label=f"live launch armability for drones {ids}",
+            timeout=timeout,
+            interval=2.0,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "Live launch readiness did not stabilize before dispatch. "
+            f"Last probe results: {json.dumps(last_results or {}, indent=2)}"
+        ) from exc
 
 
 def wait_for_command(
@@ -873,6 +1094,9 @@ def main() -> int:
         require(not scope_issues, f"Selected mission set has followers without their leaders: {scope_issues}")
         results["assignments"] = expectations
         results["assignment_scope_issues"] = scope_issues
+
+        live_launch_readiness = wait_for_live_launch_readiness(client, args.drone_ids, timeout=90)
+        results["live_launch_readiness"] = live_launch_readiness
 
         response = client.submit_command(
             SWARM_TRAJECTORY,

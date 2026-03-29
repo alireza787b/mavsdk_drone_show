@@ -6,7 +6,9 @@ Tests for all HTTP REST endpoints in the Drone API Server.
 """
 
 import pytest
+import asyncio
 import json
+from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 
 
@@ -155,6 +157,39 @@ class TestDroneState:
         assert captured["system_address"] == "udp://:14540"
         assert captured["wait_called"] is True
         assert captured["stopped_process"] is fake_process
+
+    @pytest.mark.asyncio
+    async def test_probe_live_armability_bounds_connect_wait(self, api_server, monkeypatch, mock_params):
+        import src.drone_api_server as drone_api_server
+
+        mock_params.DEFAULT_GRPC_PORT = 50040
+        mock_params.mavsdk_port = 14540
+        mock_params.LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 0.01
+        mock_params.LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
+
+        class FakeSystem:
+            def __init__(self, mavsdk_server_address, port):
+                self.mavsdk_server_address = mavsdk_server_address
+                self.port = port
+
+            async def connect(self, system_address):
+                await asyncio.sleep(1.0)
+
+        async def _fake_ensure(self, grpc_port, udp_port):
+            return None, False
+
+        wait_mock = AsyncMock()
+
+        monkeypatch.setattr(drone_api_server, "System", FakeSystem)
+        monkeypatch.setattr(drone_api_server.DroneAPIServer, "_ensure_live_probe_server", _fake_ensure)
+        monkeypatch.setattr(drone_api_server.DroneAPIServer, "_wait_for_mavsdk_connection", wait_mock)
+
+        result = await api_server._probe_live_armability(require_global_position=True)
+
+        assert result["success"] is False
+        assert result["timed_out"] is True
+        assert "Timed out" in result["summary"]
+        wait_mock.assert_not_awaited()
 
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
         """Test /get_drone_state when no data available"""
