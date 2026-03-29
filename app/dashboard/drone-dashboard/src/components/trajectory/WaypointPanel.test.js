@@ -145,7 +145,7 @@ describe('WaypointPanel', () => {
     renderPanel();
 
     expect(screen.getByText('Route Role:')).toBeInTheDocument();
-    expect(screen.getByText('Mission start anchor')).toBeInTheDocument();
+    expect(screen.getAllByText('Mission start anchor').length).toBeGreaterThan(0);
     expect(screen.getByText('Start Arrival:')).toBeInTheDocument();
   });
 });
