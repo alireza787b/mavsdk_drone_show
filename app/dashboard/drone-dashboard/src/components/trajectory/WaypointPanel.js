@@ -123,6 +123,9 @@ const WaypointPanel = ({
     setEditFeedback(null);
   };
 
+  const isPromiseLike = (value) =>
+    Boolean(value) && typeof value.then === 'function';
+
   const handleEditSave = async () => {
     if (!editingWaypointId || isApplyingEdit) return;
 
@@ -352,9 +355,16 @@ const WaypointPanel = ({
       });
     }
 
+    const updateResult = onUpdateWaypoint(editingWaypointId, updates);
+
+    if (!isPromiseLike(updateResult)) {
+      clearActiveEdit();
+      return;
+    }
+
     try {
       setIsApplyingEdit(true);
-      await Promise.resolve(onUpdateWaypoint(editingWaypointId, updates));
+      await updateResult;
       clearActiveEdit();
     } catch (error) {
       setEditFeedback({
