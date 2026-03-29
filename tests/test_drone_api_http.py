@@ -79,6 +79,20 @@ class TestDroneState:
         assert data["summary"] == "ready for mission startup"
         assert data["require_global_position"] is True
 
+    def test_resolve_live_probe_connection_uses_runtime_ports(
+        self,
+        api_server,
+        mock_drone_config,
+    ):
+        from src.constants import NetworkDefaults
+
+        mock_drone_config.hw_id = "3"
+        mock_drone_config.config["mavlink_port"] = 14600
+        grpc_port, system_address = api_server._resolve_live_probe_connection()
+
+        assert grpc_port == NetworkDefaults.GRPC_BASE_PORT + 3
+        assert system_address == "udp://127.0.0.1:14600"
+
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
         """Test /get_drone_state when no data available"""
         mock_drone_communicator.get_drone_state.return_value = None

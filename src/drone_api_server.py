@@ -51,7 +51,7 @@ from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 from src.mission_startup import probe_offboard_armability
-from functions.data_utils import safe_float, safe_get
+from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
 from src.params import Params
@@ -237,6 +237,25 @@ class DroneAPIServer:
         """Setter for injecting the DroneCommunicator dependency after initialization."""
         self.drone_communicator = drone_communicator
 
+    def _resolve_live_probe_connection(self) -> tuple[int, str]:
+        """Mirror the runtime MAVSDK wiring used by the active drone process."""
+        try:
+            hw_id = int(self.drone_config.hw_id)
+        except (TypeError, ValueError):
+            hw_id = 0
+
+        grpc_port = NetworkDefaults.GRPC_BASE_PORT + hw_id if hw_id > 0 else getattr(
+            self.params,
+            "DEFAULT_GRPC_PORT",
+            NetworkDefaults.GRPC_BASE_PORT,
+        )
+
+        mavlink_port = safe_int(
+            (self.drone_config.config or {}).get("mavlink_port"),
+            getattr(self.params, "mavsdk_port", 14540),
+        )
+        return grpc_port, f"udp://127.0.0.1:{mavlink_port}"
+
     async def _wait_for_mavsdk_connection(self, drone: System) -> None:
         connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
         deadline = time.monotonic() + connect_timeout
@@ -261,11 +280,12 @@ class DroneAPIServer:
         probe_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0))
 
         try:
+            grpc_port, system_address = self._resolve_live_probe_connection()
             drone = System(
                 mavsdk_server_address="127.0.0.1",
-                port=getattr(self.params, "DEFAULT_GRPC_PORT", NetworkDefaults.GRPC_BASE_PORT),
+                port=grpc_port,
             )
-            await drone.connect(system_address=f"udp://:{self.params.mavsdk_port}")
+            await drone.connect(system_address=system_address)
             await self._wait_for_mavsdk_connection(drone)
             result = await probe_offboard_armability(
                 drone,
