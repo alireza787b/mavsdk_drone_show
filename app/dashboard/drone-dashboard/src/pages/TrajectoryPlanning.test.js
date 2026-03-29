@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import TrajectoryPlanning from './TrajectoryPlanning';
-import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS } from '../utilities/SpeedCalculator';
 
 let mockMapClickIndex = 0;
 
@@ -93,13 +92,13 @@ jest.mock('../components/trajectory/WaypointModal', () => (props) => {
   const payload = props.waypointIndex === 1
     ? {
         altitude: 150,
-        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        altitudeReference: 'msl',
         targetAgl: 0,
         timeFromStart: 12,
-        timingMode: TIMING_MODES.MANUAL_TIME,
+        timingMode: 'manual_time',
         preferredSpeed: 0,
         heading: 45,
-        headingMode: YAW_CONSTANTS.MANUAL,
+        headingMode: 'manual',
         calculatedHeading: 45,
         terrainInfo: null,
         groundElevation: 0,
@@ -107,13 +106,13 @@ jest.mock('../components/trajectory/WaypointModal', () => (props) => {
       }
     : {
         altitude: 160,
-        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        altitudeReference: 'agl',
         targetAgl: 120,
         timeFromStart: 30,
-        timingMode: TIMING_MODES.AUTO_SPEED,
+        timingMode: 'auto_speed',
         preferredSpeed: 8,
         heading: 0,
-        headingMode: YAW_CONSTANTS.AUTO,
+        headingMode: 'auto',
         calculatedHeading: 0,
         terrainInfo: null,
         groundElevation: 40,
