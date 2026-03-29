@@ -42,6 +42,14 @@ describe('SwarmTrajectoryTransferDialog', () => {
             altitudeReferenceCounts: { msl: 2, agl: 1 },
             timingModeCounts: { auto_speed: 1, manual_time: 2 },
             headingModeCounts: { auto: 2, manual: 1 },
+            authoringBreakdown: {
+              routeEntryAnchors: 1,
+              speedDrivenLegs: 1,
+              timeDrivenLegs: 1,
+              entryHeadings: 1,
+              autoArrivalHeadings: 2,
+              manualArrivalHeadings: 0,
+            },
             terrainCoverage: { accurate: 2, estimated: 1, unknown: 0 },
           }}
           missionReadiness={{
@@ -60,9 +68,9 @@ describe('SwarmTrajectoryTransferDialog', () => {
     );
 
     expect(screen.getByText('Timing Plan')).toBeInTheDocument();
-    expect(screen.getByText('Speed-driven ETA 1 · Time-driven speed 2')).toBeInTheDocument();
+    expect(screen.getByText('Route entry 1 · Speed-driven ETA 1 · Time-driven speed 1')).toBeInTheDocument();
     expect(screen.getByText('Heading Plan')).toBeInTheDocument();
-    expect(screen.getByText('Auto heading 2 · Manual heading 1')).toBeInTheDocument();
+    expect(screen.getByText('Entry heading 1 · Auto arrival 2 · Manual arrival 0')).toBeInTheDocument();
     expect(screen.getByText(/mission still stores and executes canonical msl altitude/i)).toBeInTheDocument();
     expect(screen.getByText(/Waypoint 1 sets route-entry time and heading/i)).toBeInTheDocument();
     expect(screen.queryByText('Transfer Posture')).not.toBeInTheDocument();

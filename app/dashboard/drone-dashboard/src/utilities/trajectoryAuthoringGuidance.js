@@ -206,12 +206,13 @@ export const getTrajectoryOperatorPolicyNotes = ({
   waypointCount = 0,
 } = {}) => {
   const altitudeModes = stats.altitudeReferenceCounts || {};
-  const timingModes = stats.timingModeCounts || {};
   const terrainCoverage = stats.terrainCoverage || {};
+  const authoringBreakdown = stats.authoringBreakdown || {};
   const aglCount = altitudeModes.agl || 0;
   const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
-  const speedDrivenCount = timingModes.auto_speed || 0;
-  const timeDrivenCount = Math.max(0, (timingModes.manual_time || 0) - (waypointCount > 0 ? 1 : 0));
+  const routeEntryCount = authoringBreakdown.routeEntryAnchors || (waypointCount > 0 ? 1 : 0);
+  const speedDrivenCount = authoringBreakdown.speedDrivenLegs || 0;
+  const timeDrivenCount = authoringBreakdown.timeDrivenLegs || 0;
   const aglVerb = aglCount === 1 ? 'uses' : 'use';
 
   const terrainDetail = estimatedTerrainCount > 0
@@ -237,10 +238,26 @@ export const getTrajectoryOperatorPolicyNotes = ({
       key: 'timing',
       label: 'Leg ownership',
       detail: waypointCount > 0
-        ? `Waypoint 1 sets route-entry time and heading. Later legs currently use ${speedDrivenCount} speed-driven ETA input${speedDrivenCount === 1 ? '' : 's'} and ${timeDrivenCount} time-driven speed input${timeDrivenCount === 1 ? '' : 's'}.`
+        ? `Waypoint 1 sets route-entry time and heading. Current path uses ${routeEntryCount} route-entry anchor, ${speedDrivenCount} speed-driven leg${speedDrivenCount === 1 ? '' : 's'}, and ${timeDrivenCount} time-driven leg${timeDrivenCount === 1 ? '' : 's'}.`
         : 'Waypoint 1 will define route-entry time and heading; later legs can then use either Speed-driven ETA or Time-driven speed.',
     },
   ];
+};
+
+export const getTrajectoryTimingPlanSummary = (stats = {}) => {
+  const authoringBreakdown = stats.authoringBreakdown || {};
+  const routeEntryCount = authoringBreakdown.routeEntryAnchors || 0;
+  const speedDrivenCount = authoringBreakdown.speedDrivenLegs || 0;
+  const timeDrivenCount = authoringBreakdown.timeDrivenLegs || 0;
+  return `Route entry ${routeEntryCount} · Speed-driven ETA ${speedDrivenCount} · Time-driven speed ${timeDrivenCount}`;
+};
+
+export const getTrajectoryHeadingPlanSummary = (stats = {}) => {
+  const authoringBreakdown = stats.authoringBreakdown || {};
+  const entryHeadingCount = authoringBreakdown.entryHeadings || 0;
+  const autoArrivalCount = authoringBreakdown.autoArrivalHeadings || 0;
+  const manualArrivalCount = authoringBreakdown.manualArrivalHeadings || 0;
+  return `Entry heading ${entryHeadingCount} · Auto arrival ${autoArrivalCount} · Manual arrival ${manualArrivalCount}`;
 };
 
 export const getSwarmTrajectoryExecutionDoctrine = () => [

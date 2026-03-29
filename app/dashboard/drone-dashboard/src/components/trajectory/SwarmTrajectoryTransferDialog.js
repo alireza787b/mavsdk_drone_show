@@ -3,7 +3,9 @@ import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { getClusterStateMeta } from '../../utilities/swarmTrajectoryViewModel';
 import {
+  getTrajectoryHeadingPlanSummary,
   getTrajectoryOperatorPolicyNotes,
+  getTrajectoryTimingPlanSummary,
   getTrajectoryWorkflowStages,
 } from '../../utilities/trajectoryAuthoringGuidance';
 import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
@@ -29,16 +31,6 @@ const formatTime = (time = 0) => {
 const formatAltitudeMix = (stats = {}) => {
   const counts = stats.altitudeReferenceCounts || {};
   return `MSL ${counts.msl || 0} · AGL ${counts.agl || 0}`;
-};
-
-const formatTimingMix = (stats = {}) => {
-  const counts = stats.timingModeCounts || {};
-  return `Speed-driven ETA ${counts.auto_speed || 0} · Time-driven speed ${counts.manual_time || 0}`;
-};
-
-const formatHeadingMix = (stats = {}) => {
-  const counts = stats.headingModeCounts || {};
-  return `Auto heading ${counts.auto || 0} · Manual heading ${counts.manual || 0}`;
 };
 
 const formatTerrainMix = (stats = {}) => {
@@ -126,11 +118,11 @@ const SwarmTrajectoryTransferDialog = ({
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Timing Plan</span>
-            <strong>{formatTimingMix(stats)}</strong>
+            <strong>{getTrajectoryTimingPlanSummary(stats)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Heading Plan</span>
-            <strong>{formatHeadingMix(stats)}</strong>
+            <strong>{getTrajectoryHeadingPlanSummary(stats)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Terrain</span>

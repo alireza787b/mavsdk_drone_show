@@ -1,5 +1,6 @@
 import {
   getTrajectoryAltitudeIntentSummary,
+  getTrajectoryHeadingPlanSummary,
   getTrajectoryOperatorPolicyNotes,
   getSwarmTrajectoryExecutionDoctrine,
   getTrajectoryAltitudeReferenceLabel,
@@ -12,6 +13,7 @@ import {
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryTimingPlanSummary,
   getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
@@ -101,6 +103,11 @@ describe('trajectoryAuthoringGuidance', () => {
       getTrajectoryOperatorPolicyNotes({
         waypointCount: 3,
         stats: {
+          authoringBreakdown: {
+            routeEntryAnchors: 1,
+            speedDrivenLegs: 1,
+            timeDrivenLegs: 1,
+          },
           altitudeReferenceCounts: { msl: 2, agl: 1 },
           timingModeCounts: { auto_speed: 1, manual_time: 2 },
           terrainCoverage: { accurate: 2, estimated: 1, unknown: 0 },
@@ -118,9 +125,25 @@ describe('trajectoryAuthoringGuidance', () => {
       }),
       expect.objectContaining({
         label: 'Leg ownership',
-        detail: expect.stringMatching(/Waypoint 1 sets route-entry time and heading/i),
+        detail: expect.stringMatching(/1 route-entry anchor, 1 speed-driven leg, and 1 time-driven leg/i),
       }),
     ]);
+  });
+
+  test('formats operator-facing timing and heading summaries without counting the route entry anchor as a normal leg', () => {
+    const stats = {
+      authoringBreakdown: {
+        routeEntryAnchors: 1,
+        speedDrivenLegs: 2,
+        timeDrivenLegs: 1,
+        entryHeadings: 1,
+        autoArrivalHeadings: 2,
+        manualArrivalHeadings: 0,
+      },
+    };
+
+    expect(getTrajectoryTimingPlanSummary(stats)).toBe('Route entry 1 · Speed-driven ETA 2 · Time-driven speed 1');
+    expect(getTrajectoryHeadingPlanSummary(stats)).toBe('Entry heading 1 · Auto arrival 2 · Manual arrival 0');
   });
 
   test('builds shared swarm trajectory execution doctrine for processing and launch review', () => {

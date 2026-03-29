@@ -531,6 +531,8 @@ export const validateWaypointSequence = (waypoints) => {
  * @returns {Object} Trajectory statistics
  */
 export const calculateTrajectoryStats = (waypoints) => {
+  const waypointCount = waypoints?.length || 0;
+  const routeEntryAnchorCount = waypointCount > 0 ? 1 : 0;
   const timingModeCounts = {
     [TIMING_MODES.AUTO_SPEED]: 0,
     [TIMING_MODES.MANUAL_TIME]: 0,
@@ -553,6 +555,14 @@ export const calculateTrajectoryStats = (waypoints) => {
     marginal: 0,
     impossible: 0,
     unknown: 0,
+  };
+  const authoringBreakdown = {
+    routeEntryAnchors: routeEntryAnchorCount,
+    speedDrivenLegs: 0,
+    timeDrivenLegs: 0,
+    entryHeadings: routeEntryAnchorCount,
+    autoArrivalHeadings: 0,
+    manualArrivalHeadings: 0,
   };
 
   if (waypoints?.length) {
@@ -584,6 +594,8 @@ export const calculateTrajectoryStats = (waypoints) => {
       : null;
 
     return {
+      waypointCount,
+      legCount: Math.max(0, waypointCount - 1),
       totalDistance: 0,
       totalTime: 0,
       maxSpeed: 0,
@@ -596,6 +608,7 @@ export const calculateTrajectoryStats = (waypoints) => {
       timingModeCounts,
       altitudeReferenceCounts,
       headingModeCounts,
+      authoringBreakdown,
       terrainCoverage,
       speedStatusCounts,
       maxSpeedStatus: 'unknown',
@@ -651,8 +664,20 @@ export const calculateTrajectoryStats = (waypoints) => {
 
   const totalTime = waypoints[waypoints.length - 1]?.timeFromStart || 0;
   const avgSpeed = totalTime > 0 ? totalDistance / totalTime : 0;
+  authoringBreakdown.speedDrivenLegs = timingModeCounts[TIMING_MODES.AUTO_SPEED] || 0;
+  authoringBreakdown.timeDrivenLegs = Math.max(
+    0,
+    (timingModeCounts[TIMING_MODES.MANUAL_TIME] || 0) - routeEntryAnchorCount
+  );
+  authoringBreakdown.autoArrivalHeadings = headingModeCounts[YAW_CONSTANTS.AUTO] || 0;
+  authoringBreakdown.manualArrivalHeadings = Math.max(
+    0,
+    (headingModeCounts[YAW_CONSTANTS.MANUAL] || 0) - routeEntryAnchorCount
+  );
 
   return {
+    waypointCount,
+    legCount: Math.max(0, waypointCount - 1),
     totalDistance,
     totalTime,
     maxSpeed,
@@ -665,6 +690,7 @@ export const calculateTrajectoryStats = (waypoints) => {
     timingModeCounts,
     altitudeReferenceCounts,
     headingModeCounts,
+    authoringBreakdown,
     terrainCoverage,
     speedStatusCounts,
     maxSpeedStatus: validateSpeed(maxSpeed),

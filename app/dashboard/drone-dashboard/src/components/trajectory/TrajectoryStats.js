@@ -1,6 +1,10 @@
 //app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryStats.js
 import React from 'react';
 import PropTypes from 'prop-types';
+import {
+  getTrajectoryHeadingPlanSummary,
+  getTrajectoryTimingPlanSummary,
+} from '../../utilities/trajectoryAuthoringGuidance';
 import '../../styles/TrajectoryStats.css';
 
 const TrajectoryStats = ({ stats }) => {
@@ -31,20 +35,13 @@ const TrajectoryStats = ({ stats }) => {
     `${firstLabel} ${firstValue} · ${secondLabel} ${secondValue}`
   );
 
-  const timingModes = stats.timingModeCounts || {};
   const altitudeModes = stats.altitudeReferenceCounts || {};
-  const headingModes = stats.headingModeCounts || {};
   const terrainCoverage = stats.terrainCoverage || {};
 
   const briefSignals = [
     {
       label: 'Timing',
-      value: formatCountPair(
-        'Speed-driven ETA',
-        timingModes.auto_speed || 0,
-        'Time-driven speed',
-        timingModes.manual_time || 0,
-      ),
+      value: getTrajectoryTimingPlanSummary(stats),
     },
     {
       label: 'Altitude Input',
@@ -57,12 +54,7 @@ const TrajectoryStats = ({ stats }) => {
     },
     {
       label: 'Heading',
-      value: formatCountPair(
-        'Auto heading',
-        headingModes.auto || 0,
-        'Manual heading',
-        headingModes.manual || 0,
-      ),
+      value: getTrajectoryHeadingPlanSummary(stats),
     },
     {
       label: 'Terrain',
@@ -134,6 +126,14 @@ TrajectoryStats.propTypes = {
     timingModeCounts: PropTypes.object,
     altitudeReferenceCounts: PropTypes.object,
     headingModeCounts: PropTypes.object,
+    authoringBreakdown: PropTypes.shape({
+      routeEntryAnchors: PropTypes.number,
+      speedDrivenLegs: PropTypes.number,
+      timeDrivenLegs: PropTypes.number,
+      entryHeadings: PropTypes.number,
+      autoArrivalHeadings: PropTypes.number,
+      manualArrivalHeadings: PropTypes.number,
+    }),
     terrainCoverage: PropTypes.object,
     speedStatusCounts: PropTypes.object,
   }).isRequired,
