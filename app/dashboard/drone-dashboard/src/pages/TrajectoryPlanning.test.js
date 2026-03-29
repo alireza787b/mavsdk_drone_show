@@ -62,6 +62,9 @@ jest.mock('../components/trajectory/SearchBar', () => () => <div data-testid="se
 jest.mock('../components/trajectory/TrajectoryStats', () => ({ stats }) => (
   <div data-testid="trajectory-stats">{stats.totalTime}</div>
 ));
+jest.mock('../components/trajectory/TrajectorySegmentReview', () => ({ segments }) => (
+  <div data-testid="trajectory-segment-review">{segments.length}</div>
+));
 jest.mock('../components/trajectory/TrajectoryToolbar', () => (props) => (
   <div data-testid="trajectory-toolbar">
     <button type="button" onClick={props.onToggleAddWaypoint}>
@@ -153,6 +156,7 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByText('Not ready')).toBeInTheDocument();
     expect(screen.getByText('No path yet')).toBeInTheDocument();
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('0');
     expect(screen.getByText('Author top-leader path')).toBeInTheDocument();
     expect(screen.getByText(/Waypoint 1 anchors route-entry time and heading/i)).toBeInTheDocument();
 
@@ -176,6 +180,7 @@ describe('TrajectoryPlanning', () => {
 
     expect(screen.getByText('2 waypoints')).toBeInTheDocument();
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('2');
+    expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
   });

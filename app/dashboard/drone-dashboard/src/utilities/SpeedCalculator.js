@@ -233,14 +233,27 @@ export const buildTrajectorySegments = (waypoints = []) => {
     const previousWaypoint = waypoints[index];
     const speed = waypoint.estimatedSpeed || calculateSpeed(previousWaypoint, waypoint);
     const speedStatus = waypoint.speedStatus || validateSpeed(speed);
+    const distanceMeters = calculateSegmentDistance3D(previousWaypoint, waypoint);
+    const durationSeconds = Math.max(
+      0,
+      (waypoint.timeFromStart || 0) - (previousWaypoint.timeFromStart || 0)
+    );
 
     return {
       id: `${previousWaypoint.id}->${waypoint.id}`,
       fromWaypointId: previousWaypoint.id,
       toWaypointId: waypoint.id,
+      fromWaypointName: previousWaypoint.name || `Waypoint ${index + 1}`,
+      toWaypointName: waypoint.name || `Waypoint ${index + 2}`,
+      fromIndex: index + 1,
+      toIndex: index + 2,
       speed,
       speedStatus,
       color: getTrajectorySegmentColor(speedStatus),
+      distanceMeters,
+      durationSeconds,
+      timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
+      headingMode: waypoint.headingMode || YAW_CONSTANTS.AUTO,
       coordinates: [
         [previousWaypoint.longitude, previousWaypoint.latitude],
         [waypoint.longitude, waypoint.latitude],

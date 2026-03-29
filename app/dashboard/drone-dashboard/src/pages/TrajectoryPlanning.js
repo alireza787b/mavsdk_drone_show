@@ -8,6 +8,7 @@ import WaypointPanel from '../components/trajectory/WaypointPanel';
 import TrajectoryToolbar from '../components/trajectory/TrajectoryToolbar';
 import SearchBar from '../components/trajectory/SearchBar';
 import TrajectoryStats from '../components/trajectory/TrajectoryStats';
+import TrajectorySegmentReview from '../components/trajectory/TrajectorySegmentReview';
 import WaypointModal from '../components/trajectory/WaypointModal';
 import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTrajectoryTransferDialog';
 import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
@@ -924,6 +925,8 @@ const TrajectoryPlanning = () => {
           <TrajectoryStats stats={trajectoryStats} />
         </div>
 
+        <TrajectorySegmentReview segments={trajectorySegments} />
+
         <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
           <div className="trajectory-workflow-brief__cards">
             {plannerWorkflowCards.map((card) => (
@@ -1089,6 +1092,8 @@ const TrajectoryPlanning = () => {
         </div>
         <TrajectoryStats stats={trajectoryStats} />
       </div>
+
+      <TrajectorySegmentReview segments={trajectorySegments} />
 
       <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
         <div className="trajectory-workflow-brief__cards">

@@ -73,6 +73,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Mission Type 4 dashboard launch gating now follows that same backend cluster truth instead of only generic mission heuristics, so missing uploads, pending processing, partial outputs, cluster issues, and missing active-package state all block launch before dispatch
 - Swarm Trajectory review/git actions now respect the actual GCS write-back mode: writable setups keep `Commit & Push Outputs`, while read-only/demo setups use a truthful local-commit-only path and the backend stops before pull/push when `MDS_GIT_AUTO_PUSH=false`
 - direct frontend tests now cover the Swarm Trajectory launch-readiness model, Mission Type 4 launch gating, and the page-level local-commit wording for read-only GCS deployments
+- Swarm Trajectory planner now includes a dedicated `Leg Review` surface so operators can see per-leg distance, duration, required speed, and nominal / review / unsafe pacing before assigning a leader path to a swarm cluster
 
 ### Added
 - **Custom Repo Workflow Guide**:

@@ -202,6 +202,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - `Trajectory Planning` now declares that it authors top-leader paths only
   - launch readiness, speed-review needs, and terrain caveats stay visible above the map instead of being hidden inside the waypoint modal
   - per-waypoint cards now show altitude-reference, timing-mode, heading-mode, and terrain-confidence tags for faster audit before launch
+  - a dedicated `Leg Review` surface now calls out route segments with nominal / review / unsafe pacing before the operator assigns a leader path to the swarm
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned

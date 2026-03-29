@@ -244,14 +244,25 @@ describe('SpeedCalculator', () => {
     expect(segments[0]).toMatchObject({
       fromWaypointId: 'wp-1',
       toWaypointId: 'wp-2',
+      fromIndex: 1,
+      toIndex: 2,
       speedStatus: 'feasible',
       color: '#00d4ff',
+      timingMode: TIMING_MODES.MANUAL_TIME,
+      headingMode: YAW_CONSTANTS.AUTO,
     });
     expect(segments[1]).toMatchObject({
       fromWaypointId: 'wp-2',
       toWaypointId: 'wp-3',
+      fromIndex: 2,
+      toIndex: 3,
       speedStatus: 'impossible',
       color: '#dc3545',
+      timingMode: TIMING_MODES.MANUAL_TIME,
+      headingMode: YAW_CONSTANTS.AUTO,
     });
+    expect(segments[0].distanceMeters).toBeGreaterThan(0);
+    expect(segments[0].durationSeconds).toBe(15);
+    expect(segments[1].durationSeconds).toBe(1);
   });
 });
