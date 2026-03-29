@@ -98,3 +98,44 @@ def test_max_processed_relative_altitude_uses_processed_peak_over_baseline(tmp_p
     baselines = {4: 1278.0, 5: 1278.0}
 
     assert validator.max_processed_relative_altitude_m(tmp_path, baselines, drone_ids=[4, 5]) == 1322.0
+
+
+def test_follower_expectations_filter_to_selected_active_set():
+    validator = _load_validator_module()
+
+    assignments = [
+        {"hw_id": 1, "follow": 0},
+        {"hw_id": 2, "follow": 1, "offset_x": 5, "offset_y": 50, "offset_z": 5, "frame": "ned"},
+        {"hw_id": 3, "follow": 1, "offset_x": 25, "offset_y": 0, "offset_z": 15, "frame": "body"},
+        {"hw_id": 5, "follow": 4, "offset_x": 15, "offset_y": -5, "offset_z": 0, "frame": "ned"},
+    ]
+
+    expectations = validator.follower_expectations(assignments, active_ids=[1, 2, 3])
+
+    assert sorted(expectations.keys()) == [2, 3]
+    assert expectations[2]["leader_id"] == 1
+    assert expectations[3]["leader_id"] == 1
+
+
+def test_follower_scope_issues_flags_selected_followers_without_selected_leader():
+    validator = _load_validator_module()
+
+    expectations = {
+        5: {
+            "leader_id": 4,
+            "offset_x": 15.0,
+            "offset_y": -5.0,
+            "offset_z": 0.0,
+            "frame": "ned",
+        }
+    }
+
+    issues = validator.follower_scope_issues(expectations, active_ids=[1, 2, 3, 5])
+
+    assert issues == [
+        {
+            "follower_id": 5,
+            "leader_id": 4,
+            "issue": "leader_not_in_active_mission_set",
+        }
+    ]

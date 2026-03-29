@@ -294,12 +294,15 @@ def body_to_ne(offset_forward: float, offset_right: float, yaw_deg: float) -> tu
     return north, east
 
 
-def follower_expectations(assignments: list[dict]) -> dict[int, dict]:
+def follower_expectations(assignments: list[dict], *, active_ids: Iterable[int] | None = None) -> dict[int, dict]:
+    active_set = {int(drone_id) for drone_id in active_ids} if active_ids is not None else None
     expectations: dict[int, dict] = {}
     for assignment in assignments:
         hw_id = int(assignment["hw_id"])
         follow = int(assignment.get("follow", 0) or 0)
         if follow == 0:
+            continue
+        if active_set is not None and hw_id not in active_set:
             continue
         expectations[hw_id] = {
             "leader_id": follow,
@@ -309,6 +312,22 @@ def follower_expectations(assignments: list[dict]) -> dict[int, dict]:
             "frame": str(assignment.get("frame", "ned") or "ned").lower(),
         }
     return expectations
+
+
+def follower_scope_issues(expectations: dict[int, dict], *, active_ids: Iterable[int]) -> list[dict]:
+    active_set = {int(drone_id) for drone_id in active_ids}
+    issues: list[dict] = []
+    for follower_id, expectation in expectations.items():
+        leader_id = int(expectation["leader_id"])
+        if leader_id not in active_set:
+            issues.append(
+                {
+                    "follower_id": follower_id,
+                    "leader_id": leader_id,
+                    "issue": "leader_not_in_active_mission_set",
+                }
+            )
+    return issues
 
 
 def evaluate_formation_snapshot(
@@ -562,9 +581,11 @@ def main() -> int:
         results["status_after"] = status_after["status"]
 
         assignments = client.get_swarm_assignments()
-        expectations = follower_expectations(assignments)
-        require(expectations, "No follower assignments were found for validation")
+        expectations = follower_expectations(assignments, active_ids=args.drone_ids)
+        scope_issues = follower_scope_issues(expectations, active_ids=args.drone_ids)
+        require(not scope_issues, f"Selected mission set has followers without their leaders: {scope_issues}")
         results["assignments"] = expectations
+        results["assignment_scope_issues"] = scope_issues
 
         response = client.submit_command(
             SWARM_TRAJECTORY,
@@ -579,18 +600,27 @@ def main() -> int:
         wait_for_executing(client, args.drone_ids, timeout=180)
         wait_for_altitude_gain(client, baselines, min_gain=args.min_altitude_gain, timeout=120)
 
-        formation = wait_for_formation(
-            client,
-            expectations,
-            horiz_tolerance=args.horiz_tolerance,
-            vert_tolerance=args.vert_tolerance,
-            timeout=args.formation_timeout,
-        )
-        results["formation"] = formation["diagnostics"]
         formation_relative_altitude = max(
-            max(0.0, float(formation["telemetry"][str(idx)]["position_alt"]) - float(baselines[idx]))
+            max(0.0, float(client.get_telemetry()[str(idx)]["position_alt"]) - float(baselines[idx]))
             for idx in args.drone_ids
         )
+        if expectations:
+            formation = wait_for_formation(
+                client,
+                expectations,
+                horiz_tolerance=args.horiz_tolerance,
+                vert_tolerance=args.vert_tolerance,
+                timeout=args.formation_timeout,
+            )
+            results["formation"] = formation["diagnostics"]
+            formation_relative_altitude = max(
+                max(0.0, float(formation["telemetry"][str(idx)]["position_alt"]) - float(baselines[idx]))
+                for idx in args.drone_ids
+            )
+        else:
+            log("No follower assignments in the selected mission set; skipping formation convergence gate.")
+            results["formation"] = []
+            results["formation_skipped"] = True
         results["formation_max_relative_altitude_m"] = formation_relative_altitude
 
         duration = max_processed_duration_seconds(args.repo_root, drone_ids=args.drone_ids)
