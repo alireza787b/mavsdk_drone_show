@@ -241,6 +241,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - the `Swarm Trajectory` processing workspace now mirrors that same staged operator model:
   - a single workspace-status card tells the operator whether uploads are blocked, outputs need processing, or the mission package is ready for dashboard preflight
   - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review and Dispatch`) are summarized at the top with direct navigation back to the relevant page
+  - the workspace also repeats the execution boundary in one compact policy strip, so operators do not forget that only top leaders are authored here, processed drones fly individual generated global paths, and Smart Swarm remains the separate live-follow mode
   - processing recommendations now live inside Step 2, and git-record / dashboard launch actions now live inside Step 3 instead of being scattered across the page
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - Mission Type 4 dashboard dispatch is now gated by that backend cluster truth:

@@ -242,3 +242,21 @@ export const getTrajectoryOperatorPolicyNotes = ({
     },
   ];
 };
+
+export const getSwarmTrajectoryExecutionDoctrine = () => [
+  {
+    key: 'leaders',
+    label: 'Leader scope',
+    detail: 'Only top-leader paths are authored or uploaded here. Follower outputs are regenerated from the active Swarm Design hierarchy and offsets.',
+  },
+  {
+    key: 'execution',
+    label: 'Execution mode',
+    detail: 'After processing, each selected drone flies its own generated global path. This is not live Smart Swarm; use Smart Swarm for live formation following.',
+  },
+  {
+    key: 'altitude',
+    label: 'Altitude rule',
+    detail: 'Any Target AGL planning input was already converted into the stored MSL mission altitude before processing. Mission execution always flies the stored altitude package.',
+  },
+];

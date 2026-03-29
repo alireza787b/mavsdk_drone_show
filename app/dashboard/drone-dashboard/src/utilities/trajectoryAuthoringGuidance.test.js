@@ -1,6 +1,7 @@
 import {
   getTrajectoryAltitudeIntentSummary,
   getTrajectoryOperatorPolicyNotes,
+  getSwarmTrajectoryExecutionDoctrine,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
@@ -118,6 +119,23 @@ describe('trajectoryAuthoringGuidance', () => {
       expect.objectContaining({
         label: 'Leg ownership',
         detail: expect.stringMatching(/Waypoint 1 sets route-entry time and heading/i),
+      }),
+    ]);
+  });
+
+  test('builds shared swarm trajectory execution doctrine for processing and launch review', () => {
+    expect(getSwarmTrajectoryExecutionDoctrine()).toEqual([
+      expect.objectContaining({
+        label: 'Leader scope',
+        detail: expect.stringMatching(/Only top-leader paths are authored or uploaded here/i),
+      }),
+      expect.objectContaining({
+        label: 'Execution mode',
+        detail: expect.stringMatching(/This is not live Smart Swarm/i),
+      }),
+      expect.objectContaining({
+        label: 'Altitude rule',
+        detail: expect.stringMatching(/Mission execution always flies the stored altitude package/i),
       }),
     ]);
   });

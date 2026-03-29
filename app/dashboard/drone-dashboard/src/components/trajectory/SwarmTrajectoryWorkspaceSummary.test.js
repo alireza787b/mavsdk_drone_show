@@ -48,6 +48,8 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
 
     expect(screen.getByText('Mission package is ready for dashboard preflight')).toBeInTheDocument();
     expect(screen.getByText('session-42')).toBeInTheDocument();
+    expect(screen.getByText('Swarm trajectory execution policy')).toBeInTheDocument();
+    expect(screen.getByText(/This is not live Smart Swarm/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByText('Generate Cluster Outputs')).toBeInTheDocument();
   });
