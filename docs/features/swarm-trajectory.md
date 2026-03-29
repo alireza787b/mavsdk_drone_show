@@ -177,6 +177,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 3. `Swarm Trajectory`: confirm uploads, run processing, review plots, commit outputs
 4. `Dashboard -> Command Control -> Mission Trigger`: launch Mission Type 4 with preflight checks
    - GCS now runs a live per-drone MAVSDK armability probe before dispatch, so hidden PX4 pre-arm blockers stop the launch before the mission command is sent
+   - telemetry home readiness now uses actual PX4 HOME_POSITION truth, not a fallback GPS-position cache, so the launch summary stays aligned with what PX4 itself considers takeoff-ready
 
 ### Current Operator Notes
 
