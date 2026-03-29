@@ -66,7 +66,7 @@ describe('TrajectorySegmentReview', () => {
     expect(screen.getByText('Time-driven speed')).toBeInTheDocument();
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
     expect(screen.getByText('38s → 23.0 m/s')).toBeInTheDocument();
-    expect(screen.getByText('Manual 92°')).toBeInTheDocument();
+    expect(screen.getByText('Manual 092°')).toBeInTheDocument();
     expect(screen.getByText('24.0m AGL → 1302.0m MSL')).toBeInTheDocument();
     expect(screen.getByText('Estimated terrain')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /show all 2 legs/i })).toBeInTheDocument();
