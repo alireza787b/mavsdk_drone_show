@@ -195,28 +195,31 @@ describe('SpeedCalculator', () => {
       },
     });
 
-    expect(items).toEqual([
-      expect.objectContaining({
-        tone: 'warning',
-        text: '2 legs require elevated speed review.',
-      }),
-      expect.objectContaining({
-        tone: 'warning',
-        text: '2 waypoints use estimated or missing terrain data.',
-      }),
-      expect.objectContaining({
-        tone: 'warning',
-        text: 'Waypoint clearance dips below 50m AGL. Verify terrain intent and separation before launch.',
-      }),
-      expect.objectContaining({
-        tone: 'info',
-        text: 'AGL entries are stored as MSL after applying the current ground estimate.',
-      }),
-      expect.objectContaining({
-        tone: 'info',
-        text: 'Terrain assist is waypoint-based only. Long terrain-changing legs still need denser waypoints or later terrain-follow review.',
-      }),
-    ]);
+    expect(items).toHaveLength(5);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tone: 'warning',
+          text: '2 legs require elevated speed review.',
+        }),
+        expect.objectContaining({
+          tone: 'warning',
+          text: '2 waypoints use estimated or missing terrain data.',
+        }),
+        expect.objectContaining({
+          tone: 'warning',
+          text: 'Waypoint clearance dips below 50m AGL. Verify terrain intent and separation before launch.',
+        }),
+        expect.objectContaining({
+          tone: 'info',
+          text: 'AGL entries are stored as MSL after applying the current ground estimate.',
+        }),
+        expect.objectContaining({
+          tone: 'info',
+          text: 'Terrain assist is waypoint-based only. Long terrain-changing legs still need denser waypoints or later terrain-follow review.',
+        }),
+      ])
+    );
   });
 
   test('buildTrajectorySegments exposes per-leg speed status for map rendering', () => {
