@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import TrajectoryPlanning from './TrajectoryPlanning';
+import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
 
 let mockMapClickIndex = 0;
 
@@ -131,7 +132,19 @@ jest.mock('../components/trajectory/WaypointModal', () => (props) => {
     </div>
   );
 });
-jest.mock('../components/trajectory/SwarmTrajectoryTransferDialog', () => () => null);
+jest.mock('../components/trajectory/SwarmTrajectoryTransferDialog', () => (props) => {
+  if (!props.isOpen) {
+    return null;
+  }
+
+  return (
+    <div data-testid="swarm-transfer-dialog">
+      <button type="button" onClick={() => props.onSubmit()}>
+        Submit transfer
+      </button>
+    </div>
+  );
+});
 jest.mock('../components/trajectory/TrajectoryExportDialog', () => () => null);
 jest.mock('../components/trajectory/TrajectoryLibraryDialog', () => () => null);
 
@@ -144,6 +157,18 @@ describe('TrajectoryPlanning', () => {
   beforeEach(() => {
     mockMapClickIndex = 0;
     window.localStorage.clear();
+    getSwarmClusterStatus.mockResolvedValue({
+      clusters: [
+        {
+          leader_id: 1,
+          follower_count: 2,
+          follower_ids: [2, 3],
+          issues: [],
+          advisories: [],
+        },
+      ],
+    });
+    uploadSwarmTrajectory.mockResolvedValue({ success: true, message: 'uploaded' });
   });
 
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {
@@ -183,5 +208,27 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
+  });
+
+  it('offers a direct handoff into Swarm Trajectory after assigning the current leader path', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrajectoryPlanning />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText('Toggle Add'));
+    fireEvent.click(screen.getByTestId('mock-map'));
+    fireEvent.click(await screen.findByText('Confirm waypoint 1'));
+
+    fireEvent.click(screen.getByText('Toggle Add'));
+    fireEvent.click(screen.getByTestId('mock-map'));
+    fireEvent.click(await screen.findByText('Confirm waypoint 2'));
+
+    fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /submit transfer/i }));
+
+    expect(await screen.findByRole('button', { name: /open swarm trajectory/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /stay in planner/i })).toBeInTheDocument();
   });
 });

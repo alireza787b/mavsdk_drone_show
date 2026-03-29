@@ -682,10 +682,14 @@ const TrajectoryPlanning = () => {
         ? `Leader ${leaderId} path assigned. ${plannerMissionReadiness.posture.summary}`
         : result.message || `Leader ${leaderId} path assigned. Review and process the formation on Swarm Trajectory.`;
 
-    setOperationNotice(uploadMessage, uploadTone);
+    setOperationNotice(uploadMessage, uploadTone, {
+      actionLabel: 'Open Swarm Trajectory',
+      dismissLabel: 'Stay in Planner',
+      actionHandler: () => navigate('/swarm-trajectory'),
+    });
 
     return result;
-  }, [plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, plannerMissionReadiness.posture.summary, setOperationNotice, waypoints]);
+  }, [navigate, plannerMissionReadiness.advisories.length, plannerMissionReadiness.blockers.length, plannerMissionReadiness.posture.summary, setOperationNotice, waypoints]);
 
   const handleSendTrajectoryToSwarm = useCallback(async () => {
     const leaderId = swarmTransferState.selectedLeaderId;
