@@ -1,6 +1,7 @@
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TIMING_POLICY,
   clampPreferredLegSpeed,
   formatTrajectoryAltitudeEnvelope,
   formatTrajectorySpeedEnvelope,
@@ -21,6 +22,8 @@ describe('trajectoryMissionPolicy', () => {
   it('keeps planner defaults inside the nominal operator band', () => {
     expect(getNominalPreferredLegSpeed(18)).toBe(TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX);
     expect(getNominalPreferredLegSpeed(6)).toBe(6);
+    expect(TRAJECTORY_TIMING_POLICY.DEFAULT_ROUTE_ENTRY_DELAY_S).toBe(10);
+    expect(TRAJECTORY_TIMING_POLICY.DEFAULT_FALLBACK_LEG_DURATION_S).toBe(10);
   });
 
   it('formats operator-facing envelope guidance and terrain safety helpers from one source', () => {

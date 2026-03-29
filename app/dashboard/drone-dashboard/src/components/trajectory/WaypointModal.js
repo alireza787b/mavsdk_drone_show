@@ -29,6 +29,7 @@ import {
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TIMING_POLICY,
   clampPreferredLegSpeed,
   getNominalPreferredLegSpeed,
   getSafeTerrainAdjustedAltitude,
@@ -107,7 +108,7 @@ const WaypointModal = ({
       }
       
       // Initialize time based on distance and speed logic
-      let defaultTime = 10; // Base default for first waypoint
+      let defaultTime = TRAJECTORY_TIMING_POLICY.DEFAULT_ROUTE_ENTRY_DELAY_S;
       let recommendedSpeed = TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED;
       let nextTimingMode = previousWaypoint ? TIMING_MODES.AUTO_SPEED : TIMING_MODES.MANUAL_TIME;
       
@@ -733,7 +734,7 @@ const WaypointModal = ({
               value={timeFromStart}
               onChange={handleTimeChange}
               className={`waypoint-input ${timingMode === TIMING_MODES.AUTO_SPEED && previousWaypoint ? 'disabled-input' : ''}`}
-              placeholder="Seconds from mission start"
+              placeholder={previousWaypoint ? 'Seconds from mission start' : 'Seconds after mission start'}
               step="1"
               min="0"
               disabled={timingMode === TIMING_MODES.AUTO_SPEED && Boolean(previousWaypoint)}
@@ -751,7 +752,10 @@ const WaypointModal = ({
             {!previousWaypoint && (
               <div className="timing-summary">
                 <small className="time-calculation">
-                  This first waypoint anchors when the leader should enter the route after mission start.
+                  This first waypoint anchors the route-entry delay after mission start.
+                </small>
+                <small className="time-calculation">
+                  Default route-entry delay starts at {TRAJECTORY_TIMING_POLICY.DEFAULT_ROUTE_ENTRY_DELAY_S}s. Increase it if launch, form-up, or cluster spacing needs more time before the route begins.
                 </small>
               </div>
             )}

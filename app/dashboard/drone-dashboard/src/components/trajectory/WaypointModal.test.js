@@ -285,12 +285,13 @@ describe('WaypointModal', () => {
     });
 
     expect(
-      screen.getAllByText(/this first waypoint anchors when the leader should enter the route after mission start/i).length
+      screen.getAllByText(/this first waypoint anchors the route-entry delay after mission start/i).length
     ).toBeGreaterThan(0);
     expect(screen.queryByRole('radio', { name: /auto \(arrival leg\)/i })).not.toBeInTheDocument();
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: /entry heading/i })).not.toBeDisabled();
-    expect(screen.getByLabelText(/route entry time/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/route entry delay/i)).toHaveValue(10);
+    expect(screen.getByText(/default route-entry delay starts at 10s/i)).toBeInTheDocument();
     expect(screen.getByText(/first waypoint: set the initial route-entry heading explicitly/i)).toBeInTheDocument();
   });
 });

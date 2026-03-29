@@ -3,6 +3,7 @@
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TIMING_POLICY,
   TRAJECTORY_TERRAIN_POLICY,
 } from '../constants/trajectoryMissionPolicy';
 
@@ -721,7 +722,7 @@ export const suggestOptimalTime = (
     
     return suggestedTime;
   } catch {
-    return (fromWaypoint.timeFromStart || 0) + 10; // Default fallback
+    return (fromWaypoint.timeFromStart || 0) + TRAJECTORY_TIMING_POLICY.DEFAULT_FALLBACK_LEG_DURATION_S;
   }
 };
 

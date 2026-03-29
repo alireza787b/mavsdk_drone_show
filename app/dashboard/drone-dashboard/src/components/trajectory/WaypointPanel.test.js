@@ -208,7 +208,7 @@ describe('WaypointPanel', () => {
 
     expect(screen.getByText('Route Role:')).toBeInTheDocument();
     expect(screen.getAllByText('Mission start anchor').length).toBeGreaterThan(0);
-    expect(screen.getByText('Route entry time:')).toBeInTheDocument();
+    expect(screen.getByText('Route entry delay:')).toBeInTheDocument();
     expect(screen.getByText('Entry heading:')).toBeInTheDocument();
     expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
   });

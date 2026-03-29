@@ -525,6 +525,7 @@ const WaypointPanel = ({
 
   const renderEditableField = (waypoint, field, value, displayValue) => {
     const isEditing = editingWaypointId === waypoint.id && editValues.field === field;
+    const isMissionAnchor = waypoints[0]?.id === waypoint.id;
     
     if (isEditing) {
       if (field === 'coordinates') {
@@ -647,7 +648,7 @@ const WaypointPanel = ({
                 placeholder={
                   field === 'altitude' ? 'Altitude MSL (m)' : 
                   field === 'targetAgl' ? 'Target clearance AGL (m)' :
-                  field === 'time' ? 'Time (s)' : 
+                  field === 'time' ? (isMissionAnchor ? 'Delay after mission start (s)' : 'Arrival time (s)') :
                   field === 'heading' ? 'Heading (0-360°)' :
                   field === 'preferredSpeed' ? 'Preferred speed (m/s)' : ''
                 }

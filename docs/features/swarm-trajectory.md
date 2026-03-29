@@ -136,7 +136,7 @@ Important:
 Operator doctrine for this mode:
 
 1. **Author** only the top-leader path in `Trajectory Planning`
-2. **Define** route-entry time/heading at waypoint 1, then choose speed-driven or time-driven control for later waypoints
+2. **Define** route-entry delay/heading at waypoint 1, then choose speed-driven or time-driven control for later waypoints
 3. **Assign** the route to one leader cluster; this replaces only that leader CSV
 4. **Process and review** in `Swarm Trajectory`, then launch Mission Type 4 from `Dashboard`
 
@@ -213,11 +213,15 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - missions always execute the stored **MSL** altitude
   - `Target AGL` remains an authoring convenience that is converted into the stored MSL mission altitude using the current terrain reference
   - terrain confidence and low-clearance review stay visible during both planning and leader assignment instead of only appearing later during processing
-  - waypoint 1 owns route-entry time/heading, while later legs own the ETA-versus-speed planning intent
+  - waypoint 1 owns route-entry delay/heading, while later legs own the ETA-versus-speed planning intent
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned
-  - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, `Mission start anchor`, `Route entry time`, `Waypoint arrival time`, `Preferred leg speed`, and `Required leg speed` mean the same thing everywhere
+  - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, `Mission start anchor`, `Route entry delay`, `Waypoint arrival time`, `Preferred leg speed`, and `Required leg speed` mean the same thing everywhere
+- route-entry timing now comes from one shared planner policy:
+  - waypoint 1 defaults to a `10s` route-entry delay after mission start
+  - later legs still derive timing from speed or derive speed from pinned arrival time
+  - the same default/fallback timing policy is shared by the planner UI and timing helpers instead of living as hidden magic numbers
 - heading ownership is now explicit too:
   - the first waypoint always uses an explicit manual heading because it is the mission-start anchor
   - every later waypoint owns the speed and auto-heading of the arrival leg that reaches it

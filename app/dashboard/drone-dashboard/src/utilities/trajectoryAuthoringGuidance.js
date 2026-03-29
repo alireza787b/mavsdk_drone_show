@@ -1,5 +1,8 @@
 import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS, formatHeading } from './SpeedCalculator';
-import { TRAJECTORY_TERRAIN_POLICY } from '../constants/trajectoryMissionPolicy';
+import {
+  TRAJECTORY_TERRAIN_POLICY,
+  TRAJECTORY_TIMING_POLICY,
+} from '../constants/trajectoryMissionPolicy';
 
 const formatSeconds = (seconds = 0) => {
   if (!Number.isFinite(seconds)) {
@@ -30,7 +33,7 @@ export const getTrajectoryAltitudeReferenceDescription = (reference = ALTITUDE_R
     : 'Operator enters the canonical mission altitude directly in MSL. This stored MSL altitude is what the mission executes.';
 
 export const getTrajectoryTimeFieldLabel = ({ isMissionAnchor = false } = {}) =>
-  isMissionAnchor ? 'Route entry time' : 'Waypoint arrival time';
+  isMissionAnchor ? 'Route entry delay' : 'Waypoint arrival time';
 
 export const getTrajectoryTimingModeLabel = (mode = TIMING_MODES.MANUAL_TIME) =>
   mode === TIMING_MODES.AUTO_SPEED ? 'Speed-driven ETA' : 'Time-driven speed';
@@ -40,7 +43,7 @@ export const getTrajectoryTimingModeDescription = (
   { isMissionAnchor = false } = {}
 ) => {
   if (isMissionAnchor) {
-    return 'The first waypoint defines when the leader should enter the route after mission start.';
+    return 'The first waypoint defines the delay after mission start when the leader should enter the route.';
   }
 
   return mode === TIMING_MODES.AUTO_SPEED
@@ -76,7 +79,7 @@ export const getTrajectoryMissionAnchorLabel = (waypointIndex = 0) =>
 
 export const getTrajectoryMissionAnchorDescription = (waypointIndex = 0) =>
   waypointIndex === 0
-    ? 'This first waypoint anchors when the leader should enter the route after mission start.'
+    ? 'This first waypoint anchors the delay after mission start when the leader should enter the route.'
     : 'This waypoint is evaluated by the arrival leg that reaches it from the previous waypoint.';
 
 export const getTrajectoryAltitudeIntentSummary = ({
@@ -116,9 +119,9 @@ export const getTrajectoryTimingIntentSummary = ({
   if (isMissionAnchor) {
     return {
       label: 'Route Entry Logic',
-      control: `Operator sets route entry at ${formatSeconds(timeFromStart)} after mission start.`,
-      derived: 'Planner derives the first inbound leg once the next waypoint exists.',
-      compact: `Entry ${formatSeconds(timeFromStart)}`,
+      control: `Operator sets route entry delay to ${formatSeconds(timeFromStart)} after mission start.`,
+      derived: `Planner uses waypoint 1 as the route-entry anchor. The default planning baseline is ${formatSeconds(TRAJECTORY_TIMING_POLICY.DEFAULT_ROUTE_ENTRY_DELAY_S)}.`,
+      compact: `Entry +${formatSeconds(timeFromStart)}`,
     };
   }
 
@@ -184,7 +187,7 @@ export const getTrajectoryWorkflowStages = ({
     {
       key: 'intent',
       label: 'Define route entry and leg intent',
-      detail: 'Waypoint 1 anchors route-entry time and heading. Later waypoints use either Speed-driven ETA or Time-driven speed.',
+      detail: 'Waypoint 1 anchors route-entry delay and heading. Later waypoints use either Speed-driven ETA or Time-driven speed.',
     },
     {
       key: 'assign',
@@ -238,8 +241,8 @@ export const getTrajectoryOperatorPolicyNotes = ({
       key: 'timing',
       label: 'Leg ownership',
       detail: waypointCount > 0
-        ? `Waypoint 1 sets route-entry time and heading. Current path uses ${routeEntryCount} route-entry anchor, ${speedDrivenCount} speed-driven leg${speedDrivenCount === 1 ? '' : 's'}, and ${timeDrivenCount} time-driven leg${timeDrivenCount === 1 ? '' : 's'}.`
-        : 'Waypoint 1 will define route-entry time and heading; later legs can then use either Speed-driven ETA or Time-driven speed.',
+        ? `Waypoint 1 sets route-entry delay and heading. Current path uses ${routeEntryCount} route-entry anchor, ${speedDrivenCount} speed-driven leg${speedDrivenCount === 1 ? '' : 's'}, and ${timeDrivenCount} time-driven leg${timeDrivenCount === 1 ? '' : 's'}.`
+        : 'Waypoint 1 will define route-entry delay and heading; later legs can then use either Speed-driven ETA or Time-driven speed.',
     },
     {
       key: 'mission_frame',

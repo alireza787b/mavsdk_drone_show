@@ -27,7 +27,7 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryAltitudeReferenceLabel(ALTITUDE_REFERENCE.AGL)).toBe('Target AGL');
     expect(getTrajectoryAltitudeReferenceDescription(ALTITUDE_REFERENCE.MSL)).toMatch(/canonical mission altitude directly in MSL/i);
     expect(getTrajectoryAltitudeReferenceDescription(ALTITUDE_REFERENCE.AGL)).toMatch(/target clearance above ground/i);
-    expect(getTrajectoryTimeFieldLabel({ isMissionAnchor: true })).toBe('Route entry time');
+    expect(getTrajectoryTimeFieldLabel({ isMissionAnchor: true })).toBe('Route entry delay');
     expect(getTrajectoryTimeFieldLabel()).toBe('Waypoint arrival time');
     expect(getTrajectoryTimingModeLabel(TIMING_MODES.AUTO_SPEED)).toBe('Speed-driven ETA');
     expect(getTrajectoryTimingModeLabel(TIMING_MODES.MANUAL_TIME)).toBe('Time-driven speed');
@@ -93,7 +93,7 @@ describe('trajectoryAuthoringGuidance', () => {
       })
     ).toEqual(
       expect.objectContaining({
-        compact: 'Entry 12s',
+        compact: 'Entry +12s',
       })
     );
   });

@@ -277,14 +277,18 @@ const TrajectoryPlanning = () => {
     const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
     const altitudeReferenceCounts = trajectoryStats.altitudeReferenceCounts || {};
     const authoringBreakdown = trajectoryStats.authoringBreakdown || {};
-    const routeEntryCount = authoringBreakdown.routeEntryAnchors || (waypoints.length > 0 ? 1 : 0);
+    const routeEntryDelay = Number.isFinite(waypoints[0]?.timeFromStart)
+      ? waypoints[0].timeFromStart
+      : Number.isFinite(waypoints[0]?.time)
+        ? waypoints[0].time
+        : 0;
     const speedDrivenLegCount = authoringBreakdown.speedDrivenLegs || 0;
     const timeDrivenLegCount = authoringBreakdown.timeDrivenLegs || 0;
     const terrainAssistedWaypointCount = altitudeReferenceCounts[ALTITUDE_REFERENCE.AGL] || 0;
     const currentPathDetail = waypoints.length > 0
       ? [
           `${trajectoryStats.totalTime.toFixed(0)}s authored route`,
-          `${routeEntryCount} route-entry anchor`,
+          `entry delay ${routeEntryDelay.toFixed(0)}s`,
           `${speedDrivenLegCount} speed-driven leg${speedDrivenLegCount === 1 ? '' : 's'}`,
           `${timeDrivenLegCount} time-driven leg${timeDrivenLegCount === 1 ? '' : 's'}`,
           terrainAssistedWaypointCount > 0

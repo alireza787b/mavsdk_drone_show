@@ -207,9 +207,9 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('toolbar-waypoint-count')).toHaveTextContent('0');
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('0');
     expect(screen.getByText('Author top-leader path')).toBeInTheDocument();
-    expect(screen.getByText(/Waypoint 1 anchors route-entry time and heading/i)).toBeInTheDocument();
+    expect(screen.getByText(/Waypoint 1 anchors route-entry delay and heading/i)).toBeInTheDocument();
     expect(screen.getByText(/all current waypoints use direct msl altitude input/i)).toBeInTheDocument();
-    expect(screen.getByText(/Waypoint 1 will define route-entry time and heading/i)).toBeInTheDocument();
+    expect(screen.getByText(/Waypoint 1 will define route-entry delay and heading/i)).toBeInTheDocument();
     expect(screen.getByText(/authored in global latitude\/longitude with stored MSL altitude/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Toggle Add'));
