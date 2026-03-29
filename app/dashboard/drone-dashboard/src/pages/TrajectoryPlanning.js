@@ -51,15 +51,15 @@ import L from 'leaflet';
 import '../styles/TrajectoryPlanning.css';
 
 // Conditional Mapbox imports with error handling
-let Map, Source, Layer, Marker;
+let MapboxMap, MapboxSource, MapboxLayer, MapboxMarker;
 let mapboxAvailable = false;
 
 try {
   const mapboxComponents = require('react-map-gl');
-  Map = mapboxComponents.Map || mapboxComponents.default;
-  Source = mapboxComponents.Source;
-  Layer = mapboxComponents.Layer;
-  Marker = mapboxComponents.Marker;
+  MapboxMap = mapboxComponents.Map || mapboxComponents.default;
+  MapboxSource = mapboxComponents.Source;
+  MapboxLayer = mapboxComponents.Layer;
+  MapboxMarker = mapboxComponents.Marker;
   
   require('mapbox-gl/dist/mapbox-gl.css');
   mapboxAvailable = true;
@@ -1266,7 +1266,7 @@ const TrajectoryPlanning = () => {
           {plannerNoticeBanner}
 
           <div className="map-container">
-            <Map
+            <MapboxMap
               ref={mapRef}
               {...viewState}
               onMove={evt => setViewState(evt.viewState)}
@@ -1281,7 +1281,7 @@ const TrajectoryPlanning = () => {
               }
             >
               {showTerrain && (
-                <Source
+                <MapboxSource
                   id="mapbox-dem"
                   type="raster-dem"
                   url="mapbox://mapbox.terrain-rgb"
@@ -1291,7 +1291,7 @@ const TrajectoryPlanning = () => {
               )}
 
               {trajectorySegments.length > 0 && (
-                <Source
+                <MapboxSource
                   id="trajectory-line"
                   type="geojson"
                   data={{
@@ -1308,7 +1308,7 @@ const TrajectoryPlanning = () => {
                     })),
                   }}
                 >
-                  <Layer
+                  <MapboxLayer
                     id="trajectory-path"
                     type="line"
                     paint={{
@@ -1329,11 +1329,11 @@ const TrajectoryPlanning = () => {
                       'line-cap': 'round'
                     }}
                   />
-                </Source>
+                </MapboxSource>
               )}
 
               {waypoints.map((waypoint, index) => (
-                <Marker
+                <MapboxMarker
                   key={waypoint.id}
                   longitude={waypoint.longitude}
                   latitude={waypoint.latitude}
@@ -1384,9 +1384,9 @@ const TrajectoryPlanning = () => {
                       </div>
                     )}
                   </div>
-                </Marker>
+                </MapboxMarker>
               ))}
-            </Map>
+            </MapboxMap>
 
             {/* Instruction overlays */}
             {isAddingWaypoint && !isDragging && (
