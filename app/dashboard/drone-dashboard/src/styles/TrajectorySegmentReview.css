@@ -70,6 +70,35 @@
   color: rgba(226, 232, 240, 0.88);
 }
 
+.trajectory-segment-review__intro-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.trajectory-segment-review__toggle {
+  flex-shrink: 0;
+  padding: 0.42rem 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.46);
+  color: #e2e8f0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trajectory-segment-review__toggle:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.trajectory-segment-review__toggle:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.9);
+  outline-offset: 2px;
+}
+
 .trajectory-segment-review__list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -182,8 +211,28 @@
   background: rgba(15, 23, 42, 0.5);
 }
 
+.trajectory-segment-review__audit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.trajectory-segment-review__audit-row span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  color: rgba(191, 219, 254, 0.92);
+  background: rgba(30, 41, 59, 0.72);
+}
+
 @media (max-width: 768px) {
   .trajectory-segment-review__header {
+    flex-direction: column;
+  }
+
+  .trajectory-segment-review__intro-row {
     flex-direction: column;
   }
 

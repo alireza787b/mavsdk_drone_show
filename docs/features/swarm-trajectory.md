@@ -236,6 +236,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - exported planner CSVs keep the standard mission columns first, so the existing processor and runtime pipeline still work unchanged
   - optional trailing metadata columns now keep `AltitudeReference`, `TargetAgl_m`, `GroundElevation_m`, `TerrainAccurate`, `TimingMode`, `PreferredSpeed_ms`, and `CalculatedHeading_deg` for planner round-trips
   - older minimal CSVs still import correctly; they simply fall back to the legacy defaults (`MSL input`, `Time-driven speed`, and no terrain-backed AGL context)
+- `Leg Review` is now a true audit surface instead of a fixed teaser:
+  - attention legs still surface first by default so the operator is not overwhelmed
+  - the route can be expanded into a full-leg audit without leaving the planner
+  - each reviewed leg now exposes compact timing, heading, altitude, and terrain-confidence intent from the stored planner data
 - trajectory authoring defaults and validation limits now come from one explicit mission-policy source:
   - default MSL altitude, target AGL, and preferred leg speed are shared instead of duplicated across modal/panel/search/import code
   - the planner surface now declares the active mission envelope (`0.5-12 m/s nominal`, `12-20 m/s review`, altitude `1-10,000 m MSL`) so operators do not have to infer those rules from warnings after the fact

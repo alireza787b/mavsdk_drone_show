@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import {
+  getTrajectoryAltitudeIntentSummary,
+  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeLabel,
+  getTrajectoryTimingIntentSummary,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
 import '../../styles/TrajectorySegmentReview.css';
@@ -41,6 +44,8 @@ const TrajectorySegmentReview = ({
   onSelectSegment = null,
   activeSegmentId = '',
 }) => {
+  const [showAllSegments, setShowAllSegments] = useState(false);
+
   const summary = useMemo(() => {
     return segments.reduce(
       (acc, segment) => {
@@ -51,17 +56,13 @@ const TrajectorySegmentReview = ({
     );
   }, [segments]);
 
-  const highlightedSegments = useMemo(() => {
-    const flagged = segments.filter(
-      (segment) => segment.speedStatus === 'marginal' || segment.speedStatus === 'impossible'
-    );
-
-    if (flagged.length > 0) {
-      return flagged;
-    }
-
-    return segments.slice(0, 3);
-  }, [segments]);
+  const flaggedSegments = useMemo(
+    () =>
+      segments.filter(
+        (segment) => segment.speedStatus === 'marginal' || segment.speedStatus === 'impossible'
+      ),
+    [segments]
+  );
 
   if (segments.length === 0) {
     return (
@@ -79,7 +80,27 @@ const TrajectorySegmentReview = ({
     );
   }
 
-  const showingFlaggedOnly = highlightedSegments.length > 0 && highlightedSegments.length !== segments.length;
+  const hasFlaggedSegments = flaggedSegments.length > 0;
+  const hasCondensedFallback = !hasFlaggedSegments && segments.length > 3;
+  const canToggleView = hasFlaggedSegments || hasCondensedFallback;
+
+  const visibleSegments = showAllSegments
+    ? segments
+    : hasFlaggedSegments
+      ? flaggedSegments
+      : segments.slice(0, 3);
+
+  const hiddenSegmentCount = Math.max(0, segments.length - visibleSegments.length);
+  const showingFlaggedOnly = !showAllSegments && hasFlaggedSegments && visibleSegments.length !== segments.length;
+  const showingCondensedNominal = !showAllSegments && hasCondensedFallback;
+
+  const introText = showingFlaggedOnly
+    ? `Showing attention legs only. Expand to audit all ${segments.length} legs before transfer.`
+    : showingCondensedNominal
+      ? `Showing the first 3 nominal legs. Expand to audit all ${segments.length} legs before transfer.`
+      : showAllSegments && hasFlaggedSegments
+        ? 'Showing all legs. Attention items remain highlighted so the full route can be reviewed without losing risk context.'
+        : 'All current legs are nominal. Full-route review remains visible so pacing stays explicit before transfer.';
 
   return (
     <section className="trajectory-segment-review" aria-label="Trajectory leg review">
@@ -101,53 +122,95 @@ const TrajectorySegmentReview = ({
         </div>
       </div>
 
-      <p className="trajectory-segment-review__intro">
-        {showingFlaggedOnly
-          ? 'Showing attention legs only. Each leg inherits timing and heading intent from the waypoint it arrives at.'
-          : 'All current legs are nominal. Review remains visible so route pacing stays explicit before transfer.'}
-      </p>
+      <div className="trajectory-segment-review__intro-row">
+        <p className="trajectory-segment-review__intro">{introText}</p>
+        {canToggleView ? (
+          <button
+            type="button"
+            className="trajectory-segment-review__toggle"
+            onClick={() => setShowAllSegments((current) => !current)}
+          >
+            {showAllSegments
+              ? hasFlaggedSegments
+                ? 'Show attention legs'
+                : 'Show condensed view'
+              : `Show all ${segments.length} legs${hiddenSegmentCount > 0 ? ` (+${hiddenSegmentCount})` : ''}`}
+          </button>
+        ) : null}
+      </div>
 
       <div className="trajectory-segment-review__list">
-        {highlightedSegments.map((segment) => (
-          <article
-            key={segment.id}
-            className={`trajectory-segment-review__item trajectory-segment-review__item--${segment.speedStatus} ${
-              activeSegmentId === segment.id ? 'trajectory-segment-review__item--active' : ''
-            }`}
-          >
-            <button
-              type="button"
-              className="trajectory-segment-review__button"
-              onClick={() => onSelectSegment?.(segment)}
-              disabled={!onSelectSegment}
+        {visibleSegments.map((segment) => {
+          const timingSummary = getTrajectoryTimingIntentSummary({
+            timingMode: segment.timingMode,
+            timeFromStart: segment.arrivalTimeFromStart,
+            preferredSpeed: segment.preferredSpeed,
+            requiredSpeed: segment.speed,
+          });
+          const headingSummary = getTrajectoryHeadingIntentSummary({
+            headingMode: segment.headingMode,
+            heading: segment.heading,
+            calculatedHeading: segment.calculatedHeading,
+          });
+          const altitudeSummary = getTrajectoryAltitudeIntentSummary({
+            altitudeReference: segment.toAltitudeReference,
+            altitude: segment.toAltitude,
+            targetAgl: segment.toTargetAgl,
+            groundElevation: segment.toGroundElevation,
+            terrainAccurate: segment.terrainAccurate,
+          });
+
+          return (
+            <article
+              key={segment.id}
+              className={`trajectory-segment-review__item trajectory-segment-review__item--${segment.speedStatus} ${
+                activeSegmentId === segment.id ? 'trajectory-segment-review__item--active' : ''
+              }`}
             >
-              <div className="trajectory-segment-review__item-header">
-                <div>
-                  <strong>
-                    Leg {segment.fromIndex} → {segment.toIndex}
-                  </strong>
-                  <span className="trajectory-segment-review__route">
-                    {segment.fromWaypointName} → {segment.toWaypointName}
+              <button
+                type="button"
+                className="trajectory-segment-review__button"
+                onClick={() => onSelectSegment?.(segment)}
+                disabled={!onSelectSegment}
+              >
+                <div className="trajectory-segment-review__item-header">
+                  <div>
+                    <strong>
+                      Leg {segment.fromIndex} → {segment.toIndex}
+                    </strong>
+                    <span className="trajectory-segment-review__route">
+                      {segment.fromWaypointName} → {segment.toWaypointName}
+                    </span>
+                  </div>
+                  <span className={`trajectory-segment-review__status trajectory-segment-review__status--${segment.speedStatus}`}>
+                    {formatStatusLabel(segment.speedStatus)}
                   </span>
                 </div>
-                <span className={`trajectory-segment-review__status trajectory-segment-review__status--${segment.speedStatus}`}>
-                  {formatStatusLabel(segment.speedStatus)}
-                </span>
-              </div>
 
-              <div className="trajectory-segment-review__metrics">
-                <span>{formatDistance(segment.distanceMeters)}</span>
-                <span>{formatDuration(segment.durationSeconds)}</span>
-                <span>{segment.speed.toFixed(1)} m/s</span>
-              </div>
+                <div className="trajectory-segment-review__metrics">
+                  <span>{formatDistance(segment.distanceMeters)}</span>
+                  <span>{formatDuration(segment.durationSeconds)}</span>
+                  <span>{segment.speed.toFixed(1)} m/s</span>
+                </div>
 
-              <div className="trajectory-segment-review__detail-row">
-                <span>{getTrajectoryTimingModeLabel(segment.timingMode)}</span>
-                <span>{getTrajectoryHeadingModeLabel(segment.headingMode)}</span>
-              </div>
-            </button>
-          </article>
-        ))}
+                <div className="trajectory-segment-review__detail-row">
+                  <span>{getTrajectoryTimingModeLabel(segment.timingMode)}</span>
+                  <span>{getTrajectoryHeadingModeLabel(segment.headingMode)}</span>
+                </div>
+
+                <div className="trajectory-segment-review__audit-row">
+                  <span>{timingSummary.compact}</span>
+                  <span>{headingSummary.compact}</span>
+                </div>
+
+                <div className="trajectory-segment-review__audit-row">
+                  <span>{altitudeSummary.compact}</span>
+                  <span>{segment.terrainAccurate ? 'Verified terrain' : 'Estimated terrain'}</span>
+                </div>
+              </button>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -165,8 +228,17 @@ TrajectorySegmentReview.propTypes = {
       speedStatus: PropTypes.string.isRequired,
       distanceMeters: PropTypes.number.isRequired,
       durationSeconds: PropTypes.number.isRequired,
+      arrivalTimeFromStart: PropTypes.number,
       timingMode: PropTypes.string.isRequired,
+      preferredSpeed: PropTypes.number,
       headingMode: PropTypes.string.isRequired,
+      heading: PropTypes.number,
+      calculatedHeading: PropTypes.number,
+      toAltitude: PropTypes.number,
+      toAltitudeReference: PropTypes.string,
+      toTargetAgl: PropTypes.number,
+      toGroundElevation: PropTypes.number,
+      terrainAccurate: PropTypes.bool,
     })
   ),
   onSelectSegment: PropTypes.func,
