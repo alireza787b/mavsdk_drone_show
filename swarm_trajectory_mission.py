@@ -10,14 +10,14 @@ Based on: drone_show.py v2.6.0
 ----------------------------------------
 
 Description:
-    Executes individual drone trajectories from shapes[_sitl]/trajectory/processed/Drone {pos_id}.csv
+    Executes individual drone trajectories from shapes[_sitl]/swarm_trajectory/processed/Drone {pos_id}.csv
     files using the proven drone_show.py architecture. Designed for swarm operations where each
     drone follows its own pre-planned trajectory with global GPS positioning and synchronized timing.
 
 Key Features:
   • Global Offboard Control  
     – Always uses `PositionGlobalYaw` for GPS-based precise positioning
-    – Real-time NED to LLA conversion using PyMap3D
+    – Maintains global-route execution while preserving local NED velocity semantics
 
   • Position ID Based Execution
     – Automatically loads trajectory files: Drone {position_id}.csv
@@ -1371,11 +1371,21 @@ async def arming_and_starting_offboard_mode(drone: System, global_reference: dic
 
         # Step 1: Compute initial position offset if required
         global initial_position_drift
+        initial_position_drift = None
 
-        if Params.REQUIRE_GLOBAL_POSITION and global_reference:
+        if (
+            Params.REQUIRE_GLOBAL_POSITION
+            and global_reference
+            and global_reference.get("source") == "gps_global_origin"
+        ):
             logger.info("Computing initial position offset in NED coordinates.")
             initial_position_drift = await compute_position_drift()
             logger.info(f"Initial position drift computed: {initial_position_drift}")
+        elif Params.REQUIRE_GLOBAL_POSITION and global_reference:
+            logger.info(
+                "Skipping position offset computation because the execution reference source is %s, not PX4 GPS global origin.",
+                global_reference.get("source", "unknown"),
+            )
         else:
             logger.info("Skipping position offset computation (global position check disabled or no global reference).")
 
@@ -1437,13 +1447,12 @@ async def compute_position_drift():
     (Identical to drone_show.py implementation)
     """
     logger = logging.getLogger(__name__)
-    default_drift = PositionNedYaw(0.0, 0.0, 0.0, 0.0)  # Default to no drift
-
     try:
         # Request NED data from local API endpoint
-        response = requests.get(
+        response = await asyncio.to_thread(
+            requests.get,
             f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
-            timeout=2
+            timeout=2,
         )
 
         if response.status_code == 200:

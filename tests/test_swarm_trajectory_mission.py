@@ -333,6 +333,52 @@ async def test_arming_and_starting_offboard_mode_uses_shared_prearm_gate(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_arming_and_starting_offboard_mode_skips_drift_for_fallback_reference(monkeypatch):
+    drone = MagicMock()
+    drone.action.hold = AsyncMock()
+    drone.offboard.set_velocity_body = AsyncMock()
+    drone.offboard.start = AsyncMock()
+
+    led_controller = MagicMock()
+    monkeypatch.setattr(stm.LEDController, "get_instance", MagicMock(return_value=led_controller))
+    monkeypatch.setattr(stm.Params, "REQUIRE_GLOBAL_POSITION", True)
+    stm.initial_position_drift = stm.PositionNedYaw(9.0, 9.0, 9.0, 0.0)
+
+    with patch.object(stm, "compute_position_drift", new=AsyncMock()) as compute_position_drift:
+        with patch.object(stm, "arm_with_preflight_gate", new=AsyncMock()) as arm_with_preflight_gate:
+            await stm.arming_and_starting_offboard_mode(
+                drone,
+                global_reference={"source": "fallback_position"},
+            )
+
+    compute_position_drift.assert_not_awaited()
+    arm_with_preflight_gate.assert_awaited_once()
+    assert stm.initial_position_drift is None
+
+
+@pytest.mark.asyncio
+async def test_compute_position_drift_uses_threaded_http(monkeypatch):
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {"x": 1.5, "y": -2.0, "z": 0.25}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        assert func is stm.requests.get
+        assert args[0] == f"http://localhost:{stm.Params.drone_api_port}/get-local-position-ned"
+        assert kwargs["timeout"] == 2
+        return response
+
+    monkeypatch.setattr(stm.asyncio, "to_thread", fake_to_thread)
+
+    drift = await stm.compute_position_drift()
+
+    assert drift.north_m == pytest.approx(1.5)
+    assert drift.east_m == pytest.approx(-2.0)
+    assert drift.down_m == pytest.approx(0.25)
+    assert drift.yaw_deg == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
 async def test_run_swarm_trajectory_mission_exits_failure_when_mission_runtime_raises():
     drone = MagicMock()
     drone.telemetry.position.return_value = _stream_once(

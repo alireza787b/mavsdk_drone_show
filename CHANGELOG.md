@@ -10,6 +10,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory processed CSVs now preserve `vx/vy/vz` and `ax/ay/az` as real local NED metric quantities instead of raw lat/lon/alt derivatives, which makes runtime diagnostics and `continue_heading` end behavior consistent with the controller contract
+- Swarm Trajectory initial drift sampling now uses the same non-blocking local-API pattern as Drone Show, and drift correction is skipped when preflight only has a fallback current-position reference instead of PX4's actual GPS global origin
 - Swarm Trajectory runtime now treats its launch-time global reference explicitly instead of carrying it through the mission path as a misleading `home_position` name:
   - pre-flight prefers PX4 GPS global origin, with a bounded fallback to the current global position sample when the origin RPC is unavailable
   - that reference is now documented and tested as readiness / drift / recovery truth only, not as a redefinition of the authored global route geometry

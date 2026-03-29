@@ -57,9 +57,9 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
 ### 🌐 Coordinate System & Processing Logic
 
 **Lead Drone Processing (Global Coordinates Only)**:
-- ✅ **Pure Global**: Lead drones remain in lat/lon/alt coordinates throughout
-- ✅ **No NED Conversion**: Trajectories are smoothed directly in global coordinates  
-- ✅ **Cubic Spline Interpolation**: Waypoints → smooth trajectory at 0.05s intervals
+- ✅ **Global Authoring / Global Output**: Lead drones are authored and exported as lat/lon/alt routes
+- ✅ **Metric Internal Geometry**: Smoothing and speed calculations use a local tangent-plane metric projection so `vx/vy/vz` remain true NED m/s rather than degree deltas
+- ✅ **Interpolated Execution Path**: Waypoints → smoothed global trajectory at 0.05s intervals
 
 **Follower Processing (Respects swarm.json Configuration)**:
 - **Body Frame** (`frame="body"`): Forward/Right relative to lead drone's heading
@@ -387,12 +387,14 @@ Current truth model:
 Converts waypoint trajectories to smooth interpolated paths.
 
 **Input:** CSV waypoints  
-**Output:** Smooth trajectory at 0.05s intervals with velocities/accelerations
+**Output:** Smooth trajectory at 0.05s intervals with global positions plus NED velocities/accelerations
 
 ### Runtime Execution Notes
 
 - `swarm_trajectory_mission.py` now keeps the initial climb phase separate from waypoint progression
 - if the initial climb cannot be confirmed, the mission fails loudly instead of silently consuming waypoints and falling into end behavior
+- processed trajectory CSVs now keep `vx/vy/vz` and `ax/ay/az` in true local NED metric units, so execution logging and `continue_heading` behavior do not inherit raw lat/lon degree deltas
+- initial position drift sampling now uses the same non-blocking HTTP pattern as the other audited modes, and drift correction is skipped when Swarm Trajectory only has a fallback current-position reference instead of PX4's actual GPS global origin
 - return-home terminal timing in this mode can be materially longer than the authored path duration when the processed path peaks far above the launch baseline
 - validator timeout budgeting therefore uses processed peak relative altitude, not just the earlier formation snapshot altitude
 - `return_home` end behavior now verifies that PX4 actually enters RTL instead of assuming the command engaged; if RTL never transitions out of hold/offboard, the mission retries once and then degrades to bounded LAND fallback instead of hanging indefinitely on one drone

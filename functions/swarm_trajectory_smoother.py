@@ -7,9 +7,23 @@ import numpy as np
 import pandas as pd
 import logging
 from scipy.interpolate import CubicSpline
+from pyproj import Proj, Transformer
 from src.params import Params
 
 logger = logging.getLogger(__name__)
+
+
+def _build_local_metric_transformers(origin_lat, origin_lon):
+    """Create a local tangent-plane projection centered at the trajectory origin."""
+    proj_string = (
+        f"+proj=tmerc +lat_0={origin_lat} +lon_0={origin_lon} "
+        f"+k=1 +units=m +ellps=WGS84"
+    )
+    local_proj = Proj(proj_string)
+    geodetic_proj = Proj("epsg:4326")
+    to_local = Transformer.from_proj(geodetic_proj, local_proj, always_xy=True)
+    to_geodetic = Transformer.from_proj(local_proj, geodetic_proj, always_xy=True)
+    return to_local, to_geodetic
 
 def smooth_trajectory_with_waypoints(waypoints_df, dt=None):
     """
@@ -85,9 +99,10 @@ def smooth_trajectory_with_waypoints(waypoints_df, dt=None):
 
     # Trajectory already generated above - no need for old spline interpolation
     
-    # Calculate velocities and accelerations in global frame
-    velocities = calculate_global_velocities(all_times, smooth_lats, smooth_lons, smooth_alts)
-    accelerations = calculate_global_accelerations(all_times, velocities)
+    # Calculate velocities/accelerations in local NED metric units even though
+    # the exported path itself stays in global coordinates.
+    velocities = calculate_ned_velocities(all_times, smooth_lats, smooth_lons, smooth_alts)
+    accelerations = calculate_ned_accelerations(all_times, velocities)
     
     # Create output DataFrame in expected format
     return create_trajectory_dataframe(
@@ -95,24 +110,25 @@ def smooth_trajectory_with_waypoints(waypoints_df, dt=None):
         velocities, accelerations
     )
 
-def calculate_global_velocities(times, lats, lons, alts):
-    """Calculate velocities in global frame (lat/lon/alt per second)"""
-    dt_array = np.diff(times)
-    dt_array = np.append(dt_array, dt_array[-1])  # Extend for same length
-    
-    dlat_dt = np.gradient(lats, times)
-    dlon_dt = np.gradient(lons, times) 
-    dalt_dt = np.gradient(alts, times)
-    
-    return {'vx': dlat_dt, 'vy': dlon_dt, 'vz': dalt_dt}
+def calculate_ned_velocities(times, lats, lons, alts):
+    """Calculate local NED velocities in meters/second from a global path."""
+    origin_lat, origin_lon = float(lats[0]), float(lons[0])
+    to_local, _ = _build_local_metric_transformers(origin_lat, origin_lon)
+    east_m, north_m = to_local.transform(lons, lats)
 
-def calculate_global_accelerations(times, velocities):
-    """Calculate accelerations in global frame"""
-    dvx_dt = np.gradient(velocities['vx'], times)
-    dvy_dt = np.gradient(velocities['vy'], times)
-    dvz_dt = np.gradient(velocities['vz'], times)
-    
-    return {'ax': dvx_dt, 'ay': dvy_dt, 'az': dvz_dt}
+    north_mps = np.gradient(north_m, times)
+    east_mps = np.gradient(east_m, times)
+    down_mps = -np.gradient(alts, times)
+
+    return {"vx": north_mps, "vy": east_mps, "vz": down_mps}
+
+def calculate_ned_accelerations(times, velocities):
+    """Calculate local NED accelerations in meters/second²."""
+    dvx_dt = np.gradient(velocities["vx"], times)
+    dvy_dt = np.gradient(velocities["vy"], times)
+    dvz_dt = np.gradient(velocities["vz"], times)
+
+    return {"ax": dvx_dt, "ay": dvy_dt, "az": dvz_dt}
 
 def create_trajectory_dataframe(times, lats, lons, alts, yaws, velocities, accelerations):
     """Create final trajectory DataFrame in expected CSV format"""
@@ -231,16 +247,12 @@ def create_straight_line_trajectory(all_times, waypoint_times, lats, lons, alts,
     Much simpler and more accurate than lat/lon math.
     """
 
-    # Convert waypoints to NED coordinates (relative to first waypoint)
+    # Convert waypoints to a local metric frame (relative to first waypoint)
     origin_lat, origin_lon, origin_alt = lats[0], lons[0], alts[0]
+    to_local, to_geodetic = _build_local_metric_transformers(origin_lat, origin_lon)
 
-    # Simple NED conversion (good enough for drone show distances)
-    lat_to_m = 111320.0
-    lon_to_m = 111320.0 * np.cos(np.radians(origin_lat))
-
-    # Waypoints in NED meters
-    wp_north = (lats - origin_lat) * lat_to_m
-    wp_east = (lons - origin_lon) * lon_to_m
+    # Waypoints in local meters
+    wp_east, wp_north = to_local.transform(lons, lats)
     wp_down = -(alts - origin_alt)  # NED down is negative altitude
 
     # Generate trajectory in NED coordinates
@@ -250,8 +262,7 @@ def create_straight_line_trajectory(all_times, waypoint_times, lats, lons, alts,
     ned_yaws = np.interp(all_times, waypoint_times, yaws)
 
     # Convert back to global coordinates
-    smooth_lats = origin_lat + ned_north / lat_to_m
-    smooth_lons = origin_lon + ned_east / lon_to_m
+    smooth_lons, smooth_lats = to_geodetic.transform(ned_east, ned_north)
     smooth_alts = origin_alt - ned_down
     smooth_yaws = ned_yaws
 
