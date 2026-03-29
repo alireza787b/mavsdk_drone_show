@@ -36,6 +36,9 @@ def build_controller(mock_drone_config):
     mock_drone_config.readiness_status = "unknown"
     mock_drone_config.readiness_summary = ""
     mock_drone_config.preflight_last_update = 0
+    mock_drone_config.home_position = {"lat": 35.0, "long": 51.0, "alt": 1278.0}
+    mock_drone_config.px4_home_position_set = True
+    mock_drone_config.home_position_source = "px4"
 
     return controller
 
@@ -54,6 +57,7 @@ def test_update_pre_arm_status_reports_ready(mock_drone_config):
 def test_update_pre_arm_status_requires_home_position_before_takeoff(mock_drone_config):
     controller = build_controller(mock_drone_config)
     mock_drone_config.home_position = None
+    mock_drone_config.px4_home_position_set = False
     mock_drone_config.is_armed = False
     mock_drone_config.custom_mode = 50593792
 
@@ -69,6 +73,7 @@ def test_update_pre_arm_status_requires_home_position_before_takeoff(mock_drone_
 def test_update_pre_arm_status_allows_missing_home_when_already_airborne(mock_drone_config):
     controller = build_controller(mock_drone_config)
     mock_drone_config.home_position = None
+    mock_drone_config.px4_home_position_set = False
     mock_drone_config.is_armed = True
     mock_drone_config.custom_mode = 50593792
 
@@ -155,3 +160,49 @@ def test_reset_mavlink_connection_reopens_listener(mock_drone_config, monkeypatc
 
     assert closed["called"] is True
     assert controller.mav is new_connection
+
+
+def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.home_position = None
+    mock_drone_config.px4_home_position_set = False
+    mock_drone_config.home_position_source = "unknown"
+    msg = SimpleNamespace(
+        lat=int(35.123456 * 1E7),
+        lon=int(51.2721 * 1E7),
+        alt=int(1278.5 * 1E3),
+        vx=0,
+        vy=0,
+        vz=0,
+    )
+
+    controller.process_global_position_int(msg)
+
+    assert mock_drone_config.home_position == {
+        "lat": 35.123456,
+        "long": 51.2721,
+        "alt": 1278.5,
+    }
+    assert mock_drone_config.px4_home_position_set is False
+    assert mock_drone_config.home_position_source == "fallback_position"
+
+
+def test_set_home_position_marks_px4_home_truth(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.px4_home_position_set = False
+    mock_drone_config.home_position_source = "unknown"
+    msg = SimpleNamespace(
+        latitude=int(35.123456 * 1E7),
+        longitude=int(51.2721 * 1E7),
+        altitude=int(1278.5 * 1E3),
+    )
+
+    controller.set_home_position(msg)
+
+    assert mock_drone_config.home_position == {
+        "lat": 35.123456,
+        "long": 51.2721,
+        "alt": 1278.5,
+    }
+    assert mock_drone_config.px4_home_position_set is True
+    assert mock_drone_config.home_position_source == "px4"

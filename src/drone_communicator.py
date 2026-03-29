@@ -383,7 +383,8 @@ class DroneCommunicator:
             "system_status": safe_int(self.drone_config.system_status),  # MAVLink system status (e.g., STANDBY, ACTIVE)
             "is_armed": bool(self.drone_config.is_armed),  # Armed status from base_mode flags
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
-            "home_position_set": bool(getattr(self.drone_config, 'home_position', None)),
+            "home_position_set": bool(getattr(self.drone_config, 'px4_home_position_set', False)),
+            "home_position_source": str(getattr(self.drone_config, 'home_position_source', 'unknown')),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),
             "readiness_summary": str(getattr(self.drone_config, 'readiness_summary', 'Readiness unavailable')),
             "readiness_checks": list(getattr(self.drone_config, 'readiness_checks', []) or []),

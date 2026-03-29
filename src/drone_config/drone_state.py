@@ -91,6 +91,8 @@ class DroneState:
 
         # Home and origin positions
         self.home_position: Any = None
+        self.px4_home_position_set: bool = False
+        self.home_position_source: str = "unknown"
         self.gps_global_origin: Any = None
 
         # Swarm references

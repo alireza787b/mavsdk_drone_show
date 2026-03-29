@@ -615,6 +615,28 @@ class TestDroneCommandReception:
         assert drone_config.mission == Mission.APPLY_COMMON_PARAMS.value
         assert drone_config.state == State.MISSION_READY.value
 
+    def test_get_drone_state_reports_px4_home_truth_not_fallback_cache(self):
+        """Telemetry home_position_set must reflect PX4 home truth, not a fallback position cache."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=True,
+        )
+        drone_config = create_mock_drone_config()
+        drone_config.home_position = {'lat': 35.0, 'long': 51.0, 'alt': 1278.0}
+        drone_config.px4_home_position_set = False
+        drone_config.home_position_source = 'fallback_position'
+
+        communicator = DroneCommunicator(drone_config, params, {})
+        drone_state = communicator.get_drone_state()
+
+        assert drone_state['home_position_set'] is False
+        assert drone_state['home_position_source'] == 'fallback_position'
+
 
 # ============================================================================
 # Test: Command Integration with DroneConfig

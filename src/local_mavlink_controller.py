@@ -466,7 +466,7 @@ class LocalMavlinkController:
         mode_requires_gps = self.drone_config.custom_mode in gps_dependent_modes
         takeoff_requires_gps = not bool(getattr(self.drone_config, 'is_armed', False))
         gps_required = bool(getattr(self, 'require_global_position', False)) or takeoff_requires_gps or mode_requires_gps
-        home_ready = bool(getattr(self.drone_config, 'home_position', None))
+        home_ready = bool(getattr(self.drone_config, 'px4_home_position_set', False))
 
         if gps_required:
             gps_ready = gps_fix_ok and self.drone_config.hdop > 0 and self.drone_config.hdop < 2.0
@@ -478,7 +478,7 @@ class LocalMavlinkController:
         has_strong_live_signal = any([
             bool(getattr(self.drone_config, 'base_mode', 0)),
             bool(getattr(self.drone_config, 'custom_mode', 0)),
-            bool(getattr(self.drone_config, 'home_position', None)),
+            bool(getattr(self.drone_config, 'px4_home_position_set', False)),
             getattr(self.drone_config, 'gps_fix_type', 0) >= 3,
         ])
         system_state_name = self._get_system_status_name(self.drone_config.system_status)
@@ -767,6 +767,8 @@ class LocalMavlinkController:
                 'long': msg.longitude / 1E7,
                 'alt': msg.altitude / 1E3
             }
+            self.drone_config.px4_home_position_set = True
+            self.drone_config.home_position_source = 'px4'
 
             if not self.home_position_logged:
                 logging.info(f"Home position for drone {self.drone_config.hw_id} is set: {self.drone_config.home_position}")
@@ -822,7 +824,12 @@ class LocalMavlinkController:
 
             if self.drone_config.home_position is None:
                 self.drone_config.home_position = self.drone_config.position.copy()
-                logging.info(f"Home position for drone {self.drone_config.hw_id} is set to current position: {self.drone_config.home_position}")
+                self.drone_config.home_position_source = 'fallback_position'
+                logging.info(
+                    "Fallback home position cache for drone %s set from first global position sample: %s",
+                    self.drone_config.hw_id,
+                    self.drone_config.home_position,
+                )
         else:
             logging.error('Received GLOBAL_POSITION_INT message with invalid data')
 

@@ -244,6 +244,22 @@ class DroneConfig:
         self._state.home_position = value
 
     @property
+    def px4_home_position_set(self) -> bool:
+        return self._state.px4_home_position_set
+
+    @px4_home_position_set.setter
+    def px4_home_position_set(self, value: bool):
+        self._state.px4_home_position_set = value
+
+    @property
+    def home_position_source(self) -> str:
+        return self._state.home_position_source
+
+    @home_position_source.setter
+    def home_position_source(self, value: str):
+        self._state.home_position_source = value
+
+    @property
     def gps_global_origin(self) -> Any:
         return self._state.gps_global_origin
 
