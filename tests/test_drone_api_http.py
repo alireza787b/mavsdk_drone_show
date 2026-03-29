@@ -83,15 +83,78 @@ class TestDroneState:
         self,
         api_server,
         mock_drone_config,
+        mock_params,
     ):
         from src.constants import NetworkDefaults
 
-        mock_drone_config.hw_id = "3"
-        mock_drone_config.config["mavlink_port"] = 14600
+        mock_params.DEFAULT_GRPC_PORT = NetworkDefaults.GRPC_BASE_PORT
+        mock_params.mavsdk_port = 14540
         grpc_port, system_address = api_server._resolve_live_probe_connection()
 
-        assert grpc_port == NetworkDefaults.GRPC_BASE_PORT + 3
-        assert system_address == "udp://127.0.0.1:14600"
+        assert grpc_port == NetworkDefaults.GRPC_BASE_PORT
+        assert system_address == "udp://:14540"
+
+    @pytest.mark.asyncio
+    async def test_probe_live_armability_starts_temporary_server(self, api_server, monkeypatch, mock_params):
+        import src.drone_api_server as drone_api_server
+
+        mock_params.DEFAULT_GRPC_PORT = 50040
+        mock_params.mavsdk_port = 14540
+        mock_params.LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
+        fake_process = object()
+        captured = {}
+
+        class FakeSystem:
+            def __init__(self, mavsdk_server_address, port):
+                captured["mavsdk_server_address"] = mavsdk_server_address
+                captured["grpc_port"] = port
+
+            async def connect(self, system_address):
+                captured["system_address"] = system_address
+
+        async def _fake_ensure(self, grpc_port, udp_port):
+            captured["ensure"] = (grpc_port, udp_port)
+            return fake_process, True
+
+        def _fake_stop(self, process):
+            captured["stopped_process"] = process
+
+        async def _fake_wait(self, drone):
+            captured["wait_called"] = True
+
+        async def _fake_probe(drone, require_global_position, timeout, logger):
+            captured["probe_timeout"] = timeout
+            return {
+                "ready": True,
+                "summary": "ready for mission startup",
+                "blockers": [],
+                "armable": True,
+                "global_position_ok": True,
+                "home_position_ok": True,
+                "local_position_ok": True,
+                "gyro_ok": True,
+                "accel_ok": True,
+                "mag_ok": True,
+                "timed_out": False,
+                "elapsed_sec": 0.1,
+                "require_global_position": require_global_position,
+            }
+
+        monkeypatch.setattr(drone_api_server, "System", FakeSystem)
+        monkeypatch.setattr(drone_api_server.DroneAPIServer, "_ensure_live_probe_server", _fake_ensure)
+        monkeypatch.setattr(drone_api_server.DroneAPIServer, "_stop_live_probe_server", _fake_stop)
+        monkeypatch.setattr(drone_api_server.DroneAPIServer, "_wait_for_mavsdk_connection", _fake_wait)
+        monkeypatch.setattr(drone_api_server, "probe_offboard_armability", _fake_probe)
+
+        result = await api_server._probe_live_armability(require_global_position=True)
+
+        assert result["success"] is True
+        assert captured["ensure"] == (50040, 14540)
+        assert captured["mavsdk_server_address"] == "127.0.0.1"
+        assert captured["grpc_port"] == 50040
+        assert captured["system_address"] == "udp://:14540"
+        assert captured["wait_called"] is True
+        assert captured["stopped_process"] is fake_process
 
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
         """Test /get_drone_state when no data available"""

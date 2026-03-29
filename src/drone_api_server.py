@@ -29,6 +29,7 @@ import math
 import os
 import time
 import subprocess
+import socket
 from typing import Dict, Any, Optional, List
 
 # FastAPI imports
@@ -230,6 +231,7 @@ class DroneAPIServer:
         # WebSocket connection management
         self.active_websockets: List[WebSocket] = []
         self.last_state_hash = None  # Track state changes
+        self._live_probe_lock = asyncio.Lock()
 
         self.setup_routes()
 
@@ -238,23 +240,69 @@ class DroneAPIServer:
         self.drone_communicator = drone_communicator
 
     def _resolve_live_probe_connection(self) -> tuple[int, str]:
-        """Mirror the runtime MAVSDK wiring used by the active drone process."""
-        try:
-            hw_id = int(self.drone_config.hw_id)
-        except (TypeError, ValueError):
-            hw_id = 0
-
-        grpc_port = NetworkDefaults.GRPC_BASE_PORT + hw_id if hw_id > 0 else getattr(
+        """Mirror the runtime MAVSDK wiring used by mission/action execution."""
+        grpc_port = getattr(
             self.params,
             "DEFAULT_GRPC_PORT",
             NetworkDefaults.GRPC_BASE_PORT,
         )
+        mavlink_port = safe_int(getattr(self.params, "mavsdk_port", 14540), 14540)
+        return grpc_port, f"udp://:{mavlink_port}"
 
-        mavlink_port = safe_int(
-            (self.drone_config.config or {}).get("mavlink_port"),
-            getattr(self.params, "mavsdk_port", 14540),
+    @staticmethod
+    def _port_is_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            return sock.connect_ex((host, int(port))) == 0
+
+    @staticmethod
+    def _find_mavsdk_server_binary() -> str:
+        env_path = os.environ.get("MAVSDK_SERVER_PATH")
+        candidates = [
+            env_path,
+            os.path.join(BASE_DIR, "mavsdk_server"),
+            os.path.join(os.path.dirname(BASE_DIR), "mavsdk_server"),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                return candidate
+        raise FileNotFoundError("mavsdk_server binary not found")
+
+    async def _ensure_live_probe_server(self, grpc_port: int, udp_port: int):
+        """Start a short-lived mavsdk_server only when the local port is idle."""
+        if self._port_is_open(grpc_port):
+            return None, False
+
+        mavsdk_server_path = self._find_mavsdk_server_binary()
+        process = subprocess.Popen(
+            [mavsdk_server_path, "-p", str(grpc_port), f"udp://:{udp_port}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
-        return grpc_port, f"udp://127.0.0.1:{mavlink_port}"
+
+        deadline = time.monotonic() + float(
+            getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)
+        )
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("mavsdk_server exited before the probe connection was ready.")
+            if self._port_is_open(grpc_port):
+                return process, True
+            await asyncio.sleep(0.1)
+
+        process.terminate()
+        raise TimeoutError("Timed out waiting for temporary mavsdk_server to start.")
+
+    @staticmethod
+    def _stop_live_probe_server(process: Optional[subprocess.Popen]) -> None:
+        if not process or process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
 
     async def _wait_for_mavsdk_connection(self, drone: System) -> None:
         connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
@@ -280,19 +328,26 @@ class DroneAPIServer:
         probe_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0))
 
         try:
-            grpc_port, system_address = self._resolve_live_probe_connection()
-            drone = System(
-                mavsdk_server_address="127.0.0.1",
-                port=grpc_port,
-            )
-            await drone.connect(system_address=system_address)
-            await self._wait_for_mavsdk_connection(drone)
-            result = await probe_offboard_armability(
-                drone,
-                require_global_position=require_global_position,
-                timeout=probe_timeout,
-                logger=logger,
-            )
+            async with self._live_probe_lock:
+                grpc_port, system_address = self._resolve_live_probe_connection()
+                udp_port = safe_int(getattr(self.params, "mavsdk_port", 14540), 14540)
+                mavsdk_server, started_server = await self._ensure_live_probe_server(grpc_port, udp_port)
+                try:
+                    drone = System(
+                        mavsdk_server_address="127.0.0.1",
+                        port=grpc_port,
+                    )
+                    await drone.connect(system_address=system_address)
+                    await self._wait_for_mavsdk_connection(drone)
+                    result = await probe_offboard_armability(
+                        drone,
+                        require_global_position=require_global_position,
+                        timeout=probe_timeout,
+                        logger=logger,
+                    )
+                finally:
+                    if started_server:
+                        self._stop_live_probe_server(mavsdk_server)
             return {
                 "success": True,
                 **result,
