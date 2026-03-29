@@ -630,6 +630,25 @@ class TestDroneCommandReception:
         drone_config.home_position = {'lat': 35.0, 'long': 51.0, 'alt': 1278.0}
         drone_config.px4_home_position_set = False
         drone_config.home_position_source = 'fallback_position'
+        drone_config.pos_id = 1
+        drone_config.detected_pos_id = 1
+        drone_config.position = {'lat': 35.0, 'long': 51.0, 'alt': 1278.0}
+        drone_config.velocity = {'north': 0.0, 'east': 0.0, 'down': 0.0}
+        drone_config.yaw = 0.0
+        drone_config.battery = 16.2
+        drone_config.last_update_timestamp = int(time.time())
+        drone_config.custom_mode = 262147
+        drone_config.base_mode = 81
+        drone_config.system_status = 4
+        drone_config.readiness_checks = []
+        drone_config.preflight_blockers = []
+        drone_config.preflight_warnings = []
+        drone_config.status_messages = []
+        drone_config.preflight_last_update = int(time.time() * 1000)
+        drone_config.hdop = 0.8
+        drone_config.vdop = 1.1
+        drone_config.gps_fix_type = 3
+        drone_config.satellites_visible = 12
 
         communicator = DroneCommunicator(drone_config, params, {})
         drone_state = communicator.get_drone_state()
