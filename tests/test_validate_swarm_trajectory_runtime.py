@@ -1,6 +1,9 @@
 import importlib.util
 import csv
+import itertools
 from pathlib import Path
+
+import pytest
 
 from src.flight_timeout_utils import calculate_swarm_rtl_completion_timeout
 from src.params import Params as RepoParams
@@ -218,3 +221,62 @@ def test_write_short_validation_profiles_creates_raw_csvs(tmp_path):
     assert rows[0]["HeadingMode"] == "manual"
     assert rows[1]["HeadingMode"] == "auto"
     assert rows[0]["TimeFromStart_s"] == "6.0"
+
+
+def test_wait_for_altitude_gain_tracks_per_drone_peak_over_time(monkeypatch):
+    validator = _load_validator_module()
+
+    class SequencedClient:
+        def __init__(self, snapshots):
+            self._snapshots = list(snapshots)
+            self._index = 0
+
+        def get_telemetry(self):
+            snapshot = self._snapshots[min(self._index, len(self._snapshots) - 1)]
+            self._index += 1
+            return snapshot
+
+    client = SequencedClient(
+        [
+            {
+                "1": {"position_alt": 100.5},
+                "2": {"position_alt": 200.4},
+            },
+            {
+                "1": {"position_alt": 102.6},
+                "2": {"position_alt": 200.9},
+            },
+            {
+                "1": {"position_alt": 101.0},
+                "2": {"position_alt": 202.4},
+            },
+        ]
+    )
+    baselines = {1: 100.0, 2: 200.0}
+    fake_time = itertools.count(start=0, step=1)
+
+    monkeypatch.setattr(validator.time, "time", lambda: next(fake_time))
+    monkeypatch.setattr(validator.time, "sleep", lambda _seconds: None)
+
+    telemetry = validator.wait_for_altitude_gain(client, baselines, min_gain=2.0, timeout=10)
+
+    assert telemetry["1"]["position_alt"] == 101.0
+    assert telemetry["2"]["position_alt"] == 202.4
+
+
+def test_wait_for_altitude_gain_reports_peak_gains_on_timeout(monkeypatch):
+    validator = _load_validator_module()
+
+    class StaticClient:
+        def get_telemetry(self):
+            return {
+                "1": {"position_alt": 101.2},
+                "2": {"position_alt": 200.8},
+            }
+
+    fake_time = itertools.count(start=0, step=1)
+    monkeypatch.setattr(validator.time, "time", lambda: next(fake_time))
+    monkeypatch.setattr(validator.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(RuntimeError, match=r"Peak gains: \{1: 1.2, 2: 0.8\}"):
+        validator.wait_for_altitude_gain(StaticClient(), {1: 100.0, 2: 200.0}, min_gain=2.0, timeout=3)

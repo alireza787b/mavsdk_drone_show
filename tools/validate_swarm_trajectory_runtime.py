@@ -255,27 +255,45 @@ def wait_for_executing(client: ApiClient, ids: list[int], timeout: int = 120) ->
 
 
 def wait_for_altitude_gain(client: ApiClient, baselines: dict[int, float], min_gain: float, timeout: int = 90) -> dict[str, dict]:
-    def _airborne():
+    deadline = time.time() + timeout
+    peak_gains = {int(idx): float("-inf") for idx in baselines}
+    last_telemetry: dict[str, dict] | None = None
+
+    while time.time() < deadline:
         telemetry = client.get_telemetry()
         if not all(str(idx) in telemetry for idx in baselines):
-            return False
+            time.sleep(1.0)
+            continue
+
+        all_reached = True
+        last_telemetry = telemetry
         for idx, baseline in baselines.items():
             current = telemetry[str(idx)].get("position_alt")
             if current is None:
-                return False
+                all_reached = False
+                continue
             try:
                 gain = float(current) - float(baseline)
             except (TypeError, ValueError):
-                return False
-            if gain < min_gain:
-                return False
-        return telemetry
+                all_reached = False
+                continue
+            peak_gains[int(idx)] = max(peak_gains[int(idx)], gain)
+            if peak_gains[int(idx)] < min_gain:
+                all_reached = False
 
-    return wait_for(
-        _airborne,
-        label=f"all drones reaching +{min_gain:.1f}m relative altitude",
-        timeout=timeout,
-        interval=1.0,
+        if all_reached:
+            log(f"WAIT OK: each selected drone reached +{min_gain:.1f}m relative altitude")
+            return telemetry
+
+        time.sleep(1.0)
+
+    rounded_peaks = {
+        int(idx): (None if value == float("-inf") else round(value, 2))
+        for idx, value in peak_gains.items()
+    }
+    raise RuntimeError(
+        f"Timed out waiting for each selected drone to reach +{min_gain:.1f}m relative altitude. "
+        f"Peak gains: {rounded_peaks}. Last telemetry present: {last_telemetry is not None}"
     )
 
 
