@@ -294,6 +294,14 @@ def body_to_ne(offset_forward: float, offset_right: float, yaw_deg: float) -> tu
     return north, east
 
 
+def ne_to_latlon(north_m: float, east_m: float, ref_lat_deg: float, ref_lon_deg: float) -> tuple[float, float]:
+    lat_scale = 111_320.0
+    lon_scale = 111_320.0 * max(0.01, math.cos(math.radians(ref_lat_deg)))
+    latitude = ref_lat_deg + (north_m / lat_scale)
+    longitude = ref_lon_deg + (east_m / lon_scale)
+    return latitude, longitude
+
+
 def follower_expectations(assignments: list[dict], *, active_ids: Iterable[int] | None = None) -> dict[int, dict]:
     active_set = {int(drone_id) for drone_id in active_ids} if active_ids is not None else None
     expectations: dict[int, dict] = {}
@@ -328,6 +336,129 @@ def follower_scope_issues(expectations: dict[int, dict], *, active_ids: Iterable
                 }
             )
     return issues
+
+
+def selected_top_leaders(assignments: list[dict], *, active_ids: Iterable[int]) -> list[int]:
+    active_set = {int(drone_id) for drone_id in active_ids}
+    leaders: list[int] = []
+    for assignment in assignments:
+        hw_id = int(assignment["hw_id"])
+        if hw_id not in active_set:
+            continue
+        follow = int(assignment.get("follow", 0) or 0)
+        if follow == 0:
+            leaders.append(hw_id)
+    return sorted(leaders)
+
+
+def build_short_validation_profile_rows(
+    leader_id: int,
+    telemetry_row: dict[str, Any],
+    *,
+    relative_altitude_m: float,
+    entry_delay_s: float,
+    leg_duration_s: float,
+) -> list[dict[str, Any]]:
+    ref_lat = float(telemetry_row["position_lat"])
+    ref_lon = float(telemetry_row["position_long"])
+    base_alt = float(telemetry_row["position_alt"])
+    mission_alt = round(base_alt + relative_altitude_m, 2)
+    offsets = [
+        (18.0, 0.0),
+        (36.0, 18.0),
+        (18.0, 36.0),
+    ]
+
+    rows: list[dict[str, Any]] = []
+    previous_offset: tuple[float, float] | None = None
+    previous_time: float | None = None
+
+    for index, (north_m, east_m) in enumerate(offsets, start=1):
+        latitude, longitude = ne_to_latlon(north_m, east_m, ref_lat, ref_lon)
+        time_from_start = round(entry_delay_s + ((index - 1) * leg_duration_s), 1)
+
+        if previous_offset is None or previous_time is None:
+            estimated_speed = 0.0
+            heading_mode = "manual"
+            heading_deg = 0.0
+        else:
+            delta_north = north_m - previous_offset[0]
+            delta_east = east_m - previous_offset[1]
+            leg_distance = math.hypot(delta_north, delta_east)
+            leg_seconds = max(0.1, time_from_start - previous_time)
+            estimated_speed = round(leg_distance / leg_seconds, 1)
+            heading_mode = "auto"
+            heading_deg = 0.0
+
+        rows.append(
+            {
+                "Name": f"Leader {leader_id} WP {index}",
+                "Latitude": round(latitude, 8),
+                "Longitude": round(longitude, 8),
+                "Altitude_MSL_m": mission_alt,
+                "TimeFromStart_s": time_from_start,
+                "EstimatedSpeed_ms": estimated_speed,
+                "Heading_deg": heading_deg,
+                "HeadingMode": heading_mode,
+            }
+        )
+
+        previous_offset = (north_m, east_m)
+        previous_time = time_from_start
+
+    return rows
+
+
+def write_short_validation_profiles(
+    repo_root: Path,
+    idle_telemetry: dict[str, dict[str, Any]],
+    leader_ids: Iterable[int],
+    *,
+    relative_altitude_m: float,
+    entry_delay_s: float,
+    leg_duration_s: float,
+) -> list[dict[str, Any]]:
+    raw_dir = repo_root / "shapes_sitl" / "swarm_trajectory" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    prepared: list[dict[str, Any]] = []
+
+    fieldnames = [
+        "Name",
+        "Latitude",
+        "Longitude",
+        "Altitude_MSL_m",
+        "TimeFromStart_s",
+        "EstimatedSpeed_ms",
+        "Heading_deg",
+        "HeadingMode",
+    ]
+
+    for leader_id in leader_ids:
+        telemetry_row = idle_telemetry[str(leader_id)]
+        rows = build_short_validation_profile_rows(
+            leader_id,
+            telemetry_row,
+            relative_altitude_m=relative_altitude_m,
+            entry_delay_s=entry_delay_s,
+            leg_duration_s=leg_duration_s,
+        )
+        csv_path = raw_dir / f"Drone {leader_id}.csv"
+        with csv_path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        prepared.append(
+            {
+                "leader_id": leader_id,
+                "path": str(csv_path),
+                "waypoint_count": len(rows),
+                "duration_sec": rows[-1]["TimeFromStart_s"] if rows else 0.0,
+                "mission_altitude_msl": rows[0]["Altitude_MSL_m"] if rows else None,
+            }
+        )
+
+    return prepared
 
 
 def evaluate_formation_snapshot(
@@ -552,6 +683,29 @@ def main() -> int:
     parser.add_argument("--vert-tolerance", type=float, default=8.0, help="Allowed vertical formation error in meters")
     parser.add_argument("--min-altitude-gain", type=float, default=2.0, help="Required altitude gain before geometry sampling")
     parser.add_argument("--formation-timeout", type=int, default=120, help="Seconds to wait for formation convergence")
+    parser.add_argument(
+        "--prepare-short-profile",
+        action="store_true",
+        help="Overwrite the selected top-leader raw CSVs with a short deterministic validation route before processing",
+    )
+    parser.add_argument(
+        "--short-profile-altitude-gain",
+        type=float,
+        default=12.0,
+        help="Relative mission altitude, in meters above the idle baseline, for generated short validation profiles",
+    )
+    parser.add_argument(
+        "--short-profile-entry-delay",
+        type=float,
+        default=8.0,
+        help="Route-entry time in seconds after mission start for the first generated validation waypoint",
+    )
+    parser.add_argument(
+        "--short-profile-leg-duration",
+        type=float,
+        default=10.0,
+        help="Per-leg duration in seconds for generated short validation waypoints",
+    )
     args = parser.parse_args()
 
     client = ApiClient(args.base_url)
@@ -563,6 +717,21 @@ def main() -> int:
         baseline = wait_for_idle(client, args.drone_ids, timeout=180)
         results["baseline_ids"] = sorted(int(key) for key in baseline.keys())
         baselines = {idx: float(baseline[str(idx)]["position_alt"]) for idx in args.drone_ids}
+
+        assignments = client.get_swarm_assignments()
+        if args.prepare_short_profile:
+            leader_ids = selected_top_leaders(assignments, active_ids=args.drone_ids)
+            require(leader_ids, f"No top leaders found inside selected mission set {args.drone_ids}")
+            prepared = write_short_validation_profiles(
+                args.repo_root,
+                baseline,
+                leader_ids,
+                relative_altitude_m=args.short_profile_altitude_gain,
+                entry_delay_s=args.short_profile_entry_delay,
+                leg_duration_s=args.short_profile_leg_duration,
+            )
+            log(f"Prepared short validation profiles for leaders {leader_ids}")
+            results["prepared_short_profiles"] = prepared
 
         status_before = client.get_json("/api/swarm/trajectory/status")
         require(status_before.get("success") is True, f"Status unavailable: {status_before}")
@@ -580,7 +749,6 @@ def main() -> int:
         require(status_after["status"]["cluster_summary"]["all_clusters_ready"] is True, f"Clusters not ready: {status_after}")
         results["status_after"] = status_after["status"]
 
-        assignments = client.get_swarm_assignments()
         expectations = follower_expectations(assignments, active_ids=args.drone_ids)
         scope_issues = follower_scope_issues(expectations, active_ids=args.drone_ids)
         require(not scope_issues, f"Selected mission set has followers without their leaders: {scope_issues}")

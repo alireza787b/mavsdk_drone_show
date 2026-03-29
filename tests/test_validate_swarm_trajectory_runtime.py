@@ -139,3 +139,82 @@ def test_follower_scope_issues_flags_selected_followers_without_selected_leader(
             "issue": "leader_not_in_active_mission_set",
         }
     ]
+
+
+def test_selected_top_leaders_filters_to_active_top_leaders():
+    validator = _load_validator_module()
+
+    assignments = [
+        {"hw_id": 1, "follow": 0},
+        {"hw_id": 2, "follow": 1},
+        {"hw_id": 3, "follow": 1},
+        {"hw_id": 4, "follow": 0},
+        {"hw_id": 5, "follow": 4},
+    ]
+
+    assert validator.selected_top_leaders(assignments, active_ids=[1, 2, 3]) == [1]
+    assert validator.selected_top_leaders(assignments, active_ids=[1, 2, 3, 4, 5]) == [1, 4]
+
+
+def test_build_short_validation_profile_rows_uses_route_entry_and_leg_defaults():
+    validator = _load_validator_module()
+
+    telemetry_row = {
+        "position_lat": 35.7262,
+        "position_long": 51.2721,
+        "position_alt": 1278.2,
+    }
+
+    rows = validator.build_short_validation_profile_rows(
+        1,
+        telemetry_row,
+        relative_altitude_m=12.0,
+        entry_delay_s=8.0,
+        leg_duration_s=10.0,
+    )
+
+    assert len(rows) == 3
+    assert rows[0]["HeadingMode"] == "manual"
+    assert rows[1]["HeadingMode"] == "auto"
+    assert rows[0]["TimeFromStart_s"] == 8.0
+    assert rows[-1]["TimeFromStart_s"] == 28.0
+    assert rows[0]["Altitude_MSL_m"] == 1290.2
+    assert rows[1]["EstimatedSpeed_ms"] > 0
+
+
+def test_write_short_validation_profiles_creates_raw_csvs(tmp_path):
+    validator = _load_validator_module()
+
+    prepared = validator.write_short_validation_profiles(
+        tmp_path,
+        {
+            "1": {
+                "position_lat": 35.7262,
+                "position_long": 51.2721,
+                "position_alt": 1278.2,
+            }
+        },
+        [1],
+        relative_altitude_m=15.0,
+        entry_delay_s=6.0,
+        leg_duration_s=9.0,
+    )
+
+    csv_path = tmp_path / "shapes_sitl" / "swarm_trajectory" / "raw" / "Drone 1.csv"
+    assert csv_path.exists()
+    assert prepared == [
+        {
+            "leader_id": 1,
+            "path": str(csv_path),
+            "waypoint_count": 3,
+            "duration_sec": 24.0,
+            "mission_altitude_msl": 1293.2,
+        }
+    ]
+
+    with csv_path.open() as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert rows[0]["HeadingMode"] == "manual"
+    assert rows[1]["HeadingMode"] == "auto"
+    assert rows[0]["TimeFromStart_s"] == "6.0"

@@ -253,6 +253,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - runtime launch now uses a stricter initial-climb gate before path-follow entry, so a drone cannot silently burn through its mission clock while still stuck in climb
 - the mission tracker now reflects the real per-drone terminal result once each drone script exits; long `return_home` end behavior can keep the command legitimately active for several additional minutes after the formation phase is already correct
 - validated SITL acceptance now includes a clean 5-drone end-to-end run: process -> launch -> climb gate -> in-flight formation tolerance -> return-home -> terminal command completion -> fleet idle reset
+- the runtime validator can now optionally seed a short deterministic leader profile for the selected top leaders before processing, which makes 3-drone or subset SITL acceptance runs reproducible without depending on whatever longer route was already loaded on the host
 
 ---
 
