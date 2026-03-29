@@ -83,21 +83,41 @@ const TrajectorySegmentReview = ({
   const hasFlaggedSegments = flaggedSegments.length > 0;
   const hasCondensedFallback = !hasFlaggedSegments && segments.length > 3;
   const canToggleView = hasFlaggedSegments || hasCondensedFallback;
+  const activeSegment = activeSegmentId
+    ? segments.find((segment) => segment.id === activeSegmentId) || null
+    : null;
 
-  const visibleSegments = showAllSegments
+  const includeActiveSegment = (segmentList) => {
+    if (!activeSegment) {
+      return segmentList;
+    }
+    if (segmentList.some((segment) => segment.id === activeSegment.id)) {
+      return segmentList;
+    }
+    return [...segmentList, activeSegment];
+  };
+
+  const baseVisibleSegments = showAllSegments
     ? segments
     : hasFlaggedSegments
       ? flaggedSegments
       : segments.slice(0, 3);
 
+  const visibleSegments = includeActiveSegment(baseVisibleSegments);
+
   const hiddenSegmentCount = Math.max(0, segments.length - visibleSegments.length);
+  const pinnedActiveSegment = !showAllSegments && visibleSegments.length !== baseVisibleSegments.length;
   const showingFlaggedOnly = !showAllSegments && hasFlaggedSegments && visibleSegments.length !== segments.length;
   const showingCondensedNominal = !showAllSegments && hasCondensedFallback;
 
   const introText = showingFlaggedOnly
-    ? `Showing attention legs only. Expand to audit all ${segments.length} legs before transfer.`
+    ? pinnedActiveSegment
+      ? `Showing attention legs plus the selected leg. Expand to audit all ${segments.length} legs before transfer.`
+      : `Showing attention legs only. Expand to audit all ${segments.length} legs before transfer.`
     : showingCondensedNominal
-      ? `Showing the first 3 nominal legs. Expand to audit all ${segments.length} legs before transfer.`
+      ? pinnedActiveSegment
+        ? `Showing the first 3 nominal legs plus the selected leg. Expand to audit all ${segments.length} legs before transfer.`
+        : `Showing the first 3 nominal legs. Expand to audit all ${segments.length} legs before transfer.`
       : showAllSegments && hasFlaggedSegments
         ? 'Showing all legs. Attention items remain highlighted so the full route can be reviewed without losing risk context.'
         : 'All current legs are nominal. Full-route review remains visible so pacing stays explicit before transfer.';

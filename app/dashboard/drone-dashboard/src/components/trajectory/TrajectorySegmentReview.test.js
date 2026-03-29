@@ -210,6 +210,103 @@ describe('TrajectorySegmentReview', () => {
     expect(screen.getByRole('button', { name: /show condensed view/i })).toBeInTheDocument();
   });
 
+  it('keeps the active segment visible even in condensed nominal review', () => {
+    render(
+      <TrajectorySegmentReview
+        segments={[
+          {
+            id: 'wp-1->wp-2',
+            fromIndex: 1,
+            toIndex: 2,
+            fromWaypointName: 'Waypoint 1',
+            toWaypointName: 'Waypoint 2',
+            speed: 8,
+            speedStatus: 'feasible',
+            distanceMeters: 140,
+            durationSeconds: 18,
+            arrivalTimeFromStart: 18,
+            timingMode: 'auto_speed',
+            preferredSpeed: 8,
+            headingMode: 'auto',
+            calculatedHeading: 34,
+            toAltitude: 1285,
+            toAltitudeReference: 'msl',
+            toTargetAgl: 25,
+            toGroundElevation: 1260,
+            terrainAccurate: true,
+          },
+          {
+            id: 'wp-2->wp-3',
+            fromIndex: 2,
+            toIndex: 3,
+            fromWaypointName: 'Waypoint 2',
+            toWaypointName: 'Waypoint 3',
+            speed: 8,
+            speedStatus: 'feasible',
+            distanceMeters: 150,
+            durationSeconds: 18,
+            arrivalTimeFromStart: 36,
+            timingMode: 'auto_speed',
+            preferredSpeed: 8,
+            headingMode: 'auto',
+            calculatedHeading: 40,
+            toAltitude: 1286,
+            toAltitudeReference: 'msl',
+            toTargetAgl: 26,
+            toGroundElevation: 1260,
+            terrainAccurate: true,
+          },
+          {
+            id: 'wp-3->wp-4',
+            fromIndex: 3,
+            toIndex: 4,
+            fromWaypointName: 'Waypoint 3',
+            toWaypointName: 'Waypoint 4',
+            speed: 8,
+            speedStatus: 'feasible',
+            distanceMeters: 160,
+            durationSeconds: 20,
+            arrivalTimeFromStart: 56,
+            timingMode: 'auto_speed',
+            preferredSpeed: 8,
+            headingMode: 'auto',
+            calculatedHeading: 44,
+            toAltitude: 1288,
+            toAltitudeReference: 'msl',
+            toTargetAgl: 28,
+            toGroundElevation: 1260,
+            terrainAccurate: true,
+          },
+          {
+            id: 'wp-4->wp-5',
+            fromIndex: 4,
+            toIndex: 5,
+            fromWaypointName: 'Waypoint 4',
+            toWaypointName: 'Waypoint 5',
+            speed: 8,
+            speedStatus: 'feasible',
+            distanceMeters: 170,
+            durationSeconds: 20,
+            arrivalTimeFromStart: 76,
+            timingMode: 'auto_speed',
+            preferredSpeed: 8,
+            headingMode: 'auto',
+            calculatedHeading: 48,
+            toAltitude: 1290,
+            toAltitudeReference: 'msl',
+            toTargetAgl: 30,
+            toGroundElevation: 1260,
+            terrainAccurate: true,
+          },
+        ]}
+        activeSegmentId="wp-4->wp-5"
+      />
+    );
+
+    expect(screen.getByText(/showing the first 3 nominal legs plus the selected leg/i)).toBeInTheDocument();
+    expect(screen.getByText('Leg 4 → 5')).toBeInTheDocument();
+  });
+
   it('shows an empty-state briefing when fewer than two waypoints exist', () => {
     render(<TrajectorySegmentReview segments={[]} />);
 
