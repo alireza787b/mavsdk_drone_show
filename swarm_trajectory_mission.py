@@ -854,9 +854,19 @@ async def wait_for_rtl_completion(
     touchdown_since = None
     disarm_requested = False
     rtl_stall_since = None
+    near_ground_stall_since = None
     rtl_stall_trigger = float(getattr(Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC", 20))
     rtl_stall_radius = float(getattr(Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_RADIUS_M", 25.0))
     rtl_stall_descent_eps = float(getattr(Params, "SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS", 0.3))
+    near_ground_stall_trigger = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_STALL_TRIGGER_SEC", 10.0)
+    )
+    near_ground_altitude_m = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_ALTITUDE_M", 0.75)
+    )
+    near_ground_speed_eps = float(
+        getattr(Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_SPEED_EPS_MPS", 0.5)
+    )
 
     while True:
         if time.monotonic() - start_time > timeout:
@@ -864,6 +874,7 @@ async def wait_for_rtl_completion(
 
         landed_state = await _get_current_landed_state(drone)
         is_armed = await _get_current_armed_state(drone)
+        current_relative_altitude = await _get_current_relative_altitude(drone)
         local_state = _get_local_drone_state_snapshot(timeout=1.0)
 
         if landed_state == LandedState.ON_GROUND:
@@ -890,6 +901,15 @@ async def wait_for_rtl_completion(
         else:
             touchdown_since = None
             disarm_requested = False
+            near_ground_stall_since = _update_rtl_near_ground_timer(
+                logger,
+                local_state,
+                relative_altitude_m=current_relative_altitude,
+                stall_since=near_ground_stall_since,
+                near_ground_altitude_m=near_ground_altitude_m,
+                horizontal_speed_eps_mps=near_ground_speed_eps,
+                descent_eps_mps=rtl_stall_descent_eps,
+            )
             rtl_stall_since = _update_rtl_stall_timer(
                 logger,
                 local_state,
@@ -905,6 +925,17 @@ async def wait_for_rtl_completion(
                 )
                 await perform_landing(drone)
                 logger.info("RTL completion confirmed after stalled-home LAND fallback.")
+                return
+            if (
+                near_ground_stall_since is not None
+                and (time.monotonic() - near_ground_stall_since) >= near_ground_stall_trigger
+            ):
+                logger.warning(
+                    "RTL drone is near ground and nearly stationary without touchdown confirmation; "
+                    "forcing PX4 LAND fallback."
+                )
+                await perform_landing(drone)
+                logger.info("RTL completion confirmed after near-ground LAND fallback.")
                 return
 
         await asyncio.sleep(1.0)
@@ -1699,6 +1730,60 @@ def _update_rtl_stall_timer(
             logger.warning(
                 "RTL drone is within %.1fm of home but vertical descent is only %.2fm/s; starting stall timer.",
                 home_distance_m,
+                descent_rate_mps,
+            )
+            return time.monotonic()
+        return stall_since
+
+    return None
+
+
+def _update_rtl_near_ground_timer(
+    logger: logging.Logger,
+    local_state: dict | None,
+    *,
+    relative_altitude_m: float | None,
+    stall_since,
+    near_ground_altitude_m: float,
+    horizontal_speed_eps_mps: float,
+    descent_eps_mps: float,
+):
+    """
+    Track a near-ground, low-motion RTL state when PX4 never reports touchdown.
+
+    Some SITL cases can end up effectively landed or skimming the ground with
+    negligible motion, while landed_state never transitions to ON_GROUND. In the
+    end-behavior phase we fail safe by escalating to LAND once that condition
+    persists.
+    """
+    if not local_state or relative_altitude_m is None:
+        return None
+
+    try:
+        ground_clearance_m = abs(float(relative_altitude_m))
+    except (TypeError, ValueError):
+        return None
+
+    try:
+        horizontal_speed_mps = math.hypot(
+            float(local_state.get("velocity_north", 0.0)),
+            float(local_state.get("velocity_east", 0.0)),
+        )
+        descent_rate_mps = abs(float(local_state.get("velocity_down", 0.0)))
+    except (TypeError, ValueError):
+        return None
+
+    if (
+        ground_clearance_m <= near_ground_altitude_m
+        and horizontal_speed_mps <= horizontal_speed_eps_mps
+        and descent_rate_mps <= descent_eps_mps
+    ):
+        if stall_since is None:
+            logger.warning(
+                "RTL drone is near ground (%.2fm) with low motion (horizontal %.2fm/s, vertical %.2fm/s); "
+                "starting near-ground stall timer.",
+                ground_clearance_m,
+                horizontal_speed_mps,
                 descent_rate_mps,
             )
             return time.monotonic()

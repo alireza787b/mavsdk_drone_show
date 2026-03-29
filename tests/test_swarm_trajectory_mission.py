@@ -325,6 +325,35 @@ async def test_wait_for_rtl_completion_forces_land_when_stalled_over_home(monkey
 
 
 @pytest.mark.asyncio
+async def test_wait_for_rtl_completion_forces_land_when_near_ground_without_touchdown(monkeypatch):
+    drone = MagicMock()
+    drone.telemetry.landed_state.side_effect = _stream_side_effect([object(), object()])
+    drone.telemetry.armed.side_effect = _stream_side_effect([True, True])
+
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_HOME_STALL_TRIGGER_SEC", 999)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_STALL_TRIGGER_SEC", 0)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_ALTITUDE_M", 0.75)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_NEAR_GROUND_SPEED_EPS_MPS", 0.5)
+    monkeypatch.setattr(stm.Params, "SWARM_TRAJECTORY_RTL_STALL_DESCENT_EPS_MPS", 0.3)
+    monkeypatch.setattr(stm, "calculate_swarm_rtl_completion_timeout", lambda altitude: 1200)
+
+    local_state = {
+        "position_lat": 35.001,
+        "position_long": 51.001,
+        "velocity_north": 0.1,
+        "velocity_east": 0.1,
+        "velocity_down": 0.0,
+    }
+
+    with patch.object(stm, "_get_current_relative_altitude", new=AsyncMock(side_effect=[0.1, 0.1])):
+        with patch.object(stm, "_get_local_drone_state_snapshot", return_value=local_state):
+            with patch.object(stm, "perform_landing", new=AsyncMock()) as perform_landing:
+                await stm.wait_for_rtl_completion(drone, home_lat=35.0, home_lon=51.0)
+
+    perform_landing.assert_awaited_once_with(drone)
+
+
+@pytest.mark.asyncio
 async def test_controlled_landing_delegates_to_native_land_when_above_precision_window(monkeypatch):
     drone = MagicMock()
     monkeypatch.setattr(stm.Params, "CONTROLLED_LANDING_ALTITUDE", 2.0)
