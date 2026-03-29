@@ -109,7 +109,7 @@ const SwarmTrajectoryTransferDialog = ({
             <strong>{formatDistance(totalDistance)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
-            <span className="swarm-transfer-summary__label">Duration</span>
+            <span className="swarm-transfer-summary__label">Route Time</span>
             <strong>{formatTime(totalTime)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">

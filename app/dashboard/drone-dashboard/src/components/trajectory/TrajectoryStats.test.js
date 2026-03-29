@@ -37,5 +37,7 @@ describe('TrajectoryStats', () => {
     expect(screen.getByText('Route entry 1 · Speed-driven ETA 2 · Time-driven speed 2')).toBeInTheDocument();
     expect(screen.getByText('Entry heading 1 · Auto arrival 3 · Manual arrival 1')).toBeInTheDocument();
     expect(screen.getByText('1320-1450 m MSL')).toBeInTheDocument();
+    expect(screen.getByText('Route Time')).toBeInTheDocument();
+    expect(screen.getByText('Excludes climb and end behavior')).toBeInTheDocument();
   });
 });

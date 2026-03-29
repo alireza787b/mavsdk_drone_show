@@ -928,7 +928,7 @@ const WaypointPanel = ({
           </div>
           
           <div className="summary-item">
-            <span className="summary-label">{isCollapsed ? 'Time:' : 'Duration:'}</span>
+            <span className="summary-label">{isCollapsed ? 'Route:' : 'Route time:'}</span>
             <span className="summary-value">
               {formatTime(waypoints[waypoints.length - 1]?.timeFromStart || 0)}
             </span>

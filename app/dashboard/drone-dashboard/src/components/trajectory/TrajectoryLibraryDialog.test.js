@@ -23,6 +23,7 @@ describe('TrajectoryLibraryDialog', () => {
       />
     );
 
+    expect(screen.getByText('Route time')).toBeInTheDocument();
     expect(screen.getByText('1.25 km')).toBeInTheDocument();
     expect(screen.getByText('1m 32s')).toBeInTheDocument();
 
@@ -79,6 +80,7 @@ describe('TrajectoryLibraryDialog', () => {
       .getAllByRole('button', { name: /^load$/i })
       .map((button) => button.closest('.trajectory-library-dialog__item'));
     expect(within(items[0]).getByText('coastal-sweep')).toBeInTheDocument();
+    expect(within(items[0]).getByText(/Route 3m 6s/i)).toBeInTheDocument();
     expect(within(items[0]).getByText('1.43 km', { exact: false })).toBeInTheDocument();
     expect(within(items[0]).getByText(/max 14\.6 m\/s/i)).toBeInTheDocument();
 

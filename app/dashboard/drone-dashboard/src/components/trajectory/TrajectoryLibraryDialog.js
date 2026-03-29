@@ -57,7 +57,7 @@ const TrajectorySummary = ({ stats, waypointCount }) => (
       <strong>{formatDistance(stats.totalDistance)}</strong>
     </div>
     <div>
-      <span className="trajectory-library-dialog__summary-label">Duration</span>
+      <span className="trajectory-library-dialog__summary-label">Route time</span>
       <strong>{formatDuration(stats.totalTime)}</strong>
     </div>
     <div>
@@ -188,7 +188,7 @@ const TrajectoryLibraryDialog = ({
                           ) : null}
                         </div>
                         <small>
-                          {trajectory.waypoints.length} waypoint{trajectory.waypoints.length === 1 ? '' : 's'} •{' '}
+                          {trajectory.waypoints.length} waypoint{trajectory.waypoints.length === 1 ? '' : 's'} • Route{' '}
                           {formatDuration(stats.totalTime)} • {formatDistance(stats.totalDistance)}
                         </small>
                         <small>

@@ -266,7 +266,7 @@ const TrajectoryPlanning = () => {
     const terrainAssistedWaypointCount = altitudeReferenceCounts[ALTITUDE_REFERENCE.AGL] || 0;
     const currentPathDetail = waypoints.length > 0
       ? [
-          `${trajectoryStats.totalTime.toFixed(0)}s mission body`,
+          `${trajectoryStats.totalTime.toFixed(0)}s authored route`,
           `${routeEntryCount} route-entry anchor`,
           `${speedDrivenLegCount} speed-driven leg${speedDrivenLegCount === 1 ? '' : 's'}`,
           `${timeDrivenLegCount} time-driven leg${timeDrivenLegCount === 1 ? '' : 's'}`,

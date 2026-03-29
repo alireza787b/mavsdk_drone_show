@@ -68,6 +68,7 @@ describe('SwarmTrajectoryTransferDialog', () => {
     );
 
     expect(screen.getByText('Timing Plan')).toBeInTheDocument();
+    expect(screen.getByText('Route Time')).toBeInTheDocument();
     expect(screen.getByText('Route entry 1 · Speed-driven ETA 1 · Time-driven speed 1')).toBeInTheDocument();
     expect(screen.getByText('Heading Plan')).toBeInTheDocument();
     expect(screen.getByText('Entry heading 1 · Auto arrival 2 · Manual arrival 0')).toBeInTheDocument();

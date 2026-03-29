@@ -75,8 +75,9 @@ const TrajectoryStats = ({ stats }) => {
           <span className="trajectory-brief__value">{formatDistance(stats.totalDistance)}</span>
         </div>
         <div className="trajectory-brief__metric">
-          <span className="trajectory-brief__label">Duration</span>
+          <span className="trajectory-brief__label">Route Time</span>
           <span className="trajectory-brief__value">{formatTime(stats.totalTime)}</span>
+          <span className="trajectory-brief__detail">Excludes climb and end behavior</span>
         </div>
         <div className="trajectory-brief__metric">
           <span className="trajectory-brief__label">Altitude Envelope</span>
