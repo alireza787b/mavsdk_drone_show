@@ -4,7 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import TrajectoryExportDialog from './TrajectoryExportDialog';
 
 describe('TrajectoryExportDialog', () => {
-  it('defaults to CSV export and lets the operator switch formats explicitly', () => {
+  it('explains that CSV export is a leader authoring route, not the processed mission package', () => {
     const onExport = jest.fn();
 
     render(
@@ -12,16 +12,16 @@ describe('TrajectoryExportDialog', () => {
         isOpen
         onClose={jest.fn()}
         onExport={onExport}
-        trajectoryName="route-alpha"
+        trajectoryName="Harbor Sweep"
       />
     );
 
-    expect(screen.getByText(/choose the output format for/i)).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /csv/i })).toBeChecked();
+    expect(screen.getByText('Export Leader Route')).toBeInTheDocument();
+    expect(screen.getByText(/leader authoring CSV/i)).toBeInTheDocument();
+    expect(screen.getByText(/not the processed multi-drone mission package/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: /kml/i }));
-    fireEvent.click(screen.getByRole('button', { name: /export kml/i }));
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
 
-    expect(onExport).toHaveBeenCalledWith('kml');
+    expect(onExport).toHaveBeenCalledWith('csv');
   });
 });

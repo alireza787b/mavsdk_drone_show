@@ -271,6 +271,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - read-only/demo GCS setups show `Commit Outputs Locally`
 - local same-host SITL launch does not depend on a repo push because the active Swarm Trajectory workspace is shared directly into the containers
 - real hardware and non-shared remote repos still require commit / push / sync before launch, so the git action remains the traceability and propagation boundary outside local SITL
+- planner import/export is now explicit about asset type:
+  - `Trajectory Planning` CSV import/export is the **leader authoring route**, not the processed follower package
+  - launching still requires `Assign to Cluster`, processing in `Swarm Trajectory`, and then dashboard Mission Type 4 dispatch
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number

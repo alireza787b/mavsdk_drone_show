@@ -100,7 +100,7 @@ const TrajectoryToolbar = ({
         <button
           className="toolbar-btn import-btn"
           onClick={onImport}
-          title="Import CSV or JSON Trajectory"
+          title="Import a leader-route CSV or planner JSON"
         >
           <span className="btn-icon">📥</span>
           <span className="btn-text">Import</span>
@@ -110,7 +110,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn export-btn ${waypointCount === 0 ? 'disabled' : ''}`}
           onClick={onExportTrajectory} 
           disabled={waypointCount === 0}
-          title="Export Trajectory"
+          title="Export the current leader route"
         >
           <span className="btn-icon">📤</span>
           <span className="btn-text">Export</span>

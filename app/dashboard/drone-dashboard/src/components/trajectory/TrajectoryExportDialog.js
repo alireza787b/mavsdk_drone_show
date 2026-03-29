@@ -5,17 +5,17 @@ const EXPORT_FORMATS = [
   {
     id: 'csv',
     label: 'CSV',
-    description: 'Leader trajectory format for swarm upload or external review.',
+    description: 'Leader authoring CSV for round-trip editing, cluster assignment, or external review. This is not the processed multi-drone mission package.',
   },
   {
     id: 'json',
     label: 'JSON',
-    description: 'Full planner data with metadata for local backup and editing.',
+    description: 'Full planner snapshot with metadata for local backup, versioning, and later editing.',
   },
   {
     id: 'kml',
     label: 'KML',
-    description: 'Google Earth preview for quick 3D route inspection.',
+    description: 'Google Earth preview of the authored leader route for quick 3D inspection.',
   },
 ];
 
@@ -33,9 +33,9 @@ const TrajectoryExportDialog = ({ isOpen, onClose, onExport, trajectoryName = ''
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog-content trajectory-export-dialog" onClick={(event) => event.stopPropagation()}>
-        <h3>Export Trajectory</h3>
+        <h3>Export Leader Route</h3>
         <p className="dialog-body-copy">
-          Choose the output format for <strong>{trajectoryName || 'the current trajectory'}</strong>.
+          Choose the output format for <strong>{trajectoryName || 'the current leader route'}</strong>.
         </p>
 
         <div className="trajectory-export-options">
