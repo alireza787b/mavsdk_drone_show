@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
+import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 import '../styles/MissionReadinessCard.css';
 
 const MissionReadinessCard = ({
@@ -59,14 +60,15 @@ const MissionReadinessCard = ({
   };
 
   const getClusterStatus = (cluster) => {
-    if (cluster.state === 'ready' || cluster.ready) return 'ready';
-    if (cluster.state === 'partial_outputs') return 'processing';
-    if (cluster.state === 'needs_processing' || cluster.leader_uploaded) return 'processing';
+    const state = normalizeClusterState(cluster.state);
+    if (state === 'ready' || cluster.ready) return 'ready';
+    if (state === 'partial_outputs') return 'processing';
+    if (state === 'needs_processing' || cluster.leader_uploaded) return 'processing';
     return 'missing';
   };
 
   const getClusterStatusLabel = (cluster) => {
-    switch (cluster.state) {
+    switch (normalizeClusterState(cluster.state)) {
       case 'ready':
         return 'Ready';
       case 'partial_outputs':
@@ -331,7 +333,7 @@ const MissionReadinessCard = ({
                           <span className={`drone-status ${clusterTone}`}>
                             {clusterTone === 'ready'
                               ? '✅ Ready'
-                              : cluster.state === 'partial_outputs'
+                              : normalizeClusterState(cluster.state) === 'partial_outputs'
                                 ? '⏳ Cluster outputs incomplete'
                                 : clusterTone === 'processing'
                                   ? '⏳ Uploaded, processing required'
@@ -364,7 +366,7 @@ const MissionReadinessCard = ({
                           <span className={`drone-status ${clusterTone}`}>
                             {clusterTone === 'ready'
                               ? 'Follower outputs are processed and ready.'
-                              : cluster.state === 'partial_outputs'
+                              : normalizeClusterState(cluster.state) === 'partial_outputs'
                                 ? `${cluster.processed_follower_ids?.length || 0} processed • ${(cluster.missing_follower_ids || []).length} missing`
                                 : clusterTone === 'processing'
                                   ? 'Follower paths will appear after processing.'

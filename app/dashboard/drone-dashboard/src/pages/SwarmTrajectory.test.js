@@ -114,7 +114,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Review and Dispatch')).toBeInTheDocument();
+      expect(screen.getByText('Review and Prepare Launch')).toBeInTheDocument();
     });
 
     expect(screen.getByRole('button', { name: 'Commit Outputs Locally' })).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
                   processed_follower_ids: [2],
                   missing_follower_ids: [3],
                   ready: false,
-                  state: 'partial',
+                  state: 'partial_outputs',
                   leader_uploaded: true,
                   leader_processed: true,
                   issues: ['Missing follower outputs: 3'],
@@ -196,11 +196,11 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Review and Dispatch')).toBeInTheDocument();
+      expect(screen.getByText('Review and Prepare Launch')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/outputs generated with attention items/i)).toBeInTheDocument();
-    expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-formation launch package/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open dashboard preflight/i })).toBeInTheDocument();
+    expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
+    expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-fleet launch package/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open mission trigger/i })).toBeInTheDocument();
   });
 });

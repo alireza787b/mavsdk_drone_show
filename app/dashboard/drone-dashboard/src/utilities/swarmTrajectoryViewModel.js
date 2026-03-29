@@ -27,9 +27,16 @@ const CLUSTER_STATE_META = {
 };
 
 const toNumericId = (value) => Number(value);
+const CLUSTER_STATE_ALIASES = {
+  partial: 'partial_outputs',
+};
+
+export function normalizeClusterState(state) {
+  return CLUSTER_STATE_ALIASES[state] || state;
+}
 
 export function getClusterStateMeta(cluster = {}) {
-  const derivedState = cluster.state
+  const derivedState = normalizeClusterState(cluster.state)
     || (cluster.ready ? 'ready' : cluster.leader_uploaded ? 'needs_processing' : 'missing_upload');
 
   return CLUSTER_STATE_META[derivedState] || CLUSTER_STATE_META.unknown;
@@ -94,7 +101,7 @@ export function buildSwarmTrajectoryViewModel({
   const needsProcessingCount = clusterSummary.needs_processing_cluster_count
     ?? clusters.filter((cluster) => getClusterStateMeta(cluster).tone === 'processing').length;
   const partialOutputCount = clusterSummary.partial_output_cluster_count
-    ?? clusters.filter((cluster) => cluster.state === 'partial_outputs').length;
+    ?? clusters.filter((cluster) => normalizeClusterState(cluster.state) === 'partial_outputs').length;
   const missingUploadCount = clusterSummary.missing_upload_cluster_count
     ?? clusters.filter((cluster) => getClusterStateMeta(cluster).tone === 'missing').length;
   const processedClusterCount = clusterSummary.processed_cluster_count

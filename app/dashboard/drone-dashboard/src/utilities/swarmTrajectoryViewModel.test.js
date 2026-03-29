@@ -16,6 +16,11 @@ describe('swarmTrajectoryViewModel', () => {
       label: 'Partial Outputs',
     });
 
+    expect(getClusterStateMeta({ state: 'partial' })).toMatchObject({
+      tone: 'warning',
+      label: 'Partial Outputs',
+    });
+
     expect(getClusterStateMeta({ leader_uploaded: true })).toMatchObject({
       tone: 'processing',
       label: 'Needs Processing',

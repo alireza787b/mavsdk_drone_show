@@ -11,7 +11,7 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
         <SwarmTrajectoryWorkspaceSummary
           workspaceStatus={{
             tone: 'ready',
-            title: 'Mission package is ready for dashboard preflight',
+            title: 'Mission package is ready for launch preflight',
             message: 'Five drone outputs are ready.',
             details: ['Processing session: session-42'],
           }}
@@ -46,7 +46,7 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Mission package is ready for dashboard preflight')).toBeInTheDocument();
+    expect(screen.getByText('Mission package is ready for launch preflight')).toBeInTheDocument();
     expect(screen.getByText('session-42')).toBeInTheDocument();
     expect(screen.getByText('Swarm trajectory execution policy')).toBeInTheDocument();
     expect(screen.getByText(/This is not live Smart Swarm/i)).toBeInTheDocument();

@@ -2,6 +2,7 @@
 
 import axios from 'axios';
 import { getBackendURL } from '../utilities/utilities';
+import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 
 /**
  * Builds a standardized command object for an action mission.
@@ -96,7 +97,9 @@ export const getSwarmClusterStatus = async () => {
           processed_drone_count: cluster.processed_drone_count ?? 0,
           has_trajectory: Boolean(cluster.ready),
           ready: Boolean(cluster.ready),
-          state: cluster.state || (cluster.ready ? 'ready' : cluster.leader_uploaded ? 'needs_processing' : 'missing_upload'),
+          state: normalizeClusterState(
+            cluster.state || (cluster.ready ? 'ready' : cluster.leader_uploaded ? 'needs_processing' : 'missing_upload'),
+          ),
           leader_uploaded: Boolean(cluster.leader_uploaded),
           leader_processed: Boolean(cluster.leader_processed),
           missing_follower_ids: cluster.missing_follower_ids || [],

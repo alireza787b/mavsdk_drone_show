@@ -59,11 +59,11 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
   if (viewModel.clusterSummary.all_clusters_ready && viewModel.processedDroneCount > 0) {
     return {
       tone: 'ready',
-      title: 'Mission package is ready for dashboard preflight',
+      title: 'Mission package is ready for launch preflight',
       message: `${buildDroneLabel(viewModel.processedDroneCount)} are available across ${buildClusterLabel(readyClusterCount)}.`,
       details: [
         `Processing session: ${viewModel.session.session_id || 'Unavailable'}`,
-        'Next step: review plots, commit the package, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
+        'Next step: review plots, optionally commit the package for traceability, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
       ],
     };
   }
@@ -186,22 +186,23 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
   } else if (viewModel.currentOutcome === 'partial' || attentionItemCount > 0 || !viewModel.clusterSummary.all_clusters_ready) {
     reviewStage.tone = 'attention';
     reviewStage.label = 'Review';
-    reviewStage.summary = `${buildDroneLabel(viewModel.processedDroneCount)} exist, but attention items still need operator review.`;
+    reviewStage.summary = `${buildDroneLabel(viewModel.processedDroneCount)} exist, but the package is not yet clear for a full-fleet launch.`;
     reviewStage.details = [
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       `Attention items: ${attentionItemCount}`,
+      'Intentional selected-subset launch can still be validated later in Dashboard preflight if the chosen leader chain remains complete.',
     ];
-    reviewStage.actionLabel = 'Open Dashboard';
+    reviewStage.actionLabel = 'Open Mission Trigger';
     reviewStage.actionHref = '/';
   } else {
     reviewStage.tone = 'ready';
     reviewStage.label = 'Ready';
-    reviewStage.summary = 'Plots, outputs, and cluster readiness are clear for commit and dashboard dispatch.';
+    reviewStage.summary = 'Plots, outputs, and cluster readiness are clear for launch preflight.';
     reviewStage.details = [
       `Session: ${viewModel.session.session_id || 'Unavailable'}`,
-      'Commit the package, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
+      'Commit the package if traceability is needed, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger.',
     ];
-    reviewStage.actionLabel = 'Open Dashboard';
+    reviewStage.actionLabel = 'Open Mission Trigger';
     reviewStage.actionHref = '/';
   }
 

@@ -202,7 +202,7 @@ const SwarmTrajectory = () => {
           message: prev?.message
             || (inferredOutcome === 'partial'
               ? 'Some clusters still need attention before launch.'
-              : 'All processed swarm trajectory outputs are ready for dashboard preflight.'),
+              : 'All processed swarm trajectory outputs are ready for launch preflight.'),
           processed_drones: nextStatus.processed_trajectories || 0,
           processed_drone_list: nextStatus.processed_drones || [],
           processed_leaders: nextStatus.processed_leaders || [],
@@ -365,7 +365,7 @@ const SwarmTrajectory = () => {
         `Uploaded leaders stay available: ${buildListLabel(viewModel.uploadedLeaderIds)}`,
         'Use this when you want to keep source leader paths but force a clean reprocess.',
       ],
-      warning: 'Processed outputs will disappear from dashboard preflight until you run processing again.',
+      warning: 'Processed outputs will disappear from launch preflight until you run processing again.',
       confirmLabel: 'Clear Processed Outputs',
       isDanger: true,
       onConfirm: async () => {
@@ -658,10 +658,10 @@ const SwarmTrajectory = () => {
       ? 'This stages the generated cluster outputs, creates a git commit, and pushes the result to the active repository.'
       : 'This stages the generated cluster outputs and creates a local git commit on the GCS. Repository push is disabled for this deployment.';
     const warning = isPushMode
-      ? 'Only commit when the plots and readiness summary reflect the exact mission package you want operators to fly.'
-      : 'Use this to preserve a traceable local mission package. Launch can still use the current processed outputs even when repo push is disabled.';
+      ? 'Only commit when the plots and readiness summary reflect the exact package you want operators to see in launch preflight.'
+      : 'Use this to preserve a traceable local mission package. Launch can still use the current processed outputs even when repository push is disabled.';
     const finalWarning = isPartialPackage
-      ? `${warning} Current outputs still have attention items, so treat this as a partial or review package until processing issues are resolved.`
+      ? `${warning} Current outputs still have attention items, so do not treat this commit as a full-fleet release package until processing issues are resolved.`
       : warning;
     const confirmLabel = isPushMode ? 'Commit & Push' : 'Commit Locally';
 
@@ -741,7 +741,7 @@ const SwarmTrajectory = () => {
           <h1>Swarm Trajectory Mission</h1>
           <p className="subtitle">
             Assign authored leader paths, regenerate follower outputs from the current swarm structure,
-            review cluster plots, and commit a mission-ready package.
+            review cluster plots, and prepare a mission package for launch preflight.
           </p>
         </div>
         <div className="mode-badge">
@@ -763,7 +763,7 @@ const SwarmTrajectory = () => {
               {' → '}
               4. Process follower outputs
               {' → '}
-              5. Review plots, commit, then launch from Dashboard
+              5. Review plots, confirm readiness, then commit if needed and launch from Dashboard
             </span>
           </div>
         </div>
@@ -923,7 +923,7 @@ const SwarmTrajectory = () => {
           <div className="workflow-step">
             <div className="step-header">
               <h3><span className="step-number">2</span>Generate Cluster Outputs</h3>
-              <p>Run processing to create follower trajectories, plots, and mission-ready review artifacts.</p>
+              <p>Run processing to create follower trajectories, plots, and the current review package for launch preflight.</p>
             </div>
 
             <div className="process-summary">
@@ -1012,7 +1012,7 @@ const SwarmTrajectory = () => {
           {hasProcessedOutputs ? (
           <div className="workflow-step">
             <div className="step-header">
-              <h3><span className="step-number">3</span>Review and Dispatch</h3>
+              <h3><span className="step-number">3</span>Review and Prepare Launch</h3>
               <p>Inspect generated cluster outputs, confirm readiness, then optionally record the mission package to git before launch.</p>
             </div>
 
@@ -1022,8 +1022,8 @@ const SwarmTrajectory = () => {
                   <div>
                     <h4>
                       {viewModel.currentOutcome === 'partial'
-                        ? 'Outputs generated with attention items'
-                        : 'Mission outputs ready for dashboard preflight'}
+                        ? 'Outputs generated, review still required'
+                        : 'Mission outputs ready for launch preflight'}
                     </h4>
                     <p>
                       {viewModel.processedDroneCount} drone output{viewModel.processedDroneCount === 1 ? '' : 's'} available across{' '}
@@ -1057,8 +1057,8 @@ const SwarmTrajectory = () => {
                   <p>
                     <strong>Next:</strong>{' '}
                     {isPartialPackage
-                      ? 'review the cluster plots below, resolve the listed attention items, and reprocess before treating this as a full-formation launch package. Dashboard preflight can still be used later to validate any intentional subset plan.'
-                      : 'review the cluster plots below, optionally record the generated outputs to git, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.'}
+                      ? 'review the cluster plots below, resolve the listed attention items, and reprocess before treating this as a full-fleet launch package. Dashboard preflight can still validate an intentional selected-subset plan later if the chosen leader chain remains complete.'
+                      : 'review the cluster plots below, optionally record the generated outputs to git for traceability, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.'}
                   </p>
                 </div>
 
@@ -1073,7 +1073,7 @@ const SwarmTrajectory = () => {
                           : 'Commit Mission Outputs'}
                   </button>
                   <Link className="utility-btn" to="/">
-                    Open Dashboard Preflight
+                    Open Mission Trigger
                   </Link>
                 </div>
 

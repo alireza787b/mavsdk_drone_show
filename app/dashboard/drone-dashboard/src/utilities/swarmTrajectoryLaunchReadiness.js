@@ -3,6 +3,7 @@ import {
   buildNormalizedIdSet,
   getClusterMemberIds,
 } from './swarmScopeUtils';
+import { normalizeClusterState } from './swarmTrajectoryViewModel';
 
 const countLabel = (count = 0, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 
@@ -100,7 +101,8 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   const clusterCount = summary.cluster_count ?? clusters.length;
   const readyClusterCount = summary.ready_cluster_count ?? clusters.filter((cluster) => cluster.ready).length;
   const needsProcessingCount = summary.needs_processing_cluster_count ?? clusters.filter((cluster) => cluster.state === 'needs_processing').length;
-  const partialOutputCount = summary.partial_output_cluster_count ?? clusters.filter((cluster) => cluster.state === 'partial_outputs').length;
+  const partialOutputCount = summary.partial_output_cluster_count
+    ?? clusters.filter((cluster) => normalizeClusterState(cluster.state) === 'partial_outputs').length;
   const missingUploadCount = summary.missing_upload_cluster_count ?? clusters.filter((cluster) => !cluster.leader_uploaded).length;
   const processedDroneCount = clusterStatus?.processed_drones?.length ?? clusterStatus?.processed_trajectories ?? 0;
   const expectedDroneCount = session.total_drones
