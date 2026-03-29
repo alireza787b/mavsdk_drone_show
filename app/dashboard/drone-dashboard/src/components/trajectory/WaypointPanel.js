@@ -50,6 +50,7 @@ const WaypointPanel = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [editFeedback, setEditFeedback] = useState(null);
+  const [isApplyingEdit, setIsApplyingEdit] = useState(false);
   const editInputRef = useRef(null);
 
   // Auto-focus when entering edit mode
@@ -116,8 +117,14 @@ const WaypointPanel = ({
     });
   };
 
-  const handleEditSave = () => {
-    if (!editingWaypointId) return;
+  const clearActiveEdit = () => {
+    setEditingWaypointId(null);
+    setEditValues({});
+    setEditFeedback(null);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingWaypointId || isApplyingEdit) return;
 
     const updates = {};
     const { field } = editValues;
@@ -338,17 +345,38 @@ const WaypointPanel = ({
         break;
     }
 
-    onUpdateWaypoint(editingWaypointId, updates);
-    handleEditCancel();
+    if (field === 'coordinates') {
+      setEditFeedback({
+        tone: 'info',
+        text: 'Refreshing terrain and clearance at the new coordinates...',
+      });
+    }
+
+    try {
+      setIsApplyingEdit(true);
+      await Promise.resolve(onUpdateWaypoint(editingWaypointId, updates));
+      clearActiveEdit();
+    } catch (error) {
+      setEditFeedback({
+        tone: 'error',
+        text: error?.message || 'Unable to apply waypoint edit.',
+      });
+    } finally {
+      setIsApplyingEdit(false);
+    }
   };
 
   const handleEditCancel = () => {
-    setEditingWaypointId(null);
-    setEditValues({});
-    setEditFeedback(null);
+    if (isApplyingEdit) {
+      return;
+    }
+    clearActiveEdit();
   };
 
   const handleEditKeyPress = (e) => {
+    if (isApplyingEdit) {
+      return;
+    }
     if (e.key === 'Enter') {
       handleEditSave();
     } else if (e.key === 'Escape') {
@@ -501,6 +529,7 @@ const WaypointPanel = ({
               onKeyDown={handleEditKeyPress}
               className="edit-input edit-input-small"
               placeholder="Latitude"
+              disabled={isApplyingEdit}
             />
             <input
               type="number"
@@ -510,10 +539,11 @@ const WaypointPanel = ({
               onKeyDown={handleEditKeyPress}
               className="edit-input edit-input-small"
               placeholder="Longitude"
+              disabled={isApplyingEdit}
             />
             <div className="edit-buttons">
-              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
-              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
+              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
             </div>
           </div>
         );
@@ -540,6 +570,7 @@ const WaypointPanel = ({
                 }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input edit-select"
+                disabled={isApplyingEdit}
               >
                 {field === 'headingMode' ? (
                   <>
@@ -559,8 +590,8 @@ const WaypointPanel = ({
                 )}
               </select>
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
               </div>
             </div>
           );
@@ -602,6 +633,7 @@ const WaypointPanel = ({
                 }))}
                 onKeyDown={handleEditKeyPress}
                 className="edit-input"
+                disabled={isApplyingEdit}
                 placeholder={
                   field === 'altitude' ? 'Altitude MSL (m)' : 
                   field === 'targetAgl' ? 'Target clearance AGL (m)' :
@@ -611,8 +643,8 @@ const WaypointPanel = ({
                 }
               />
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)">✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)">✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
               </div>
             </div>
           );
@@ -624,7 +656,7 @@ const WaypointPanel = ({
       <span 
         className="detail-value editable" 
         onClick={() => handleEditStart(waypoint, field)}
-        title="Click to edit"
+        title={field === 'coordinates' ? 'Click to edit. Coordinate changes refresh terrain and clearance.' : 'Click to edit'}
       >
         {displayValue}
       </span>

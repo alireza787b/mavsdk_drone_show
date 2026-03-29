@@ -1402,7 +1402,7 @@ const TrajectoryPlanning = () => {
               <div className="map-instruction-overlay drag-mode">
                 <div className="instruction-content">
                   <span className="instruction-icon">✋</span>
-                  <span className="instruction-text">Dragging a waypoint recalculates timing and speed automatically</span>
+                  <span className="instruction-text">Dragging a waypoint refreshes terrain context and recalculates timing, speed, and clearance review</span>
                 </div>
               </div>
             )}

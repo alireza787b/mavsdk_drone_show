@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import WaypointPanel from './WaypointPanel';
 import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS } from '../../utilities/SpeedCalculator';
 
@@ -211,5 +211,51 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Route entry time:')).toBeInTheDocument();
     expect(screen.getByText('Entry heading:')).toBeInTheDocument();
     expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
+  });
+
+  it('shows terrain-refresh feedback while saving coordinate edits', async () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      latitude: 35.727,
+      longitude: 51.2721,
+      altitude: 320,
+      groundElevation: 200,
+      targetAgl: 120,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+    };
+
+    let resolveUpdate;
+    const onUpdateWaypoint = jest.fn(() => new Promise((resolve) => {
+      resolveUpdate = resolve;
+    }));
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+      onUpdateWaypoint,
+    });
+
+    const positionRow = screen.getAllByText(/position:/i)[1].closest('.detail-row');
+    fireEvent.click(within(positionRow).getByText(/35\.727000,\s*51\.272100/i));
+    fireEvent.change(screen.getByPlaceholderText('Latitude'), {
+      target: { value: '35.7300' },
+    });
+    fireEvent.click(screen.getByTitle('Save (Enter)'));
+
+    expect(screen.getByText(/refreshing terrain and clearance at the new coordinates/i)).toBeInTheDocument();
+    expect(onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
+      latitude: 35.73,
+      longitude: 51.2721,
+    }));
+
+    resolveUpdate();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/refreshing terrain and clearance at the new coordinates/i)).not.toBeInTheDocument();
+    });
   });
 });
