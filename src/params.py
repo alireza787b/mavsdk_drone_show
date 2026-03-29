@@ -502,6 +502,7 @@ class Params:
     SWARM_TRAJECTORY_INITIAL_CLIMB_HEIGHT = 5.0    # meters above first setpoint altitude
     SWARM_TRAJECTORY_INITIAL_CLIMB_TIME = 5.0      # seconds for climb phase duration
     SWARM_TRAJECTORY_INITIAL_CLIMB_SPEED = 1.0     # m/s vertical climb speed (positive = up)
+    SWARM_TRAJECTORY_SHARED_DIR = os.getenv("MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR", "").strip()
 
     @classmethod
     def get_swarm_trajectory_file_path(cls, position_id):
@@ -514,15 +515,25 @@ class Params:
         Returns:
             str: Full path to the trajectory CSV file
         """
-        base_dir = 'shapes_sitl' if cls.sim_mode else 'shapes'
         filename = f"{cls.SWARM_TRAJECTORY_FILE_PREFIX}{position_id}{cls.SWARM_TRAJECTORY_FILE_SUFFIX}"
-        
+
+        if cls.sim_mode and cls.SWARM_TRAJECTORY_SHARED_DIR:
+            shared_path = os.path.join(
+                cls.SWARM_TRAJECTORY_SHARED_DIR,
+                "processed",
+                filename,
+            )
+            if os.path.exists(shared_path):
+                logger.debug(f"Swarm Trajectory File: {shared_path} (shared SITL workspace)")
+                return shared_path
+
+        base_dir = 'shapes_sitl' if cls.sim_mode else 'shapes'
         trajectory_path = os.path.join(
-            base_dir, 
-            cls.SWARM_TRAJECTORY_BASE_PATH, 
+            base_dir,
+            cls.SWARM_TRAJECTORY_BASE_PATH,
             filename
         )
-        
+
         logger.debug(f"Swarm Trajectory File: {trajectory_path}")
         return trajectory_path
 

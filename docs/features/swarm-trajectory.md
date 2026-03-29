@@ -181,6 +181,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 
 - `Trajectory Planning` is the authoring workspace
 - `Swarm Trajectory` is the processing / review / commit workspace
+- local Docker SITL now mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated shared runtime path, so processed leader/follower outputs stay live for same-host SITL execution without dirtying the container repo
+- real hardware and remote drone repos still depend on the normal git commit / push / sync flow; the shared trajectory workspace is a SITL-only convenience path
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
 - planner-side destructive and validation flows now use inline notices instead of blocking browser `alert()` / `confirm()` popups
 - waypoint editing, modal validation, and planner shortcuts are now exposed in-place so the operator can stay inside the workspace without losing mission context
@@ -246,7 +248,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - the Step 3 git action now follows the actual GCS writeback mode:
   - writable GCS setups show `Commit & Push Outputs`
   - read-only/demo GCS setups show `Commit Outputs Locally`
-  - launch itself does not depend on a repo push; the git action is for traceability and propagation, not for local execution correctness
+- local same-host SITL launch does not depend on a repo push because the active Swarm Trajectory workspace is shared directly into the containers
+- real hardware and non-shared remote repos still require commit / push / sync before launch, so the git action remains the traceability and propagation boundary outside local SITL
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number

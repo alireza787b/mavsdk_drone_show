@@ -19,6 +19,7 @@ from functions.swarm_trajectory_service import (
     validate_target_scope_for_swarm_trajectory,
 )
 from functions.swarm_trajectory_utils import get_project_root, get_swarm_trajectory_folders
+from src.params import Params
 
 
 def test_get_swarm_trajectory_folders_is_cwd_independent(monkeypatch, tmp_path):
@@ -221,6 +222,26 @@ def test_validate_target_scope_for_swarm_trajectory_accepts_complete_selected_ch
     )
 
     assert issues == []
+
+
+def test_get_swarm_trajectory_file_path_prefers_shared_sitl_workspace(monkeypatch, tmp_path):
+    shared_dir = tmp_path / 'shared_swarm_trajectory'
+    processed_dir = shared_dir / 'processed'
+    processed_dir.mkdir(parents=True)
+    shared_file = processed_dir / 'Drone 7.csv'
+    shared_file.write_text('t,lat,lon,alt\n0,35,51,1200\n', encoding='utf-8')
+
+    monkeypatch.setattr(Params, 'sim_mode', True)
+    monkeypatch.setattr(Params, 'SWARM_TRAJECTORY_SHARED_DIR', str(shared_dir))
+
+    assert Params.get_swarm_trajectory_file_path(7) == str(shared_file)
+
+
+def test_get_swarm_trajectory_file_path_falls_back_when_shared_file_missing(monkeypatch):
+    monkeypatch.setattr(Params, 'sim_mode', True)
+    monkeypatch.setattr(Params, 'SWARM_TRAJECTORY_SHARED_DIR', '/tmp/nonexistent_shared_swarm_trajectory')
+
+    assert Params.get_swarm_trajectory_file_path(9) == 'shapes_sitl/swarm_trajectory/processed/Drone 9.csv'
 
 
 def test_session_manager_recommendation_includes_expected_and_missing_leader_truth(monkeypatch, tmp_path):

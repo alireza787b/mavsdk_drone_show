@@ -74,6 +74,7 @@ export MDS_SITL_READY_TIMEOUT_SECONDS=60
 export MDS_SITL_READY_POLL_INTERVAL_SECONDS=2
 export MDS_SITL_DOCKER_RESTART_POLICY="unless-stopped"
 export MDS_SITL_USE_HOST_STARTUP_SCRIPT=false
+export MDS_SITL_SHARE_SWARM_TRAJECTORY=true
 export MDS_SITL_KEEP_ARM_TOOLCHAIN=false
 
 # Optional debugging / routing controls
@@ -103,6 +104,8 @@ Notes:
 - Release image prep removes the PX4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.
 - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. `startup_sitl.sh` runs as the container main process, and startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.
 - `create_dockers.sh` now uses the image-baked `startup_sitl.sh` by default so a validated image behaves consistently across hosts. Set `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only for an explicit host-side debug override.
+- `MDS_SITL_SHARE_SWARM_TRAJECTORY=true` now bind-mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated runtime path. That keeps local Swarm Trajectory processing and same-host SITL execution consistent without making the container repo dirty.
+- This shared workspace is intentionally SITL-only. Real drones and remote repos still rely on the normal git commit / push / sync workflow for mission-artifact propagation.
 - Docker SITL containers now use Docker restart policy `unless-stopped` by default. Override it with `MDS_SITL_DOCKER_RESTART_POLICY` only if you intentionally want different lifecycle behavior.
 - For large validated fleets, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`. Mutable latest-on-boot sync is useful, but it scales poorly when 100+ containers all fetch from GitHub or re-sync Python dependencies at once.
 - Running `HEADLESS=1 make px4_sitl gz_x500` manually inside the container is useful for raw PX4 debugging, but it bypasses `startup_sitl.sh`, so it will not apply the MDS `PX4_PARAM_*` overrides or `mavsdk_server` provisioning checks.

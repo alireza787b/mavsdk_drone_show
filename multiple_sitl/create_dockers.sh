@@ -98,6 +98,9 @@ STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
 HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$HOME/.local/share/mavsdk_drone_show/sitl_runtime}"
 RUNTIME_FILES_CONTAINER="/tmp/mds_runtime"
+HOST_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_HOST_SWARM_TRAJECTORY_DIR:-$REPO_ROOT/shapes_sitl/swarm_trajectory}"
+CONTAINER_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR:-/tmp/mds_shared_swarm_trajectory}"
+SHARE_HOST_SWARM_TRAJECTORY="${MDS_SITL_SHARE_SWARM_TRAJECTORY:-true}"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
 STARTUP_SCRIPT_IMAGE="${HWID_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
 STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
@@ -194,6 +197,11 @@ print_launcher_configuration() {
     echo "  Container Repo : /root/mavsdk_drone_show"
     echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
     echo "  Runtime Files  : ${HOST_RUNTIME_ROOT}"
+    echo "  Shared Traj    : ${SHARE_HOST_SWARM_TRAJECTORY}"
+    if [[ "${SHARE_HOST_SWARM_TRAJECTORY}" == "true" ]]; then
+        echo "  Traj Source    : ${HOST_SHARED_SWARM_TRAJECTORY_DIR}"
+        echo "  Traj Mount     : ${CONTAINER_SHARED_SWARM_TRAJECTORY_DIR}"
+    fi
     echo "  Restart Policy : ${DOCKER_RESTART_POLICY}"
     echo "  Wait For Ready : ${WAIT_FOR_READY}"
     echo "  Ready Timeout  : ${READY_TIMEOUT_SECONDS}s"
@@ -238,6 +246,14 @@ validate_launcher_configuration() {
         true|false) ;;
         *)
             printf "Error: MDS_SITL_USE_HOST_STARTUP_SCRIPT must be 'true' or 'false'.\n" >&2
+            exit 1
+            ;;
+    esac
+
+    case "$SHARE_HOST_SWARM_TRAJECTORY" in
+        true|false) ;;
+        *)
+            printf "Error: MDS_SITL_SHARE_SWARM_TRAJECTORY must be 'true' or 'false'.\n" >&2
             exit 1
             ;;
     esac
@@ -438,6 +454,14 @@ create_instance() {
         "${DOCKER_SECRET_ARGS[@]}"
         -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro"
     )
+
+    if [[ "${SHARE_HOST_SWARM_TRAJECTORY}" == "true" ]]; then
+        mkdir -p "${HOST_SHARED_SWARM_TRAJECTORY_DIR}"
+        docker_run_args+=(
+            -e "MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR=${CONTAINER_SHARED_SWARM_TRAJECTORY_DIR}"
+            -v "${HOST_SHARED_SWARM_TRAJECTORY_DIR}:${CONTAINER_SHARED_SWARM_TRAJECTORY_DIR}:ro"
+        )
+    fi
 
     if [[ "${USE_HOST_STARTUP_SCRIPT}" == "true" ]]; then
         startup_script_container="$STARTUP_SCRIPT_CONTAINER"
