@@ -17,6 +17,7 @@ If anything fails after launch, the validator attempts a fleet LAND cleanup befo
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import json
 import math
@@ -526,13 +527,6 @@ def latlon_to_ne(lat_deg: float, lon_deg: float, ref_lat_deg: float, ref_lon_deg
     return north, east
 
 
-def body_to_ne(offset_forward: float, offset_right: float, yaw_deg: float) -> tuple[float, float]:
-    yaw = math.radians(yaw_deg)
-    north = offset_forward * math.cos(yaw) - offset_right * math.sin(yaw)
-    east = offset_forward * math.sin(yaw) + offset_right * math.cos(yaw)
-    return north, east
-
-
 def ne_to_latlon(north_m: float, east_m: float, ref_lat_deg: float, ref_lon_deg: float) -> tuple[float, float]:
     lat_scale = 111_320.0
     lon_scale = 111_320.0 * max(0.01, math.cos(math.radians(ref_lat_deg)))
@@ -575,6 +569,95 @@ def follower_scope_issues(expectations: dict[int, dict], *, active_ids: Iterable
                 }
             )
     return issues
+
+
+def load_processed_track(repo_root: Path, drone_id: int) -> dict[str, Any]:
+    """Load one processed Drone N.csv track as mission-time samples."""
+    csv_path = repo_root / "shapes_sitl" / "swarm_trajectory" / "processed" / f"Drone {int(drone_id)}.csv"
+    require(csv_path.exists(), f"Missing processed track for drone {int(drone_id)}: {csv_path}")
+
+    samples: list[dict[str, float]] = []
+    with csv_path.open() as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                samples.append(
+                    {
+                        "t": float(row["t"]),
+                        "lat": float(row["lat"]),
+                        "lon": float(row["lon"]),
+                        "alt": float(row["alt"]),
+                    }
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    require(samples, f"Processed track has no usable samples for drone {int(drone_id)}: {csv_path}")
+    samples.sort(key=lambda sample: sample["t"])
+    times = [sample["t"] for sample in samples]
+    return {
+        "drone_id": int(drone_id),
+        "path": str(csv_path),
+        "samples": samples,
+        "times": times,
+        "start_t": times[0],
+        "end_t": times[-1],
+    }
+
+
+def sample_processed_track(track: dict[str, Any], mission_elapsed_s: float) -> dict[str, float]:
+    """Return the nearest processed sample for the requested mission time."""
+    times = track["times"]
+    samples = track["samples"]
+    target_t = min(max(float(mission_elapsed_s), float(track["start_t"])), float(track["end_t"]))
+    index = bisect.bisect_left(times, target_t)
+
+    if index <= 0:
+        sample = samples[0]
+    elif index >= len(samples):
+        sample = samples[-1]
+    else:
+        previous_sample = samples[index - 1]
+        next_sample = samples[index]
+        if abs(previous_sample["t"] - target_t) <= abs(next_sample["t"] - target_t):
+            sample = previous_sample
+        else:
+            sample = next_sample
+
+    return {
+        **sample,
+        "requested_t": float(mission_elapsed_s),
+        "sample_error_s": abs(float(sample["t"]) - float(mission_elapsed_s)),
+    }
+
+
+def processed_formation_expectations(
+    repo_root: Path,
+    assignments: dict[int, dict],
+) -> dict[int, dict[str, Any]]:
+    """Bind each follower to authoritative processed leader/follower tracks."""
+    track_cache: dict[int, dict[str, Any]] = {}
+    processed: dict[int, dict[str, Any]] = {}
+
+    for follower_id, assignment in assignments.items():
+        leader_id = int(assignment["leader_id"])
+        follower_track = track_cache.setdefault(int(follower_id), load_processed_track(repo_root, int(follower_id)))
+        leader_track = track_cache.setdefault(leader_id, load_processed_track(repo_root, leader_id))
+        start_t = max(float(follower_track["start_t"]), float(leader_track["start_t"]))
+        end_t = min(float(follower_track["end_t"]), float(leader_track["end_t"]))
+        require(
+            end_t >= start_t,
+            f"Processed track windows do not overlap for leader {leader_id} and follower {int(follower_id)}",
+        )
+        processed[int(follower_id)] = {
+            "leader_id": leader_id,
+            "follower_track": follower_track,
+            "leader_track": leader_track,
+            "start_t": start_t,
+            "end_t": end_t,
+        }
+
+    return processed
 
 
 def selected_top_leaders(assignments: list[dict], *, active_ids: Iterable[int]) -> list[int]:
@@ -742,8 +825,9 @@ def write_short_validation_profiles(
 
 def evaluate_formation_snapshot(
     telemetry: dict[str, dict],
-    expectations: dict[int, dict],
+    expectations: dict[int, dict[str, Any]],
     *,
+    mission_elapsed_s: float,
     horiz_tolerance: float,
     vert_tolerance: float,
 ) -> tuple[bool, list[dict]]:
@@ -763,6 +847,34 @@ def evaluate_formation_snapshot(
             })
             continue
 
+        if mission_elapsed_s < expectation["start_t"]:
+            overall_ok = False
+            diagnostics.append(
+                {
+                    "follower_id": follower_id,
+                    "leader_id": leader_id,
+                    "status": "before_processed_window",
+                    "mission_elapsed_s": round(mission_elapsed_s, 2),
+                    "window_start_s": round(expectation["start_t"], 2),
+                    "window_end_s": round(expectation["end_t"], 2),
+                }
+            )
+            continue
+
+        if mission_elapsed_s > expectation["end_t"]:
+            overall_ok = False
+            diagnostics.append(
+                {
+                    "follower_id": follower_id,
+                    "leader_id": leader_id,
+                    "status": "after_processed_window",
+                    "mission_elapsed_s": round(mission_elapsed_s, 2),
+                    "window_start_s": round(expectation["start_t"], 2),
+                    "window_end_s": round(expectation["end_t"], 2),
+                }
+            )
+            continue
+
         actual_n, actual_e = latlon_to_ne(
             float(follower["position_lat"]),
             float(follower["position_long"]),
@@ -770,17 +882,15 @@ def evaluate_formation_snapshot(
             float(leader["position_long"]),
         )
         actual_alt_delta = float(follower["position_alt"]) - float(leader["position_alt"])
-
-        if expectation["frame"] == "body":
-            expected_n, expected_e = body_to_ne(
-                expectation["offset_x"],
-                expectation["offset_y"],
-                float(leader.get("yaw", 0.0) or 0.0),
-            )
-        else:
-            expected_n, expected_e = expectation["offset_x"], expectation["offset_y"]
-
-        expected_alt_delta = -expectation["offset_z"]
+        leader_sample = sample_processed_track(expectation["leader_track"], mission_elapsed_s)
+        follower_sample = sample_processed_track(expectation["follower_track"], mission_elapsed_s)
+        expected_n, expected_e = latlon_to_ne(
+            float(follower_sample["lat"]),
+            float(follower_sample["lon"]),
+            float(leader_sample["lat"]),
+            float(leader_sample["lon"]),
+        )
+        expected_alt_delta = float(follower_sample["alt"]) - float(leader_sample["alt"])
         horizontal_error = math.hypot(actual_n - expected_n, actual_e - expected_e)
         vertical_error = abs(actual_alt_delta - expected_alt_delta)
         ok = horizontal_error <= horiz_tolerance and vertical_error <= vert_tolerance
@@ -789,7 +899,13 @@ def evaluate_formation_snapshot(
         diagnostics.append({
             "follower_id": follower_id,
             "leader_id": leader_id,
-            "frame": expectation["frame"],
+            "mission_elapsed_s": round(mission_elapsed_s, 2),
+            "sampled_leader_t_s": round(float(leader_sample["t"]), 2),
+            "sampled_follower_t_s": round(float(follower_sample["t"]), 2),
+            "sample_t_error_s": round(
+                max(float(leader_sample["sample_error_s"]), float(follower_sample["sample_error_s"])),
+                2,
+            ),
             "expected_north_m": round(expected_n, 2),
             "expected_east_m": round(expected_e, 2),
             "actual_north_m": round(actual_n, 2),
@@ -806,14 +922,16 @@ def evaluate_formation_snapshot(
 
 def wait_for_formation(
     client: ApiClient,
-    expectations: dict[int, dict],
+    expectations: dict[int, dict[str, Any]],
     *,
+    execution_started_at_ms: int,
     horiz_tolerance: float,
     vert_tolerance: float,
     timeout: int = 120,
 ) -> dict:
     last_diagnostics: list[dict] | None = None
     last_state_issues: list[dict] | None = None
+    require(execution_started_at_ms > 0, "Missing execution_started_at_ms for formation validation")
 
     def _active_swarm_row(row: dict[str, Any] | None) -> bool:
         if not row:
@@ -826,6 +944,7 @@ def wait_for_formation(
         nonlocal last_diagnostics, last_state_issues
         telemetry = client.get_telemetry()
         state_issues: list[dict] = []
+        mission_elapsed_s = max(0.0, ((time.time() * 1000.0) - float(execution_started_at_ms)) / 1000.0)
 
         for follower_id, expectation in expectations.items():
             leader_id = expectation["leader_id"]
@@ -864,6 +983,7 @@ def wait_for_formation(
         ok, diagnostics = evaluate_formation_snapshot(
             telemetry,
             expectations,
+            mission_elapsed_s=mission_elapsed_s,
             horiz_tolerance=horiz_tolerance,
             vert_tolerance=vert_tolerance,
         )
@@ -1094,6 +1214,17 @@ def main() -> int:
         require(not scope_issues, f"Selected mission set has followers without their leaders: {scope_issues}")
         results["assignments"] = expectations
         results["assignment_scope_issues"] = scope_issues
+        processed_expectations = processed_formation_expectations(args.repo_root, expectations) if expectations else {}
+        results["processed_assignments"] = {
+            str(follower_id): {
+                "leader_id": expectation["leader_id"],
+                "window_start_s": expectation["start_t"],
+                "window_end_s": expectation["end_t"],
+                "leader_track": expectation["leader_track"]["path"],
+                "follower_track": expectation["follower_track"]["path"],
+            }
+            for follower_id, expectation in processed_expectations.items()
+        }
 
         live_launch_readiness = wait_for_live_launch_readiness(client, args.drone_ids, timeout=90)
         results["live_launch_readiness"] = live_launch_readiness
@@ -1107,7 +1238,10 @@ def main() -> int:
         command_id = response["command_id"]
         results["dispatch"] = response
 
-        wait_for_command(client, command_id, desired_phase="in_progress", timeout=120)
+        in_progress_status = wait_for_command(client, command_id, desired_phase="in_progress", timeout=120)
+        execution_started_at_ms = int(in_progress_status.get("execution_started_at") or 0)
+        require(execution_started_at_ms > 0, f"Command {command_id} never reported execution_started_at")
+        results["execution_started_at_ms"] = execution_started_at_ms
         wait_for_executing(client, args.drone_ids, timeout=180)
         wait_for_altitude_gain(client, baselines, min_gain=args.min_altitude_gain, timeout=120)
 
@@ -1118,7 +1252,8 @@ def main() -> int:
         if expectations:
             formation = wait_for_formation(
                 client,
-                expectations,
+                processed_expectations,
+                execution_started_at_ms=execution_started_at_ms,
                 horiz_tolerance=args.horiz_tolerance,
                 vert_tolerance=args.vert_tolerance,
                 timeout=args.formation_timeout,

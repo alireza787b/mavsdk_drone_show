@@ -258,6 +258,71 @@ def test_write_short_validation_profiles_creates_raw_csvs(tmp_path):
     assert rows[0]["TimeFromStart_s"] == "6.0"
 
 
+def test_processed_formation_expectations_use_processed_tracks(tmp_path):
+    validator = _load_validator_module()
+    processed_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "processed"
+    processed_dir.mkdir(parents=True)
+
+    for drone_id in (1, 2):
+        with (processed_dir / f"Drone {drone_id}.csv").open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["t", "lat", "lon", "alt"])
+            writer.writeheader()
+            writer.writerow({"t": 10.0, "lat": 35.0, "lon": 51.0, "alt": 100.0 + drone_id})
+            writer.writerow({"t": 20.0, "lat": 35.0, "lon": 51.0, "alt": 110.0 + drone_id})
+
+    expectations = validator.processed_formation_expectations(
+        tmp_path,
+        {2: {"leader_id": 1, "offset_x": 5.0, "offset_y": 50.0, "offset_z": 5.0, "frame": "ned"}},
+    )
+
+    assert sorted(expectations.keys()) == [2]
+    assert expectations[2]["leader_id"] == 1
+    assert expectations[2]["window_start_s"] == 10.0
+    assert expectations[2]["window_end_s"] == 20.0
+    assert expectations[2]["leader_track"]["drone_id"] == 1
+    assert expectations[2]["follower_track"]["drone_id"] == 2
+
+
+def test_evaluate_formation_snapshot_uses_processed_package_truth(tmp_path):
+    validator = _load_validator_module()
+    processed_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "processed"
+    processed_dir.mkdir(parents=True)
+
+    with (processed_dir / "Drone 1.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["t", "lat", "lon", "alt"])
+        writer.writeheader()
+        writer.writerow({"t": 10.0, "lat": 35.0, "lon": 51.0, "alt": 100.0})
+        writer.writerow({"t": 20.0, "lat": 35.00008983, "lon": 51.0, "alt": 110.0})
+
+    with (processed_dir / "Drone 2.csv").open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["t", "lat", "lon", "alt"])
+        writer.writeheader()
+        writer.writerow({"t": 10.0, "lat": 35.000044915, "lon": 51.00054916, "alt": 105.0})
+        writer.writerow({"t": 20.0, "lat": 35.000134745, "lon": 51.00054916, "alt": 115.0})
+
+    processed = validator.processed_formation_expectations(
+        tmp_path,
+        {2: {"leader_id": 1, "offset_x": 5.0, "offset_y": 50.0, "offset_z": 5.0, "frame": "ned"}},
+    )
+
+    telemetry = {
+        "1": {"position_lat": 35.00008983, "position_long": 51.0, "position_alt": 110.0},
+        "2": {"position_lat": 35.000134745, "position_long": 51.00054916, "position_alt": 115.0},
+    }
+
+    ok, diagnostics = validator.evaluate_formation_snapshot(
+        telemetry,
+        processed,
+        mission_elapsed_s=20.0,
+        horiz_tolerance=2.0,
+        vert_tolerance=1.0,
+    )
+
+    assert ok is True
+    assert diagnostics[0]["expected_alt_delta_m"] == pytest.approx(5.0)
+    assert diagnostics[0]["horizontal_error_m"] == pytest.approx(0.0, abs=0.2)
+
+
 def test_wait_for_formation_reports_inactive_mission_state_when_geometry_window_is_missed(monkeypatch):
     validator = _load_validator_module()
 
@@ -288,10 +353,31 @@ def test_wait_for_formation_reports_inactive_mission_state_when_geometry_window_
     monkeypatch.setattr(validator.time, "time", lambda: next(fake_time))
     monkeypatch.setattr(validator.time, "sleep", lambda _seconds: None)
 
+    expectations = {
+        2: {
+            "leader_id": 1,
+            "leader_track": {
+                "samples": [{"t": 0.0, "lat": 35.0, "lon": 51.0, "alt": 100.0}],
+                "times": [0.0],
+                "start_t": 0.0,
+                "end_t": 30.0,
+            },
+            "follower_track": {
+                "samples": [{"t": 0.0, "lat": 35.0, "lon": 51.0, "alt": 100.0}],
+                "times": [0.0],
+                "start_t": 0.0,
+                "end_t": 30.0,
+            },
+            "start_t": 0.0,
+            "end_t": 30.0,
+        }
+    }
+
     with pytest.raises(RuntimeError, match="Last mission-state issues"):
         validator.wait_for_formation(
             client,
-            {2: {"leader_id": 1, "offset_x": 5.0, "offset_y": 50.0, "offset_z": 5.0, "frame": "ned"}},
+            expectations,
+            execution_started_at_ms=1000,
             horiz_tolerance=5.0,
             vert_tolerance=5.0,
             timeout=4,
