@@ -55,7 +55,7 @@ sys.path.append(os.path.join(BASE_DIR, 'src'))
 sys.path.append(BASE_DIR)  # For functions module
 
 from telemetry import telemetry_data_all_drones, data_lock as telemetry_lock
-from command import send_commands_to_all, send_commands_to_selected
+from command import resolve_mission_type, send_commands_to_all, send_commands_to_selected
 from config import (
     get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
@@ -63,6 +63,7 @@ from config import (
 )
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
+from enums import Mission
 from get_elevation import get_elevation
 from origin import (
     compute_origin_from_drone, save_origin, load_origin,
@@ -919,6 +920,50 @@ async def submit_command(request: Request):
             actual_targets = drones
 
         target_hw_ids = [str(d['hw_id']) for d in actual_targets]
+        resolved_mission = resolve_mission_type(mission_type)
+
+        if resolved_mission == Mission.SWARM_TRAJECTORY and normalized_target_ids:
+            try:
+                status_payload = swarm_trajectory_service.get_processing_status_payload()["status"]
+                structure = {
+                    "swarm_config": {
+                        int(drone_id): {"follow": follow_id}
+                        for drone_id, follow_id in (status_payload.get("follow_map") or {}).items()
+                    },
+                }
+                scope_issues = swarm_trajectory_service.validate_target_scope_for_swarm_trajectory(
+                    structure=structure,
+                    processed_drones=status_payload.get("processed_drones") or [],
+                    target_drone_ids=[int(drone_id) for drone_id in target_hw_ids],
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Swarm Trajectory target scope could not be verified: {exc}",
+                ) from exc
+
+            if scope_issues:
+                formatted_issues = []
+                for issue in scope_issues:
+                    drone_id = issue.get("drone_id")
+                    leader_id = issue.get("leader_id")
+                    issue_code = issue.get("issue")
+                    if issue_code == "missing_processed_trajectory":
+                        formatted_issues.append(f"Drone {drone_id} has no processed trajectory in the active package")
+                    elif issue_code == "leader_not_in_active_mission_set":
+                        formatted_issues.append(f"Drone {drone_id} requires leader {leader_id} in the same target set")
+                    elif issue_code == "missing_swarm_assignment":
+                        formatted_issues.append(f"Drone {drone_id} is not present in the current swarm configuration")
+                    elif issue_code == "circular_leader_chain":
+                        formatted_issues.append(f"Drone {drone_id} has an invalid circular leader chain")
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Unsafe Swarm Trajectory target set. "
+                        + "; ".join(formatted_issues[:4])
+                    ),
+                )
 
         # Create tracked command
         tracker = get_command_tracker()
@@ -993,7 +1038,6 @@ async def submit_command(request: Request):
         }
 
         # Get mission name for response
-        from src.enums import Mission
         try:
             mission_name = Mission(mission_type_int).name
         except ValueError:

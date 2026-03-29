@@ -78,6 +78,91 @@ def _clear_session_file(session_file: Path, cleared_items: List[str]) -> None:
         cleared_items.append(str(session_file.relative_to(Path(get_project_root()))))
 
 
+def _build_follow_map(structure: Dict) -> Dict[int, int]:
+    follow_map: Dict[int, int] = {}
+    swarm_config = structure.get("swarm_config", {})
+
+    for drone_id, config in swarm_config.items():
+        try:
+            numeric_id = int(drone_id)
+            follow_map[numeric_id] = int(config.get("follow", 0) or 0)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring invalid swarm follow assignment for drone %s", drone_id)
+
+    return follow_map
+
+
+def validate_target_scope_for_swarm_trajectory(
+    *,
+    structure: Dict,
+    processed_drones: List[int],
+    target_drone_ids: List[int],
+) -> List[Dict]:
+    """
+    Validate that a targeted Swarm Trajectory launch is internally safe.
+
+    Each selected drone must:
+    - belong to the current swarm configuration
+    - have a processed output in the active package
+    - include every required leader in its follow chain within the same target set
+    """
+    follow_map = _build_follow_map(structure)
+    processed_set = set(processed_drones)
+    active_set = {int(drone_id) for drone_id in target_drone_ids}
+    issues: List[Dict] = []
+
+    for drone_id in sorted(active_set):
+        if drone_id not in follow_map:
+            issues.append({
+                "drone_id": drone_id,
+                "issue": "missing_swarm_assignment",
+            })
+            continue
+
+        if drone_id not in processed_set:
+            issues.append({
+                "drone_id": drone_id,
+                "issue": "missing_processed_trajectory",
+            })
+
+        current_id = drone_id
+        visited = {drone_id}
+
+        while True:
+            leader_id = follow_map.get(current_id)
+            if leader_id is None:
+                issues.append({
+                    "drone_id": drone_id,
+                    "issue": "missing_swarm_assignment",
+                    "current_id": current_id,
+                })
+                break
+
+            if leader_id == 0:
+                break
+
+            if leader_id in visited:
+                issues.append({
+                    "drone_id": drone_id,
+                    "leader_id": leader_id,
+                    "issue": "circular_leader_chain",
+                })
+                break
+
+            if leader_id not in active_set:
+                issues.append({
+                    "drone_id": drone_id,
+                    "leader_id": leader_id,
+                    "issue": "leader_not_in_active_mission_set",
+                })
+                break
+
+            visited.add(leader_id)
+            current_id = leader_id
+
+    return issues
+
+
 def _build_cluster_status(structure: Dict, raw_leaders: List[int], processed_drones: List[int], plots_dir: Path) -> Tuple[List[Dict], Dict]:
     raw_leader_set = set(raw_leaders)
     processed_drone_set = set(processed_drones)
@@ -239,6 +324,7 @@ def get_processing_status_payload() -> Dict:
     try:
         structure = _load_swarm_structure()
         top_leaders = structure["top_leaders"]
+        follow_map = _build_follow_map(structure)
         processed_leaders = [drone_id for drone_id in processed_drones if drone_id in top_leaders]
         processed_followers = [drone_id for drone_id in processed_drones if drone_id not in top_leaders]
         clusters, cluster_summary = _build_cluster_status(
@@ -255,6 +341,7 @@ def get_processing_status_payload() -> Dict:
         processed_followers = []
         clusters = []
         top_leaders = []
+        follow_map = {}
         orphan_uploaded_leaders = raw_leaders
         missing_uploaded_leaders = []
         cluster_summary = {
@@ -278,6 +365,7 @@ def get_processing_status_payload() -> Dict:
             "processed_drones": processed_drones,
             "processed_leaders": processed_leaders,
             "processed_followers": processed_followers,
+            "follow_map": follow_map,
             "leader_count": len(processed_leaders),
             "follower_count": len(processed_followers),
             "has_results": processed_count > 0,

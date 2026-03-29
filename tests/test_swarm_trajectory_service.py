@@ -16,6 +16,7 @@ from functions.swarm_trajectory_service import (
     clear_individual_drone_payload,
     get_processing_status_payload,
     save_uploaded_trajectory,
+    validate_target_scope_for_swarm_trajectory,
 )
 from functions.swarm_trajectory_utils import get_project_root, get_swarm_trajectory_folders
 
@@ -97,6 +98,13 @@ def test_save_uploaded_trajectory_rejects_non_top_leader():
     structure = {
         'top_leaders': [1, 5],
         'hierarchies': {1: [2, 3], 5: [6]},
+        'swarm_config': {
+            1: {'follow': 0},
+            2: {'follow': 1},
+            3: {'follow': 1},
+            5: {'follow': 0},
+            6: {'follow': 5},
+        },
     }
 
     with patch('functions.swarm_trajectory_service._load_swarm_structure', return_value=structure):
@@ -126,6 +134,13 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     structure = {
         'top_leaders': [1, 5],
         'hierarchies': {1: [2, 3], 5: [6]},
+        'swarm_config': {
+            1: {'follow': 0},
+            2: {'follow': 1},
+            3: {'follow': 1},
+            5: {'follow': 0},
+            6: {'follow': 5},
+        },
     }
 
     monkeypatch.setattr('functions.swarm_trajectory_service.get_swarm_trajectory_folders', lambda: folders)
@@ -142,6 +157,7 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert status['uploaded_leaders'] == [1]
     assert status['missing_uploaded_leaders'] == [5]
     assert status['orphan_uploaded_leaders'] == []
+    assert status['follow_map'] == {1: 0, 2: 1, 3: 1, 5: 0, 6: 5}
     assert status['cluster_summary']['cluster_count'] == 2
     assert status['cluster_summary']['ready_cluster_count'] == 0
     assert status['cluster_summary']['partial_output_cluster_count'] == 1
@@ -166,6 +182,45 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert clusters[5]['ready'] is False
     assert clusters[5]['state'] == 'missing_upload'
     assert clusters[5]['issues']
+
+
+def test_validate_target_scope_for_swarm_trajectory_requires_processed_outputs_and_leader_chain():
+    structure = {
+        'swarm_config': {
+            1: {'follow': 0},
+            2: {'follow': 1},
+            3: {'follow': 2},
+            4: {'follow': 0},
+        },
+    }
+
+    issues = validate_target_scope_for_swarm_trajectory(
+        structure=structure,
+        processed_drones=[1, 2, 4],
+        target_drone_ids=[2, 3],
+    )
+
+    assert {'drone_id': 2, 'leader_id': 1, 'issue': 'leader_not_in_active_mission_set'} in issues
+    assert {'drone_id': 3, 'issue': 'missing_processed_trajectory'} in issues
+    assert {'drone_id': 3, 'leader_id': 2, 'issue': 'leader_not_in_active_mission_set'} not in issues
+
+
+def test_validate_target_scope_for_swarm_trajectory_accepts_complete_selected_chain():
+    structure = {
+        'swarm_config': {
+            1: {'follow': 0},
+            2: {'follow': 1},
+            3: {'follow': 2},
+        },
+    }
+
+    issues = validate_target_scope_for_swarm_trajectory(
+        structure=structure,
+        processed_drones=[1, 2, 3],
+        target_drone_ids=[1, 2, 3],
+    )
+
+    assert issues == []
 
 
 def test_session_manager_recommendation_includes_expected_and_missing_leader_truth(monkeypatch, tmp_path):

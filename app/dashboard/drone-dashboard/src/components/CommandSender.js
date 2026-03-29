@@ -132,7 +132,8 @@ const CommandSender = ({ drones }) => {
         await submitCommandWithLifecycleFeedback(commandDataToSend);
       } catch (error) {
         console.error('Error sending command:', error);
-        toast.error('Error sending command. Please check console for details.');
+        const detail = error?.response?.data?.detail || error?.message || 'Error sending command. Please check console for details.';
+        toast.error(detail);
       } finally {
         setLoading(false);
         setCurrentCommandData(null);
@@ -247,6 +248,8 @@ const CommandSender = ({ drones }) => {
             onSendCommand={handleSendCommand}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
+            targetMode={targetMode}
+            selectedDrones={selectedDrones}
           />
         )}
         {activeTab === 'actions' && (

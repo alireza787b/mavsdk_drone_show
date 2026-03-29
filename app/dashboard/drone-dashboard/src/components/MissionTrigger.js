@@ -23,6 +23,8 @@ const MissionTrigger = ({
   onSendCommand,
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
+  targetMode = 'all',
+  selectedDrones = [],
 }) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
@@ -179,6 +181,8 @@ const MissionTrigger = ({
           delayPresets={COMMAND_DELAY_PRESETS}
           referenceNowMs={referenceNowMs}
           clockOffsetLabel={clockOffsetLabel}
+          targetMode={targetMode}
+          selectedDrones={selectedDrones}
           onSend={handleSend}
           onBack={handleBack}
         />

@@ -16,6 +16,8 @@ const MissionDetails = ({
   icon,
   label,
   description,
+  targetMode = 'all',
+  selectedDrones = [],
   scheduleMode,
   timeDelay,
   selectedDateTime,
@@ -82,6 +84,8 @@ const MissionDetails = ({
     clusterStatus: swarmTrajectoryStatus,
     loading: swarmTrajectoryStatusLoading,
     error: swarmTrajectoryStatusError,
+    targetMode,
+    selectedDrones,
   });
   const swarmTrajectoryBlockers = swarmTrajectoryReadiness.blockers;
   const swarmTrajectoryWarnings = swarmTrajectoryReadiness.warnings;
@@ -607,13 +611,21 @@ const MissionDetails = ({
               <div className="origin-info-row">
                 <span className="origin-label">Ready clusters:</span>
                 <span className="origin-coords">
-                  {swarmTrajectorySummary.readyClusterCount}/{swarmTrajectorySummary.clusterCount || 0}
+                  {swarmTrajectorySummary.scopeReadyClusterCount}/{swarmTrajectorySummary.scopeClusterCount || 0}
                 </span>
               </div>
               <div className="origin-info-row">
                 <span className="origin-label">Processed drones:</span>
                 <span className="origin-coords">
-                  {swarmTrajectorySummary.processedDroneCount}/{swarmTrajectorySummary.expectedDroneCount || swarmTrajectorySummary.processedDroneCount || 0}
+                  {swarmTrajectorySummary.scopeProcessedDroneCount}/{swarmTrajectorySummary.scopeTargetDroneCount || swarmTrajectorySummary.scopeProcessedDroneCount || 0}
+                </span>
+              </div>
+              <div className="origin-info-row">
+                <span className="origin-label">Launch scope:</span>
+                <span className="origin-coords">
+                  {swarmTrajectorySummary.scopeMode === 'selected'
+                    ? `${swarmTrajectorySummary.scopeTargetDroneCount} selected drone${swarmTrajectorySummary.scopeTargetDroneCount === 1 ? '' : 's'}`
+                    : 'All targeted drones'}
                 </span>
               </div>
               <div className="origin-info-row">

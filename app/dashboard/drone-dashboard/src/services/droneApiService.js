@@ -129,6 +129,7 @@ export const getSwarmClusterStatus = async () => {
       clusters,
       total_leaders: leadersData.leaders.length,
       total_followers: clusters.reduce((sum, cluster) => sum + cluster.follower_count, 0),
+      follow_map: statusData.status.follow_map || {},
       processed_trajectories: statusData.status.processed_trajectories || 0,
       processed_drones: statusData.status.processed_drones || [],
       processed_leaders: statusData.status.processed_leaders || [],

@@ -1028,6 +1028,38 @@ class TestCommandEndpoints:
         assert 'submitted_count' in data
         assert data['tracking_phase'] == 'pending_execution'
 
+    @patch('app_fastapi.send_commands_to_selected')
+    @patch('app_fastapi.load_config')
+    @patch('app_fastapi.swarm_trajectory_service.get_processing_status_payload')
+    def test_submit_command_rejects_invalid_swarm_trajectory_subset(
+        self,
+        mock_status,
+        mock_load,
+        mock_send_selected,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+        mock_status.return_value = {
+            'status': {
+                'processed_drones': [1, 2, 3],
+                'follow_map': {'1': 0, '2': 1, '3': 2},
+            }
+        }
+
+        response = test_client.post(
+            "/submit_command",
+            json={
+                'missionType': 4,
+                'triggerTime': 0,
+                'target_drones': ['2', '3'],
+            },
+        )
+
+        assert response.status_code == 400
+        assert 'Unsafe Swarm Trajectory target set' in response.json()['detail']
+        mock_send_selected.assert_not_called()
+
 
 # ============================================================================
 # Error Handling Tests

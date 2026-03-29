@@ -17,6 +17,8 @@ const baseProps = {
   icon: '✈️',
   label: 'Swarm Trajectory',
   description: 'Test mission',
+  targetMode: 'all',
+  selectedDrones: [],
   scheduleMode: COMMAND_SCHEDULE_MODES.NOW,
   timeDelay: 10,
   selectedDateTime: '',
@@ -122,5 +124,113 @@ describe('MissionDetails Swarm Trajectory gating', () => {
     expect(screen.getByText('Swarm Trajectory Launch Snapshot')).toBeInTheDocument();
     expect(screen.getByText('Processed swarm package is active. Confirm the final plots match the intended leader paths before launch.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
+  });
+
+  test('allows a valid selected subset even when another cluster is incomplete', () => {
+    useSwarmClusterStatus.mockReturnValue({
+      data: {
+        clusters: [
+          {
+            leader_id: 1,
+            follower_ids: [2, 3],
+            ready: true,
+            leader_uploaded: true,
+            state: 'ready',
+            expected_drone_count: 3,
+            processed_drone_count: 3,
+            issues: [],
+            advisories: [],
+          },
+          {
+            leader_id: 4,
+            follower_ids: [5],
+            ready: false,
+            leader_uploaded: true,
+            state: 'partial_outputs',
+            expected_drone_count: 2,
+            processed_drone_count: 1,
+            issues: ['Follower output missing'],
+            advisories: [],
+          },
+        ],
+        follow_map: {
+          1: 0,
+          2: 1,
+          3: 1,
+          4: 0,
+          5: 4,
+        },
+        processed_drones: [1, 2, 3, 4],
+        session: { exists: true, session_id: 's1', total_drones: 5 },
+        cluster_summary: {
+          cluster_count: 2,
+          ready_cluster_count: 1,
+          needs_processing_cluster_count: 0,
+          partial_output_cluster_count: 1,
+          missing_upload_cluster_count: 0,
+          overall_state: 'partial',
+        },
+      },
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MissionDetails {...baseProps} targetMode="selected" selectedDrones={['1', '2', '3']} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('1 out-of-scope cluster remains incomplete, but is outside the current launch scope.')).toBeInTheDocument();
+    expect(screen.getByText('3 selected drones')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
+  });
+
+  test('blocks a selected subset that breaks the leader chain', () => {
+    useSwarmClusterStatus.mockReturnValue({
+      data: {
+        clusters: [
+          {
+            leader_id: 1,
+            follower_ids: [2, 3],
+            ready: true,
+            leader_uploaded: true,
+            state: 'ready',
+            expected_drone_count: 3,
+            processed_drone_count: 3,
+            issues: [],
+            advisories: [],
+          },
+        ],
+        follow_map: {
+          1: 0,
+          2: 1,
+          3: 1,
+        },
+        processed_drones: [1, 2, 3],
+        session: { exists: true, session_id: 's1', total_drones: 3 },
+        cluster_summary: {
+          cluster_count: 1,
+          ready_cluster_count: 1,
+          needs_processing_cluster_count: 0,
+          partial_output_cluster_count: 0,
+          missing_upload_cluster_count: 0,
+          overall_state: 'ready',
+        },
+      },
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MissionDetails {...baseProps} targetMode="selected" selectedDrones={['2', '3']} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('2 leader chains are incomplete: Drone 2 requires leader 1; Drone 3 requires leader 1.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
   });
 });
