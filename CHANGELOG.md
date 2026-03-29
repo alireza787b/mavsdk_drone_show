@@ -70,6 +70,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the Overview dashboard now normalizes live telemetry before rendering drone cards, so browser/server clock skew no longer produces false `Heartbeat only` / `Link lost` card states, and short 3-point SkyBrush imports now process correctly through the linear fallback path
 - the telemetry API now exposes a server clock header and the dashboard uses that server-derived time when evaluating freshness, so moderate browser clock drift no longer silently degrades link state; if a meaningful client/server offset exists it is surfaced in the link-status tooltip instead
 - Swarm Trajectory readiness now uses truthful per-cluster backend state instead of heuristic leader-count guesses: uploaded raw CSV content changes force a fresh reprocess, leader uploads are validated against the current top-leader set, processing status now exposes real cluster readiness/missing followers/plot availability, and the dashboard distinguishes `ready`, `pending process`, and `missing upload`
+- Mission Type 4 dashboard launch gating now follows that same backend cluster truth instead of only generic mission heuristics, so missing uploads, pending processing, partial outputs, cluster issues, and missing active-package state all block launch before dispatch
+- Swarm Trajectory review/git actions now respect the actual GCS write-back mode: writable setups keep `Commit & Push Outputs`, while read-only/demo setups use a truthful local-commit-only path and the backend stops before pull/push when `MDS_GIT_AUTO_PUSH=false`
+- direct frontend tests now cover the Swarm Trajectory launch-readiness model, Mission Type 4 launch gating, and the page-level local-commit wording for read-only GCS deployments
 
 ### Added
 - **Custom Repo Workflow Guide**:

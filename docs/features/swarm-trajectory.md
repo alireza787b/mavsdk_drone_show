@@ -231,9 +231,16 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping
 - the `Swarm Trajectory` processing workspace now mirrors that same staged operator model:
   - a single workspace-status card tells the operator whether uploads are blocked, outputs need processing, or the mission package is ready for dashboard preflight
-  - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review, Commit, and Launch`) are summarized at the top with direct navigation back to the relevant page
-  - processing recommendations now live inside Step 2, and commit / dashboard launch actions now live inside Step 3 instead of being scattered across the page
+  - the three main stages (`Load Leader Paths`, `Generate Cluster Outputs`, `Review and Dispatch`) are summarized at the top with direct navigation back to the relevant page
+  - processing recommendations now live inside Step 2, and git-record / dashboard launch actions now live inside Step 3 instead of being scattered across the page
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
+- Mission Type 4 dashboard dispatch is now gated by that backend cluster truth:
+  - missing leader uploads, pending processing, partial outputs, missing active session truth, and explicit cluster issues all block launch
+  - advisory items stay visible as warnings without pretending the package is unavailable
+- the Step 3 git action now follows the actual GCS writeback mode:
+  - writable GCS setups show `Commit & Push Outputs`
+  - read-only/demo GCS setups show `Commit Outputs Locally`
+  - launch itself does not depend on a repo push; the git action is for traceability and propagation, not for local execution correctness
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number

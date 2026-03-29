@@ -34,6 +34,7 @@ Drones / SITL (pull latest configured branch)
 | Boot service | Drone startup | `update_repo_ssh.sh` runs via systemd service |
 | UI "Sync Drones" button | Operator-initiated | `POST /sync-repos` sends `UPDATE_CODE` (Mission 103) to drones |
 | UI "Save & Commit" button | Config/swarm save | `git_operations()` commits + pushes on GCS |
+| UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
 
 ## Auto-Commit on Config Save
@@ -50,6 +51,8 @@ The commit result (hash or error) is returned to the frontend and displayed in a
 For fresh GCS installs that stay on the default HTTPS/read-only repository path, the installer now writes `MDS_GIT_AUTO_PUSH=false` into `/etc/mds/gcs.env`. That keeps demo and evaluation setups from attempting write-back they cannot perform. SSH/fork installs keep auto-push enabled.
 
 A 30-second timeout protects against network hangs during fetch/pull/push operations.
+
+When `MDS_GIT_AUTO_PUSH=false`, the dedicated Swarm Trajectory commit endpoint still allows a **local** git commit on the GCS for traceability, but it now skips pull/push entirely and reports that write-back is disabled for this deployment. That keeps read-only/demo stacks honest instead of pretending a repo push happened.
 
 ## Monitoring: Git Status Polling
 
