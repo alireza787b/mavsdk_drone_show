@@ -36,7 +36,11 @@ const formatStatusLabel = (speedStatus = 'unknown') => {
   }
 };
 
-const TrajectorySegmentReview = ({ segments = [] }) => {
+const TrajectorySegmentReview = ({
+  segments = [],
+  onSelectSegment = null,
+  activeSegmentId = '',
+}) => {
   const summary = useMemo(() => {
     return segments.reduce(
       (acc, segment) => {
@@ -107,32 +111,41 @@ const TrajectorySegmentReview = ({ segments = [] }) => {
         {highlightedSegments.map((segment) => (
           <article
             key={segment.id}
-            className={`trajectory-segment-review__item trajectory-segment-review__item--${segment.speedStatus}`}
+            className={`trajectory-segment-review__item trajectory-segment-review__item--${segment.speedStatus} ${
+              activeSegmentId === segment.id ? 'trajectory-segment-review__item--active' : ''
+            }`}
           >
-            <div className="trajectory-segment-review__item-header">
-              <div>
-                <strong>
-                  Leg {segment.fromIndex} → {segment.toIndex}
-                </strong>
-                <span className="trajectory-segment-review__route">
-                  {segment.fromWaypointName} → {segment.toWaypointName}
+            <button
+              type="button"
+              className="trajectory-segment-review__button"
+              onClick={() => onSelectSegment?.(segment)}
+              disabled={!onSelectSegment}
+            >
+              <div className="trajectory-segment-review__item-header">
+                <div>
+                  <strong>
+                    Leg {segment.fromIndex} → {segment.toIndex}
+                  </strong>
+                  <span className="trajectory-segment-review__route">
+                    {segment.fromWaypointName} → {segment.toWaypointName}
+                  </span>
+                </div>
+                <span className={`trajectory-segment-review__status trajectory-segment-review__status--${segment.speedStatus}`}>
+                  {formatStatusLabel(segment.speedStatus)}
                 </span>
               </div>
-              <span className={`trajectory-segment-review__status trajectory-segment-review__status--${segment.speedStatus}`}>
-                {formatStatusLabel(segment.speedStatus)}
-              </span>
-            </div>
 
-            <div className="trajectory-segment-review__metrics">
-              <span>{formatDistance(segment.distanceMeters)}</span>
-              <span>{formatDuration(segment.durationSeconds)}</span>
-              <span>{segment.speed.toFixed(1)} m/s</span>
-            </div>
+              <div className="trajectory-segment-review__metrics">
+                <span>{formatDistance(segment.distanceMeters)}</span>
+                <span>{formatDuration(segment.durationSeconds)}</span>
+                <span>{segment.speed.toFixed(1)} m/s</span>
+              </div>
 
-            <div className="trajectory-segment-review__detail-row">
-              <span>{getTrajectoryTimingModeLabel(segment.timingMode)}</span>
-              <span>{getTrajectoryHeadingModeLabel(segment.headingMode)}</span>
-            </div>
+              <div className="trajectory-segment-review__detail-row">
+                <span>{getTrajectoryTimingModeLabel(segment.timingMode)}</span>
+                <span>{getTrajectoryHeadingModeLabel(segment.headingMode)}</span>
+              </div>
+            </button>
           </article>
         ))}
       </div>
@@ -156,6 +169,8 @@ TrajectorySegmentReview.propTypes = {
       headingMode: PropTypes.string.isRequired,
     })
   ),
+  onSelectSegment: PropTypes.func,
+  activeSegmentId: PropTypes.string,
 };
 
 export default TrajectorySegmentReview;

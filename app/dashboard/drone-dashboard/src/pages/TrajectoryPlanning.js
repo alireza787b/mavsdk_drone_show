@@ -237,6 +237,10 @@ const TrajectoryPlanning = () => {
     [trajectoryStats, waypoints]
   );
   const trajectorySegments = useMemo(() => buildTrajectorySegments(waypoints), [waypoints]);
+  const activeSegmentId = useMemo(
+    () => trajectorySegments.find((segment) => segment.toWaypointId === selectedWaypointId)?.id || '',
+    [selectedWaypointId, trajectorySegments]
+  );
 
   const plannerBriefItems = useMemo(
     () => [
@@ -612,6 +616,14 @@ const TrajectoryPlanning = () => {
 
   }, [useLeaflet]);
 
+  const handleSelectSegment = useCallback((segment) => {
+    setSelectedWaypointId(segment.toWaypointId);
+    const waypoint = waypoints.find((item) => item.id === segment.toWaypointId);
+    if (waypoint) {
+      flyToWaypoint(waypoint);
+    }
+  }, [flyToWaypoint, waypoints]);
+
   const openSwarmTransferDialog = useCallback(() => {
     if (waypoints.length === 0) {
       setOperationNotice('Add at least one waypoint before assigning a leader trajectory to the swarm.', 'warning');
@@ -929,7 +941,11 @@ const TrajectoryPlanning = () => {
           <TrajectoryStats stats={trajectoryStats} />
         </div>
 
-        <TrajectorySegmentReview segments={trajectorySegments} />
+        <TrajectorySegmentReview
+          segments={trajectorySegments}
+          activeSegmentId={activeSegmentId}
+          onSelectSegment={handleSelectSegment}
+        />
 
         <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
           <div className="trajectory-workflow-brief__cards">
@@ -1097,7 +1113,11 @@ const TrajectoryPlanning = () => {
         <TrajectoryStats stats={trajectoryStats} />
       </div>
 
-      <TrajectorySegmentReview segments={trajectorySegments} />
+      <TrajectorySegmentReview
+        segments={trajectorySegments}
+        activeSegmentId={activeSegmentId}
+        onSelectSegment={handleSelectSegment}
+      />
 
       <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
         <div className="trajectory-workflow-brief__cards">

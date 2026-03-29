@@ -51,6 +51,37 @@ describe('TrajectorySegmentReview', () => {
     expect(screen.getByText('Manual heading')).toBeInTheDocument();
   });
 
+  it('lets the operator jump from a flagged leg into the referenced arrival waypoint', () => {
+    const onSelectSegment = jest.fn();
+
+    render(
+      <TrajectorySegmentReview
+        segments={[
+          {
+            id: 'wp-2->wp-3',
+            fromIndex: 2,
+            toIndex: 3,
+            fromWaypointName: 'Waypoint 2',
+            toWaypointName: 'Waypoint 3',
+            speed: 23,
+            speedStatus: 'impossible',
+            distanceMeters: 480,
+            durationSeconds: 20,
+            timingMode: 'manual_time',
+            headingMode: 'manual',
+          },
+        ]}
+        onSelectSegment={onSelectSegment}
+        activeSegmentId="wp-2->wp-3"
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /leg 2 → 3/i }));
+    expect(onSelectSegment).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wp-2->wp-3', toWaypointName: 'Waypoint 3' })
+    );
+  });
+
   it('shows an empty-state briefing when fewer than two waypoints exist', () => {
     render(<TrajectorySegmentReview segments={[]} />);
 

@@ -77,13 +77,13 @@
 }
 
 .trajectory-segment-review__item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  padding: 0.85rem 0.95rem;
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(30, 41, 59, 0.5);
+}
+
+.trajectory-segment-review__item--active {
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
 }
 
 .trajectory-segment-review__item--feasible {
@@ -103,6 +103,29 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.trajectory-segment-review__button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.95rem;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trajectory-segment-review__button:disabled {
+  cursor: default;
+}
+
+.trajectory-segment-review__button:not(:disabled):focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.9);
+  outline-offset: 2px;
 }
 
 .trajectory-segment-review__item-header strong {
