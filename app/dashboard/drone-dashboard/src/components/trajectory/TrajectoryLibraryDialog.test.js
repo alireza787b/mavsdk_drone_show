@@ -35,6 +35,36 @@ describe('TrajectoryLibraryDialog', () => {
     expect(onSave).toHaveBeenCalledWith('coastal-search-alpha');
   });
 
+  it('blocks saving a blank trajectory name and trims surrounding whitespace before submit', () => {
+    const onSave = jest.fn();
+
+    render(
+      <TrajectoryLibraryDialog
+        mode="save"
+        isOpen
+        onClose={jest.fn()}
+        onSave={onSave}
+        initialName="   "
+        currentWaypointCount={2}
+        currentStats={{
+          totalDistance: 400,
+          totalTime: 40,
+          maxSpeed: 6.2,
+        }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /save trajectory/i })).toBeDisabled();
+    expect(screen.getByText(/enter a trajectory name before saving this leader route/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/enter trajectory name/i), {
+      target: { value: '  coastal-guard-alpha  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save trajectory/i }));
+
+    expect(onSave).toHaveBeenCalledWith('coastal-guard-alpha');
+  });
+
   it('shows saved trajectory metadata, prioritizes manual saves, and loads the selected route', () => {
     const onLoad = jest.fn();
 

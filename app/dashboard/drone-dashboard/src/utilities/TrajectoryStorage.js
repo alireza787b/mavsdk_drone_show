@@ -30,9 +30,15 @@ export class TrajectoryStorage {
    */
   async saveTrajectory(name, waypoints, metadata = {}) {
     try {
+      const normalizedName = String(name || '').trim();
+
+      if (!normalizedName) {
+        throw new Error('Trajectory name is required');
+      }
+
       const trajectoryData = {
         id: this.generateId(),
-        name: name.trim(),
+        name: normalizedName,
         waypoints: this.sanitizeWaypoints(waypoints),
         metadata: {
           ...metadata,
@@ -54,7 +60,7 @@ export class TrajectoryStorage {
       const existingTrajectories = this.getAllTrajectories();
       
       // Check if name already exists
-      const existingIndex = existingTrajectories.findIndex(t => t.name === name);
+      const existingIndex = existingTrajectories.findIndex(t => t.name === normalizedName);
       
       if (existingIndex >= 0) {
         // Update existing
@@ -209,9 +215,10 @@ export class TrajectoryStorage {
    */
   async exportCurrentTrajectory(name, waypoints, format = 'json', metadata = {}) {
     try {
+      const normalizedName = String(name || '').trim() || 'trajectory';
       const trajectory = {
         id: this.generateId(),
-        name: name || 'trajectory',
+        name: normalizedName,
         waypoints: this.sanitizeWaypoints(waypoints),
         metadata: {
           exportedAt: Date.now(),

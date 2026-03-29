@@ -95,6 +95,8 @@ const TrajectoryLibraryDialog = ({
     }
   }, [initialName, isOpen, mode]);
 
+  const normalizedDraftName = draftName.trim();
+
   const sortedTrajectories = useMemo(() => {
     return [...trajectories].sort((a, b) => {
       const aAuto = a?.metadata?.isAutoSave ? 1 : 0;
@@ -115,7 +117,11 @@ const TrajectoryLibraryDialog = ({
   }
 
   const handleSave = () => {
-    onSave(draftName);
+    if (!normalizedDraftName) {
+      return;
+    }
+
+    onSave(normalizedDraftName);
   };
 
   const title = mode === 'save' ? 'Save Trajectory' : 'Load Trajectory';
@@ -155,11 +161,16 @@ const TrajectoryLibraryDialog = ({
                 autoFocus
               />
             </label>
+            {!normalizedDraftName ? (
+              <p className="trajectory-library-dialog__empty">
+                Enter a trajectory name before saving this leader route.
+              </p>
+            ) : null}
             <div className="dialog-buttons">
               <button type="button" onClick={onClose}>
                 Cancel
               </button>
-              <button type="button" onClick={handleSave}>
+              <button type="button" onClick={handleSave} disabled={!normalizedDraftName}>
                 Save Trajectory
               </button>
             </div>

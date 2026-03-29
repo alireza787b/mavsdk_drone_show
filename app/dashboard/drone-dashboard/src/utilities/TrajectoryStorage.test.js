@@ -159,4 +159,44 @@ describe('TrajectoryStorage', () => {
       })
     );
   });
+
+  it('rejects blank save names and normalizes whitespace on valid names', async () => {
+    const storage = new TrajectoryStorage();
+    const waypoints = [
+      {
+        id: 'wp-1',
+        name: 'Waypoint 1',
+        latitude: 35.7262,
+        longitude: 51.2721,
+        altitude: 100,
+        timeFromStart: 10,
+        heading: 0,
+        headingMode: YAW_CONSTANTS.MANUAL,
+      },
+      {
+        id: 'wp-2',
+        name: 'Waypoint 2',
+        latitude: 35.7272,
+        longitude: 51.2731,
+        altitude: 120,
+        timeFromStart: 30,
+        heading: 45,
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+    ];
+
+    await expect(storage.saveTrajectory('   ', waypoints)).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        error: 'Trajectory name is required',
+      })
+    );
+
+    const saveResult = await storage.saveTrajectory('  route-alpha  ', waypoints);
+    expect(saveResult.success).toBe(true);
+
+    const loadResult = await storage.loadTrajectory('route-alpha');
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.trajectory.name).toBe('route-alpha');
+  });
 });
