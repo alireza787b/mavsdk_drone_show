@@ -1,5 +1,6 @@
 import sys
 import types
+from io import StringIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,6 +44,40 @@ def _stream_side_effect(values):
         return _stream()
 
     return _factory
+
+
+def test_read_config_uses_swarm_trajectory_processed_folder(monkeypatch):
+    config_json = """
+    {
+      "drones": [
+        {"hw_id": 1, "pos_id": 1, "ip": "127.0.0.1", "mavlink_port": 14540}
+      ]
+    }
+    """
+    trajectory_csv = "t,px,py\n0,1.5,2.5\n"
+    opened_paths = []
+
+    monkeypatch.setattr(stm, "HW_ID", 1)
+
+    def fake_exists(path):
+        return path.endswith("config.json") or path.endswith("swarm_trajectory/processed/Drone 1.csv")
+
+    def fake_open(path, *args, **kwargs):
+        opened_paths.append(path)
+        if path.endswith("config.json"):
+            return StringIO(config_json)
+        if path.endswith("swarm_trajectory/processed/Drone 1.csv"):
+            return StringIO(trajectory_csv)
+        raise FileNotFoundError(path)
+
+    monkeypatch.setattr(stm.os.path, "exists", fake_exists)
+    with patch("builtins.open", side_effect=fake_open):
+        drone = stm.read_config("config.json")
+
+    assert drone is not None
+    assert drone.pos_id == 1
+    assert any(path.endswith("swarm_trajectory/processed/Drone 1.csv") for path in opened_paths)
+    assert not any("/swarm/processed/" in path for path in opened_paths)
 
 
 @pytest.mark.asyncio

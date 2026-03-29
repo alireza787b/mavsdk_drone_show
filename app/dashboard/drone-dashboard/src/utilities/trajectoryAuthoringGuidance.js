@@ -241,6 +241,11 @@ export const getTrajectoryOperatorPolicyNotes = ({
         ? `Waypoint 1 sets route-entry time and heading. Current path uses ${routeEntryCount} route-entry anchor, ${speedDrivenCount} speed-driven leg${speedDrivenCount === 1 ? '' : 's'}, and ${timeDrivenCount} time-driven leg${timeDrivenCount === 1 ? '' : 's'}.`
         : 'Waypoint 1 will define route-entry time and heading; later legs can then use either Speed-driven ETA or Time-driven speed.',
     },
+    {
+      key: 'mission_frame',
+      label: 'Mission frame',
+      detail: 'Routes are authored in global latitude/longitude with stored MSL altitude. PX4 launch/home truth is used for preflight readiness, initial-climb validation, drift correction, and return-home verification; it does not redefine the authored route geometry.',
+    },
   ];
 };
 
@@ -275,5 +280,10 @@ export const getSwarmTrajectoryExecutionDoctrine = () => [
     key: 'altitude',
     label: 'Altitude rule',
     detail: 'Any Target AGL planning input was already converted into the stored MSL mission altitude before processing. Mission execution always flies the stored altitude package.',
+  },
+  {
+    key: 'launch_truth',
+    label: 'Launch/home truth',
+    detail: 'PX4 launch/home truth is used to confirm armability, initial climb, drift handling, and end-behavior recovery. It does not move or reinterpret the authored global route itself.',
   },
 ];

@@ -127,6 +127,10 @@ describe('trajectoryAuthoringGuidance', () => {
         label: 'Leg ownership',
         detail: expect.stringMatching(/1 route-entry anchor, 1 speed-driven leg, and 1 time-driven leg/i),
       }),
+      expect.objectContaining({
+        label: 'Mission frame',
+        detail: expect.stringMatching(/authored in global latitude\/longitude with stored MSL altitude/i),
+      }),
     ]);
   });
 
@@ -159,6 +163,10 @@ describe('trajectoryAuthoringGuidance', () => {
       expect.objectContaining({
         label: 'Altitude rule',
         detail: expect.stringMatching(/Mission execution always flies the stored altitude package/i),
+      }),
+      expect.objectContaining({
+        label: 'Launch\/home truth',
+        detail: expect.stringMatching(/does not move or reinterpret the authored global route itself/i),
       }),
     ]);
   });

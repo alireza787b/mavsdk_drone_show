@@ -209,7 +209,7 @@ def read_config(filename: str) -> Drone:
                     trajectory_file = os.path.join(
                         os.path.dirname(__file__),  # Project root
                         base_dir,
-                        'swarm',
+                        'swarm_trajectory',
                         'processed',
                         f"Drone {pos_id}.csv"
                     )

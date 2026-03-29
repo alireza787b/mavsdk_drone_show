@@ -665,6 +665,10 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling Mission Type 4.
             </p>
+            <ul>
+              <li>Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.</li>
+              <li>Launch/home truth is still critical for armability, climb verification, drift handling, and RTL/LAND recovery, but it does not redefine the authored route geometry.</li>
+            </ul>
           </div>
         </div>
       )}
