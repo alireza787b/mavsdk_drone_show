@@ -38,6 +38,10 @@
   margin-bottom: var(--spacing-lg);
 }
 
+.swarm-transfer-policy-notes {
+  margin-bottom: var(--spacing-lg);
+}
+
 .swarm-transfer-summary__item {
   padding: var(--spacing-base);
   border: 1px solid var(--color-border-light);

@@ -184,6 +184,8 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('0');
     expect(screen.getByText('Author top-leader path')).toBeInTheDocument();
     expect(screen.getByText(/Waypoint 1 anchors route-entry time and heading/i)).toBeInTheDocument();
+    expect(screen.getByText(/mission still stores and executes canonical msl altitude/i)).toBeInTheDocument();
+    expect(screen.getByText(/Waypoint 1 will define route-entry time and heading/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Toggle Add'));
     fireEvent.click(screen.getByTestId('mock-map'));

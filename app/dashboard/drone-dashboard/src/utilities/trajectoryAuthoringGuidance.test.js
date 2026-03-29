@@ -1,5 +1,6 @@
 import {
   getTrajectoryAltitudeIntentSummary,
+  getTrajectoryOperatorPolicyNotes,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
@@ -92,5 +93,32 @@ describe('trajectoryAuthoringGuidance', () => {
         compact: 'Entry 12s',
       })
     );
+  });
+
+  test('builds shared operator policy notes for altitude execution, terrain review, and leg ownership', () => {
+    expect(
+      getTrajectoryOperatorPolicyNotes({
+        waypointCount: 3,
+        stats: {
+          altitudeReferenceCounts: { msl: 2, agl: 1 },
+          timingModeCounts: { auto_speed: 1, manual_time: 2 },
+          terrainCoverage: { accurate: 2, estimated: 1, unknown: 0 },
+          minAgl: 120,
+        },
+      })
+    ).toEqual([
+      expect.objectContaining({
+        label: 'Altitude execution',
+        detail: expect.stringMatching(/1 waypoint uses Target AGL authoring/i),
+      }),
+      expect.objectContaining({
+        label: 'Terrain confidence',
+        detail: expect.stringMatching(/1 waypoint still rely on estimated or missing terrain/i),
+      }),
+      expect.objectContaining({
+        label: 'Leg ownership',
+        detail: expect.stringMatching(/Waypoint 1 sets route-entry time and heading/i),
+      }),
+    ]);
   });
 });

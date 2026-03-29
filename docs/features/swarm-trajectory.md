@@ -206,6 +206,11 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - launch readiness, speed-review needs, and terrain caveats stay visible above the map instead of being hidden inside the waypoint modal
   - per-waypoint cards now show altitude-reference, timing-mode, heading-mode, and terrain-confidence tags for faster audit before launch
   - a dedicated `Leg Review` surface now calls out route segments with nominal / review / unsafe pacing before the operator assigns a leader path to the swarm
+- the planner and transfer dialog now also share one compact operator-policy strip:
+  - missions always execute the stored **MSL** altitude
+  - `Target AGL` remains an authoring convenience that is converted into the stored MSL mission altitude using the current terrain reference
+  - terrain confidence and low-clearance review stay visible during both planning and leader assignment instead of only appearing later during processing
+  - waypoint 1 owns route-entry time/heading, while later legs own the ETA-versus-speed planning intent
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, segment plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned

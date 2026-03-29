@@ -2,7 +2,11 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { getClusterStateMeta } from '../../utilities/swarmTrajectoryViewModel';
-import { getTrajectoryWorkflowStages } from '../../utilities/trajectoryAuthoringGuidance';
+import {
+  getTrajectoryOperatorPolicyNotes,
+  getTrajectoryWorkflowStages,
+} from '../../utilities/trajectoryAuthoringGuidance';
+import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
 
@@ -80,6 +84,7 @@ const SwarmTrajectoryTransferDialog = ({
     followerCount: selectedCluster?.follower_count || 0,
     expectedDroneCount: selectedClusterExpectedDroneCount,
   });
+  const policyNotes = getTrajectoryOperatorPolicyNotes({ stats, waypointCount });
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -132,6 +137,12 @@ const SwarmTrajectoryTransferDialog = ({
             <strong>{formatTerrainMix(stats)}</strong>
           </div>
         </div>
+
+        <TrajectoryPolicyNotes
+          notes={policyNotes}
+          title="Assignment policy"
+          className="swarm-transfer-policy-notes"
+        />
 
         <div className={`swarm-transfer-posture swarm-transfer-posture--${missionReadiness.posture.tone}`}>
           <strong>{missionReadiness.posture.label}</strong>

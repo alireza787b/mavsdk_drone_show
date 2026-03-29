@@ -63,6 +63,8 @@ describe('SwarmTrajectoryTransferDialog', () => {
     expect(screen.getByText('Speed-driven ETA 1 · Time-driven speed 2')).toBeInTheDocument();
     expect(screen.getByText('Heading Plan')).toBeInTheDocument();
     expect(screen.getByText('Auto heading 2 · Manual heading 1')).toBeInTheDocument();
+    expect(screen.getByText(/mission still stores and executes canonical msl altitude/i)).toBeInTheDocument();
+    expect(screen.getByText(/Waypoint 1 sets route-entry time and heading/i)).toBeInTheDocument();
     expect(screen.queryByText('Transfer Posture')).not.toBeInTheDocument();
     expect(screen.getByText('Review required')).toBeInTheDocument();
   });

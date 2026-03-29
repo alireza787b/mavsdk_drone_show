@@ -13,6 +13,7 @@ import WaypointModal from '../components/trajectory/WaypointModal';
 import SwarmTrajectoryTransferDialog from '../components/trajectory/SwarmTrajectoryTransferDialog';
 import TrajectoryExportDialog from '../components/trajectory/TrajectoryExportDialog';
 import TrajectoryLibraryDialog from '../components/trajectory/TrajectoryLibraryDialog';
+import TrajectoryPolicyNotes from '../components/trajectory/TrajectoryPolicyNotes';
 
 import { 
   ALTITUDE_REFERENCE,
@@ -33,7 +34,10 @@ import {
   formatTrajectorySpeedEnvelope,
   formatTrajectorySpeedEnvelopeDetail,
 } from '../constants/trajectoryMissionPolicy';
-import { getTrajectoryWorkflowStages } from '../utilities/trajectoryAuthoringGuidance';
+import {
+  getTrajectoryOperatorPolicyNotes,
+  getTrajectoryWorkflowStages,
+} from '../utilities/trajectoryAuthoringGuidance';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -304,6 +308,10 @@ const TrajectoryPlanning = () => {
   }, [plannerMissionReadiness, trajectoryStats, waypoints.length]);
 
   const plannerWorkflowStages = useMemo(() => getTrajectoryWorkflowStages(), []);
+  const plannerPolicyNotes = useMemo(
+    () => getTrajectoryOperatorPolicyNotes({ stats: trajectoryStats, waypointCount: waypoints.length }),
+    [trajectoryStats, waypoints.length]
+  );
 
   const addWaypointWithData = useCallback((position, waypointData) => {
     // Always allow waypoint creation (Phase 3 requirement)
@@ -996,6 +1004,11 @@ const TrajectoryPlanning = () => {
               ))}
             </div>
           ) : null}
+          <TrajectoryPolicyNotes
+            notes={plannerPolicyNotes}
+            title="Trajectory execution policy"
+            className="trajectory-workflow-brief__policy"
+          />
         </div>
 
         <div className="trajectory-container">
@@ -1168,6 +1181,11 @@ const TrajectoryPlanning = () => {
             ))}
           </div>
         ) : null}
+        <TrajectoryPolicyNotes
+          notes={plannerPolicyNotes}
+          title="Trajectory execution policy"
+          className="trajectory-workflow-brief__policy"
+        />
       </div>
 
       <div className="trajectory-container">

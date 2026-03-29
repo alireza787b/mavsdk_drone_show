@@ -404,6 +404,10 @@
   gap: 0.5rem;
 }
 
+.trajectory-workflow-brief__policy {
+  margin-top: 0.1rem;
+}
+
 .trajectory-workflow-brief__alert {
   display: inline-flex;
   align-items: center;

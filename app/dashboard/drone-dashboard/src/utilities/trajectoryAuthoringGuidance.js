@@ -1,4 +1,5 @@
 import { ALTITUDE_REFERENCE, TIMING_MODES, YAW_CONSTANTS, formatHeading } from './SpeedCalculator';
+import { TRAJECTORY_TERRAIN_POLICY } from '../constants/trajectoryMissionPolicy';
 
 const formatSeconds = (seconds = 0) => {
   if (!Number.isFinite(seconds)) {
@@ -196,6 +197,47 @@ export const getTrajectoryWorkflowStages = ({
       key: 'process',
       label: 'Process, review, then launch',
       detail: 'Open Swarm Trajectory to regenerate follower outputs and review plots, then launch Mission 4 from Dashboard once preflight is clear.',
+    },
+  ];
+};
+
+export const getTrajectoryOperatorPolicyNotes = ({
+  stats = {},
+  waypointCount = 0,
+} = {}) => {
+  const altitudeModes = stats.altitudeReferenceCounts || {};
+  const timingModes = stats.timingModeCounts || {};
+  const terrainCoverage = stats.terrainCoverage || {};
+  const aglCount = altitudeModes.agl || 0;
+  const estimatedTerrainCount = (terrainCoverage.estimated || 0) + (terrainCoverage.unknown || 0);
+  const speedDrivenCount = timingModes.auto_speed || 0;
+  const timeDrivenCount = Math.max(0, (timingModes.manual_time || 0) - (waypointCount > 0 ? 1 : 0));
+
+  const terrainDetail = estimatedTerrainCount > 0
+    ? `${estimatedTerrainCount} waypoint${estimatedTerrainCount === 1 ? '' : 's'} still rely on estimated or missing terrain and need operator review before launch.`
+    : Number.isFinite(stats.minAgl) && stats.minAgl > 0 && stats.minAgl < TRAJECTORY_TERRAIN_POLICY.MIN_SAFE_CLEARANCE_M
+      ? `Clearance dips below ${TRAJECTORY_TERRAIN_POLICY.MIN_SAFE_CLEARANCE_M}m AGL at one or more waypoints. Recheck terrain intent and separation.`
+      : 'Current waypoints have verified terrain context and no low-clearance terrain advisory.';
+
+  return [
+    {
+      key: 'altitude',
+      label: 'Altitude execution',
+      detail: aglCount > 0
+        ? `${aglCount} waypoint${aglCount === 1 ? '' : 's'} use Target AGL authoring, but the mission still stores and executes canonical MSL altitude.`
+        : 'All current waypoints use direct MSL altitude input, which is also the altitude the mission executes.',
+    },
+    {
+      key: 'terrain',
+      label: 'Terrain confidence',
+      detail: terrainDetail,
+    },
+    {
+      key: 'timing',
+      label: 'Leg ownership',
+      detail: waypointCount > 0
+        ? `Waypoint 1 sets route-entry time and heading. Later legs currently use ${speedDrivenCount} speed-driven ETA input${speedDrivenCount === 1 ? '' : 's'} and ${timeDrivenCount} time-driven speed input${timeDrivenCount === 1 ? '' : 's'}.`
+        : 'Waypoint 1 will define route-entry time and heading; later legs can then use either Speed-driven ETA or Time-driven speed.',
     },
   ];
 };

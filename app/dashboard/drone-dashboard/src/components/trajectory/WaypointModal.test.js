@@ -89,7 +89,12 @@ describe('WaypointModal', () => {
 
     expect(screen.getAllByText(/segment plan/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/4\.0 m\/s preferred leg speed -> 38s waypoint arrival time/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/operator sets preferred inbound-leg speed 4\.0 m\/s\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/planner derives arrival at 38s and verifies the leg at 4\.0 m\/s\./i)
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
@@ -162,7 +167,7 @@ describe('WaypointModal', () => {
       target: { value: '120' },
     });
 
-    expect(screen.getByText(/stored as 320\.0m msl/i)).toBeInTheDocument();
+    expect(screen.getByText(/mission stores altitude as 320\.0m msl/i)).toBeInTheDocument();
     expect(screen.queryByText(/estimated terrain/i)).not.toBeInTheDocument();
     expect(screen.getByText(/accurate terrain/i)).toBeInTheDocument();
 
