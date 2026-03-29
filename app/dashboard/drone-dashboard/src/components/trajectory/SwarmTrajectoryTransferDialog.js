@@ -27,6 +27,16 @@ const formatAltitudeMix = (stats = {}) => {
   return `MSL ${counts.msl || 0} · AGL ${counts.agl || 0}`;
 };
 
+const formatTimingMix = (stats = {}) => {
+  const counts = stats.timingModeCounts || {};
+  return `Speed-driven ETA ${counts.auto_speed || 0} · Time-driven speed ${counts.manual_time || 0}`;
+};
+
+const formatHeadingMix = (stats = {}) => {
+  const counts = stats.headingModeCounts || {};
+  return `Auto heading ${counts.auto || 0} · Manual heading ${counts.manual || 0}`;
+};
+
 const formatTerrainMix = (stats = {}) => {
   const terrain = stats.terrainCoverage || {};
   return `Accurate ${terrain.accurate || 0} · Estimated ${(terrain.estimated || 0) + (terrain.unknown || 0)}`;
@@ -70,11 +80,6 @@ const SwarmTrajectoryTransferDialog = ({
     followerCount: selectedCluster?.follower_count || 0,
     expectedDroneCount: selectedClusterExpectedDroneCount,
   });
-  const missionAlerts = [
-    ...missionReadiness.blockers,
-    ...missionReadiness.advisories,
-    ...missionReadiness.notes,
-  ];
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -115,25 +120,22 @@ const SwarmTrajectoryTransferDialog = ({
             <strong>{formatAltitudeMix(stats)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
-            <span className="swarm-transfer-summary__label">Terrain</span>
-            <strong>{formatTerrainMix(stats)}</strong>
+            <span className="swarm-transfer-summary__label">Timing Plan</span>
+            <strong>{formatTimingMix(stats)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
-            <span className="swarm-transfer-summary__label">Transfer Posture</span>
-            <strong>{missionReadiness.posture.label}</strong>
+            <span className="swarm-transfer-summary__label">Heading Plan</span>
+            <strong>{formatHeadingMix(stats)}</strong>
+          </div>
+          <div className="swarm-transfer-summary__item">
+            <span className="swarm-transfer-summary__label">Terrain</span>
+            <strong>{formatTerrainMix(stats)}</strong>
           </div>
         </div>
 
         <div className={`swarm-transfer-posture swarm-transfer-posture--${missionReadiness.posture.tone}`}>
           <strong>{missionReadiness.posture.label}</strong>
           <p>{missionReadiness.posture.summary}</p>
-          {missionAlerts.length > 0 ? (
-            <ul className="swarm-transfer-posture__list">
-              {missionAlerts.map((item) => (
-                <li key={`${item.code}-${item.text}`}>{item.text}</li>
-              ))}
-            </ul>
-          ) : null}
         </div>
 
         {missionReadiness.blockers.length > 0 ? (

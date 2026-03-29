@@ -15,9 +15,11 @@ import TrajectoryLibraryDialog from '../components/trajectory/TrajectoryLibraryD
 
 import { 
   ALTITUDE_REFERENCE,
+  buildTrajectorySegments,
   calculateTrajectoryStats, 
   recalculateAfterDrag,
   calculateWaypointSpeeds,
+  getTrajectorySegmentColor,
   TIMING_MODES,
   YAW_CONSTANTS
 } from '../utilities/SpeedCalculator';
@@ -233,6 +235,7 @@ const TrajectoryPlanning = () => {
     () => buildTrajectoryMissionReadiness({ waypoints, stats: trajectoryStats }),
     [trajectoryStats, waypoints]
   );
+  const trajectorySegments = useMemo(() => buildTrajectorySegments(waypoints), [waypoints]);
 
   const plannerBriefItems = useMemo(
     () => [
@@ -789,9 +792,36 @@ const TrajectoryPlanning = () => {
   const getWaypointColor = useCallback((waypoint, index) => {
     if (index === 0) return '#28a745'; // Start - Green
     if (index === waypoints.length - 1) return '#dc3545'; // End - Red
-    if (!waypoint.speedFeasible) return '#ffc107'; // Warning - Yellow
+    if (waypoint.speedStatus === 'impossible') return '#dc3545';
+    if (waypoint.speedStatus === 'marginal' || !waypoint.speedFeasible) return '#f5a623';
     return '#007bff'; // Default - Blue
   }, [waypoints.length]);
+
+  const pathRiskLegend = waypoints.length > 1 ? (
+    <div className="trajectory-path-legend" aria-label="Trajectory path risk legend">
+      <div className="trajectory-path-legend__item">
+        <span
+          className="trajectory-path-legend__swatch"
+          style={{ backgroundColor: getTrajectorySegmentColor('feasible') }}
+        />
+        <span>Nominal leg</span>
+      </div>
+      <div className="trajectory-path-legend__item">
+        <span
+          className="trajectory-path-legend__swatch"
+          style={{ backgroundColor: getTrajectorySegmentColor('marginal') }}
+        />
+        <span>Review leg</span>
+      </div>
+      <div className="trajectory-path-legend__item">
+        <span
+          className="trajectory-path-legend__swatch"
+          style={{ backgroundColor: getTrajectorySegmentColor('impossible') }}
+        />
+        <span>Unsafe leg</span>
+      </div>
+    </div>
+  ) : null;
 
   const plannerNoticeBanner = plannerNotice ? (
     <div className={`trajectory-planner-notice ${plannerNotice.tone || 'info'}`}>
@@ -971,12 +1001,13 @@ const TrajectoryPlanning = () => {
                 />
 
                 {/* Trajectory line */}
-                {waypoints.length >= 2 && (
+                {trajectorySegments.map((segment) => (
                   <LPolyline
-                    positions={waypoints.map((wp) => [wp.latitude, wp.longitude])}
-                    pathOptions={{ color: '#00d4ff', weight: 4, opacity: 0.8 }}
+                    key={segment.id}
+                    positions={segment.coordinates.map(([longitude, latitude]) => [latitude, longitude])}
+                    pathOptions={{ color: segment.color, weight: 4, opacity: 0.85 }}
                   />
-                )}
+                ))}
 
                 {/* Waypoint markers */}
                 {waypoints.map((waypoint, index) => (
@@ -1148,16 +1179,22 @@ const TrajectoryPlanning = () => {
                 />
               )}
 
-              {waypoints.length > 1 && (
+              {trajectorySegments.length > 0 && (
                 <Source
                   id="trajectory-line"
                   type="geojson"
                   data={{
-                    type: 'Feature',
-                    geometry: {
-                      type: 'LineString',
-                      coordinates: waypoints.map(wp => [wp.longitude, wp.latitude])
-                    }
+                    type: 'FeatureCollection',
+                    features: trajectorySegments.map((segment) => ({
+                      type: 'Feature',
+                      properties: {
+                        speedStatus: segment.speedStatus,
+                      },
+                      geometry: {
+                        type: 'LineString',
+                        coordinates: segment.coordinates,
+                      },
+                    })),
                   }}
                 >
                   <Layer
@@ -1165,13 +1202,13 @@ const TrajectoryPlanning = () => {
                     type="line"
                     paint={{
                       'line-color': [
-                        'case',
-                        ['all', 
-                          ['has', 'speedFeasible'],
-                          ['==', ['get', 'speedFeasible'], false]
-                        ],
-                        '#dc3545', // Red for infeasible speeds
-                        '#00d4ff'  // Blue for feasible speeds
+                        'match',
+                        ['get', 'speedStatus'],
+                        'impossible',
+                        '#dc3545',
+                        'marginal',
+                        '#f5a623',
+                        '#00d4ff'
                       ],
                       'line-width': 4,
                       'line-opacity': 0.8
@@ -1258,6 +1295,8 @@ const TrajectoryPlanning = () => {
                 </div>
               </div>
             )}
+
+            {pathRiskLegend}
           </div>
         </div>
 

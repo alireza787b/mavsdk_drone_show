@@ -211,6 +211,44 @@ export const getSpeedDescription = (speed) => {
   }
 };
 
+export const getTrajectorySegmentColor = (speedStatus = 'unknown') => {
+  switch (speedStatus) {
+    case 'feasible':
+      return '#00d4ff';
+    case 'marginal':
+      return '#f5a623';
+    case 'impossible':
+      return '#dc3545';
+    default:
+      return '#8ea4bf';
+  }
+};
+
+export const buildTrajectorySegments = (waypoints = []) => {
+  if (!Array.isArray(waypoints) || waypoints.length < 2) {
+    return [];
+  }
+
+  return waypoints.slice(1).map((waypoint, index) => {
+    const previousWaypoint = waypoints[index];
+    const speed = waypoint.estimatedSpeed || calculateSpeed(previousWaypoint, waypoint);
+    const speedStatus = waypoint.speedStatus || validateSpeed(speed);
+
+    return {
+      id: `${previousWaypoint.id}->${waypoint.id}`,
+      fromWaypointId: previousWaypoint.id,
+      toWaypointId: waypoint.id,
+      speed,
+      speedStatus,
+      color: getTrajectorySegmentColor(speedStatus),
+      coordinates: [
+        [previousWaypoint.longitude, previousWaypoint.latitude],
+        [waypoint.longitude, waypoint.latitude],
+      ],
+    };
+  });
+};
+
 export const buildTrajectoryAttentionItems = (stats = {}) => {
   const items = [];
   const terrainCoverage = stats.terrainCoverage || {};
@@ -283,6 +321,7 @@ export const calculateWaypointSpeeds = (waypoints) => {
         estimatedSpeed: 0,
         speed: 0,
         speedFeasible: true,
+        speedStatus: 'unknown',
         heading: initialHeading,
         // The mission-start anchor always uses an explicit heading.
         headingMode: YAW_CONSTANTS.MANUAL,
@@ -304,6 +343,7 @@ export const calculateWaypointSpeeds = (waypoints) => {
       estimatedSpeed: arrivalSpeed,
       speed: arrivalSpeed,
       speedFeasible: speedStatus === 'feasible',
+      speedStatus,
       heading: actualHeading,
       headingMode,
       calculatedHeading,

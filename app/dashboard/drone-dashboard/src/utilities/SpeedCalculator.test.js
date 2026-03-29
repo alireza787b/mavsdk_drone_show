@@ -2,6 +2,7 @@ import {
   ALTITUDE_REFERENCE,
   TIMING_MODES,
   YAW_CONSTANTS,
+  buildTrajectorySegments,
   buildTrajectoryAttentionItems,
   calculateHeadingForNewWaypoint,
   calculateTrajectoryStats,
@@ -207,5 +208,50 @@ describe('SpeedCalculator', () => {
         text: 'AGL entries are stored as MSL after applying the current ground estimate.',
       }),
     ]);
+  });
+
+  test('buildTrajectorySegments exposes per-leg speed status for map rendering', () => {
+    const waypoints = calculateWaypointSpeeds([
+      {
+        id: 'wp-1',
+        name: 'Waypoint 1',
+        latitude: 35.0,
+        longitude: 51.0,
+        altitude: 100,
+        timeFromStart: 0,
+      },
+      {
+        id: 'wp-2',
+        name: 'Waypoint 2',
+        latitude: 35.001,
+        longitude: 51.0,
+        altitude: 120,
+        timeFromStart: 15,
+      },
+      {
+        id: 'wp-3',
+        name: 'Waypoint 3',
+        latitude: 35.02,
+        longitude: 51.0,
+        altitude: 120,
+        timeFromStart: 16,
+      },
+    ]);
+
+    const segments = buildTrajectorySegments(waypoints);
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toMatchObject({
+      fromWaypointId: 'wp-1',
+      toWaypointId: 'wp-2',
+      speedStatus: 'feasible',
+      color: '#00d4ff',
+    });
+    expect(segments[1]).toMatchObject({
+      fromWaypointId: 'wp-2',
+      toWaypointId: 'wp-3',
+      speedStatus: 'impossible',
+      color: '#dc3545',
+    });
   });
 });

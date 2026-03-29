@@ -40,9 +40,9 @@ const TrajectoryStats = ({ stats }) => {
     {
       label: 'Timing',
       value: formatCountPair(
-        'Speed',
+        'Speed-driven ETA',
         timingModes.auto_speed || 0,
-        'Manual',
+        'Time-driven speed',
         timingModes.manual_time || 0,
       ),
     },
@@ -58,9 +58,9 @@ const TrajectoryStats = ({ stats }) => {
     {
       label: 'Heading',
       value: formatCountPair(
-        'Auto',
+        'Auto heading',
         headingModes.auto || 0,
-        'Manual',
+        'Manual heading',
         headingModes.manual || 0,
       ),
     },

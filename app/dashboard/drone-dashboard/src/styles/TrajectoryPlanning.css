@@ -68,6 +68,38 @@
   }
 }
 
+.trajectory-path-legend {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(7, 16, 28, 0.86);
+  color: #f7fbff;
+  z-index: 900;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(10px);
+}
+
+.trajectory-path-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.trajectory-path-legend__swatch {
+  width: 18px;
+  height: 4px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
 /* =============================================== */
 /* FALLBACK UI ENHANCEMENTS */
 /* =============================================== */
