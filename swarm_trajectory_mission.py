@@ -410,7 +410,7 @@ def read_swarm_trajectory_file(position_id: int) -> list:
 async def perform_swarm_trajectory(
     drone: System,
     waypoints: list,
-    home_position,
+    global_reference,
     start_time: float,
     launch_lat: float,
     launch_lon: float,
@@ -424,7 +424,9 @@ async def perform_swarm_trajectory(
     Args:
         drone: MAVSDK drone system instance
         waypoints: List of trajectory waypoints
-        home_position: Home position data
+        global_reference: Launch-time global execution reference from pre-flight
+            checks. This supports readiness and recovery semantics only; it does
+            not alter the authored global route.
         start_time: Mission start time
         launch_lat: Launch latitude
         launch_lon: Launch longitude  
@@ -1261,8 +1263,12 @@ async def initial_setup_and_connection():
 
 async def pre_flight_checks(drone: System):
     """
-    Perform pre-flight checks to ensure the drone is ready for flight.
-    (Identical to drone_show.py implementation)
+    Perform pre-flight checks and return the global execution reference.
+
+    The returned reference prefers PX4's GPS global origin, but may fall back to
+    the current global position sample if the origin RPC is unavailable. This
+    execution reference is used for launch-readiness gating and recovery logic;
+    it does not redefine the authored global route geometry.
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting pre-flight checks.")
@@ -1271,7 +1277,7 @@ async def pre_flight_checks(drone: System):
     led_controller.set_color(255, 255, 0)  # Yellow = in progress
 
     start_time = time.time()
-    gps_origin = None
+    global_reference = None
     health_checks_passed = False
 
     try:
@@ -1301,36 +1307,38 @@ async def pre_flight_checks(drone: System):
             if not health_checks_passed:
                 raise RuntimeError("Failed to pass health checks")
 
-            # Phase 2: Get GPS origin (with fallback)
+            # Phase 2: Get the global execution reference (with fallback)
             try:
                 origin = await drone.telemetry.get_gps_global_origin()
-                gps_origin = {
+                global_reference = {
                     'latitude': origin.latitude_deg,
                     'longitude': origin.longitude_deg,
-                    'altitude': origin.altitude_m
+                    'altitude': origin.altitude_m,
+                    'source': 'gps_global_origin',
                 }
-                logger.info(f"Retrieved GPS global origin: {gps_origin}")
+                logger.info(f"Retrieved PX4 GPS global origin reference: {global_reference}")
             except mavsdk.telemetry.TelemetryError as e:
-                logger.warning(f"GPS origin request failed: {e}, using fallback...")
+                logger.warning(f"GPS origin request failed: {e}, using current global position fallback...")
                 # Get single position update as fallback
                 async for position in drone.telemetry.position():
-                    gps_origin = {
+                    global_reference = {
                         'latitude': position.latitude_deg,
                         'longitude': position.longitude_deg,
-                        'altitude': position.absolute_altitude_m
+                        'altitude': position.absolute_altitude_m,
+                        'source': 'fallback_position',
                     }
-                    logger.info(f"Using fallback position: {gps_origin}")
+                    logger.info(f"Using fallback global position reference: {global_reference}")
                     break  # Exit after first position update
 
             # Final validation
-            if not gps_origin:
-                logger.error("Failed to obtain GPS origin")
+            if not global_reference:
+                logger.error("Failed to obtain any global execution reference")
                 led_controller.set_color(255, 0, 0)
-                raise ValueError("No GPS origin available")
+                raise ValueError("No global execution reference available")
 
             logger.info("Pre-flight checks completed successfully")
             led_controller.set_color(0, 255, 0)  # Green = success
-            return gps_origin
+            return global_reference
 
         else:
             logger.info("Skipping global position check per configuration")
@@ -1343,10 +1351,15 @@ async def pre_flight_checks(drone: System):
         raise
 
 
-async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
+async def arming_and_starting_offboard_mode(drone: System, global_reference: dict):
     """
     Arm the drone and start offboard mode.
-    (Identical to drone_show.py implementation)
+
+    Args:
+        drone: MAVSDK drone system instance.
+        global_reference: Launch-time global execution reference returned by
+            pre_flight_checks(). This is usually PX4 GPS global origin, with a
+            bounded fallback to the current global position sample if needed.
     """
     logger = logging.getLogger(__name__)
     
@@ -1359,12 +1372,12 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
         # Step 1: Compute initial position offset if required
         global initial_position_drift
 
-        if Params.REQUIRE_GLOBAL_POSITION and home_position:
+        if Params.REQUIRE_GLOBAL_POSITION and global_reference:
             logger.info("Computing initial position offset in NED coordinates.")
             initial_position_drift = await compute_position_drift()
             logger.info(f"Initial position drift computed: {initial_position_drift}")
         else:
-            logger.info("Skipping position offset computation (global position check disabled or no home position).")
+            logger.info("Skipping position offset computation (global position check disabled or no global reference).")
 
         # Step 2: Set flight mode to Hold as a safety precaution
         logger.info("Setting Hold flight mode.")
@@ -1373,7 +1386,7 @@ async def arming_and_starting_offboard_mode(drone: System, home_position: dict):
         # Step 3: Wait for PX4 armability, then arm with bounded retries.
         await arm_with_preflight_gate(
             drone,
-            require_global_position=bool(Params.REQUIRE_GLOBAL_POSITION and home_position),
+            require_global_position=bool(Params.REQUIRE_GLOBAL_POSITION and global_reference),
             logger=logger,
         )
 
@@ -2149,7 +2162,7 @@ async def run_swarm_trajectory_mission(
         drone = await initial_setup_and_connection()
 
         # Step 3: Pre-flight Checks
-        home_position = await pre_flight_checks(drone)
+        global_reference = await pre_flight_checks(drone)
 
         # Step 4: Capture precise launch position from telemetry
         launch_lat = launch_lon = launch_alt = None
@@ -2202,7 +2215,7 @@ async def run_swarm_trajectory_mission(
             logger.info("Synchronized start time is now.")
 
         # Step 7: Arm and enter Offboard
-        await arming_and_starting_offboard_mode(drone, home_position)
+        await arming_and_starting_offboard_mode(drone, global_reference)
 
         # Step 8: Load trajectory file with validation
         try:
@@ -2228,7 +2241,7 @@ async def run_swarm_trajectory_mission(
         await perform_swarm_trajectory(
             drone,
             waypoints,
-            home_position,
+            global_reference,
             synchronized_start_time,
             launch_lat, launch_lon, launch_alt,
             end_behavior=end_behavior_override

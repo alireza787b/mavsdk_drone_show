@@ -274,6 +274,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner import/export is now explicit about asset type:
   - `Trajectory Planning` CSV import/export is the **leader authoring route**, not the processed follower package
   - launching still requires `Assign to Cluster`, processing in `Swarm Trajectory`, and then dashboard Mission Type 4 dispatch
+- pre-flight execution reference is now explicit:
+  - the runtime prefers PX4 GPS global origin as the launch-time global reference
+  - if that RPC is temporarily unavailable, it can fall back to the current global position sample strictly for execution gating and recovery context
+  - this reference does **not** redefine the authored global route; it only supports readiness, initial climb, drift handling, and RTL/LAND recovery
 - planner timing labels now distinguish **route time** from full terminal mission time:
   - planner / transfer / library summaries show the authored route duration only
   - initial climb, return-home, landing, and other end-behavior cleanup can materially extend the real command completion time beyond that authored route clock

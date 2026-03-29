@@ -46,6 +46,74 @@ def _stream_side_effect(values):
     return _factory
 
 
+@pytest.mark.asyncio
+async def test_pre_flight_checks_prefers_px4_global_origin_reference(monkeypatch):
+    drone = MagicMock()
+    health_ok = types.SimpleNamespace(
+        is_global_position_ok=True,
+        is_home_position_ok=True,
+    )
+    drone.telemetry.health.return_value = _stream_once(health_ok)
+    drone.telemetry.get_gps_global_origin = AsyncMock(
+        return_value=types.SimpleNamespace(
+            latitude_deg=35.7001,
+            longitude_deg=51.3999,
+            altitude_m=1278.4,
+        )
+    )
+
+    led_controller = MagicMock()
+    monkeypatch.setattr(stm.LEDController, "get_instance", MagicMock(return_value=led_controller))
+    monkeypatch.setattr(stm.Params, "REQUIRE_GLOBAL_POSITION", True)
+    monkeypatch.setattr(stm.Params, "PRE_FLIGHT_TIMEOUT", 5)
+
+    reference = await stm.pre_flight_checks(drone)
+
+    assert reference == {
+        "latitude": 35.7001,
+        "longitude": 51.3999,
+        "altitude": 1278.4,
+        "source": "gps_global_origin",
+    }
+
+
+@pytest.mark.asyncio
+async def test_pre_flight_checks_falls_back_to_current_position_reference(monkeypatch):
+    drone = MagicMock()
+    health_ok = types.SimpleNamespace(
+        is_global_position_ok=True,
+        is_home_position_ok=True,
+    )
+    drone.telemetry.health.return_value = _stream_once(health_ok)
+    drone.telemetry.get_gps_global_origin = AsyncMock(
+        side_effect=stm.mavsdk.telemetry.TelemetryError(
+            types.SimpleNamespace(result="FAILED", result_str="origin unavailable"),
+            "get_gps_global_origin()",
+        )
+    )
+    drone.telemetry.position.return_value = _stream_once(
+        types.SimpleNamespace(
+            latitude_deg=35.701,
+            longitude_deg=51.401,
+            absolute_altitude_m=1280.25,
+        )
+    )
+
+    led_controller = MagicMock()
+    monkeypatch.setattr(stm.LEDController, "get_instance", MagicMock(return_value=led_controller))
+    monkeypatch.setattr(stm.Params, "REQUIRE_GLOBAL_POSITION", True)
+    monkeypatch.setattr(stm.Params, "PRE_FLIGHT_TIMEOUT", 5)
+
+    reference = await stm.pre_flight_checks(drone)
+
+    assert reference == {
+        "latitude": 35.701,
+        "longitude": 51.401,
+        "altitude": 1280.25,
+        "source": "fallback_position",
+    }
+
+
 def test_read_config_uses_swarm_trajectory_processed_folder(monkeypatch):
     config_json = """
     {
@@ -160,7 +228,7 @@ async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeyp
                         await stm.perform_swarm_trajectory(
                             drone,
                             waypoints,
-                            home_position=None,
+                            global_reference=None,
                             start_time=100.0,
                             launch_lat=35.0,
                             launch_lon=51.0,
@@ -256,7 +324,7 @@ async def test_arming_and_starting_offboard_mode_uses_shared_prearm_gate(monkeyp
     monkeypatch.setattr(stm.Params, "REQUIRE_GLOBAL_POSITION", False)
 
     with patch.object(stm, "arm_with_preflight_gate", new=AsyncMock()) as arm_with_preflight_gate:
-        await stm.arming_and_starting_offboard_mode(drone, home_position=None)
+        await stm.arming_and_starting_offboard_mode(drone, global_reference=None)
 
     drone.action.hold.assert_awaited_once()
     arm_with_preflight_gate.assert_awaited_once()
