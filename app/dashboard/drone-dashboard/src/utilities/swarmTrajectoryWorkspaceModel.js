@@ -168,6 +168,14 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     processingStage.label = 'Waiting';
     processingStage.summary = 'No leader CSVs have been uploaded yet.';
     processingStage.details = ['Upload at least one leader path before generating follower outputs.'];
+  } else if (requiresFullReprocess) {
+    processingStage.tone = 'attention';
+    processingStage.label = 'Reprocess';
+    processingStage.summary = recommendation?.message || 'The active processed package is stale.';
+    processingStage.details = buildRecommendationDetails(
+      recommendation,
+      'Run a fresh processing pass before commit or launch.',
+    );
   } else if (viewModel.clusterSummary.all_clusters_ready && viewModel.processedDroneCount > 0) {
     processingStage.tone = 'ready';
     processingStage.label = 'Ready';
@@ -184,14 +192,6 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       'Run a fresh processing pass after clearing or replacing invalid cluster outputs.',
     ];
-  } else if (requiresFullReprocess) {
-    processingStage.tone = 'attention';
-    processingStage.label = 'Reprocess';
-    processingStage.summary = recommendation?.message || 'The active processed package is stale.';
-    processingStage.details = buildRecommendationDetails(
-      recommendation,
-      'Run a fresh processing pass before commit or launch.',
-    );
   } else {
     processingStage.tone = 'processing';
     processingStage.label = 'Next';
