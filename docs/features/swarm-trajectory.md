@@ -221,6 +221,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - every new waypoint shows an authoring brief for altitude plan, leg plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned
   - the planner and waypoint panel now use one shared set of authoring labels so `Target AGL`, `Speed-driven ETA`, `Time-driven speed`, `Mission start anchor`, `Route entry delay`, `Waypoint arrival time`, `Preferred leg speed`, and `Required leg speed` mean the same thing everywhere
+  - the waypoint panel now mirrors that same operator brief during inline review/editing, so add-waypoint and edit-waypoint flows no longer describe the same altitude/timing/heading intent in different voices
 - route-entry timing now comes from one shared planner policy:
   - waypoint 1 defaults to a `10s` route-entry delay after mission start
   - later legs still derive timing from speed or derive speed from pinned arrival time

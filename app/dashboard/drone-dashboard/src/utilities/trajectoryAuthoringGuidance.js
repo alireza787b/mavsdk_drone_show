@@ -191,6 +191,117 @@ export const getTrajectoryHeadingIntentSummary = ({
   };
 };
 
+const getTrajectoryTimingIntentTone = ({
+  isMissionAnchor = false,
+  speedStatus = 'unknown',
+} = {}) => {
+  if (isMissionAnchor) {
+    return 'neutral';
+  }
+
+  if (speedStatus === 'impossible') {
+    return 'danger';
+  }
+
+  if (speedStatus === 'marginal') {
+    return 'warning';
+  }
+
+  if (speedStatus === 'feasible') {
+    return 'success';
+  }
+
+  return 'neutral';
+};
+
+export const buildTrajectoryWaypointAuthoringCards = ({
+  altitudeReference = ALTITUDE_REFERENCE.MSL,
+  altitude = 0,
+  targetAgl = 0,
+  groundElevation = 0,
+  terrainResolved = true,
+  terrainAccurate = true,
+  isMissionAnchor = false,
+  timingMode = TIMING_MODES.MANUAL_TIME,
+  timeFromStart = 0,
+  preferredSpeed = 0,
+  requiredSpeed = 0,
+  speedStatus = 'unknown',
+  headingMode = YAW_CONSTANTS.AUTO,
+  heading = 0,
+  calculatedHeading = 0,
+  includeTerrain = true,
+} = {}) => {
+  const altitudeIntent = getTrajectoryAltitudeIntentSummary({
+    altitudeReference,
+    altitude,
+    targetAgl,
+    groundElevation,
+    terrainAccurate,
+  });
+  const timingIntent = getTrajectoryTimingIntentSummary({
+    isMissionAnchor,
+    timingMode,
+    timeFromStart,
+    preferredSpeed,
+    requiredSpeed,
+  });
+  const headingIntent = getTrajectoryHeadingIntentSummary({
+    isMissionAnchor,
+    headingMode,
+    heading,
+    calculatedHeading,
+  });
+
+  const cards = [
+    {
+      key: 'altitude',
+      label: altitudeIntent.label,
+      value: getTrajectoryAltitudeReferenceLabel(altitudeReference),
+      detail: `${altitudeIntent.control} ${altitudeIntent.derived}`,
+      tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
+    },
+    {
+      key: 'timing',
+      label: timingIntent.label,
+      value: isMissionAnchor
+        ? getTrajectoryMissionAnchorLabel(0)
+        : getTrajectoryTimingModeLabel(timingMode),
+      detail: `${timingIntent.control} ${timingIntent.derived}`,
+      tone: getTrajectoryTimingIntentTone({ isMissionAnchor, speedStatus }),
+    },
+    {
+      key: 'heading',
+      label: headingIntent.label,
+      value: getTrajectoryHeadingModeLabel(headingMode),
+      detail: `${headingIntent.control} ${headingIntent.derived}`,
+      tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
+    },
+  ];
+
+  if (!includeTerrain) {
+    return cards;
+  }
+
+  return [
+    ...cards,
+    {
+      key: 'terrain',
+      label: 'Terrain Confidence',
+      value: getTrajectoryTerrainConfidenceLabel({
+        terrainResolved,
+        terrainAccurate,
+      }),
+      detail: getTrajectoryTerrainConfidenceDescription({
+        terrainResolved,
+        terrainAccurate,
+        groundElevation,
+      }),
+      tone: !terrainResolved ? 'info' : terrainAccurate === false ? 'warning' : 'success',
+    },
+  ];
+};
+
 export const getTrajectoryWorkflowStages = ({
   leaderId = null,
   followerCount = 0,

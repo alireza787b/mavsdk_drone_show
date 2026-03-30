@@ -18,11 +18,10 @@ import {
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
 import {
-  getTrajectoryAltitudeIntentSummary,
+  buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
-  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
@@ -31,7 +30,6 @@ import {
   getTrajectoryRequiredSpeedLabel,
   getTrajectoryTerrainConfidenceDescription,
   getTrajectoryTerrainConfidenceLabel,
-  getTrajectoryTimingIntentSummary,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
@@ -516,30 +514,23 @@ const WaypointPanel = ({
   const formatTimingMode = (waypoint) =>
     getTrajectoryTimingModeLabel(getTimingMode(waypoint));
 
-  const getAltitudeIntent = (waypoint) =>
-    getTrajectoryAltitudeIntentSummary({
+  const getWaypointAuthoringCards = (waypoint, index) =>
+    buildTrajectoryWaypointAuthoringCards({
       altitudeReference: getAltitudeReference(waypoint),
       altitude: waypoint.altitude,
       targetAgl: getTargetAgl(waypoint),
       groundElevation: waypoint.groundElevation,
-      terrainAccurate: waypoint.terrainAccurate !== false,
-    });
-
-  const getTimingIntent = (waypoint, index) =>
-    getTrajectoryTimingIntentSummary({
       isMissionAnchor: index === 0,
       timingMode: getTimingMode(waypoint),
       timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
       preferredSpeed: getPreferredSpeed(waypoint),
       requiredSpeed: waypoint.estimatedSpeed || 0,
-    });
-
-  const getHeadingIntent = (waypoint, index) =>
-    getTrajectoryHeadingIntentSummary({
-      isMissionAnchor: index === 0,
-      headingMode: waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
+      speedStatus: getSpeedStatus(waypoint.estimatedSpeed || 0),
+      headingMode:
+        waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
       heading: waypoint.heading || waypoint.yaw || 0,
       calculatedHeading: waypoint.calculatedHeading || waypoint.heading || waypoint.yaw || 0,
+      includeTerrain: false,
     });
 
   const renderEditableField = (waypoint, field, value, displayValue) => {
@@ -725,9 +716,7 @@ const WaypointPanel = ({
             </div>
           )}
           {waypoints.map((waypoint, index) => {
-            const altitudeIntent = getAltitudeIntent(waypoint);
-            const timingIntent = getTimingIntent(waypoint, index);
-            const headingIntent = getHeadingIntent(waypoint, index);
+            const authoringCards = getWaypointAuthoringCards(waypoint, index);
 
             return (
           <div 
@@ -856,13 +845,6 @@ const WaypointPanel = ({
                 </>
               ) : null}
 
-              <div className="detail-row timing-row">
-                <span className="detail-label">{`${altitudeIntent.label}:`}</span>
-                <span className="detail-value" title={`${altitudeIntent.control} ${altitudeIntent.derived}`}>
-                  {altitudeIntent.compact}
-                </span>
-              </div>
-              
               <div className="detail-row">
                 <span
                   className="detail-label"
@@ -991,16 +973,9 @@ const WaypointPanel = ({
                         'headingMode',
                         waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
                         getTrajectoryHeadingModeLabel(waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO)
-                      )})
+                    )})
                   </span>
                 </div>
-              </div>
-
-              <div className="detail-row timing-row">
-                <span className="detail-label">{`${timingIntent.label}:`}</span>
-                <span className="detail-value" title={`${timingIntent.control} ${timingIntent.derived}`}>
-                  {timingIntent.compact}
-                </span>
               </div>
 
               {index === waypoints.length - 1 && waypoints.length > 1 && (
@@ -1010,11 +985,18 @@ const WaypointPanel = ({
                 </div>
               )}
 
-              <div className="detail-row heading-row">
-                <span className="detail-label">{`${headingIntent.label}:`}</span>
-                <span className="detail-value" title={`${headingIntent.control} ${headingIntent.derived}`}>
-                  {headingIntent.compact}
-                </span>
+              <div className="waypoint-brief-grid" aria-label={`${waypoint.name} operator brief`}>
+                {authoringCards.map((card) => (
+                  <div
+                    key={`${waypoint.id}-${card.key}`}
+                    className={`waypoint-brief-card waypoint-brief-card--${card.tone}`}
+                    title={card.detail}
+                  >
+                    <span className="waypoint-brief-card__label">{card.label}</span>
+                    <strong className="waypoint-brief-card__value">{card.value}</strong>
+                    <span className="waypoint-brief-card__detail">{card.detail}</span>
+                  </div>
+                ))}
               </div>
             </div>
             

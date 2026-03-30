@@ -14,19 +14,12 @@ import {
   formatHeading
 } from '../../utilities/SpeedCalculator';
 import {
-  getTrajectoryAltitudeIntentSummary,
-  getTrajectoryAltitudeReferenceLabel,
+  buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryHeadingFieldLabel,
-  getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
-  getTrajectoryHeadingModeLabel,
-  getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
-  getTrajectoryTerrainConfidenceDescription,
-  getTrajectoryTerrainConfidenceLabel,
-  getTrajectoryTimingIntentSummary,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeLabel,
@@ -468,69 +461,23 @@ const WaypointModal = ({
   const aglAltitude = Math.max(0, altitude - groundElevation);
   const previousTime = previousWaypoint?.timeFromStart || 0;
   const legDuration = Math.max(0, timeFromStart - previousTime);
-  const altitudeIntent = getTrajectoryAltitudeIntentSummary({
+  const authoringCards = buildTrajectoryWaypointAuthoringCards({
     altitudeReference,
     altitude,
     targetAgl: aglAltitude,
     groundElevation,
+    terrainResolved,
     terrainAccurate: terrainResolved && !terrainError,
-  });
-  const timingIntent = getTrajectoryTimingIntentSummary({
     isMissionAnchor: !previousWaypoint,
     timingMode,
     timeFromStart,
     preferredSpeed,
     requiredSpeed: estimatedSpeed,
-  });
-  const headingIntent = getTrajectoryHeadingIntentSummary({
-    isMissionAnchor: !previousWaypoint,
+    speedStatus,
     headingMode,
     heading,
     calculatedHeading,
   });
-  const terrainConfidenceLabel = getTrajectoryTerrainConfidenceLabel({
-    terrainResolved,
-    terrainAccurate: terrainResolved && !terrainError,
-  });
-  const terrainConfidenceDescription = getTrajectoryTerrainConfidenceDescription({
-    terrainResolved,
-    terrainAccurate: terrainResolved && !terrainError,
-    groundElevation,
-  });
-  const authoringCards = [
-    {
-      label: altitudeIntent.label,
-      value: getTrajectoryAltitudeReferenceLabel(altitudeReference),
-      detail: `${altitudeIntent.control} ${altitudeIntent.derived}`,
-      tone: altitudeReference === ALTITUDE_REFERENCE.AGL ? 'info' : 'neutral',
-    },
-    {
-      label: timingIntent.label,
-      value: previousWaypoint
-        ? getTrajectoryTimingModeLabel(timingMode)
-        : getTrajectoryMissionAnchorLabel(0),
-      detail: `${timingIntent.control} ${timingIntent.derived}`,
-      tone: previousWaypoint
-        ? speedStatus === 'impossible'
-          ? 'danger'
-          : speedStatus === 'marginal'
-            ? 'warning'
-            : 'neutral'
-        : 'neutral',
-    },
-    {
-      label: headingIntent.label,
-      value: getTrajectoryHeadingModeLabel(headingMode),
-      detail: `${headingIntent.control} ${headingIntent.derived}`,
-      tone: headingMode === YAW_CONSTANTS.AUTO ? 'info' : 'neutral',
-    },
-    {
-      label: 'Terrain Confidence',
-      value: terrainConfidenceLabel,
-      detail: terrainConfidenceDescription,
-      tone: !terrainResolved ? 'info' : terrainError ? 'warning' : 'success',
-    },
-  ];
 
   if (!isOpen) return null;
 
@@ -891,7 +838,7 @@ const WaypointModal = ({
 
           <div className="waypoint-authoring-brief" aria-label="Waypoint authoring brief">
             {authoringCards.map((card) => (
-              <div key={card.label} className={`waypoint-authoring-card waypoint-authoring-card--${card.tone}`}>
+              <div key={card.key} className={`waypoint-authoring-card waypoint-authoring-card--${card.tone}`}>
                 <span className="waypoint-authoring-card__label">{card.label}</span>
                 <strong className="waypoint-authoring-card__value">{card.value}</strong>
                 <span className="waypoint-authoring-card__detail">{card.detail}</span>

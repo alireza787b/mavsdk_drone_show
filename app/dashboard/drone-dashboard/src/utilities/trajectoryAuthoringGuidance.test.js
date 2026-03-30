@@ -1,4 +1,5 @@
 import {
+  buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeIntentSummary,
   getTrajectoryHeadingPlanSummary,
   getTrajectoryOperatorPolicyNotes,
@@ -108,6 +109,47 @@ describe('trajectoryAuthoringGuidance', () => {
         compact: 'Entry +12s',
       })
     );
+  });
+
+  test('builds shared waypoint authoring cards with consistent tones and labels', () => {
+    expect(
+      buildTrajectoryWaypointAuthoringCards({
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        altitude: 160,
+        targetAgl: 120,
+        groundElevation: 40,
+        terrainResolved: true,
+        terrainAccurate: false,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        timeFromStart: 30,
+        preferredSpeed: 8,
+        requiredSpeed: 8.1,
+        speedStatus: 'marginal',
+        headingMode: YAW_CONSTANTS.AUTO,
+        calculatedHeading: 90,
+      })
+    ).toEqual([
+      expect.objectContaining({
+        key: 'altitude',
+        value: 'Target AGL',
+        tone: 'info',
+      }),
+      expect.objectContaining({
+        key: 'timing',
+        value: 'Speed-driven ETA',
+        tone: 'warning',
+      }),
+      expect.objectContaining({
+        key: 'heading',
+        value: 'Auto heading',
+        tone: 'info',
+      }),
+      expect.objectContaining({
+        key: 'terrain',
+        value: 'Estimated terrain',
+        tone: 'warning',
+      }),
+    ]);
   });
 
   test('builds shared operator policy notes for altitude execution, terrain review, and leg ownership', () => {

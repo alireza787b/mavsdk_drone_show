@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory planner waypoint authoring now comes from one shared operator-brief builder across the waypoint modal and waypoint panel, so altitude/timing/heading ownership uses the same labels, tones, and derived-vs-operator wording in add/edit/review flows instead of drifting between separate component-specific summaries
 - command tracking now exposes one normalized operator-facing `progress` snapshot across all missions, and lifecycle toasts use it to distinguish queued/scheduled commands, active execution, and the legitimate long-tail `finishing remaining drones` phase instead of making operators infer everything from the coarse legacy `status=executing` label
 - Swarm Trajectory runtime validation logs now print the same normalized command `progress` snapshot that the API exposes, so live Hetzner/SITL audits can see execution-vs-finishing lifecycle state directly in terminal output instead of only raw ACK/execution counters
 - Swarm Trajectory launch-preflight now consumes backend session change-detection truth, so stale processed packages are blocked when swarm structure, raw leader CSV contents, or trajectory-processing parameters changed after the last processing pass; the workspace stages and doctrine now surface the same freshness rule instead of treating those cases as merely advisory
