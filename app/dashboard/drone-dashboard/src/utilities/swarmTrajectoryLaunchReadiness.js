@@ -172,6 +172,10 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   const clusters = clusterStatus?.clusters || [];
   const summary = clusterStatus?.cluster_summary || {};
   const session = clusterStatus?.session || { exists: false };
+  const sessionChanges = clusterStatus?.session_changes
+    || clusterStatus?.processing_recommendation?.changes
+    || {};
+  const processingRecommendation = clusterStatus?.processing_recommendation || null;
   const clusterCount = summary.cluster_count ?? clusters.length;
   const readyClusterCount = summary.ready_cluster_count ?? clusters.filter((cluster) => cluster.ready).length;
   const needsProcessingCount = summary.needs_processing_cluster_count ?? clusters.filter((cluster) => cluster.state === 'needs_processing').length;
@@ -212,8 +216,33 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
       blockers.push('No swarm clusters are configured. Publish the hierarchy in Swarm Design first.');
     }
 
-    if (!session.exists || processedDroneCount === 0) {
+    if (!session.exists && processedDroneCount > 0) {
+      blockers.push('Processed outputs exist, but no active processing session is recorded. Reprocess before launch.');
+    } else if (!session.exists || processedDroneCount === 0) {
       blockers.push('No processed Swarm Trajectory package is active yet.');
+    }
+
+    if (sessionChanges.requires_full_reprocess && (session.exists || processedDroneCount > 0)) {
+      let freshnessReasonAdded = false;
+      if (sessionChanges.swarm_structure_changed) {
+        blockers.push('Swarm structure changed since the active processed package was generated. Reprocess before launch.');
+        freshnessReasonAdded = true;
+      }
+      if (sessionChanges.parameters_changed) {
+        blockers.push('Swarm trajectory processing parameters changed since the active package was generated. Reprocess before launch.');
+        freshnessReasonAdded = true;
+      }
+      if (sessionChanges.trajectory_files_changed) {
+        blockers.push('One or more leader CSV uploads changed since the active package was generated. Reprocess before launch.');
+        freshnessReasonAdded = true;
+      }
+      if (sessionChanges.leader_structure_changed) {
+        blockers.push('Leader upload coverage no longer matches the current swarm structure. Reprocess before launch.');
+        freshnessReasonAdded = true;
+      }
+      if (!freshnessReasonAdded) {
+        blockers.push(processingRecommendation?.message || 'The active processed package is stale and must be regenerated before launch.');
+      }
     }
 
     if (isSelectedScope) {

@@ -162,4 +162,78 @@ describe('swarmTrajectoryWorkspaceModel', () => {
       label: 'Review',
     });
   });
+
+  test('stale processed packages are blocked until a full reprocess runs', () => {
+    const recommendation = {
+      action: 'mandatory_full_reprocess',
+      message: 'Parameters changed - full reprocess required',
+      details: ['Processing parameters have been modified'],
+      changes: {
+        requires_full_reprocess: true,
+        parameters_changed: true,
+      },
+    };
+
+    const status = buildSwarmTrajectoryWorkspaceStatus({
+      viewModel: buildViewModel({
+        uploadedLeaderIds: [1, 5],
+        expectedLeaderIds: [1, 5],
+        missingLeaderIds: [],
+        processedDroneCount: 5,
+        clusterSummary: {
+          cluster_count: 2,
+          ready_cluster_count: 2,
+          needs_processing_cluster_count: 0,
+          partial_output_cluster_count: 0,
+          all_clusters_ready: true,
+        },
+        session: {
+          exists: true,
+          session_id: 'session-42',
+          total_drones: 5,
+        },
+      }),
+      recommendation,
+      hasProcessedOutputs: true,
+    });
+
+    const stages = buildSwarmTrajectoryStages({
+      viewModel: buildViewModel({
+        uploadedLeaderIds: [1, 5],
+        expectedLeaderIds: [1, 5],
+        missingLeaderIds: [],
+        processedDroneCount: 5,
+        clusterSummary: {
+          cluster_count: 2,
+          ready_cluster_count: 2,
+          needs_processing_cluster_count: 0,
+          partial_output_cluster_count: 0,
+          all_clusters_ready: true,
+        },
+        session: {
+          exists: true,
+          session_id: 'session-42',
+          total_drones: 5,
+        },
+      }),
+      recommendation,
+      hasProcessedOutputs: true,
+    });
+
+    expect(status).toMatchObject({
+      tone: 'attention',
+      title: 'Processed package is stale and must be regenerated',
+    });
+    expect(status.details).toContain('Processing parameters have been modified');
+    expect(stages[1]).toMatchObject({
+      id: 'processing',
+      tone: 'attention',
+      label: 'Reprocess',
+    });
+    expect(stages[2]).toMatchObject({
+      id: 'review',
+      tone: 'blocked',
+      label: 'Blocked',
+    });
+  });
 });

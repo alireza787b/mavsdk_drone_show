@@ -3,12 +3,20 @@ const buildListLabel = (values = []) => (values.length > 0 ? values.join(', ') :
 const buildClusterLabel = (count = 0) => `${count} cluster${count === 1 ? '' : 's'}`;
 const buildDroneLabel = (count = 0) => `${count} drone output${count === 1 ? '' : 's'}`;
 const clusterVerb = (count = 0, singular = 'has', plural = 'have') => (count === 1 ? singular : plural);
+const buildRecommendationDetails = (recommendation = null, fallback = null) => {
+  const details = recommendation?.details?.length ? [...recommendation.details] : [];
+  if (fallback) {
+    details.push(fallback);
+  }
+  return details;
+};
 
 export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation, hasProcessedOutputs }) {
   const clusterCount = viewModel.clusterSummary.cluster_count || 0;
   const readyClusterCount = viewModel.clusterSummary.ready_cluster_count || 0;
   const needsProcessingCount = viewModel.clusterSummary.needs_processing_cluster_count || 0;
   const partialOutputCount = viewModel.clusterSummary.partial_output_cluster_count || 0;
+  const requiresFullReprocess = Boolean(recommendation?.changes?.requires_full_reprocess);
 
   if (clusterCount === 0) {
     return {
@@ -30,6 +38,18 @@ export function buildSwarmTrajectoryWorkspaceStatus({ viewModel, recommendation,
           ? `Unexpected uploads: ${buildListLabel(viewModel.orphanUploadedLeaderIds)}`
           : null,
       ].filter(Boolean),
+    };
+  }
+
+  if (hasProcessedOutputs && requiresFullReprocess) {
+    return {
+      tone: 'attention',
+      title: 'Processed package is stale and must be regenerated',
+      message: recommendation?.message || 'The active processed outputs no longer match the current swarm state.',
+      details: buildRecommendationDetails(
+        recommendation,
+        'Launch preflight stays blocked until a fresh processing pass completes.',
+      ),
     };
   }
 
@@ -87,6 +107,7 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
   const needsProcessingCount = viewModel.clusterSummary.needs_processing_cluster_count || 0;
   const partialOutputCount = viewModel.clusterSummary.partial_output_cluster_count || 0;
   const attentionItemCount = viewModel.issueCount + viewModel.advisoryCount;
+  const requiresFullReprocess = Boolean(recommendation?.changes?.requires_full_reprocess);
 
   const uploadStage = {
     id: 'upload',
@@ -163,6 +184,14 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
       `Ready clusters: ${readyClusterCount}/${clusterCount}`,
       'Run a fresh processing pass after clearing or replacing invalid cluster outputs.',
     ];
+  } else if (requiresFullReprocess) {
+    processingStage.tone = 'attention';
+    processingStage.label = 'Reprocess';
+    processingStage.summary = recommendation?.message || 'The active processed package is stale.';
+    processingStage.details = buildRecommendationDetails(
+      recommendation,
+      'Run a fresh processing pass before commit or launch.',
+    );
   } else {
     processingStage.tone = 'processing';
     processingStage.label = 'Next';
@@ -184,6 +213,14 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     reviewStage.label = 'Blocked';
     reviewStage.summary = 'Review and commit stay locked until processed outputs exist.';
     reviewStage.details = ['Generate the mission package first, then inspect plots and downloads here.'];
+  } else if (requiresFullReprocess) {
+    reviewStage.tone = 'blocked';
+    reviewStage.label = 'Blocked';
+    reviewStage.summary = 'Current processed outputs are stale relative to the active swarm state.';
+    reviewStage.details = buildRecommendationDetails(
+      recommendation,
+      'Do not commit or launch until processing is rerun.',
+    );
   } else if (viewModel.currentOutcome === 'partial' || attentionItemCount > 0 || !viewModel.clusterSummary.all_clusters_ready) {
     reviewStage.tone = 'attention';
     reviewStage.label = 'Review';

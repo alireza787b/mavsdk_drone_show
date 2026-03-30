@@ -268,6 +268,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - launch readiness should be treated as **cluster truth**, not just “a leader CSV exists”
 - Mission Type 4 dashboard dispatch is now gated by that backend cluster truth:
   - missing leader uploads, pending processing, partial outputs, missing active session truth, and explicit cluster issues all block launch
+  - launch preflight now also blocks any stale processed package when swarm structure, raw leader CSV contents, or trajectory-processing parameters changed after the last processing session
   - advisory items stay visible as warnings without pretending the package is unavailable
   - the workspace handoff back to the command surface is labeled `Open Mission Trigger` to reinforce that final launch approval still happens in dashboard Mission Trigger, not on the processing page alone
 - selected-drone dispatch is now **scope-aware** instead of all-or-nothing:

@@ -91,6 +91,19 @@ const baseClusterStatus = {
     session_id: '20260329_081500',
     total_drones: 5,
   },
+  session_changes: {
+    has_previous_session: true,
+    requires_full_reprocess: false,
+  },
+  processing_recommendation: {
+    action: 'safe_incremental',
+    message: 'Ready to process trajectories',
+    details: [],
+    changes: {
+      has_previous_session: true,
+      requires_full_reprocess: false,
+    },
+  },
 };
 
 describe('buildSwarmTrajectoryLaunchReadiness', () => {
@@ -168,6 +181,51 @@ describe('buildSwarmTrajectoryLaunchReadiness', () => {
     expect(readiness.canLaunch).toBe(false);
     expect(readiness.blockers).toContain(
       'Selected drones 5 do not have processed trajectory outputs in the active package.',
+    );
+  });
+
+  test('blocks launch when the active package is stale after a parameter change', () => {
+    const readiness = buildSwarmTrajectoryLaunchReadiness({
+      clusterStatus: {
+        ...baseClusterStatus,
+        clusters: baseClusterStatus.clusters.map((cluster) => ({
+          ...cluster,
+          ready: true,
+          state: 'ready',
+          issues: [],
+          advisories: [],
+          processed_drone_count: cluster.expected_drone_count,
+        })),
+        cluster_summary: {
+          cluster_count: 2,
+          ready_cluster_count: 2,
+          needs_processing_cluster_count: 0,
+          partial_output_cluster_count: 0,
+          missing_upload_cluster_count: 0,
+          overall_state: 'ready',
+        },
+        processed_drones: [1, 2, 3, 4, 5],
+        session_changes: {
+          has_previous_session: true,
+          parameters_changed: true,
+          requires_full_reprocess: true,
+        },
+        processing_recommendation: {
+          action: 'mandatory_full_reprocess',
+          message: 'Parameters changed - full reprocess required',
+          details: ['Processing parameters have been modified'],
+          changes: {
+            has_previous_session: true,
+            parameters_changed: true,
+            requires_full_reprocess: true,
+          },
+        },
+      },
+    });
+
+    expect(readiness.canLaunch).toBe(false);
+    expect(readiness.blockers).toContain(
+      'Swarm trajectory processing parameters changed since the active package was generated. Reprocess before launch.',
     );
   });
 });

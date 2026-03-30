@@ -435,6 +435,8 @@ def get_processing_status_payload() -> Dict:
 
     session_manager = SwarmSessionManager()
     current_session = session_manager.get_current_session()
+    processing_recommendation = session_manager.get_processing_recommendation()
+    session_changes = processing_recommendation.get("changes", {})
 
     try:
         structure = _load_swarm_structure()
@@ -503,6 +505,8 @@ def get_processing_status_payload() -> Dict:
                 "processed_leaders": current_session.processed_leaders if current_session else [],
                 "total_drones": current_session.total_drones if current_session else 0,
             },
+            "session_changes": session_changes,
+            "processing_recommendation": processing_recommendation,
         },
         "folders": folders,
     }

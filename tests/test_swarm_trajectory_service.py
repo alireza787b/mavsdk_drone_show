@@ -171,6 +171,9 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert status['cluster_summary']['missing_upload_cluster_count'] == 1
     assert status['cluster_summary']['overall_state'] == 'partial'
     assert status['session']['exists'] is False
+    assert status['session_changes']['has_previous_session'] is False
+    assert status['session_changes']['requires_full_reprocess'] is True
+    assert status['processing_recommendation']['action'] == 'recommended_full_reprocess'
     assert status['package_stats'] == {
         'available': True,
         'drone_count': 2,

@@ -140,6 +140,8 @@ export const getSwarmClusterStatus = async () => {
       package_stats: statusData.status.package_stats || null,
       package_drone_stats: statusData.status.package_drone_stats || {},
       session: statusData.status.session || { exists: false },
+      session_changes: statusData.status.session_changes || {},
+      processing_recommendation: statusData.status.processing_recommendation || null,
       has_results: Boolean(statusData.status.has_results),
       expected_top_leaders: statusData.status.expected_top_leaders || leadersData.leaders || [],
       uploaded_leaders: statusData.status.uploaded_leaders || leadersData.uploaded_leaders || [],

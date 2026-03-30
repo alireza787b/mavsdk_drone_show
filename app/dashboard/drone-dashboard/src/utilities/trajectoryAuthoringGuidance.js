@@ -316,4 +316,9 @@ export const getSwarmTrajectoryExecutionDoctrine = () => [
     label: 'Launch/home truth',
     detail: 'PX4 launch/home truth is used to confirm armability, initial climb, drift handling, and end-behavior recovery. It does not move or reinterpret the authored global route itself.',
   },
+  {
+    key: 'package_freshness',
+    label: 'Package freshness',
+    detail: 'If swarm structure, leader CSV contents, or trajectory-processing parameters change after processing, the current package becomes stale and must be regenerated before launch.',
+  },
 ];

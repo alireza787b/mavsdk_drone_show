@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Swarm Trajectory launch-preflight now consumes backend session change-detection truth, so stale processed packages are blocked when swarm structure, raw leader CSV contents, or trajectory-processing parameters changed after the last processing pass; the workspace stages and doctrine now surface the same freshness rule instead of treating those cases as merely advisory
 - Swarm Trajectory processed CSVs now preserve `vx/vy/vz` and `ax/ay/az` as real local NED metric quantities instead of raw lat/lon/alt derivatives, which makes runtime diagnostics and `continue_heading` end behavior consistent with the controller contract
 - Swarm Trajectory initial drift sampling now uses the same non-blocking local-API pattern as Drone Show, and drift correction is skipped when preflight only has a fallback current-position reference instead of PX4's actual GPS global origin
 - Swarm Trajectory runtime now treats its launch-time global reference explicitly instead of carrying it through the mission path as a misleading `home_position` name:
