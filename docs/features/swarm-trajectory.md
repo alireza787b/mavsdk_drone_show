@@ -380,10 +380,9 @@ Main processing pipeline that orchestrates the entire workflow.
 **Process:**
 1. Analyze swarm structure
 2. Load leader trajectories  
-3. Calculate formation origin
-4. Process leaders (smooth trajectories)
-5. Process followers (calculate positions)
-6. Generate visualizations
+3. Process leaders (smooth trajectories)
+4. Process followers from each leader waypoint's instantaneous global position plus the configured offsets
+5. Generate visualizations
 
 Current truth model:
 

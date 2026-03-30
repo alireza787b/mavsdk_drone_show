@@ -23,8 +23,6 @@ def _leader_relative_ned(follower_lla, leader_lla):
 
 def test_ned_offsets_use_leader_local_reference_and_up_positive_altitude():
     leader = (35.7000, 51.4000, 1200.0)
-    far_origin = {'lat': 34.0000, 'lon': 49.0000, 'alt': 500.0}
-    near_origin = {'lat': 35.6990, 'lon': 51.3990, 'alt': 1190.0}
     offset_config = {
         'offset_x': 15.0,
         'offset_y': -5.0,
@@ -32,12 +30,9 @@ def test_ned_offsets_use_leader_local_reference_and_up_positive_altitude():
         'frame': 'ned',
     }
 
-    far_result = calculate_follower_global_position(*leader, 0.0, offset_config, far_origin)
-    near_result = calculate_follower_global_position(*leader, 0.0, offset_config, near_origin)
+    follower = calculate_follower_global_position(*leader, 0.0, offset_config)
 
-    assert far_result == pytest.approx(near_result, abs=1e-12)
-
-    north, east, down = _leader_relative_ned(far_result, leader)
+    north, east, down = _leader_relative_ned(follower, leader)
     assert north == pytest.approx(15.0, abs=0.05)
     assert east == pytest.approx(-5.0, abs=0.05)
     assert down == pytest.approx(-3.0, abs=0.05)
@@ -56,7 +51,6 @@ def test_body_offsets_follow_leader_heading_with_up_positive_altitude():
         *leader,
         90.0,
         offset_config,
-        {'lat': 0.0, 'lon': 0.0, 'alt': 0.0},
     )
 
     north, east, down = _leader_relative_ned(follower, leader)

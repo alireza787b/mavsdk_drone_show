@@ -8,6 +8,13 @@
 
 ---
 
+> Scope note
+>
+> This document is primarily the Drone Show origin-system design and implementation guide.
+> It is not the authoritative follower-geometry contract for Swarm Trajectory.
+> Current Swarm Trajectory behavior is documented in [swarm-trajectory.md](swarm-trajectory.md):
+> leader paths remain authored as global lat/lon with stored MSL altitude, followers are generated from each leader waypoint's instantaneous global position plus the configured swarm offsets, and the runtime's PX4 launch/home reference is used only for execution checks and recovery logic.
+
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)

@@ -399,10 +399,9 @@ def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_inco
         'Heading_deg': 0.0,
         'HeadingMode': 'auto',
     }])})
-    monkeypatch.setattr(swarm_trajectory_processor, 'calculate_formation_origin', lambda leader_trajectories: {'lat': 35.0, 'lon': 51.0, 'alt': 1200.0})
     monkeypatch.setattr(swarm_trajectory_processor, 'fetch_swarm_data', lambda: swarm_rows)
     monkeypatch.setattr(swarm_trajectory_processor, 'smooth_trajectory_with_waypoints', lambda waypoints_df: trajectory_df.copy())
-    monkeypatch.setattr(swarm_trajectory_processor, 'calculate_follower_trajectory', lambda leader_trajectory, drone_config, formation_origin: trajectory_df.copy())
+    monkeypatch.setattr(swarm_trajectory_processor, 'calculate_follower_trajectory', lambda leader_trajectory, drone_config: trajectory_df.copy())
     monkeypatch.setattr(swarm_trajectory_processor, 'save_drone_trajectory', lambda hw_id, trajectory, processed_dir: None)
     monkeypatch.setattr(swarm_trajectory_processor, 'generate_swarm_plots', lambda all_trajectories, structure, plots_dir: None)
 

@@ -1,7 +1,7 @@
 """
 Swarm Global Coordinate Calculator
-Calculates follower positions in global coordinates using per-leader offset
-configurations.
+Calculates follower positions in global coordinates using each leader waypoint as
+the instantaneous local reference.
 """
 import logging
 import navpy
@@ -9,32 +9,8 @@ from smart_swarm_src.utils import transform_body_to_nea
 
 logger = logging.getLogger(__name__)
 
-def calculate_formation_origin(leader_trajectories):
-    """
-    Calculate formation origin as center of all leader trajectories
-    Returns: {'lat': center_lat, 'lon': center_lon, 'alt': center_alt}
-    """
-    if not leader_trajectories:
-        raise ValueError("No leader trajectories provided")
-    
-    all_lats, all_lons, all_alts = [], [], []
-    
-    for leader_id, trajectory in leader_trajectories.items():
-        all_lats.extend(trajectory['Latitude'].values)
-        all_lons.extend(trajectory['Longitude'].values) 
-        all_alts.extend(trajectory['Altitude_MSL_m'].values)
-    
-    origin = {
-        'lat': sum(all_lats) / len(all_lats),
-        'lon': sum(all_lons) / len(all_lons),
-        'alt': sum(all_alts) / len(all_alts)
-    }
-    
-    logger.info(f"Formation origin: {origin['lat']:.6f}, {origin['lon']:.6f}, {origin['alt']:.1f}m")
-    return origin
-
 def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leader_yaw,
-                                     offset_config, formation_origin=None):
+                                     offset_config):
     """
     Calculate follower position in global coordinates.
 
@@ -46,8 +22,6 @@ def calculate_follower_global_position(leader_lat, leader_lon, leader_alt, leade
         leader_lat, leader_lon, leader_alt: Leader's global position
         leader_yaw: Leader's yaw angle in degrees
         offset_config: Dict with offset_x, offset_y, offset_z, frame
-        formation_origin: Retained for backward compatibility; no longer used
-            for offset geometry.
     """
     try:
         # Apply offset based on coordinate frame

@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 
 from functions.file_management import ensure_directory_exists, clear_directory
 from functions.swarm_analyzer import analyze_swarm_structure, get_drone_config, find_ultimate_leader, fetch_swarm_data
-from functions.swarm_global_calculator import calculate_formation_origin, calculate_follower_global_position, calculate_follower_yaw
+from functions.swarm_global_calculator import calculate_follower_global_position, calculate_follower_yaw
 from functions.swarm_trajectory_smoother import smooth_trajectory_with_waypoints
 from functions.swarm_plotter import generate_swarm_plots
 from functions.swarm_trajectory_utils import get_swarm_trajectory_folders
@@ -57,8 +57,7 @@ def load_leader_trajectories(raw_dir: str, top_leaders: list) -> Dict[int, pd.Da
     
     return leader_trajectories
 
-def calculate_follower_trajectory(leader_trajectory: pd.DataFrame, drone_config: Dict[str, Any], 
-                                formation_origin: Dict[str, float]) -> pd.DataFrame:
+def calculate_follower_trajectory(leader_trajectory: pd.DataFrame, drone_config: Dict[str, Any]) -> pd.DataFrame:
     """Calculate follower trajectory based on leader trajectory and offset configuration"""
     
     follower_data = []
@@ -67,7 +66,7 @@ def calculate_follower_trajectory(leader_trajectory: pd.DataFrame, drone_config:
         # Calculate follower position
         follower_lat, follower_lon, follower_alt = calculate_follower_global_position(
             leader_row['lat'], leader_row['lon'], leader_row['alt'], leader_row['yaw'],
-            drone_config, formation_origin
+            drone_config
         )
         
         # Calculate follower yaw
@@ -295,10 +294,7 @@ def _execute_trajectory_processing(
                 'recommendation': recommendation
             }
 
-        # Step 3: Calculate formation origin
-        formation_origin = calculate_formation_origin(leader_trajectories)
-
-        # Step 4: Process each drone
+        # Step 3: Process each drone
         all_trajectories = {}
         processing_stats = {'leaders': 0, 'followers': 0, 'errors': 0}
 
@@ -343,7 +339,7 @@ def _execute_trajectory_processing(
                     drone_config = drone_row.to_dict()
 
                     trajectory = calculate_follower_trajectory(
-                        leader_trajectory, drone_config, formation_origin
+                        leader_trajectory, drone_config
                     )
                     processing_stats['followers'] += 1
                     logger.info(f"Processed follower {hw_id} following leader {ultimate_leader_id}")
