@@ -124,14 +124,14 @@ describe('commandLifecycleFeedback', () => {
       'Swarm Trajectory started. Execution is active on 3 drone(s).',
     );
 
-    await jest.advanceTimersByTimeAsync(1500);
+    jest.advanceTimersByTime(1500);
     await flushMicrotasks();
 
     expect(toast.info.mock.calls.map(([message]) => message)).toContain(
       'Swarm Trajectory is still completing. 2/3 accepted drone(s) have reported completion. Waiting for 1 remaining drone(s).',
     );
 
-    await jest.advanceTimersByTimeAsync(1500);
+    jest.advanceTimersByTime(1500);
     await flushMicrotasks();
 
     expect(toast.success.mock.calls.map(([message]) => message)).toContain(
