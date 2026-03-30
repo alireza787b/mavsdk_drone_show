@@ -129,8 +129,14 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
         Path(directory).mkdir(parents=True, exist_ok=True)
 
     (Path(folders['raw']) / 'Drone 1.csv').write_text('raw', encoding='utf-8')
-    (Path(folders['processed']) / 'Drone 1.csv').write_text('processed', encoding='utf-8')
-    (Path(folders['processed']) / 'Drone 2.csv').write_text('processed', encoding='utf-8')
+    (Path(folders['processed']) / 'Drone 1.csv').write_text(
+        't,alt\n10,1450\n70,1465\n',
+        encoding='utf-8',
+    )
+    (Path(folders['processed']) / 'Drone 2.csv').write_text(
+        't,alt\n10,1455\n65,1462\n',
+        encoding='utf-8',
+    )
 
     structure = {
         'top_leaders': [1, 5],
@@ -165,6 +171,19 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert status['cluster_summary']['missing_upload_cluster_count'] == 1
     assert status['cluster_summary']['overall_state'] == 'partial'
     assert status['session']['exists'] is False
+    assert status['package_stats'] == {
+        'available': True,
+        'drone_count': 2,
+        'drone_ids': [1, 2],
+        'route_entry_time_s': 10.0,
+        'mission_clock_s': 70.0,
+        'route_motion_time_s': 60.0,
+        'max_altitude_msl_m': 1465.0,
+        'min_altitude_msl_m': 1450.0,
+        'altitude_window_m': 15.0,
+    }
+    assert status['package_drone_stats'][1]['mission_clock_s'] == 70.0
+    assert status['package_drone_stats'][2]['max_altitude_msl_m'] == 1462.0
 
     clusters = {cluster['leader_id']: cluster for cluster in status['clusters']}
     assert clusters[1]['leader_uploaded'] is True
@@ -176,6 +195,17 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert clusters[1]['expected_drone_count'] == 3
     assert clusters[1]['processed_drone_count'] == 2
     assert clusters[1]['issues']
+    assert clusters[1]['package_stats'] == {
+        'available': True,
+        'drone_count': 2,
+        'drone_ids': [1, 2],
+        'route_entry_time_s': 10.0,
+        'mission_clock_s': 70.0,
+        'route_motion_time_s': 60.0,
+        'max_altitude_msl_m': 1465.0,
+        'min_altitude_msl_m': 1450.0,
+        'altitude_window_m': 15.0,
+    }
 
     assert clusters[5]['leader_uploaded'] is False
     assert clusters[5]['leader_processed'] is False
@@ -183,6 +213,7 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert clusters[5]['ready'] is False
     assert clusters[5]['state'] == 'missing_upload'
     assert clusters[5]['issues']
+    assert clusters[5]['package_stats']['available'] is False
 
 
 def test_validate_target_scope_for_swarm_trajectory_requires_processed_outputs_and_leader_chain():

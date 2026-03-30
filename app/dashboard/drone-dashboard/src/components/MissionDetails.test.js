@@ -58,6 +58,34 @@ describe('MissionDetails Swarm Trajectory gating', () => {
           },
         ],
         processed_drones: [1, 2],
+        package_drone_stats: {
+          1: {
+            route_entry_time_s: 10,
+            mission_clock_s: 70,
+            route_motion_time_s: 60,
+            max_altitude_msl_m: 1460,
+            min_altitude_msl_m: 1450,
+            altitude_window_m: 10,
+          },
+          2: {
+            route_entry_time_s: 10,
+            mission_clock_s: 68,
+            route_motion_time_s: 58,
+            max_altitude_msl_m: 1458,
+            min_altitude_msl_m: 1452,
+            altitude_window_m: 6,
+          },
+        },
+        package_stats: {
+          available: true,
+          drone_count: 2,
+          route_entry_time_s: 10,
+          mission_clock_s: 70,
+          route_motion_time_s: 60,
+          max_altitude_msl_m: 1460,
+          min_altitude_msl_m: 1450,
+          altitude_window_m: 10,
+        },
         session: { exists: true, session_id: 's1', total_drones: 3 },
         cluster_summary: {
           cluster_count: 1,
@@ -100,6 +128,42 @@ describe('MissionDetails Swarm Trajectory gating', () => {
           },
         ],
         processed_drones: [1, 2, 3],
+        package_drone_stats: {
+          1: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1465,
+            min_altitude_msl_m: 1450,
+            altitude_window_m: 15,
+          },
+          2: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1458,
+            min_altitude_msl_m: 1451,
+            altitude_window_m: 7,
+          },
+          3: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1462,
+            min_altitude_msl_m: 1452,
+            altitude_window_m: 10,
+          },
+        },
+        package_stats: {
+          available: true,
+          drone_count: 3,
+          route_entry_time_s: 10,
+          mission_clock_s: 72,
+          route_motion_time_s: 62,
+          max_altitude_msl_m: 1465,
+          min_altitude_msl_m: 1450,
+          altitude_window_m: 15,
+        },
         session: { exists: true, session_id: 's1', total_drones: 3 },
         cluster_summary: {
           cluster_count: 1,
@@ -123,6 +187,10 @@ describe('MissionDetails Swarm Trajectory gating', () => {
 
     expect(screen.getByText('Swarm Trajectory Launch Snapshot')).toBeInTheDocument();
     expect(screen.getByText('Processed swarm package is active. Confirm the final plots match the intended leader paths before launch.')).toBeInTheDocument();
+    expect(screen.getByText('Mission clock:')).toBeInTheDocument();
+    expect(screen.getByText('72.0s')).toBeInTheDocument();
+    expect(screen.getByText('Altitude envelope:')).toBeInTheDocument();
+    expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
   });
 
@@ -161,6 +229,50 @@ describe('MissionDetails Swarm Trajectory gating', () => {
           5: 4,
         },
         processed_drones: [1, 2, 3, 4],
+        package_drone_stats: {
+          1: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1465,
+            min_altitude_msl_m: 1450,
+            altitude_window_m: 15,
+          },
+          2: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1458,
+            min_altitude_msl_m: 1451,
+            altitude_window_m: 7,
+          },
+          3: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1462,
+            min_altitude_msl_m: 1452,
+            altitude_window_m: 10,
+          },
+          4: {
+            route_entry_time_s: 10,
+            mission_clock_s: 65,
+            route_motion_time_s: 55,
+            max_altitude_msl_m: 1448,
+            min_altitude_msl_m: 1445,
+            altitude_window_m: 3,
+          },
+        },
+        package_stats: {
+          available: true,
+          drone_count: 4,
+          route_entry_time_s: 10,
+          mission_clock_s: 72,
+          route_motion_time_s: 62,
+          max_altitude_msl_m: 1465,
+          min_altitude_msl_m: 1445,
+          altitude_window_m: 20,
+        },
         session: { exists: true, session_id: 's1', total_drones: 5 },
         cluster_summary: {
           cluster_count: 2,
@@ -184,6 +296,7 @@ describe('MissionDetails Swarm Trajectory gating', () => {
 
     expect(screen.getByText('1 out-of-scope cluster remains incomplete, but is outside the current launch scope.')).toBeInTheDocument();
     expect(screen.getByText('3 selected drones')).toBeInTheDocument();
+    expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
   });
 
@@ -209,6 +322,42 @@ describe('MissionDetails Swarm Trajectory gating', () => {
           3: 1,
         },
         processed_drones: [1, 2, 3],
+        package_drone_stats: {
+          1: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1465,
+            min_altitude_msl_m: 1450,
+            altitude_window_m: 15,
+          },
+          2: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1458,
+            min_altitude_msl_m: 1451,
+            altitude_window_m: 7,
+          },
+          3: {
+            route_entry_time_s: 10,
+            mission_clock_s: 72,
+            route_motion_time_s: 62,
+            max_altitude_msl_m: 1462,
+            min_altitude_msl_m: 1452,
+            altitude_window_m: 10,
+          },
+        },
+        package_stats: {
+          available: true,
+          drone_count: 3,
+          route_entry_time_s: 10,
+          mission_clock_s: 72,
+          route_motion_time_s: 62,
+          max_altitude_msl_m: 1465,
+          min_altitude_msl_m: 1450,
+          altitude_window_m: 15,
+        },
         session: { exists: true, session_id: 's1', total_drones: 3 },
         cluster_summary: {
           cluster_count: 1,

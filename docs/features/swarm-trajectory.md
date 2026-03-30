@@ -255,6 +255,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - the planner surface now declares the active mission envelope (`0.5-12 m/s nominal`, `12-20 m/s review`, altitude `1-10,000 m MSL`) so operators do not have to infer those rules from warnings after the fact
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
+  - the launch snapshot and readiness card now use authoritative processed-package timing/altitude truth from the generated `Drone N.csv` outputs, including mission clock, route-entry time, route-motion window, and altitude envelope
   - operator next actions and direct links back to `Swarm Design`, `Trajectory Planning`, and `Swarm Trajectory` stay on the launch surface instead of forcing blind page-hopping
 - the `Swarm Trajectory` processing workspace now mirrors that same staged operator model:
   - a single workspace-status card tells the operator whether uploads are blocked, outputs need processing, or the mission package is ready for launch preflight

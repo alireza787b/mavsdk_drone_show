@@ -6,6 +6,10 @@ import {
 import { normalizeClusterState } from './swarmTrajectoryViewModel';
 
 const countLabel = (count = 0, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
+const toFiniteNumber = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
 
 const countClusterIssues = (clusters = []) => clusters.reduce((total, cluster) => total + (cluster.issues?.length || 0), 0);
 const countClusterAdvisories = (clusters = []) => clusters.reduce((total, cluster) => total + (cluster.advisories?.length || 0), 0);
@@ -77,6 +81,76 @@ function formatSelectionIssues(selectionIssues = []) {
   return blockers;
 }
 
+function aggregatePackageStats(statsList = []) {
+  if (!statsList.length) {
+    return {
+      available: false,
+      droneCount: 0,
+      routeEntryTimeS: null,
+      missionClockS: null,
+      routeMotionTimeS: null,
+      maxAltitudeMslM: null,
+      minAltitudeMslM: null,
+      altitudeWindowM: null,
+    };
+  }
+
+  const missionClocks = statsList
+    .map((stats) => toFiniteNumber(stats?.mission_clock_s ?? stats?.missionClockS))
+    .filter((value) => value !== null);
+  const routeEntries = statsList
+    .map((stats) => toFiniteNumber(stats?.route_entry_time_s ?? stats?.routeEntryTimeS))
+    .filter((value) => value !== null);
+  const maxAltitudes = statsList
+    .map((stats) => toFiniteNumber(stats?.max_altitude_msl_m ?? stats?.maxAltitudeMslM))
+    .filter((value) => value !== null);
+  const minAltitudes = statsList
+    .map((stats) => toFiniteNumber(stats?.min_altitude_msl_m ?? stats?.minAltitudeMslM))
+    .filter((value) => value !== null);
+
+  const missionClockS = missionClocks.length ? Math.max(...missionClocks) : null;
+  const routeEntryTimeS = routeEntries.length ? Math.min(...routeEntries) : null;
+  const routeMotionTimeS = missionClockS !== null && routeEntryTimeS !== null
+    ? Math.max(missionClockS - routeEntryTimeS, 0)
+    : null;
+  const maxAltitudeMslM = maxAltitudes.length ? Math.max(...maxAltitudes) : null;
+  const minAltitudeMslM = minAltitudes.length ? Math.min(...minAltitudes) : null;
+
+  return {
+    available: true,
+    droneCount: statsList.length,
+    routeEntryTimeS,
+    missionClockS,
+    routeMotionTimeS,
+    maxAltitudeMslM,
+    minAltitudeMslM,
+    altitudeWindowM: maxAltitudeMslM !== null && minAltitudeMslM !== null
+      ? maxAltitudeMslM - minAltitudeMslM
+      : null,
+  };
+}
+
+function normalizePackageStats(stats = null) {
+  if (!stats?.available) {
+    return aggregatePackageStats([]);
+  }
+
+  return {
+    available: true,
+    droneCount: toFiniteNumber(stats?.drone_count ?? stats?.droneCount) ?? 0,
+    routeEntryTimeS: toFiniteNumber(stats?.route_entry_time_s ?? stats?.routeEntryTimeS),
+    missionClockS: toFiniteNumber(stats?.mission_clock_s ?? stats?.missionClockS),
+    routeMotionTimeS: toFiniteNumber(stats?.route_motion_time_s ?? stats?.routeMotionTimeS),
+    maxAltitudeMslM: toFiniteNumber(stats?.max_altitude_msl_m ?? stats?.maxAltitudeMslM),
+    minAltitudeMslM: toFiniteNumber(stats?.min_altitude_msl_m ?? stats?.minAltitudeMslM),
+    altitudeWindowM: toFiniteNumber(stats?.altitude_window_m ?? stats?.altitudeWindowM),
+  };
+}
+
+function getPackageDroneStat(packageDroneStats = {}, droneId) {
+  return packageDroneStats?.[droneId] || packageDroneStats?.[String(droneId)] || null;
+}
+
 export const buildSwarmTrajectoryLaunchReadiness = ({
   clusterStatus = null,
   loading = false,
@@ -113,6 +187,9 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   const issueCount = countClusterIssues(clusters);
   const advisoryCount = countClusterAdvisories(clusters);
   const orphanLeaderCount = clusterStatus?.orphan_uploaded_leaders?.length || 0;
+  const packageStats = clusterStatus?.package_stats?.available
+    ? normalizePackageStats(clusterStatus.package_stats)
+    : aggregatePackageStats(Object.values(clusterStatus?.package_drone_stats || {}));
   const isSelectedScope = targetMode === 'selected' && selectedDrones.length > 0;
   const selectionScope = buildSelectionScope(clusterStatus, selectedDrones);
   const scopeClusterCount = isSelectedScope ? selectionScope.targetedClusters.length : clusterCount;
@@ -122,6 +199,13 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   const scopedProcessedDroneCount = isSelectedScope
     ? Array.from(selectionScope.selectedSet).filter((droneId) => selectionScope.processedSet.has(droneId)).length
     : processedDroneCount;
+  const scopePackageStats = isSelectedScope
+    ? aggregatePackageStats(
+        Array.from(selectionScope.selectedSet)
+          .map((droneId) => getPackageDroneStat(clusterStatus?.package_drone_stats, droneId))
+          .filter(Boolean),
+      )
+    : packageStats;
 
   if (!loading && !error) {
     if (clusterCount === 0) {
@@ -210,6 +294,8 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
       expectedDroneCount,
       issueCount,
       advisoryCount,
+      packageStats,
+      scopePackageStats,
       session,
       overallState: summary.overall_state || 'unknown',
       scopeMode: isSelectedScope ? 'selected' : 'all',

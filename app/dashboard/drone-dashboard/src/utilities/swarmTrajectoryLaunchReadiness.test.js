@@ -34,6 +34,50 @@ const baseClusterStatus = {
     overall_state: 'partial',
   },
   processed_drones: [1, 2, 3, 4],
+  package_drone_stats: {
+    1: {
+      route_entry_time_s: 10,
+      mission_clock_s: 72,
+      route_motion_time_s: 62,
+      max_altitude_msl_m: 1465,
+      min_altitude_msl_m: 1450,
+      altitude_window_m: 15,
+    },
+    2: {
+      route_entry_time_s: 10,
+      mission_clock_s: 72,
+      route_motion_time_s: 62,
+      max_altitude_msl_m: 1458,
+      min_altitude_msl_m: 1451,
+      altitude_window_m: 7,
+    },
+    3: {
+      route_entry_time_s: 10,
+      mission_clock_s: 72,
+      route_motion_time_s: 62,
+      max_altitude_msl_m: 1462,
+      min_altitude_msl_m: 1452,
+      altitude_window_m: 10,
+    },
+    4: {
+      route_entry_time_s: 10,
+      mission_clock_s: 65,
+      route_motion_time_s: 55,
+      max_altitude_msl_m: 1448,
+      min_altitude_msl_m: 1445,
+      altitude_window_m: 3,
+    },
+  },
+  package_stats: {
+    available: true,
+    drone_count: 4,
+    route_entry_time_s: 10,
+    mission_clock_s: 72,
+    route_motion_time_s: 62,
+    max_altitude_msl_m: 1465,
+    min_altitude_msl_m: 1445,
+    altitude_window_m: 20,
+  },
   orphan_uploaded_leaders: [],
   follow_map: {
     1: 0,
@@ -62,6 +106,16 @@ describe('buildSwarmTrajectoryLaunchReadiness', () => {
     expect(readiness.summary.readyClusterCount).toBe(1);
     expect(readiness.summary.processedDroneCount).toBe(4);
     expect(readiness.summary.scopeMode).toBe('all');
+    expect(readiness.summary.packageStats).toEqual({
+      available: true,
+      droneCount: 4,
+      routeEntryTimeS: 10,
+      missionClockS: 72,
+      routeMotionTimeS: 62,
+      maxAltitudeMslM: 1465,
+      minAltitudeMslM: 1445,
+      altitudeWindowM: 20,
+    });
   });
 
   test('allows a selected ready subset even when another cluster is incomplete', () => {
@@ -78,6 +132,16 @@ describe('buildSwarmTrajectoryLaunchReadiness', () => {
     expect(readiness.summary.scopeMode).toBe('selected');
     expect(readiness.summary.scopeClusterCount).toBe(1);
     expect(readiness.summary.scopeProcessedDroneCount).toBe(3);
+    expect(readiness.summary.scopePackageStats).toEqual({
+      available: true,
+      droneCount: 3,
+      routeEntryTimeS: 10,
+      missionClockS: 72,
+      routeMotionTimeS: 62,
+      maxAltitudeMslM: 1465,
+      minAltitudeMslM: 1450,
+      altitudeWindowM: 15,
+    });
   });
 
   test('blocks a selected follower when the required leader chain is incomplete', () => {

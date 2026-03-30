@@ -11,6 +11,31 @@ import {
 } from '../utilities/commandScheduling';
 import { buildSwarmTrajectoryLaunchReadiness } from '../utilities/swarmTrajectoryLaunchReadiness';
 
+const formatMissionSeconds = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 'Unknown';
+  }
+
+  return `${numeric.toFixed(numeric >= 100 ? 0 : 1)}s`;
+};
+
+const formatAltitudeEnvelope = (packageStats) => {
+  const minAltitude = Number(packageStats?.minAltitudeMslM);
+  const maxAltitude = Number(packageStats?.maxAltitudeMslM);
+  const altitudeWindow = Number(packageStats?.altitudeWindowM);
+
+  if (!Number.isFinite(minAltitude) || !Number.isFinite(maxAltitude)) {
+    return 'Unknown';
+  }
+
+  const windowLabel = Number.isFinite(altitudeWindow)
+    ? ` • window ${altitudeWindow.toFixed(1)} m`
+    : '';
+
+  return `${minAltitude.toFixed(1)}-${maxAltitude.toFixed(1)} m MSL${windowLabel}`;
+};
+
 const MissionDetails = ({
   missionType,
   icon,
@@ -636,6 +661,34 @@ const MissionDetails = ({
                     : 'Not processed yet'}
                 </span>
               </div>
+              {swarmTrajectorySummary.scopePackageStats?.available && (
+                <>
+                  <div className="origin-info-row">
+                    <span className="origin-label">Mission clock:</span>
+                    <span className="origin-coords">
+                      {formatMissionSeconds(swarmTrajectorySummary.scopePackageStats.missionClockS)}
+                    </span>
+                  </div>
+                  <div className="origin-info-row">
+                    <span className="origin-label">Route entry:</span>
+                    <span className="origin-coords">
+                      {formatMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeEntryTimeS)}
+                    </span>
+                  </div>
+                  <div className="origin-info-row">
+                    <span className="origin-label">Route motion:</span>
+                    <span className="origin-coords">
+                      {formatMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeMotionTimeS)}
+                    </span>
+                  </div>
+                  <div className="origin-info-row">
+                    <span className="origin-label">Altitude envelope:</span>
+                    <span className="origin-coords">
+                      {formatAltitudeEnvelope(swarmTrajectorySummary.scopePackageStats)}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             {missionBlockers.length > 0 && (

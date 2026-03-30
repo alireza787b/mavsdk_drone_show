@@ -4,6 +4,31 @@ import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 import '../styles/MissionReadinessCard.css';
 
+const formatMissionSeconds = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return `${numeric.toFixed(numeric >= 100 ? 0 : 1)}s`;
+};
+
+const formatAltitudeEnvelope = (packageStats) => {
+  const minAltitude = Number(packageStats?.min_altitude_msl_m);
+  const maxAltitude = Number(packageStats?.max_altitude_msl_m);
+  const altitudeWindow = Number(packageStats?.altitude_window_m);
+
+  if (!Number.isFinite(minAltitude) || !Number.isFinite(maxAltitude)) {
+    return null;
+  }
+
+  const windowLabel = Number.isFinite(altitudeWindow)
+    ? ` • window ${altitudeWindow.toFixed(1)} m`
+    : '';
+
+  return `${minAltitude.toFixed(1)}-${maxAltitude.toFixed(1)} m MSL${windowLabel}`;
+};
+
 const MissionReadinessCard = ({
   refreshTrigger = 0,
   clusterStatus: externalClusterStatus = null,
@@ -162,6 +187,7 @@ const MissionReadinessCard = ({
       (count, cluster) => count + (cluster.expected_drone_count ?? ((cluster.follower_count || 0) + 1)),
       0,
     );
+  const packageStats = clusterStatus.package_stats || {};
   const actionItems = [];
 
   if (missingCount > 0) {
@@ -244,6 +270,19 @@ const MissionReadinessCard = ({
         <div className="readiness-session-note">
           Current processed package: <strong>{session.session_id}</strong> • leaders {session.processed_leaders?.length || 0} • drones {session.total_drones || processedDroneCount}
         </div>
+      ) : null}
+
+      {packageStats?.available ? (
+        <>
+          <div className="readiness-session-note">
+            Package timing: <strong>{formatMissionSeconds(packageStats.mission_clock_s)}</strong> mission clock • entry {formatMissionSeconds(packageStats.route_entry_time_s)} • motion {formatMissionSeconds(packageStats.route_motion_time_s)}
+          </div>
+          {formatAltitudeEnvelope(packageStats) ? (
+            <div className="readiness-session-note">
+              Altitude envelope: <strong>{formatAltitudeEnvelope(packageStats)}</strong>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {actionItems.length > 0 ? (

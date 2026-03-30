@@ -53,6 +53,16 @@ describe('MissionReadinessCard', () => {
         overall_state: 'partial',
       },
       processed_drones: [1, 2, 3, 4],
+      package_stats: {
+        available: true,
+        drone_count: 4,
+        route_entry_time_s: 10,
+        mission_clock_s: 72,
+        route_motion_time_s: 62,
+        max_altitude_msl_m: 1465,
+        min_altitude_msl_m: 1450,
+        altitude_window_m: 15,
+      },
       session: {
         exists: true,
         session_id: '20260328_173515',
@@ -79,6 +89,10 @@ describe('MissionReadinessCard', () => {
     expect(screen.getByText('Active Session')).toBeInTheDocument();
     expect(screen.getAllByText('20260328_173515')).toHaveLength(2);
     expect(screen.getByText('1 cluster still needs follower regeneration or output review.')).toBeInTheDocument();
+    expect(screen.getByText('Package timing:')).toBeInTheDocument();
+    expect(screen.getByText('72.0s')).toBeInTheDocument();
+    expect(screen.getByText('Altitude envelope:')).toBeInTheDocument();
+    expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByRole('link', { name: 'Swarm Trajectory' })).toHaveAttribute('href', '/swarm-trajectory');
   });

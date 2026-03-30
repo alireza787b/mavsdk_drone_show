@@ -106,6 +106,7 @@ export const getSwarmClusterStatus = async () => {
           processed_follower_ids: cluster.processed_follower_ids || [],
           leader_plot_available: Boolean(cluster.leader_plot_available),
           cluster_plot_available: Boolean(cluster.cluster_plot_available),
+          package_stats: cluster.package_stats || null,
           issues: cluster.issues || [],
           advisories: cluster.advisories || [],
         }))
@@ -136,6 +137,8 @@ export const getSwarmClusterStatus = async () => {
       processed_trajectories: statusData.status.processed_trajectories || 0,
       processed_drones: statusData.status.processed_drones || [],
       processed_leaders: statusData.status.processed_leaders || [],
+      package_stats: statusData.status.package_stats || null,
+      package_drone_stats: statusData.status.package_drone_stats || {},
       session: statusData.status.session || { exists: false },
       has_results: Boolean(statusData.status.has_results),
       expected_top_leaders: statusData.status.expected_top_leaders || leadersData.leaders || [],
