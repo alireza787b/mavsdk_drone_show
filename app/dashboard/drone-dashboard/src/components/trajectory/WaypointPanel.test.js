@@ -260,11 +260,14 @@ describe('WaypointPanel', () => {
     });
 
     expect(screen.getByText('Mission clock:')).toBeInTheDocument();
-    expect(screen.getByText('42.0s')).toBeInTheDocument();
+    const missionClockRow = screen.getByText('Mission clock:').closest('.summary-item');
+    expect(within(missionClockRow).getByText('42.0s')).toBeInTheDocument();
     expect(screen.getByText('Route entry:')).toBeInTheDocument();
-    expect(screen.getByText('12.0s')).toBeInTheDocument();
+    const routeEntryRow = screen.getByText('Route entry:').closest('.summary-item');
+    expect(within(routeEntryRow).getByText('12.0s')).toBeInTheDocument();
     expect(screen.getByText('Route motion:')).toBeInTheDocument();
-    expect(screen.getByText('30.0s')).toBeInTheDocument();
+    const routeMotionRow = screen.getByText('Route motion:').closest('.summary-item');
+    expect(within(routeMotionRow).getByText('30.0s')).toBeInTheDocument();
   });
 
   it('shows terrain-refresh feedback while saving coordinate edits', async () => {

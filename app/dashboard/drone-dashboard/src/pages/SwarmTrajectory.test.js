@@ -6,14 +6,12 @@ import SwarmTrajectory from './SwarmTrajectory';
 import useFetch from '../hooks/useFetch';
 import {
   clearProcessedData,
-  getProcessingRecommendation,
   processTrajectories,
 } from '../services/droneApiService';
 
 jest.mock('../hooks/useFetch');
 jest.mock('../services/droneApiService', () => ({
   clearProcessedData: jest.fn(),
-  getProcessingRecommendation: jest.fn(),
   processTrajectories: jest.fn(),
 }));
 
@@ -24,14 +22,6 @@ describe('SwarmTrajectory git writeback messaging', () => {
       data: { git_auto_push: false },
       error: null,
       loading: false,
-    });
-    getProcessingRecommendation.mockResolvedValue({
-      success: true,
-      recommendation: {
-        action: 'safe_incremental',
-        message: 'Safe incremental processing is available.',
-        details: [],
-      },
     });
     clearProcessedData.mockResolvedValue({ success: true });
     processTrajectories.mockResolvedValue({ success: true });
@@ -92,6 +82,11 @@ describe('SwarmTrajectory git writeback messaging', () => {
                 session_id: 's1',
                 processed_leaders: [1],
                 total_drones: 3,
+              },
+              processing_recommendation: {
+                action: 'safe_incremental',
+                message: 'Safe incremental processing is available.',
+                details: [],
               },
             },
           }),
@@ -180,6 +175,11 @@ describe('SwarmTrajectory git writeback messaging', () => {
                 session_id: 'partial-session',
                 processed_leaders: [1],
                 total_drones: 2,
+              },
+              processing_recommendation: {
+                action: 'safe_incremental',
+                message: 'Safe incremental processing is available.',
+                details: [],
               },
             },
           }),

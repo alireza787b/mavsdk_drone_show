@@ -155,15 +155,6 @@ export const getSwarmClusterStatus = async () => {
   }
 };
 
-export const getProcessingRecommendation = async () => {
-  try {
-    const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/recommendation`);
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
-};
-
 export const processTrajectories = async (options = {}) => {
   const requestURI = `${getBackendURL()}/api/swarm/trajectory/process`;
 

@@ -8,7 +8,6 @@ import useFetch from '../hooks/useFetch';
 import { getBackendURL } from '../utilities/utilities';
 import {
   clearProcessedData,
-  getProcessingRecommendation,
   processTrajectories,
 } from '../services/droneApiService';
 import {
@@ -141,20 +140,6 @@ const SwarmTrajectory = () => {
     }
   };
 
-  const fetchRecommendation = async () => {
-    try {
-      const response = await getProcessingRecommendation();
-      if (response.success) {
-        setRecommendation(response.recommendation);
-        return response.recommendation;
-      }
-    } catch (error) {
-      console.error('Error fetching recommendation:', error);
-    }
-
-    return null;
-  };
-
   const fetchLeaders = async () => {
     try {
       const response = await fetch(`${getBackendURL()}/api/swarm/leaders`);
@@ -188,6 +173,7 @@ const SwarmTrajectory = () => {
       const inferredOutcome = nextStatus.cluster_summary?.overall_state === 'partial' ? 'partial' : 'success';
 
       setStatus(nextStatus);
+      setRecommendation(nextStatus.processing_recommendation || null);
       setUploadedLeaders(new Set((nextStatus.uploaded_leaders || []).map(Number)));
       setPageError('');
 
@@ -217,14 +203,17 @@ const SwarmTrajectory = () => {
           auto_reloaded: prev?.auto_reloaded || [],
         };
       });
+
+      return nextStatus;
     } catch (error) {
       console.error('Error fetching status:', error);
       setPageError(error.message || 'Unable to load swarm trajectory status');
+      return null;
     }
   };
 
   const refreshOperationalState = async ({ reloadStructure = false } = {}) => {
-    const tasks = [fetchStatus(), fetchRecommendation()];
+    const tasks = [fetchStatus()];
     if (reloadStructure) {
       tasks.unshift(fetchLeaders());
     }
@@ -232,7 +221,7 @@ const SwarmTrajectory = () => {
   };
 
   const initializeComponent = async () => {
-    await Promise.all([fetchLeaders(), fetchStatus(), fetchRecommendation()]);
+    await Promise.all([fetchLeaders(), fetchStatus()]);
   };
 
   const handleFileUpload = async (leaderId, file) => {
@@ -320,7 +309,8 @@ const SwarmTrajectory = () => {
       return;
     }
 
-    const latestRecommendation = await fetchRecommendation();
+    const latestStatus = await fetchStatus();
+    const latestRecommendation = latestStatus?.processing_recommendation || recommendation;
     const processingOptions = {
       auto_reload: true,
       force_clear: Boolean(forceRestart),
