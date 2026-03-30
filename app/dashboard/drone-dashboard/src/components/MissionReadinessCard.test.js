@@ -89,9 +89,9 @@ describe('MissionReadinessCard', () => {
     expect(screen.getByText('Active Session')).toBeInTheDocument();
     expect(screen.getAllByText('20260328_173515')).toHaveLength(2);
     expect(screen.getByText('1 cluster still needs follower regeneration or output review.')).toBeInTheDocument();
-    expect(screen.getByText('Package timing:')).toBeInTheDocument();
+    expect(screen.getByText(/Package timing:/)).toBeInTheDocument();
     expect(screen.getByText('72.0s')).toBeInTheDocument();
-    expect(screen.getByText('Altitude envelope:')).toBeInTheDocument();
+    expect(screen.getByText(/Altitude envelope:/)).toBeInTheDocument();
     expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByRole('link', { name: 'Swarm Trajectory' })).toHaveAttribute('href', '/swarm-trajectory');
