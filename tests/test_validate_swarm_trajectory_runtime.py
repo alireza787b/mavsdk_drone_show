@@ -220,6 +220,48 @@ def test_build_short_validation_profile_rows_uses_route_entry_and_leg_defaults()
     assert rows[1]["EstimatedSpeed_ms"] > 0
 
 
+def test_command_summary_includes_normalized_progress_snapshot():
+    validator = _load_validator_module()
+
+    summary = validator.command_summary(
+        {
+            "status": "executing",
+            "phase": "in_progress",
+            "outcome": None,
+            "progress": {
+                "stage": "finishing",
+                "label": "Finishing on remaining drones",
+                "message": "2/3 accepted drone(s) have reported completion. Waiting for 1 remaining drone(s).",
+                "active": 1,
+                "remaining": 1,
+            },
+            "acks": {
+                "expected": 3,
+                "accepted": 3,
+                "offline": 0,
+                "rejected": 0,
+                "errors": 0,
+            },
+            "executions": {
+                "expected": 3,
+                "received": 2,
+                "started": 3,
+                "active": 1,
+                "succeeded": 2,
+                "failed": 0,
+            },
+        }
+    )
+
+    assert summary["progress"] == {
+        "stage": "finishing",
+        "label": "Finishing on remaining drones",
+        "active": 1,
+        "remaining": 1,
+        "message": "2/3 accepted drone(s) have reported completion. Waiting for 1 remaining drone(s).",
+    }
+
+
 def test_write_short_validation_profiles_creates_raw_csvs(tmp_path):
     validator = _load_validator_module()
 

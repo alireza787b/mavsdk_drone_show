@@ -217,10 +217,18 @@ def wait_for(predicate, *, label: str, timeout: int, interval: float = 1.0):
 def command_summary(status: dict) -> dict:
     acks = status.get("acks") or {}
     executions = status.get("executions") or {}
+    progress = status.get("progress") or {}
     return {
         "status": status.get("status"),
         "phase": status.get("phase"),
         "outcome": status.get("outcome"),
+        "progress": {
+            "stage": progress.get("stage"),
+            "label": progress.get("label"),
+            "active": progress.get("active"),
+            "remaining": progress.get("remaining"),
+            "message": progress.get("message"),
+        },
         "acks": {
             "expected": acks.get("expected"),
             "accepted": acks.get("accepted"),
