@@ -213,6 +213,45 @@ class TestCommandTracker:
         assert status['status'] == 'completed'
         assert status['phase'] == 'terminal'
         assert status['outcome'] == 'completed'
+        assert status['progress']['stage'] == 'completed'
+
+    @pytest.mark.asyncio
+    async def test_progress_stage_marks_future_trigger_as_scheduled(self, tracker):
+        """Pending execution with a future trigger should report a scheduled stage."""
+        future_trigger = int(time.time()) + 120
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1', '2'],
+            params={'triggerTime': future_trigger},
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_ack(command_id, hw_id='2', category='accepted')
+
+        status = await tracker.get_status(command_id)
+        assert status['phase'] == 'pending_execution'
+        assert status['progress']['stage'] == 'scheduled'
+        assert status['progress']['scheduled_trigger_time'] == future_trigger * 1000
+
+    @pytest.mark.asyncio
+    async def test_progress_stage_marks_finishing_when_some_drones_complete(self, tracker):
+        """In-progress commands should surface a finishing stage once some drones complete."""
+        command_id = await tracker.create_command(
+            mission_type=4,
+            target_drones=['1', '2'],
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await tracker.record_ack(command_id, hw_id='2', category='accepted')
+        await tracker.record_execution_start(command_id, hw_id='1')
+        await tracker.record_execution_start(command_id, hw_id='2')
+        await tracker.record_execution(command_id, hw_id='1', success=True, duration_ms=5000)
+
+        status = await tracker.get_status(command_id)
+        assert status['phase'] == 'in_progress'
+        assert status['progress']['stage'] == 'finishing'
+        assert status['progress']['completed'] == 1
+        assert status['progress']['remaining'] == 1
 
     @pytest.mark.asyncio
     async def test_partial_success(self, tracker):
@@ -749,6 +788,7 @@ class TestSchemas:
             AckSummary,
             CommandOutcome,
             CommandPhase,
+            CommandProgressSummary,
             CommandStatus,
             CommandStatusResponse,
             ExecutionSummary,
@@ -769,7 +809,18 @@ class TestSchemas:
             ),
             executions=ExecutionSummary(
                 expected=1, started=1, active=0, received=1, succeeded=1, failed=0
-            )
+            ),
+            progress=CommandProgressSummary(
+                stage="completed",
+                label="Completed",
+                message="Completed successfully on 1/1 accepted drone.",
+                ack_pending=0,
+                accepted=1,
+                execution_pending=0,
+                active=0,
+                completed=1,
+                remaining=0,
+            ),
         )
         assert response.status == CommandStatus.COMPLETED
         assert response.phase == CommandPhase.TERMINAL

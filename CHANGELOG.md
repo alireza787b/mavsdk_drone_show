@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- command tracking now exposes one normalized operator-facing `progress` snapshot across all missions, and lifecycle toasts use it to distinguish queued/scheduled commands, active execution, and the legitimate long-tail `finishing remaining drones` phase instead of making operators infer everything from the coarse legacy `status=executing` label
 - Swarm Trajectory launch-preflight now consumes backend session change-detection truth, so stale processed packages are blocked when swarm structure, raw leader CSV contents, or trajectory-processing parameters changed after the last processing pass; the workspace stages and doctrine now surface the same freshness rule instead of treating those cases as merely advisory
 - Swarm Trajectory planner timing presentation now comes from one shared utility across the waypoint panel, planner brief, leader-transfer dialog, and library summaries, so `Mission clock` / `Route entry` / `Route motion` wording no longer drifts and the waypoint panel no longer shows mission clock under the older ambiguous `Route time` label
 - Swarm Trajectory processed CSVs now preserve `vx/vy/vz` and `ax/ay/az` as real local NED metric quantities instead of raw lat/lon/alt derivatives, which makes runtime diagnostics and `continue_heading` end behavior consistent with the controller contract

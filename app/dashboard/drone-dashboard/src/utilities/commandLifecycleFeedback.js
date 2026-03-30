@@ -177,6 +177,28 @@ function buildTerminalToast(status, commandLabel) {
   }
 }
 
+function buildProgressToast(status, commandLabel) {
+  const progress = status?.progress;
+  if (!progress?.stage) {
+    return null;
+  }
+
+  switch (progress.stage) {
+    case 'executing':
+      return {
+        level: 'info',
+        message: `${commandLabel} started. ${progress.message}`,
+      };
+    case 'finishing':
+      return {
+        level: 'info',
+        message: `${commandLabel} is still completing. ${progress.message}`,
+      };
+    default:
+      return null;
+  }
+}
+
 function stripUiMeta(commandData = {}) {
   const { uiMeta, ...apiPayload } = commandData;
   return apiPayload;
@@ -190,6 +212,7 @@ function emitToast(level, message) {
 
 async function trackCommandLifecycle(commandId, commandLabel, initialPhase, timeoutMs) {
   let lastPhase = initialPhase || null;
+  let lastProgressStage = null;
   let pollErrors = 0;
   const deadline = Date.now() + timeoutMs;
 
@@ -197,9 +220,13 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
     try {
       const status = await getCommandStatus(commandId);
       pollErrors = 0;
+      const progressStage = status?.progress?.stage || null;
 
-      if (status?.phase === 'in_progress' && lastPhase !== 'in_progress') {
-        emitToast('info', `${commandLabel} started. Monitoring completion...`);
+      if (progressStage && progressStage !== lastProgressStage) {
+        const progressToast = buildProgressToast(status, commandLabel);
+        if (progressToast) {
+          emitToast(progressToast.level, progressToast.message);
+        }
       }
 
       if (status?.phase === TERMINAL_PHASE) {
@@ -209,6 +236,7 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
       }
 
       lastPhase = status?.phase || lastPhase;
+      lastProgressStage = progressStage || lastProgressStage;
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     } catch (error) {
       pollErrors += 1;

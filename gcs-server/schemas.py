@@ -705,6 +705,20 @@ class ExecutionSummary(BaseModel):
     details: Dict[str, DroneExecutionDetail] = Field(default_factory=dict, description="Per-drone execution details")
 
 
+class CommandProgressSummary(BaseModel):
+    """Operator-facing progress snapshot for a tracked command."""
+    stage: str = Field(..., description="Normalized progress stage (awaiting_ack, scheduled, pending_execution, executing, finishing, completed, partial, failed, cancelled, timeout, superseded)")
+    label: str = Field(..., description="Short operator-facing progress label")
+    message: str = Field(..., description="Human-readable progress detail for dashboards and notifications")
+    ack_pending: int = Field(0, ge=0, description="Number of target drones still missing ACKs")
+    accepted: int = Field(0, ge=0, description="Number of drones that accepted the command")
+    execution_pending: int = Field(0, ge=0, description="Accepted drones that have not yet reported execution start")
+    active: int = Field(0, ge=0, description="Drones currently executing without a terminal result")
+    completed: int = Field(0, ge=0, description="Accepted drones that have reported a terminal execution result")
+    remaining: int = Field(0, ge=0, description="Accepted drones still missing a terminal execution result")
+    scheduled_trigger_time: Optional[int] = Field(None, description="Scheduled trigger time in Unix ms when the command is waiting for a future trigger")
+
+
 class CommandStatusResponse(BaseModel):
     """Detailed command status response"""
     command_id: str = Field(..., description="Command UUID")
@@ -726,6 +740,7 @@ class CommandStatusResponse(BaseModel):
     # Summaries
     acks: AckSummary = Field(..., description="Acknowledgment summary")
     executions: ExecutionSummary = Field(..., description="Execution summary")
+    progress: CommandProgressSummary = Field(..., description="Operator-facing lifecycle progress snapshot")
 
     error_summary: Optional[str] = Field(None, description="Error summary if failed/partial")
 

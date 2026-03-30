@@ -702,6 +702,133 @@ class CommandTracker:
             parts.append(f"{command.acks_errors} errors")
         return ", ".join(parts) if parts else "pending"
 
+    @staticmethod
+    def _extract_trigger_time_ms(params: Optional[Dict[str, Any]]) -> Optional[int]:
+        """Return the command trigger time in Unix ms when available."""
+        if not isinstance(params, dict):
+            return None
+
+        for key in ("triggerTime", "trigger_time"):
+            raw_value = params.get(key)
+            if raw_value in (None, "", 0, "0"):
+                continue
+            try:
+                numeric = int(float(raw_value))
+            except (TypeError, ValueError):
+                continue
+
+            if numeric <= 0:
+                continue
+
+            # Command APIs use epoch seconds, but be tolerant if ms are already supplied.
+            return numeric if numeric >= 10_000_000_000 else numeric * 1000
+
+        return None
+
+    def _build_progress_summary(self, command: TrackedCommand) -> Dict[str, Any]:
+        """Build an operator-facing progress snapshot for the current lifecycle."""
+        now_ms = int(time.time() * 1000)
+        accepted = command.acks_accepted
+        started = len(command.execution_starts)
+        completed = command.executions_received
+        active = max(0, started - completed)
+        remaining = max(0, accepted - completed)
+        ack_pending = max(0, command.acks_expected - command.acks_received)
+        execution_pending = max(0, accepted - started)
+        scheduled_trigger_time = self._extract_trigger_time_ms(command.params)
+        waiting_for_future_trigger = (
+            command.phase == CommandPhase.PENDING_EXECUTION
+            and scheduled_trigger_time is not None
+            and scheduled_trigger_time > now_ms
+        )
+
+        if command.phase == CommandPhase.AWAITING_ACK:
+            if command.acks_received == 0:
+                stage = "awaiting_ack"
+                label = "Dispatching to target drones"
+                message = f"Waiting for acknowledgments from {command.acks_expected} targeted drone(s)."
+            else:
+                stage = "awaiting_ack"
+                label = "Collecting acknowledgments"
+                message = (
+                    f"Received {command.acks_received}/{command.acks_expected} acknowledgments so far."
+                )
+        elif command.phase == CommandPhase.PENDING_EXECUTION:
+            if waiting_for_future_trigger:
+                stage = "scheduled"
+                label = "Scheduled, waiting for trigger time"
+                message = (
+                    f"{accepted}/{command.acks_expected} targeted drone(s) accepted the command. "
+                    "Waiting for the scheduled trigger time."
+                )
+            else:
+                stage = "pending_execution"
+                label = "Accepted, waiting for execution start"
+                waiting_count = max(1, execution_pending or accepted)
+                message = (
+                    f"{accepted}/{command.acks_expected} targeted drone(s) accepted the command. "
+                    f"Waiting for execution start reports from {waiting_count} drone(s)."
+                )
+        elif command.phase == CommandPhase.IN_PROGRESS:
+            if completed > 0 and remaining > 0:
+                stage = "finishing"
+                label = "Finishing on remaining drones"
+                message = (
+                    f"{completed}/{accepted} accepted drone(s) have reported completion. "
+                    f"Waiting for {remaining} remaining drone(s)."
+                )
+            else:
+                stage = "executing"
+                label = "Execution in progress"
+                active_count = max(1, active or accepted)
+                message = f"Execution is active on {active_count} drone(s)."
+        else:
+            outcome = command.outcome.value if command.outcome else command.status.value
+            terminal_defaults = {
+                CommandOutcome.COMPLETED.value: (
+                    "Completed",
+                    f"Completed successfully on {command.executions_succeeded}/{max(accepted, 1)} accepted drone(s).",
+                ),
+                CommandOutcome.PARTIAL.value: (
+                    "Completed with partial coverage",
+                    command.error_summary or "Command completed with partial coverage.",
+                ),
+                CommandOutcome.FAILED.value: (
+                    "Failed",
+                    command.error_summary or "Command failed before reaching a clean terminal success state.",
+                ),
+                CommandOutcome.CANCELLED.value: (
+                    "Cancelled",
+                    command.error_summary or "Command was cancelled before completion.",
+                ),
+                CommandOutcome.TIMEOUT.value: (
+                    "Tracking timed out",
+                    command.error_summary or "Command tracking timed out before the final outcome was confirmed.",
+                ),
+                CommandOutcome.SUPERSEDED.value: (
+                    "Superseded",
+                    command.error_summary or "Command was superseded by a newer command.",
+                ),
+            }
+            label, message = terminal_defaults.get(
+                outcome,
+                ("Terminal", command.error_summary or "Command reached a terminal state."),
+            )
+            stage = outcome
+
+        return {
+            "stage": stage,
+            "label": label,
+            "message": message,
+            "ack_pending": ack_pending,
+            "accepted": accepted,
+            "execution_pending": execution_pending,
+            "active": active,
+            "completed": completed,
+            "remaining": remaining,
+            "scheduled_trigger_time": scheduled_trigger_time,
+        }
+
     def _command_to_dict(self, command: TrackedCommand) -> Dict[str, Any]:
         """Convert TrackedCommand to dictionary.
 
@@ -770,6 +897,7 @@ class CommandTracker:
                 }
             },
 
+            'progress': self._build_progress_summary(command),
             'error_summary': command.error_summary
         }
 

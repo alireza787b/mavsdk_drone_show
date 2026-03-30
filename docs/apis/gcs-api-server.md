@@ -842,6 +842,18 @@ Retrieve the current lifecycle state for a previously submitted command.
     "failed": 0,
     "details": {}
   },
+  "progress": {
+    "stage": "executing",
+    "label": "Execution in progress",
+    "message": "Execution is active on 1 drone(s).",
+    "ack_pending": 0,
+    "accepted": 2,
+    "execution_pending": 1,
+    "active": 1,
+    "completed": 0,
+    "remaining": 2,
+    "scheduled_trigger_time": null
+  },
   "created_at": 1700000000000,
   "submitted_at": 1700000000100,
   "execution_started_at": 1700000002000,
@@ -850,6 +862,13 @@ Retrieve the current lifecycle state for a previously submitted command.
   "error_summary": null
 }
 ```
+
+Important semantics:
+- `progress` is the normalized operator-facing lifecycle view and should be preferred for dashboards/toasts over trying to infer meaning from legacy `status` alone.
+- `progress.stage=scheduled` means accepted drones are waiting for a future trigger time.
+- `progress.stage=pending_execution` means delivery/ACKs are done, but no drone has reported execution start yet.
+- `progress.stage=executing` means at least one drone has started and none have reported completion yet.
+- `progress.stage=finishing` means some drones already reported terminal execution results while other accepted drones are still active; this is the normal state during long end behaviors such as RTL / land / disarm cleanup.
 
 ---
 
