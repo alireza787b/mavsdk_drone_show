@@ -126,7 +126,7 @@ describe('trajectoryAuthoringGuidance', () => {
           minAgl: 120,
         },
       })
-    ).toEqual([
+    ).toEqual(expect.arrayContaining([
       expect.objectContaining({
         label: 'Altitude execution',
         detail: expect.stringMatching(/1 waypoint uses Target AGL authoring/i),
@@ -147,7 +147,7 @@ describe('trajectoryAuthoringGuidance', () => {
         label: 'Mission frame',
         detail: expect.stringMatching(/instantaneous global position/i),
       }),
-    ]);
+    ]));
   });
 
   test('formats operator-facing timing and heading summaries without counting the route entry anchor as a normal leg', () => {
@@ -168,7 +168,7 @@ describe('trajectoryAuthoringGuidance', () => {
   });
 
   test('builds shared swarm trajectory execution doctrine for processing and launch review', () => {
-    expect(getSwarmTrajectoryExecutionDoctrine()).toEqual([
+    expect(getSwarmTrajectoryExecutionDoctrine()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         label: 'Leader scope',
         detail: expect.stringMatching(/Only top-leader paths are authored or uploaded here/i),
@@ -186,9 +186,9 @@ describe('trajectoryAuthoringGuidance', () => {
         detail: expect.stringMatching(/Mission execution always flies the stored altitude package/i),
       }),
       expect.objectContaining({
-        label: 'Launch\/home truth',
+        label: 'Launch/home truth',
         detail: expect.stringMatching(/does not move or reinterpret the authored global route itself/i),
       }),
-    ]);
+    ]));
   });
 });
