@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import { calculateTrajectoryStats } from '../../utilities/SpeedCalculator';
+import {
+  formatTrajectoryDuration,
+  getTrajectoryRouteMotionSeconds,
+} from '../../utilities/trajectoryTimingPresentation';
 import '../../styles/TrajectoryLibraryDialog.css';
 
 const formatDistance = (distance = 0) => {
@@ -10,24 +14,6 @@ const formatDistance = (distance = 0) => {
   }
 
   return `${distance.toFixed(0)} m`;
-};
-
-const formatDuration = (seconds = 0) => {
-  if (seconds >= 60) {
-    const minutes = Math.floor(seconds / 60);
-    const remainder = Math.round(seconds % 60);
-    return `${minutes}m ${remainder}s`;
-  }
-
-  return `${Math.round(seconds)}s`;
-};
-
-const getRouteMotionTime = (stats = {}) => {
-  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
-  if (Number.isFinite(stats.routeMotionTime)) {
-    return stats.routeMotionTime;
-  }
-  return Math.max(0, Number(stats.totalTime || 0) - routeEntryDelay);
 };
 
 const formatModifiedTime = (timestamp) => {
@@ -66,11 +52,11 @@ const TrajectorySummary = ({ stats, waypointCount }) => (
     </div>
     <div>
       <span className="trajectory-library-dialog__summary-label">Mission clock</span>
-      <strong>{formatDuration(stats.totalTime)}</strong>
+      <strong>{formatTrajectoryDuration(stats.totalTime)}</strong>
     </div>
     <div>
       <span className="trajectory-library-dialog__summary-label">Route motion</span>
-      <strong>{formatDuration(getRouteMotionTime(stats))}</strong>
+      <strong>{formatTrajectoryDuration(getTrajectoryRouteMotionSeconds(stats))}</strong>
     </div>
     <div>
       <span className="trajectory-library-dialog__summary-label">Max speed</span>
@@ -214,7 +200,7 @@ const TrajectoryLibraryDialog = ({
                         </div>
                         <small>
                           {trajectory.waypoints.length} waypoint{trajectory.waypoints.length === 1 ? '' : 's'} • Mission{' '}
-                          {formatDuration(stats.totalTime)} • Motion {formatDuration(getRouteMotionTime(stats))} • {formatDistance(stats.totalDistance)}
+                          {formatTrajectoryDuration(stats.totalTime)} • Motion {formatTrajectoryDuration(getTrajectoryRouteMotionSeconds(stats))} • {formatDistance(stats.totalDistance)}
                         </small>
                         <small>
                           Max {stats.maxSpeed.toFixed(1)} m/s • Updated {formatModifiedTime(modifiedAt)}

@@ -36,6 +36,12 @@ import {
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
+import {
+  formatTrajectoryDuration,
+  getWaypointMissionClockSeconds,
+  getWaypointRouteEntryDelaySeconds,
+  getWaypointRouteMotionSeconds,
+} from '../../utilities/trajectoryTimingPresentation';
 
 const WaypointPanel = ({
   waypoints,
@@ -422,18 +428,15 @@ const WaypointPanel = ({
   };
 
   // Format time display
-  const formatTime = (timeFromStart) => {
-    if (!timeFromStart) return '0';
-    if (timeFromStart < 60) return `${timeFromStart.toFixed(1)}s`;
+  const formatTime = (timeFromStart) => (
+    Number(timeFromStart || 0) < 60
+      ? `${Number(timeFromStart || 0).toFixed(1)}s`
+      : formatTrajectoryDuration(timeFromStart)
+  );
 
-    const minutes = Math.floor(timeFromStart / 60);
-    const seconds = (timeFromStart % 60).toFixed(0);
-    return `${minutes}m ${seconds}s`;
-  };
-
-  const missionClockSeconds = waypoints[waypoints.length - 1]?.timeFromStart || 0;
-  const routeEntryDelaySeconds = waypoints[0]?.timeFromStart || 0;
-  const routeMotionSeconds = Math.max(0, missionClockSeconds - routeEntryDelaySeconds);
+  const missionClockSeconds = getWaypointMissionClockSeconds(waypoints);
+  const routeEntryDelaySeconds = getWaypointRouteEntryDelaySeconds(waypoints);
+  const routeMotionSeconds = getWaypointRouteMotionSeconds(waypoints);
 
   const getTimingMode = (waypoint) => waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
 

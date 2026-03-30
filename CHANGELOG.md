@@ -11,7 +11,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ### Fixed
 - Swarm Trajectory launch-preflight now consumes backend session change-detection truth, so stale processed packages are blocked when swarm structure, raw leader CSV contents, or trajectory-processing parameters changed after the last processing pass; the workspace stages and doctrine now surface the same freshness rule instead of treating those cases as merely advisory
-- Swarm Trajectory waypoint-panel timing summary now uses the same `Mission clock` / `Route entry` / `Route motion` language as the rest of the planner, instead of showing the mission clock under the older ambiguous `Route time` label
+- Swarm Trajectory planner timing presentation now comes from one shared utility across the waypoint panel, planner brief, leader-transfer dialog, and library summaries, so `Mission clock` / `Route entry` / `Route motion` wording no longer drifts and the waypoint panel no longer shows mission clock under the older ambiguous `Route time` label
 - Swarm Trajectory processed CSVs now preserve `vx/vy/vz` and `ax/ay/az` as real local NED metric quantities instead of raw lat/lon/alt derivatives, which makes runtime diagnostics and `continue_heading` end behavior consistent with the controller contract
 - Swarm Trajectory initial drift sampling now uses the same non-blocking local-API pattern as Drone Show, and drift correction is skipped when preflight only has a fallback current-position reference instead of PX4's actual GPS global origin
 - Swarm Trajectory runtime now treats its launch-time global reference explicitly instead of carrying it through the mission path as a misleading `home_position` name:

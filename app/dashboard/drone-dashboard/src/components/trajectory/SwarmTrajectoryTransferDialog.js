@@ -12,6 +12,10 @@ import {
   formatSwarmTrajectoryAltitudeEnvelope,
   formatSwarmTrajectoryPackageTimingSummary,
 } from '../../utilities/swarmTrajectoryPackageStats';
+import {
+  formatTrajectoryDuration,
+  getTrajectoryRouteMotionSeconds,
+} from '../../utilities/trajectoryTimingPresentation';
 import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
@@ -23,26 +27,9 @@ const formatDistance = (distance = 0) => {
   return `${distance.toFixed(0)} m`;
 };
 
-const formatTime = (time = 0) => {
-  if (time >= 60) {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.round(time % 60);
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${Math.round(time)}s`;
-};
-
 const formatAltitudeMix = (stats = {}) => {
   const counts = stats.altitudeReferenceCounts || {};
   return `MSL ${counts.msl || 0} · AGL ${counts.agl || 0}`;
-};
-
-const getRouteMotionTime = (stats = {}, totalTime = 0) => {
-  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
-  if (Number.isFinite(stats.routeMotionTime)) {
-    return stats.routeMotionTime;
-  }
-  return Math.max(0, Number(totalTime || 0) - routeEntryDelay);
 };
 
 const formatTerrainMix = (stats = {}) => {
@@ -89,7 +76,10 @@ const SwarmTrajectoryTransferDialog = ({
     expectedDroneCount: selectedClusterExpectedDroneCount,
   });
   const policyNotes = getTrajectoryOperatorPolicyNotes({ stats, waypointCount });
-  const routeMotionTime = getRouteMotionTime(stats, totalTime);
+  const routeMotionTime = getTrajectoryRouteMotionSeconds({
+    ...stats,
+    totalTime,
+  });
   const selectedClusterPackageStats = selectedCluster?.package_stats || null;
   const selectedClusterHasProcessedPackage = Boolean(selectedClusterPackageStats?.available);
   const selectedClusterImpactText = selectedClusterHasProcessedPackage
@@ -128,11 +118,11 @@ const SwarmTrajectoryTransferDialog = ({
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Mission Clock</span>
-            <strong>{formatTime(totalTime)}</strong>
+            <strong>{formatTrajectoryDuration(totalTime)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Route Motion</span>
-            <strong>{formatTime(routeMotionTime)}</strong>
+            <strong>{formatTrajectoryDuration(routeMotionTime)}</strong>
           </div>
           <div className="swarm-transfer-summary__item">
             <span className="swarm-transfer-summary__label">Altitude Plan</span>

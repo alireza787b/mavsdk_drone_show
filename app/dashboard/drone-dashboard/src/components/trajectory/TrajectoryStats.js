@@ -5,6 +5,11 @@ import {
   getTrajectoryHeadingPlanSummary,
   getTrajectoryTimingPlanSummary,
 } from '../../utilities/trajectoryAuthoringGuidance';
+import {
+  formatTrajectoryDuration,
+  getTrajectoryRouteEntryDelaySeconds,
+  getTrajectoryRouteMotionSeconds,
+} from '../../utilities/trajectoryTimingPresentation';
 import '../../styles/TrajectoryStats.css';
 
 const TrajectoryStats = ({ stats }) => {
@@ -13,15 +18,6 @@ const TrajectoryStats = ({ stats }) => {
       return `${(distance / 1000).toFixed(2)} km`;
     }
     return `${distance.toFixed(1)} m`;
-  };
-
-  const formatTime = (time) => {
-    if (time > 60) {
-      const minutes = Math.floor(time / 60);
-      const seconds = time % 60;
-      return `${minutes}m ${seconds.toFixed(0)}s`;
-    }
-    return `${time.toFixed(0)}s`;
   };
 
   const formatAltitudeRange = (minAltitude, maxAltitude) => {
@@ -66,13 +62,11 @@ const TrajectoryStats = ({ stats }) => {
       ),
     },
   ];
-  const routeEntryDelay = Number.isFinite(stats.routeEntryDelaySeconds) ? stats.routeEntryDelaySeconds : 0;
-  const routeMotionTime = Number.isFinite(stats.routeMotionTime)
-    ? stats.routeMotionTime
-    : Math.max(0, (stats.totalTime || 0) - routeEntryDelay);
+  const routeEntryDelay = getTrajectoryRouteEntryDelaySeconds(stats);
+  const routeMotionTime = getTrajectoryRouteMotionSeconds(stats);
   const missionClockDetail = routeEntryDelay > 0
-    ? `Entry +${formatTime(routeEntryDelay)} • Motion ${formatTime(routeMotionTime)}`
-    : `Motion ${formatTime(routeMotionTime)}`;
+    ? `Entry +${formatTrajectoryDuration(routeEntryDelay)} • Motion ${formatTrajectoryDuration(routeMotionTime)}`
+    : `Motion ${formatTrajectoryDuration(routeMotionTime)}`;
 
   return (
     <div className="trajectory-brief" aria-label="Trajectory mission brief">
@@ -83,7 +77,7 @@ const TrajectoryStats = ({ stats }) => {
         </div>
         <div className="trajectory-brief__metric">
           <span className="trajectory-brief__label">Mission Clock</span>
-          <span className="trajectory-brief__value">{formatTime(stats.totalTime)}</span>
+          <span className="trajectory-brief__value">{formatTrajectoryDuration(stats.totalTime)}</span>
           <span className="trajectory-brief__detail">{missionClockDetail}</span>
         </div>
         <div className="trajectory-brief__metric">
