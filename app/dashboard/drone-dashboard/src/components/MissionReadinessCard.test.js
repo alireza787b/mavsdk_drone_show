@@ -95,7 +95,12 @@ describe('MissionReadinessCard', () => {
         && element.textContent.includes('Package timing:')
       )),
     ).toBeInTheDocument();
-    expect(screen.getByText('72.0s')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) => (
+        element?.tagName === 'STRONG'
+        && element.textContent === '72.0s mission clock • entry 10.0s • motion 62.0s'
+      )),
+    ).toBeInTheDocument();
     expect(
       screen.getByText((_, element) => (
         element?.classList?.contains('readiness-session-note')
