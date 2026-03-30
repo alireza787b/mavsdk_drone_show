@@ -217,6 +217,7 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByText(/all current waypoints use direct msl altitude input/i)).toBeInTheDocument();
     expect(screen.getByText(/Waypoint 1 will define route-entry delay and heading/i)).toBeInTheDocument();
     expect(screen.getByText(/authored in global latitude\/longitude with stored MSL altitude/i)).toBeInTheDocument();
+    expect(screen.getByText(/instantaneous global position using the current swarm offsets/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Toggle Add'));
     fireEvent.click(screen.getByTestId('mock-map'));
