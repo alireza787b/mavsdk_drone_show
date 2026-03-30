@@ -425,11 +425,15 @@ const WaypointPanel = ({
   const formatTime = (timeFromStart) => {
     if (!timeFromStart) return '0';
     if (timeFromStart < 60) return `${timeFromStart.toFixed(1)}s`;
-    
+
     const minutes = Math.floor(timeFromStart / 60);
     const seconds = (timeFromStart % 60).toFixed(0);
     return `${minutes}m ${seconds}s`;
   };
+
+  const missionClockSeconds = waypoints[waypoints.length - 1]?.timeFromStart || 0;
+  const routeEntryDelaySeconds = waypoints[0]?.timeFromStart || 0;
+  const routeMotionSeconds = Math.max(0, missionClockSeconds - routeEntryDelaySeconds);
 
   const getTimingMode = (waypoint) => waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
 
@@ -1038,14 +1042,28 @@ const WaypointPanel = ({
           </div>
           
           <div className="summary-item">
-            <span className="summary-label">{isCollapsed ? 'Route:' : 'Route time:'}</span>
+            <span className="summary-label">{isCollapsed ? 'Clock:' : 'Mission clock:'}</span>
             <span className="summary-value">
-              {formatTime(waypoints[waypoints.length - 1]?.timeFromStart || 0)}
+              {formatTime(missionClockSeconds)}
             </span>
           </div>
           
           {!isCollapsed && (
             <>
+              <div className="summary-item">
+                <span className="summary-label">Route entry:</span>
+                <span className="summary-value">
+                  {formatTime(routeEntryDelaySeconds)}
+                </span>
+              </div>
+
+              <div className="summary-item">
+                <span className="summary-label">Route motion:</span>
+                <span className="summary-value">
+                  {formatTime(routeMotionSeconds)}
+                </span>
+              </div>
+
               <div className="summary-item">
                 <span className="summary-label">Max Speed:</span>
                 <span className="summary-value">

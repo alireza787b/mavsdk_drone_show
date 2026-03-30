@@ -241,6 +241,32 @@ describe('WaypointPanel', () => {
     expect(screen.getByText(/manual heading/i)).toBeInTheDocument();
   });
 
+  it('labels summary timing as mission clock with separate route entry and motion values', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      timeFromStart: 42,
+      estimatedSpeed: 8,
+    };
+    const firstWaypoint = {
+      ...baseWaypoint,
+      timeFromStart: 12,
+    };
+
+    renderPanel({
+      waypoints: [firstWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    expect(screen.getByText('Mission clock:')).toBeInTheDocument();
+    expect(screen.getByText('42.0s')).toBeInTheDocument();
+    expect(screen.getByText('Route entry:')).toBeInTheDocument();
+    expect(screen.getByText('12.0s')).toBeInTheDocument();
+    expect(screen.getByText('Route motion:')).toBeInTheDocument();
+    expect(screen.getByText('30.0s')).toBeInTheDocument();
+  });
+
   it('shows terrain-refresh feedback while saving coordinate edits', async () => {
     const secondWaypoint = {
       ...baseWaypoint,
