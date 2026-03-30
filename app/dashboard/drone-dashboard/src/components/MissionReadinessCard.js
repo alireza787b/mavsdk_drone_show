@@ -2,32 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
+import {
+  formatSwarmTrajectoryAltitudeEnvelope,
+  formatSwarmTrajectoryPackageTimingSummary,
+} from '../utilities/swarmTrajectoryPackageStats';
 import '../styles/MissionReadinessCard.css';
-
-const formatMissionSeconds = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
-
-  return `${numeric.toFixed(numeric >= 100 ? 0 : 1)}s`;
-};
-
-const formatAltitudeEnvelope = (packageStats) => {
-  const minAltitude = Number(packageStats?.min_altitude_msl_m);
-  const maxAltitude = Number(packageStats?.max_altitude_msl_m);
-  const altitudeWindow = Number(packageStats?.altitude_window_m);
-
-  if (!Number.isFinite(minAltitude) || !Number.isFinite(maxAltitude)) {
-    return null;
-  }
-
-  const windowLabel = Number.isFinite(altitudeWindow)
-    ? ` • window ${altitudeWindow.toFixed(1)} m`
-    : '';
-
-  return `${minAltitude.toFixed(1)}-${maxAltitude.toFixed(1)} m MSL${windowLabel}`;
-};
 
 const MissionReadinessCard = ({
   refreshTrigger = 0,
@@ -275,11 +254,11 @@ const MissionReadinessCard = ({
       {packageStats?.available ? (
         <>
           <div className="readiness-session-note">
-            Package timing: <strong>{formatMissionSeconds(packageStats.mission_clock_s)}</strong> mission clock • entry {formatMissionSeconds(packageStats.route_entry_time_s)} • motion {formatMissionSeconds(packageStats.route_motion_time_s)}
+            Package timing: <strong>{formatSwarmTrajectoryPackageTimingSummary(packageStats)}</strong>
           </div>
-          {formatAltitudeEnvelope(packageStats) ? (
+          {formatSwarmTrajectoryAltitudeEnvelope(packageStats) !== 'Unknown' ? (
             <div className="readiness-session-note">
-              Altitude envelope: <strong>{formatAltitudeEnvelope(packageStats)}</strong>
+              Altitude envelope: <strong>{formatSwarmTrajectoryAltitudeEnvelope(packageStats)}</strong>
             </div>
           ) : null}
         </>

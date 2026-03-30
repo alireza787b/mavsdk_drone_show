@@ -216,6 +216,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - `Target AGL` remains an authoring convenience that is converted into the stored MSL mission altitude using the current terrain reference
   - terrain confidence and low-clearance review stay visible during both planning and leader assignment instead of only appearing later during processing
   - waypoint 1 owns route-entry delay/heading, while later legs own the ETA-versus-speed planning intent
+  - cluster assignment now also shows the current processed package timing/altitude for the selected cluster and warns explicitly that uploading a new leader CSV makes that cluster's processed outputs stale until the next processing pass
 - the waypoint modal now closes the last ambiguity around operator intent:
   - every new waypoint shows an authoring brief for altitude plan, leg plan, heading mode, and terrain confidence
   - speed-driven legs and time-driven legs explain what is derived versus what is operator-pinned

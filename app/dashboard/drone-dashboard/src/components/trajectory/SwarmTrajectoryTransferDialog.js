@@ -8,6 +8,10 @@ import {
   getTrajectoryTimingPlanSummary,
   getTrajectoryWorkflowStages,
 } from '../../utilities/trajectoryAuthoringGuidance';
+import {
+  formatSwarmTrajectoryAltitudeEnvelope,
+  formatSwarmTrajectoryPackageTimingSummary,
+} from '../../utilities/swarmTrajectoryPackageStats';
 import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
 
 import '../../styles/SwarmTrajectoryTransferDialog.css';
@@ -86,6 +90,11 @@ const SwarmTrajectoryTransferDialog = ({
   });
   const policyNotes = getTrajectoryOperatorPolicyNotes({ stats, waypointCount });
   const routeMotionTime = getRouteMotionTime(stats, totalTime);
+  const selectedClusterPackageStats = selectedCluster?.package_stats || null;
+  const selectedClusterHasProcessedPackage = Boolean(selectedClusterPackageStats?.available);
+  const selectedClusterImpactText = selectedClusterHasProcessedPackage
+    ? 'Assigning a new leader CSV makes the current processed package for this cluster stale until the next processing pass completes.'
+    : 'This cluster does not have a current processed package yet. Processing is still required after assignment.';
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -274,10 +283,21 @@ const SwarmTrajectoryTransferDialog = ({
                     {selectedClusterExpectedDroneCount === 1 ? '' : 's'} for this cluster.
                   </p>
                 ) : null}
+                {selectedClusterHasProcessedPackage ? (
+                  <>
+                    <p>
+                      Current cluster package timing: {formatSwarmTrajectoryPackageTimingSummary(selectedClusterPackageStats)}.
+                    </p>
+                    <p>
+                      Current cluster altitude envelope: {formatSwarmTrajectoryAltitudeEnvelope(selectedClusterPackageStats)}.
+                    </p>
+                  </>
+                ) : null}
                 <p>
                   Uploading this path replaces the current leader CSV for the selected cluster.
                   Run processing on <Link to="/swarm-trajectory">Swarm Trajectory</Link> afterward to refresh follower outputs and review plots.
                 </p>
+                <p>{selectedClusterImpactText}</p>
               </div>
             ) : null}
 

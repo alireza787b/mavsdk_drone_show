@@ -22,6 +22,16 @@ describe('SwarmTrajectoryTransferDialog', () => {
               ready: false,
               state: 'needs_processing',
               leader_uploaded: true,
+              package_stats: {
+                available: true,
+                drone_count: 3,
+                route_entry_time_s: 26.4,
+                mission_clock_s: 46.4,
+                route_motion_time_s: 20.0,
+                max_altitude_msl_m: 1305.09,
+                min_altitude_msl_m: 1290.09,
+                altitude_window_m: 15.0,
+              },
               issues: [],
               advisories: [],
             },
@@ -78,6 +88,9 @@ describe('SwarmTrajectoryTransferDialog', () => {
     expect(screen.getByText('Entry heading 1 · Auto arrival 2 · Manual arrival 0')).toBeInTheDocument();
     expect(screen.getByText(/mission still stores and executes canonical msl altitude/i)).toBeInTheDocument();
     expect(screen.getByText(/Waypoint 1 sets route-entry delay and heading/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current cluster package timing: 46.4s mission clock • entry 26.4s • motion 20.0s\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Current cluster altitude envelope: 1290.1-1305.1 m MSL • window 15.0 m\./i)).toBeInTheDocument();
+    expect(screen.getByText(/current processed package for this cluster stale until the next processing pass/i)).toBeInTheDocument();
     expect(screen.queryByText('Transfer Posture')).not.toBeInTheDocument();
     expect(screen.getByText('Review required')).toBeInTheDocument();
   });
