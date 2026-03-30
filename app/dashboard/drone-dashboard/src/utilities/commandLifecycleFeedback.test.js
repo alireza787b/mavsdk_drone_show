@@ -21,6 +21,12 @@ const flushMicrotasks = async () => {
   await Promise.resolve();
 };
 
+const advanceLifecyclePoll = async (ms = 1500) => {
+  jest.advanceTimersByTime(ms);
+  await flushMicrotasks();
+  await flushMicrotasks();
+};
+
 describe('commandLifecycleFeedback', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -124,15 +130,13 @@ describe('commandLifecycleFeedback', () => {
       'Swarm Trajectory started. Execution is active on 3 drone(s).',
     );
 
-    jest.advanceTimersByTime(1500);
-    await flushMicrotasks();
+    await advanceLifecyclePoll(1500);
 
     expect(toast.info.mock.calls.map(([message]) => message)).toContain(
       'Swarm Trajectory is still completing. 2/3 accepted drone(s) have reported completion. Waiting for 1 remaining drone(s).',
     );
 
-    jest.advanceTimersByTime(1500);
-    await flushMicrotasks();
+    await advanceLifecyclePoll(1500);
 
     expect(toast.success.mock.calls.map(([message]) => message)).toContain(
       'Swarm Trajectory completed successfully (3/3 succeeded).',
