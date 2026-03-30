@@ -303,7 +303,7 @@ const TrajectoryPlanning = () => {
       {
         label: 'Planner Scope',
         value: 'Top leaders • Global MSL',
-        detail: 'Followers are generated later from the current Swarm Design hierarchy and offsets. The authored route stays global lat/lon with stored MSL altitude; PX4 launch/home truth is only used during execution checks and recovery.',
+        detail: "Followers are generated later from the current Swarm Design hierarchy and offsets around each leader waypoint's instantaneous global position. The authored route stays global lat/lon with stored MSL altitude; PX4 launch/home truth is only used during execution checks and recovery.",
       },
       {
         label: 'Current Path',

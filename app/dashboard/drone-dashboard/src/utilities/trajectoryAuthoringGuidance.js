@@ -271,7 +271,7 @@ export const getTrajectoryOperatorPolicyNotes = ({
     {
       key: 'mission_frame',
       label: 'Mission frame',
-      detail: 'Routes are authored in global latitude/longitude with stored MSL altitude. PX4 launch/home truth is used for preflight readiness, initial-climb validation, drift correction, and return-home verification; it does not redefine the authored route geometry.',
+      detail: "Routes are authored in global latitude/longitude with stored MSL altitude. Followers are regenerated around each leader waypoint's instantaneous global position using the current swarm offsets. PX4 launch/home truth is used for preflight readiness, initial-climb validation, drift correction, and return-home verification; it does not redefine the authored route geometry.",
     },
   ];
 };
@@ -299,7 +299,7 @@ export const getSwarmTrajectoryExecutionDoctrine = () => [
   {
     key: 'leaders',
     label: 'Leader scope',
-    detail: 'Only top-leader paths are authored or uploaded here. Follower outputs are regenerated from the active Swarm Design hierarchy and offsets.',
+    detail: "Only top-leader paths are authored or uploaded here. Follower outputs are regenerated from the active Swarm Design hierarchy and offsets around each leader waypoint's instantaneous global position.",
   },
   {
     key: 'execution',

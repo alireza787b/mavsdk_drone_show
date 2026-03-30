@@ -143,6 +143,10 @@ describe('trajectoryAuthoringGuidance', () => {
         label: 'Mission frame',
         detail: expect.stringMatching(/authored in global latitude\/longitude with stored MSL altitude/i),
       }),
+      expect.objectContaining({
+        label: 'Mission frame',
+        detail: expect.stringMatching(/instantaneous global position/i),
+      }),
     ]);
   });
 
@@ -168,6 +172,10 @@ describe('trajectoryAuthoringGuidance', () => {
       expect.objectContaining({
         label: 'Leader scope',
         detail: expect.stringMatching(/Only top-leader paths are authored or uploaded here/i),
+      }),
+      expect.objectContaining({
+        label: 'Leader scope',
+        detail: expect.stringMatching(/instantaneous global position/i),
       }),
       expect.objectContaining({
         label: 'Execution mode',
