@@ -134,7 +134,7 @@ class DroneCommunicator:
         else:
             logger.warning(f"Attempted to update non-existent drone: {hw_id}")
 
-    def process_command(self, command_data: Dict[str, Any]) -> None:
+    def process_command(self, command_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process incoming command data and update drone configuration.
 
@@ -160,7 +160,7 @@ class DroneCommunicator:
 
         except KeyError as e:
             logger.error(f"Missing required field in command data: {e}")
-            return
+            raise ValueError(f"Missing required field in command data: {e}") from e
 
         # Phase 2: Save origin from command if present
         if command_data.get('auto_global_origin') and 'origin' in command_data:
@@ -201,13 +201,18 @@ class DroneCommunicator:
             self._process_mission_command(mission, command_data)
         except Exception as e:
             logger.error(f"Mission processing failed: {e}. State unchanged.")
-            return  # State NOT changed - drone remains in previous state
+            raise ValueError(f"Mission processing failed: {e}") from e
 
         # Only update state AFTER successful mission processing
         self._update_drone_state(State.MISSION_READY.value, trigger_time)
 
         self._log_updated_configuration()
         self.drones[hw_id] = self.drone_config
+        return {
+            "mission": mission,
+            "trigger_time": trigger_time,
+            "state": self.drone_config.state,
+        }
 
     def _update_drone_state(self, state: int, trigger_time: int) -> None:
         """Update mutable drone state values.

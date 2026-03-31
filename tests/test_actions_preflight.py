@@ -103,3 +103,26 @@ def test_calculate_land_disarm_timeout_scales_with_altitude_and_respects_cap():
 
     assert timeout > actions.Params.LAND_ACTION_MIN_DISARM_WAIT_SEC
     assert timeout <= actions.Params.LAND_ACTION_MAX_DISARM_WAIT_SEC
+
+
+@pytest.mark.asyncio
+async def test_return_rtl_waits_for_full_disarm_confirmation(mocker):
+    led_instance = MagicMock()
+    mocker.patch("actions.LEDController.get_instance", return_value=led_instance)
+    mocker.patch("actions.calculate_rtl_completion_timeout", return_value=222)
+    wait_mode = mocker.patch("actions.wait_until_flight_mode", new=mocker.AsyncMock())
+    wait_armed = mocker.patch("actions.wait_until_armed_state", new=mocker.AsyncMock())
+    mocker.patch("actions._get_current_relative_altitude", new=mocker.AsyncMock(return_value=18.5))
+
+    drone = SimpleNamespace(
+        action=SimpleNamespace(
+            hold=mocker.AsyncMock(),
+            return_to_launch=mocker.AsyncMock(),
+        )
+    )
+
+    await actions.return_rtl(drone)
+
+    wait_mode.assert_any_await(drone, actions.telemetry.FlightMode.HOLD, timeout=10)
+    wait_mode.assert_any_await(drone, actions.telemetry.FlightMode.RETURN_TO_LAUNCH, timeout=15)
+    wait_armed.assert_awaited_once_with(drone, False, timeout=222)

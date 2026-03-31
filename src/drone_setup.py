@@ -511,6 +511,22 @@ class DroneSetup:
         )
         return (True, message)
 
+    async def cancel_active_command(self, message: str = "Cancel command completed.") -> tuple:
+        """
+        Complete a cancel/clear command without launching a subprocess.
+
+        If another mission script is running it is terminated first; otherwise
+        this simply clears the queued mission state and reports a successful
+        no-process completion for the cancel command itself.
+        """
+        if self.running_processes:
+            await self.terminate_all_running_processes()
+
+        self.drone_config.mission = Mission.NONE.value
+        self.drone_config.state = State.IDLE.value
+        self.drone_config.trigger_time = 0
+        return await self._complete_pending_command_without_process(message)
+
     def _reset_mission_state(self, success: bool):
         """
         Reset the mission and state after script completion or forced kill.

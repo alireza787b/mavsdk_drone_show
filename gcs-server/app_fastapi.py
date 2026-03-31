@@ -62,6 +62,7 @@ from command import (
     send_commands_to_all,
     send_commands_to_selected,
 )
+from command_timeout_policy import estimate_command_tracking_timeout_ms
 from config import (
     get_drone_git_status as _config_get_drone_git_status,
     get_gcs_git_report, load_config, save_config,
@@ -135,6 +136,7 @@ class BackgroundServices:
     def __init__(self):
         self.telemetry_task: Optional[asyncio.Task] = None
         self.git_status_task: Optional[asyncio.Task] = None
+        self.command_timeout_task: Optional[asyncio.Task] = None
         self.running = False
         self.drones = []
 
@@ -157,6 +159,9 @@ class BackgroundServices:
             "INFO", "git"
         )
 
+        self.command_timeout_task = asyncio.create_task(self._poll_command_timeouts())
+        log_system_event("Command timeout monitoring started", "INFO", "command")
+
     async def stop(self):
         """Stop all background services gracefully"""
         self.running = False
@@ -172,6 +177,13 @@ class BackgroundServices:
             self.git_status_task.cancel()
             try:
                 await self.git_status_task
+            except asyncio.CancelledError:
+                pass
+
+        if self.command_timeout_task:
+            self.command_timeout_task.cancel()
+            try:
+                await self.command_timeout_task
             except asyncio.CancelledError:
                 pass
 
@@ -258,6 +270,24 @@ class BackgroundServices:
             except Exception as e:
                 log_system_error(f"Git status polling error: {e}", "git")
                 await asyncio.sleep(10)
+
+    async def _poll_command_timeouts(self):
+        """Promote stale tracked commands to terminal timeout states."""
+        tracker = get_command_tracker()
+        interval_sec = max(
+            0.5,
+            float(getattr(Params, "COMMAND_TRACKING_CHECK_INTERVAL_SEC", 1.0)),
+        )
+
+        while self.running:
+            try:
+                await tracker.check_timeouts()
+                await asyncio.sleep(interval_sec)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                log_system_error(f"Command timeout polling error: {exc}", "command")
+                await asyncio.sleep(interval_sec)
 
 
 # Global background services instance
@@ -992,10 +1022,14 @@ async def submit_command(request: Request):
 
         # Create tracked command
         tracker = get_command_tracker()
-        try:
-            mission_type_int = int(mission_type) if mission_type != 'unknown' else 0
-        except (ValueError, TypeError):
-            mission_type_int = 0
+        mission_type_int = resolved_mission.value if resolved_mission else 0
+        tracking_timeout_ms = estimate_command_tracking_timeout_ms(
+            resolved_mission,
+            command_data=command_data,
+            skybrush_dir=skybrush_dir,
+            processed_dir=processed_dir,
+            shapes_dir=shapes_dir,
+        )
 
         command_id = await tracker.create_command(
             mission_type=mission_type_int,
@@ -1003,7 +1037,8 @@ async def submit_command(request: Request):
             params={
                 'triggerTime': trigger_time,
                 **{k: v for k, v in command_data.items() if k not in ['missionType', 'triggerTime']}
-            }
+            },
+            timeout_ms=tracking_timeout_ms,
         )
 
         # Add command_id to the data sent to drones so they can report back

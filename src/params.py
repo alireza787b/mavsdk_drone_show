@@ -278,6 +278,15 @@ class Params:
     LAND_ACTION_DISARM_BUFFER_SEC = 30         # Extra landing/disarm buffer above the estimated descent time
     LAND_ACTION_MAX_DISARM_WAIT_SEC = 900      # Cap LAND action wait time for very high-altitude recoveries
     LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC = 20  # Extra wait after touchdown before forcing explicit disarm
+    RTL_ACTION_COMPLETION_TIMEOUT = 300        # Minimum wait budget for standalone RTL to return home, land, and disarm
+    RTL_ACTION_COMPLETION_BUFFER_SEC = 120     # Extra travel-home buffer above the estimated landing/disarm time
+    RTL_ACTION_COMPLETION_MAX_TIMEOUT = 1200   # Hard cap for very long standalone RTL recoveries
+    COMMAND_TRACKING_DEFAULT_TIMEOUT_MS = 60000  # Fallback tracker timeout when no mission-specific estimate is available
+    COMMAND_TRACKING_ACTION_BUFFER_SEC = 30      # Extra tracker slack for short actions after expected completion
+    COMMAND_TRACKING_MISSION_BUFFER_SEC = 120    # Extra tracker slack for show/trajectory mission playback
+    COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
+    COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
+    COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
 
     # LED Configuration
     led_count = 25        # Number of LED pixels

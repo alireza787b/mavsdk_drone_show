@@ -61,7 +61,7 @@ import psutil
 from mavsdk import System, telemetry, action
 from mavsdk.action import ActionError
 from src.drone_config import ConfigLoader
-from src.flight_timeout_utils import calculate_land_disarm_timeout
+from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.led_controller import LEDController
 from src.params import Params
 
@@ -833,6 +833,35 @@ async def return_rtl(drone):
 
         await drone.action.return_to_launch()
         await wait_until_flight_mode(drone, telemetry.FlightMode.RETURN_TO_LAUNCH, timeout=15)
+
+        relative_altitude = await _get_current_relative_altitude(drone)
+        completion_timeout = calculate_rtl_completion_timeout(relative_altitude)
+        altitude_message = (
+            f"{relative_altitude:.1f}m"
+            if isinstance(relative_altitude, (int, float))
+            else "unknown"
+        )
+        logger.info(
+            "Waiting up to %.0fs for RTL landing/disarm completion (relative altitude: %s).",
+            completion_timeout,
+            altitude_message,
+        )
+
+        try:
+            await wait_until_armed_state(drone, False, timeout=completion_timeout)
+        except TimeoutError:
+            landed_state = await _get_current_landed_state(drone)
+            if landed_state == telemetry.LandedState.ON_GROUND:
+                touchdown_grace = int(getattr(Params, "LAND_ACTION_TOUCHDOWN_DISARM_GRACE_SEC", 20))
+                logger.warning(
+                    "Drone reached the ground during RTL but stayed armed after %.0fs; issuing explicit disarm and waiting %.0fs more.",
+                    completion_timeout,
+                    touchdown_grace,
+                )
+                await drone.action.disarm()
+                await wait_until_armed_state(drone, False, timeout=touchdown_grace)
+            else:
+                raise
 
         for _ in range(3):
             led_controller.set_color(0, 255, 0)

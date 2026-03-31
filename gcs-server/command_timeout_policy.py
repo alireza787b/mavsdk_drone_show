@@ -1,0 +1,175 @@
+"""
+Mission-aware tracker timeout policy for command lifecycle monitoring.
+"""
+
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+from typing import Any, Dict, Iterable, Optional
+
+from src.enums import Mission
+from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
+from src.params import Params
+
+
+def _coerce_mission(value: Any) -> Mission | None:
+    if isinstance(value, Mission):
+        return value
+
+    try:
+        return Mission(int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _read_show_duration_ms(skybrush_dir: Path) -> Optional[int]:
+    if not skybrush_dir.exists():
+        return None
+
+    max_duration_ms = 0.0
+    for csv_path in sorted(skybrush_dir.glob("Drone *.csv")):
+        try:
+            with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                next(handle, None)
+                rows = [line.strip() for line in handle if line.strip()]
+        except OSError:
+            continue
+
+        if not rows:
+            continue
+
+        parts = rows[-1].split(",")
+        if not parts:
+            continue
+
+        try:
+            duration_ms = float(parts[0])
+        except (TypeError, ValueError):
+            continue
+
+        max_duration_ms = max(max_duration_ms, duration_ms)
+
+    return int(max_duration_ms) if max_duration_ms > 0 else None
+
+
+def _read_custom_show_duration_ms(shapes_dir: Path) -> Optional[int]:
+    csv_path = shapes_dir / "active.csv"
+    if not csv_path.exists():
+        return None
+
+    max_duration_s = 0.0
+    try:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                if not any((value or "").strip() for value in row.values()):
+                    continue
+                try:
+                    max_duration_s = max(max_duration_s, float(row.get("t", 0.0)))
+                except (TypeError, ValueError):
+                    continue
+    except OSError:
+        return None
+
+    return int(max_duration_s * 1000) if max_duration_s > 0 else None
+
+
+def _read_swarm_processed_duration_s(processed_dir: Path) -> Optional[float]:
+    if not processed_dir.exists():
+        return None
+
+    max_duration_s = 0.0
+    for csv_path in sorted(processed_dir.glob("Drone *.csv")):
+        try:
+            with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    try:
+                        max_duration_s = max(max_duration_s, float(row.get("t", 0.0)))
+                    except (TypeError, ValueError):
+                        continue
+        except OSError:
+            continue
+
+    return max_duration_s if max_duration_s > 0 else None
+
+
+def estimate_command_tracking_timeout_ms(
+    mission: Any,
+    *,
+    command_data: Optional[Dict[str, Any]] = None,
+    skybrush_dir: Optional[str | Path] = None,
+    processed_dir: Optional[str | Path] = None,
+    shapes_dir: Optional[str | Path] = None,
+    params=Params,
+) -> int:
+    """
+    Estimate a realistic command tracking timeout for the given mission.
+
+    The tracker should stay alive for the whole real operator-visible lifecycle,
+    not just for ACK collection or for the first mode transition.
+    """
+    mission_enum = _coerce_mission(mission)
+    default_ms = _safe_int(getattr(params, "COMMAND_TRACKING_DEFAULT_TIMEOUT_MS", 60000), 60000)
+    action_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_ACTION_BUFFER_SEC", 30), 30))
+    mission_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_MISSION_BUFFER_SEC", 120), 120))
+
+    if mission_enum == Mission.TAKE_OFF:
+        preflight_sec = _safe_int(getattr(params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30), 30)
+        climb_sec = _safe_int(getattr(params, "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC", 60), 60)
+        return max(default_ms, (preflight_sec + climb_sec + action_buffer_sec) * 1000)
+
+    if mission_enum == Mission.LAND:
+        return max(
+            default_ms,
+            (calculate_land_disarm_timeout(None, params=params) + action_buffer_sec) * 1000,
+        )
+
+    if mission_enum == Mission.RETURN_RTL:
+        return max(default_ms, calculate_rtl_completion_timeout(None, params=params) * 1000)
+
+    if mission_enum == Mission.HOVER_TEST:
+        hover_timeout_sec = _safe_int(getattr(params, "COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC", 180), 180)
+        return max(default_ms, hover_timeout_sec * 1000)
+
+    if mission_enum == Mission.DRONE_SHOW_FROM_CSV:
+        show_duration_ms = _read_show_duration_ms(Path(skybrush_dir)) if skybrush_dir else None
+        if show_duration_ms is not None:
+            return max(default_ms, show_duration_ms + (mission_buffer_sec * 1000))
+
+    if mission_enum == Mission.CUSTOM_CSV_DRONE_SHOW:
+        custom_duration_ms = _read_custom_show_duration_ms(Path(shapes_dir)) if shapes_dir else None
+        if custom_duration_ms is not None:
+            return max(default_ms, custom_duration_ms + (mission_buffer_sec * 1000))
+
+    if mission_enum == Mission.SWARM_TRAJECTORY:
+        processed_duration_s = _read_swarm_processed_duration_s(Path(processed_dir)) if processed_dir else None
+        if processed_duration_s is not None:
+            multiplier = max(1.0, float(getattr(params, "SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER", 1.2)))
+            total_duration_s = (processed_duration_s * multiplier) + mission_buffer_sec
+            end_behavior = str(
+                (command_data or {}).get("return_behavior")
+                or getattr(params, "SWARM_TRAJECTORY_END_BEHAVIOR", "return_home")
+            ).lower()
+            if end_behavior == "return_home":
+                total_duration_s += calculate_rtl_completion_timeout(None, params=params)
+            elif end_behavior == "land_current":
+                total_duration_s += calculate_land_disarm_timeout(None, params=params)
+            return max(default_ms, int(total_duration_s * 1000))
+
+    if mission_enum == Mission.QUICKSCOUT:
+        quickscout_timeout_sec = _safe_int(
+            getattr(params, "COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC", 900),
+            900,
+        )
+        return max(default_ms, quickscout_timeout_sec * 1000)
+
+    return default_ms

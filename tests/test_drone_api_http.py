@@ -8,7 +8,7 @@ Tests for all HTTP REST endpoints in the Drone API Server.
 import pytest
 import asyncio
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from fastapi.testclient import TestClient
 
 
@@ -240,6 +240,80 @@ class TestCommands:
             # New format returns 'accepted' status
             assert data['status'] == 'accepted'
             assert data['mission_type'] == mission_type
+
+    def test_send_command_duplicate_delivery_returns_idempotent_ack(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        mock_drone_config.state = 1
+        mock_drone_config.mission = 10
+        mock_drone_config.trigger_time = 12345
+        mock_drone_config.current_command_id = "cmd-123"
+
+        response = test_client.post(
+            "/api/send-command",
+            json={"missionType": "10", "triggerTime": "12345", "command_id": "cmd-123"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert "idempotent ACK" in data["message"]
+        mock_drone_communicator.process_command.assert_not_called()
+
+    def test_send_command_does_not_supersede_pending_command_when_install_fails(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+        monkeypatch,
+    ):
+        mock_drone_config.state = 1
+        mock_drone_config.mission = 10
+        mock_drone_config.current_command_id = "old-cmd"
+        mock_drone_communicator.process_command.side_effect = ValueError("install failed")
+
+        from src.drone_api_server import DroneAPIServer
+
+        supersede_report = AsyncMock()
+        monkeypatch.setattr(DroneAPIServer, "_report_pending_command_superseded", supersede_report)
+
+        response = test_client.post(
+            "/api/send-command",
+            json={"missionType": "101", "triggerTime": "0", "command_id": "new-cmd"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert mock_drone_config.current_command_id == "old-cmd"
+        supersede_report.assert_not_awaited()
+
+    def test_cancel_command_clears_active_mission_without_process_launch(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        cancel_helper = AsyncMock(return_value=(True, "Cancel command accepted; active mission cleared."))
+        mock_drone_config.drone_setup = Mock(cancel_active_command=cancel_helper)
+        mock_drone_config.state = 2
+        mock_drone_config.mission = 4
+        mock_drone_config.current_command_id = None
+
+        response = test_client.post(
+            "/api/send-command",
+            json={"missionType": "0", "triggerTime": "0", "command_id": "cancel-1"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert data["new_state"] == 0
+        cancel_helper.assert_awaited_once()
+        mock_drone_communicator.process_command.assert_not_called()
 
 
 class TestPositionData:

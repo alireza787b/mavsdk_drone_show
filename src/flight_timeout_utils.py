@@ -60,6 +60,48 @@ def calculate_controlled_landing_timeout(relative_altitude_m, *, params=Params) 
     return max(minimum_wait, min(maximum_wait, estimated_wait))
 
 
+def _calculate_rtl_completion_timeout(
+    relative_altitude_m,
+    *,
+    params=Params,
+    base_timeout_attr: str,
+    buffer_attr: str,
+    max_timeout_attr: str,
+    default_base_timeout: int,
+    default_buffer_sec: int,
+    default_max_timeout: int,
+) -> int:
+    """Estimate how long an RTL flow may need to fully return, land, and disarm."""
+    base_timeout = int(getattr(params, base_timeout_attr, default_base_timeout))
+    rtl_buffer_sec = max(0, int(getattr(params, buffer_attr, default_buffer_sec)))
+    maximum_timeout = max(
+        base_timeout,
+        int(getattr(params, max_timeout_attr, default_max_timeout)),
+    )
+    landing_timeout = calculate_land_disarm_timeout(relative_altitude_m, params=params)
+    estimated_wait = landing_timeout + rtl_buffer_sec
+    return max(base_timeout, min(maximum_timeout, estimated_wait))
+
+
+def calculate_rtl_completion_timeout(relative_altitude_m, *, params=Params) -> int:
+    """
+    Estimate the full timeout budget for a standalone RETURN_RTL action.
+
+    The vehicle may spend significant time traveling home before the final
+    landing and disarm, so completion should not be treated as "mode accepted".
+    """
+    return _calculate_rtl_completion_timeout(
+        relative_altitude_m,
+        params=params,
+        base_timeout_attr="RTL_ACTION_COMPLETION_TIMEOUT",
+        buffer_attr="RTL_ACTION_COMPLETION_BUFFER_SEC",
+        max_timeout_attr="RTL_ACTION_COMPLETION_MAX_TIMEOUT",
+        default_base_timeout=300,
+        default_buffer_sec=120,
+        default_max_timeout=1200,
+    )
+
+
 def calculate_swarm_rtl_completion_timeout(relative_altitude_m, *, params=Params) -> int:
     """
     Estimate the full timeout budget for Swarm Trajectory `return_home`.
@@ -67,12 +109,13 @@ def calculate_swarm_rtl_completion_timeout(relative_altitude_m, *, params=Params
     This wraps the LAND/disarm estimate with extra time for the RTL leg back to
     home before the aircraft starts the actual descent.
     """
-    base_timeout = int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT", 600))
-    rtl_buffer_sec = max(0, int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC", 180)))
-    maximum_timeout = max(
-        base_timeout,
-        int(getattr(params, "SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT", 1800)),
+    return _calculate_rtl_completion_timeout(
+        relative_altitude_m,
+        params=params,
+        base_timeout_attr="SWARM_TRAJECTORY_RTL_COMPLETION_TIMEOUT",
+        buffer_attr="SWARM_TRAJECTORY_RTL_COMPLETION_BUFFER_SEC",
+        max_timeout_attr="SWARM_TRAJECTORY_RTL_COMPLETION_MAX_TIMEOUT",
+        default_base_timeout=600,
+        default_buffer_sec=180,
+        default_max_timeout=1800,
     )
-    landing_timeout = calculate_land_disarm_timeout(relative_altitude_m, params=params)
-    estimated_wait = landing_timeout + rtl_buffer_sec
-    return max(base_timeout, min(maximum_timeout, estimated_wait))

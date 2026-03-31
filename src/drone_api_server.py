@@ -452,6 +452,47 @@ class DroneAPIServer:
                 # Parse mission type for response
                 mission_type = int(command_data['missionType'])
                 trigger_time = int(command_data.get('triggerTime', 0))
+                known_command = self._find_active_command_by_id(command_id)
+                if known_command is not None:
+                    known_mission_type = int(known_command['mission_type'])
+                    if known_mission_type == mission_type:
+                        try:
+                            mission_name = Mission(mission_type).name
+                        except ValueError:
+                            mission_name = f"MISSION_{mission_type}"
+
+                        return CommandAckResponse(
+                            status="accepted",
+                            command_id=command_id,
+                            hw_id=hw_id,
+                            pos_id=pos_id,
+                            current_state=current_state,
+                            new_state=int(known_command['state']),
+                            mission_type=mission_type,
+                            trigger_time=int(known_command.get('trigger_time', trigger_time)),
+                            message=self._build_idempotent_acceptance_message(
+                                mission_name=mission_name,
+                                phase=str(known_command.get('phase', 'active')),
+                            ),
+                            timestamp=timestamp,
+                        )
+
+                    return CommandAckResponse(
+                        status="rejected",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        message="Command ID is already active for a different mission on this drone",
+                        error_code=CommandErrorCode.INVALID_FORMAT.value,
+                        error_detail=(
+                            f"Existing mission type={known_mission_type}, requested mission type={mission_type}"
+                        ),
+                        timestamp=timestamp,
+                    )
+
                 previous_command_id = getattr(self.drone_config, 'current_command_id', None)
                 superseded_pending_command = (
                     current_state == State.MISSION_READY.value
@@ -478,17 +519,46 @@ class DroneAPIServer:
                         timestamp=timestamp
                     )
 
+                if mission_type == Mission.NONE.value:
+                    had_active_command = current_state in {
+                        State.MISSION_READY.value,
+                        State.MISSION_EXECUTING.value,
+                    }
+                    if current_state == State.MISSION_READY.value and previous_command_id and previous_command_id != command_id:
+                        await self._report_pending_command_superseded(
+                            command_id=previous_command_id,
+                            override_mission_type=mission_type,
+                        )
+
+                    self.drone_config.current_command_id = command_id
+                    new_state, cancel_message = await self._cancel_active_or_pending_command(
+                        had_active_command=had_active_command,
+                    )
+                    logger.info(f"Command accepted: CANCEL (trigger: {trigger_time})")
+                    return CommandAckResponse(
+                        status="accepted",
+                        command_id=command_id,
+                        hw_id=hw_id,
+                        pos_id=pos_id,
+                        current_state=current_state,
+                        new_state=new_state,
+                        mission_type=mission_type,
+                        trigger_time=trigger_time,
+                        message=cancel_message,
+                        timestamp=timestamp,
+                    )
+
+                # Process command
+                self.drone_communicator.process_command(command_data)
+
                 if superseded_pending_command:
                     await self._report_pending_command_superseded(
                         command_id=previous_command_id,
                         override_mission_type=mission_type,
                     )
 
-                # Store command_id for execution tracking
+                # Store command_id for execution tracking only after the command is installed
                 self.drone_config.current_command_id = command_id
-
-                # Process command
-                self.drone_communicator.process_command(command_data)
 
                 # Get mission name for message
                 try:
@@ -1072,11 +1142,61 @@ class DroneAPIServer:
     def _allowed_override_missions() -> set[int]:
         """Commands that are allowed to replace a queued or executing mission."""
         return {
+            Mission.NONE.value,
             Mission.KILL_TERMINATE.value,
             Mission.LAND.value,
             Mission.HOLD.value,
             Mission.RETURN_RTL.value,
         }
+
+    def _find_active_command_by_id(self, command_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Return known active command metadata for duplicate-delivery idempotency."""
+        if not command_id:
+            return None
+
+        current_command_id = getattr(self.drone_config, 'current_command_id', None)
+        if current_command_id == command_id:
+            return {
+                'mission_type': int(self.drone_config.mission),
+                'trigger_time': int(getattr(self.drone_config, 'trigger_time', 0) or 0),
+                'state': int(self.drone_config.state),
+                'phase': 'pending',
+            }
+
+        drone_setup = getattr(self.drone_config, 'drone_setup', None)
+        running_processes = getattr(drone_setup, 'running_processes', None) if drone_setup else None
+        if not isinstance(running_processes, dict):
+            running_processes = {}
+
+        for record in running_processes.values():
+            if getattr(record, 'command_id', None) == command_id:
+                return {
+                    'mission_type': int(self.drone_config.mission),
+                    'trigger_time': 0,
+                    'state': int(self.drone_config.state),
+                    'phase': 'executing',
+                }
+
+        return None
+
+    async def _cancel_active_or_pending_command(self, *, had_active_command: bool) -> tuple[int, str]:
+        """Clear the current mission state and report a successful cancel command."""
+        message = (
+            "Cancel command accepted; active mission cleared."
+            if had_active_command
+            else "Cancel command accepted; there was no active mission to clear."
+        )
+        drone_setup = getattr(self.drone_config, 'drone_setup', None)
+
+        if drone_setup and hasattr(drone_setup, 'cancel_active_command'):
+            await drone_setup.cancel_active_command(message)
+        else:
+            self.drone_config.mission = Mission.NONE.value
+            self.drone_config.state = State.IDLE.value
+            self.drone_config.trigger_time = 0
+            self.drone_config.current_command_id = None
+
+        return State.IDLE.value, message
 
     def _build_acceptance_message(
         self,
@@ -1095,6 +1215,12 @@ class DroneAPIServer:
             return f"{message}; previous pending command was superseded"
 
         return message
+
+    @staticmethod
+    def _build_idempotent_acceptance_message(mission_name: str, phase: str) -> str:
+        if phase == "executing":
+            return f"Command {mission_name} was already active on this drone; returning idempotent ACK while execution continues"
+        return f"Command {mission_name} was already queued on this drone; returning idempotent ACK"
 
     async def _report_pending_command_superseded(
         self,
@@ -1120,7 +1246,7 @@ class DroneAPIServer:
                 'command_id': command_id,
                 'hw_id': str(self.drone_config.hw_id),
                 'success': False,
-                'error_message': f"Superseded by override command {mission_name} before execution started",
+                'error_message': f"Superseded by a newer command ({mission_name}) before execution started",
                 'duration_ms': 0,
             }
             url = f"http://{gcs_ip}:{self.params.gcs_api_port}/command/execution-result"
