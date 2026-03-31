@@ -29,6 +29,18 @@ class RunningMissionProcess:
     command_id: Optional[str] = None
     superseded: bool = False
 
+
+@dataclass
+class PendingCommandReport:
+    """Queued drone -> GCS callback that can be retried safely."""
+    endpoint: str
+    payload: dict
+    description: str
+    first_queued_monotonic: float
+    next_attempt_monotonic: float
+    attempt_count: int = 0
+
+
 class DroneSetup:
     """
     DroneSetup manages execution of drone missions (drone shows, takeoff, landing, etc.) via mission scripts.
@@ -53,6 +65,9 @@ class DroneSetup:
         # Track currently running processes {process_key: RunningMissionProcess}
         self.running_processes = {}
         self.process_lock = asyncio.Lock()  # Ensures concurrency safety around process operations
+        self.pending_command_reports = []
+        self.command_report_lock = asyncio.Lock()
+        self.command_report_retry_task = None
 
         self._validate_params()
         self._validate_drone_config()
@@ -388,6 +403,146 @@ class DroneSetup:
                 duration_ms=int((time.time() - start_time) * 1000)
             )
 
+    def _build_command_report_url(self, endpoint: str) -> Optional[str]:
+        gcs_ip = self.params.GCS_IP
+        gcs_port = self.params.gcs_api_port
+
+        if not isinstance(gcs_ip, str) or not gcs_ip:
+            return None
+
+        return f"http://{gcs_ip}:{gcs_port}{endpoint}"
+
+    async def _post_command_report(self, endpoint: str, payload: dict) -> bool:
+        """Best-effort single HTTP POST for a drone execution callback."""
+        url = self._build_command_report_url(endpoint)
+        if not url:
+            logger.warning("GCS_IP not configured, cannot report command callback")
+            return False
+
+        timeout_sec = max(1, int(getattr(self.params, "COMMAND_REPORT_HTTP_TIMEOUT_SEC", 5)))
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=timeout_sec),
+            ) as response:
+                return response.status == 200
+
+    async def _ensure_command_report_retry_worker(self):
+        if self.command_report_retry_task and not self.command_report_retry_task.done():
+            return
+
+        self.command_report_retry_task = asyncio.create_task(self._command_report_retry_loop())
+
+    @staticmethod
+    def _command_report_identity(endpoint: str, payload: dict) -> tuple:
+        return (
+            endpoint,
+            payload.get("command_id"),
+            payload.get("hw_id"),
+        )
+
+    async def _queue_command_report_retry(self, endpoint: str, payload: dict, description: str):
+        now_monotonic = time.monotonic()
+        base_delay = max(1.0, float(getattr(self.params, "COMMAND_REPORT_RETRY_BASE_DELAY_SEC", 2)))
+        report_identity = self._command_report_identity(endpoint, payload)
+        async with self.command_report_lock:
+            for pending in self.pending_command_reports:
+                if self._command_report_identity(pending.endpoint, pending.payload) != report_identity:
+                    continue
+                pending.payload = dict(payload)
+                pending.description = description
+                queued_count = len(self.pending_command_reports)
+                logger.debug("Updated queued command callback retry: %s", description)
+                break
+            else:
+                self.pending_command_reports.append(
+                    PendingCommandReport(
+                        endpoint=endpoint,
+                        payload=dict(payload),
+                        description=description,
+                        first_queued_monotonic=now_monotonic,
+                        next_attempt_monotonic=now_monotonic + base_delay,
+                    )
+                )
+                queued_count = len(self.pending_command_reports)
+
+        logger.warning(
+            "Queued %s for retry because GCS was unavailable. Pending callbacks: %d",
+            description,
+            queued_count,
+        )
+        await self._ensure_command_report_retry_worker()
+
+    async def _retry_pending_command_reports_once(self, now_monotonic: Optional[float] = None) -> int:
+        now_monotonic = now_monotonic if now_monotonic is not None else time.monotonic()
+        base_delay = max(1.0, float(getattr(self.params, "COMMAND_REPORT_RETRY_BASE_DELAY_SEC", 2)))
+        max_delay = max(base_delay, float(getattr(self.params, "COMMAND_REPORT_RETRY_MAX_DELAY_SEC", 60)))
+        max_age = max(60.0, float(getattr(self.params, "COMMAND_REPORT_RETRY_MAX_AGE_SEC", 1800)))
+
+        async with self.command_report_lock:
+            pending = list(self.pending_command_reports)
+
+        still_pending = []
+        delivered = 0
+
+        for report in pending:
+            if report.next_attempt_monotonic > now_monotonic:
+                still_pending.append(report)
+                continue
+
+            try:
+                delivered_now = await self._post_command_report(report.endpoint, report.payload)
+            except asyncio.TimeoutError:
+                delivered_now = False
+            except aiohttp.ClientError:
+                delivered_now = False
+            except Exception as exc:
+                logger.error("Unexpected error retrying %s: %s", report.description, exc, exc_info=True)
+                delivered_now = False
+
+            if delivered_now:
+                delivered += 1
+                logger.info("Retried command callback successfully: %s", report.description)
+                continue
+
+            age_sec = max(0.0, now_monotonic - report.first_queued_monotonic)
+            if age_sec >= max_age:
+                logger.error(
+                    "Dropping queued command callback after %.0fs without GCS recovery: %s",
+                    age_sec,
+                    report.description,
+                )
+                continue
+
+            report.attempt_count += 1
+            retry_delay = min(max_delay, base_delay * (2 ** max(0, report.attempt_count - 1)))
+            report.next_attempt_monotonic = now_monotonic + retry_delay
+            still_pending.append(report)
+
+        async with self.command_report_lock:
+            self.pending_command_reports = still_pending
+
+        return delivered
+
+    async def _command_report_retry_loop(self):
+        interval_sec = max(
+            0.5,
+            float(getattr(self.params, "COMMAND_REPORT_RETRY_LOOP_INTERVAL_SEC", 1.0)),
+        )
+
+        try:
+            while True:
+                await self._retry_pending_command_reports_once()
+
+                async with self.command_report_lock:
+                    if not self.pending_command_reports:
+                        return
+
+                await asyncio.sleep(interval_sec)
+        finally:
+            self.command_report_retry_task = None
+
     async def _report_execution_start_to_gcs(
         self,
         command_id: Optional[str],
@@ -397,39 +552,26 @@ class DroneSetup:
         if not command_id:
             logger.debug("No command_id available for execution-start report")
             return
+        if not self._build_command_report_url("/command/execution-start"):
+            logger.warning("GCS_IP not configured, cannot report execution start")
+            return
+
+        report_data = {
+            'command_id': command_id,
+            'hw_id': str(self.drone_config.hw_id),
+            'script_name': script_name,
+        }
+        description = f"execution-start for command {command_id[:8]}"
 
         try:
-            gcs_ip = self.params.GCS_IP
-            gcs_port = self.params.gcs_api_port
-
-            if not isinstance(gcs_ip, str) or not gcs_ip:
-                logger.warning("GCS_IP not configured, cannot report execution start")
+            delivered = await self._post_command_report("/command/execution-start", report_data)
+            if delivered:
+                logger.info("Execution start reported to GCS for command %s...", command_id[:8])
                 return
-
-            report_data = {
-                'command_id': command_id,
-                'hw_id': str(self.drone_config.hw_id),
-                'script_name': script_name,
-            }
-
-            url = f"http://{gcs_ip}:{gcs_port}/command/execution-start"
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=report_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
-                    if response.status == 200:
-                        cmd_short = command_id[:8] if len(command_id) >= 8 else command_id
-                        logger.info(f"Execution start reported to GCS for command {cmd_short}...")
-                    else:
-                        logger.warning(
-                            f"Failed to report execution start to GCS: HTTP {response.status}"
-                        )
-
-        except asyncio.TimeoutError:
-            logger.warning("Timeout reporting execution start to GCS")
-        except aiohttp.ClientError as e:
-            logger.warning(f"Error reporting execution start to GCS: {e}")
+            await self._queue_command_report_retry("/command/execution-start", report_data, description)
         except Exception as e:
             logger.error(f"Unexpected error reporting execution start to GCS: {e}", exc_info=True)
+            await self._queue_command_report_retry("/command/execution-start", report_data, description)
 
     async def _report_execution_to_gcs(
         self,
@@ -449,43 +591,30 @@ class DroneSetup:
         if not command_id:
             logger.debug("No command_id available for execution report")
             return
+        if not self._build_command_report_url("/command/execution-result"):
+            logger.warning("GCS_IP not configured, cannot report execution result")
+            return
+
+        report_data = {
+            'command_id': command_id,
+            'hw_id': str(self.drone_config.hw_id),
+            'success': success,
+            'error_message': error_message,
+            'exit_code': exit_code,
+            'script_output': script_output,
+            'duration_ms': duration_ms
+        }
+        description = f"execution-result for command {command_id[:8]}"
 
         try:
-            gcs_ip = self.params.GCS_IP
-            gcs_port = self.params.gcs_api_port
-
-            if not isinstance(gcs_ip, str) or not gcs_ip:
-                logger.warning("GCS_IP not configured, cannot report execution result")
+            delivered = await self._post_command_report("/command/execution-result", report_data)
+            if delivered:
+                logger.info("Execution result reported to GCS for command %s...", command_id[:8])
                 return
-
-            report_data = {
-                'command_id': command_id,
-                'hw_id': str(self.drone_config.hw_id),
-                'success': success,
-                'error_message': error_message,
-                'exit_code': exit_code,
-                'script_output': script_output,
-                'duration_ms': duration_ms
-            }
-
-            url = f"http://{gcs_ip}:{gcs_port}/command/execution-result"
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=report_data, timeout=aiohttp.ClientTimeout(total=5)) as response:
-                    if response.status == 200:
-                        cmd_short = command_id[:8] if len(command_id) >= 8 else command_id
-                        logger.info(f"Execution result reported to GCS for command {cmd_short}...")
-                    else:
-                        logger.warning(
-                            f"Failed to report execution to GCS: HTTP {response.status}"
-                        )
-
-        except asyncio.TimeoutError:
-            logger.warning("Timeout reporting execution result to GCS")
-        except aiohttp.ClientError as e:
-            logger.warning(f"Error reporting execution to GCS: {e}")
+            await self._queue_command_report_retry("/command/execution-result", report_data, description)
         except Exception as e:
             logger.error(f"Unexpected error reporting execution to GCS: {e}", exc_info=True)
+            await self._queue_command_report_retry("/command/execution-result", report_data, description)
 
     async def _fail_pending_command(self, error_message: str) -> tuple:
         """Reset local mission state and report a terminal failure for the pending command."""

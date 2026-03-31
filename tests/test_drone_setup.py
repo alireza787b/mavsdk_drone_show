@@ -1070,3 +1070,114 @@ class TestMissionProcessMonitoring:
         mock_logger.error.assert_any_call(
             "Mission script 'actions.py' failed with return code 1. Output: mavsdk_server executable not found."
         )
+
+
+@pytest.mark.unit
+@pytest.mark.mission
+class TestCommandReportRetry:
+    """Test deferred retry behavior for drone -> GCS command callbacks."""
+
+    def _build_params(self):
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.GCS_IP = "127.0.0.1"
+        params.gcs_api_port = 5000
+        params.COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5
+        params.COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2
+        params.COMMAND_REPORT_RETRY_MAX_DELAY_SEC = 60
+        params.COMMAND_REPORT_RETRY_MAX_AGE_SEC = 1800
+        params.COMMAND_REPORT_RETRY_LOOP_INTERVAL_SEC = 1.0
+        return params
+
+    @pytest.mark.asyncio
+    async def test_report_execution_to_gcs_queues_retry_when_initial_post_fails(self):
+        from src.drone_setup import DroneSetup
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup._post_command_report = AsyncMock(return_value=False)
+        setup._ensure_command_report_retry_worker = AsyncMock()
+
+        await setup._report_execution_to_gcs(
+            command_id="cmd-123",
+            success=True,
+            duration_ms=42,
+        )
+
+        assert len(setup.pending_command_reports) == 1
+        report = setup.pending_command_reports[0]
+        assert report.endpoint == "/command/execution-result"
+        assert report.payload["command_id"] == "cmd-123"
+        assert report.payload["success"] is True
+        assert report.next_attempt_monotonic >= report.first_queued_monotonic + 2.0
+        setup._ensure_command_report_retry_worker.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_retry_pending_command_reports_once_clears_successful_report(self):
+        from src.drone_setup import DroneSetup, PendingCommandReport
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup.pending_command_reports = [
+            PendingCommandReport(
+                endpoint="/command/execution-result",
+                payload={"command_id": "cmd-123"},
+                description="execution-result for command cmd-123",
+                first_queued_monotonic=10.0,
+                next_attempt_monotonic=10.0,
+            )
+        ]
+        setup._post_command_report = AsyncMock(return_value=True)
+
+        delivered = await setup._retry_pending_command_reports_once(now_monotonic=10.0)
+
+        assert delivered == 1
+        assert setup.pending_command_reports == []
+
+    @pytest.mark.asyncio
+    async def test_retry_pending_command_reports_once_reschedules_failed_report(self):
+        from src.drone_setup import DroneSetup, PendingCommandReport
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup.pending_command_reports = [
+            PendingCommandReport(
+                endpoint="/command/execution-start",
+                payload={"command_id": "cmd-456"},
+                description="execution-start for command cmd-456",
+                first_queued_monotonic=100.0,
+                next_attempt_monotonic=100.0,
+            )
+        ]
+        setup._post_command_report = AsyncMock(return_value=False)
+
+        delivered = await setup._retry_pending_command_reports_once(now_monotonic=100.0)
+
+        assert delivered == 0
+        assert len(setup.pending_command_reports) == 1
+        report = setup.pending_command_reports[0]
+        assert report.attempt_count == 1
+        assert report.next_attempt_monotonic == 102.0
+
+    @pytest.mark.asyncio
+    async def test_queue_command_report_retry_coalesces_duplicate_callback(self):
+        from src.drone_setup import DroneSetup
+
+        setup = DroneSetup(self._build_params(), create_mock_drone_config())
+        setup._ensure_command_report_retry_worker = AsyncMock()
+
+        await setup._queue_command_report_retry(
+            "/command/execution-result",
+            {"command_id": "cmd-789", "hw_id": "1", "success": False},
+            "execution-result for command cmd-789",
+        )
+        first_report = setup.pending_command_reports[0]
+
+        await setup._queue_command_report_retry(
+            "/command/execution-result",
+            {"command_id": "cmd-789", "hw_id": "1", "success": True},
+            "execution-result for command cmd-789",
+        )
+
+        assert len(setup.pending_command_reports) == 1
+        report = setup.pending_command_reports[0]
+        assert report is first_report
+        assert report.payload["success"] is True
+        setup._ensure_command_report_retry_worker.assert_awaited()

@@ -287,6 +287,11 @@ class Params:
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
     COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
+    COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks
+    COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2       # Initial backoff for queued execution callback retries
+    COMMAND_REPORT_RETRY_MAX_DELAY_SEC = 60       # Maximum backoff between queued execution callback retries
+    COMMAND_REPORT_RETRY_MAX_AGE_SEC = 1800       # Drop queued execution callbacks after this age if GCS never returns
+    COMMAND_REPORT_RETRY_LOOP_INTERVAL_SEC = 1.0  # Retry worker wake interval for queued execution callbacks
 
     # LED Configuration
     led_count = 25        # Number of LED pixels

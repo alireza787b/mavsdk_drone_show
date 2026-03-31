@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- drone-side execution-start and execution-result callbacks now retry through a bounded in-memory queue with backoff and per-command coalescing when GCS is temporarily unreachable, so brief network loss no longer forces command tracking to time out just because one callback POST was dropped
 - command submission now returns the backend-selected `tracking_timeout_ms`, lifecycle toasts reuse that mission-aware timeout instead of a flat 120s frontend guess, and scheduled commands include the future trigger delay in that same timeout budget, so long Drone Show / Swarm Trajectory / RTL flows no longer degrade into false "final status unknown" warnings while the backend is still tracking them correctly
 - shared command submission/tracking now uses mission-aware timeout budgets plus active background timeout promotion, so TAKE_OFF / LAND / RTL / Drone Show / Custom CSV / Swarm Trajectory / QuickScout commands no longer share one flat tracker timeout or stay stuck forever when execution reporting disappears
 - scheduled shared commands now include the future trigger delay in their backend/frontend lifecycle timeout budget, so delayed takeoff/show/swarm launches do not age out before the trigger time arrives
