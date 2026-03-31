@@ -26,9 +26,22 @@ const TrajectoryToolbar = ({
   onSendToSwarm,
   saveStatus = { saved: true, autoSaveTime: null },
   trajectoryName = '',
-  canSendToSwarm = false
+  canSendToSwarm = false,
+  missionReadiness = {
+    posture: {
+      tone: 'neutral',
+      label: 'Not ready',
+      summary: 'Add waypoints before assigning this route to a cluster.',
+      transferLabel: 'Assign to Cluster',
+    },
+  },
 }) => {
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const handoffPosture = missionReadiness?.posture || {};
+  const handoffTone = handoffPosture.tone || 'neutral';
+  const handoffLabel = handoffPosture.label || 'Not ready';
+  const handoffSummary = handoffPosture.summary || 'Add waypoints before assigning this route to a cluster.';
+  const handoffActionLabel = handoffPosture.transferLabel || 'Assign to Cluster';
 
   // Format auto-save time for display
   const formatAutoSaveTime = (timestamp) => {
@@ -120,10 +133,10 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn primary-btn ${!canSendToSwarm ? 'disabled' : ''}`}
           onClick={onSendToSwarm}
           disabled={!canSendToSwarm}
-          title={canSendToSwarm ? 'Assign the current leader path to a swarm cluster' : 'Add at least one waypoint before assigning a leader path to a cluster'}
+          title={canSendToSwarm ? `${handoffActionLabel}. ${handoffSummary}` : 'Add at least one waypoint before assigning a leader path to a cluster'}
         >
           <span className="btn-icon">🧭</span>
-          <span className="btn-text">Assign to Cluster</span>
+          <span className="btn-text">{handoffActionLabel}</span>
         </button>
         
         <button 
@@ -163,6 +176,14 @@ const TrajectoryToolbar = ({
       </div>
       
       <div className="toolbar-group toolbar-status">
+        <div
+          className={`trajectory-handoff-status trajectory-handoff-status--${handoffTone}`}
+          title={handoffSummary}
+        >
+          <span className="trajectory-handoff-status__label">Handoff</span>
+          <strong className="trajectory-handoff-status__value">{handoffLabel}</strong>
+        </div>
+
         {/* Trajectory name display */}
         {trajectoryName && (
           <div className="trajectory-name-display">
@@ -261,6 +282,14 @@ TrajectoryToolbar.propTypes = {
   onImport: PropTypes.func,
   onSendToSwarm: PropTypes.func,
   canSendToSwarm: PropTypes.bool,
+  missionReadiness: PropTypes.shape({
+    posture: PropTypes.shape({
+      tone: PropTypes.string,
+      label: PropTypes.string,
+      summary: PropTypes.string,
+      transferLabel: PropTypes.string,
+    }),
+  }),
   saveStatus: PropTypes.shape({
     saved: PropTypes.bool,
     autoSaveTime: PropTypes.number

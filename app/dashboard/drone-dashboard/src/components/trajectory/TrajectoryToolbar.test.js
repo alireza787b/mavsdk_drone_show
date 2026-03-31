@@ -21,6 +21,14 @@ const renderToolbar = (overrides = {}) => {
     onLoad: jest.fn(),
     onSendToSwarm: jest.fn(),
     canSendToSwarm: false,
+    missionReadiness: {
+      posture: {
+        tone: 'success',
+        label: 'Ready to process',
+        summary: 'This path is ready to assign to a leader cluster.',
+        transferLabel: 'Assign to Cluster',
+      },
+    },
     saveStatus: { saved: true, autoSaveTime: null },
     trajectoryName: 'mission-pass',
     ...overrides,
@@ -45,6 +53,24 @@ describe('TrajectoryToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: /assign to cluster/i }));
 
     expect(props.onSendToSwarm).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces handoff posture and uses the readiness-specific transfer label', () => {
+    renderToolbar({
+      canSendToSwarm: true,
+      missionReadiness: {
+        posture: {
+          tone: 'warning',
+          label: 'Review required',
+          summary: 'Operator review is still required before processing and mission launch.',
+          transferLabel: 'Assign for Review',
+        },
+      },
+    });
+
+    expect(screen.getByText('Handoff')).toBeInTheDocument();
+    expect(screen.getByText('Review required')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /assign for review/i })).toBeInTheDocument();
   });
 
   it('shows shortcuts in an inline popover instead of a blocking alert', () => {

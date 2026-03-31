@@ -1086,6 +1086,7 @@ const TrajectoryPlanning = () => {
               onImport={handleImportRequest}
               onSendToSwarm={openSwarmTransferDialog}
               canSendToSwarm={waypoints.length > 0}
+              missionReadiness={plannerMissionReadiness}
               saveStatus={saveStatus}
               trajectoryName={trajectoryName}
             />
@@ -1265,6 +1266,7 @@ const TrajectoryPlanning = () => {
             onImport={handleImportRequest}
             onSendToSwarm={openSwarmTransferDialog}
             canSendToSwarm={waypoints.length > 0}
+            missionReadiness={plannerMissionReadiness}
             saveStatus={saveStatus}
             trajectoryName={trajectoryName}
           />
