@@ -192,4 +192,192 @@ describe('commandLifecycleFeedback', () => {
       'Return RTL was accepted, but final status is still unknown after the tracking timeout.',
     );
   });
+
+  it('emits lifecycle callbacks for submission, status updates, and terminal completion', async () => {
+    sendDroneCommand.mockResolvedValue({
+      success: true,
+      command_id: 'cmd-789',
+      mission_name: 'SWARM_TRAJECTORY',
+      submitted_count: 2,
+      target_drones: ['1', '2'],
+      ack_summary: {
+        accepted: 2,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      tracking_phase: 'pending_execution',
+    });
+
+    getCommandStatus
+      .mockResolvedValueOnce({
+        command_id: 'cmd-789',
+        phase: 'in_progress',
+        progress: {
+          stage: 'executing',
+          label: 'Execution in progress',
+          message: 'Execution is active on 2 drone(s).',
+          active: 2,
+          completed: 0,
+          remaining: 2,
+        },
+        executions: {
+          expected: 2,
+          succeeded: 0,
+          failed: 0,
+          active: 2,
+          remaining: 2,
+        },
+        acks: {
+          expected: 2,
+          received: 2,
+          accepted: 2,
+          offline: 0,
+          rejected: 0,
+          errors: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        command_id: 'cmd-789',
+        phase: 'terminal',
+        outcome: 'completed',
+        progress: {
+          stage: 'completed',
+          label: 'Completed',
+          message: 'Completed successfully on 2/2 accepted drone(s).',
+          active: 0,
+          completed: 2,
+          remaining: 0,
+        },
+        executions: {
+          expected: 2,
+          succeeded: 2,
+          failed: 0,
+          active: 0,
+          remaining: 0,
+        },
+        acks: {
+          expected: 2,
+          received: 2,
+          accepted: 2,
+          offline: 0,
+          rejected: 0,
+          errors: 0,
+        },
+      });
+
+    const onCommandAccepted = jest.fn();
+    const onStatusUpdate = jest.fn();
+    const onTrackingComplete = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      {
+        missionType: 4,
+        target_drones: ['1', '2'],
+        uiMeta: {
+          operatorLabel: 'Swarm Trajectory',
+          targetLabel: '2 selected drones',
+          targetDescriptor: 'Selected drones: 1, 2',
+        },
+      },
+      {
+        trackTimeoutMs: 10000,
+        onCommandAccepted,
+        onStatusUpdate,
+        onTrackingComplete,
+      },
+    );
+
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1500);
+    await advanceLifecyclePoll(1500);
+
+    expect(onCommandAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandId: 'cmd-789',
+        commandLabel: 'Swarm Trajectory',
+        targetLabel: '2 selected drones',
+        canCancelMission: true,
+      }),
+      expect.objectContaining({
+        command_id: 'cmd-789',
+      }),
+    );
+    expect(onStatusUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandId: 'cmd-789',
+        progress: expect.objectContaining({
+          stage: 'executing',
+          label: 'Execution in progress',
+        }),
+      }),
+      expect.objectContaining({
+        phase: 'in_progress',
+      }),
+    );
+    expect(onTrackingComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandId: 'cmd-789',
+        isTerminal: true,
+        outcome: 'completed',
+        progress: expect.objectContaining({
+          stage: 'completed',
+        }),
+      }),
+      expect.objectContaining({
+        phase: 'terminal',
+      }),
+    );
+  });
+
+  it('emits a tracking-unavailable callback after repeated poll errors', async () => {
+    sendDroneCommand.mockResolvedValue({
+      success: true,
+      command_id: 'cmd-999',
+      mission_name: 'SWARM_TRAJECTORY',
+      submitted_count: 2,
+      target_drones: ['1', '2'],
+      ack_summary: {
+        accepted: 2,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      tracking_phase: 'pending_execution',
+    });
+
+    getCommandStatus.mockRejectedValue(new Error('network'));
+
+    const onTrackingUnavailable = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      {
+        missionType: 4,
+        target_drones: ['1', '2'],
+        triggerTime: '0',
+        uiMeta: {
+          operatorLabel: 'Swarm Trajectory',
+          targetLabel: '2 selected drones',
+          targetDescriptor: 'Selected drones: 1, 2',
+        },
+      },
+      {
+        trackTimeoutMs: 10000,
+        onTrackingUnavailable,
+      },
+    );
+
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1500);
+    await advanceLifecyclePoll(1500);
+    await advanceLifecyclePoll(1500);
+
+    expect(onTrackingUnavailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandId: 'cmd-999',
+        trackingIssue: 'unavailable',
+      }),
+      expect.any(Error),
+    );
+  });
 });

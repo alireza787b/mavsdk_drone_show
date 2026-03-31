@@ -30,6 +30,7 @@ const CommandSender = ({ drones }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
+  const [commandMonitor, setCommandMonitor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
 
@@ -55,6 +56,129 @@ const CommandSender = ({ drones }) => {
   const targetDescriptor = targetMode === 'selected'
     ? `Selected drones: ${selectedDrones.join(', ')}`
     : 'Target scope: all configured drones';
+  const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
+
+  const buildTargetContext = (commandData = {}) => {
+    const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
+      ? commandData.target_drones.map((value) => String(value))
+      : null;
+    const scopedTargets = targetMode === 'selected' ? selectedDrones.map((value) => String(value)) : [];
+    const effectiveTargets = explicitTargets || scopedTargets;
+    const effectiveMode = explicitTargets ? 'selected' : targetMode;
+
+    return {
+      effectiveTargets,
+      targetLabel: effectiveMode === 'selected'
+        ? `${effectiveTargets.length} selected drone${effectiveTargets.length === 1 ? '' : 's'}`
+        : `all ${drones.length} drone${drones.length === 1 ? '' : 's'}`,
+      targetDescriptor: effectiveMode === 'selected'
+        ? `Selected drones: ${effectiveTargets.join(', ')}`
+        : 'Target scope: all configured drones',
+    };
+  };
+
+  const getMonitorTone = (monitor) => {
+    if (!monitor) {
+      return 'neutral';
+    }
+
+    if (monitor.trackingIssue === 'unavailable' || monitor.trackingIssue === 'timeout') {
+      return 'warning';
+    }
+
+    switch (monitor.progress?.stage) {
+      case 'completed':
+        return 'success';
+      case 'failed':
+        return 'danger';
+      case 'partial':
+      case 'cancelled':
+      case 'timeout':
+      case 'superseded':
+        return 'warning';
+      case 'executing':
+      case 'finishing':
+        return 'active';
+      case 'awaiting_ack':
+      case 'scheduled':
+      case 'pending_execution':
+      default:
+        return 'neutral';
+    }
+  };
+
+  const commandMonitorMetrics = useMemo(() => {
+    if (!commandMonitor) {
+      return [];
+    }
+
+    const metrics = [
+      {
+        label: 'Accepted',
+        value: `${commandMonitor.acks?.accepted ?? 0}/${commandMonitor.acks?.expected ?? 0}`,
+      },
+    ];
+
+    if ((commandMonitor.progress?.ackPending ?? 0) > 0 || commandMonitor.progress?.stage === 'awaiting_ack') {
+      metrics.push({
+        label: 'Awaiting ACK',
+        value: String(commandMonitor.progress?.ackPending ?? 0),
+      });
+    }
+
+    if ((commandMonitor.acks?.offline ?? 0) > 0) {
+      metrics.push({
+        label: 'Offline',
+        value: String(commandMonitor.acks.offline),
+      });
+    }
+
+    if ((commandMonitor.acks?.rejected ?? 0) > 0) {
+      metrics.push({
+        label: 'Rejected',
+        value: String(commandMonitor.acks.rejected),
+      });
+    }
+
+    if ((commandMonitor.acks?.errors ?? 0) > 0) {
+      metrics.push({
+        label: 'Errors',
+        value: String(commandMonitor.acks.errors),
+      });
+    }
+
+    if ((commandMonitor.executions?.expected ?? 0) > 0 || commandMonitor.progress?.stage === 'executing' || commandMonitor.progress?.stage === 'finishing') {
+      metrics.push(
+        {
+          label: 'Active',
+          value: String(commandMonitor.progress?.active ?? 0),
+        },
+        {
+          label: 'Completed',
+          value: String(commandMonitor.progress?.completed ?? 0),
+        },
+        {
+          label: 'Remaining',
+          value: String(commandMonitor.progress?.remaining ?? 0),
+        },
+      );
+    }
+
+    return metrics;
+  }, [commandMonitor]);
+
+  const monitorScheduledTime = useMemo(() => {
+    const scheduledMs = Number(commandMonitor?.progress?.scheduledTriggerTime || 0);
+    if (Number.isFinite(scheduledMs) && scheduledMs > 0) {
+      return formatCommandAbsoluteTime(Math.floor(scheduledMs / 1000));
+    }
+
+    if (commandMonitor?.triggerTime) {
+      return formatCommandAbsoluteTime(commandMonitor.triggerTime);
+    }
+
+    return null;
+  }, [commandMonitor]);
 
   const renderConfirmationDetails = () => {
     if (!currentCommandData) {
@@ -67,7 +191,7 @@ const CommandSender = ({ drones }) => {
     const detailRows = [
       {
         label: 'Targets',
-        value: targetLabel,
+        value: currentCommandData?.uiMeta?.targetLabel || targetLabel,
       },
       ...(showExecution
         ? [{
@@ -96,8 +220,10 @@ const CommandSender = ({ drones }) => {
 
   // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
-    if (targetMode === 'selected') {
-      if (selectedDrones.length === 0) {
+    const targetContext = buildTargetContext(commandData);
+
+    if (!Array.isArray(commandData?.target_drones) || commandData.target_drones.length === 0) {
+      if (targetMode === 'selected' && targetContext.effectiveTargets.length === 0) {
         toast.error('No drones selected. Please select at least one drone.');
         return;
       }
@@ -106,14 +232,17 @@ const CommandSender = ({ drones }) => {
     const missionName = getCommandName(commandData.missionType);
     setCurrentCommandData({
       ...commandData,
+      ...(targetContext.effectiveTargets.length > 0 ? { target_drones: targetContext.effectiveTargets } : {}),
       uiMeta: {
         ...(commandData.uiMeta || {}),
         operatorLabel: missionName,
+        targetLabel: targetContext.targetLabel,
+        targetDescriptor: targetContext.targetDescriptor,
       },
     });
     setConfirmationMessage(
       commandData.uiMeta?.confirmationMessage
-        || `${missionName} → ${targetLabel}. Confirm dispatch.`
+        || `${missionName} → ${targetContext.targetLabel}. Confirm dispatch.`
     );
     setModalOpen(true);
   };
@@ -125,11 +254,18 @@ const CommandSender = ({ drones }) => {
       setLoading(true);
       try {
         const commandDataToSend = { ...currentCommandData };
-        if (targetMode === 'selected') {
-          commandDataToSend.target_drones = selectedDrones;
+        if (!Array.isArray(commandDataToSend.target_drones) || commandDataToSend.target_drones.length === 0) {
+          if (targetMode === 'selected') {
+            commandDataToSend.target_drones = selectedDrones.map((value) => String(value));
+          }
         }
 
-        await submitCommandWithLifecycleFeedback(commandDataToSend);
+        await submitCommandWithLifecycleFeedback(commandDataToSend, {
+          onCommandAccepted: (snapshot) => setCommandMonitor(snapshot),
+          onStatusUpdate: (snapshot) => setCommandMonitor(snapshot),
+          onTrackingComplete: (snapshot) => setCommandMonitor(snapshot),
+          onTrackingUnavailable: (snapshot) => setCommandMonitor(snapshot),
+        });
       } catch (error) {
         console.error('Error sending command:', error);
         const detail = error?.response?.data?.detail || error?.message || 'Error sending command. Please check console for details.';
@@ -145,6 +281,37 @@ const CommandSender = ({ drones }) => {
   const handleCancelSendCommand = () => {
     setModalOpen(false);
     setCurrentCommandData(null);
+  };
+
+  const handleDismissCommandMonitor = () => {
+    setCommandMonitor(null);
+  };
+
+  const handlePrepareMissionCancel = () => {
+    if (!commandMonitor) {
+      return;
+    }
+
+    handleSendCommand({
+      missionType: String(DRONE_MISSION_TYPES.NONE),
+      triggerTime: '0',
+      target_drones: commandMonitor.targetDrones,
+      uiMeta: {
+        operatorLabel: getCommandName(DRONE_MISSION_TYPES.NONE),
+        confirmationMessage: `Cancel ${commandMonitor.commandLabel} for ${commandMonitor.targetLabel}?`,
+        triggerSummary: 'Immediate cancel on acceptance',
+        details: [
+          {
+            label: 'Reason',
+            value: 'Stops the scheduled or active mission on the same targets immediately after drone acceptance.',
+          },
+          {
+            label: 'Current stage',
+            value: commandMonitor.progress?.label || 'Mission in progress',
+          },
+        ],
+      },
+    });
   };
 
   // Drone selection functions
@@ -220,6 +387,67 @@ const CommandSender = ({ drones }) => {
         clockOffsetLabel={clockOffsetLabel}
       />
 
+      {commandMonitor && (
+        <section className={`command-monitor command-monitor--${getMonitorTone(commandMonitor)}`}>
+          <div className="command-monitor__header">
+            <div>
+              <p className="command-monitor__eyebrow">Live Command Monitor</p>
+              <h3>{commandMonitor.commandLabel}</h3>
+              <p className="command-monitor__summary">{commandMonitor.progress?.message}</p>
+            </div>
+            <div className="command-monitor__header-meta">
+              <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(commandMonitor)}`}>
+                {commandMonitor.progress?.label || 'Command update'}
+              </span>
+              <span className="command-monitor__command-id">ID {commandMonitor.commandId}</span>
+            </div>
+          </div>
+
+          <div className="command-monitor__meta">
+            <span>{commandMonitor.targetLabel}</span>
+            <span>{monitorTargetDescriptor}</span>
+            {monitorScheduledTime && <span>Trigger: {monitorScheduledTime}</span>}
+          </div>
+
+          {commandMonitor.trackingIssue && (
+            <p className="command-monitor__notice">
+              Tracking updates are currently {commandMonitor.trackingIssue === 'timeout' ? 'timed out' : 'unavailable'}.
+              The last known command state remains visible here.
+            </p>
+          )}
+
+          <div className="command-monitor__metrics" role="list" aria-label="Command monitor metrics">
+            {commandMonitorMetrics.map((metric) => (
+              <div key={`${metric.label}-${metric.value}`} className="command-monitor__metric" role="listitem">
+                <span className="command-monitor__metric-label">{metric.label}</span>
+                <strong className="command-monitor__metric-value">{metric.value}</strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="command-monitor__actions">
+            {commandMonitor.canCancelMission && !commandMonitor.isTerminal && commandMonitor.missionType !== DRONE_MISSION_TYPES.NONE && (
+              <button
+                type="button"
+                className="command-monitor__action command-monitor__action--danger"
+                onClick={handlePrepareMissionCancel}
+              >
+                {commandMonitor.progress?.stage === 'scheduled' ? 'Cancel Before Trigger' : 'Cancel Mission'}
+              </button>
+            )}
+            {(commandMonitor.isTerminal || commandMonitor.trackingIssue) && (
+              <button
+                type="button"
+                className="command-monitor__action command-monitor__action--secondary"
+                onClick={handleDismissCommandMonitor}
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Tab Navigation with Expert UI/UX Icons */}
       <div className="tab-bar">
         <button
@@ -269,7 +497,9 @@ const CommandSender = ({ drones }) => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Confirm Command</h3>
             <p>{confirmationMessage}</p>
-            <p className="command-confirmation-target-note">{targetDescriptor}</p>
+            <p className="command-confirmation-target-note">
+              {currentCommandData?.uiMeta?.targetDescriptor || targetDescriptor}
+            </p>
             {currentCommandData && (
               <div className="command-confirmation-details">
                 {renderConfirmationDetails()}

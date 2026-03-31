@@ -408,6 +408,54 @@ class CommandTracker:
 
         return True
 
+    def _promote_execution_evidence_to_accepted_locked(
+        self,
+        command: TrackedCommand,
+        hw_id: str,
+        timestamp: int,
+        *,
+        evidence_source: str,
+    ) -> bool:
+        """Treat execution evidence as authoritative acceptance proof.
+
+        Slow or lossy links can drop the GCS->drone HTTP ACK while the drone still
+        executes the command. When a drone later reports execution-start or a
+        terminal execution result, that evidence is stronger than the missing or
+        stale ACK classification and should count toward accepted targets.
+        """
+        existing_ack = command.acks.get(hw_id)
+        if existing_ack and existing_ack.category == 'accepted':
+            return False
+
+        message = f"Acceptance inferred from {evidence_source}"
+        if existing_ack is None:
+            command.acks[hw_id] = DroneAck(
+                hw_id=hw_id,
+                status='accepted',
+                category='accepted',
+                message=message,
+                timestamp=timestamp,
+            )
+            command.acks_received += 1
+        else:
+            if existing_ack.category == 'offline':
+                command.acks_offline = max(0, command.acks_offline - 1)
+            elif existing_ack.category == 'rejected':
+                command.acks_rejected = max(0, command.acks_rejected - 1)
+            elif existing_ack.category == 'error':
+                command.acks_errors = max(0, command.acks_errors - 1)
+
+            existing_ack.status = 'accepted'
+            existing_ack.category = 'accepted'
+            existing_ack.message = message
+            existing_ack.error_code = None
+            existing_ack.error_detail = None
+            existing_ack.timestamp = timestamp
+
+        command.acks_accepted += 1
+        command.updated_at = timestamp
+        return True
+
     async def record_execution_start(
         self,
         command_id: str,
@@ -421,6 +469,12 @@ class CommandTracker:
 
             command = self._commands[command_id]
             timestamp = int(time.time() * 1000)
+            self._promote_execution_evidence_to_accepted_locked(
+                command,
+                hw_id,
+                timestamp,
+                evidence_source='execution-start callback',
+            )
             is_new_start = self._mark_execution_started_locked(command, hw_id, timestamp)
 
         if is_new_start:
@@ -466,6 +520,12 @@ class CommandTracker:
                 logger.debug(f"Duplicate execution from {hw_id} for {command_id[:8]}")
                 return True
 
+            self._promote_execution_evidence_to_accepted_locked(
+                command,
+                hw_id,
+                timestamp,
+                evidence_source='execution-result callback',
+            )
             self._mark_execution_started_locked(command, hw_id, timestamp)
 
             execution = DroneExecution(

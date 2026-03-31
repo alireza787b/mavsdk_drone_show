@@ -142,6 +142,7 @@ Operational guidance:
 - offboard startup now also waits for MAVSDK/PX4 armability before arming, so transient pre-arm blockers are retried locally instead of immediately failing the mission start
 - GCS launch dispatch now also performs a live per-drone MAVSDK armability probe for launch-from-ground missions, so passive telemetry alone cannot falsely clear a drone that PX4 would still refuse to arm
 - telemetry launch-readiness now treats `home_position_set` as actual PX4 HOME_POSITION truth, not just "a GPS position sample was seen once", so origin / takeoff readiness no longer gets falsely cleared by a fallback position cache
+- `Command Control` now keeps a persistent live command monitor showing the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome), the current acceptance/error counts, and a same-target `Cancel Mission` path when operators need to abort before trigger time or stop a live mission cleanly
 
 ## Launch Readiness
 

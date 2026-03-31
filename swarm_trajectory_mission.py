@@ -117,6 +117,7 @@ from src.flight_timeout_utils import (
 )
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
+from src.synchronized_start import evaluate_synchronized_start
 
 from drone_show_src.utils import (
     read_hw_id,
@@ -2209,19 +2210,22 @@ async def run_swarm_trajectory_mission(
             position_id = drone_config.pos_id
             logger.info(f"Using position ID from config: {position_id} (HW_ID: {HW_ID})")
 
-        # Step 6: Handle synchronized start time (exact match with drone_show.py)
-        if synchronized_start_time is None:
-            synchronized_start_time = time.time()
-            logger.info(f"No start_time provided; using now: {time.ctime(synchronized_start_time)}")
-        now = time.time()
-        if synchronized_start_time > now:
-            wait_secs = synchronized_start_time - now
-            logger.info(f"Waiting {wait_secs:.2f}s until synchronized start time.")
-            await asyncio.sleep(wait_secs)
-        elif synchronized_start_time < now:
-            logger.warning(f"Start time was {now - synchronized_start_time:.2f}s ago; starting immediately.")
+        # Step 6: Handle synchronized start time (shared policy with drone_show.py)
+        start_decision = evaluate_synchronized_start(
+            synchronized_start_time,
+            late_tolerance_sec=getattr(Params, "SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC", 1.0),
+        )
+        synchronized_start_time = start_decision.effective_start_time
+        if start_decision.should_abort:
+            raise RuntimeError(
+                f"Synchronized mission start is too late to execute safely. {start_decision.reason}"
+            )
+        if start_decision.should_wait:
+            logger.info(start_decision.reason)
+            await asyncio.sleep(start_decision.wait_seconds)
         else:
-            logger.info("Synchronized start time is now.")
+            log_method = logger.warning if start_decision.late_by_seconds > 0 else logger.info
+            log_method(start_decision.reason)
 
         # Step 7: Arm and enter Offboard
         await arming_and_starting_offboard_mode(drone, global_reference)

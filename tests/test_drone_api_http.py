@@ -263,6 +263,37 @@ class TestCommands:
         assert "idempotent ACK" in data["message"]
         mock_drone_communicator.process_command.assert_not_called()
 
+    def test_send_command_duplicate_delivery_after_completion_returns_idempotent_ack(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        mock_drone_config.state = 0
+        mock_drone_config.mission = 0
+        mock_drone_config.trigger_time = 0
+        mock_drone_config.current_command_id = None
+        mock_drone_config.drone_setup = Mock(
+            running_processes={},
+            get_recent_command_record=Mock(return_value={
+                "mission_type": 10,
+                "trigger_time": 0,
+                "state": 0,
+                "phase": "completed",
+            }),
+        )
+
+        response = test_client.post(
+            "/api/send-command",
+            json={"missionType": "10", "triggerTime": "0", "command_id": "cmd-123"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert "already completed" in data["message"]
+        mock_drone_communicator.process_command.assert_not_called()
+
     def test_send_command_does_not_supersede_pending_command_when_install_fails(
         self,
         test_client,

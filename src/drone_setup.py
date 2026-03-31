@@ -27,6 +27,7 @@ class RunningMissionProcess:
     script_name: str
     process: ManagedProcess
     command_id: Optional[str] = None
+    mission_type: Optional[int] = None
     superseded: bool = False
 
 
@@ -39,6 +40,17 @@ class PendingCommandReport:
     first_queued_monotonic: float
     next_attempt_monotonic: float
     attempt_count: int = 0
+
+
+@dataclass
+class RecentCommandRecord:
+    """Recent terminal command metadata for idempotent duplicate delivery."""
+    command_id: str
+    mission_type: int
+    trigger_time: int
+    phase: str
+    state: int
+    recorded_at_monotonic: float
 
 
 class DroneSetup:
@@ -68,6 +80,7 @@ class DroneSetup:
         self.pending_command_reports = []
         self.command_report_lock = asyncio.Lock()
         self.command_report_retry_task = None
+        self.recent_command_history = {}
 
         self._validate_params()
         self._validate_drone_config()
@@ -259,6 +272,63 @@ class DroneSetup:
         suffix = command_id or str(time.time_ns())
         return f"{script_name}:{suffix}"
 
+    def _prune_recent_command_history(self, now_monotonic: Optional[float] = None):
+        now_monotonic = now_monotonic if now_monotonic is not None else time.monotonic()
+        ttl_sec = max(60.0, float(getattr(self.params, "COMMAND_IDEMPOTENCY_HISTORY_SEC", 1800)))
+        max_records = max(32, int(getattr(self.params, "COMMAND_IDEMPOTENCY_MAX_HISTORY", 256)))
+
+        expired_ids = [
+            command_id
+            for command_id, record in self.recent_command_history.items()
+            if (now_monotonic - record.recorded_at_monotonic) > ttl_sec
+        ]
+        for command_id in expired_ids:
+            self.recent_command_history.pop(command_id, None)
+
+        while len(self.recent_command_history) > max_records:
+            oldest_command_id = next(iter(self.recent_command_history))
+            self.recent_command_history.pop(oldest_command_id, None)
+
+    def _remember_recent_command(
+        self,
+        command_id: Optional[str],
+        *,
+        mission_type: Optional[int],
+        trigger_time: int = 0,
+        phase: str,
+        state: int = State.IDLE.value,
+    ):
+        if not command_id or mission_type is None:
+            return
+
+        now_monotonic = time.monotonic()
+        self._prune_recent_command_history(now_monotonic)
+        self.recent_command_history[command_id] = RecentCommandRecord(
+            command_id=command_id,
+            mission_type=int(mission_type),
+            trigger_time=int(trigger_time or 0),
+            phase=phase,
+            state=int(state),
+            recorded_at_monotonic=now_monotonic,
+        )
+
+    def get_recent_command_record(self, command_id: Optional[str]) -> Optional[dict]:
+        if not command_id:
+            return None
+
+        now_monotonic = time.monotonic()
+        self._prune_recent_command_history(now_monotonic)
+        record = self.recent_command_history.get(command_id)
+        if record is None:
+            return None
+
+        return {
+            'mission_type': int(record.mission_type),
+            'trigger_time': int(record.trigger_time),
+            'state': int(record.state),
+            'phase': str(record.phase),
+        }
+
     async def execute_mission_script(self, script_name: str, action: str) -> tuple:
         """
         Launches a mission script asynchronously (so it won't block new commands).
@@ -268,6 +338,7 @@ class DroneSetup:
             python_exec_path = self._get_python_exec_path()
             script_path = self._get_script_path(script_name)
             command_id = self._detach_current_command_id()
+            mission_type = int(self.drone_config.mission)
 
             if not os.path.isfile(script_path):
                 logger.error(f"Mission script '{script_name}' not found at '{script_path}'.")
@@ -304,18 +375,9 @@ class DroneSetup:
                     script_name=script_name,
                     process=process,
                     command_id=command_id,
+                    mission_type=mission_type,
                 )
                 self.running_processes[process_key] = process_record
-                await self._report_execution_start_to_gcs(
-                    command_id=command_id,
-                    script_name=script_name,
-                )
-
-                # Create a background task that monitors this script's completion
-                asyncio.create_task(self._monitor_script_process(process_record))
-
-                # Return immediately - do NOT block on process.communicate()
-                return (True, f"Started mission script '{script_name}' asynchronously.")
             except Exception as e:
                 logger.error(f"Exception running '{script_name}': {e}", exc_info=True)
                 self._reset_mission_state(success=False)
@@ -325,6 +387,17 @@ class DroneSetup:
                     error_message=f"Exception: {str(e)}"
                 )
                 return (False, f"Exception: {str(e)}")
+
+        await self._report_execution_start_to_gcs(
+            command_id=command_id,
+            script_name=script_name,
+        )
+
+        # Create a background task that monitors this script's completion
+        asyncio.create_task(self._monitor_script_process(process_record))
+
+        # Return immediately - do NOT block on process.communicate()
+        return (True, f"Started mission script '{script_name}' asynchronously.")
 
     async def _monitor_script_process(self, process_record: RunningMissionProcess):
         """
@@ -360,6 +433,11 @@ class DroneSetup:
                     script_output=diagnostic_output[:500],
                     duration_ms=duration_ms
                 )
+                self._remember_recent_command(
+                    process_record.command_id,
+                    mission_type=process_record.mission_type,
+                    phase="superseded",
+                )
                 return
 
             if return_code == 0:
@@ -372,6 +450,11 @@ class DroneSetup:
                     exit_code=return_code,
                     script_output=stdout_str[:500],  # Truncate output
                     duration_ms=duration_ms
+                )
+                self._remember_recent_command(
+                    process_record.command_id,
+                    mission_type=process_record.mission_type,
+                    phase="completed",
                 )
             else:
                 logger.error(
@@ -388,6 +471,11 @@ class DroneSetup:
                     script_output=diagnostic_output[:500],
                     duration_ms=duration_ms
                 )
+                self._remember_recent_command(
+                    process_record.command_id,
+                    mission_type=process_record.mission_type,
+                    phase="failed",
+                )
 
         except Exception as e:
             logger.error(f"Exception in _monitor_script_process for '{script_name}': {e}", exc_info=True)
@@ -401,6 +489,11 @@ class DroneSetup:
                 success=False,
                 error_message=f"Exception: {str(e)[:200]}",
                 duration_ms=int((time.time() - start_time) * 1000)
+            )
+            self._remember_recent_command(
+                process_record.command_id,
+                mission_type=process_record.mission_type,
+                phase="failed",
             )
 
     def _build_command_report_url(self, endpoint: str) -> Optional[str]:
@@ -619,17 +712,20 @@ class DroneSetup:
     async def _fail_pending_command(self, error_message: str) -> tuple:
         """Reset local mission state and report a terminal failure for the pending command."""
         command_id = self._detach_current_command_id()
+        mission_type = int(self.drone_config.mission)
         self._reset_mission_state(False)
         await self._report_execution_to_gcs(
             command_id=command_id,
             success=False,
             error_message=error_message,
         )
+        self._remember_recent_command(command_id, mission_type=mission_type, phase="failed")
         return (False, error_message)
 
     async def _complete_pending_command_without_process(self, message: str) -> tuple:
         """Report a successful command that completed without launching a subprocess."""
         command_id = self._detach_current_command_id()
+        mission_type = int(self.drone_config.mission)
         await self._report_execution_start_to_gcs(command_id=command_id)
         self._reset_mission_state(True)
         await self._report_execution_to_gcs(
@@ -638,6 +734,7 @@ class DroneSetup:
             script_output=message[:500],
             duration_ms=0,
         )
+        self._remember_recent_command(command_id, mission_type=mission_type, phase="completed")
         return (True, message)
 
     async def cancel_active_command(self, message: str = "Cancel command completed.") -> tuple:

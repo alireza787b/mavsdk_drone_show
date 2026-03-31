@@ -287,11 +287,15 @@ class Params:
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
     COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
+    COMMAND_SYNC_DISPATCH_GUARD_SEC = 1.0         # Extra lead time before synchronized mission trigger-minus-warmup; GCS stops retries after this safe queue window
     COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks
     COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2       # Initial backoff for queued execution callback retries
     COMMAND_REPORT_RETRY_MAX_DELAY_SEC = 60       # Maximum backoff between queued execution callback retries
     COMMAND_REPORT_RETRY_MAX_AGE_SEC = 1800       # Drop queued execution callbacks after this age if GCS never returns
     COMMAND_REPORT_RETRY_LOOP_INTERVAL_SEC = 1.0  # Retry worker wake interval for queued execution callbacks
+    COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800        # Keep recently completed command_ids for this long so late resends cannot re-execute
+    COMMAND_IDEMPOTENCY_MAX_HISTORY = 256         # Maximum recent command_id records retained per drone
+    SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC = 1.0  # Abort synchronized offboard missions if actual launch slips past this tolerance after the requested start time
 
     # LED Configuration
     led_count = 25        # Number of LED pixels

@@ -254,6 +254,44 @@ class TestCommandTracker:
         assert status['progress']['remaining'] == 1
 
     @pytest.mark.asyncio
+    async def test_execution_start_promotes_missing_ack_to_accepted(self, tracker):
+        """Execution-start should count as acceptance proof if the HTTP ACK was lost."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1'],
+        )
+
+        await tracker.record_execution_start(command_id, hw_id='1')
+
+        status = await tracker.get_status(command_id)
+        assert status['acks']['received'] == 1
+        assert status['acks']['accepted'] == 1
+        assert status['acks']['details']['1']['category'] == 'accepted'
+        assert 'execution-start' in status['acks']['details']['1']['message']
+        assert status['phase'] == 'in_progress'
+        assert status['progress']['active'] == 1
+
+    @pytest.mark.asyncio
+    async def test_execution_result_upgrades_offline_ack_to_accepted(self, tracker):
+        """Execution-result must override an earlier offline ACK classification."""
+        command_id = await tracker.create_command(
+            mission_type=10,
+            target_drones=['1'],
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='offline', message='Timed out')
+        await tracker.record_execution(command_id, hw_id='1', success=True, duration_ms=5000)
+
+        status = await tracker.get_status(command_id)
+        assert status['acks']['offline'] == 0
+        assert status['acks']['accepted'] == 1
+        assert status['acks']['details']['1']['category'] == 'accepted'
+        assert 'execution-result' in status['acks']['details']['1']['message']
+        assert status['status'] == 'completed'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'completed'
+
+    @pytest.mark.asyncio
     async def test_partial_success(self, tracker):
         """Test partial success scenario"""
         command_id = await tracker.create_command(
@@ -480,6 +518,50 @@ class TestGcsCommandDistribution:
         assert category == 'accepted'
         assert mock_post.call_args.kwargs['json']['missionType'] == str(Mission.RETURN_RTL.value)
         assert mock_post.call_args.kwargs['json']['triggerTime'] == '0'
+
+    def test_send_command_to_drone_aborts_after_sync_dispatch_window_expires(self):
+        """Synchronized missions should not be retried once the safe queue window has passed."""
+        from command import send_command_to_drone
+        from src.enums import Mission
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {
+            'missionType': str(Mission.SWARM_TRAJECTORY.value),
+            'triggerTime': '205',
+        }
+
+        with patch('command.time.time', return_value=201.0):
+            with patch('command.requests.post') as mock_post:
+                success, error, category = send_command_to_drone(drone, command_data, timeout=5, retries=3)
+
+        assert success is False
+        assert category == 'error'
+        assert 'Missed synchronized dispatch window' in error
+        mock_post.assert_not_called()
+
+    def test_send_command_to_drone_caps_timeout_to_remaining_sync_window(self):
+        """Last-chance synchronized dispatch attempts should not wait longer than the remaining safe window."""
+        from command import send_command_to_drone
+        from src.enums import Mission
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {
+            'missionType': str(Mission.SWARM_TRAJECTORY.value),
+            'triggerTime': '204',
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'status': 'accepted'}
+
+        with patch('command.time.time', return_value=198.5):
+            with patch('command.requests.post', return_value=mock_response) as mock_post:
+                success, error, category = send_command_to_drone(drone, command_data, timeout=5, retries=1)
+
+        assert success is True
+        assert error == ""
+        assert category == 'accepted'
+        assert mock_post.call_args.kwargs['timeout'] == pytest.approx(0.5, abs=1e-6)
 
     def test_send_commands_to_all_normalizes_rejected_drone_ids(self):
         """Rejected/error logging should not crash when config uses integer hw_id values."""

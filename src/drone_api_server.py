@@ -1177,6 +1177,12 @@ class DroneAPIServer:
                     'phase': 'executing',
                 }
 
+        get_recent_command_record = getattr(drone_setup, 'get_recent_command_record', None) if drone_setup else None
+        if callable(get_recent_command_record):
+            recent_record = get_recent_command_record(command_id)
+            if isinstance(recent_record, dict):
+                return recent_record
+
         return None
 
     async def _cancel_active_or_pending_command(self, *, had_active_command: bool) -> tuple[int, str]:
@@ -1220,6 +1226,12 @@ class DroneAPIServer:
     def _build_idempotent_acceptance_message(mission_name: str, phase: str) -> str:
         if phase == "executing":
             return f"Command {mission_name} was already active on this drone; returning idempotent ACK while execution continues"
+        if phase == "completed":
+            return f"Command {mission_name} already completed on this drone; returning idempotent ACK without re-executing it"
+        if phase == "failed":
+            return f"Command {mission_name} already reached a terminal failure on this drone; returning idempotent ACK without re-executing it"
+        if phase == "superseded":
+            return f"Command {mission_name} was already superseded on this drone; returning idempotent ACK without re-executing it"
         return f"Command {mission_name} was already queued on this drone; returning idempotent ACK"
 
     async def _report_pending_command_superseded(
@@ -1231,17 +1243,27 @@ class DroneAPIServer:
         if not command_id:
             return
 
+        try:
+            mission_name = Mission(override_mission_type).name
+        except ValueError:
+            mission_name = f"MISSION_{override_mission_type}"
+
+        drone_setup = getattr(self.drone_config, 'drone_setup', None)
+        if drone_setup and hasattr(drone_setup, '_report_execution_to_gcs'):
+            await drone_setup._report_execution_to_gcs(
+                command_id=command_id,
+                success=False,
+                error_message=f"Superseded by a newer command ({mission_name}) before execution started",
+                duration_ms=0,
+            )
+            return
+
         gcs_ip = self.params.GCS_IP
         if not isinstance(gcs_ip, str) or not gcs_ip:
             logger.warning("GCS_IP not configured, cannot report superseded pending command")
             return
 
         try:
-            try:
-                mission_name = Mission(override_mission_type).name
-            except ValueError:
-                mission_name = f"MISSION_{override_mission_type}"
-
             payload = {
                 'command_id': command_id,
                 'hw_id': str(self.drone_config.hw_id),

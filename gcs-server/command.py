@@ -69,6 +69,12 @@ _MISSIONS_REQUIRING_ARMABILITY_GATE = {
     Mission.QUICKSCOUT,
     Mission.HOVER_TEST,
 }
+_STRICT_SYNC_MISSIONS = {
+    Mission.DRONE_SHOW_FROM_CSV,
+    Mission.CUSTOM_CSV_DRONE_SHOW,
+    Mission.SWARM_TRAJECTORY,
+    Mission.HOVER_TEST,
+}
 _COMMAND_HEARTBEAT_GRACE_SECONDS = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
 
 def normalize_drone_id(drone_id: Any) -> str:
@@ -206,6 +212,37 @@ def mission_requires_launch_armability_probe(mission: Mission | None) -> bool:
     return resolve_mission_type(mission) in _MISSIONS_REQUIRING_ARMABILITY_GATE
 
 
+def mission_requires_strict_sync_dispatch(mission: Mission | None) -> bool:
+    """Synchronized offboard missions should not be dispatched after their safe queue window."""
+    return resolve_mission_type(mission) in _STRICT_SYNC_MISSIONS
+
+
+def _extract_trigger_time_seconds(command_payload: Dict[str, Any]) -> float | None:
+    raw_trigger_time = command_payload.get('triggerTime')
+    if raw_trigger_time in (None, "", 0, "0"):
+        return None
+
+    try:
+        trigger_time = float(raw_trigger_time)
+    except (TypeError, ValueError):
+        return None
+
+    return trigger_time if trigger_time > 0 else None
+
+
+def _get_sync_dispatch_deadline(mission: Mission | None, command_payload: Dict[str, Any]) -> float | None:
+    if not mission_requires_strict_sync_dispatch(mission):
+        return None
+
+    trigger_time = _extract_trigger_time_seconds(command_payload)
+    if trigger_time is None:
+        return None
+
+    trigger_sooner = max(0.0, float(getattr(Params, "trigger_sooner_seconds", 0)))
+    dispatch_guard = max(0.0, float(getattr(Params, "COMMAND_SYNC_DISPATCH_GUARD_SEC", 1.0)))
+    return trigger_time - trigger_sooner - dispatch_guard
+
+
 def _log_command_event(message: str, level: str = "INFO", drone_id: Any | None = None) -> None:
     """Emit command logs through the standard MDS logger interface."""
     log_level = getattr(logging, level.upper(), logging.INFO)
@@ -299,13 +336,31 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
         command_payload['missionType'] = normalized_mission_type
     if 'triggerTime' in command_payload:
         command_payload['triggerTime'] = str(command_payload['triggerTime'])
+    sync_dispatch_deadline = _get_sync_dispatch_deadline(mission, command_payload)
 
     while attempt < retries:
+        attempt_timeout = timeout
+        if sync_dispatch_deadline is not None:
+            remaining_window = sync_dispatch_deadline - time.time()
+            if remaining_window <= 0:
+                last_error = "Missed synchronized dispatch window before trigger time"
+                last_category = CommandResultCategory.ERROR.value
+                _log_command_event(
+                    (
+                        f"Aborting {command_type} dispatch because the safe synchronized queue window "
+                        "has already passed"
+                    ),
+                    "WARNING",
+                    drone_id=drone_id,
+                )
+                break
+            attempt_timeout = min(float(timeout), remaining_window)
+
         try:
             response = requests.post(
                 f"http://{drone_ip}:{Params.drone_api_port}/{Params.send_drone_command_URI}",
                 json=command_payload,
-                timeout=timeout
+                timeout=attempt_timeout
             )
             
             success, error_message, response_category = parse_command_ack_response(response)
@@ -334,6 +389,21 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
 
             if attempt < retries:
                 wait_time = backoff_factor * (2 ** (attempt - 1))
+                if sync_dispatch_deadline is not None:
+                    remaining_window = sync_dispatch_deadline - time.time()
+                    if remaining_window <= 0 or wait_time >= remaining_window:
+                        last_error = "Missed synchronized dispatch window before trigger time"
+                        last_category = CommandResultCategory.ERROR.value
+                        _log_command_event(
+                            (
+                                f"Stopping retries for {command_type} because the next retry would miss "
+                                "the synchronized queue window"
+                            ),
+                            "WARNING",
+                            drone_id=drone_id,
+                        )
+                        break
+                    wait_time = min(wait_time, remaining_window)
                 # Only log retry attempts for critical commands or on last attempt
                 if is_critical_mission(mission) or attempt == retries:
                     _log_command_event(

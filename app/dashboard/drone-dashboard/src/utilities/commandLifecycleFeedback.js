@@ -8,6 +8,19 @@ const TERMINAL_PHASE = 'terminal';
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
 const DEFAULT_TRACK_TIMEOUT_MS = 120000;
+const DEFAULT_PROGRESS_LABELS = {
+  awaiting_ack: 'Collecting acknowledgments',
+  scheduled: 'Scheduled, waiting for trigger time',
+  pending_execution: 'Accepted, waiting for execution start',
+  executing: 'Execution in progress',
+  finishing: 'Finishing on remaining drones',
+  completed: 'Completed',
+  partial: 'Completed with partial coverage',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+  timeout: 'Tracking timed out',
+  superseded: 'Superseded',
+};
 
 function resolveTrackTimeoutMs(response, overrideTimeoutMs) {
   const override = Number(overrideTimeoutMs);
@@ -44,6 +57,24 @@ function getTargetCount(response) {
   return count;
 }
 
+function getAckSummary(response) {
+  const summary = response?.ack_summary || response?.results_summary || {};
+  const accepted = Number(summary.accepted || 0);
+  const offline = Number(summary.offline || 0);
+  const rejected = Number(summary.rejected || 0);
+  const errors = Number(summary.errors || 0);
+  const expected = getTargetCount(response);
+
+  return {
+    expected,
+    received: accepted + offline + rejected + errors,
+    accepted,
+    offline,
+    rejected,
+    errors,
+  };
+}
+
 function isFutureTrigger(triggerTime) {
   const trigger = Number(triggerTime);
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -65,6 +96,123 @@ function formatTriggerTime(triggerTime) {
     timeZone: 'UTC',
     timeZoneName: 'short',
   });
+}
+
+function normalizeTargetDrones(commandData, response, status) {
+  const candidates = status?.target_drones || response?.target_drones || commandData?.target_drones || [];
+  return Array.isArray(candidates) ? candidates.map((value) => String(value)) : [];
+}
+
+function buildInitialProgress(commandData, response) {
+  const acks = getAckSummary(response);
+  const accepted = acks.accepted;
+  const expected = acks.expected;
+
+  if ((response?.tracking_phase || null) === 'awaiting_ack') {
+    if (acks.received === 0) {
+      return {
+        stage: 'awaiting_ack',
+        label: DEFAULT_PROGRESS_LABELS.awaiting_ack,
+        message: `Waiting for acknowledgments from ${Math.max(expected, 1)} targeted drone(s).`,
+      };
+    }
+
+    return {
+      stage: 'awaiting_ack',
+      label: DEFAULT_PROGRESS_LABELS.awaiting_ack,
+      message: `Received ${acks.received}/${Math.max(expected, 1)} acknowledgments so far.`,
+    };
+  }
+
+  if (isFutureTrigger(commandData?.triggerTime)) {
+    return {
+      stage: 'scheduled',
+      label: DEFAULT_PROGRESS_LABELS.scheduled,
+      message: `${accepted}/${Math.max(expected, 1)} targeted drone(s) accepted the command. Waiting for the scheduled trigger time.`,
+      scheduled_trigger_time: Number(commandData?.triggerTime) * 1000,
+    };
+  }
+
+  return {
+    stage: 'pending_execution',
+    label: DEFAULT_PROGRESS_LABELS.pending_execution,
+    message: `${accepted}/${Math.max(expected, 1)} targeted drone(s) accepted the command. Waiting for execution start reports from ${Math.max(accepted || expected, 1)} drone(s).`,
+  };
+}
+
+function buildLifecycleSnapshot({
+  commandData,
+  commandLabel,
+  response = null,
+  status = null,
+  trackingIssue = null,
+}) {
+  const missionType = normalizeMissionType(commandData?.missionType);
+  const targetDrones = normalizeTargetDrones(commandData, response, status);
+  const acks = status?.acks
+    ? {
+      expected: Number(status.acks.expected || 0),
+      received: Number(status.acks.received || 0),
+      accepted: Number(status.acks.accepted || 0),
+      offline: Number(status.acks.offline || 0),
+      rejected: Number(status.acks.rejected || 0),
+      errors: Number(status.acks.errors || 0),
+    }
+    : getAckSummary(response);
+  const executions = status?.executions
+    ? {
+      expected: Number(status.executions.expected || 0),
+      succeeded: Number(status.executions.succeeded || 0),
+      failed: Number(status.executions.failed || 0),
+      active: Number(status.executions.active || 0),
+      remaining: Number(status.executions.remaining || 0),
+    }
+    : {
+      expected: acks.accepted,
+      succeeded: 0,
+      failed: 0,
+      active: 0,
+      remaining: acks.accepted,
+    };
+  const baseProgress = status?.progress || buildInitialProgress(commandData, response);
+  const progress = {
+    stage: baseProgress?.stage || null,
+    label: baseProgress?.label || DEFAULT_PROGRESS_LABELS[baseProgress?.stage] || 'Command update',
+    message: baseProgress?.message || null,
+    scheduledTriggerTime: baseProgress?.scheduled_trigger_time ?? null,
+    ackPending: Number(baseProgress?.ack_pending ?? Math.max(0, acks.expected - acks.received)),
+    executionPending: Number(baseProgress?.execution_pending ?? Math.max(0, acks.accepted - executions.succeeded - executions.active)),
+    active: Number(baseProgress?.active ?? executions.active ?? 0),
+    completed: Number(baseProgress?.completed ?? executions.succeeded ?? 0),
+    remaining: Number(baseProgress?.remaining ?? executions.remaining ?? Math.max(0, acks.accepted - executions.succeeded)),
+  };
+  const phase = status?.phase || response?.tracking_phase || null;
+  const outcome = status?.outcome || null;
+  const isTerminal = phase === TERMINAL_PHASE;
+
+  return {
+    commandId: response?.command_id || status?.command_id || null,
+    commandLabel,
+    missionType,
+    missionName: response?.mission_name || status?.mission_name || commandLabel,
+    targetDrones,
+    targetLabel: commandData?.uiMeta?.targetLabel || (targetDrones.length > 0
+      ? `${targetDrones.length} selected drone${targetDrones.length === 1 ? '' : 's'}`
+      : 'All configured drones'),
+    targetDescriptor: commandData?.uiMeta?.targetDescriptor || (targetDrones.length > 0
+      ? `Selected drones: ${targetDrones.join(', ')}`
+      : 'Target scope: all configured drones'),
+    phase,
+    outcome,
+    isTerminal,
+    trackingIssue,
+    progress,
+    acks,
+    executions,
+    triggerTime: Number(commandData?.triggerTime || 0),
+    canCancelMission: missionType > 0 && missionType < 100,
+    updatedAtMs: Date.now(),
+  };
 }
 
 function buildSubmissionToastMessage(commandData, response) {
@@ -224,17 +372,27 @@ function emitToast(level, message) {
   method(message);
 }
 
-async function trackCommandLifecycle(commandId, commandLabel, initialPhase, timeoutMs) {
+async function trackCommandLifecycle(commandId, commandLabel, initialPhase, timeoutMs, callbacks = {}, context = {}) {
   let lastPhase = initialPhase || null;
   let lastProgressStage = null;
   let pollErrors = 0;
   const deadline = Date.now() + timeoutMs;
+  let lastSnapshot = null;
 
   while (Date.now() < deadline) {
     try {
       const status = await getCommandStatus(commandId);
       pollErrors = 0;
       const progressStage = status?.progress?.stage || null;
+      const snapshot = buildLifecycleSnapshot({
+        commandData: context.commandData,
+        commandLabel,
+        response: context.response,
+        status,
+      });
+      lastSnapshot = snapshot;
+
+      callbacks.onStatusUpdate?.(snapshot, status);
 
       if (progressStage && progressStage !== lastProgressStage) {
         const progressToast = buildProgressToast(status, commandLabel);
@@ -246,6 +404,7 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
       if (status?.phase === TERMINAL_PHASE) {
         const terminalToast = buildTerminalToast(status, commandLabel);
         emitToast(terminalToast.level, terminalToast.message);
+        callbacks.onTrackingComplete?.(snapshot, status);
         return status;
       }
 
@@ -259,6 +418,22 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
           'warning',
           `${commandLabel} was accepted, but command tracking updates are currently unavailable.`
         );
+        callbacks.onTrackingUnavailable?.(
+          lastSnapshot
+            ? {
+              ...lastSnapshot,
+              trackingIssue: 'unavailable',
+              updatedAtMs: Date.now(),
+            }
+            : buildLifecycleSnapshot({
+              commandData: context.commandData,
+              commandLabel,
+              response: context.response,
+              status: null,
+              trackingIssue: 'unavailable',
+            }),
+          error,
+        );
         return null;
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -268,6 +443,22 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
   emitToast(
     'warning',
     `${commandLabel} was accepted, but final status is still unknown after the tracking timeout.`
+  );
+  callbacks.onTrackingUnavailable?.(
+    lastSnapshot
+      ? {
+        ...lastSnapshot,
+        trackingIssue: 'timeout',
+        updatedAtMs: Date.now(),
+      }
+      : buildLifecycleSnapshot({
+        commandData: context.commandData,
+        commandLabel,
+        response: context.response,
+        status: null,
+        trackingIssue: 'timeout',
+      }),
+    null,
   );
   return null;
 }
@@ -279,11 +470,29 @@ export async function submitCommandWithLifecycleFeedback(commandData, options = 
   emitToast(submissionToast.level, submissionToast.message);
 
   if (response?.success && response?.command_id && getAcceptedCount(response) > 0) {
+    const initialSnapshot = buildLifecycleSnapshot({
+      commandData,
+      commandLabel,
+      response,
+    });
+    options.onCommandAccepted?.(initialSnapshot, response);
+  }
+
+  if (response?.success && response?.command_id && getAcceptedCount(response) > 0) {
     void trackCommandLifecycle(
       response.command_id,
       commandLabel,
       response.tracking_phase,
       resolveTrackTimeoutMs(response, options.trackTimeoutMs),
+      {
+        onStatusUpdate: options.onStatusUpdate,
+        onTrackingComplete: options.onTrackingComplete,
+        onTrackingUnavailable: options.onTrackingUnavailable,
+      },
+      {
+        commandData,
+        response,
+      },
     );
   }
 

@@ -122,6 +122,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
+from src.synchronized_start import evaluate_synchronized_start
 from src import origin_cache  # Phase 2: Origin caching system
 
 from drone_show_src.utils import (
@@ -2040,18 +2041,21 @@ async def run_drone(synchronized_start_time, custom_csv=None, auto_launch_positi
         logger.info("=" * 70)
 
         # Step 4: Handle synchronized start time
-        if synchronized_start_time is None:
-            synchronized_start_time = time.time()
-            logger.info(f"No start_time provided; using now: {time.ctime(synchronized_start_time)}")
-        now = time.time()
-        if synchronized_start_time > now:
-            wait_secs = synchronized_start_time - now
-            logger.info(f"Waiting {wait_secs:.2f}s until synchronized start time.")
-            await asyncio.sleep(wait_secs)
-        elif synchronized_start_time < now:
-            logger.warning(f"Start time was {now - synchronized_start_time:.2f}s ago; starting immediately.")
+        start_decision = evaluate_synchronized_start(
+            synchronized_start_time,
+            late_tolerance_sec=getattr(Params, "SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC", 1.0),
+        )
+        synchronized_start_time = start_decision.effective_start_time
+        if start_decision.should_abort:
+            raise RuntimeError(
+                f"Synchronized mission start is too late to execute safely. {start_decision.reason}"
+            )
+        if start_decision.should_wait:
+            logger.info(start_decision.reason)
+            await asyncio.sleep(start_decision.wait_seconds)
         else:
-            logger.info("Synchronized start time is now.")
+            log_method = logger.warning if start_decision.late_by_seconds > 0 else logger.info
+            log_method(start_decision.reason)
 
         # Step 5: Arm and enter Offboard
         await arming_and_starting_offboard_mode(drone, home_position)

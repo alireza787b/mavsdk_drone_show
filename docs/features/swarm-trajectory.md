@@ -170,7 +170,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 2. **Use** `Command Control` -> `Mission Trigger`
 3. **Set Mission Type** to 4 (Swarm Trajectory) on all drones
 4. **Launch** the mission after the Swarm Trajectory preflight summary is clear
-5. **Monitor** execution through existing telemetry systems
+5. **Monitor** execution through existing telemetry systems and the live command monitor in `Command Control`
+   - the command monitor shows the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome)
+   - if the mission was scheduled for the future or needs to be aborted in flight, use the same-target `Cancel Mission` control from that monitor instead of relying on the disabled tracker-only cancel endpoint
 
 ### First-Run Checklist
 
