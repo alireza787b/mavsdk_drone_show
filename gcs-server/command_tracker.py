@@ -121,6 +121,9 @@ class TrackedCommand:
     executions_received: int = 0
     executions_succeeded: int = 0
     executions_failed: int = 0
+    late_acks: Dict[str, DroneAck] = field(default_factory=dict)
+    late_execution_starts: Dict[str, int] = field(default_factory=dict)
+    late_executions: Dict[str, DroneExecution] = field(default_factory=dict)
 
     # Timing
     submitted_at: Optional[int] = None
@@ -188,6 +191,11 @@ class CommandTracker:
                 return False
 
         return True
+
+    @staticmethod
+    def _is_terminal(command: TrackedCommand) -> bool:
+        """Return True when the command has already reached a terminal lifecycle phase."""
+        return command.phase == CommandPhase.TERMINAL
 
     def _get_mission_name(self, mission_type: int) -> str:
         """Get human-readable mission name"""
@@ -302,84 +310,108 @@ class CommandTracker:
             command = self._commands[command_id]
             timestamp = int(time.time() * 1000)
 
+            if self._is_terminal(command):
+                recorded_late_ack = self._record_late_ack_locked(
+                    command,
+                    hw_id,
+                    timestamp,
+                    category=category,
+                    message=message,
+                    error_code=error_code,
+                    error_detail=error_detail,
+                )
+                duplicate_ack = not recorded_late_ack
+            else:
+                recorded_late_ack = False
+                duplicate_ack = False
+
             # Don't record duplicate ACKs
-            if hw_id in command.acks:
+            if duplicate_ack or hw_id in command.acks:
                 logger.debug(f"Duplicate ACK from {hw_id} for {command_id[:8]}")
                 return True
 
-            # Use category as both status and category (they were always identical)
-            ack = DroneAck(
-                hw_id=hw_id,
-                status=category,  # Derive status from category
-                category=category,
-                message=message,
-                error_code=error_code,
-                error_detail=error_detail,
-                timestamp=timestamp
+            if recorded_late_ack:
+                pass
+            else:
+                # Use category as both status and category (they were always identical)
+                ack = DroneAck(
+                    hw_id=hw_id,
+                    status=category,  # Derive status from category
+                    category=category,
+                    message=message,
+                    error_code=error_code,
+                    error_detail=error_detail,
+                    timestamp=timestamp
+                )
+
+                command.acks[hw_id] = ack
+                command.acks_received += 1
+                command.updated_at = timestamp
+
+                # Track by category
+                if category == 'accepted':
+                    command.acks_accepted += 1
+                elif category == 'offline':
+                    command.acks_offline += 1
+                elif category == 'rejected':
+                    command.acks_rejected += 1
+                else:  # 'error' or unknown
+                    command.acks_errors += 1
+
+                # Update command status if all ACKs received
+                if command.acks_received >= command.acks_expected:
+                    # Calculate actual problems (rejected + errors, NOT offline)
+                    actual_problems = command.acks_rejected + command.acks_errors
+
+                    if actual_problems == 0 and command.acks_accepted > 0:
+                        # Legacy status becomes EXECUTING here, but the phase remains
+                        # pending_execution until a drone reports an actual start.
+                        command.status = CommandStatus.EXECUTING
+                        command.phase = CommandPhase.PENDING_EXECUTION
+                        command.outcome = None
+                    elif command.acks_accepted == 0 and actual_problems == 0:
+                        # All drones offline - this is informational, not a failure
+                        command.status = CommandStatus.FAILED
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.FAILED
+                        command.completed_at = timestamp
+                        command.error_summary = f"All {command.acks_offline} drones offline"
+                        self._stats['failed_commands'] += 1
+                    elif command.acks_accepted == 0:
+                        # All drones rejected/errored
+                        command.status = CommandStatus.FAILED
+                        command.phase = CommandPhase.TERMINAL
+                        command.outcome = CommandOutcome.FAILED
+                        command.completed_at = timestamp
+                        command.error_summary = f"All reachable drones failed ({command.acks_rejected} rejected, {command.acks_errors} errors)"
+                        self._stats['failed_commands'] += 1
+                    else:
+                        # Some drones accepted while others were unavailable or rejected.
+                        # Execution has still not started yet.
+                        command.status = CommandStatus.EXECUTING
+                        command.phase = CommandPhase.PENDING_EXECUTION
+                        command.outcome = None
+                        parts = []
+                        if command.acks_accepted > 0:
+                            parts.append(f"{command.acks_accepted} accepted")
+                        if command.acks_offline > 0:
+                            parts.append(f"{command.acks_offline} offline")
+                        if command.acks_rejected > 0:
+                            parts.append(f"{command.acks_rejected} rejected")
+                        if command.acks_errors > 0:
+                            parts.append(f"{command.acks_errors} errors")
+                        command.error_summary = ", ".join(parts)
+
+        if recorded_late_ack:
+            logger.info(
+                f"Late ACK recorded without lifecycle mutation: {hw_id} -> {category} "
+                f"for {command_id[:8]}..."
             )
-
-            command.acks[hw_id] = ack
-            command.acks_received += 1
-            command.updated_at = timestamp
-
-            # Track by category
-            if category == 'accepted':
-                command.acks_accepted += 1
-            elif category == 'offline':
-                command.acks_offline += 1
-            elif category == 'rejected':
-                command.acks_rejected += 1
-            else:  # 'error' or unknown
-                command.acks_errors += 1
-
-            # Update command status if all ACKs received
-            if command.acks_received >= command.acks_expected:
-                # Calculate actual problems (rejected + errors, NOT offline)
-                actual_problems = command.acks_rejected + command.acks_errors
-
-                if actual_problems == 0 and command.acks_accepted > 0:
-                    # Legacy status becomes EXECUTING here, but the phase remains
-                    # pending_execution until a drone reports an actual start.
-                    command.status = CommandStatus.EXECUTING
-                    command.phase = CommandPhase.PENDING_EXECUTION
-                    command.outcome = None
-                elif command.acks_accepted == 0 and actual_problems == 0:
-                    # All drones offline - this is informational, not a failure
-                    command.status = CommandStatus.FAILED
-                    command.phase = CommandPhase.TERMINAL
-                    command.outcome = CommandOutcome.FAILED
-                    command.completed_at = timestamp
-                    command.error_summary = f"All {command.acks_offline} drones offline"
-                    self._stats['failed_commands'] += 1
-                elif command.acks_accepted == 0:
-                    # All drones rejected/errored
-                    command.status = CommandStatus.FAILED
-                    command.phase = CommandPhase.TERMINAL
-                    command.outcome = CommandOutcome.FAILED
-                    command.completed_at = timestamp
-                    command.error_summary = f"All reachable drones failed ({command.acks_rejected} rejected, {command.acks_errors} errors)"
-                    self._stats['failed_commands'] += 1
-                else:
-                    # Some drones accepted while others were unavailable or rejected.
-                    # Execution has still not started yet.
-                    command.status = CommandStatus.EXECUTING
-                    command.phase = CommandPhase.PENDING_EXECUTION
-                    command.outcome = None
-                    parts = []
-                    if command.acks_accepted > 0:
-                        parts.append(f"{command.acks_accepted} accepted")
-                    if command.acks_offline > 0:
-                        parts.append(f"{command.acks_offline} offline")
-                    if command.acks_rejected > 0:
-                        parts.append(f"{command.acks_rejected} rejected")
-                    if command.acks_errors > 0:
-                        parts.append(f"{command.acks_errors} errors")
-                    command.error_summary = ", ".join(parts)
-
-        logger.info(
-            f"ACK recorded: {hw_id} -> {category} for {command_id[:8]}... "
-            f"({command.acks_received}/{command.acks_expected})"
-        )
+        else:
+            logger.info(
+                f"ACK recorded: {hw_id} -> {category} for {command_id[:8]}... "
+                f"({command.acks_received}/{command.acks_expected})"
+            )
 
         return True
 
@@ -406,6 +438,83 @@ class CommandTracker:
         if command.execution_started_at is None:
             command.execution_started_at = timestamp
 
+        return True
+
+    def _record_late_ack_locked(
+        self,
+        command: TrackedCommand,
+        hw_id: str,
+        timestamp: int,
+        *,
+        category: str,
+        message: Optional[str],
+        error_code: Optional[str],
+        error_detail: Optional[str],
+    ) -> bool:
+        """Persist post-terminal ACK evidence without mutating the lifecycle outcome."""
+        if hw_id in command.acks or hw_id in command.late_acks:
+            return False
+
+        command.late_acks[hw_id] = DroneAck(
+            hw_id=hw_id,
+            status=category,
+            category=category,
+            message=message,
+            error_code=error_code,
+            error_detail=error_detail,
+            timestamp=timestamp,
+        )
+        command.updated_at = timestamp
+        return True
+
+    def _record_late_execution_start_locked(
+        self,
+        command: TrackedCommand,
+        hw_id: str,
+        timestamp: int,
+    ) -> bool:
+        """Persist post-terminal execution-start evidence without mutating lifecycle outcome."""
+        if (
+            hw_id in command.execution_starts
+            or hw_id in command.late_execution_starts
+            or hw_id in command.executions
+            or hw_id in command.late_executions
+        ):
+            return False
+
+        command.late_execution_starts[hw_id] = timestamp
+        command.updated_at = timestamp
+        return True
+
+    def _record_late_execution_locked(
+        self,
+        command: TrackedCommand,
+        hw_id: str,
+        timestamp: int,
+        *,
+        success: bool,
+        error_message: Optional[str],
+        exit_code: Optional[int],
+        script_output: Optional[str],
+        duration_ms: Optional[int],
+    ) -> bool:
+        """Persist post-terminal execution evidence without mutating lifecycle outcome."""
+        if hw_id in command.executions or hw_id in command.late_executions:
+            return False
+
+        if hw_id not in command.execution_starts and hw_id not in command.late_execution_starts:
+            command.late_execution_starts[hw_id] = timestamp
+
+        command.late_executions[hw_id] = DroneExecution(
+            hw_id=hw_id,
+            success=success,
+            error_message=error_message,
+            exit_code=exit_code,
+            script_output=script_output,
+            duration_ms=duration_ms,
+            timestamp=timestamp,
+        )
+        command.updated_at = timestamp
         return True
 
     def _promote_execution_evidence_to_accepted_locked(
@@ -469,15 +578,29 @@ class CommandTracker:
 
             command = self._commands[command_id]
             timestamp = int(time.time() * 1000)
-            self._promote_execution_evidence_to_accepted_locked(
-                command,
-                hw_id,
-                timestamp,
-                evidence_source='execution-start callback',
-            )
-            is_new_start = self._mark_execution_started_locked(command, hw_id, timestamp)
+            if self._is_terminal(command):
+                recorded_late_start = self._record_late_execution_start_locked(
+                    command,
+                    hw_id,
+                    timestamp,
+                )
+                is_new_start = False
+            else:
+                recorded_late_start = False
+                self._promote_execution_evidence_to_accepted_locked(
+                    command,
+                    hw_id,
+                    timestamp,
+                    evidence_source='execution-start callback',
+                )
+                is_new_start = self._mark_execution_started_locked(command, hw_id, timestamp)
 
-        if is_new_start:
+        if recorded_late_start:
+            logger.info(
+                f"Late execution-start recorded without lifecycle mutation: {hw_id} "
+                f"for {command_id[:8]}..."
+            )
+        elif is_new_start:
             logger.info(f"Execution started: {hw_id} for {command_id[:8]}...")
 
         return True
@@ -515,90 +638,115 @@ class CommandTracker:
             command = self._commands[command_id]
             timestamp = int(time.time() * 1000)
 
+            if self._is_terminal(command):
+                recorded_late_execution = self._record_late_execution_locked(
+                    command,
+                    hw_id,
+                    timestamp,
+                    success=success,
+                    error_message=error_message,
+                    exit_code=exit_code,
+                    script_output=script_output,
+                    duration_ms=duration_ms,
+                )
+                duplicate_execution = not recorded_late_execution
+            else:
+                recorded_late_execution = False
+                duplicate_execution = False
+
             # Don't record duplicate results
-            if hw_id in command.executions:
+            if duplicate_execution or hw_id in command.executions:
                 logger.debug(f"Duplicate execution from {hw_id} for {command_id[:8]}")
                 return True
 
-            self._promote_execution_evidence_to_accepted_locked(
-                command,
-                hw_id,
-                timestamp,
-                evidence_source='execution-result callback',
-            )
-            self._mark_execution_started_locked(command, hw_id, timestamp)
-
-            execution = DroneExecution(
-                hw_id=hw_id,
-                success=success,
-                error_message=error_message,
-                exit_code=exit_code,
-                script_output=script_output,
-                duration_ms=duration_ms,
-                timestamp=timestamp
-            )
-
-            command.executions[hw_id] = execution
-            command.executions_received += 1
-            command.updated_at = timestamp
-
-            if success:
-                command.executions_succeeded += 1
+            if recorded_late_execution:
+                pass
             else:
-                command.executions_failed += 1
+                self._promote_execution_evidence_to_accepted_locked(
+                    command,
+                    hw_id,
+                    timestamp,
+                    evidence_source='execution-result callback',
+                )
+                self._mark_execution_started_locked(command, hw_id, timestamp)
 
-            # Update command status if all executions received
-            # Only count drones that accepted the command
-            expected_executions = command.acks_accepted
-            ack_shortfall = max(0, command.acks_expected - command.acks_accepted)
-            if command.executions_received >= expected_executions and expected_executions > 0:
-                if command.executions_failed == 0:
-                    if ack_shortfall > 0:
+                execution = DroneExecution(
+                    hw_id=hw_id,
+                    success=success,
+                    error_message=error_message,
+                    exit_code=exit_code,
+                    script_output=script_output,
+                    duration_ms=duration_ms,
+                    timestamp=timestamp
+                )
+
+                command.executions[hw_id] = execution
+                command.executions_received += 1
+                command.updated_at = timestamp
+
+                if success:
+                    command.executions_succeeded += 1
+                else:
+                    command.executions_failed += 1
+
+                # Update command status if all executions received
+                # Only count drones that accepted the command
+                expected_executions = command.acks_accepted
+                ack_shortfall = max(0, command.acks_expected - command.acks_accepted)
+                if command.executions_received >= expected_executions and expected_executions > 0:
+                    if command.executions_failed == 0:
+                        if ack_shortfall > 0:
+                            command.status = CommandStatus.PARTIAL
+                            command.phase = CommandPhase.TERMINAL
+                            command.outcome = CommandOutcome.PARTIAL
+                            command.error_summary = (
+                                f"Only {command.acks_accepted}/{command.acks_expected} targets accepted the command"
+                            )
+                            self._stats['partial_commands'] += 1
+                        else:
+                            command.status = CommandStatus.COMPLETED
+                            command.phase = CommandPhase.TERMINAL
+                            command.outcome = CommandOutcome.COMPLETED
+                            self._stats['successful_commands'] += 1
+                    elif command.executions_succeeded == 0:
+                        if self._all_execution_failures_superseded(command):
+                            command.status = CommandStatus.CANCELLED
+                            command.phase = CommandPhase.TERMINAL
+                            command.outcome = CommandOutcome.SUPERSEDED
+                            command.error_summary = (
+                                f"Superseded by newer command on all {command.executions_failed} drones"
+                            )
+                            self._stats['cancelled_commands'] += 1
+                        else:
+                            command.status = CommandStatus.FAILED
+                            command.phase = CommandPhase.TERMINAL
+                            command.outcome = CommandOutcome.FAILED
+                            command.error_summary = (
+                                f"All {command.executions_failed} executions failed"
+                            )
+                            self._stats['failed_commands'] += 1
+                    else:
                         command.status = CommandStatus.PARTIAL
                         command.phase = CommandPhase.TERMINAL
                         command.outcome = CommandOutcome.PARTIAL
-                        command.error_summary = (
-                            f"Only {command.acks_accepted}/{command.acks_expected} targets accepted the command"
-                        )
+                        error_parts = [f"{command.executions_failed}/{expected_executions} executions failed"]
+                        if ack_shortfall > 0:
+                            error_parts.append(f"{ack_shortfall} targets never accepted")
+                        command.error_summary = ", ".join(error_parts)
                         self._stats['partial_commands'] += 1
-                    else:
-                        command.status = CommandStatus.COMPLETED
-                        command.phase = CommandPhase.TERMINAL
-                        command.outcome = CommandOutcome.COMPLETED
-                        self._stats['successful_commands'] += 1
-                elif command.executions_succeeded == 0:
-                    if self._all_execution_failures_superseded(command):
-                        command.status = CommandStatus.CANCELLED
-                        command.phase = CommandPhase.TERMINAL
-                        command.outcome = CommandOutcome.SUPERSEDED
-                        command.error_summary = (
-                            f"Superseded by newer command on all {command.executions_failed} drones"
-                        )
-                        self._stats['cancelled_commands'] += 1
-                    else:
-                        command.status = CommandStatus.FAILED
-                        command.phase = CommandPhase.TERMINAL
-                        command.outcome = CommandOutcome.FAILED
-                        command.error_summary = (
-                            f"All {command.executions_failed} executions failed"
-                        )
-                        self._stats['failed_commands'] += 1
-                else:
-                    command.status = CommandStatus.PARTIAL
-                    command.phase = CommandPhase.TERMINAL
-                    command.outcome = CommandOutcome.PARTIAL
-                    error_parts = [f"{command.executions_failed}/{expected_executions} executions failed"]
-                    if ack_shortfall > 0:
-                        error_parts.append(f"{ack_shortfall} targets never accepted")
-                    command.error_summary = ", ".join(error_parts)
-                    self._stats['partial_commands'] += 1
 
-                command.completed_at = timestamp
+                    command.completed_at = timestamp
 
-        logger.info(
-            f"Execution recorded: {hw_id} -> {'success' if success else 'failed'} "
-            f"for {command_id[:8]}... ({command.executions_received}/{command.acks_accepted})"
-        )
+        if recorded_late_execution:
+            logger.info(
+                f"Late execution recorded without lifecycle mutation: {hw_id} -> "
+                f"{'success' if success else 'failed'} for {command_id[:8]}..."
+            )
+        else:
+            logger.info(
+                f"Execution recorded: {hw_id} -> {'success' if success else 'failed'} "
+                f"for {command_id[:8]}... ({command.executions_received}/{command.acks_accepted})"
+            )
 
         return True
 
@@ -609,7 +757,7 @@ class CommandTracker:
                 return False
 
             command = self._commands[command_id]
-            if command.status in [CommandStatus.COMPLETED, CommandStatus.FAILED]:
+            if self._is_terminal(command):
                 return False
 
             command.status = CommandStatus.CANCELLED
@@ -898,6 +1046,9 @@ class CommandTracker:
         # Copy mutable dicts to prevent race conditions during iteration
         acks_snapshot = dict(command.acks)
         executions_snapshot = dict(command.executions)
+        late_acks_snapshot = dict(command.late_acks)
+        late_execution_starts_snapshot = dict(command.late_execution_starts)
+        late_executions_snapshot = dict(command.late_executions)
 
         return {
             'command_id': command.command_id,
@@ -931,6 +1082,7 @@ class CommandTracker:
                         'category': ack.category,
                         'message': ack.message,
                         'error_code': ack.error_code,
+                        'error_detail': ack.error_detail,
                         'timestamp': ack.timestamp
                     }
                     for hw_id, ack in acks_snapshot.items()  # Use snapshot
@@ -955,6 +1107,46 @@ class CommandTracker:
                     }
                     for hw_id, exe in executions_snapshot.items()  # Use snapshot
                 }
+            },
+
+            'late_reports': {
+                'acks': {
+                    'received': len(late_acks_snapshot),
+                    'accepted': sum(1 for ack in late_acks_snapshot.values() if ack.category == 'accepted'),
+                    'offline': sum(1 for ack in late_acks_snapshot.values() if ack.category == 'offline'),
+                    'rejected': sum(1 for ack in late_acks_snapshot.values() if ack.category == 'rejected'),
+                    'errors': sum(1 for ack in late_acks_snapshot.values() if ack.category not in {'accepted', 'offline', 'rejected'}),
+                    'details': {
+                        hw_id: {
+                            'status': ack.status,
+                            'category': ack.category,
+                            'message': ack.message,
+                            'error_code': ack.error_code,
+                            'error_detail': ack.error_detail,
+                            'timestamp': ack.timestamp,
+                        }
+                        for hw_id, ack in late_acks_snapshot.items()
+                    },
+                },
+                'execution_starts': {
+                    'received': len(late_execution_starts_snapshot),
+                    'details': dict(late_execution_starts_snapshot),
+                },
+                'executions': {
+                    'received': len(late_executions_snapshot),
+                    'succeeded': sum(1 for exe in late_executions_snapshot.values() if exe.success),
+                    'failed': sum(1 for exe in late_executions_snapshot.values() if not exe.success),
+                    'details': {
+                        hw_id: {
+                            'success': exe.success,
+                            'error': exe.error_message,
+                            'exit_code': exe.exit_code,
+                            'duration_ms': exe.duration_ms,
+                            'timestamp': exe.timestamp,
+                        }
+                        for hw_id, exe in late_executions_snapshot.items()
+                    },
+                },
             },
 
             'progress': self._build_progress_summary(command),

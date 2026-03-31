@@ -705,6 +705,37 @@ class ExecutionSummary(BaseModel):
     details: Dict[str, DroneExecutionDetail] = Field(default_factory=dict, description="Per-drone execution details")
 
 
+class LateAckSummary(BaseModel):
+    """Late acknowledgments recorded after the command already reached a terminal state."""
+    received: int = Field(0, ge=0, description="Number of late ACKs received after terminal state")
+    accepted: int = Field(0, ge=0, description="Late ACKs categorized as accepted")
+    offline: int = Field(0, ge=0, description="Late ACKs categorized as offline")
+    rejected: int = Field(0, ge=0, description="Late ACKs categorized as rejected")
+    errors: int = Field(0, ge=0, description="Late ACKs categorized as errors")
+    details: Dict[str, DroneAckDetail] = Field(default_factory=dict, description="Per-drone late ACK details")
+
+
+class LateExecutionStartSummary(BaseModel):
+    """Late execution-start reports recorded after the command already reached a terminal state."""
+    received: int = Field(0, ge=0, description="Number of late execution-start reports")
+    details: Dict[str, int] = Field(default_factory=dict, description="Per-drone late execution-start timestamps (Unix ms)")
+
+
+class LateExecutionSummary(BaseModel):
+    """Late execution results recorded after the command already reached a terminal state."""
+    received: int = Field(0, ge=0, description="Number of late execution results received")
+    succeeded: int = Field(0, ge=0, description="Late execution results marked successful")
+    failed: int = Field(0, ge=0, description="Late execution results marked failed")
+    details: Dict[str, DroneExecutionDetail] = Field(default_factory=dict, description="Per-drone late execution details")
+
+
+class LateReportSummary(BaseModel):
+    """Post-terminal evidence captured without mutating the original terminal outcome."""
+    acks: LateAckSummary = Field(default_factory=LateAckSummary, description="Late acknowledgments captured after terminal state")
+    execution_starts: LateExecutionStartSummary = Field(default_factory=LateExecutionStartSummary, description="Late execution-start reports captured after terminal state")
+    executions: LateExecutionSummary = Field(default_factory=LateExecutionSummary, description="Late execution results captured after terminal state")
+
+
 class CommandProgressSummary(BaseModel):
     """Operator-facing progress snapshot for a tracked command."""
     stage: str = Field(..., description="Normalized progress stage (awaiting_ack, scheduled, pending_execution, executing, finishing, completed, partial, failed, cancelled, timeout, superseded)")
@@ -740,6 +771,7 @@ class CommandStatusResponse(BaseModel):
     # Summaries
     acks: AckSummary = Field(..., description="Acknowledgment summary")
     executions: ExecutionSummary = Field(..., description="Execution summary")
+    late_reports: LateReportSummary = Field(default_factory=LateReportSummary, description="Late post-terminal ACK/execution evidence that did not change the final outcome")
     progress: CommandProgressSummary = Field(..., description="Operator-facing lifecycle progress snapshot")
 
     error_summary: Optional[str] = Field(None, description="Error summary if failed/partial")

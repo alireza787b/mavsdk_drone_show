@@ -366,6 +366,70 @@ class TestCommandTracker:
         assert status['error_summary'] == 'Superseded by newer command on all 2 drones'
 
     @pytest.mark.asyncio
+    async def test_late_execution_after_timeout_does_not_mutate_terminal_outcome(self, tracker):
+        """Late execution evidence should be stored without resurrecting a timed-out command."""
+        from schemas import CommandStatusResponse
+
+        command_id = await tracker.create_command(
+            mission_type=4,
+            target_drones=['1'],
+            timeout_ms=1,
+        )
+
+        await tracker.record_ack(command_id, hw_id='1', category='accepted')
+        await asyncio.sleep(0.01)
+        timed_out = await tracker.check_timeouts()
+
+        assert command_id in timed_out
+
+        await tracker.record_execution(command_id, hw_id='1', success=True, duration_ms=5000)
+
+        status = await tracker.get_status(command_id)
+        validated = CommandStatusResponse.model_validate(status)
+
+        assert validated.status.value == 'timeout'
+        assert validated.phase.value == 'terminal'
+        assert validated.outcome.value == 'timeout'
+        assert validated.executions.received == 0
+        assert validated.executions.succeeded == 0
+        assert validated.late_reports.executions.received == 1
+        assert validated.late_reports.executions.succeeded == 1
+        assert validated.late_reports.execution_starts.received == 1
+        assert validated.late_reports.executions.details['1'].duration_ms == 5000
+
+    @pytest.mark.asyncio
+    async def test_late_ack_after_timeout_does_not_change_terminal_counts(self, tracker):
+        """Late ACKs should remain diagnostic evidence only once a command is terminal."""
+        command_id = await tracker.create_command(
+            mission_type=4,
+            target_drones=['1'],
+            timeout_ms=1,
+        )
+
+        await asyncio.sleep(0.01)
+        timed_out = await tracker.check_timeouts()
+
+        assert command_id in timed_out
+
+        await tracker.record_ack(
+            command_id,
+            hw_id='1',
+            category='accepted',
+            message='Late ACK after timeout',
+        )
+
+        status = await tracker.get_status(command_id)
+
+        assert status['status'] == 'timeout'
+        assert status['phase'] == 'terminal'
+        assert status['outcome'] == 'timeout'
+        assert status['acks']['received'] == 0
+        assert status['acks']['accepted'] == 0
+        assert status['late_reports']['acks']['received'] == 1
+        assert status['late_reports']['acks']['accepted'] == 1
+        assert status['late_reports']['acks']['details']['1']['message'] == 'Late ACK after timeout'
+
+    @pytest.mark.asyncio
     async def test_cancel_command(self, tracker):
         """Test command cancellation"""
         command_id = await tracker.create_command(

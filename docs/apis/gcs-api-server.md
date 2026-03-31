@@ -849,6 +849,26 @@ Retrieve the current lifecycle state for a previously submitted command.
     "failed": 0,
     "details": {}
   },
+  "late_reports": {
+    "acks": {
+      "received": 0,
+      "accepted": 0,
+      "offline": 0,
+      "rejected": 0,
+      "errors": 0,
+      "details": {}
+    },
+    "execution_starts": {
+      "received": 0,
+      "details": {}
+    },
+    "executions": {
+      "received": 0,
+      "succeeded": 0,
+      "failed": 0,
+      "details": {}
+    }
+  },
   "progress": {
     "stage": "executing",
     "label": "Execution in progress",
@@ -879,8 +899,24 @@ Important semantics:
 - command timeout promotion runs continuously in the FastAPI background services, so a command that never reaches terminal execution reporting will still move to a terminal timeout state instead of remaining stuck forever in `submitted` or `executing`.
 - drone-side execution-start and execution-result callbacks are now retried through a bounded in-memory queue with backoff and per-command coalescing when GCS is temporarily unreachable; duplicate callback delivery is idempotent, so brief network loss should degrade into delayed tracker updates rather than permanently missing terminal state.
 - execution-start and execution-result callbacks also count as authoritative acceptance evidence. If the original GCS->drone HTTP ACK was lost or temporarily marked offline, the tracker upgrades that target to accepted once execution is confirmed.
+- once a command already reached `phase=terminal`, later ACK/execution callbacks no longer rewrite its final outcome. They are exposed under `late_reports` as post-terminal evidence for audit/debugging only.
 - strict synchronized offboard missions (`DRONE_SHOW_FROM_CSV`, `CUSTOM_CSV_DRONE_SHOW`, `SWARM_TRAJECTORY`, `HOVER_TEST`) stop GCS-side retries once the safe queue window before `triggerTime - trigger_sooner_seconds - COMMAND_SYNC_DISPATCH_GUARD_SEC` has passed, and the drone runtime aborts if actual mission start slips beyond `SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC`.
 - standalone actions such as `TAKEOFF` are not treated as strict synchronized choreography. Once accepted, they still use bounded drone-local startup retries, but they do not keep rejoining a missed synchronized timeline after the safe window has passed.
+
+#### `GET /commands/recent`
+Retrieve recent tracked commands for persistent operator monitoring surfaces.
+
+**Query parameters:**
+- `limit` (optional): max commands to return, default `50`
+- `status` (optional): filter by terminal or active status name
+- `mission_type` (optional): filter by numeric mission type
+
+Use this endpoint for recent command history panels instead of keeping frontend-only command monitor state.
+
+#### `GET /commands/active`
+Retrieve currently active non-terminal commands.
+
+Use this endpoint to rehydrate command monitors after a dashboard refresh/navigation event so operators do not lose in-flight command context when the page remounts.
 
 ---
 
