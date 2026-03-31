@@ -102,7 +102,7 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
       controlsRef.current.target.set(...targetPosition);
       controlsRef.current.update();
     }
-  }, [targetPosition, camera]);
+  }, [targetPosition, camera, controlsRef]);
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };

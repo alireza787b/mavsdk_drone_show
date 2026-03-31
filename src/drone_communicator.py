@@ -87,6 +87,52 @@ class DroneCommunicator:
         sock.setblocking(False)
         return sock
 
+    @staticmethod
+    def _normalize_update_time_ms(value: Any) -> int:
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return 0
+
+        if numeric_value <= 0:
+            return 0
+
+        if numeric_value < 1_000_000_000_000:
+            numeric_value *= 1000.0
+
+        return int(numeric_value)
+
+    def _local_mavlink_stale_threshold_ms(self) -> int:
+        def _coerce_positive_int(value: Any, default: int) -> int:
+            try:
+                return max(1, int(value))
+            except (TypeError, ValueError):
+                return default
+
+        configured_timeout = getattr(self.params, 'LOCAL_MAVLINK_STALE_TIMEOUT_SEC', None)
+        try:
+            configured_timeout_value = float(configured_timeout)
+        except (TypeError, ValueError):
+            configured_timeout_value = None
+
+        if configured_timeout_value is None or configured_timeout_value <= 0:
+            configured_timeout = (
+                _coerce_positive_int(getattr(self.params, 'LOCAL_MAVLINK_TIMEOUT_SEC', 5), 5)
+                * _coerce_positive_int(getattr(self.params, 'LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS', 3), 3)
+            )
+            configured_timeout_value = float(configured_timeout)
+
+        return max(1000, int(configured_timeout_value * 1000))
+
+    @staticmethod
+    def _build_stale_telemetry_blocker(message: str, timestamp_ms: int) -> Dict[str, Any]:
+        return {
+            "source": "telemetry",
+            "severity": "warning",
+            "message": message,
+            "timestamp": timestamp_ms,
+        }
+
     def send_telem(self, packet: bytes, ip: str, port: int) -> None:
         """
         Send telemetry packet to the specified IP and port.
@@ -365,6 +411,8 @@ class DroneCommunicator:
 
         live_swarm = self._get_live_swarm_assignment()
 
+        now_ms = int(time.time() * 1000)
+
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
             "pos_id": safe_int(self.drone_config.pos_id),  # Position ID
@@ -403,6 +451,35 @@ class DroneCommunicator:
             "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0)),  # Number of satellites
             "ip": self.drone_config.config.get('ip', 'N/A')  # Drone IP address
         }
+
+        update_time_ms = self._normalize_update_time_ms(self.drone_state.get("update_time"))
+        telemetry_age_ms = (now_ms - update_time_ms) if update_time_ms > 0 else None
+        stale_threshold_ms = self._local_mavlink_stale_threshold_ms()
+
+        self.drone_state["telemetry_last_update_age_ms"] = telemetry_age_ms
+        self.drone_state["telemetry_stale_threshold_ms"] = stale_threshold_ms
+
+        if update_time_ms <= 0:
+            self.drone_state["telemetry_available"] = False
+            self.drone_state["telemetry_error"] = "Waiting for PX4 telemetry."
+        elif telemetry_age_ms is not None and telemetry_age_ms > stale_threshold_ms:
+            stale_message = (
+                f"Local MAVLink telemetry is stale ({telemetry_age_ms / 1000.0:.1f}s since last update). "
+                "Readiness is currently unavailable."
+            )
+            self.drone_state.update({
+                "telemetry_available": False,
+                "telemetry_error": stale_message,
+                "is_ready_to_arm": False,
+                "readiness_status": "unknown",
+                "readiness_summary": stale_message,
+                "preflight_blockers": [self._build_stale_telemetry_blocker(stale_message, now_ms)],
+                "preflight_warnings": [],
+                "preflight_last_update": now_ms,
+            })
+        else:
+            self.drone_state["telemetry_available"] = True
+            self.drone_state["telemetry_error"] = None
 
         return self.drone_state
 

@@ -6,7 +6,7 @@ import DroneCriticalCommands from './DroneCriticalCommands';
 import DroneReadinessReport from './DroneReadinessReport';
 import { getFlightModeTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
-import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
+import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getPromotedMissionConfigField } from '../utilities/missionConfigFields';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
@@ -63,8 +63,10 @@ const DroneWidget = ({
   const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
   const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
   const missionStateName = getDroneShowStateName(drone[FIELD_NAMES.STATE]);
-  const friendlyMissionName = getFriendlyMissionName(drone[FIELD_NAMES.LAST_MISSION]);
-  const missionStatusClass = getMissionStatusClass(drone[FIELD_NAMES.LAST_MISSION]);
+  const missionDisplay = getMissionDisplayContext(
+    drone[FIELD_NAMES.MISSION],
+    drone[FIELD_NAMES.LAST_MISSION]
+  );
 
   // GPS status processing (with SITL simulation fallback)
   const systemStatus = drone[FIELD_NAMES.SYSTEM_STATUS] || 0;
@@ -302,8 +304,11 @@ const DroneWidget = ({
         {/* Mission */}
         <div className="data-item">
           <span className="data-label">Mission</span>
-          <span className={`mission-badge ${missionStatusClass}`}>
-            {friendlyMissionName}
+          <span
+            className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
+            title={missionDisplay.badgeTooltip}
+          >
+            {missionDisplay.currentMissionName}
           </span>
         </div>
 

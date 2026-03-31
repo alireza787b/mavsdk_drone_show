@@ -1,6 +1,6 @@
 import pytest
 
-from src.synchronized_start import evaluate_synchronized_start
+from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
 
 
 def test_evaluate_synchronized_start_uses_now_when_missing():
@@ -36,3 +36,13 @@ def test_evaluate_synchronized_start_rejects_excessive_lateness():
     assert decision.should_abort is True
     assert decision.late_by_seconds == pytest.approx(2.0)
     assert "exceeding the 1.00s late-start tolerance" in decision.reason
+
+
+def test_resolve_requested_start_time_defers_immediate_launch_until_start_gate():
+    assert resolve_requested_start_time(None) is None
+    assert resolve_requested_start_time(0) is None
+    assert resolve_requested_start_time("0") is None
+
+
+def test_resolve_requested_start_time_preserves_future_timestamp():
+    assert resolve_requested_start_time(110.0) == pytest.approx(110.0)

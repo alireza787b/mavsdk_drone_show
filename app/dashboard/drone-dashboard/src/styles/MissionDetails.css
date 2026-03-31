@@ -1205,6 +1205,25 @@
     border-color: var(--color-danger);
 }
 
+.mission-schedule__policy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    background: var(--color-info-light);
+    border: 1px solid var(--color-info);
+}
+
+.mission-schedule__policy strong {
+    color: var(--color-text-primary);
+}
+
+.mission-schedule__policy span {
+    color: var(--color-text-secondary);
+}
+
 .mission-actions {
     width: 100%;
     display: flex;

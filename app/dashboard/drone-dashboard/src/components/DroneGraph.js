@@ -49,19 +49,15 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
   const cyRef = useRef(null);
 
   const graphElements = buildGraphElements(swarmData);
-  const graphDataKey = swarmData
-    .map((drone) => `${drone.hw_id}:${drone.pos_id}:${drone.follow}:${drone.frame}:${drone.role}:${drone.hasWarnings ? 1 : 0}`)
-    .join('|');
-  const topLeaderIds = swarmData
-    .filter((drone) => drone.role === 'topLeader')
-    .map((drone) => drone.hw_id);
-  const topLeaderKey = topLeaderIds.join('|');
 
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) {
       return undefined;
     }
+    const topLeaderIds = swarmData
+      .filter((drone) => drone.role === 'topLeader')
+      .map((drone) => drone.hw_id);
 
     cy.batch(() => {
       cy.elements().remove();
@@ -81,7 +77,7 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
     cy.fit(undefined, 36);
 
     return undefined;
-  }, [graphDataKey, topLeaderKey]);
+  }, [graphElements, swarmData]);
 
   useEffect(() => {
     const cy = cyRef.current;

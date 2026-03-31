@@ -191,6 +191,8 @@ describe('MissionDetails Swarm Trajectory gating', () => {
     expect(screen.getByText('72.0s')).toBeInTheDocument();
     expect(screen.getByText('Altitude envelope:')).toBeInTheDocument();
     expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
+    expect(screen.getByText('Strict synchronized launch')).toBeInTheDocument();
+    expect(screen.getByText(/queue this mission before the safe pre-trigger window closes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
   });
 

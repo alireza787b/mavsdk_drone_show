@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import time
 from typing import Optional
 
@@ -15,6 +16,40 @@ class SynchronizedStartDecision:
     should_wait: bool
     should_abort: bool
     reason: str
+
+
+def resolve_requested_start_time(
+    requested_start_time: Optional[float],
+    *,
+    logger: logging.Logger | None = None,
+) -> Optional[float]:
+    """Normalize external start-time input before mission startup work begins."""
+    if requested_start_time in (None, "", 0, "0"):
+        if logger is not None:
+            logger.info(
+                "No synchronized start time provided. Immediate launch will anchor at the local startup gate."
+            )
+        return None
+
+    try:
+        normalized = float(requested_start_time)
+    except (TypeError, ValueError):
+        if logger is not None:
+            logger.warning(
+                "Invalid synchronized start time provided. Immediate launch will anchor at the local startup gate."
+            )
+        return None
+
+    if normalized <= 0:
+        if logger is not None:
+            logger.info(
+                "Immediate synchronized launch requested. Start time will anchor at the local startup gate."
+            )
+        return None
+
+    if logger is not None:
+        logger.info("Synchronized start time provided: %s.", time.ctime(normalized))
+    return normalized
 
 
 def evaluate_synchronized_start(

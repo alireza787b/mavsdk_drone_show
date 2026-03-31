@@ -117,7 +117,7 @@ from src.flight_timeout_utils import (
 )
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
-from src.synchronized_start import evaluate_synchronized_start
+from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
 
 from drone_show_src.utils import (
     read_hw_id,
@@ -2313,15 +2313,7 @@ def main():
     init_drone_logging()
     logger = get_logger("swarm_trajectory")
 
-    # Get the synchronized start time (exact match with drone_show.py)
-    if args.start_time:
-        synchronized_start_time = args.start_time
-        formatted_time = time.ctime(synchronized_start_time)
-        logger.info(f"Synchronized start time provided: {formatted_time}.")
-    else:
-        synchronized_start_time = time.time()
-        formatted_time = time.ctime(synchronized_start_time)
-        logger.info(f"No synchronized start time provided. Using current time: {formatted_time}.")
+    synchronized_start_time = resolve_requested_start_time(args.start_time, logger=logger)
 
     global global_synchronized_start_time
     global_synchronized_start_time = synchronized_start_time

@@ -30,7 +30,7 @@ const CommandSender = ({ drones }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
-  const [commandMonitor, setCommandMonitor] = useState(null);
+  const [commandMonitors, setCommandMonitors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
 
@@ -56,7 +56,38 @@ const CommandSender = ({ drones }) => {
   const targetDescriptor = targetMode === 'selected'
     ? `Selected drones: ${selectedDrones.join(', ')}`
     : 'Target scope: all configured drones';
+  const sortedCommandMonitors = useMemo(() => {
+    return [...commandMonitors].sort((left, right) => {
+      const leftPriority = left?.isTerminal || left?.trackingIssue ? 1 : 0;
+      const rightPriority = right?.isTerminal || right?.trackingIssue ? 1 : 0;
+
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+
+      return Number(right?.updatedAtMs || 0) - Number(left?.updatedAtMs || 0);
+    });
+  }, [commandMonitors]);
+  const commandMonitor = sortedCommandMonitors[0] || null;
+  const recentCommandMonitors = sortedCommandMonitors.slice(1, 5);
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
+
+  const upsertCommandMonitor = (snapshot) => {
+    if (!snapshot?.commandId) {
+      return;
+    }
+
+    setCommandMonitors((previous) => {
+      const existing = previous.find((item) => item.commandId === snapshot.commandId);
+      const merged = existing ? { ...existing, ...snapshot } : snapshot;
+      const next = [
+        merged,
+        ...previous.filter((item) => item.commandId !== snapshot.commandId),
+      ];
+
+      return next.slice(0, 8);
+    });
+  };
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
@@ -261,10 +292,10 @@ const CommandSender = ({ drones }) => {
         }
 
         await submitCommandWithLifecycleFeedback(commandDataToSend, {
-          onCommandAccepted: (snapshot) => setCommandMonitor(snapshot),
-          onStatusUpdate: (snapshot) => setCommandMonitor(snapshot),
-          onTrackingComplete: (snapshot) => setCommandMonitor(snapshot),
-          onTrackingUnavailable: (snapshot) => setCommandMonitor(snapshot),
+          onCommandAccepted: upsertCommandMonitor,
+          onStatusUpdate: upsertCommandMonitor,
+          onTrackingComplete: upsertCommandMonitor,
+          onTrackingUnavailable: upsertCommandMonitor,
         });
       } catch (error) {
         console.error('Error sending command:', error);
@@ -284,7 +315,19 @@ const CommandSender = ({ drones }) => {
   };
 
   const handleDismissCommandMonitor = () => {
-    setCommandMonitor(null);
+    if (!commandMonitor?.commandId) {
+      return;
+    }
+
+    setCommandMonitors((previous) =>
+      previous.filter((item) => item.commandId !== commandMonitor.commandId)
+    );
+  };
+
+  const handleDismissRecentMonitor = (commandId) => {
+    setCommandMonitors((previous) =>
+      previous.filter((item) => item.commandId !== commandId)
+    );
   };
 
   const handlePrepareMissionCancel = () => {
@@ -388,6 +431,7 @@ const CommandSender = ({ drones }) => {
       />
 
       {commandMonitor && (
+        <>
         <section className={`command-monitor command-monitor--${getMonitorTone(commandMonitor)}`}>
           <div className="command-monitor__header">
             <div>
@@ -446,6 +490,44 @@ const CommandSender = ({ drones }) => {
             )}
           </div>
         </section>
+        {recentCommandMonitors.length > 0 && (
+          <section className="command-monitor-history" aria-label="Recent commands">
+            <div className="command-monitor-history__header">
+              <strong>Recent Commands</strong>
+              <span>Older command snapshots remain visible here when newer commands arrive.</span>
+            </div>
+            <div className="command-monitor-history__list">
+              {recentCommandMonitors.map((monitor) => (
+                <article
+                  key={monitor.commandId}
+                  className={`command-monitor-history__item command-monitor-history__item--${getMonitorTone(monitor)}`}
+                >
+                  <div className="command-monitor-history__content">
+                    <div className="command-monitor-history__topline">
+                      <strong>{monitor.commandLabel}</strong>
+                      <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(monitor)}`}>
+                        {monitor.progress?.label || 'Command update'}
+                      </span>
+                    </div>
+                    <p>{monitor.progress?.message}</p>
+                    <div className="command-monitor-history__meta">
+                      <span>{monitor.targetLabel}</span>
+                      <span>ID {monitor.commandId}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="command-monitor__action command-monitor__action--secondary"
+                    onClick={() => handleDismissRecentMonitor(monitor.commandId)}
+                  >
+                    Dismiss
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+        </>
       )}
 
       {/* Tab Navigation with Expert UI/UX Icons */}

@@ -141,8 +141,9 @@ Operational guidance:
 - if the browser and GCS clocks diverge materially, the dashboard warns about the offset, but scheduling still follows the GCS clock
 - offboard startup now also waits for MAVSDK/PX4 armability before arming, so transient pre-arm blockers are retried locally instead of immediately failing the mission start
 - GCS launch dispatch now also performs a live per-drone MAVSDK armability probe for launch-from-ground missions, so passive telemetry alone cannot falsely clear a drone that PX4 would still refuse to arm
+- strict synchronized missions now expose the same fail-closed doctrine in-page and in the confirmation dialog: if dispatch or startup slips beyond the safe pre-trigger / late-start window, they abort instead of pretending the choreography stayed in sync
 - telemetry launch-readiness now treats `home_position_set` as actual PX4 HOME_POSITION truth, not just "a GPS position sample was seen once", so origin / takeoff readiness no longer gets falsely cleared by a fallback position cache
-- `Command Control` now keeps a persistent live command monitor showing the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome), the current acceptance/error counts, and a same-target `Cancel Mission` path when operators need to abort before trigger time or stop a live mission cleanly
+- `Command Control` now keeps a persistent live command monitor showing the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome), the current acceptance/error counts, a same-target `Cancel Mission` path when operators need to abort before trigger time or stop a live mission cleanly, and a recent-command strip so a newer dispatch does not silently erase the previous command snapshot from view
 
 ## Launch Readiness
 
@@ -181,7 +182,10 @@ Operational dashboard note:
 - the per-drone override strip on each overview card is intentionally treated as an airborne intervention surface
 - when a drone is still disarmed, the controls stay visibly unavailable instead of pretending they are useful on the ground
 - when telemetry is unavailable, the card tells the operator to recover link authority before attempting a per-drone override
+- the per-drone `Mission` badge now reflects the live/current mission field; if the drone is idle the badge falls back to `No Mission`, and the last mission remains secondary history context instead of replacing the live label
 - the overview Actions tab now keeps flight/test overrides compact by default, while still allowing optional GCS-clock scheduling for those actions when operators need a delayed takeoff or rehearsal start
+- standalone `TAKEOFF` now reuses the same bounded PX4 armability retry gate as the synchronized mission launchers, so operators get the same "retry briefly, then fail loudly" startup posture instead of a one-shot arm attempt
+- those standalone scheduled actions remain best-effort after acceptance; they do not inherit the strict offboard fail-closed queue window used by Drone Show / Custom CSV / Swarm Trajectory
 - maintenance and danger actions remain immediate so recovery operations do not silently inherit a delayed trigger
 
 ## Read-only Demo and Tester Setups

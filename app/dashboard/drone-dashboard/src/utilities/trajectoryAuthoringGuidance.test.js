@@ -6,6 +6,8 @@ import {
   getSwarmTrajectoryExecutionDoctrine,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
+  getTrajectoryDisplayedHeadingFieldDescription,
+  getTrajectoryDisplayedHeadingFieldLabel,
   getTrajectoryHeadingFieldLabel,
   getTrajectoryHeadingIntentSummary,
   getTrajectoryHeadingModeDescription,
@@ -14,6 +16,7 @@ import {
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
+  getTrajectoryStoredAltitudeFieldDescription,
   getTrajectoryTerrainConfidenceDescription,
   getTrajectoryTerrainConfidenceLabel,
   getTrajectoryTimingPlanSummary,
@@ -40,10 +43,33 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryRequiredSpeedLabel()).toBe('Required leg speed');
     expect(getTrajectoryHeadingFieldLabel({ isMissionAnchor: true })).toBe('Entry heading');
     expect(getTrajectoryHeadingFieldLabel()).toBe('Arrival heading');
+    expect(getTrajectoryDisplayedHeadingFieldLabel({ isMissionAnchor: true })).toBe('Entry heading');
+    expect(getTrajectoryDisplayedHeadingFieldLabel({
+      isMissionAnchor: false,
+      headingMode: YAW_CONSTANTS.AUTO,
+    })).toBe('Derived arrival heading');
+    expect(getTrajectoryDisplayedHeadingFieldLabel({
+      isMissionAnchor: false,
+      headingMode: YAW_CONSTANTS.MANUAL,
+    })).toBe('Arrival heading');
     expect(getTrajectoryHeadingModeLabel(YAW_CONSTANTS.AUTO)).toBe('Auto heading');
     expect(getTrajectoryHeadingModeLabel(YAW_CONSTANTS.MANUAL)).toBe('Manual heading');
     expect(getTrajectoryHeadingModeDescription(YAW_CONSTANTS.AUTO)).toMatch(/inbound arrival leg/i);
     expect(getTrajectoryHeadingModeDescription(YAW_CONSTANTS.MANUAL, { isMissionAnchor: true })).toMatch(/initial route-entry heading/i);
+    expect(getTrajectoryStoredAltitudeFieldDescription({
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+    })).toMatch(/derived from Target AGL/i);
+    expect(getTrajectoryStoredAltitudeFieldDescription({
+      altitudeReference: ALTITUDE_REFERENCE.MSL,
+    })).toMatch(/operator-owned/i);
+    expect(getTrajectoryDisplayedHeadingFieldDescription({
+      isMissionAnchor: false,
+      headingMode: YAW_CONSTANTS.AUTO,
+    })).toMatch(/switch Heading Mode to Manual/i);
+    expect(getTrajectoryDisplayedHeadingFieldDescription({
+      isMissionAnchor: true,
+      headingMode: YAW_CONSTANTS.MANUAL,
+    })).toMatch(/operator-owned/i);
     expect(getTrajectoryMissionAnchorLabel(0)).toBe('Mission start anchor');
     expect(getTrajectoryMissionAnchorLabel(2)).toBe('Waypoint arrival');
     expect(getTrajectoryMissionAnchorDescription(0)).toMatch(/delay after mission start/i);

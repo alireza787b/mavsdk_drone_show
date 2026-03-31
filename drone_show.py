@@ -122,7 +122,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from src.led_controller import LEDController
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
-from src.synchronized_start import evaluate_synchronized_start
+from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
 from src import origin_cache  # Phase 2: Origin caching system
 
 from drone_show_src.utils import (
@@ -2224,15 +2224,7 @@ def main():
     init_drone_logging()
     logger = get_logger("drone_show")
 
-    # Get the synchronized start time
-    if args.start_time:
-        synchronized_start_time = args.start_time
-        formatted_time = time.ctime(synchronized_start_time)
-        logger.info(f"Synchronized start time provided: {formatted_time}.")
-    else:
-        synchronized_start_time = time.time()
-        formatted_time = time.ctime(synchronized_start_time)
-        logger.info(f"No synchronized start time provided. Using current time: {formatted_time}.")
+    synchronized_start_time = resolve_requested_start_time(args.start_time, logger=logger)
 
     global global_synchronized_start_time
     global_synchronized_start_time = synchronized_start_time

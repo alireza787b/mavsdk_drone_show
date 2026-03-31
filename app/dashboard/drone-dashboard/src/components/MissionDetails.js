@@ -9,6 +9,7 @@ import {
   buildCommandSchedule,
   COMMAND_SCHEDULE_MODES,
 } from '../utilities/commandScheduling';
+import { getMissionScheduleDoctrine } from '../utilities/commandExecutionPolicy';
 import { buildSwarmTrajectoryLaunchReadiness } from '../utilities/swarmTrajectoryLaunchReadiness';
 import {
   formatSwarmTrajectoryAltitudeEnvelope,
@@ -192,6 +193,7 @@ const MissionDetails = ({
   const smartSwarmBlockers = [];
   const smartSwarmWarnings = [];
   const swarmTrajectoryWarningsList = [...swarmTrajectoryWarnings];
+  const scheduleDoctrine = getMissionScheduleDoctrine(missionType);
 
   if (showModeHints && showInfoLoading) {
     droneShowBlockers.push('Verifying imported Drone Show package...');
@@ -958,6 +960,13 @@ const MissionDetails = ({
           <span>{schedulePreview.detail}</span>
           {schedulePreview.error && <small>{schedulePreview.error}</small>}
         </div>
+
+        {scheduleDoctrine && (
+          <div className="mission-schedule__policy">
+            <strong>{scheduleDoctrine.label}</strong>
+            <span>{scheduleDoctrine.detail}</span>
+          </div>
+        )}
       </div>
 
       <div className="mission-actions">

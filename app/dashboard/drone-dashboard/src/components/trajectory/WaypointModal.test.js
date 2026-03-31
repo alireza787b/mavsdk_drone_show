@@ -8,6 +8,9 @@ jest.mock('../../services/ElevationService', () => ({
   getTerrainElevation: jest.fn(),
 }));
 
+const byTextContent = (text) => (_, element) =>
+  element?.textContent?.replace(/\s+/g, ' ').trim() === text;
+
 describe('WaypointModal', () => {
   beforeEach(() => {
     getTerrainElevation.mockResolvedValue({
@@ -38,8 +41,7 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/ground elevation:/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/200\.0m msl/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(byTextContent('Ground elevation: 200.0m MSL'))).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText(/altitude \(msl\)/i), {
@@ -125,9 +127,10 @@ describe('WaypointModal', () => {
       expect(screen.getByLabelText(/preferred leg speed/i)).toBeInTheDocument();
     });
 
-    const timeInput = screen.getByLabelText(/waypoint arrival time/i);
+    const timeInput = screen.getByLabelText(/derived waypoint arrival time/i);
     expect(timeInput).toBeDisabled();
     expect(Number(timeInput.value)).toBe(24);
+    expect(screen.getByLabelText(/derived arrival heading/i)).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/preferred leg speed/i), {
       target: { value: '4' },
@@ -141,6 +144,9 @@ describe('WaypointModal', () => {
     expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
     expect(
       screen.getByText(/operator sets preferred inbound-leg speed 4\.0 m\/s\./i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/arrival stays derived in this mode\. switch to time-driven speed to pin the mission clock yourself\./i)
     ).toBeInTheDocument();
     expect(
       screen.getByText(/planner derives arrival at 38s and verifies the leg at 4\.0 m\/s\./i)
@@ -183,6 +189,9 @@ describe('WaypointModal', () => {
 
     const timeInput = screen.getByLabelText(/waypoint arrival time/i);
     expect(timeInput).not.toBeDisabled();
+    expect(
+      screen.getByText(/required inbound-leg speed updates live from the arrival time you pin here\./i)
+    ).toBeInTheDocument();
 
     fireEvent.change(timeInput, { target: { value: '44' } });
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
@@ -244,8 +253,7 @@ describe('WaypointModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/ground elevation:/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/200\.0m msl/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(byTextContent('Ground elevation: 200.0m MSL'))).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('radio', { name: /target agl/i }));
@@ -253,9 +261,7 @@ describe('WaypointModal', () => {
       target: { value: '120' },
     });
 
-    expect(screen.getByText(/mission stores altitude as/i).closest('.agl-note')).toHaveTextContent(
-      'Mission stores altitude as 320.0m MSL'
-    );
+    expect(screen.getByText(byTextContent('Mission stores altitude as 320.0m MSL'))).toBeInTheDocument();
     expect(screen.queryByText(/estimated terrain/i)).not.toBeInTheDocument();
     expect(screen.getAllByText(/verified terrain/i).length).toBeGreaterThan(0);
 
@@ -266,6 +272,35 @@ describe('WaypointModal', () => {
       targetAgl: 120,
       altitude: 320,
     }));
+  });
+
+  it('keeps MSL input operator-owned when terrain resolves and offers an explicit safe correction', async () => {
+    render(
+      <WaypointModal
+        isOpen
+        onClose={jest.fn()}
+        onConfirm={jest.fn()}
+        position={{ latitude: 35.727, longitude: 51.272 }}
+        previousWaypoint={null}
+        waypointIndex={1}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(byTextContent('Ground elevation: 200.0m MSL'))).toBeInTheDocument();
+    });
+
+    const altitudeInput = screen.getByLabelText(/altitude \(msl\)/i);
+    expect(altitudeInput).toHaveValue(100);
+    expect(
+      screen.getByText(/stored altitude is below terrain here/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /use 300\.0m msl/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /use 300\.0m msl/i }));
+
+    expect(screen.getByLabelText(/altitude \(msl\)/i)).toHaveValue(300);
+    expect(screen.getByText(byTextContent('Mission stores altitude as 300.0m MSL'))).toBeInTheDocument();
   });
 
   it('explains that the first waypoint is the mission start anchor', async () => {

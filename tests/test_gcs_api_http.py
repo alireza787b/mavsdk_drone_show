@@ -20,6 +20,7 @@ Last Updated: 2025-12-27
 
 import pytest
 import json
+import time
 import tempfile
 import os
 import signal
@@ -261,6 +262,39 @@ class TestBackgroundTelemetryHelpers:
         assert payload['heartbeat_last_seen'] == 1700000000123
         assert payload['heartbeat_first_seen'] == 1699999999000
         assert payload['heartbeat_network_info'] == {'reachable': True}
+
+    def test_build_background_telemetry_record_marks_stale_local_feed_unavailable(self):
+        from app_fastapi import _build_background_telemetry_record, last_heartbeats
+
+        stale_update_time = int(time.time()) - 45
+
+        with patch.dict(last_heartbeats, {
+            '2': {
+                'timestamp': 1700000001123,
+                'first_seen': 1700000000.0,
+                'network_info': {'reachable': True},
+            }
+        }, clear=True):
+            payload = _build_background_telemetry_record(
+                2,
+                '192.168.1.102',
+                {
+                    'hw_id': 2,
+                    'position_lat': 35.123456,
+                    'position_long': -120.654321,
+                    'position_alt': 488.5,
+                    'update_time': stale_update_time,
+                    'is_ready_to_arm': True,
+                    'readiness_status': 'ready',
+                    'readiness_summary': 'Ready to fly',
+                },
+            )
+
+        assert payload['telemetry_available'] is False
+        assert 'stale' in payload['telemetry_error'].lower()
+        assert payload['is_ready_to_arm'] is False
+        assert payload['readiness_status'] == 'unknown'
+        assert payload['preflight_blockers']
 
 
 # ============================================================================

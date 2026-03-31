@@ -16,17 +16,20 @@ import {
 import {
   buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceDescription,
-  getTrajectoryHeadingFieldLabel,
+  getTrajectoryDisplayedHeadingFieldDescription,
+  getTrajectoryDisplayedHeadingFieldLabel,
+  getTrajectoryDerivedSpeedLabel,
+  getTrajectoryDisplayedTimeFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryPreferredSpeedLabel,
   getTrajectoryRequiredSpeedLabel,
   getTrajectoryTimingModeDescription,
-  getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TERRAIN_POLICY,
   TRAJECTORY_TIMING_POLICY,
   clampPreferredLegSpeed,
   getNominalPreferredLegSpeed,
@@ -204,13 +207,6 @@ const WaypointModal = ({
         if (elevation !== null && elevation !== undefined) {
           setGroundElevation(elevation);
 
-          setAltitude(prev => {
-            if (needsTerrainSafetyAdjustment(prev, elevation)) {
-              return getSafeTerrainAdjustedAltitude(elevation);
-            }
-            return prev;
-          });
-
           if (result.error) {
             setTerrainError(result.error);
             setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
@@ -223,12 +219,6 @@ const WaypointModal = ({
           const estimatedGround = estimateBasicElevation(latitude, longitude);
           setGroundElevation(estimatedGround);
           setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
-          setAltitude(prev => {
-            if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
-              return getSafeTerrainAdjustedAltitude(estimatedGround);
-            }
-            return prev;
-          });
           setTerrainResolved(true);
         }
       } catch (error) {
@@ -237,12 +227,6 @@ const WaypointModal = ({
         setTerrainFallbackMsg('Using estimated elevation (API unavailable)');
         const estimatedGround = estimateBasicElevation(latitude, longitude);
         setGroundElevation(estimatedGround);
-        setAltitude(prev => {
-          if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
-            return getSafeTerrainAdjustedAltitude(estimatedGround);
-          }
-          return prev;
-        });
         setTerrainResolved(true);
       } finally {
         if (!abortController.signal.aborted) {
@@ -315,12 +299,17 @@ const WaypointModal = ({
     setTerrainError('Using estimate (skipped API)');
     setTerrainFallbackMsg('Using estimated elevation (skipped by user)');
     setTerrainResolved(true);
-    setAltitude((prev) => {
-      if (needsTerrainSafetyAdjustment(prev, estimatedGround)) {
-        return getSafeTerrainAdjustedAltitude(estimatedGround);
-      }
-      return prev;
-    });
+  };
+
+  const handleApplySafeTerrainSuggestion = () => {
+    setValidationMessage(null);
+
+    if (altitudeReference === ALTITUDE_REFERENCE.AGL) {
+      setTargetAgl(TRAJECTORY_TERRAIN_POLICY.DEFAULT_SAFE_CLEARANCE_M);
+      return;
+    }
+
+    setAltitude(getSafeTerrainAdjustedAltitude(groundElevation));
   };
 
   const handleConfirm = () => {
@@ -459,6 +448,8 @@ const WaypointModal = ({
 
   const isUnderground = altitude < groundElevation;
   const aglAltitude = Math.max(0, altitude - groundElevation);
+  const needsTerrainReview = terrainResolved && needsTerrainSafetyAdjustment(altitude, groundElevation);
+  const safeSuggestedAltitude = getSafeTerrainAdjustedAltitude(groundElevation);
   const previousTime = previousWaypoint?.timeFromStart || 0;
   const legDuration = Math.max(0, timeFromStart - previousTime);
   const authoringCards = buildTrajectoryWaypointAuthoringCards({
@@ -629,9 +620,28 @@ const WaypointModal = ({
                   </small>
                 )}
               </div>
-              {isUnderground && (
-                <div className="validation-message error">
-                  ⚠️ Altitude is below ground level! Minimum: {groundElevation.toFixed(1)}m MSL
+              {needsTerrainReview && (
+                <div className={`validation-message ${isUnderground ? 'error' : 'warning'}`}>
+                  <div className="validation-message__body">
+                    <span>
+                      {isUnderground
+                        ? `Stored altitude is below terrain here. Current clearance is ${aglAltitude.toFixed(1)}m AGL against ground at ${groundElevation.toFixed(1)}m MSL.`
+                        : `Current clearance is ${aglAltitude.toFixed(1)}m AGL, below the ${TRAJECTORY_TERRAIN_POLICY.MIN_SAFE_CLEARANCE_M}m review floor.`}
+                      {' '}
+                      {altitudeReference === ALTITUDE_REFERENCE.AGL
+                        ? `The mission still stores ${altitude.toFixed(1)}m MSL from your clearance target.`
+                        : `Your stored MSL altitude remains ${altitude.toFixed(1)}m unless you change it.`}
+                    </span>
+                    <button
+                      type="button"
+                      className="validation-action-btn"
+                      onClick={handleApplySafeTerrainSuggestion}
+                    >
+                      {altitudeReference === ALTITUDE_REFERENCE.AGL
+                        ? `Use ${TRAJECTORY_TERRAIN_POLICY.DEFAULT_SAFE_CLEARANCE_M.toFixed(1)}m AGL`
+                        : `Use ${safeSuggestedAltitude.toFixed(1)}m MSL`}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -693,7 +703,10 @@ const WaypointModal = ({
             )}
 
             <label htmlFor="timeFromStart" className="input-label">
-              {`⏱️ ${getTrajectoryTimeFieldLabel({ isMissionAnchor: !previousWaypoint })}`}
+              {`⏱️ ${getTrajectoryDisplayedTimeFieldLabel({
+                isMissionAnchor: !previousWaypoint,
+                timingMode,
+              })}`}
             </label>
             <input
               id="timeFromStart"
@@ -714,6 +727,15 @@ const WaypointModal = ({
                 <small className="time-calculation">
                   Mode: <strong>{getTrajectoryTimingModeLabel(timingMode)}</strong>
                 </small>
+                {timingMode === TIMING_MODES.AUTO_SPEED ? (
+                  <small className="time-calculation">
+                    Arrival stays derived in this mode. Switch to Time-driven speed to pin the mission clock yourself.
+                  </small>
+                ) : (
+                  <small className="time-calculation">
+                    Required inbound-leg speed updates live from the arrival time you pin here.
+                  </small>
+                )}
               </div>
             )}
             {!previousWaypoint && (
@@ -731,7 +753,10 @@ const WaypointModal = ({
           <div className="heading-section">
             <div className="heading-input-group">
               <label htmlFor="heading" className="input-label">
-                {`🧭 ${getTrajectoryHeadingFieldLabel({ isMissionAnchor: !previousWaypoint })}`}
+                {`🧭 ${getTrajectoryDisplayedHeadingFieldLabel({
+                  isMissionAnchor: !previousWaypoint,
+                  headingMode,
+                })}`}
                 <span className="heading-display">({formatHeading(heading)})</span>
               </label>
               
@@ -790,7 +815,10 @@ const WaypointModal = ({
                 </small>
                 {headingMode === YAW_CONSTANTS.AUTO && previousWaypoint && (
                   <small className="auto-heading-note">
-                    Auto mode: Aligns with the inbound leg from waypoint {waypointIndex - 1} ({formatHeading(calculatedHeading)})
+                    {getTrajectoryDisplayedHeadingFieldDescription({
+                      isMissionAnchor: !previousWaypoint,
+                      headingMode,
+                    })} Current inbound-leg heading: {formatHeading(calculatedHeading)} from waypoint {waypointIndex - 1}.
                   </small>
                 )}
                 {headingMode === YAW_CONSTANTS.MANUAL && (
@@ -811,7 +839,11 @@ const WaypointModal = ({
             <div className="speed-section">
               <div className="speed-display" style={getSpeedStatusStyle(speedStatus)}>
                 <div className="speed-header">
-                  <span className="speed-label">{getTrajectoryRequiredSpeedLabel()}</span>
+                  <span className="speed-label">
+                    {timingMode === TIMING_MODES.AUTO_SPEED
+                      ? getTrajectoryDerivedSpeedLabel()
+                      : getTrajectoryRequiredSpeedLabel()}
+                  </span>
                   <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>
                   <span className="speed-kmh">({(estimatedSpeed * 3.6).toFixed(1)} km/h)</span>
                 </div>

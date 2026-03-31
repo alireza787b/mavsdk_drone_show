@@ -27,6 +27,10 @@ import {
   COMMAND_SCHEDULE_MODES,
   formatDateTimeLocalInput,
 } from '../utilities/commandScheduling';
+import {
+  getActionExecutionPolicy,
+  isSchedulableActionKey,
+} from '../utilities/commandExecutionPolicy';
 import '../styles/DroneActions.css';
 
 const ACTION_SECTIONS = [
@@ -90,16 +94,6 @@ const ACTION_DESCRIPTIONS = {
   APPLY_COMMON_PARAMS: 'Apply the common PX4 parameter set and reboot.',
 };
 
-const SCHEDULABLE_ACTIONS = new Set([
-  'TAKE_OFF',
-  'HOVER_TEST',
-  'HOLD',
-  'LAND',
-  'RETURN_RTL',
-  'TEST',
-  'TEST_LED',
-]);
-
 const DroneActions = ({
   actionTypes,
   onSendCommand,
@@ -120,7 +114,7 @@ const DroneActions = ({
   }), [referenceNowMs, scheduleMode, selectedDateTime, timeDelay]);
 
   const handleActionClick = (actionKey, extraData = {}) => {
-    const supportsScheduling = SCHEDULABLE_ACTIONS.has(actionKey);
+    const supportsScheduling = isSchedulableActionKey(actionKey);
     if (supportsScheduling && actionSchedule.error) {
       toast.error(actionSchedule.error);
       return;
@@ -154,6 +148,13 @@ const DroneActions = ({
             value: `${altitude} m`,
           }]
           : []),
+        {
+          label: 'Execution policy',
+          value: getActionExecutionPolicy({
+            actionKey,
+            isImmediate: supportsScheduling ? actionSchedule.isImmediate : true,
+          }),
+        },
       ],
     };
 

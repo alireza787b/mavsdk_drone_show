@@ -253,9 +253,13 @@
 .mode-badge.rtl { background: var(--color-info); color: white; }
 .mode-badge.hold { background: var(--color-primary); color: white; }
 
-.mission-badge.active { background: var(--color-success); color: white; }
-.mission-badge.idle { background: var(--color-text-secondary); color: white; }
-.mission-badge.error { background: var(--color-danger); color: white; }
+.mission-badge.mission-none { background: #6b7280; color: white; }
+.mission-badge.mission-performance { background: #8b5cf6; color: white; }
+.mission-badge.mission-flight { background: #06b6d4; color: white; }
+.mission-badge.mission-test { background: #f59e0b; color: #1f2937; }
+.mission-badge.mission-system { background: #3b82f6; color: white; }
+.mission-badge.mission-emergency { background: #ef4444; color: white; }
+.mission-badge.mission-default { background: #10b981; color: white; }
 
 .mission-state-badge.executing { background: var(--color-success); color: white; }
 .mission-state-badge.ready { background: var(--color-info); color: white; }

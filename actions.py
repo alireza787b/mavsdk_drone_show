@@ -63,6 +63,7 @@ from mavsdk.action import ActionError
 from src.drone_config import ConfigLoader
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.led_controller import LEDController
+from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
 
 # Unified logging system
@@ -708,7 +709,13 @@ async def takeoff(drone, altitude):
         led_controller.set_color(255, 255, 0)  # Yellow: starting
         await asyncio.sleep(0.5)
         await drone.action.set_takeoff_altitude(target_altitude)
-        await drone.action.arm()
+        # Keep standalone takeoff on the same bounded armability posture as
+        # synchronized launchers without changing its separate GPS/home preflight.
+        await arm_with_preflight_gate(
+            drone,
+            require_global_position=False,
+            logger=logger,
+        )
         await wait_until_armed_state(drone, True, timeout=10)
         led_controller.set_color(255, 255, 255)  # White: armed
         await asyncio.sleep(0.5)

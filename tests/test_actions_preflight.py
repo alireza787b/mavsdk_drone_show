@@ -94,6 +94,43 @@ async def test_wait_until_relative_altitude_raises_when_fallback_is_still_below_
         await actions.wait_until_relative_altitude(drone, 8.0, timeout=1)
 
 
+@pytest.mark.asyncio
+async def test_takeoff_uses_shared_armability_gate_after_preflight(mocker):
+    led_instance = MagicMock()
+    mocker.patch("actions.LEDController.get_instance", return_value=led_instance)
+    mocker.patch("actions.ensure_ready_for_flight", new=mocker.AsyncMock(return_value=True))
+    arm_gate = mocker.patch("actions.arm_with_preflight_gate", new=mocker.AsyncMock())
+    wait_armed = mocker.patch("actions.wait_until_armed_state", new=mocker.AsyncMock())
+    wait_landed = mocker.patch("actions.wait_until_landed_state", new=mocker.AsyncMock())
+    wait_altitude = mocker.patch("actions.wait_until_relative_altitude", new=mocker.AsyncMock())
+    mocker.patch("actions.asyncio.sleep", new=mocker.AsyncMock())
+    mocker.patch.object(
+        actions.telemetry,
+        "LandedState",
+        SimpleNamespace(TAKING_OFF="TAKING_OFF", IN_AIR="IN_AIR"),
+    )
+
+    drone = SimpleNamespace(
+        action=SimpleNamespace(
+            set_takeoff_altitude=mocker.AsyncMock(),
+            takeoff=mocker.AsyncMock(),
+        )
+    )
+
+    await actions.takeoff(drone, 12.0)
+
+    arm_gate.assert_awaited_once_with(
+        drone,
+        require_global_position=False,
+        logger=actions.logger,
+    )
+    wait_armed.assert_awaited_once_with(drone, True, timeout=10)
+    wait_landed.assert_awaited_once()
+    wait_altitude.assert_awaited_once()
+    drone.action.set_takeoff_altitude.assert_awaited_once_with(12.0)
+    drone.action.takeoff.assert_awaited_once()
+
+
 def test_calculate_land_disarm_timeout_defaults_to_minimum_when_altitude_unknown():
     assert actions.calculate_land_disarm_timeout(None) == actions.Params.LAND_ACTION_MIN_DISARM_WAIT_SEC
 

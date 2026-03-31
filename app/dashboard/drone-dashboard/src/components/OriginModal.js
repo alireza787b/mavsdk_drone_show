@@ -10,6 +10,28 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
+function extractDroneParameters(drone, telemetryData) {
+  const tData = telemetryData[drone.hw_id] || {};
+  const lat = parseFloat(tData[FIELD_NAMES.POSITION_LAT] || 0);
+  const lon = parseFloat(tData[FIELD_NAMES.POSITION_LONG] || 0);
+
+  if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
+    return {
+      current_lat: 0,
+      current_lon: 0,
+      pos_id: drone.pos_id,
+      isValid: false,
+    };
+  }
+
+  return {
+    current_lat: lat,
+    current_lon: lon,
+    pos_id: drone.pos_id,
+    isValid: true,
+  };
+}
+
 /**
  * OriginModal
  *
@@ -98,7 +120,7 @@ const OriginModal = ({
         current_lon,
         pos_id,
         isValid,
-      } = extractDroneParameters(selectedDrone);
+      } = extractDroneParameters(selectedDrone, telemetryData);
       if (!isValid) {
         setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });
         return;
@@ -111,6 +133,7 @@ const OriginModal = ({
     hasAutoComputed,
     configData,
     computeOrigin,
+    telemetryData,
   ]);
 
   // If the custom hook has an error, toast once
@@ -119,32 +142,6 @@ const OriginModal = ({
       toast.error(`Origin computation failed: ${error}`);
     }
   }, [error]);
-
-  // ------------------------------------------
-  // Drone Parameter Extraction
-  // ------------------------------------------
-  const extractDroneParameters = (drone) => {
-    const tData = telemetryData[drone.hw_id] || {};
-    const lat = parseFloat(tData[FIELD_NAMES.POSITION_LAT] || 0);
-    const lon = parseFloat(tData[FIELD_NAMES.POSITION_LONG] || 0);
-
-    // If lat/lon ~ zero or missing => invalid
-    if (Math.abs(lat) < 0.0001 && Math.abs(lon) < 0.0001) {
-      return {
-        current_lat: 0,
-        current_lon: 0,
-        pos_id: drone.pos_id,
-        isValid: false,
-      };
-    }
-
-    return {
-      current_lat: lat,
-      current_lon: lon,
-      pos_id: drone.pos_id,
-      isValid: true,
-    };
-  };
 
   // ------------------------------------------
   // Manual Input Validation
@@ -180,7 +177,7 @@ const OriginModal = ({
       current_lon,
       pos_id,
       isValid,
-    } = extractDroneParameters(selectedDrone);
+    } = extractDroneParameters(selectedDrone, telemetryData);
 
     if (!isValid) {
       setErrors({ drone: 'No valid telemetry or lat/lon is (0,0). Drone not connected?' });

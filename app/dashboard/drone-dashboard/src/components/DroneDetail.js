@@ -10,7 +10,7 @@ import '../styles/DroneDetail.css';
 import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName } from '../constants/droneStates';
-import { getFriendlyMissionName } from '../utilities/missionUtils';
+import { getMissionDisplayContext } from '../utilities/missionUtils';
 import {
   FIELD_NAMES,
   attachDroneRuntimeClock,
@@ -34,20 +34,21 @@ const droneIcon = new L.Icon({
 const DroneDetail = ({ drone, isAccordionView }) => {
   const [detailedDrone, setDetailedDrone] = useState(drone);
   const [activeTab, setActiveTab] = useState('overview');
+  const droneId = drone[FIELD_NAMES.HW_ID];
 
   useEffect(() => {
     const backendURL = getBackendURL();
     const url = `${backendURL}/telemetry`;
     const fetchData = () => {
       axios.get(url).then((response) => {
-        const droneData = response.data[drone[FIELD_NAMES.HW_ID]];
+        const droneData = response.data[droneId];
         if (droneData) {
           const clockMeta = {
             receivedAtMs: Date.now(),
             serverNowMs: extractServerNowMs(response.headers),
           };
           setDetailedDrone(attachDroneRuntimeClock({
-            hw_ID: drone[FIELD_NAMES.HW_ID],
+            hw_ID: droneId,
             ...normalizeDroneData(droneData),
           }, clockMeta));
         }
@@ -60,7 +61,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [drone[FIELD_NAMES.HW_ID]]);
+  }, [droneId]);
 
   const getBatteryStatus = (voltage) => {
     if (voltage >= 16.0) return { class: 'excellent', color: '#38a169', label: 'Excellent' };
@@ -110,7 +111,10 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const flightModeCategory = getFlightModeCategory(detailedDrone[FIELD_NAMES.FLIGHT_MODE]);
   const systemStatusName = getSystemStatusTitle(detailedDrone[FIELD_NAMES.SYSTEM_STATUS]);
   const missionStateName = getDroneShowStateName(detailedDrone[FIELD_NAMES.STATE]);
-  const friendlyMissionName = getFriendlyMissionName(detailedDrone[FIELD_NAMES.LAST_MISSION]);
+  const missionDisplay = getMissionDisplayContext(
+    detailedDrone[FIELD_NAMES.MISSION],
+    detailedDrone[FIELD_NAMES.LAST_MISSION]
+  );
 
   const isArmed = detailedDrone[FIELD_NAMES.IS_ARMED] || false;
   const batteryStatus = getBatteryStatus(detailedDrone[FIELD_NAMES.BATTERY_VOLTAGE] || 0);
@@ -216,11 +220,11 @@ const DroneDetail = ({ drone, isAccordionView }) => {
           </div>
           <div className="detail-item">
             <label>Current Mission</label>
-            <span>{detailedDrone[FIELD_NAMES.MISSION] || 'None'}</span>
+            <span>{missionDisplay.currentMissionName}</span>
           </div>
           <div className="detail-item">
             <label>Last Mission</label>
-            <span>{friendlyMissionName}</span>
+            <span>{missionDisplay.lastMissionName}</span>
           </div>
           <div className="detail-item">
             <label>Follow Mode</label>

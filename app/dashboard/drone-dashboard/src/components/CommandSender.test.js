@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import CommandSender from './CommandSender';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
@@ -206,5 +206,112 @@ describe('CommandSender', () => {
       target_drones: ['1', '2'],
       triggerTime: '0',
     });
+  });
+
+  it('keeps older command snapshots visible when a newer command is sent', async () => {
+    let invocation = 0;
+
+    submitCommandWithLifecycleFeedback.mockImplementation(async (_commandData, options = {}) => {
+      invocation += 1;
+      const snapshot = invocation === 1
+        ? {
+          commandId: 'cmd-1',
+          commandLabel: 'Swarm Trajectory',
+          missionType: 4,
+          targetDrones: ['1', '2'],
+          targetLabel: '2 selected drones',
+          targetDescriptor: 'Selected drones: 1, 2',
+          phase: 'pending_execution',
+          outcome: null,
+          isTerminal: false,
+          trackingIssue: null,
+          progress: {
+            stage: 'scheduled',
+            label: 'Scheduled, waiting for trigger time',
+            message: '2/2 targeted drone(s) accepted the command. Waiting for the scheduled trigger time.',
+            scheduledTriggerTime: 1761955200000,
+            ackPending: 0,
+            active: 0,
+            completed: 0,
+            remaining: 2,
+          },
+          acks: {
+            expected: 2,
+            accepted: 2,
+            offline: 0,
+            rejected: 0,
+            errors: 0,
+          },
+          executions: {
+            expected: 2,
+            succeeded: 0,
+            failed: 0,
+          },
+          triggerTime: 1761955200,
+          canCancelMission: true,
+          updatedAtMs: 1000,
+        }
+        : {
+          commandId: 'cmd-2',
+          commandLabel: 'Take Off',
+          missionType: 10,
+          targetDrones: ['1', '2'],
+          targetLabel: '2 selected drones',
+          targetDescriptor: 'Selected drones: 1, 2',
+          phase: 'pending_execution',
+          outcome: null,
+          isTerminal: false,
+          trackingIssue: null,
+          progress: {
+            stage: 'pending_execution',
+            label: 'Accepted, waiting for execution start',
+            message: '2/2 targeted drone(s) accepted the command. Waiting for execution start reports from 2 drone(s).',
+            ackPending: 0,
+            active: 0,
+            completed: 0,
+            remaining: 2,
+          },
+          acks: {
+            expected: 2,
+            accepted: 2,
+            offline: 0,
+            rejected: 0,
+            errors: 0,
+          },
+          executions: {
+            expected: 2,
+            succeeded: 0,
+            failed: 0,
+          },
+          triggerTime: 0,
+          canCancelMission: true,
+          updatedAtMs: 2000,
+        };
+
+      options.onCommandAccepted?.(snapshot);
+      return { success: true, command_id: snapshot.commandId };
+    });
+
+    render(<CommandSender drones={drones} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Swarm Trajectory')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Recent Commands')).toBeInTheDocument();
+    });
+
+    const liveMonitor = screen.getByText('Live Command Monitor').closest('section');
+    expect(within(liveMonitor).getByText('Take Off')).toBeInTheDocument();
+
+    const recentCommands = screen.getByLabelText(/recent commands/i);
+    expect(within(recentCommands).getByText('Swarm Trajectory')).toBeInTheDocument();
   });
 });

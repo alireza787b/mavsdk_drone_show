@@ -1,6 +1,7 @@
 import sys
 import types
 from io import StringIO
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -421,6 +422,34 @@ async def test_run_swarm_trajectory_mission_exits_failure_when_mission_runtime_r
     stop_offboard_mode.assert_awaited_once_with(drone)
     perform_landing.assert_not_awaited()
     stop_mavsdk_server.assert_called_once_with(mavsdk_server)
+
+
+def test_main_defers_immediate_start_until_local_startup_gate(monkeypatch):
+    args = SimpleNamespace(
+        start_time=None,
+        position_id=None,
+        end_behavior=None,
+    )
+    logger = MagicMock()
+    mission_mock = MagicMock(return_value="fake-coro")
+    asyncio_run = MagicMock()
+
+    monkeypatch.setattr(stm.argparse.ArgumentParser, "parse_args", lambda self: args)
+    monkeypatch.setattr(stm, "apply_log_args", lambda parsed: None)
+    monkeypatch.setattr(stm, "register_component", lambda *a, **k: None)
+    monkeypatch.setattr(stm, "init_drone_logging", lambda: None)
+    monkeypatch.setattr(stm, "get_logger", lambda name: logger)
+    monkeypatch.setattr(stm, "run_swarm_trajectory_mission", mission_mock)
+    monkeypatch.setattr(stm.asyncio, "run", asyncio_run)
+
+    stm.main()
+
+    mission_mock.assert_called_once_with(
+        None,
+        position_id_override=None,
+        end_behavior_override=None,
+    )
+    asyncio_run.assert_called_once_with("fake-coro")
 
 
 @pytest.mark.asyncio

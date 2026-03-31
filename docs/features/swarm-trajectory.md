@@ -172,7 +172,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 4. **Launch** the mission after the Swarm Trajectory preflight summary is clear
 5. **Monitor** execution through existing telemetry systems and the live command monitor in `Command Control`
    - the command monitor shows the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome)
+   - newer commands no longer replace older snapshots silently; recent command states stay visible in the same panel for cross-checking during multi-step operations
    - if the mission was scheduled for the future or needs to be aborted in flight, use the same-target `Cancel Mission` control from that monitor instead of relying on the disabled tracker-only cancel endpoint
+   - strict synchronized launches now show the same doctrine in the mission page and confirmation dialog: if dispatch or startup slips beyond the safe pre-trigger / late-start window, the mission aborts instead of joining late
 
 ### First-Run Checklist
 
@@ -257,6 +259,8 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - trajectory authoring defaults and validation limits now come from one explicit mission-policy source:
   - default MSL altitude, target AGL, and preferred leg speed are shared instead of duplicated across modal/panel/search/import code
   - the planner surface now declares the active mission envelope (`0.5-12 m/s nominal`, `12-20 m/s review`, altitude `1-10,000 m MSL`) so operators do not have to infer those rules from warnings after the fact
+  - the planner's impossible-speed validation and preferred-speed input clamp now align with the current runtime ceiling (`src/params.py:swarm_trajectory_max_speed = 20.0`), so the UI no longer suggests that `20-30 m/s` routes are still acceptable for mission generation
+  - inline waypoint editing now follows the same ownership rule as the add/edit modal: `Target AGL` keeps the stored MSL mission altitude as a derived readout, `MSL input` is the only mode that leaves stored altitude directly editable, and `Auto heading` keeps the arrival heading derived until the operator explicitly switches that waypoint to `Manual`
 - dashboard launch preflight now surfaces the processed mission package more explicitly:
   - ready clusters, processed drones, missing uploads, and the active processing session are summarized before dispatch
   - the launch snapshot and readiness card now use authoritative processed-package timing/altitude truth from the generated `Drone N.csv` outputs, including mission clock, route-entry time, route-motion window, and altitude envelope
@@ -307,6 +311,10 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number
+- modal and waypoint-panel labels now explicitly mark derived timing/speed values instead of showing them as peer inputs:
+  - `Derived waypoint arrival time` appears when `Speed-driven ETA` owns the leg
+  - `Derived required speed` stays visible as the planner check for the inbound leg
+  - panel guidance now tells the operator that only owned inputs are editable, while derived planner checks remain locked
 - planner coordinate edits and dragged waypoint moves now refresh terrain truth at the new coordinates:
   - `Target AGL` waypoints preserve the operator's clearance intent and recompute the stored MSL altitude against the refreshed ground elevation
   - `MSL input` waypoints keep the stored mission altitude but update derived terrain/clearance review from the new location

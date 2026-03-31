@@ -139,12 +139,11 @@ async def test_probe_offboard_armability_returns_last_state_on_timeout(monkeypat
 @pytest.mark.asyncio
 async def test_arm_with_preflight_gate_retries_command_denied(monkeypatch):
     drone = MagicMock()
-    action_result = Mock()
-    action_result.result = "COMMAND_DENIED"
-    action_result.result_str = "COMMAND_DENIED"
-    drone.action.arm = AsyncMock(
-        side_effect=[mission_startup.ActionError(action_result, "unit-test"), None]
-    )
+    class _CommandDeniedError(mission_startup.ActionError):
+        def __str__(self):
+            return "COMMAND_DENIED"
+
+    drone.action.arm = AsyncMock(side_effect=[_CommandDeniedError(), None])
 
     wait_mock = AsyncMock()
     monkeypatch.setattr(mission_startup, "wait_until_offboard_armable", wait_mock)

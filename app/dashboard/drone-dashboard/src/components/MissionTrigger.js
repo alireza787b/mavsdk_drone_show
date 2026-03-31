@@ -16,6 +16,7 @@ import {
   COMMAND_SCHEDULE_MODES,
   formatDateTimeLocalInput,
 } from '../utilities/commandScheduling';
+import { getMissionExecutionPolicy } from '../utilities/commandExecutionPolicy';
 import '../styles/MissionTrigger.css';
 
 const MissionTrigger = ({
@@ -75,6 +76,9 @@ const MissionTrigger = ({
     }
 
     const isCustomCsvMission = selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW;
+    const missionExecutionPolicy = getMissionExecutionPolicy(selectedMission, {
+      isImmediate: schedule.isImmediate,
+    });
     const commandData = {
       missionType: String(selectedMission),
       triggerTime: String(schedule.triggerTimeSec ?? 0),
@@ -93,6 +97,12 @@ const MissionTrigger = ({
               ? `GCS-aligned scheduler (${clockOffsetLabel})`
               : 'GCS-aligned scheduler',
           },
+          ...(missionExecutionPolicy
+            ? [{
+              label: 'Execution policy',
+              value: missionExecutionPolicy,
+            }]
+            : []),
           ...(selectedMission === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
             ? [
               {

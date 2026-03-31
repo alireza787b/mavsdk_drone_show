@@ -21,16 +21,18 @@ import {
   buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
-  getTrajectoryHeadingFieldLabel,
+  getTrajectoryDisplayedHeadingFieldDescription,
+  getTrajectoryDisplayedHeadingFieldLabel,
+  getTrajectoryDerivedSpeedLabel,
+  getTrajectoryDisplayedTimeFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
   getTrajectoryMissionAnchorDescription,
   getTrajectoryMissionAnchorLabel,
   getTrajectoryPreferredSpeedLabel,
-  getTrajectoryRequiredSpeedLabel,
+  getTrajectoryStoredAltitudeFieldDescription,
   getTrajectoryTerrainConfidenceDescription,
   getTrajectoryTerrainConfidenceLabel,
-  getTrajectoryTimeFieldLabel,
   getTrajectoryTimingModeDescription,
   getTrajectoryTimingModeLabel,
 } from '../../utilities/trajectoryAuthoringGuidance';
@@ -514,6 +516,13 @@ const WaypointPanel = ({
   const formatTimingMode = (waypoint) =>
     getTrajectoryTimingModeLabel(getTimingMode(waypoint));
 
+  const showDerivedFieldNotice = (text) => {
+    setEditFeedback({
+      tone: 'info',
+      text,
+    });
+  };
+
   const getWaypointAuthoringCards = (waypoint, index) =>
     buildTrajectoryWaypointAuthoringCards({
       altitudeReference: getAltitudeReference(waypoint),
@@ -781,10 +790,31 @@ const WaypointPanel = ({
               </div>
               
               <div className="detail-row">
-                <span className="detail-label">Stored Altitude (MSL):</span>
-                {renderEditableField(
-                  waypoint, 
-                  'altitude', 
+                <span
+                  className="detail-label"
+                  title={getTrajectoryStoredAltitudeFieldDescription({
+                    altitudeReference: getAltitudeReference(waypoint),
+                  })}
+                >
+                  Stored Altitude (MSL):
+                </span>
+                {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? (
+                  <span
+                    className="detail-value derived-value"
+                    title={getTrajectoryStoredAltitudeFieldDescription({
+                      altitudeReference: getAltitudeReference(waypoint),
+                    })}
+                    onClick={() => showDerivedFieldNotice(
+                      getTrajectoryStoredAltitudeFieldDescription({
+                        altitudeReference: getAltitudeReference(waypoint),
+                      })
+                    )}
+                  >
+                    {`${waypoint.altitude.toFixed(1)}m`}
+                  </span>
+                ) : renderEditableField(
+                  waypoint,
+                  'altitude',
                   waypoint.altitude,
                   `${waypoint.altitude.toFixed(1)}m`
                 )}
@@ -852,10 +882,19 @@ const WaypointPanel = ({
                     ? getTrajectoryMissionAnchorDescription(index)
                     : getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
                 >
-                  {`${getTrajectoryTimeFieldLabel({ isMissionAnchor: index === 0 })}:`}
+                  {`${getTrajectoryDisplayedTimeFieldLabel({
+                    isMissionAnchor: index === 0,
+                    timingMode: getTimingMode(waypoint),
+                  })}:`}
                 </span>
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
-                  <span className="detail-value derived-value" title="Derived from the leg speed target. Edit Timing Mode or Leg Speed to change it.">
+                  <span
+                    className="detail-value derived-value"
+                    title="Derived from the leg speed target. Edit Timing Mode or Preferred Leg Speed to change it."
+                    onClick={() => showDerivedFieldNotice(
+                      'Waypoint arrival time is derived from the preferred leg speed in Speed-driven ETA mode. Switch Timing Mode to Time-driven speed if you want to type an arrival time directly.'
+                    )}
+                  >
                     {formatTime(waypoint.timeFromStart || waypoint.time || 0)}
                   </span>
                 ) : (
@@ -913,7 +952,7 @@ const WaypointPanel = ({
               
               {index > 0 && (
                 <div className="detail-row speed-row">
-                  <span className="detail-label">{`${getTrajectoryRequiredSpeedLabel()}:`}</span>
+                  <span className="detail-label">{`${getTrajectoryDerivedSpeedLabel()}:`}</span>
                   <div className="speed-display">
                     <span className={`detail-value speed-value speed-${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
                       {formatSpeed(waypoint.estimatedSpeed)}m/s
@@ -948,12 +987,33 @@ const WaypointPanel = ({
                     { isMissionAnchor: index === 0 }
                   )}
                 >
-                  {`${getTrajectoryHeadingFieldLabel({ isMissionAnchor: index === 0 })}:`}
+                  {`${getTrajectoryDisplayedHeadingFieldLabel({
+                    isMissionAnchor: index === 0,
+                    headingMode: index === 0
+                      ? YAW_CONSTANTS.MANUAL
+                      : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+                  })}:`}
                 </span>
                 <div className="heading-display">
-                  {renderEditableField(
-                    waypoint, 
-                    'heading', 
+                  {index > 0 && (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? (
+                    <span
+                      className="detail-value derived-value"
+                      title={getTrajectoryDisplayedHeadingFieldDescription({
+                        isMissionAnchor: false,
+                        headingMode: YAW_CONSTANTS.AUTO,
+                      })}
+                      onClick={() => showDerivedFieldNotice(
+                        getTrajectoryDisplayedHeadingFieldDescription({
+                          isMissionAnchor: false,
+                          headingMode: YAW_CONSTANTS.AUTO,
+                        })
+                      )}
+                    >
+                      {formatHeading(waypoint.heading || waypoint.yaw || 0)}
+                    </span>
+                  ) : renderEditableField(
+                    waypoint,
+                    'heading',
                     waypoint.heading || waypoint.yaw || 0,
                     formatHeading(waypoint.heading || waypoint.yaw || 0)
                   )}
@@ -1071,8 +1131,9 @@ const WaypointPanel = ({
       {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
         <div className="edit-instructions">
           <small>
-            💡 {isMobile ? 'Tap to edit values' : 'Click any value to edit inline'}. 
-            {!isMobile && 'Drag waypoints on map to reposition.'}
+            💡 {isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.
+            {' '}Derived timing and speed checks stay locked so the panel always shows what the planner is calculating.
+            {!isMobile && ' Drag waypoints on map to reposition.'}
           </small>
         </div>
       )}

@@ -21,40 +21,39 @@ L.Icon.Default.mergeOptions({
   shadowSize: [41, 41],
 });
 
+function MapEvents({ onSelect, initialPosition, hasInteracted, onFirstInteraction }) {
+  const map = useMapEvents({
+    click(e) {
+      const { lat, lng } = e.latlng;
+      onSelect({ lat, lon: lng });
+    },
+    moveend() {
+      if (!hasInteracted) {
+        onFirstInteraction();
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (initialPosition && !hasInteracted) {
+      map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), {
+        animate: true,
+      });
+    }
+  }, [hasInteracted, initialPosition, map]);
+
+  return null;
+}
+
 const MapSelector = ({ onSelect, initialPosition }) => {
   // Default center: e.g., somewhere visible (Tokyo).
-  const [mapCenter, setMapCenter] = useState({
+  const [mapCenter] = useState({
     lat: initialPosition ? initialPosition.lat : 35.6895,
     lon: initialPosition ? initialPosition.lon : 139.6917,
   });
 
   // Prevent continuous recenter if user moves the map
   const [hasInteracted, setHasInteracted] = useState(false);
-
-  function MapEvents() {
-    const map = useMapEvents({
-      click(e) {
-        const { lat, lng } = e.latlng;
-        onSelect({ lat, lon: lng });
-      },
-      moveend() {
-        if (!hasInteracted) {
-          setHasInteracted(true);
-        }
-      },
-    });
-
-    // Recenter on initial pos if user hasn't interacted
-    useEffect(() => {
-      if (initialPosition && !hasInteracted) {
-        map.setView([initialPosition.lat, initialPosition.lon], map.getZoom(), {
-          animate: true,
-        });
-      }
-    }, [initialPosition, map, hasInteracted]);
-
-    return null;
-  }
 
   return (
     <div className="map-selector">
@@ -63,7 +62,12 @@ const MapSelector = ({ onSelect, initialPosition }) => {
         zoom={13}
         className="map-selector-leaflet"
       >
-        <MapEvents />
+        <MapEvents
+          onSelect={onSelect}
+          initialPosition={initialPosition}
+          hasInteracted={hasInteracted}
+          onFirstInteraction={() => setHasInteracted(true)}
+        />
 
         {initialPosition && (
           <Marker position={[initialPosition.lat, initialPosition.lon]}>

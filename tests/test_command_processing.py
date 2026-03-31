@@ -656,6 +656,51 @@ class TestDroneCommandReception:
         assert drone_state['home_position_set'] is False
         assert drone_state['home_position_source'] == 'fallback_position'
 
+    def test_get_drone_state_marks_stale_local_mavlink_as_unavailable(self):
+        """Stale local telemetry must not remain operator-visible as ready."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=True,
+            LOCAL_MAVLINK_STALE_TIMEOUT_SEC=15,
+        )
+        drone_config = create_mock_drone_config()
+        drone_config.home_position = {'lat': 35.0, 'long': 51.0, 'alt': 1278.0}
+        drone_config.px4_home_position_set = True
+        drone_config.home_position_source = 'px4'
+        drone_config.pos_id = 2
+        drone_config.detected_pos_id = 2
+        drone_config.position = {'lat': 35.0, 'long': 51.0, 'alt': 1278.0}
+        drone_config.velocity = {'north': 0.0, 'east': 0.0, 'down': 0.0}
+        drone_config.yaw = 0.0
+        drone_config.battery = 16.2
+        drone_config.last_update_timestamp = int(time.time()) - 60
+        drone_config.custom_mode = 262147
+        drone_config.base_mode = 81
+        drone_config.system_status = 4
+        drone_config.readiness_checks = []
+        drone_config.preflight_blockers = []
+        drone_config.preflight_warnings = []
+        drone_config.status_messages = []
+        drone_config.preflight_last_update = int(time.time() * 1000)
+        drone_config.hdop = 0.8
+        drone_config.vdop = 1.1
+        drone_config.gps_fix_type = 3
+        drone_config.satellites_visible = 12
+
+        communicator = DroneCommunicator(drone_config, params, {})
+        drone_state = communicator.get_drone_state()
+
+        assert drone_state['telemetry_available'] is False
+        assert 'stale' in drone_state['telemetry_error'].lower()
+        assert drone_state['is_ready_to_arm'] is False
+        assert drone_state['readiness_status'] == 'unknown'
+        assert drone_state['preflight_blockers']
+
 
 # ============================================================================
 # Test: Command Integration with DroneConfig

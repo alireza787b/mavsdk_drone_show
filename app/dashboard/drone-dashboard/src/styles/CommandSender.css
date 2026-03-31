@@ -511,6 +511,102 @@
     box-shadow: var(--shadow-sm);
 }
 
+.command-monitor-history {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-base) var(--spacing-lg) var(--spacing-lg);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-primary);
+    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    box-shadow: var(--shadow-sm);
+}
+
+.command-monitor-history__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--spacing-base);
+    margin-bottom: var(--spacing-base);
+}
+
+.command-monitor-history__header strong {
+    color: var(--color-text-primary);
+}
+
+.command-monitor-history__header span {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.command-monitor-history__list {
+    display: grid;
+    gap: var(--spacing-sm);
+}
+
+.command-monitor-history__item {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-base);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-quaternary);
+    align-items: flex-start;
+}
+
+.command-monitor-history__item--active {
+    border-color: var(--color-primary-border);
+}
+
+.command-monitor-history__item--success {
+    border-color: rgba(56, 142, 60, 0.35);
+}
+
+.command-monitor-history__item--warning {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.command-monitor-history__item--danger {
+    border-color: rgba(220, 38, 38, 0.35);
+}
+
+.command-monitor-history__content {
+    min-width: 0;
+    flex: 1;
+}
+
+.command-monitor-history__topline {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--spacing-base);
+    align-items: center;
+    margin-bottom: 0.35rem;
+}
+
+.command-monitor-history__topline strong {
+    color: var(--color-text-primary);
+}
+
+.command-monitor-history__content p {
+    margin: 0 0 var(--spacing-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.command-monitor-history__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.command-monitor-history__meta span {
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--color-border-primary);
+}
+
 .command-preflight__header {
     display: flex;
     justify-content: space-between;

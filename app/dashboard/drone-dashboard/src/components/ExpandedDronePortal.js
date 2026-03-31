@@ -6,7 +6,7 @@ import DroneCriticalCommands from './DroneCriticalCommands';
 import DroneReadinessReport from './DroneReadinessReport';
 import { getFlightModeTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName, isMissionReady, isMissionExecuting } from '../constants/droneStates';
-import { getFriendlyMissionName, getMissionStatusClass } from '../utilities/missionUtils';
+import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
@@ -76,8 +76,10 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
   const missionReady = isMissionReady(drone[FIELD_NAMES.STATE]);
   const missionExecuting = isMissionExecuting(drone[FIELD_NAMES.STATE]);
   const missionStateName = getDroneShowStateName(drone[FIELD_NAMES.STATE]);
-  const friendlyMissionName = getFriendlyMissionName(drone[FIELD_NAMES.LAST_MISSION]);
-  const missionStatusClass = getMissionStatusClass(drone[FIELD_NAMES.LAST_MISSION]);
+  const missionDisplay = getMissionDisplayContext(
+    drone[FIELD_NAMES.MISSION],
+    drone[FIELD_NAMES.LAST_MISSION]
+  );
 
   const getBatteryStatus = (voltage) => {
     if (voltage === undefined) return { class: '', text: 'N/A' };
@@ -166,8 +168,11 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
               {/* Mission */}
               <div className="data-item">
                 <span className="data-label">Mission</span>
-                <span className={`mission-badge ${missionStatusClass}`}>
-                  {friendlyMissionName}
+                <span
+                  className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
+                  title={missionDisplay.badgeTooltip}
+                >
+                  {missionDisplay.currentMissionName}
                 </span>
               </div>
 

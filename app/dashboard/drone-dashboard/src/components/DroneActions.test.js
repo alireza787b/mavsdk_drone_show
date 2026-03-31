@@ -25,6 +25,12 @@ describe('DroneActions', () => {
       takeoff_altitude: 10,
       uiMeta: expect.objectContaining({
         triggerSummary: 'Immediate on acceptance',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Execution policy',
+            value: 'Launch begins on acceptance and retries PX4 armability briefly before failing.',
+          }),
+        ]),
       }),
     }));
   });
@@ -51,6 +57,12 @@ describe('DroneActions', () => {
       triggerTime: '1700000030',
       uiMeta: expect.objectContaining({
         triggerSummary: expect.stringMatching(/Executes in 30s/),
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Execution policy',
+            value: 'Launch waits for the trigger, then retries PX4 armability briefly before failing.',
+          }),
+        ]),
       }),
     }));
 
@@ -61,6 +73,12 @@ describe('DroneActions', () => {
       triggerTime: '0',
       uiMeta: expect.objectContaining({
         triggerSummary: 'Immediate on acceptance',
+        details: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Execution policy',
+            value: 'Immediate only. This action is not queued behind a future trigger.',
+          }),
+        ]),
       }),
     }));
   });

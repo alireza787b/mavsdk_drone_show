@@ -35,6 +35,19 @@ export const getTrajectoryAltitudeReferenceDescription = (reference = ALTITUDE_R
 export const getTrajectoryTimeFieldLabel = ({ isMissionAnchor = false } = {}) =>
   isMissionAnchor ? 'Route entry delay' : 'Waypoint arrival time';
 
+export const getTrajectoryDisplayedTimeFieldLabel = ({
+  isMissionAnchor = false,
+  timingMode = TIMING_MODES.MANUAL_TIME,
+} = {}) => {
+  if (isMissionAnchor) {
+    return 'Route entry delay';
+  }
+
+  return timingMode === TIMING_MODES.AUTO_SPEED
+    ? 'Derived waypoint arrival time'
+    : 'Waypoint arrival time';
+};
+
 export const getTrajectoryTimingModeLabel = (mode = TIMING_MODES.MANUAL_TIME) =>
   mode === TIMING_MODES.AUTO_SPEED ? 'Speed-driven ETA' : 'Time-driven speed';
 
@@ -55,11 +68,26 @@ export const getTrajectoryPreferredSpeedLabel = () => 'Preferred leg speed';
 
 export const getTrajectoryRequiredSpeedLabel = () => 'Required leg speed';
 
+export const getTrajectoryDerivedSpeedLabel = () => 'Derived required speed';
+
 export const getTrajectoryHeadingModeLabel = (mode = YAW_CONSTANTS.AUTO) =>
   mode === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading';
 
 export const getTrajectoryHeadingFieldLabel = ({ isMissionAnchor = false } = {}) =>
   isMissionAnchor ? 'Entry heading' : 'Arrival heading';
+
+export const getTrajectoryDisplayedHeadingFieldLabel = ({
+  isMissionAnchor = false,
+  headingMode = YAW_CONSTANTS.AUTO,
+} = {}) => {
+  if (isMissionAnchor) {
+    return 'Entry heading';
+  }
+
+  return headingMode === YAW_CONSTANTS.AUTO
+    ? 'Derived arrival heading'
+    : 'Arrival heading';
+};
 
 export const getTrajectoryHeadingModeDescription = (
   mode = YAW_CONSTANTS.AUTO,
@@ -72,6 +100,25 @@ export const getTrajectoryHeadingModeDescription = (
   return isMissionAnchor
     ? 'Operator sets the initial route-entry heading explicitly at mission start.'
     : 'Operator locks the heading the leader should hold on arrival at this waypoint.';
+};
+
+export const getTrajectoryStoredAltitudeFieldDescription = ({
+  altitudeReference = ALTITUDE_REFERENCE.MSL,
+} = {}) => (
+  altitudeReference === ALTITUDE_REFERENCE.AGL
+    ? 'Stored mission altitude is derived from Target AGL and current terrain. Edit Target AGL or switch Altitude Input back to MSL input to type the stored altitude directly.'
+    : 'Stored mission altitude is operator-owned because this waypoint uses direct MSL input.'
+);
+
+export const getTrajectoryDisplayedHeadingFieldDescription = ({
+  isMissionAnchor = false,
+  headingMode = YAW_CONSTANTS.AUTO,
+} = {}) => {
+  if (isMissionAnchor || headingMode === YAW_CONSTANTS.MANUAL) {
+    return 'Heading is operator-owned in manual mode.';
+  }
+
+  return 'Arrival heading is derived from the inbound leg. Switch Heading Mode to Manual to type a heading directly.';
 };
 
 export const getTrajectoryMissionAnchorLabel = (waypointIndex = 0) =>

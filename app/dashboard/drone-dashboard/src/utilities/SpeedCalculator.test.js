@@ -8,6 +8,7 @@ import {
   calculateTrajectoryStats,
   calculateWaypointSpeeds,
   suggestOptimalTime,
+  validateSpeed,
   validateWaypointSequence,
 } from './SpeedCalculator';
 
@@ -110,6 +111,37 @@ describe('SpeedCalculator', () => {
     expect(result.valid).toBe(false);
     expect(result.issues.map((issue) => issue.issue)).toEqual(
       expect.arrayContaining(['time_conflict', 'impossible_speed'])
+    );
+  });
+
+  test('speed validation and sequence checks both treat >20 m/s as impossible', () => {
+    expect(validateSpeed(20)).toBe('marginal');
+    expect(validateSpeed(20.1)).toBe('impossible');
+
+    const result = validateWaypointSequence([
+      {
+        name: 'Waypoint 1',
+        latitude: 35.0,
+        longitude: 51.0,
+        altitude: 100,
+        timeFromStart: 0,
+      },
+      {
+        name: 'Waypoint 2',
+        latitude: 35.0,
+        longitude: 51.0,
+        altitude: 310,
+        timeFromStart: 10,
+      },
+    ]);
+
+    expect(result.valid).toBe(false);
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          issue: 'impossible_speed',
+        }),
+      ])
     );
   });
 

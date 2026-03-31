@@ -10,7 +10,9 @@ export const TRAJECTORY_SPEED_POLICY = {
   MIN_PREFERRED: 0.5,
   OPTIMAL_MAX: 12,
   MARGINAL_MAX: 20,
-  ABSOLUTE_MAX: 30,
+  // Keep planner input limits aligned with src/params.py swarm_trajectory_max_speed
+  // until this policy is served to the frontend from a shared runtime config source.
+  ABSOLUTE_MAX: 20,
 };
 
 export const TRAJECTORY_TIMING_POLICY = {

@@ -313,14 +313,54 @@ def _normalize_heartbeat_first_seen(value: Any) -> Optional[int]:
     return int(numeric_value)
 
 
+def _normalize_update_time_ms(value: Any) -> Optional[int]:
+    if value in (None, ""):
+        return None
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if numeric_value <= 0:
+        return None
+
+    if numeric_value < 1_000_000_000_000:
+        numeric_value *= 1000.0
+
+    return int(numeric_value)
+
+
+def _local_mavlink_stale_threshold_ms() -> int:
+    configured_timeout = getattr(Params, "LOCAL_MAVLINK_STALE_TIMEOUT_SEC", None)
+    if configured_timeout is None:
+        configured_timeout = (
+            max(1, int(getattr(Params, "LOCAL_MAVLINK_TIMEOUT_SEC", 5)))
+            * max(1, int(getattr(Params, "LOCAL_MAVLINK_RECONNECT_AFTER_TIMEOUTS", 3)))
+        )
+
+    return max(1000, int(float(configured_timeout) * 1000))
+
+
+def _build_stale_background_blocker(message: str, timestamp_ms: int) -> Dict[str, Any]:
+    return {
+        "source": "telemetry",
+        "severity": "warning",
+        "message": message,
+        "timestamp": timestamp_ms,
+    }
+
+
 def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Keep FastAPI background telemetry aligned with the typed telemetry API contract."""
     normalized_hw_id = str(hw_id)
+    now_ms = int(time.time() * 1000)
+    stale_threshold_ms = _local_mavlink_stale_threshold_ms()
 
     with last_heartbeats_lock:
         heartbeat_data = (last_heartbeats.get(normalized_hw_id) or {}).copy()
 
-    return {
+    record = {
         **data,
         "hw_id": str(data.get("hw_id", normalized_hw_id)),
         "ip": data.get("ip", ip),
@@ -330,6 +370,34 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
         "heartbeat_network_info": heartbeat_data.get("network_info") or {},
         "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
     }
+
+    update_time_ms = _normalize_update_time_ms(record.get("update_time"))
+    telemetry_age_ms = (now_ms - update_time_ms) if update_time_ms is not None else None
+    record["telemetry_last_update_age_ms"] = telemetry_age_ms
+    record["telemetry_stale_threshold_ms"] = stale_threshold_ms
+
+    if update_time_ms is None:
+        record["telemetry_available"] = False
+        record["telemetry_error"] = record.get("telemetry_error") or "Waiting for PX4 telemetry."
+        return record
+
+    if telemetry_age_ms is not None and telemetry_age_ms > stale_threshold_ms:
+        stale_message = (
+            f"Local MAVLink telemetry is stale ({telemetry_age_ms / 1000.0:.1f}s since last update). "
+            "Readiness is currently unavailable."
+        )
+        record.update({
+            "telemetry_available": False,
+            "telemetry_error": stale_message,
+            "is_ready_to_arm": False,
+            "readiness_status": "unknown",
+            "readiness_summary": stale_message,
+            "preflight_blockers": [_build_stale_background_blocker(stale_message, now_ms)],
+            "preflight_warnings": [],
+            "preflight_last_update": now_ms,
+        })
+
+    return record
 
 
 def _get_telemetry_record_for_hw_id(

@@ -133,6 +133,8 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
+    expect(screen.getByText('Derived waypoint arrival time:')).toBeInTheDocument();
+    expect(screen.getByText('Derived required speed:')).toBeInTheDocument();
     expect(screen.getByText('Clearance AGL:')).toBeInTheDocument();
     expect(screen.getByText('120.0m')).toBeInTheDocument();
     expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
@@ -144,6 +146,64 @@ describe('WaypointPanel', () => {
     expect(within(operatorBrief).getByText('Altitude Logic')).toBeInTheDocument();
     expect(within(operatorBrief).getByText('Timing Logic')).toBeInTheDocument();
     expect(within(operatorBrief).getByText('Heading Logic')).toBeInTheDocument();
+  });
+
+  it('keeps stored altitude read-only for AGL-authored waypoints and explains how to change it', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      altitude: 320,
+      groundElevation: 200,
+      targetAgl: 120,
+      altitudeReference: ALTITUDE_REFERENCE.AGL,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    const storedAltitudeRow = screen.getAllByText(/stored altitude \(msl\):/i)[1].closest('.detail-row');
+    fireEvent.click(within(storedAltitudeRow).getByText('320.0m'));
+
+    expect(screen.queryByPlaceholderText(/altitude msl \(m\)/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/stored mission altitude is derived from target agl and current terrain/i)
+    ).toBeInTheDocument();
+  });
+
+  it('keeps auto-arrival heading read-only until heading mode switches to manual', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      heading: 90,
+      headingMode: YAW_CONSTANTS.AUTO,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: secondWaypoint.id,
+    });
+
+    expect(screen.getByText('Derived arrival heading:')).toBeInTheDocument();
+
+    const headingRow = screen.getByText('Derived arrival heading:').closest('.detail-row');
+    fireEvent.click(within(headingRow).getByText('090°'));
+
+    expect(screen.queryByPlaceholderText(/heading \(0-360°\)/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/arrival heading is derived from the inbound leg\. switch heading mode to manual/i)
+    ).toBeInTheDocument();
   });
 
   it('keeps terrain confidence and AGL context visible when ground elevation is exactly sea level', () => {
@@ -273,6 +333,9 @@ describe('WaypointPanel', () => {
     expect(screen.getByText('Route motion:')).toBeInTheDocument();
     const routeMotionRow = screen.getByText('Route motion:').closest('.summary-item');
     expect(within(routeMotionRow).getByText('30.0s')).toBeInTheDocument();
+    expect(
+      screen.getByText(/derived timing and speed checks stay locked so the panel always shows what the planner is calculating/i)
+    ).toBeInTheDocument();
   });
 
   it('shows terrain-refresh feedback while saving coordinate edits', async () => {

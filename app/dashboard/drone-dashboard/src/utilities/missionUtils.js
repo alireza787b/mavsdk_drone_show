@@ -54,14 +54,46 @@ export const MISSION_DISPLAY_NAMES = {
   'UNKNOWN': 'Unknown Mission'
 };
 
+const EMPTY_MISSION_NAMES = new Set(['NONE', 'N/A', '']);
+
+const normalizeMissionName = (missionValue) => {
+  if (missionValue === null || missionValue === undefined) {
+    return null;
+  }
+
+  if (typeof missionValue === 'number') {
+    return MISSION_INT_TO_NAME[missionValue] || null;
+  }
+
+  if (typeof missionValue === 'string') {
+    const trimmedMissionValue = missionValue.trim();
+    if (!trimmedMissionValue) {
+      return null;
+    }
+
+    if (/^\d+$/.test(trimmedMissionValue)) {
+      return MISSION_INT_TO_NAME[Number(trimmedMissionValue)] || trimmedMissionValue;
+    }
+
+    return trimmedMissionValue;
+  }
+
+  return null;
+};
+
+export const isMissionEmpty = (missionValue) => {
+  const missionName = normalizeMissionName(missionValue);
+  return !missionName || EMPTY_MISSION_NAMES.has(missionName);
+};
+
 /**
  * Get a user-friendly mission name
  * @param {string|number} missionValue - The mission enum name (string) or integer value
  * @returns {string} Human-readable mission name
  */
 export const getFriendlyMissionName = (missionValue) => {
-  if (missionValue === null || missionValue === undefined || missionValue === 'N/A') {
-    return 'No Active Mission';
+  if (isMissionEmpty(missionValue)) {
+    return MISSION_DISPLAY_NAMES.NONE;
   }
 
   // Handle integer values (convert to enum name first)
@@ -84,10 +116,7 @@ export const getFriendlyMissionName = (missionValue) => {
  */
 export const getMissionStatusClass = (missionValue) => {
   // Convert integer to enum name if needed
-  let missionName = missionValue;
-  if (typeof missionValue === 'number') {
-    missionName = MISSION_INT_TO_NAME[missionValue];
-  }
+  const missionName = normalizeMissionName(missionValue);
 
   if (!missionName || missionName === 'NONE' || missionName === 'N/A') {
     return 'mission-none';
@@ -119,4 +148,28 @@ export const getMissionStatusClass = (missionValue) => {
   }
 
   return 'mission-default';
+};
+
+export const getMissionDisplayContext = (currentMissionValue, lastMissionValue) => {
+  const currentMissionName = getFriendlyMissionName(currentMissionValue);
+  const lastMissionName = getFriendlyMissionName(lastMissionValue);
+  const hasCurrentMission = !isMissionEmpty(currentMissionValue);
+  const hasLastMission = !isMissionEmpty(lastMissionValue);
+  const currentMissionStatusClass = getMissionStatusClass(currentMissionValue);
+
+  let badgeTooltip = `Current mission: ${currentMissionName}.`;
+  if (!hasCurrentMission && hasLastMission) {
+    badgeTooltip = `No active mission. Last mission: ${lastMissionName}.`;
+  } else if (hasCurrentMission && hasLastMission && currentMissionName !== lastMissionName) {
+    badgeTooltip = `Current mission: ${currentMissionName}. Last mission: ${lastMissionName}.`;
+  }
+
+  return {
+    currentMissionName,
+    currentMissionStatusClass,
+    lastMissionName,
+    hasCurrentMission,
+    hasLastMission,
+    badgeTooltip,
+  };
 };

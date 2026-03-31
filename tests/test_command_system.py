@@ -539,6 +539,31 @@ class TestGcsCommandDistribution:
         assert 'Missed synchronized dispatch window' in error
         mock_post.assert_not_called()
 
+    def test_send_command_to_drone_does_not_apply_sync_window_to_takeoff(self):
+        """Standalone TAKEOFF should still dispatch even if the trigger timestamp is already near/past the strict-sync window."""
+        from command import send_command_to_drone
+        from src.enums import Mission
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {
+            'missionType': str(Mission.TAKE_OFF.value),
+            'triggerTime': '205',
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'status': 'accepted'}
+
+        with patch('command.time.time', return_value=201.0):
+            with patch('command.requests.post', return_value=mock_response) as mock_post:
+                success, error, category = send_command_to_drone(drone, command_data, timeout=5, retries=1)
+
+        assert success is True
+        assert error == ""
+        assert category == 'accepted'
+        mock_post.assert_called_once()
+        assert mock_post.call_args.kwargs['timeout'] == 5
+
     def test_send_command_to_drone_caps_timeout_to_remaining_sync_window(self):
         """Last-chance synchronized dispatch attempts should not wait longer than the remaining safe window."""
         from command import send_command_to_drone
