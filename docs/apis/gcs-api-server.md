@@ -816,6 +816,7 @@ Important semantics:
 - if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
+- `POST /command/{command_id}/cancel` is intentionally fail-closed for now; use `POST /submit_command` with `missionType=0` for live cancellation because that path actually dispatches to drones.
 
 #### `GET /command/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.

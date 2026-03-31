@@ -1246,25 +1246,19 @@ async def cancel_command(
     reason: str = Query("User cancelled", description="Cancellation reason")
 ):
     """
-    Cancel an active command.
+    Cancel endpoint is intentionally fail-closed until it is wired to drone dispatch.
 
-    Only commands in CREATED, SUBMITTED, or EXECUTING status can be cancelled.
+    Live mission/action cancellation must go through `/submit_command` with
+    `missionType=0` so the cancel command is actually delivered to the drones
+    instead of only mutating tracker state in memory.
     """
-    tracker = get_command_tracker()
-    success = await tracker.cancel_command(command_id, reason)
-
-    if not success:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel command {command_id} (not found or already completed)"
-        )
-
-    return {
-        "success": True,
-        "command_id": command_id,
-        "message": f"Command cancelled: {reason}",
-        "timestamp": int(time.time() * 1000)
-    }
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"/command/{command_id}/cancel is disabled because it does not dispatch to drones. "
+            "Use POST /submit_command with missionType=0 to cancel live mission execution safely."
+        ),
+    )
 
 
 @app.post("/command/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])

@@ -1036,6 +1036,12 @@ class TestCommandEndpoints:
         assert data['tracking_phase'] == 'pending_execution'
         assert data['tracking_timeout_ms'] > 0
 
+    def test_cancel_command_endpoint_fails_closed_until_live_dispatch_is_wired(self, test_client):
+        response = test_client.post("/command/test-command-id/cancel")
+
+        assert response.status_code == 409
+        assert "missionType=0" in response.json()["detail"]
+
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.load_config')
     def test_submit_command_rejects_takeoff_when_live_probe_fails(
