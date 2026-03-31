@@ -1034,6 +1034,7 @@ class TestCommandEndpoints:
         assert 'target_drones' in data
         assert 'submitted_count' in data
         assert data['tracking_phase'] == 'pending_execution'
+        assert data['tracking_timeout_ms'] > 0
 
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.load_config')

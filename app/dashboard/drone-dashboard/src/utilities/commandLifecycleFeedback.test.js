@@ -142,4 +142,54 @@ describe('commandLifecycleFeedback', () => {
       'Swarm Trajectory completed successfully (3/3 succeeded).',
     );
   });
+
+  it('uses the backend mission-aware tracking timeout when no frontend override is provided', async () => {
+    sendDroneCommand.mockResolvedValue({
+      success: true,
+      command_id: 'cmd-456',
+      mission_name: 'RETURN_RTL',
+      submitted_count: 3,
+      target_drones: ['1', '2', '3'],
+      ack_summary: {
+        accepted: 3,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      tracking_phase: 'pending_execution',
+      tracking_timeout_ms: 2500,
+    });
+
+    getCommandStatus.mockResolvedValue({
+      phase: 'in_progress',
+      progress: {
+        stage: 'executing',
+        message: 'Execution is active on 3 drone(s).',
+      },
+      executions: {
+        expected: 3,
+        succeeded: 0,
+        failed: 0,
+      },
+      acks: {
+        expected: 3,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+    });
+
+    await submitCommandWithLifecycleFeedback({
+      missionType: 104,
+      uiMeta: { operatorLabel: 'Return RTL' },
+    });
+
+    await flushMicrotasks();
+    await advanceLifecyclePoll(1500);
+    await advanceLifecyclePoll(1500);
+
+    expect(toast.warn).toHaveBeenCalledWith(
+      'Return RTL was accepted, but final status is still unknown after the tracking timeout.',
+    );
+  });
 });

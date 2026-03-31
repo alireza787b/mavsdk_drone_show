@@ -32,6 +32,19 @@ def test_estimate_command_tracking_timeout_for_takeoff_uses_prefight_and_climb_b
     assert timeout_ms == (30 + 60 + 30) * 1000
 
 
+def test_estimate_command_tracking_timeout_includes_future_trigger_delay(monkeypatch):
+    fake_now = 1_700_000_000.0
+    monkeypatch.setattr("command_timeout_policy.time.time", lambda: fake_now)
+
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.TAKE_OFF,
+        command_data={"triggerTime": int(fake_now) + 45},
+        params=_MockParams,
+    )
+
+    assert timeout_ms == 45_000 + ((30 + 60 + 30) * 1000)
+
+
 def test_estimate_command_tracking_timeout_for_drone_show_uses_show_duration(tmp_path):
     skybrush_dir = tmp_path / "skybrush"
     skybrush_dir.mkdir()

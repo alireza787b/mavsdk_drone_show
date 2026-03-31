@@ -801,6 +801,7 @@ Submit a command to drones and immediately return ACK tracking information.
   "tracking_status": "submitted",
   "tracking_phase": "pending_execution",
   "tracking_outcome": null,
+  "tracking_timeout_ms": 420000,
   "message": "2 accepted",
   "timestamp": 1700000000000
 }
@@ -810,7 +811,9 @@ Important semantics:
 - `success=true` means at least one drone accepted the command.
 - `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
 - Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /command/{command_id}` rather than treated as finished at submission time.
+- `tracking_timeout_ms` is the mission-aware lifecycle timeout selected by the backend for this command. It already includes any future trigger delay plus the expected execution/cleanup window, and frontend/background polling should reuse it instead of guessing with a flat client-side timeout.
 - tracker timeout budgets are mission-aware instead of one flat timeout: short actions use action-specific budgets, while Drone Show, Custom CSV, and Swarm Trajectory derive longer tracking windows from the active mission assets plus cleanup buffers.
+- if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
 

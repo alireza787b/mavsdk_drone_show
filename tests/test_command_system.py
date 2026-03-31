@@ -775,12 +775,14 @@ class TestSchemas:
             mission_name="TAKE_OFF",
             target_drones=["1", "2"],
             submitted_count=2,
+            tracking_timeout_ms=90000,
             message="Command submitted",
             timestamp=int(time.time() * 1000)
         )
         assert response.success == True
         assert response.command_id == "abc-123"
         assert response.submitted_count == 2
+        assert response.tracking_timeout_ms == 90000
 
     def test_command_status_response(self):
         """Test CommandStatusResponse schema"""

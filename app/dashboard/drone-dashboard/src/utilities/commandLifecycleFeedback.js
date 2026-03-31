@@ -9,6 +9,20 @@ const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
 const DEFAULT_TRACK_TIMEOUT_MS = 120000;
 
+function resolveTrackTimeoutMs(response, overrideTimeoutMs) {
+  const override = Number(overrideTimeoutMs);
+  if (Number.isFinite(override) && override > 0) {
+    return override;
+  }
+
+  const serverTimeout = Number(response?.tracking_timeout_ms);
+  if (Number.isFinite(serverTimeout) && serverTimeout > 0) {
+    return serverTimeout;
+  }
+
+  return DEFAULT_TRACK_TIMEOUT_MS;
+}
+
 function normalizeMissionType(missionType) {
   const numeric = Number(missionType);
   return Number.isFinite(numeric) ? numeric : missionType;
@@ -269,7 +283,7 @@ export async function submitCommandWithLifecycleFeedback(commandData, options = 
       response.command_id,
       commandLabel,
       response.tracking_phase,
-      options.trackTimeoutMs || DEFAULT_TRACK_TIMEOUT_MS,
+      resolveTrackTimeoutMs(response, options.trackTimeoutMs),
     );
   }
 

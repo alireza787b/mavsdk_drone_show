@@ -5,6 +5,7 @@ Mission-aware tracker timeout policy for command lifecycle monitoring.
 from __future__ import annotations
 
 import csv
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -28,6 +29,27 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _extract_future_trigger_delay_ms(command_data: Optional[Dict[str, Any]]) -> int:
+    if not command_data:
+        return 0
+
+    trigger_time = command_data.get("triggerTime")
+    if trigger_time in (None, "", 0, "0"):
+        return 0
+
+    try:
+        numeric = int(str(trigger_time).strip())
+    except (TypeError, ValueError):
+        return 0
+
+    if numeric <= 0:
+        return 0
+
+    trigger_ms = numeric if numeric >= 10_000_000_000 else numeric * 1000
+    now_ms = int(time.time() * 1000)
+    return max(0, trigger_ms - now_ms)
 
 
 def _read_show_duration_ms(skybrush_dir: Path) -> Optional[int]:
@@ -121,34 +143,35 @@ def estimate_command_tracking_timeout_ms(
     default_ms = _safe_int(getattr(params, "COMMAND_TRACKING_DEFAULT_TIMEOUT_MS", 60000), 60000)
     action_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_ACTION_BUFFER_SEC", 30), 30))
     mission_buffer_sec = max(0, _safe_int(getattr(params, "COMMAND_TRACKING_MISSION_BUFFER_SEC", 120), 120))
+    trigger_delay_ms = _extract_future_trigger_delay_ms(command_data)
 
     if mission_enum == Mission.TAKE_OFF:
         preflight_sec = _safe_int(getattr(params, "TAKEOFF_PREFLIGHT_TIMEOUT_SEC", 30), 30)
         climb_sec = _safe_int(getattr(params, "TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC", 60), 60)
-        return max(default_ms, (preflight_sec + climb_sec + action_buffer_sec) * 1000)
+        return max(default_ms, trigger_delay_ms + ((preflight_sec + climb_sec + action_buffer_sec) * 1000))
 
     if mission_enum == Mission.LAND:
         return max(
             default_ms,
-            (calculate_land_disarm_timeout(None, params=params) + action_buffer_sec) * 1000,
+            trigger_delay_ms + ((calculate_land_disarm_timeout(None, params=params) + action_buffer_sec) * 1000),
         )
 
     if mission_enum == Mission.RETURN_RTL:
-        return max(default_ms, calculate_rtl_completion_timeout(None, params=params) * 1000)
+        return max(default_ms, trigger_delay_ms + (calculate_rtl_completion_timeout(None, params=params) * 1000))
 
     if mission_enum == Mission.HOVER_TEST:
         hover_timeout_sec = _safe_int(getattr(params, "COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC", 180), 180)
-        return max(default_ms, hover_timeout_sec * 1000)
+        return max(default_ms, trigger_delay_ms + (hover_timeout_sec * 1000))
 
     if mission_enum == Mission.DRONE_SHOW_FROM_CSV:
         show_duration_ms = _read_show_duration_ms(Path(skybrush_dir)) if skybrush_dir else None
         if show_duration_ms is not None:
-            return max(default_ms, show_duration_ms + (mission_buffer_sec * 1000))
+            return max(default_ms, trigger_delay_ms + show_duration_ms + (mission_buffer_sec * 1000))
 
     if mission_enum == Mission.CUSTOM_CSV_DRONE_SHOW:
         custom_duration_ms = _read_custom_show_duration_ms(Path(shapes_dir)) if shapes_dir else None
         if custom_duration_ms is not None:
-            return max(default_ms, custom_duration_ms + (mission_buffer_sec * 1000))
+            return max(default_ms, trigger_delay_ms + custom_duration_ms + (mission_buffer_sec * 1000))
 
     if mission_enum == Mission.SWARM_TRAJECTORY:
         processed_duration_s = _read_swarm_processed_duration_s(Path(processed_dir)) if processed_dir else None
@@ -163,13 +186,13 @@ def estimate_command_tracking_timeout_ms(
                 total_duration_s += calculate_rtl_completion_timeout(None, params=params)
             elif end_behavior == "land_current":
                 total_duration_s += calculate_land_disarm_timeout(None, params=params)
-            return max(default_ms, int(total_duration_s * 1000))
+            return max(default_ms, trigger_delay_ms + int(total_duration_s * 1000))
 
     if mission_enum == Mission.QUICKSCOUT:
         quickscout_timeout_sec = _safe_int(
             getattr(params, "COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC", 900),
             900,
         )
-        return max(default_ms, quickscout_timeout_sec * 1000)
+        return max(default_ms, trigger_delay_ms + (quickscout_timeout_sec * 1000))
 
-    return default_ms
+    return max(default_ms, trigger_delay_ms + default_ms)

@@ -806,6 +806,11 @@ class SubmitCommandResponse(BaseModel):
     tracking_status: Optional[CommandStatus] = Field(None, description="Legacy tracker status for this command")
     tracking_phase: Optional[CommandPhase] = Field(None, description="Operational phase of command tracking")
     tracking_outcome: Optional[CommandOutcome] = Field(None, description="Terminal tracking outcome once known")
+    tracking_timeout_ms: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Mission-aware lifecycle tracking timeout the frontend should reuse for status polling",
+    )
 
     message: str = Field(..., description="Human-readable status message")
     timestamp: int = Field(..., description="Response timestamp (Unix ms)")

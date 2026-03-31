@@ -1132,6 +1132,7 @@ async def submit_command(request: Request):
             tracking_status=CommandStatus(tracked_status['status']) if tracked_status else None,
             tracking_phase=CommandPhase(tracked_status['phase']) if tracked_status else None,
             tracking_outcome=CommandOutcome(tracked_status['outcome']) if tracked_status and tracked_status.get('outcome') else None,
+            tracking_timeout_ms=tracking_timeout_ms,
         )
 
     except HTTPException:
