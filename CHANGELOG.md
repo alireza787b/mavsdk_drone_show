@@ -11,6 +11,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ### Fixed
 - command terminal states are now immutable once they reach `phase=terminal`; late ACK/execution callbacks are captured under `late_reports` for diagnostics instead of reviving timed-out/cancelled/failed commands into a newer status
+- Command Control now rehydrates its live/recent command monitor from `/commands/active` and `/commands/recent` on mount, so a dashboard refresh or route change does not silently drop in-flight command context that the backend is still tracking
 - Swarm Trajectory command tracking now resolves mission enums robustly across mixed import paths and budgets timeout from the actual selected processed trajectories, so subset launches no longer fall back to the generic 60s tracker timeout or time out just because unrelated drones have longer routes in the same processed package
 - Mission Trigger, Mission Details, and Drone Actions now reuse one shared schedule/execution policy layer, so strict synchronized missions and standalone scheduled actions explain the same late-trigger / late-start behavior everywhere instead of drifting between pages and confirmation dialogs
 - standalone `TAKEOFF` now reuses the shared bounded PX4 armability gate after its GPS/home preflight checks, aligning operator expectations with Drone Show and Swarm Trajectory startup behavior instead of relying on a one-shot arm attempt

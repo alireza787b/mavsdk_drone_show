@@ -42,6 +42,34 @@ export const getCommandStatus = async (commandId) => {
   }
 };
 
+export const getRecentCommands = async ({ limit = 8, status = null, missionType = null } = {}) => {
+  const requestURI = `${getBackendURL()}/commands/recent`;
+
+  try {
+    const response = await axios.get(requestURI, {
+      params: {
+        limit,
+        ...(status ? { status } : {}),
+        ...(missionType !== null && missionType !== undefined ? { mission_type: missionType } : {}),
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getActiveCommands = async () => {
+  const requestURI = `${getBackendURL()}/commands/active`;
+
+  try {
+    const response = await axios.get(requestURI);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getSwarmTrajectoryStatus = async () => {
   try {
     const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/status`);

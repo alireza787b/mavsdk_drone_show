@@ -2,10 +2,20 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import CommandSender from './CommandSender';
-import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import {
+  buildLifecycleSnapshotFromStatus,
+  submitCommandWithLifecycleFeedback,
+} from '../utilities/commandLifecycleFeedback';
+import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
 
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
+  buildLifecycleSnapshotFromStatus: jest.fn(),
   submitCommandWithLifecycleFeedback: jest.fn(),
+}));
+
+jest.mock('../services/droneApiService', () => ({
+  getActiveCommands: jest.fn(),
+  getRecentCommands: jest.fn(),
 }));
 
 jest.mock('./MissionTrigger', () => (props) => (
@@ -39,6 +49,44 @@ const drones = [
 describe('CommandSender', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getActiveCommands.mockResolvedValue({ commands: [] });
+    getRecentCommands.mockResolvedValue({ commands: [] });
+    buildLifecycleSnapshotFromStatus.mockImplementation((status) => ({
+      commandId: status.command_id,
+      commandLabel: status.mission_name,
+      missionType: status.mission_type,
+      targetDrones: status.target_drones || [],
+      targetLabel: `${(status.target_drones || []).length} selected drones`,
+      targetDescriptor: `Selected drones: ${(status.target_drones || []).join(', ')}`,
+      phase: status.phase,
+      outcome: status.outcome,
+      isTerminal: status.phase === 'terminal',
+      trackingIssue: null,
+      progress: status.progress || {
+        stage: 'pending_execution',
+        label: 'Accepted, waiting for execution start',
+        message: 'Waiting for execution start reports.',
+        ackPending: 0,
+        active: 0,
+        completed: 0,
+        remaining: 0,
+      },
+      acks: status.acks || {
+        expected: 0,
+        accepted: 0,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      executions: status.executions || {
+        expected: 0,
+        succeeded: 0,
+        failed: 0,
+      },
+      triggerTime: 0,
+      canCancelMission: Number(status.mission_type) > 0 && Number(status.mission_type) < 100,
+      updatedAtMs: status.updated_at || 0,
+    }));
   });
 
   it('renders a persistent command monitor after command acceptance', async () => {
@@ -313,5 +361,100 @@ describe('CommandSender', () => {
 
     const recentCommands = screen.getByLabelText(/recent commands/i);
     expect(within(recentCommands).getByText('Swarm Trajectory')).toBeInTheDocument();
+  });
+
+  it('rehydrates active and recent command monitors from backend command history', async () => {
+    getActiveCommands.mockResolvedValue({
+      commands: [
+        {
+          command_id: 'cmd-active',
+          mission_name: 'Swarm Trajectory',
+          mission_type: 4,
+          target_drones: ['1', '2'],
+          phase: 'in_progress',
+          outcome: null,
+          updated_at: 2000,
+          progress: {
+            stage: 'executing',
+            label: 'Execution in progress',
+            message: 'Execution is active on 2 drone(s).',
+            ackPending: 0,
+            active: 2,
+            completed: 0,
+            remaining: 2,
+          },
+          acks: {
+            expected: 2,
+            accepted: 2,
+            offline: 0,
+            rejected: 0,
+            errors: 0,
+          },
+          executions: {
+            expected: 2,
+            succeeded: 0,
+            failed: 0,
+          },
+        },
+      ],
+    });
+    getRecentCommands.mockResolvedValue({
+      commands: [
+        {
+          command_id: 'cmd-active',
+          mission_name: 'Swarm Trajectory',
+          mission_type: 4,
+          target_drones: ['1', '2'],
+          phase: 'in_progress',
+          outcome: null,
+          updated_at: 2000,
+        },
+        {
+          command_id: 'cmd-recent',
+          mission_name: 'Take Off',
+          mission_type: 10,
+          target_drones: ['1'],
+          phase: 'terminal',
+          outcome: 'completed',
+          updated_at: 1000,
+          progress: {
+            stage: 'completed',
+            label: 'Completed',
+            message: 'Completed successfully on 1/1 accepted drone(s).',
+            ackPending: 0,
+            active: 0,
+            completed: 1,
+            remaining: 0,
+          },
+          acks: {
+            expected: 1,
+            accepted: 1,
+            offline: 0,
+            rejected: 0,
+            errors: 0,
+          },
+          executions: {
+            expected: 1,
+            succeeded: 1,
+            failed: 0,
+          },
+        },
+      ],
+    });
+
+    render(<CommandSender drones={drones} />);
+
+    await waitFor(() => {
+      expect(getActiveCommands).toHaveBeenCalledTimes(1);
+      expect(getRecentCommands).toHaveBeenCalledWith({ limit: 8 });
+    });
+
+    expect(await screen.findByText('Live Command Monitor')).toBeInTheDocument();
+    expect(screen.getByText('Swarm Trajectory')).toBeInTheDocument();
+    expect(screen.getByText('Execution in progress')).toBeInTheDocument();
+
+    const history = await screen.findByLabelText('Recent commands');
+    expect(within(history).getByText('Take Off')).toBeInTheDocument();
+    expect(buildLifecycleSnapshotFromStatus).toHaveBeenCalledTimes(2);
   });
 });

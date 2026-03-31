@@ -215,6 +215,41 @@ function buildLifecycleSnapshot({
   };
 }
 
+function extractTriggerTime(commandData = {}, status = null) {
+  const directValue = commandData?.triggerTime;
+  if (directValue !== undefined && directValue !== null && directValue !== '') {
+    return directValue;
+  }
+
+  const params = status?.params || {};
+  return params.triggerTime ?? params.trigger_time ?? 0;
+}
+
+export function buildLifecycleSnapshotFromStatus(status) {
+  if (!status) {
+    return null;
+  }
+
+  const missionType = normalizeMissionType(status?.mission_type);
+  const targetDrones = Array.isArray(status?.target_drones)
+    ? status.target_drones.map((value) => String(value))
+    : [];
+  const commandLabel = status?.mission_name || getCommandName(missionType);
+
+  return buildLifecycleSnapshot({
+    commandData: {
+      missionType,
+      triggerTime: extractTriggerTime({}, status),
+      target_drones: targetDrones,
+      uiMeta: {
+        operatorLabel: commandLabel,
+      },
+    },
+    commandLabel,
+    status,
+  });
+}
+
 function buildSubmissionToastMessage(commandData, response) {
   const commandLabel = formatCommandLabel(commandData, response);
   const accepted = getAcceptedCount(response);

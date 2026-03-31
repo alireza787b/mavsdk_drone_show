@@ -14,7 +14,14 @@ import {
   DRONE_ACTION_TYPES,
   getCommandName,
 } from '../constants/droneConstants';
-import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import {
+  buildLifecycleSnapshotFromStatus,
+  submitCommandWithLifecycleFeedback,
+} from '../utilities/commandLifecycleFeedback';
+import {
+  getActiveCommands,
+  getRecentCommands,
+} from '../services/droneApiService';
 import {
   formatClockOffsetLabel,
   formatCommandAbsoluteTime,
@@ -72,22 +79,73 @@ const CommandSender = ({ drones }) => {
   const recentCommandMonitors = sortedCommandMonitors.slice(1, 5);
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
 
-  const upsertCommandMonitor = (snapshot) => {
-    if (!snapshot?.commandId) {
+  const mergeCommandMonitors = React.useCallback((snapshots) => {
+    const normalizedSnapshots = (Array.isArray(snapshots) ? snapshots : [snapshots]).filter(
+      (snapshot) => snapshot?.commandId,
+    );
+    if (normalizedSnapshots.length === 0) {
       return;
     }
 
     setCommandMonitors((previous) => {
-      const existing = previous.find((item) => item.commandId === snapshot.commandId);
-      const merged = existing ? { ...existing, ...snapshot } : snapshot;
-      const next = [
-        merged,
-        ...previous.filter((item) => item.commandId !== snapshot.commandId),
-      ];
+      let next = [...previous];
+
+      normalizedSnapshots.forEach((snapshot) => {
+        const existing = next.find((item) => item.commandId === snapshot.commandId);
+        const merged = existing ? { ...existing, ...snapshot } : snapshot;
+        next = [
+          merged,
+          ...next.filter((item) => item.commandId !== snapshot.commandId),
+        ];
+      });
 
       return next.slice(0, 8);
     });
-  };
+  }, []);
+
+  const upsertCommandMonitor = React.useCallback((snapshot) => {
+    mergeCommandMonitors(snapshot);
+  }, [mergeCommandMonitors]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const hydrateCommandMonitors = async () => {
+      try {
+        const [activeResponse, recentResponse] = await Promise.all([
+          getActiveCommands(),
+          getRecentCommands({ limit: 8 }),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const seen = new Set();
+        const snapshots = [...(activeResponse?.commands || []), ...(recentResponse?.commands || [])]
+          .filter((status) => {
+            const commandId = status?.command_id;
+            if (!commandId || seen.has(commandId)) {
+              return false;
+            }
+            seen.add(commandId);
+            return true;
+          })
+          .map((status) => buildLifecycleSnapshotFromStatus(status))
+          .filter(Boolean);
+
+        mergeCommandMonitors(snapshots);
+      } catch (error) {
+        console.error('Failed to hydrate command monitors', error);
+      }
+    };
+
+    hydrateCommandMonitors();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mergeCommandMonitors]);
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
