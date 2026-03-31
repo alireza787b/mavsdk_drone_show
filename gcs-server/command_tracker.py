@@ -249,7 +249,7 @@ class CommandTracker:
 
         logger.info(
             f"Command created: {command_id[:8]}... "
-            f"({command.mission_name}, {len(target_drones)} drones)"
+            f"({command.mission_name}, {len(target_drones)} drones, timeout={timeout / 1000:.1f}s)"
         )
 
         return command_id

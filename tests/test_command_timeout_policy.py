@@ -1,5 +1,6 @@
 import os
 import sys
+from enum import Enum
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "gcs-server"))
 
@@ -67,6 +68,43 @@ def test_estimate_command_tracking_timeout_for_swarm_trajectory_adds_end_behavio
     timeout_ms = estimate_command_tracking_timeout_ms(
         Mission.SWARM_TRAJECTORY,
         processed_dir=processed_dir,
+        command_data={"return_behavior": "return_home"},
+        params=_MockParams,
+    )
+
+    expected_duration_s = (100 * _MockParams.SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER) + 120 + 300
+    assert timeout_ms == int(expected_duration_s * 1000)
+
+
+def test_estimate_command_tracking_timeout_accepts_foreign_enum_like_objects(tmp_path):
+    class ForeignMission(Enum):
+        SWARM_TRAJECTORY = 4
+
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    (processed_dir / "Drone 1.csv").write_text("t,alt\n0,10\n100,25\n", encoding="utf-8")
+
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        ForeignMission.SWARM_TRAJECTORY,
+        processed_dir=processed_dir,
+        command_data={"return_behavior": "return_home"},
+        params=_MockParams,
+    )
+
+    expected_duration_s = (100 * _MockParams.SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER) + 120 + 300
+    assert timeout_ms == int(expected_duration_s * 1000)
+
+
+def test_estimate_command_tracking_timeout_for_swarm_trajectory_filters_target_drones(tmp_path):
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir()
+    (processed_dir / "Drone 1.csv").write_text("t,alt\n0,10\n100,25\n", encoding="utf-8")
+    (processed_dir / "Drone 4.csv").write_text("t,alt\n0,10\n500,25\n", encoding="utf-8")
+
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.SWARM_TRAJECTORY,
+        processed_dir=processed_dir,
+        target_drone_ids=["1"],
         command_data={"return_behavior": "return_home"},
         params=_MockParams,
     )

@@ -18,6 +18,20 @@ def _coerce_mission(value: Any) -> Mission | None:
     if isinstance(value, Mission):
         return value
 
+    enum_value = getattr(value, "value", None)
+    if enum_value is not None and enum_value is not value:
+        coerced = _coerce_mission(enum_value)
+        if coerced is not None:
+            return coerced
+
+    enum_name = getattr(value, "name", None)
+    if isinstance(enum_name, str):
+        normalized_name = enum_name.strip().upper().replace("-", "_").replace(" ", "_")
+        if normalized_name:
+            mission = Mission.__members__.get(normalized_name)
+            if mission is not None:
+                return mission
+
     try:
         return Mission(int(value))
     except (TypeError, ValueError):
@@ -29,6 +43,20 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _target_drone_file_names(target_drone_ids: Optional[Iterable[Any]]) -> set[str] | None:
+    if not target_drone_ids:
+        return None
+
+    names: set[str] = set()
+    for drone_id in target_drone_ids:
+        try:
+            names.add(f"Drone {int(str(drone_id).strip())}.csv")
+        except (TypeError, ValueError):
+            continue
+
+    return names or None
 
 
 def _extract_future_trigger_delay_ms(command_data: Optional[Dict[str, Any]]) -> int:
@@ -52,12 +80,19 @@ def _extract_future_trigger_delay_ms(command_data: Optional[Dict[str, Any]]) -> 
     return max(0, trigger_ms - now_ms)
 
 
-def _read_show_duration_ms(skybrush_dir: Path) -> Optional[int]:
+def _read_show_duration_ms(
+    skybrush_dir: Path,
+    *,
+    target_drone_ids: Optional[Iterable[Any]] = None,
+) -> Optional[int]:
     if not skybrush_dir.exists():
         return None
 
+    allowed_names = _target_drone_file_names(target_drone_ids)
     max_duration_ms = 0.0
     for csv_path in sorted(skybrush_dir.glob("Drone *.csv")):
+        if allowed_names is not None and csv_path.name not in allowed_names:
+            continue
         try:
             with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
                 next(handle, None)
@@ -104,12 +139,19 @@ def _read_custom_show_duration_ms(shapes_dir: Path) -> Optional[int]:
     return int(max_duration_s * 1000) if max_duration_s > 0 else None
 
 
-def _read_swarm_processed_duration_s(processed_dir: Path) -> Optional[float]:
+def _read_swarm_processed_duration_s(
+    processed_dir: Path,
+    *,
+    target_drone_ids: Optional[Iterable[Any]] = None,
+) -> Optional[float]:
     if not processed_dir.exists():
         return None
 
+    allowed_names = _target_drone_file_names(target_drone_ids)
     max_duration_s = 0.0
     for csv_path in sorted(processed_dir.glob("Drone *.csv")):
+        if allowed_names is not None and csv_path.name not in allowed_names:
+            continue
         try:
             with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
                 reader = csv.DictReader(handle)
@@ -128,6 +170,7 @@ def estimate_command_tracking_timeout_ms(
     mission: Any,
     *,
     command_data: Optional[Dict[str, Any]] = None,
+    target_drone_ids: Optional[Iterable[Any]] = None,
     skybrush_dir: Optional[str | Path] = None,
     processed_dir: Optional[str | Path] = None,
     shapes_dir: Optional[str | Path] = None,
@@ -164,7 +207,11 @@ def estimate_command_tracking_timeout_ms(
         return max(default_ms, trigger_delay_ms + (hover_timeout_sec * 1000))
 
     if mission_enum == Mission.DRONE_SHOW_FROM_CSV:
-        show_duration_ms = _read_show_duration_ms(Path(skybrush_dir)) if skybrush_dir else None
+        show_duration_ms = (
+            _read_show_duration_ms(Path(skybrush_dir), target_drone_ids=target_drone_ids)
+            if skybrush_dir
+            else None
+        )
         if show_duration_ms is not None:
             return max(default_ms, trigger_delay_ms + show_duration_ms + (mission_buffer_sec * 1000))
 
@@ -174,7 +221,11 @@ def estimate_command_tracking_timeout_ms(
             return max(default_ms, trigger_delay_ms + custom_duration_ms + (mission_buffer_sec * 1000))
 
     if mission_enum == Mission.SWARM_TRAJECTORY:
-        processed_duration_s = _read_swarm_processed_duration_s(Path(processed_dir)) if processed_dir else None
+        processed_duration_s = (
+            _read_swarm_processed_duration_s(Path(processed_dir), target_drone_ids=target_drone_ids)
+            if processed_dir
+            else None
+        )
         if processed_duration_s is not None:
             multiplier = max(1.0, float(getattr(params, "SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER", 1.2)))
             total_duration_s = (processed_duration_s * multiplier) + mission_buffer_sec

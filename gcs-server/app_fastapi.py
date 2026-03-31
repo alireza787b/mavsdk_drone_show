@@ -1091,12 +1091,21 @@ async def submit_command(request: Request):
         # Create tracked command
         tracker = get_command_tracker()
         mission_type_int = resolved_mission.value if resolved_mission else 0
+        tracking_skybrush_dir = skybrush_dir
+        tracking_processed_dir = processed_dir
+        tracking_shapes_dir = shapes_dir
+
+        if resolved_mission == Mission.SWARM_TRAJECTORY:
+            trajectory_folders = get_swarm_trajectory_folders()
+            tracking_processed_dir = trajectory_folders.get("processed", processed_dir)
+
         tracking_timeout_ms = estimate_command_tracking_timeout_ms(
             resolved_mission,
             command_data=command_data,
-            skybrush_dir=skybrush_dir,
-            processed_dir=processed_dir,
-            shapes_dir=shapes_dir,
+            target_drone_ids=target_hw_ids,
+            skybrush_dir=tracking_skybrush_dir,
+            processed_dir=tracking_processed_dir,
+            shapes_dir=tracking_shapes_dir,
         )
 
         command_id = await tracker.create_command(

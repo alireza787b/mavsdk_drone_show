@@ -1070,6 +1070,68 @@ class TestCommandEndpoints:
         assert data['tracking_phase'] == 'pending_execution'
         assert data['tracking_timeout_ms'] > 0
 
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.send_commands_to_selected')
+    @patch('app_fastapi.load_config')
+    @patch('app_fastapi.get_swarm_trajectory_folders')
+    @patch('app_fastapi.swarm_trajectory_service.get_processing_status_payload')
+    def test_submit_command_swarm_trajectory_uses_selected_processed_timeout_budget(
+        self,
+        mock_status,
+        mock_folders,
+        mock_load,
+        mock_send_selected,
+        mock_probe,
+        test_client,
+        mock_config,
+        tmp_path,
+    ):
+        mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
+        mock_send_selected.return_value = {
+            'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '1 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'}
+            }
+        }
+        mock_status.return_value = {
+            'status': {
+                'processed_drones': [1, 2],
+                'follow_map': {'1': 0, '2': 1},
+            }
+        }
+
+        processed_dir = tmp_path / "swarm_trajectory" / "processed"
+        processed_dir.mkdir(parents=True)
+        (processed_dir / "Drone 1.csv").write_text("t,alt\n0,10\n100,25\n", encoding="utf-8")
+        (processed_dir / "Drone 2.csv").write_text("t,alt\n0,10\n500,25\n", encoding="utf-8")
+        mock_folders.return_value = {
+            'base': str(tmp_path / "swarm_trajectory"),
+            'raw': str(tmp_path / "swarm_trajectory" / "raw"),
+            'processed': str(processed_dir),
+            'plots': str(tmp_path / "swarm_trajectory" / "plots"),
+        }
+
+        response = test_client.post(
+            "/submit_command",
+            json={
+                'missionType': 4,
+                'triggerTime': 0,
+                'target_drones': ['1'],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['tracking_timeout_ms'] == 540000
+        assert data['tracking_phase'] == 'pending_execution'
+        mock_send_selected.assert_called_once()
+
     def test_cancel_command_endpoint_fails_closed_until_live_dispatch_is_wired(self, test_client):
         response = test_client.post("/command/test-command-id/cancel")
 
