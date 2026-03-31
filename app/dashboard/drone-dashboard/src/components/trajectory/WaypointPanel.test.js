@@ -139,10 +139,11 @@ describe('WaypointPanel', () => {
     expect(screen.getAllByText('Speed-driven ETA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Auto heading').length).toBeGreaterThan(0);
     expect(screen.getByText('Estimated terrain')).toBeInTheDocument();
-    expect(screen.getByLabelText(/waypoint 2 operator brief/i)).toBeInTheDocument();
-    expect(screen.getByText('Altitude Logic')).toBeInTheDocument();
-    expect(screen.getByText('Timing Logic')).toBeInTheDocument();
-    expect(screen.getByText('Heading Logic')).toBeInTheDocument();
+    const operatorBrief = screen.getByLabelText(/waypoint 2 operator brief/i);
+    expect(operatorBrief).toBeInTheDocument();
+    expect(within(operatorBrief).getByText('Altitude Logic')).toBeInTheDocument();
+    expect(within(operatorBrief).getByText('Timing Logic')).toBeInTheDocument();
+    expect(within(operatorBrief).getByText('Heading Logic')).toBeInTheDocument();
   });
 
   it('keeps terrain confidence and AGL context visible when ground elevation is exactly sea level', () => {
