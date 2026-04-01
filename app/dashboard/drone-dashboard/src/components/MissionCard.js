@@ -5,6 +5,8 @@ const MissionCard = ({ missionType, icon, category, label, summary, note, onClic
     type="button"
     className={`mission-card ${isCancel ? 'cancel-mission-card' : ''}`}
     onClick={() => onClick(missionType)}
+    title={[label, summary, note].filter(Boolean).join(' ')}
+    aria-label={[label, summary, note].filter(Boolean).join('. ')}
   >
     <div className="mission-card__header">
       <div className="mission-icon">{icon}</div>
@@ -12,7 +14,6 @@ const MissionCard = ({ missionType, icon, category, label, summary, note, onClic
     </div>
     <div className="mission-name">{label}</div>
     <div className="mission-summary">{summary}</div>
-    {note && <div className="mission-note">{note}</div>}
   </button>
 );
 

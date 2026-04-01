@@ -278,7 +278,7 @@
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
-    min-height: 68px;
+    min-height: 58px;
     box-shadow: none;
     text-align: left;
 }
@@ -331,10 +331,7 @@
 }
 
 .action-button__summary {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.35;
+    display: none;
 }
 
 .action-button--routine {

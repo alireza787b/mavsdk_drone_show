@@ -1,6 +1,6 @@
 // src/pages/MissionConfig.js
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import '../styles/MissionConfig.css';
 import { useSearchParams } from 'react-router-dom';
 
@@ -14,6 +14,7 @@ import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ReplaceDroneWizard from '../components/ReplaceDroneWizard';
+import ClusterScopeBar from '../components/ClusterScopeBar';
 import axios from 'axios';
 
 // Hooks
@@ -30,6 +31,11 @@ import {
   validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import {
+  DRONE_SEARCH_HELP_TEXT,
+  DRONE_SEARCH_PLACEHOLDER,
+  matchesDroneSearchQuery,
+} from '../utilities/dronePresentation';
+import {
   buildSuggestedHwIds,
   compareMissionIds,
   formatDroneLabel,
@@ -41,6 +47,11 @@ import {
   normalizeDroneConfigData,
   normalizeDroneConfigEntry,
 } from '../utilities/missionIdentityUtils';
+import {
+  buildClusterScopeOptions,
+  buildSwarmViewModel,
+  filterClustersByScope,
+} from '../utilities/swarmDesignUtils';
 import { toast } from 'react-toastify';
 import { getBackendURL } from '../utilities/utilities';
 
@@ -99,6 +110,8 @@ const MissionConfig = () => {
   const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
   const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
   const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
+  const [missionConfigSearch, setMissionConfigSearch] = useState('');
+  const [clusterScope, setClusterScope] = useState('all');
   const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
   const requestedEditMode = searchParams.get('edit') === '1';
 
@@ -118,6 +131,7 @@ const MissionConfig = () => {
   const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
   const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
   const { data: savedDronePositionsFetched } = useFetch('/get-drone-positions', 10000);
+  const { data: swarmDataFetched } = useFetch('/get-swarm-data');
 
   // -----------------------------------------------------
   // Derived Data & Helpers
@@ -127,6 +141,14 @@ const MissionConfig = () => {
   const roleSwaps = getRoleSwaps(configData);
   const { duplicateHwIds, duplicatePosIds } = getDuplicateAssignments(configData);
   const onlineDroneCount = getOnlineDroneCount(heartbeats);
+  const swarmViewModel = useMemo(
+    () => (Array.isArray(swarmDataFetched) ? buildSwarmViewModel(swarmDataFetched, configData) : null),
+    [configData, swarmDataFetched]
+  );
+  const clusterScopeOptions = useMemo(
+    () => buildClusterScopeOptions(swarmViewModel?.clusters || [], configData.length),
+    [configData.length, swarmViewModel?.clusters]
+  );
 
   // -----------------------------------------------------
   // Effects: Update local state when data is fetched
@@ -562,6 +584,29 @@ const MissionConfig = () => {
   const sortedConfigData = [...configData].sort(
     (left, right) => compareMissionIds(left.pos_id, right.pos_id)
   );
+  const visibleClusters = useMemo(
+    () => filterClustersByScope(swarmViewModel?.clusters || [], clusterScope),
+    [clusterScope, swarmViewModel?.clusters]
+  );
+  const visibleClusterHwIds = useMemo(() => {
+    if (clusterScope === 'all') {
+      return null;
+    }
+
+    return new Set(
+      visibleClusters.flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
+    );
+  }, [clusterScope, visibleClusters]);
+  const filteredConfigData = useMemo(() => (
+    sortedConfigData.filter((drone) => {
+      const hwId = normalizeComparableId(drone.hw_id);
+      if (visibleClusterHwIds && !visibleClusterHwIds.has(hwId)) {
+        return false;
+      }
+
+      return matchesDroneSearchQuery(drone, missionConfigSearch);
+    })
+  ), [missionConfigSearch, sortedConfigData, visibleClusterHwIds]);
 
   useEffect(() => {
     if (!requestedDroneId) {
@@ -812,6 +857,32 @@ const MissionConfig = () => {
         openOriginModal={() => setShowOriginModal(true)}
       />
 
+      <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
+        <label className="mission-config-search">
+          <span>Search assignments</span>
+          <input
+            type="search"
+            value={missionConfigSearch}
+            onChange={(event) => setMissionConfigSearch(event.target.value)}
+            placeholder={DRONE_SEARCH_PLACEHOLDER}
+            aria-label="Search assignments by position, hardware ID, or callsign"
+          />
+        </label>
+        <p className="mission-config-ops-note">
+          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
+        </p>
+      </section>
+
+      {clusterScopeOptions.length > 1 && (
+        <ClusterScopeBar
+          label="Cluster scope"
+          options={clusterScopeOptions}
+          selectedId={clusterScope}
+          onSelect={setClusterScope}
+          summary="Detected from the current swarm topology. Scope changes the card wall only."
+        />
+      )}
+
       {/* Drone Stats Summary */}
       {configData.length > 0 && (
         <div className="drone-stats-summary">
@@ -874,8 +945,8 @@ const MissionConfig = () => {
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
         <div className="drone-cards slide-in-left">
-          {sortedConfigData.length > 0 ? (
-            sortedConfigData.map((drone, index) => (
+          {filteredConfigData.length > 0 ? (
+            filteredConfigData.map((drone, index) => (
               <div
                 key={drone.hw_id}
                 id={`mission-config-drone-${drone.hw_id}`}
@@ -917,7 +988,7 @@ const MissionConfig = () => {
               </div>
             ))
           ) : (
-            <p>No drones connected. Please add a drone or connect one to proceed.</p>
+            <p>No assignment cards match the current search or cluster scope.</p>
           )}
         </div>
 

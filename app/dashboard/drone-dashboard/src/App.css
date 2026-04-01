@@ -75,8 +75,8 @@ html.theme-dark body {
 html[data-theme="light"] body,
 html.theme-light body {
   background:
-    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 32%),
-    linear-gradient(180deg, #fbfdff 0%, var(--color-bg-canvas) 44%, #edf3f8 100%);
+    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.06), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 42%, var(--color-bg-canvas) 100%);
 }
 
 h1, h2, h3, h4, h5, h6 {

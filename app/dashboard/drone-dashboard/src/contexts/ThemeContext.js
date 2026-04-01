@@ -22,7 +22,19 @@ export const useTheme = () => {
 // Utility functions
 const getSystemTheme = () => {
   if (typeof window !== 'undefined') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? THEMES.DARK : THEMES.LIGHT;
+    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+
+    if (darkQuery.matches) {
+      return THEMES.DARK;
+    }
+
+    if (lightQuery.matches) {
+      return THEMES.LIGHT;
+    }
+
+    // When the browser does not expose a clear preference, default to dark for operator safety.
+    return THEMES.DARK;
   }
   return THEMES.DARK; // Default fallback
 };
@@ -75,13 +87,27 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => {
-      setSystemTheme(e.matches ? THEMES.DARK : THEMES.LIGHT);
+    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const lightQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const handleChange = () => {
+      setSystemTheme(getSystemTheme());
     };
 
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+    if (typeof darkQuery.addEventListener === 'function') {
+      darkQuery.addEventListener('change', handleChange);
+      lightQuery.addEventListener('change', handleChange);
+      return () => {
+        darkQuery.removeEventListener('change', handleChange);
+        lightQuery.removeEventListener('change', handleChange);
+      };
+    }
+
+    darkQuery.addListener(handleChange);
+    lightQuery.addListener(handleChange);
+    return () => {
+      darkQuery.removeListener(handleChange);
+      lightQuery.removeListener(handleChange);
+    };
   }, []);
 
   // Apply theme when it changes

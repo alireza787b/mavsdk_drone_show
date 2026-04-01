@@ -677,6 +677,58 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
   };
 }
 
+export function buildClusterScopeOptions(clusters = [], fallbackTotal = 0) {
+  const executableClusters = clusters.filter((cluster) => cluster.type === 'cluster');
+  const attentionCluster = clusters.find((cluster) => cluster.type === 'attention') || null;
+  const totalDrones = fallbackTotal || clusters.reduce((sum, cluster) => sum + (cluster.counts?.total || cluster.drones?.length || 0), 0);
+
+  const options = [
+    {
+      id: 'all',
+      label: 'All drones',
+      description: executableClusters.length > 0
+        ? `${executableClusters.length} detected cluster${executableClusters.length === 1 ? '' : 's'}`
+        : 'Entire fleet scope',
+      count: totalDrones,
+    },
+  ];
+
+  executableClusters.forEach((cluster) => {
+    const leaderDrone = cluster.drones.find((drone) => drone.role === 'topLeader') || cluster.drones[0] || null;
+    options.push({
+      id: String(cluster.id),
+      label: leaderDrone
+        ? `${formatShowSlotLabel(leaderDrone.pos_id)} · ${formatDroneLabel(leaderDrone.hw_id)}`
+        : cluster.title,
+      description: cluster.subtitle,
+      count: cluster.counts?.total || cluster.drones.length,
+    });
+  });
+
+  if (attentionCluster) {
+    options.push({
+      id: 'attention',
+      label: 'Needs review',
+      description: attentionCluster.subtitle,
+      count: attentionCluster.counts?.total || attentionCluster.drones.length,
+    });
+  }
+
+  return options;
+}
+
+export function filterClustersByScope(clusters = [], scopeId = 'all') {
+  if (!scopeId || scopeId === 'all') {
+    return clusters;
+  }
+
+  if (scopeId === 'attention') {
+    return clusters.filter((cluster) => cluster.type === 'attention');
+  }
+
+  return clusters.filter((cluster) => String(cluster.id) === String(scopeId));
+}
+
 export function toSwarmApiPayload(assignments = []) {
   return assignments
     .map((assignment) => normalizeSwarmAssignment(assignment))

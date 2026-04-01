@@ -154,6 +154,45 @@
     margin-top: var(--spacing-base);
 }
 
+.mission-config-ops-toolbar {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface-muted);
+    box-shadow: var(--shadow-sm);
+}
+
+.mission-config-search {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.mission-config-search span {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.mission-config-search input {
+    width: 100%;
+    padding: 0.8rem 0.95rem;
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.mission-config-ops-note {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-normal);
+}
+
 /* Origin Warning */
 .origin-warning {
     background: var(--color-warning-light);
@@ -442,6 +481,10 @@
 
     .mission-config-header-chip {
         width: fit-content;
+    }
+
+    .mission-config-ops-toolbar {
+        margin-bottom: var(--spacing-base);
     }
 
     .drone-stats-summary {

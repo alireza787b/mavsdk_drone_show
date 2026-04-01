@@ -19,12 +19,15 @@ import DroneCard from '../components/DroneCard';
 import DroneGraph from '../components/DroneGraph';
 import SwarmPlots from '../components/SwarmPlots';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
+import ClusterScopeBar from '../components/ClusterScopeBar';
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
 import { getBackendURL } from '../utilities/utilities';
 import {
+  buildClusterScopeOptions,
   buildSwarmViewModel,
   buildWorkingSwarmAssignments,
+  filterClustersByScope,
   getDirtyAssignmentIds,
   normalizeConfigDrone,
   normalizeSwarmAssignment,
@@ -60,6 +63,7 @@ function SwarmDesign() {
   const [workingAssignments, setWorkingAssignments] = useState([]);
   const [selectedDroneId, setSelectedDroneId] = useState(null);
   const [selectedClusterId, setSelectedClusterId] = useState(null);
+  const [clusterScope, setClusterScope] = useState('all');
   const [expandedDroneId, setExpandedDroneId] = useState(null);
   const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,10 +95,18 @@ function SwarmDesign() {
     () => [...new Set([...syncChanges.addedIds, ...syncChanges.removedIds].map((value) => String(value)))],
     [syncChanges.addedIds, syncChanges.removedIds]
   );
+  const clusterScopeOptions = useMemo(
+    () => buildClusterScopeOptions(viewModel.clusters, viewModel.summary.totalDrones),
+    [viewModel.clusters, viewModel.summary.totalDrones]
+  );
+  const scopedClusters = useMemo(
+    () => filterClustersByScope(viewModel.clusters, clusterScope),
+    [clusterScope, viewModel.clusters]
+  );
 
   const searchValue = searchTerm.trim().toLowerCase();
   const filteredClusters = useMemo(
-    () => viewModel.clusters
+    () => scopedClusters
       .map((cluster) => ({
         ...cluster,
         drones: cluster.drones.filter((drone) => (
@@ -109,7 +121,7 @@ function SwarmDesign() {
         )),
       }))
       .filter((cluster) => cluster.drones.length > 0),
-    [searchValue, viewModel.clusters]
+    [scopedClusters, searchValue]
   );
 
   const filteredDroneIds = useMemo(
@@ -639,6 +651,16 @@ function SwarmDesign() {
             <span>{visibleDroneCount} of {viewModel.summary.totalDrones} drones visible</span>
             <span>{dirtyIds.length} staged</span>
           </div>
+
+          {clusterScopeOptions.length > 1 && (
+            <ClusterScopeBar
+              label="Cluster scope"
+              options={clusterScopeOptions}
+              selectedId={clusterScope}
+              onSelect={setClusterScope}
+              summary="Top-leader scopes keep large swarm audits readable without changing saved topology."
+            />
+          )}
 
           <div className="swarm-cluster-stack">
             {filteredClusters.length === 0 && (
