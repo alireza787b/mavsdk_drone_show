@@ -111,10 +111,19 @@
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
     color: var(--color-text-primary);
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+}
+
+.action-group__header {
+    display: grid;
+    gap: 0.35rem;
+    margin-bottom: var(--spacing-base);
+}
+
+.action-group__header p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
 }
 
 .action-buttons {
@@ -255,12 +264,12 @@
 
 .action-button {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
     gap: var(--spacing-sm);
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
     color: var(--color-text-primary);
-    border: none;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-primary);
     padding: var(--spacing-lg) var(--spacing-xl);
     border-radius: var(--border-radius-lg);
     cursor: pointer;
@@ -269,9 +278,8 @@
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
-    min-height: 60px;
-    box-shadow: var(--shadow-base);
-    backdrop-filter: blur(4px);
+    min-height: 76px;
+    box-shadow: var(--shadow-sm);
     text-align: left;
 }
 
@@ -302,123 +310,87 @@
 .action-icon {
     font-size: var(--font-size-lg);
     opacity: 1;
-    color: #ffffff !important;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) brightness(1.1);
+    color: inherit !important;
+    text-shadow: none;
+    filter: none;
     transition: var(--transition-all);
 }
 
 .action-button__icon {
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    flex-shrink: 0;
+}
+
+.action-button__content {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
 }
 
 .action-button__title {
-    color: var(--color-text-primary);
+    color: inherit;
     font-weight: var(--font-weight-bold);
 }
 
+.action-button__summary {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-normal);
+}
 
-/* Specific Button Styles - Theme Aware */
+.action-button--routine {
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), var(--color-bg-secondary));
+    border-color: var(--color-primary-border);
+}
 
-.takeoff-button {
-    background: linear-gradient(135deg, #388e3c, #2e7d32);
+.action-button--routine .action-button__icon,
+.action-button--routine .action-icon {
+    color: var(--color-primary) !important;
+}
+
+.action-button--test {
+    background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-secondary));
+    border-color: var(--color-info-border);
+}
+
+.action-button--test .action-button__icon,
+.action-button--test .action-icon {
+    color: var(--color-info) !important;
+}
+
+.action-button--maintenance {
+    background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-secondary));
+    border-color: var(--color-warning-border);
+}
+
+.action-button--maintenance .action-button__icon,
+.action-button--maintenance .action-icon {
+    color: var(--color-warning) !important;
+}
+
+.action-button--danger {
+    background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-secondary));
+    border-color: var(--color-danger-border);
+}
+
+.action-button--danger .action-button__icon,
+.action-button--danger .action-icon {
+    color: var(--color-danger) !important;
+}
+
+.action-button--danger .action-button__summary {
     color: var(--color-text-primary);
 }
 
-.takeoff-button .action-icon {
-    color: #ffffff !important;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) brightness(1.2);
-}
-
-.takeoff-button:hover {
-    background: linear-gradient(135deg, #2e7d32, #388e3c);
-}
-
-.land-button {
-    background: linear-gradient(135deg, #d32f2f, #b71c1c);
-    color: var(--color-text-primary);
-}
-
-.land-button .action-icon {
-    color: #ffffff !important;
-    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
-    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8)) brightness(1.3) contrast(1.2);
-}
-
-.land-button:hover {
-    background: linear-gradient(135deg, #b71c1c, #d32f2f);
-}
-
-.hold-button {
-    background: linear-gradient(135deg, #1976d2, #0d47a1);
-    color: var(--color-text-primary);
-}
-
-.hold-button .action-icon {
-    color: #ffffff !important;
-    text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
-    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8)) brightness(1.3) contrast(1.2);
-}
-
-.hold-button:hover {
-    background: linear-gradient(135deg, #0d47a1, #1976d2);
-}
-
-.test-button {
-    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
-}
-
-.test-button:hover {
-    background: linear-gradient(135deg, #7b1fa2, #9c27b0);
-}
-
-.test-led-button {
-    background: linear-gradient(135deg, #673ab7, #5e35b1);
-}
-
-.test-led-button:hover {
-    background: linear-gradient(135deg, #5e35b1, #673ab7);
-}
-
-.disarm-button {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-}
-
-.disarm-button:hover {
-    background: linear-gradient(135deg, #c62828, var(--color-danger));
-}
-
-.reboot-fc-button {
-    background: linear-gradient(135deg, #ff9800, #fb8c00);
-}
-
-.reboot-fc-button:hover {
-    background: linear-gradient(135deg, #fb8c00, #ff9800);
-}
-
-.reboot-sys-button {
-    background: linear-gradient(135deg, #ff5722, #e64a19);
-}
-
-.reboot-sys-button:hover {
-    background: linear-gradient(135deg, #e64a19, #ff5722);
-}
-
-.update-code-button {
-    background: linear-gradient(135deg, var(--color-info), #1976d2);
-}
-
-.update-code-button:hover {
-    background: linear-gradient(135deg, #1976d2, var(--color-info));
-}
-
-.rtl-button {
-    background: linear-gradient(135deg, var(--color-info), #1976d2);
-}
-
-.rtl-button:hover {
-    background: linear-gradient(135deg, #1976d2, var(--color-info));
+.action-button--critical {
+    box-shadow: inset 0 0 0 1px var(--color-danger-border), 0 0 0 1px var(--color-danger-light);
 }
 
 @media (max-width: 900px) {
@@ -427,57 +399,26 @@
     }
 }
 
-.hover-test-button {
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-}
-
-.hover-test-button:hover {
-    background: linear-gradient(135deg, var(--brand-secondary), var(--color-primary));
-}
-
-.init-sysid-button {
-    background: linear-gradient(135deg, #6f42c1, #5a2d91);
-}
-
-.init-sysid-button:hover {
-    background: linear-gradient(135deg, #5a2d91, #6f42c1);
-}
-
-.apply-params-button {
-    background: linear-gradient(135deg, #795548, #5d4037);
-}
-
-.apply-params-button:hover {
-    background: linear-gradient(135deg, #5d4037, #795548);
-}
-
-
 /* Emergency Kill Button - Special Styling */
 
-.kill-button {
-    background: linear-gradient(135deg, var(--color-danger), #bd2130) !important;
+.action-button--critical {
+    background: linear-gradient(135deg, rgba(239, 90, 90, 0.18), var(--color-bg-secondary));
     color: var(--color-text-primary) !important;
     border: 2px solid var(--color-danger-border);
-    box-shadow: 0 0 0 2px var(--color-danger-light);
     animation: dangerPulse 2s infinite;
     position: relative;
     font-weight: var(--font-weight-bold);
 }
 
-.action-button.danger {
-    border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.kill-button::before {
+.action-button--critical::before {
     content: '⚠️';
     margin-right: var(--spacing-sm);
     font-size: var(--font-size-lg);
 }
 
-.kill-button:hover {
-    background: linear-gradient(135deg, #bd2130, var(--color-danger)) !important;
-    transform: scale(1.05);
-    box-shadow: 0 0 0 4px var(--color-danger-light);
+.action-button--critical:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 3px var(--color-danger-light);
 }
 
 @keyframes dangerPulse {
@@ -616,9 +557,11 @@
 
     .action-icon {
         font-size: var(--font-size-base);
-        color: rgba(255, 255, 255, 1) !important;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
-        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+        color: inherit !important;
+    }
+
+    .action-button__summary {
+        font-size: var(--font-size-sm);
     }
 
     .takeoff-section {

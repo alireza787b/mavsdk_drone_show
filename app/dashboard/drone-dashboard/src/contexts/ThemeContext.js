@@ -58,7 +58,7 @@ const applyTheme = (theme) => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content',
-        theme === THEMES.DARK ? '#1f2128' : '#ffffff'
+        theme === THEMES.DARK ? '#09111c' : '#eef2f6'
       );
     }
   }

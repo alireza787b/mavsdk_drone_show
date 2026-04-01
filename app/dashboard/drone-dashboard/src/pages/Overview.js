@@ -14,6 +14,7 @@ import {
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
+import { matchesDroneSearchQuery } from '../utilities/dronePresentation';
 import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
@@ -21,6 +22,8 @@ const Overview = ({ setSelectedDrone }) => {
   const [drones, setDrones] = useState([]);
   const [configByHwId, setConfigByHwId] = useState({});
   const [expandedDrone, setExpandedDrone] = useState(null);
+  const [droneQuery, setDroneQuery] = useState('');
+  const [cardFilter, setCardFilter] = useState('all');
   const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -163,6 +166,32 @@ const Overview = ({ setSelectedDrone }) => {
     return summary;
   }, [drones]);
 
+  const filteredDrones = React.useMemo(() => {
+    const nowMs = Date.now();
+
+    return drones.filter((drone) => {
+      if (!matchesDroneSearchQuery(drone, droneQuery)) {
+        return false;
+      }
+
+      const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
+      const readiness = getDroneReadinessModel(drone, runtimeStatus);
+
+      switch (cardFilter) {
+        case 'attention':
+          return runtimeStatus.level !== 'online' || !readiness.isReady;
+        case 'ready':
+          return readiness.isReady;
+        case 'armed':
+          return Boolean(drone?.[FIELD_NAMES.IS_ARMED]);
+        case 'online':
+          return runtimeStatus.level === 'online';
+        default:
+          return true;
+      }
+    });
+  }, [cardFilter, droneQuery, drones]);
+
   return (
     <div className="overview-container">
       <header className="overview-header">
@@ -204,11 +233,45 @@ const Overview = ({ setSelectedDrone }) => {
       <div className="connected-drones-header">
         <div>
           <h2>Connected Drones</h2>
-          <p>Card density now adapts more cleanly from handheld review to wide-console fleet monitoring.</p>
+          <p>Filter the card wall without changing dispatch scope in Command Control.</p>
         </div>
         <span className="connected-drones-count">
-          {fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
+          {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
         </span>
+      </div>
+
+      <div className="overview-fleet-toolbar">
+        <label className="overview-fleet-toolbar__search">
+          <span>Search fleet</span>
+          <input
+            type="search"
+            value={droneQuery}
+            onChange={(event) => setDroneQuery(event.target.value)}
+            placeholder="Search Pos, HW, callsign"
+            aria-label="Search fleet cards by position, hardware ID, or callsign"
+          />
+        </label>
+        <div className="overview-fleet-toolbar__filters" role="tablist" aria-label="Fleet card filters">
+          {[
+            ['all', 'All'],
+            ['attention', 'Attention'],
+            ['ready', 'Ready'],
+            ['online', 'Online'],
+            ['armed', 'Armed'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`overview-fleet-toolbar__filter ${cardFilter === value ? 'active' : ''}`}
+              onClick={() => setCardFilter(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="overview-fleet-toolbar__note">
+          Visibility filters affect the card wall only. Command scope stays explicit inside Command Control.
+        </p>
       </div>
 
       {notification && <div className="notification">{notification}</div>}
@@ -221,7 +284,13 @@ const Overview = ({ setSelectedDrone }) => {
             <span>When telemetry resumes, aircraft cards will populate here automatically.</span>
           </div>
         )}
-        {drones.map((drone) => (
+        {drones.length > 0 && filteredDrones.length === 0 && !error && (
+          <div className="overview-empty-state">
+            <strong>No drones match the current filters.</strong>
+            <span>Search supports position, hardware ID, and promoted callsign or alias fields.</span>
+          </div>
+        )}
+        {filteredDrones.map((drone) => (
           <div
             key={drone.hw_ID}
             className="drone-list__item"

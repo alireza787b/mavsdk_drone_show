@@ -121,6 +121,71 @@
     font-weight: var(--font-weight-semibold);
 }
 
+.overview-fleet-toolbar {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: 0 0 var(--spacing-base);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
+}
+
+.overview-fleet-toolbar__search {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 24rem;
+}
+
+.overview-fleet-toolbar__search span,
+.overview-fleet-toolbar__note {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.overview-fleet-toolbar__search input {
+    width: 100%;
+    min-width: 0;
+    padding: var(--spacing-sm) var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font: inherit;
+}
+
+.overview-fleet-toolbar__search input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.overview-fleet-toolbar__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.overview-fleet-toolbar__filter {
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-primary);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-all);
+}
+
+.overview-fleet-toolbar__filter:hover,
+.overview-fleet-toolbar__filter.active {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-text-primary);
+}
+
 @media (max-width: 960px) {
     .overview-header {
         grid-template-columns: 1fr;
@@ -148,6 +213,10 @@
 
     .connected-drones-count {
         align-self: flex-start;
+    }
+
+    .overview-fleet-toolbar {
+        padding: var(--spacing-sm);
     }
 }
 

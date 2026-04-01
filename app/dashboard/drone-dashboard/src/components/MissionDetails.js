@@ -359,6 +359,20 @@ const MissionDetails = ({
     return `${lat}°, ${lon}°`;
   };
 
+  const renderOperatorNotes = (summaryLabel, items) => (
+    <details className="mission-operator-notes">
+      <summary>
+        <span>{summaryLabel}</span>
+        <small>Reference guidance</small>
+      </summary>
+      <ul>
+        {items.map((item, index) => (
+          <li key={`${summaryLabel}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    </details>
+  );
+
   return (
     <div className="mission-details">
       <div className="selected-mission-card">
@@ -415,39 +429,35 @@ const MissionDetails = ({
 
       {/* Mode-specific hints and guidance */}
       {showModeHints && !useGlobalSetpoints && (
-        <div className="mode-guidance-section">
-          <div className="guidance-header">
-            <span className="guidance-icon" aria-hidden="true"><FaInfoCircle /></span>
-            <strong>LOCAL Mode Guidelines</strong>
-          </div>
-          <div className="guidance-content">
-            <ul>
-              <li>Uses <strong>local NED coordinates</strong> (North-East-Down) relative to launch position</li>
-              <li>Operator must place drones <strong>exactly</strong> on their launch positions manually</li>
-              <li>Current implementation still expects a valid launch/home reference at mission start before replaying the local trajectory</li>
-              <li>Use this path only after validating the PX4/local-estimator workflow for your deployment</li>
-              <li>Position accuracy depends on estimator quality and manual placement precision</li>
-            </ul>
-          </div>
-        </div>
+        <details className="mission-operator-notes mission-operator-notes--mode">
+          <summary>
+            <span><FaInfoCircle aria-hidden="true" /> Local Mode Operator Notes</span>
+            <small>Manual launch placement and estimator assumptions</small>
+          </summary>
+          <ul>
+            <li>Uses <strong>local NED coordinates</strong> relative to the launch position.</li>
+            <li>Operators must place drones <strong>exactly</strong> on their assigned launch marks.</li>
+            <li>The current replay path still depends on a valid launch and home reference before execution.</li>
+            <li>Use this only after validating the PX4 local-estimator workflow for the deployment.</li>
+            <li>Final accuracy depends on estimator quality and manual placement precision.</li>
+          </ul>
+        </details>
       )}
 
       {showModeHints && useGlobalSetpoints && !autoGlobalOrigin && (
-        <div className="mode-guidance-section">
-          <div className="guidance-header">
-            <span className="guidance-icon" aria-hidden="true"><FaInfoCircle /></span>
-            <strong>GLOBAL Mode Guidelines</strong>
-          </div>
-          <div className="guidance-content">
-            <ul>
-              <li>Uses <strong>global GPS coordinates</strong> with global position estimator</li>
-              <li>Operator must place drones <strong>exactly</strong> based on Blender export and mission config plot</li>
-              <li>Placement deviations will <strong>directly affect</strong> the drone show accuracy</li>
-              <li>Ensure good GPS fix quality before launch</li>
-              <li>Verify launch positions match the mission configuration visualization</li>
-            </ul>
-          </div>
-        </div>
+        <details className="mission-operator-notes mission-operator-notes--mode">
+          <summary>
+            <span><FaInfoCircle aria-hidden="true" /> Global Mode Operator Notes</span>
+            <small>Manual global placement without auto-correction</small>
+          </summary>
+          <ul>
+            <li>Uses <strong>global GPS coordinates</strong> with the global position estimator.</li>
+            <li>Operators must place drones <strong>exactly</strong> according to the Blender export and Mission Config plot.</li>
+            <li>Launch-point deviations directly affect show geometry and timing.</li>
+            <li>Confirm GPS quality and launch spacing before dispatch.</li>
+            <li>Use Mission Config to verify each assigned launch position visually.</li>
+          </ul>
+        </details>
       )}
 
       {/* Auto Global Origin Correction (only for DRONE_SHOW_FROM_CSV + GLOBAL mode) */}
@@ -619,14 +629,14 @@ const MissionDetails = ({
                       </div>
                     )}
                     
-                    <ul>
-                      <li>Drones will <strong>automatically correct</strong> their positions after takeoff and initial climb</li>
-                      <li>Approximate placement acceptable (±10m tolerance)</li>
-                      <li>Requires <strong>good GPS fix</strong> for accurate correction</li>
-                      <li>Ensure drones have <strong>network connectivity</strong> to fetch origin from GCS</li>
-                      <li><strong>Safety:</strong> Place drones to avoid correction paths that cross or could cause collisions</li>
-                      <li>Flight will abort if a drone is more than 20 m from the expected position</li>
-                    </ul>
+                    {renderOperatorNotes('Auto-correction limits', [
+                      <>Drones will <strong>automatically correct</strong> their positions after takeoff and initial climb.</>,
+                      <>Approximate placement is acceptable within the expected tolerance envelope.</>,
+                      <>Good GPS fix quality is required for accurate correction.</>,
+                      <>Drones still need <strong>network connectivity</strong> to fetch the shared origin from GCS.</>,
+                      <><strong>Safety:</strong> place drones so correction paths do not cross or create collision risk.</>,
+                      <>Launch will abort if a drone is too far from the expected starting position.</>,
+                    ])}
                   </>
                 )}
               </div>
@@ -737,10 +747,10 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling Mission Type 4.
             </p>
-            <ul>
-              <li>Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.</li>
-              <li>Launch/home truth is still critical for armability, climb verification, drift handling, and RTL/LAND recovery, but it does not redefine the authored route geometry.</li>
-            </ul>
+            {renderOperatorNotes('Swarm Trajectory operator notes', [
+              'Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.',
+              'Launch and home truth still matter for armability, climb verification, drift handling, and RTL/LAND recovery, but they do not redefine the authored route geometry.',
+            ])}
           </div>
         </div>
       )}
@@ -778,12 +788,6 @@ const MissionDetails = ({
               </ul>
             )}
 
-            <ul>
-              <li>This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.</li>
-              <li>Verify leader/follower roles, offsets, and frame selection in Swarm Design before launch.</li>
-              <li>Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.</li>
-            </ul>
-
             <p>
               Review the live topology in{' '}
               <Link to="/swarm-design" className="origin-link">
@@ -791,6 +795,11 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling this mission.
             </p>
+            {renderOperatorNotes('Smart Swarm operator notes', [
+              'This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.',
+              'Verify leader and follower roles, offsets, and frame selection in Swarm Design before launch.',
+              'Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.',
+            ])}
           </div>
         </div>
       )}
@@ -890,13 +899,6 @@ const MissionDetails = ({
               </ul>
             )}
 
-            <ul>
-              <li>Each drone runs the same CSV relative to its own launch point.</li>
-              <li>GLOBAL origin correction and shared-origin placement checks do not apply in this mode.</li>
-              <li>Use this for advanced/manual testing, not for the normal SkyBrush multi-drone show pipeline.</li>
-              <li>The uploaded CSV must already follow the MDS custom trajectory protocol; no conversion is done here.</li>
-            </ul>
-
             <p>
               Review the authored path in{' '}
               <Link to="/custom-show" className="origin-link">
@@ -908,6 +910,12 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling launch.
             </p>
+            {renderOperatorNotes('Custom CSV operator notes', [
+              'Each drone runs the same CSV relative to its own launch point.',
+              'Global origin correction and shared-origin placement checks do not apply in this mode.',
+              'Use this for advanced or manual testing, not for the normal SkyBrush multi-drone show pipeline.',
+              'The uploaded CSV must already follow the MDS custom trajectory protocol; no conversion is done here.',
+            ])}
           </div>
         </div>
       )}

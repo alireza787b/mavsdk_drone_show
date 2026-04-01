@@ -78,20 +78,20 @@ const ACTION_ICONS = {
 };
 
 const ACTION_DESCRIPTIONS = {
-  TAKE_OFF: 'Climb every target to the configured takeoff altitude.',
-  LAND: 'Land the targeted drones immediately.',
+  TAKE_OFF: 'Climb to the configured takeoff altitude.',
+  LAND: 'Land the targeted drones now.',
   HOLD: 'Freeze current motion and hold position.',
-  RETURN_RTL: 'Return the targeted drones to launch.',
-  DISARM: 'Disarm motors. Use only when safe to do so.',
-  KILL_TERMINATE: 'Emergency motor stop. Use only as a last resort.',
+  RETURN_RTL: 'Return targeted drones to launch.',
+  DISARM: 'Disarm motors when the airframe is safe.',
+  KILL_TERMINATE: 'Emergency motor stop as a last resort.',
   TEST: 'Run the generic test routine.',
   TEST_LED: 'Run the light-show test pattern.',
-  HOVER_TEST: 'Quick lift, hover, and land rehearsal.',
-  REBOOT_FC: 'Restart PX4 or the flight-controller side.',
-  REBOOT_SYS: 'Restart the companion computer container/system.',
-  UPDATE_CODE: 'Pull the configured repo/branch and restart services if needed.',
-  INIT_SYSID: 'Reapply system ID / identity setup.',
-  APPLY_COMMON_PARAMS: 'Apply the common PX4 parameter set and reboot.',
+  HOVER_TEST: 'Lift, hover briefly, and land.',
+  REBOOT_FC: 'Restart PX4 / flight-control services.',
+  REBOOT_SYS: 'Restart the companion container or system.',
+  UPDATE_CODE: 'Pull the configured repo and refresh services.',
+  INIT_SYSID: 'Reapply system identity setup.',
+  APPLY_COMMON_PARAMS: 'Apply the common PX4 parameter set.',
 };
 
 const DroneActions = ({
@@ -161,22 +161,26 @@ const DroneActions = ({
     onSendCommand(commandData);
   };
 
-  const renderActionButton = (actionKey) => {
+  const renderActionButton = (actionKey, sectionKey) => {
     const Icon = ACTION_ICONS[actionKey];
     const actionTypeValue = actionTypes[actionKey];
     const label = DRONE_ACTION_NAMES[actionTypeValue];
     const isDanger = actionKey === 'KILL_TERMINATE' || actionKey === 'DISARM';
+    const isCritical = actionKey === 'KILL_TERMINATE';
 
     return (
       <button
         key={actionKey}
-        className={`action-button ${actionKey.toLowerCase().replace(/_/g, '-').replace('return-rtl', 'rtl').replace('kill-terminate', 'kill')} ${isDanger ? 'danger' : ''}`}
+        className={`action-button action-button--${sectionKey}${isDanger ? ' action-button--danger' : ''}${isCritical ? ' action-button--critical' : ''}`}
         onClick={() => handleActionClick(actionKey, actionKey === 'APPLY_COMMON_PARAMS' ? { reboot_after: true } : {})}
         title={ACTION_DESCRIPTIONS[actionKey]}
         aria-label={`${label}. ${ACTION_DESCRIPTIONS[actionKey]}`}
       >
         <span className="action-button__icon"><Icon className="action-icon" /></span>
-        <span className="action-button__title">{label}</span>
+        <span className="action-button__content">
+          <span className="action-button__title">{label}</span>
+          <small className="action-button__summary">{ACTION_DESCRIPTIONS[actionKey]}</small>
+        </span>
       </button>
     );
   };
@@ -295,9 +299,10 @@ const DroneActions = ({
         >
           <div className="action-group__header">
             <h2>{section.title}</h2>
+            <p>{section.description}</p>
           </div>
           <div className="action-buttons">
-            {section.actions.map((actionKey) => renderActionButton(actionKey))}
+            {section.actions.map((actionKey) => renderActionButton(actionKey, section.key))}
           </div>
         </div>
       ))}

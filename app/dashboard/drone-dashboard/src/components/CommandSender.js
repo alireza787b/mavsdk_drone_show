@@ -22,6 +22,10 @@ import {
   formatCommandAbsoluteTime,
   getFleetReferenceClock,
 } from '../utilities/commandScheduling';
+import {
+  getDroneDisplayIdentity,
+  matchesDroneSearchQuery,
+} from '../utilities/dronePresentation';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
@@ -30,6 +34,7 @@ const CommandSender = ({ drones }) => {
   const [activeTab, setActiveTab] = useState('missionTrigger');
   const [targetMode, setTargetMode] = useState('all'); // 'all' or 'selected'
   const [selectedDrones, setSelectedDrones] = useState([]);
+  const [targetQuery, setTargetQuery] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
@@ -65,6 +70,10 @@ const CommandSender = ({ drones }) => {
     ? `Selected drones: ${selectedDrones.join(', ')}`
     : 'Target scope: all configured drones';
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
+  const visibleSelectionDrones = useMemo(
+    () => drones.filter((drone) => matchesDroneSearchQuery(drone, targetQuery)),
+    [drones, targetQuery],
+  );
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
@@ -336,9 +345,9 @@ const CommandSender = ({ drones }) => {
     );
   };
 
-  const selectAllDrones = () => {
-    const allDroneIds = drones.map((drone) => drone[FIELD_NAMES.HW_ID]);
-    setSelectedDrones(allDroneIds);
+  const selectVisibleDrones = () => {
+    const visibleDroneIds = visibleSelectionDrones.map((drone) => drone[FIELD_NAMES.HW_ID]);
+    setSelectedDrones((prev) => Array.from(new Set([...prev, ...visibleDroneIds])));
   };
 
   const deselectAllDrones = () => {
@@ -383,27 +392,53 @@ const CommandSender = ({ drones }) => {
         </div>
 
         {targetMode === 'selected' && (
-          <div className="drone-selection">
-            <div className="selection-buttons">
-              <button onClick={selectAllDrones}>Select All</button>
-              <button onClick={deselectAllDrones}>Deselect All</button>
+            <div className="drone-selection">
+            <div className="drone-selection__toolbar">
+              <label className="drone-selection__search">
+                <span>Search targets</span>
+                <input
+                  type="search"
+                  value={targetQuery}
+                  onChange={(event) => setTargetQuery(event.target.value)}
+                  placeholder="Search Pos, HW, callsign"
+                  aria-label="Search drone targets by position, hardware ID, or callsign"
+                />
+              </label>
+              <div className="selection-buttons">
+              <button type="button" onClick={selectVisibleDrones}>Select Visible</button>
+              <button type="button" onClick={deselectAllDrones}>Deselect All</button>
+              </div>
             </div>
             <div className="drone-grid">
-              {drones.map((drone) => (
-                <div
+              {visibleSelectionDrones.map((drone) => {
+                const identity = getDroneDisplayIdentity(drone);
+
+                return (
+                <button
+                  type="button"
                   key={drone[FIELD_NAMES.HW_ID]}
                   className={`drone-item ${
                     selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
                   }`}
                   onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
                 >
-                  {drone[FIELD_NAMES.HW_ID]}
-                </div>
-              ))}
+                  <strong>{identity.primary}</strong>
+                  {identity.secondary && <small>{identity.secondary}</small>}
+                </button>
+              )})}
             </div>
+            {visibleSelectionDrones.length === 0 && (
+              <div className="drone-selection__empty">
+                No drones match the current search. Search supports position, hardware ID, and promoted callsign/alias fields.
+              </div>
+            )}
             <div className="selected-count">
               Selected Drones: {selectedDrones.length}
+              {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
             </div>
+            <p className="drone-selection__note">
+              This search only changes what is visible in the picker. Command scope changes only when you explicitly select or deselect targets.
+            </p>
           </div>
         )}
       </div>
