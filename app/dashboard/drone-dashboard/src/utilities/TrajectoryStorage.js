@@ -242,6 +242,15 @@ export class TrajectoryStorage {
     }
   }
 
+  buildPersistenceSignature(name, waypoints = []) {
+    const normalizedName = String(name || '').trim();
+
+    return JSON.stringify({
+      name: normalizedName,
+      waypoints: this.sanitizeWaypoints(waypoints),
+    });
+  }
+
   /**
    * Import trajectory from file
    */
@@ -279,14 +288,16 @@ export class TrajectoryStorage {
         modifiedAt: Date.now(),
         version: this.version
       };
-
-      // Save imported trajectory
-      const saveResult = await this.saveTrajectory(trajectoryData.name, trajectoryData.waypoints, trajectoryData.metadata);
+      const existingTrajectory = this.getAllTrajectories().find(
+        (trajectory) => trajectory.name === trajectoryData.name
+      );
       
       return {
-        success: saveResult.success,
+        success: true,
         trajectory: trajectoryData,
-        message: saveResult.success ? 'Trajectory imported successfully' : saveResult.error
+        nameConflict: Boolean(existingTrajectory),
+        existingTrajectoryId: existingTrajectory?.id || '',
+        message: 'Trajectory imported into planner draft'
       };
 
     } catch (error) {

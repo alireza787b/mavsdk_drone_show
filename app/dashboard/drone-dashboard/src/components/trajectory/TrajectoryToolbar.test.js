@@ -29,7 +29,7 @@ const renderToolbar = (overrides = {}) => {
         transferLabel: 'Assign to Cluster',
       },
     },
-    saveStatus: { saved: true, autoSaveTime: null },
+    saveStatus: { dirty: false, autoSaveTime: null, persistedAt: Date.now() },
     trajectoryName: 'mission-pass',
     ...overrides,
   };
@@ -93,4 +93,17 @@ describe('TrajectoryToolbar', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText('2D fallback')).toBeInTheDocument();
   });
+  it('shows autosaved draft status without pretending the working copy is fully saved', () => {
+    renderToolbar({
+      saveStatus: {
+        dirty: true,
+        autoSaveTime: Date.now() - 15_000,
+        persistedAt: null,
+      },
+    });
+
+    expect(screen.getByText(/draft auto-saved/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/working draft auto-saved/i)).toBeInTheDocument();
+  });
+
 });

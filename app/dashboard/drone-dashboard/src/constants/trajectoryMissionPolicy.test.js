@@ -24,6 +24,7 @@ describe('trajectoryMissionPolicy', () => {
     expect(getNominalPreferredLegSpeed(6)).toBe(6);
     expect(TRAJECTORY_TIMING_POLICY.DEFAULT_ROUTE_ENTRY_DELAY_S).toBe(10);
     expect(TRAJECTORY_TIMING_POLICY.DEFAULT_FALLBACK_LEG_DURATION_S).toBe(10);
+    expect(TRAJECTORY_TIMING_POLICY.DERIVED_TIME_STEP_S).toBe(0.1);
   });
 
   it('formats operator-facing envelope guidance and terrain safety helpers from one source', () => {

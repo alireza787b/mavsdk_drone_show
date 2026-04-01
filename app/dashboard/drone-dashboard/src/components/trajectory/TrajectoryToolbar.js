@@ -25,7 +25,7 @@ const TrajectoryToolbar = ({
   onLoad,
   onImport,
   onSendToSwarm,
-  saveStatus = { saved: true, autoSaveTime: null },
+  saveStatus = { dirty: false, autoSaveTime: null, persistedAt: null },
   trajectoryName = '',
   canSendToSwarm = false,
   missionReadiness = {
@@ -38,6 +38,7 @@ const TrajectoryToolbar = ({
   },
 }) => {
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const isDirty = typeof saveStatus?.dirty === 'boolean' ? saveStatus.dirty : !saveStatus?.saved;
   const handoffPosture = missionReadiness?.posture || {};
   const handoffTone = handoffPosture.tone || 'neutral';
   const handoffLabel = handoffPosture.label || 'Not ready';
@@ -99,7 +100,7 @@ const TrajectoryToolbar = ({
         >
           <span className="btn-icon">💾</span>
           <span className="btn-text">Save</span>
-          {!saveStatus.saved && <span className="unsaved-indicator">●</span>}
+          {isDirty && <span className="unsaved-indicator">●</span>}
         </button>
         
         <button 
@@ -213,10 +214,24 @@ const TrajectoryToolbar = ({
         
         {/* Save status */}
         <div className="save-status">
-          {!saveStatus.saved ? (
-            <span className="status-unsaved" title="Trajectory has unsaved changes">
+          {isDirty ? (
+            <span
+              className="status-unsaved"
+              title={saveStatus.autoSaveTime
+                ? `Working draft auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`
+                : 'Trajectory draft has unsaved library changes'}
+            >
               <span className="status-indicator">●</span>
-              <span className="status-text">Unsaved</span>
+              <span className="status-text">
+                {saveStatus.autoSaveTime
+                  ? `Draft auto-saved ${formatAutoSaveTime(saveStatus.autoSaveTime)}`
+                  : 'Unsaved draft'}
+              </span>
+            </span>
+          ) : saveStatus.persistedAt ? (
+            <span className="status-saved" title={`Saved at ${new Date(saveStatus.persistedAt).toLocaleTimeString()}`}>
+              <span className="status-indicator">✓</span>
+              <span className="status-text">Saved</span>
             </span>
           ) : saveStatus.autoSaveTime ? (
             <span className="status-saved" title={`Auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`}>
@@ -305,8 +320,10 @@ TrajectoryToolbar.propTypes = {
     }),
   }),
   saveStatus: PropTypes.shape({
+    dirty: PropTypes.bool,
     saved: PropTypes.bool,
-    autoSaveTime: PropTypes.number
+    autoSaveTime: PropTypes.number,
+    persistedAt: PropTypes.number,
   }),
   trajectoryName: PropTypes.string
 };

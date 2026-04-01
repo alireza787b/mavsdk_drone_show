@@ -815,11 +815,15 @@ export const suggestOptimalTime = (
     });
     
     const requiredTime = totalDistance / preferredSpeed;
-    const suggestedTime = (fromWaypoint.timeFromStart || 0) + Math.ceil(requiredTime);
+    const timeStep = TRAJECTORY_TIMING_POLICY.DERIVED_TIME_STEP_S;
+    const baseTime = fromWaypoint.timeFromStart || 0;
+    const suggestedTime = baseTime + (Math.ceil(requiredTime / timeStep) * timeStep);
     
-    return suggestedTime;
+    return Number(suggestedTime.toFixed(1));
   } catch {
-    return (fromWaypoint.timeFromStart || 0) + TRAJECTORY_TIMING_POLICY.DEFAULT_FALLBACK_LEG_DURATION_S;
+    return Number(
+      ((fromWaypoint.timeFromStart || 0) + TRAJECTORY_TIMING_POLICY.DEFAULT_FALLBACK_LEG_DURATION_S).toFixed(1)
+    );
   }
 };
 

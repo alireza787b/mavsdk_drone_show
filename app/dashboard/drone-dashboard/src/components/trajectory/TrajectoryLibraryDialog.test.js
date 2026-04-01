@@ -126,4 +126,36 @@ describe('TrajectoryLibraryDialog', () => {
 
     expect(onLoad).toHaveBeenCalledWith('manual-1');
   });
+  it('warns when saving would update an existing named trajectory', () => {
+    render(
+      <TrajectoryLibraryDialog
+        mode="save"
+        isOpen
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        initialName="coastal-guard-alpha"
+        trajectories={[
+          {
+            id: 'saved-1',
+            name: 'coastal-guard-alpha',
+            waypoints: [{}, {}],
+            metadata: {
+              modifiedAt: Date.UTC(2026, 2, 28, 12, 0, 0),
+            },
+          },
+        ]}
+        currentWaypointCount={2}
+        currentStats={{
+          totalDistance: 400,
+          totalTime: 40,
+          routeMotionTime: 32,
+          maxSpeed: 6.2,
+        }}
+      />
+    );
+
+    expect(screen.getByText(/updates the existing saved route/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /update trajectory/i })).toBeInTheDocument();
+  });
+
 });

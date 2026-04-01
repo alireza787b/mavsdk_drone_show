@@ -715,7 +715,7 @@ const WaypointModal = ({
               onChange={handleTimeChange}
               className={`waypoint-input ${timingMode === TIMING_MODES.AUTO_SPEED && previousWaypoint ? 'disabled-input' : ''}`}
               placeholder={previousWaypoint ? 'Seconds from mission start' : 'Seconds after mission start'}
-              step="1"
+              step={String(TRAJECTORY_TIMING_POLICY.DERIVED_TIME_STEP_S)}
               min="0"
               disabled={timingMode === TIMING_MODES.AUTO_SPEED && Boolean(previousWaypoint)}
             />

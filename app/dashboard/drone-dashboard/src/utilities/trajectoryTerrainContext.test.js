@@ -1,6 +1,7 @@
 import { ALTITUDE_REFERENCE } from './SpeedCalculator';
 import {
   applyWaypointTerrainContext,
+  resolveImportedTrajectoryTerrainContext,
   resolveWaypointTerrainContext,
 } from './trajectoryTerrainContext';
 
@@ -86,4 +87,46 @@ describe('trajectoryTerrainContext', () => {
       })
     );
   });
+  it('re-resolves imported terrain-backed waypoints before planner use', async () => {
+    const result = await resolveImportedTrajectoryTerrainContext(
+      [
+        {
+          id: 'wp-1',
+          altitude: 320,
+          altitudeReference: ALTITUDE_REFERENCE.AGL,
+          targetAgl: 120,
+          groundElevation: 180,
+          latitude: 35.72,
+          longitude: 51.27,
+        },
+        {
+          id: 'wp-2',
+          altitude: 150,
+          altitudeReference: ALTITUDE_REFERENCE.MSL,
+          latitude: 35.73,
+          longitude: 51.28,
+        },
+      ],
+      jest
+        .fn()
+        .mockResolvedValueOnce({
+          elevation: 200,
+          source: 'backend',
+        })
+    );
+
+    expect(result.refreshedCount).toBe(1);
+    expect(result.estimatedCount).toBe(0);
+    expect(result.waypoints[0]).toEqual(expect.objectContaining({
+      groundElevation: 200,
+      targetAgl: 120,
+      altitude: 320,
+      terrainAccurate: true,
+    }));
+    expect(result.waypoints[1]).toEqual(expect.objectContaining({
+      altitude: 150,
+      altitudeReference: ALTITUDE_REFERENCE.MSL,
+    }));
+  });
+
 });

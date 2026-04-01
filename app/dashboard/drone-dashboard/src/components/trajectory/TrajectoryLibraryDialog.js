@@ -97,6 +97,16 @@ const TrajectoryLibraryDialog = ({
 
   const normalizedDraftName = draftName.trim();
 
+  const existingNamedTrajectory = useMemo(() => {
+    if (mode !== 'save' || !normalizedDraftName) {
+      return null;
+    }
+
+    return trajectories.find(
+      (trajectory) => !trajectory?.metadata?.isAutoSave && trajectory.name === normalizedDraftName
+    ) || null;
+  }, [mode, normalizedDraftName, trajectories]);
+
   const sortedTrajectories = useMemo(() => {
     return [...trajectories].sort((a, b) => {
       const aAuto = a?.metadata?.isAutoSave ? 1 : 0;
@@ -165,13 +175,20 @@ const TrajectoryLibraryDialog = ({
               <p className="trajectory-library-dialog__empty">
                 Enter a trajectory name before saving this leader route.
               </p>
+            ) : existingNamedTrajectory ? (
+              <p className="trajectory-library-dialog__empty">
+                Saving as <strong>{normalizedDraftName}</strong> updates the existing saved route from{' '}
+                {formatModifiedTime(
+                  existingNamedTrajectory?.metadata?.modifiedAt || existingNamedTrajectory?.metadata?.createdAt
+                )}.
+              </p>
             ) : null}
             <div className="dialog-buttons">
               <button type="button" onClick={onClose}>
                 Cancel
               </button>
               <button type="button" onClick={handleSave} disabled={!normalizedDraftName}>
-                Save Trajectory
+                {existingNamedTrajectory ? 'Update Trajectory' : 'Save Trajectory'}
               </button>
             </div>
           </>

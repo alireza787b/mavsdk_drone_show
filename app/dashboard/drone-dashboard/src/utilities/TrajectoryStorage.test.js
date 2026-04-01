@@ -160,6 +160,83 @@ describe('TrajectoryStorage', () => {
     );
   });
 
+  it('imports a planner draft without mutating the saved library and flags name collisions', async () => {
+    const storage = new TrajectoryStorage();
+
+    await storage.saveTrajectory('route-alpha', [
+      {
+        id: 'wp-1',
+        name: 'Waypoint 1',
+        latitude: 35.7262,
+        longitude: 51.2721,
+        altitude: 320,
+        timeFromStart: 24,
+        heading: 90,
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+    ]);
+
+    const file = new File(
+      [
+        [
+          'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode',
+          'Waypoint 1,35.72620000,51.27210000,320.00,24.0,5.8,90.0,auto',
+        ].join('\n'),
+      ],
+      'route-alpha.csv',
+      { type: 'text/csv' }
+    );
+
+    const result = await storage.importTrajectory(file);
+
+    expect(result.success).toBe(true);
+    expect(result.nameConflict).toBe(true);
+    expect(result.trajectory.name).toBe('route-alpha');
+    expect(storage.getAllTrajectories()).toHaveLength(1);
+  });
+
+  it('builds a stable persistence signature from sanitized planner state', () => {
+    const storage = new TrajectoryStorage();
+
+    const firstSignature = storage.buildPersistenceSignature('  ridge-pass ', [
+      {
+        id: 'wp-1',
+        name: 'Waypoint 1',
+        latitude: '35.7262',
+        longitude: '51.2721',
+        altitude: '320',
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        targetAgl: '120',
+        timeFromStart: '24',
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        preferredSpeed: '6',
+        groundElevation: '200',
+        heading: '90',
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+    ]);
+
+    const secondSignature = storage.buildPersistenceSignature('ridge-pass', [
+      {
+        id: 'wp-1',
+        name: 'Waypoint 1',
+        latitude: 35.7262,
+        longitude: 51.2721,
+        altitude: 320,
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        targetAgl: 120,
+        timeFromStart: 24,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        preferredSpeed: 6,
+        groundElevation: 200,
+        heading: 90,
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+    ]);
+
+    expect(firstSignature).toBe(secondSignature);
+  });
+
   it('rejects blank save names and normalizes whitespace on valid names', async () => {
     const storage = new TrajectoryStorage();
     const waypoints = [

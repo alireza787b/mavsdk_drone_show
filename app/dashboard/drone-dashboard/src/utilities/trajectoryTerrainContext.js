@@ -71,3 +71,53 @@ export const resolveWaypointTerrainContext = async (
     terrainError: terrainResult?.error || '',
   };
 };
+
+const shouldRefreshImportedWaypointTerrain = (waypoint = {}) => {
+  const altitudeReference = getWaypointAltitudeReference(waypoint);
+
+  return altitudeReference === ALTITUDE_REFERENCE.AGL
+    || Number.isFinite(waypoint.targetAgl)
+    || Number.isFinite(waypoint.groundElevation)
+    || waypoint.terrainAccurate === false;
+};
+
+export const resolveImportedTrajectoryTerrainContext = async (
+  waypoints = [],
+  terrainResolver = getTerrainElevation
+) => {
+  const resolvedWaypoints = await Promise.all(
+    waypoints.map(async (waypoint) => {
+      if (!shouldRefreshImportedWaypointTerrain(waypoint)) {
+        return {
+          waypoint,
+          refreshed: false,
+          estimated: false,
+        };
+      }
+
+      const terrainPatch = await resolveWaypointTerrainContext(
+        waypoint,
+        {
+          latitude: waypoint.latitude,
+          longitude: waypoint.longitude,
+        },
+        terrainResolver
+      );
+
+      return {
+        waypoint: {
+          ...waypoint,
+          ...terrainPatch,
+        },
+        refreshed: true,
+        estimated: terrainPatch.terrainAccurate === false,
+      };
+    })
+  );
+
+  return {
+    waypoints: resolvedWaypoints.map((entry) => entry.waypoint),
+    refreshedCount: resolvedWaypoints.filter((entry) => entry.refreshed).length,
+    estimatedCount: resolvedWaypoints.filter((entry) => entry.estimated).length,
+  };
+};

@@ -14,6 +14,7 @@ import {
 import {
   TRAJECTORY_ALTITUDE_POLICY,
   TRAJECTORY_SPEED_POLICY,
+  TRAJECTORY_TIMING_POLICY,
   clampPreferredLegSpeed,
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
@@ -656,7 +657,7 @@ const WaypointPanel = ({
               <input
                 ref={editInputRef}
                 type="number"
-                step={field === 'time' ? '0.1' : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'targetAgl' ? '1' : 'any'}
+                step={field === 'time' ? String(TRAJECTORY_TIMING_POLICY.DERIVED_TIME_STEP_S) : field === 'altitude' ? '1' : field === 'heading' ? '0.1' : field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'targetAgl' ? '1' : 'any'}
                 min={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.MIN_PREFERRED) : field === 'heading' ? '0' : field === 'targetAgl' ? '0' : undefined}
                 max={field === 'preferredSpeed' ? String(TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX) : field === 'heading' ? '360' : undefined}
                 value={editValues[
@@ -723,7 +724,7 @@ const WaypointPanel = ({
       <div className="waypoint-panel-header">
         <div className="header-title-section">
           <h3>Waypoints ({waypoints.length})</h3>
-          {waypoints.some(wp => wp.estimatedSpeed > 20) && (
+          {waypoints.some((wp) => wp.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX) && (
             <div className="speed-warning-summary">
               <span className="speed-indicator speed-impossible">⚠</span>
               {!isCollapsed && <span className="warning-text">High speed detected</span>}
@@ -1098,7 +1099,7 @@ const WaypointPanel = ({
             )}
             
             {/* Speed warning for high-speed segments */}
-            {index > 0 && waypoint.estimatedSpeed > 20 && (
+            {index > 0 && waypoint.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX && (
               <div className="waypoint-speed-warning">
                 <small>⚠ High speed segment - verify drone capabilities</small>
               </div>

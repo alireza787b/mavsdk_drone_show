@@ -311,6 +311,15 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number
+- import/save workflow now preserves operator trust instead of silently mutating the local library:
+  - importing a leader-route CSV or planner JSON loads it into the planner as a working draft; it does **not** overwrite an existing saved route until the operator explicitly saves
+  - if the imported route name already exists in the local library, the save dialog now warns that saving will update that existing route in place
+  - the toolbar now distinguishes `Unsaved draft`, `Draft auto-saved`, and clean saved state so autosave does not masquerade as a completed library save
+- imported terrain-backed routes now re-resolve ground context before planner use:
+  - `Target AGL` imports refresh terrain and recompute stored MSL altitude against current ground truth instead of trusting stale `GroundElevation_m` values from external files
+  - if the terrain resolver falls back to estimated elevation during import, the planner surfaces that review requirement immediately
+- derived timing precision is now aligned across the planner surfaces:
+  - `Speed-driven ETA` legs round to the shared `0.1s` timing step instead of whole seconds, matching the editable timing precision shown in the modal and waypoint panel
 - `Speed-driven ETA` legs now stay truly derived after later edits:
   - if upstream coordinates, altitude, or route-entry timing change, the planner recomputes downstream auto-speed waypoint arrival times from the operator-owned preferred leg speeds instead of leaving stale stored ETAs behind
   - this keeps drag moves, panel edits, imports, and load/export round-trips aligned with the same operator-owned vs derived timing doctrine

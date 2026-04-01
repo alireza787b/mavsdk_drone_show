@@ -38,7 +38,10 @@ import {
   getTrajectoryOperatorPolicyNotes,
   getTrajectoryWorkflowStages,
 } from '../utilities/trajectoryAuthoringGuidance';
-import { resolveWaypointTerrainContext } from '../utilities/trajectoryTerrainContext';
+import {
+  resolveImportedTrajectoryTerrainContext,
+  resolveWaypointTerrainContext,
+} from '../utilities/trajectoryTerrainContext';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -101,6 +104,8 @@ const TrajectoryPlanning = () => {
   const stateManagerRef = useRef(new TrajectoryStateManager());
   const storageRef = useRef(new TrajectoryStorage());
   const terrainRefreshTokenRef = useRef(new Map());
+  const persistedSignatureRef = useRef('');
+  const autoSaveSignatureRef = useRef('');
   const waypointsRef = useRef([]);
   
   // Core state
@@ -112,7 +117,7 @@ const TrajectoryPlanning = () => {
 
   // Enhanced state
   const [historyStatus, setHistoryStatus] = useState({ canUndo: false, canRedo: false });
-  const [saveStatus, setSaveStatus] = useState({ saved: true, autoSaveTime: null });
+  const [saveStatus, setSaveStatus] = useState({ dirty: false, autoSaveTime: null, persistedAt: null });
   const [trajectoryName, setTrajectoryName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
@@ -163,6 +168,38 @@ const TrajectoryPlanning = () => {
     setAvailableTrajectories(trajectories);
   }, []);
 
+  const buildPlannerSignature = useCallback((name, nextWaypoints) => {
+    return storageRef.current.buildPersistenceSignature(name, nextWaypoints);
+  }, []);
+
+  const markPersistedPlannerState = useCallback((name, nextWaypoints, persistedAt = Date.now()) => {
+    persistedSignatureRef.current = buildPlannerSignature(name, nextWaypoints);
+    autoSaveSignatureRef.current = '';
+    setSaveStatus({
+      dirty: false,
+      autoSaveTime: null,
+      persistedAt,
+    });
+  }, [buildPlannerSignature]);
+
+  const markImportedPlannerDraft = useCallback(() => {
+    persistedSignatureRef.current = '';
+    autoSaveSignatureRef.current = '';
+    setSaveStatus({
+      dirty: true,
+      autoSaveTime: null,
+      persistedAt: null,
+    });
+  }, []);
+
+  const markAutoSavedPlannerDraft = useCallback((name, nextWaypoints, autoSavedAt = Date.now()) => {
+    autoSaveSignatureRef.current = buildPlannerSignature(name, nextWaypoints);
+    setSaveStatus((prev) => ({
+      ...prev,
+      autoSaveTime: autoSavedAt,
+    }));
+  }, [buildPlannerSignature]);
+
   // Update history status when waypoints change
   useEffect(() => {
     waypointsRef.current = waypoints;
@@ -170,9 +207,19 @@ const TrajectoryPlanning = () => {
 
   useEffect(() => {
     const status = stateManagerRef.current.getHistoryStatus();
+    const currentSignature = buildPlannerSignature(trajectoryName, waypoints);
+    const dirty = persistedSignatureRef.current
+      ? currentSignature !== persistedSignatureRef.current
+      : waypoints.length > 0;
+    const autoSaveCurrent = Boolean(autoSaveSignatureRef.current) && currentSignature === autoSaveSignatureRef.current;
+
     setHistoryStatus(status);
-    setSaveStatus(prev => ({ ...prev, saved: false }));
-  }, [waypoints]);
+    setSaveStatus((prev) => ({
+      ...prev,
+      dirty,
+      autoSaveTime: autoSaveCurrent ? prev.autoSaveTime : null,
+    }));
+  }, [buildPlannerSignature, trajectoryName, waypoints]);
 
   const setOperationNotice = useCallback((text, tone = 'info', options = {}) => {
     setPlannerNotice({
@@ -223,7 +270,7 @@ const TrajectoryPlanning = () => {
     };
   }, []);
 
-  const applyTrajectoryToPlanner = useCallback((trajectory, sourceLabel) => {
+  const applyTrajectoryToPlanner = useCallback((trajectory, sourceLabel, options = {}) => {
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(trajectory.waypoints || []);
     const nextStats = calculateTrajectoryStats(waypointsWithCorrectSpeeds);
     const nextReadiness = buildTrajectoryMissionReadiness({
@@ -244,11 +291,27 @@ const TrajectoryPlanning = () => {
     setWaypoints(waypointsWithCorrectSpeeds);
     setTrajectoryName(trajectory.name || '');
     setSelectedWaypointId(null);
-    setSaveStatus({ saved: true, autoSaveTime: Date.now() });
+    if (options.persisted === false) {
+      markImportedPlannerDraft();
+    } else {
+      markPersistedPlannerState(
+        trajectory.name || '',
+        waypointsWithCorrectSpeeds,
+        options.persistedAt || trajectory?.metadata?.modifiedAt || trajectory?.metadata?.createdAt || Date.now()
+      );
+    }
     clearOperationNotice();
 
-    setOperationNotice(notice.message, notice.tone);
-  }, [buildTrajectorySourceNotice, clearOperationNotice, setOperationNotice]);
+    if (options.announce !== false) {
+      setOperationNotice(notice.message, notice.tone);
+    }
+  }, [
+    buildTrajectorySourceNotice,
+    clearOperationNotice,
+    markImportedPlannerDraft,
+    markPersistedPlannerState,
+    setOperationNotice,
+  ]);
 
   const trajectoryStats = useMemo(() => {
     return calculateTrajectoryStats(waypoints);
@@ -442,7 +505,6 @@ const TrajectoryPlanning = () => {
     );
 
     setWaypoints(waypointsWithCorrectSpeeds);
-    setSaveStatus({ saved: false, autoSaveTime: null });
 
     if (!issuedTerrainNotice && retimedWaypoints.length > 0) {
       const leadNames = retimedWaypoints
@@ -484,8 +546,6 @@ const TrajectoryPlanning = () => {
     if (selectedWaypointId === waypointId) {
       setSelectedWaypointId(null);
     }
-    
-    setSaveStatus({ saved: false, autoSaveTime: null });
   }, [waypoints, selectedWaypointId]);
 
   const handleMarkerDragEnd = useCallback(async (waypointId, newPosition) => {
@@ -527,7 +587,6 @@ const TrajectoryPlanning = () => {
 
           setWaypoints([]);
           setSelectedWaypointId(null);
-          setSaveStatus({ saved: false, autoSaveTime: null });
           clearOperationNotice();
         },
       }
@@ -541,7 +600,6 @@ const TrajectoryPlanning = () => {
 
       setWaypoints(waypointsWithCorrectSpeeds);
       setSelectedWaypointId(previousState.state.selectedWaypointId || null);
-      setSaveStatus({ saved: false, autoSaveTime: null });
       clearOperationNotice();
     }
   }, [clearOperationNotice]);
@@ -553,7 +611,6 @@ const TrajectoryPlanning = () => {
 
       setWaypoints(waypointsWithCorrectSpeeds);
       setSelectedWaypointId(nextState.state.selectedWaypointId || null);
-      setSaveStatus({ saved: false, autoSaveTime: null });
       clearOperationNotice();
     }
   }, [clearOperationNotice]);
@@ -571,15 +628,15 @@ const TrajectoryPlanning = () => {
     });
 
     if (result.success) {
-      setSaveStatus({ saved: true, autoSaveTime: Date.now() });
       setTrajectoryName(name);
+      markPersistedPlannerState(name, waypoints, Date.now());
       setShowSaveDialog(false);
       loadAvailableTrajectories();
       setOperationNotice(result.message, 'success');
     } else {
       setOperationNotice(`Save failed: ${result.error}`, 'error');
     }
-  }, [loadAvailableTrajectories, setOperationNotice, trajectoryStats, waypoints]);
+  }, [loadAvailableTrajectories, markPersistedPlannerState, setOperationNotice, trajectoryStats, waypoints]);
 
   const handleLoad = useCallback(async (identifier) => {
     const result = await storageRef.current.loadTrajectory(identifier);
@@ -611,15 +668,47 @@ const TrajectoryPlanning = () => {
     const result = await storageRef.current.importTrajectory(file);
 
     if (result.success) {
+      const terrainSummary = await resolveImportedTrajectoryTerrainContext(result.trajectory.waypoints || []);
+      const importedTrajectory = {
+        ...result.trajectory,
+        waypoints: terrainSummary.waypoints,
+      };
+
       applyTrajectoryToPlanner(
-        result.trajectory,
-        'Imported'
+        importedTrajectory,
+        'Imported',
+        {
+          announce: false,
+          persisted: false,
+        }
       );
-      loadAvailableTrajectories();
+
+      const importNotes = [
+        `Imported ${importedTrajectory.name || 'trajectory'} as a planner draft.`,
+      ];
+
+      if (terrainSummary.refreshedCount > 0) {
+        importNotes.push(`Terrain context refreshed for ${terrainSummary.refreshedCount} waypoint${terrainSummary.refreshedCount === 1 ? '' : 's'}.`);
+      }
+
+      if (terrainSummary.estimatedCount > 0) {
+        importNotes.push(`${terrainSummary.estimatedCount} waypoint${terrainSummary.estimatedCount === 1 ? '' : 's'} use estimated terrain data; review clearance before launch.`);
+      }
+
+      if (result.nameConflict) {
+        importNotes.push('A saved trajectory with the same name already exists. Save when ready to update it, or rename it first.');
+      } else {
+        importNotes.push('Save when ready to add this draft to the local trajectory library.');
+      }
+
+      setOperationNotice(
+        importNotes.join(' '),
+        terrainSummary.estimatedCount > 0 || result.nameConflict ? 'warning' : 'success'
+      );
     } else {
       setOperationNotice(`Import failed: ${result.error}`, 'error');
     }
-  }, [applyTrajectoryToPlanner, loadAvailableTrajectories, setOperationNotice]);
+  }, [applyTrajectoryToPlanner, setOperationNotice]);
 
   // Auto-save functionality
   const autoSave = useCallback(async () => {
@@ -631,9 +720,9 @@ const TrajectoryPlanning = () => {
     });
 
     if (result.success) {
-      setSaveStatus(prev => ({ ...prev, autoSaveTime: Date.now() }));
+      markAutoSavedPlannerDraft(trajectoryName, waypoints, Date.now());
     }
-  }, [waypoints, trajectoryStats]);
+  }, [markAutoSavedPlannerDraft, trajectoryName, trajectoryStats, waypoints]);
 
   // Initialize services on component mount
   useEffect(() => {
@@ -1005,6 +1094,7 @@ const TrajectoryPlanning = () => {
       onClose={() => setShowSaveDialog(false)}
       onSave={handleSave}
       initialName={trajectoryName}
+      trajectories={availableTrajectories}
       currentStats={trajectoryStats}
       currentWaypointCount={waypoints.length}
     />
