@@ -754,7 +754,7 @@
         linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.14), transparent 70%),
         var(--color-bg-secondary);
     color: var(--color-text-primary);
-    padding: var(--spacing-xl) var(--spacing-2xl);
+    padding: var(--spacing-lg) var(--spacing-xl);
     border-bottom: 1px solid var(--color-border-primary);
 }
 
@@ -764,7 +764,7 @@
 
 .drone-detail .detail-header h1 {
     gap: var(--spacing-base);
-    font-size: clamp(1.3rem, 2vw, 1.85rem);
+    font-size: clamp(1.1rem, 1.8vw, 1.55rem);
 }
 
 .drone-detail .detail-header__title {
@@ -796,6 +796,7 @@
     color: var(--color-text-primary);
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
+    padding: 0.4rem 0.8rem;
 }
 
 .drone-detail .status-text {
@@ -806,12 +807,16 @@
     background: var(--color-bg-secondary);
     border-bottom: 1px solid var(--color-border-primary);
     box-shadow: none;
-    gap: 0;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
 }
 
 .drone-detail .tab-button {
     color: var(--color-text-secondary);
-    background: transparent;
+    background: var(--color-surface-inset);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    min-width: 0;
 }
 
 .drone-detail .tab-button:hover {
@@ -820,12 +825,13 @@
 }
 
 .drone-detail .tab-button.active {
-    color: var(--color-primary);
-    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    border-color: var(--color-primary-border);
 }
 
 .drone-detail .detail-content {
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base);
     background: var(--color-bg-primary);
 }
 
@@ -834,6 +840,8 @@
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
     min-height: 0;
+    padding: var(--spacing-sm) var(--spacing-base);
+    gap: var(--spacing-sm);
 }
 
 .drone-detail .status-icon {
@@ -878,6 +886,8 @@
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
     text-shadow: none;
+    padding: 0.45rem 0.65rem;
+    font-size: var(--font-size-base);
 }
 
 .drone-detail .detail-section {
@@ -885,6 +895,7 @@
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
     backdrop-filter: none;
+    padding: var(--spacing-sm) var(--spacing-base);
 }
 
 .drone-detail .detail-section h3 {
@@ -905,6 +916,8 @@
     background: var(--color-surface-inset);
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
+    padding: var(--spacing-sm) var(--spacing-base);
+    min-height: 0;
 }
 
 .drone-detail .detail-item:hover {
@@ -917,6 +930,8 @@
     border: 1px solid var(--color-border-primary);
     box-shadow: none;
     text-shadow: none;
+    min-width: 0;
+    font-size: var(--font-size-sm);
 }
 
 .drone-detail .flight-mode.manual {
@@ -992,16 +1007,86 @@
     }
 
     .drone-detail .tab-navigation {
-        padding: 0;
+        padding: var(--spacing-sm);
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .drone-detail .tab-button {
         min-width: 0;
-        padding: var(--spacing-base);
+        padding: 0.8rem 0.5rem;
+        gap: var(--spacing-xs);
+        font-size: var(--font-size-xs);
+        text-transform: none;
+        letter-spacing: normal;
     }
 
     .drone-detail .detail-content {
         padding: var(--spacing-base);
+    }
+
+    .status-dashboard {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    .drone-detail .status-card {
+        align-items: flex-start;
+    }
+
+    .drone-detail .status-icon {
+        width: 40px;
+        height: 40px;
+        font-size: var(--font-size-lg);
+    }
+
+    .drone-detail .status-label {
+        font-size: var(--font-size-xs);
+    }
+
+    .drone-detail .status-sub {
+        font-size: var(--font-size-xs);
+    }
+
+    .drone-detail .detail-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .drone-detail .detail-item {
+        padding: var(--spacing-sm);
+        gap: var(--spacing-xs);
+    }
+}
+
+@media (max-width: 480px) {
+    .drone-detail {
+        margin: var(--spacing-sm);
+    }
+
+    .drone-detail .detail-header {
+        padding: var(--spacing-base);
+    }
+
+    .drone-detail .detail-header__title {
+        gap: var(--spacing-sm);
+    }
+
+    .drone-detail .detail-header__title small {
+        font-size: var(--font-size-xs);
+    }
+
+    .drone-detail .connection-indicator {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .status-dashboard {
+        grid-template-columns: 1fr;
+    }
+
+    .drone-detail .tab-button svg {
+        font-size: var(--font-size-base);
     }
 }
 

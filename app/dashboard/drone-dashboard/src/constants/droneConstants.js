@@ -68,13 +68,13 @@ export const DRONE_ACTION_NAMES = {
 export const getMissionDescription = (missionType) => {
     switch (missionType) {
         case DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV:
-            return 'Launch the processed SkyBrush show package with synchronized timing and optional global launch correction.';
+            return 'Launch the active SkyBrush package with synchronized timing and optional launch correction.';
         case DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW:
-            return 'Replay the active custom protocol CSV relative to each drone launch point.';
+            return 'Replay the active custom protocol CSV relative to each launch point.';
         case DRONE_MISSION_TYPES.SMART_SWARM:
-            return 'Start the published leader-follower topology for live formation flight and in-flight reassignment.';
+            return 'Start the published leader-follower topology for live formation flight.';
         case DRONE_MISSION_TYPES.SWARM_TRAJECTORY:
-            return 'Dispatch the processed leader-route package with synchronized timing across the selected cluster.';
+            return 'Dispatch the processed leader-route package across the selected cluster.';
         case DRONE_MISSION_TYPES.NONE:
             return 'Cancel the active mission for the current target scope immediately.';
         default:

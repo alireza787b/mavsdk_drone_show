@@ -36,26 +36,26 @@ import '../styles/DroneActions.css';
 const ACTION_SECTIONS = [
   {
     key: 'routine',
-    title: 'Routine Flight Control',
-    description: 'Normal airborne overrides and rehearsal tools.',
+    title: 'Flight Control',
+    description: 'Normal flight overrides and rehearsals.',
     actions: ['TAKE_OFF', 'HOVER_TEST', 'HOLD', 'LAND', 'RETURN_RTL'],
   },
   {
     key: 'test',
-    title: 'Bench & Visual Tests',
-    description: 'Non-mission checks before a live operation.',
+    title: 'Checks',
+    description: 'Bench and visual verification steps.',
     actions: ['TEST', 'TEST_LED'],
   },
   {
     key: 'maintenance',
-    title: 'System Maintenance',
-    description: 'Repo, parameters, and reboot operations for recovery or servicing.',
+    title: 'Maintenance',
+    description: 'Repo, parameter, and restart tasks.',
     actions: ['UPDATE_CODE', 'INIT_SYSID', 'APPLY_COMMON_PARAMS', 'REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',
-    title: 'Danger Zone',
-    description: 'Only use if the aircraft must be forced out of normal behavior immediately.',
+    title: 'Emergency',
+    description: 'Last-resort recovery and force-stop actions.',
     actions: ['DISARM', 'KILL_TERMINATE'],
   },
 ];
@@ -79,19 +79,19 @@ const ACTION_ICONS = {
 
 const ACTION_DESCRIPTIONS = {
   TAKE_OFF: 'Climb to the configured takeoff altitude.',
-  LAND: 'Land the targeted drones now.',
+  LAND: 'Land the selected aircraft now.',
   HOLD: 'Freeze current motion and hold position.',
-  RETURN_RTL: 'Return targeted drones to launch.',
+  RETURN_RTL: 'Return the selected aircraft to launch.',
   DISARM: 'Disarm motors when the airframe is safe.',
-  KILL_TERMINATE: 'Emergency motor stop as a last resort.',
-  TEST: 'Run the generic test routine.',
-  TEST_LED: 'Run the light-show test pattern.',
-  HOVER_TEST: 'Lift, hover briefly, and land.',
-  REBOOT_FC: 'Restart PX4 / flight-control services.',
-  REBOOT_SYS: 'Restart the companion container or system.',
-  UPDATE_CODE: 'Pull the configured repo and refresh services.',
-  INIT_SYSID: 'Reapply system identity setup.',
-  APPLY_COMMON_PARAMS: 'Apply the common PX4 parameter set.',
+  KILL_TERMINATE: 'Emergency motor stop.',
+  TEST: 'Run the generic bench test.',
+  TEST_LED: 'Run the light-pattern test.',
+  HOVER_TEST: 'Lift, hover briefly, then land.',
+  REBOOT_FC: 'Restart PX4 and flight-control services.',
+  REBOOT_SYS: 'Restart the companion computer or container.',
+  UPDATE_CODE: 'Pull the repo and refresh services.',
+  INIT_SYSID: 'Reapply system identity.',
+  APPLY_COMMON_PARAMS: 'Apply the common PX4 params.',
 };
 
 const DroneActions = ({
@@ -105,6 +105,7 @@ const DroneActions = ({
   const [scheduleMode, setScheduleMode] = useState(COMMAND_SCHEDULE_MODES.NOW);
   const [timeDelay, setTimeDelay] = useState(30);
   const [selectedDateTime, setSelectedDateTime] = useState(() => formatDateTimeLocalInput(referenceNowMs + 60_000));
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const actionSchedule = useMemo(() => buildCommandSchedule({
     scheduleMode,
@@ -190,7 +191,7 @@ const DroneActions = ({
       <div className="action-parameter-bar">
         <div>
           <h3>Action Overrides</h3>
-          <p>Direct fleet interventions outside the mission scheduler.</p>
+          <p>Direct flight, test, maintenance, and recovery commands.</p>
         </div>
         <div className="action-parameter-bar__meta">
           <span>{targetCount} targeted drone{targetCount === 1 ? '' : 's'}</span>
@@ -213,7 +214,11 @@ const DroneActions = ({
           <span className="takeoff-section__hint">Used by Take Off only.</span>
         </div>
 
-        <details className="action-schedule">
+        <details
+          className="action-schedule"
+          open={scheduleOpen}
+          onToggle={(event) => setScheduleOpen(event.currentTarget.open)}
+        >
           <summary>
             <FaClock aria-hidden="true" />
             <span>Execution Timing</span>
@@ -285,7 +290,7 @@ const DroneActions = ({
             )}
 
             <p className="action-schedule__note">
-              Flight and test actions may be scheduled. Maintenance and danger actions still dispatch immediately.
+              Flight and test actions may be queued. Maintenance and emergency actions still dispatch immediately.
               {clockOffsetLabel ? ` ${clockOffsetLabel}.` : ' Scheduler uses the GCS clock.'}
             </p>
           </div>

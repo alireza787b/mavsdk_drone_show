@@ -297,7 +297,7 @@ describe('MissionDetails Swarm Trajectory gating', () => {
     );
 
     expect(screen.getByText('1 out-of-scope cluster remains incomplete, but is outside the current launch scope.')).toBeInTheDocument();
-    expect(screen.getByText('3 selected drones')).toBeInTheDocument();
+    expect(screen.getAllByText('3 selected drones').length).toBeGreaterThan(0);
     expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeEnabled();
   });

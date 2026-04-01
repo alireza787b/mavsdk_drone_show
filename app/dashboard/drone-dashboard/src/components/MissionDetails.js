@@ -373,6 +373,80 @@ const MissionDetails = ({
     </details>
   );
 
+  const renderIssueDigest = (summaryLabel, items, tone = 'warning') => {
+    if (!items || items.length === 0) {
+      return null;
+    }
+
+    const itemLabel = tone === 'danger'
+      ? `blocker${items.length === 1 ? '' : 's'}`
+      : items.length === 1 ? 'advisory' : 'advisories';
+
+    return (
+      <details className={`mission-issue-digest mission-issue-digest--${tone}`} open={tone === 'danger'}>
+        <summary>
+          <span>{summaryLabel}</span>
+          <small>{items.length} {itemLabel}</small>
+        </summary>
+        <ul>
+          {items.map((item) => (
+            <li key={`${summaryLabel}-${item}`}>{item}</li>
+          ))}
+        </ul>
+      </details>
+    );
+  };
+
+  const renderSnapshot = ({
+    title,
+    facts,
+    blockers = [],
+    warnings = [],
+    reference = null,
+    notes = null,
+  }) => {
+    const hasBlockers = blockers.length > 0;
+    const hasWarnings = warnings.length > 0;
+    const postureLabel = hasBlockers
+      ? 'Blocked until reviewed'
+      : hasWarnings
+        ? 'Ready with advisories'
+        : 'Ready to queue';
+
+    return (
+      <div className={`origin-warning ${hasBlockers ? 'origin-missing' : ''}`}>
+        <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
+        <div className="warning-content">
+          <strong>{title}</strong>
+          <div className={`mission-health-strip ${hasBlockers ? 'mission-health-strip--danger' : hasWarnings ? 'mission-health-strip--warning' : 'mission-health-strip--good'}`}>
+            <span>{postureLabel}</span>
+          </div>
+          <div className="origin-confirmation">
+            {facts.map((fact) => (
+              <div className="origin-info-row" key={`${title}-${fact.label}`}>
+                <span className="origin-label">{fact.label}</span>
+                <span className="origin-coords">{fact.value}</span>
+              </div>
+            ))}
+          </div>
+          {renderIssueDigest('Blockers to resolve', blockers, 'danger')}
+          {renderIssueDigest('Operator advisories', warnings, 'warning')}
+          {reference}
+          {notes}
+        </div>
+      </div>
+    );
+  };
+
+  const targetScopeSummary = targetMode === 'selected'
+    ? `${selectedDrones.length} selected drone${selectedDrones.length === 1 ? '' : 's'}`
+    : 'All targeted drones';
+  const scheduleModeSummary = scheduleMode === COMMAND_SCHEDULE_MODES.NOW
+    ? 'Immediate'
+    : scheduleMode === COMMAND_SCHEDULE_MODES.DELAY
+      ? `+${timeDelay}s delay`
+      : 'Exact UTC';
+
   return (
     <div className="mission-details">
       <div className="selected-mission-card">
@@ -380,14 +454,21 @@ const MissionDetails = ({
         <div className="mission-icon">{icon}</div>
         <div className="mission-name">{label}</div>
         <div className="mission-description">{description}</div>
+        <div className="mission-meta-row">
+          <span className="mission-meta-chip">{targetScopeSummary}</span>
+          <span className="mission-meta-chip">{scheduleModeSummary}</span>
+        </div>
       </div>
 
       {/* Display mission-specific image */}
       {missionImageSrc && (
-        <div className="mission-preview">
-          <h3>Mission Preview:</h3>
+        <details className="mission-preview">
+          <summary>
+            <span>Preview plot</span>
+            <small>Open the processed image</small>
+          </summary>
           <img src={missionImageSrc} alt={label} className="mission-image" />
-        </div>
+        </details>
       )}
 
       {/* Mode Selection: Local vs Global */}
@@ -406,7 +487,7 @@ const MissionDetails = ({
               <div className="mode-content">
                 <span className="mode-icon" aria-hidden="true"><FaLocationArrow /></span>
                 <span className="mode-label">LOCAL Mode</span>
-                <span className="mode-description">Local NED feedforward with precise manual launch placement</span>
+                <span className="mode-description">Manual launch marks with local NED execution.</span>
               </div>
             </label>
             <label className={`mode-option ${useGlobalSetpoints ? 'active' : ''}`}>
@@ -420,7 +501,7 @@ const MissionDetails = ({
               <div className="mode-content">
                 <span className="mode-icon" aria-hidden="true"><FaGlobeAmericas /></span>
                 <span className="mode-label">GLOBAL Mode</span>
-                <span className="mode-description">GPS-based positioning</span>
+                <span className="mode-description">GPS-based launch positioning and tracking.</span>
               </div>
             </label>
           </div>
@@ -657,85 +738,53 @@ const MissionDetails = ({
       )}
 
       {swarmTrajectoryHints && (
-        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
-          <div className="warning-content">
-            <strong>Swarm Trajectory Launch Snapshot</strong>
-            <div className="origin-confirmation">
-              <div className="origin-info-row">
-                <span className="origin-label">Ready clusters:</span>
-                <span className="origin-coords">
-                  {swarmTrajectorySummary.scopeReadyClusterCount}/{swarmTrajectorySummary.scopeClusterCount || 0}
-                </span>
-              </div>
-              <div className="origin-info-row">
-                <span className="origin-label">Processed drones:</span>
-                <span className="origin-coords">
-                  {swarmTrajectorySummary.scopeProcessedDroneCount}/{swarmTrajectorySummary.scopeTargetDroneCount || swarmTrajectorySummary.scopeProcessedDroneCount || 0}
-                </span>
-              </div>
-              <div className="origin-info-row">
-                <span className="origin-label">Launch scope:</span>
-                <span className="origin-coords">
-                  {swarmTrajectorySummary.scopeMode === 'selected'
-                    ? `${swarmTrajectorySummary.scopeTargetDroneCount} selected drone${swarmTrajectorySummary.scopeTargetDroneCount === 1 ? '' : 's'}`
-                    : 'All targeted drones'}
-                </span>
-              </div>
-              <div className="origin-info-row">
-                <span className="origin-label">Active package:</span>
-                <span className="origin-coords">
-                  {swarmTrajectorySummary.session.exists
-                    ? swarmTrajectorySummary.session.session_id
-                    : 'Not processed yet'}
-                </span>
-              </div>
-              {swarmTrajectorySummary.scopePackageStats?.available && (
-                <>
-                  <div className="origin-info-row">
-                    <span className="origin-label">Mission clock:</span>
-                    <span className="origin-coords">
-                      {formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.missionClockS)}
-                    </span>
-                  </div>
-                  <div className="origin-info-row">
-                    <span className="origin-label">Route entry:</span>
-                    <span className="origin-coords">
-                      {formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeEntryTimeS)}
-                    </span>
-                  </div>
-                  <div className="origin-info-row">
-                    <span className="origin-label">Route motion:</span>
-                    <span className="origin-coords">
-                      {formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeMotionTimeS)}
-                    </span>
-                  </div>
-                  <div className="origin-info-row">
-                    <span className="origin-label">Altitude envelope:</span>
-                    <span className="origin-coords">
-                      {formatSwarmTrajectoryAltitudeEnvelope(swarmTrajectorySummary.scopePackageStats)}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {missionBlockers.length > 0 && (
-              <ul>
-                {missionBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
-                ))}
-              </ul>
-            )}
-
-            {missionWarnings.length > 0 && (
-              <ul>
-                {missionWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-
+        renderSnapshot({
+          title: 'Swarm Trajectory Launch Snapshot',
+          facts: [
+            {
+              label: 'Ready clusters:',
+              value: `${swarmTrajectorySummary.scopeReadyClusterCount}/${swarmTrajectorySummary.scopeClusterCount || 0}`,
+            },
+            {
+              label: 'Processed drones:',
+              value: `${swarmTrajectorySummary.scopeProcessedDroneCount}/${swarmTrajectorySummary.scopeTargetDroneCount || swarmTrajectorySummary.scopeProcessedDroneCount || 0}`,
+            },
+            {
+              label: 'Launch scope:',
+              value: swarmTrajectorySummary.scopeMode === 'selected'
+                ? `${swarmTrajectorySummary.scopeTargetDroneCount} selected drone${swarmTrajectorySummary.scopeTargetDroneCount === 1 ? '' : 's'}`
+                : 'All targeted drones',
+            },
+            {
+              label: 'Active package:',
+              value: swarmTrajectorySummary.session.exists
+                ? swarmTrajectorySummary.session.session_id
+                : 'Not processed yet',
+            },
+            ...(swarmTrajectorySummary.scopePackageStats?.available
+              ? [
+                {
+                  label: 'Mission clock:',
+                  value: formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.missionClockS),
+                },
+                {
+                  label: 'Route entry:',
+                  value: formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeEntryTimeS),
+                },
+                {
+                  label: 'Route motion:',
+                  value: formatSwarmTrajectoryMissionSeconds(swarmTrajectorySummary.scopePackageStats.routeMotionTimeS),
+                },
+                {
+                  label: 'Altitude envelope:',
+                  value: formatSwarmTrajectoryAltitudeEnvelope(swarmTrajectorySummary.scopePackageStats),
+                },
+              ]
+              : []),
+          ],
+          blockers: missionBlockers,
+          warnings: missionWarnings,
+          reference: (
             <p>
               Review the authored leaders in{' '}
               <Link to="/trajectory-planning" className="origin-link">
@@ -747,47 +796,34 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling Mission Type 4.
             </p>
-            {renderOperatorNotes('Swarm Trajectory operator notes', [
-              'Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.',
-              'Launch and home truth still matter for armability, climb verification, drift handling, and RTL/LAND recovery, but they do not redefine the authored route geometry.',
-            ])}
-          </div>
-        </div>
+          ),
+          notes: renderOperatorNotes('Swarm Trajectory operator notes', [
+            'Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.',
+            'Launch and home truth still matter for armability, climb verification, drift handling, and RTL/LAND recovery, but they do not redefine the authored route geometry.',
+          ]),
+        })
       )}
 
       {smartSwarmHints && (
-        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
-          <div className="warning-content">
-            <strong>Smart Swarm Topology Snapshot</strong>
-            <div className="origin-confirmation">
-              <div className="origin-info-row">
-                <span className="origin-label">Top leaders:</span>
-                <span className="origin-coords">
-                  {smartSwarmInfo?.leaders?.length
-                    ? smartSwarmInfo.leaders.join(', ')
-                    : 'Not published'}
-                </span>
-              </div>
-              <div className="origin-info-row">
-                <span className="origin-label">Follower links:</span>
-                <span className="origin-coords">
-                  {Object.values(smartSwarmInfo?.follower_details || {}).reduce(
-                    (count, followers) => count + (Array.isArray(followers) ? followers.length : 0),
-                    0,
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {missionWarnings.length > 0 && (
-              <ul>
-                {missionWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-
+        renderSnapshot({
+          title: 'Smart Swarm Topology Snapshot',
+          facts: [
+            {
+              label: 'Top leaders:',
+              value: smartSwarmInfo?.leaders?.length
+                ? smartSwarmInfo.leaders.join(', ')
+                : 'Not published',
+            },
+            {
+              label: 'Follower links:',
+              value: Object.values(smartSwarmInfo?.follower_details || {}).reduce(
+                (count, followers) => count + (Array.isArray(followers) ? followers.length : 0),
+                0,
+              ),
+            },
+          ],
+          warnings: missionWarnings,
+          reference: (
             <p>
               Review the live topology in{' '}
               <Link to="/swarm-design" className="origin-link">
@@ -795,53 +831,35 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling this mission.
             </p>
-            {renderOperatorNotes('Smart Swarm operator notes', [
-              'This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.',
-              'Verify leader and follower roles, offsets, and frame selection in Swarm Design before launch.',
-              'Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.',
-            ])}
-          </div>
-        </div>
+          ),
+          notes: renderOperatorNotes('Smart Swarm operator notes', [
+            'This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.',
+            'Verify leader and follower roles, offsets, and frame selection in Swarm Design before launch.',
+            'Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.',
+          ]),
+        })
       )}
 
       {showModeHints && (
-        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
-          <div className="warning-content">
-            <strong>Launch Readiness Snapshot</strong>
-            <div className="origin-confirmation">
-              <div className="origin-info-row">
-                <span className="origin-label">Imported Show:</span>
-                <span className="origin-coords">
-                  {showImported
-                    ? `${showInfo.drone_count} drones • ${showInfo.duration_minutes}m ${showInfo.duration_seconds}s`
-                    : 'Not available'}
-                </span>
-              </div>
-              {showImported && (
-                <div className="origin-info-row">
-                  <span className="origin-label">Max Altitude:</span>
-                  <span className="origin-coords">{showInfo.max_altitude} m</span>
-                </div>
-              )}
-            </div>
-
-            {droneShowBlockers.length > 0 && (
-              <ul>
-                {droneShowBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
-                ))}
-              </ul>
-            )}
-
-            {droneShowWarnings.length > 0 && (
-              <ul>
-                {droneShowWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-
+        renderSnapshot({
+          title: 'Launch Readiness Snapshot',
+          facts: [
+            {
+              label: 'Imported Show:',
+              value: showImported
+                ? `${showInfo.drone_count} drones • ${showInfo.duration_minutes}m ${showInfo.duration_seconds}s`
+                : 'Not available',
+            },
+            ...(showImported
+              ? [{
+                label: 'Max Altitude:',
+                value: `${showInfo.max_altitude} m`,
+              }]
+              : []),
+          ],
+          blockers: droneShowBlockers,
+          warnings: droneShowWarnings,
+          reference: (
             <p>
               Review the imported geometry in{' '}
               <Link to="/manage-drone-show" className="origin-link">
@@ -853,52 +871,34 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling launch.
             </p>
-          </div>
-        </div>
+          ),
+        })
       )}
 
       {customShowHints && (
-        <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
-          <div className="warning-content">
-            <strong>Custom CSV Readiness Snapshot</strong>
-            <div className="origin-confirmation">
-              <div className="origin-info-row">
-                <span className="origin-label">Execution Mode:</span>
-                <span className="origin-coords">LOCAL launch-frame only</span>
-              </div>
-              <div className="origin-info-row">
-                <span className="origin-label">Active CSV:</span>
-                <span className="origin-coords">
-                  {customShowReady
-                    ? `${customShowInfo.filename} • ${customShowInfo.duration_sec}s • ${customShowInfo.row_count} samples`
-                    : 'Not available'}
-                </span>
-              </div>
-              {customShowReady && (
-                <div className="origin-info-row">
-                  <span className="origin-label">Max Altitude:</span>
-                  <span className="origin-coords">{customShowInfo.max_altitude} m</span>
-                </div>
-              )}
-            </div>
-
-            {missionBlockers.length > 0 && (
-              <ul>
-                {missionBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
-                ))}
-              </ul>
-            )}
-
-            {missionWarnings.length > 0 && (
-              <ul>
-                {missionWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-
+        renderSnapshot({
+          title: 'Custom CSV Readiness Snapshot',
+          facts: [
+            {
+              label: 'Execution Mode:',
+              value: 'LOCAL launch-frame only',
+            },
+            {
+              label: 'Active CSV:',
+              value: customShowReady
+                ? `${customShowInfo.filename} • ${customShowInfo.duration_sec}s • ${customShowInfo.row_count} samples`
+                : 'Not available',
+            },
+            ...(customShowReady
+              ? [{
+                label: 'Max Altitude:',
+                value: `${customShowInfo.max_altitude} m`,
+              }]
+              : []),
+          ],
+          blockers: missionBlockers,
+          warnings: missionWarnings,
+          reference: (
             <p>
               Review the authored path in{' '}
               <Link to="/custom-show" className="origin-link">
@@ -910,21 +910,21 @@ const MissionDetails = ({
               </Link>{' '}
               before scheduling launch.
             </p>
-            {renderOperatorNotes('Custom CSV operator notes', [
-              'Each drone runs the same CSV relative to its own launch point.',
-              'Global origin correction and shared-origin placement checks do not apply in this mode.',
-              'Use this for advanced or manual testing, not for the normal SkyBrush multi-drone show pipeline.',
-              'The uploaded CSV must already follow the MDS custom trajectory protocol; no conversion is done here.',
-            ])}
-          </div>
-        </div>
+          ),
+          notes: renderOperatorNotes('Custom CSV operator notes', [
+            'Each drone runs the same CSV relative to its own launch point.',
+            'Global origin correction and shared-origin placement checks do not apply in this mode.',
+            'Use this for advanced or manual testing, not for the normal SkyBrush multi-drone show pipeline.',
+            'The uploaded CSV must already follow the MDS custom trajectory protocol; no conversion is done here.',
+          ]),
+        })
       )}
 
       <div className="mission-schedule">
         <div className="mission-schedule__header">
           <div>
             <h3>Execution Timing</h3>
-            <p>Choose whether this mission starts now, after a short delay, or at an exact date and time.</p>
+            <p>Queue now, use a short countdown, or lock to an exact UTC trigger.</p>
           </div>
           <div className="mission-schedule__clock">
             <span>Scheduler clock</span>

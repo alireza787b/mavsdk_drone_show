@@ -4,8 +4,8 @@
 .drone-actions-container {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xl);
-    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+    padding: var(--spacing-base);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
     transition: var(--transition-all);
@@ -16,9 +16,9 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: var(--spacing-lg);
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base) var(--spacing-lg);
     border-radius: var(--border-radius-lg);
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    background: var(--color-surface-muted);
     border: 1px solid var(--color-border-primary);
 }
 
@@ -46,23 +46,24 @@
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-full);
     white-space: nowrap;
+    font-size: var(--font-size-sm);
 }
 
 .action-configuration-grid {
     display: grid;
-    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
     gap: var(--spacing-lg);
     align-items: start;
 }
 
 /* Action Group Styles */
 .action-group {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    background: var(--color-surface-muted);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
-    padding: var(--spacing-lg);
-    box-shadow: var(--shadow-base);
-    backdrop-filter: blur(8px);
+    padding: var(--spacing-base);
+    box-shadow: none;
+    backdrop-filter: none;
     transition: var(--transition-all);
     position: relative;
 }
@@ -101,8 +102,7 @@
 }
 
 .action-group:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
     border-color: var(--color-primary-border);
 }
 
@@ -128,17 +128,17 @@
 
 .action-buttons {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: var(--spacing-base);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
     align-items: stretch;
-    margin-top: var(--spacing-base);
+    margin-top: var(--spacing-sm);
 }
 
 .takeoff-section {
     display: flex;
     align-items: center;
     gap: var(--spacing-base);
-    background: var(--color-bg-tertiary);
+    background: var(--color-surface-inset);
     padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
@@ -146,7 +146,7 @@
 }
 
 .action-schedule {
-    background: var(--color-bg-tertiary);
+    background: var(--color-surface-inset);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
     padding: var(--spacing-base);
@@ -268,18 +268,18 @@
     justify-content: flex-start;
     gap: var(--spacing-sm);
     color: var(--color-text-primary);
-    background: var(--color-bg-secondary);
+    background: var(--color-bg-primary);
     border: 1px solid var(--color-border-primary);
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-md);
     cursor: pointer;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
-    min-height: 76px;
-    box-shadow: var(--shadow-sm);
+    min-height: 68px;
+    box-shadow: none;
     text-align: left;
 }
 
@@ -296,7 +296,7 @@
 
 .action-button:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 .action-button:hover::before {
@@ -320,10 +320,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 10px;
+    background: var(--color-surface-inset);
+    border: 1px solid var(--color-border-primary);
     flex-shrink: 0;
 }
 
@@ -342,11 +343,11 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-normal);
+    line-height: 1.35;
 }
 
 .action-button--routine {
-    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), var(--color-bg-secondary));
+    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), var(--color-bg-primary));
     border-color: var(--color-primary-border);
 }
 
@@ -356,7 +357,7 @@
 }
 
 .action-button--test {
-    background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-secondary));
+    background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-primary));
     border-color: var(--color-info-border);
 }
 
@@ -366,7 +367,7 @@
 }
 
 .action-button--maintenance {
-    background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-secondary));
+    background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-primary));
     border-color: var(--color-warning-border);
 }
 
@@ -376,7 +377,7 @@
 }
 
 .action-button--danger {
-    background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-secondary));
+    background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-primary));
     border-color: var(--color-danger-border);
 }
 
@@ -390,7 +391,7 @@
 }
 
 .action-button--critical {
-    box-shadow: inset 0 0 0 1px var(--color-danger-border), 0 0 0 1px var(--color-danger-light);
+    box-shadow: inset 0 0 0 1px var(--color-danger-border);
 }
 
 @media (max-width: 900px) {
@@ -402,10 +403,9 @@
 /* Emergency Kill Button - Special Styling */
 
 .action-button--critical {
-    background: linear-gradient(135deg, rgba(239, 90, 90, 0.18), var(--color-bg-secondary));
+    background: linear-gradient(135deg, rgba(239, 90, 90, 0.14), var(--color-bg-primary));
     color: var(--color-text-primary) !important;
     border: 2px solid var(--color-danger-border);
-    animation: dangerPulse 2s infinite;
     position: relative;
     font-weight: var(--font-weight-bold);
 }
@@ -419,18 +419,6 @@
 .action-button--critical:hover {
     transform: translateY(-2px);
     box-shadow: 0 0 0 3px var(--color-danger-light);
-}
-
-@keyframes dangerPulse {
-    0% {
-        box-shadow: 0 0 0 0 var(--color-danger-light);
-    }
-    70% {
-        box-shadow: 0 0 0 10px transparent;
-    }
-    100% {
-        box-shadow: 0 0 0 0 transparent;
-    }
 }
 
 
@@ -544,15 +532,15 @@
     }
 
     .action-buttons {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--spacing-sm);
     }
 
     .action-button {
         width: 100%;
-        padding: var(--spacing-lg) var(--spacing-xl);
-        font-size: var(--font-size-base);
-        min-height: 84px;
+        padding: var(--spacing-base);
+        font-size: var(--font-size-sm);
+        min-height: 72px;
     }
 
     .action-icon {
@@ -561,7 +549,7 @@
     }
 
     .action-button__summary {
-        font-size: var(--font-size-sm);
+        font-size: 0.72rem;
     }
 
     .takeoff-section {
@@ -594,7 +582,7 @@
 @media (max-width: 480px) {
     .drone-actions-container {
         padding: var(--spacing-sm);
-        gap: var(--spacing-lg);
+        gap: var(--spacing-base);
     }
 
     .action-group {
@@ -602,7 +590,19 @@
     }
 
     .action-group h2 {
-        font-size: var(--font-size-lg);
+        font-size: var(--font-size-base);
+    }
+
+    .action-parameter-bar {
+        padding: var(--spacing-base);
+    }
+
+    .action-buttons {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .action-button {
+        min-height: 64px;
     }
 }
 
