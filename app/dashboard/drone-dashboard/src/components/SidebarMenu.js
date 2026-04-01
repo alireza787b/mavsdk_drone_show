@@ -26,13 +26,13 @@ import CurrentTime from './CurrentTime';
 import GitInfo from './GitInfo';
 import { VERSION_DISPLAY } from '../version';
 
-const SidebarMenu = ({ collapsed, onToggle }) => {
+const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate, onToggle }) => {
   const { isDark } = useTheme();
   // Use props if provided, otherwise fall back to local state for backwards compatibility
   const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
   const [activeTooltip, setActiveTooltip] = useState(null);
 
-  const isCollapsed = collapsed !== undefined ? collapsed : localCollapsed;
+  const isCollapsed = mobile ? false : (collapsed !== undefined ? collapsed : localCollapsed);
   const handleToggle = onToggle || setLocalCollapsed;
 
   const menuSections = [
@@ -76,7 +76,7 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
   };
 
   return (
-    <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${isDark ? 'dark' : 'light'}`}>
+    <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
       {/* Toggle Button */}
       <button
         className="sidebar-toggle"
@@ -120,6 +120,11 @@ const SidebarMenu = ({ collapsed, onToggle }) => {
                   key={item.to}
                   to={item.to}
                   className={`nav-item ${isCollapsed ? 'collapsed' : ''}`}
+                  onClick={() => {
+                    if (mobile && onNavigate) {
+                      onNavigate();
+                    }
+                  }}
                   onMouseEnter={() => handleTooltip(item.label)}
                   data-tooltip={item.label}
                 >

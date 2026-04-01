@@ -912,13 +912,18 @@
 
 @media (max-width: 768px) {
     .command-sender-container {
-        padding: var(--spacing-base);
+        padding: var(--spacing-sm);
     }
 
     .target-selection__row,
     .command-preflight__header {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .target-selection select {
+        min-width: 0;
+        width: 100%;
     }
 
     .command-preflight__clock {
@@ -986,9 +991,44 @@
     }
 }
 
+@media (max-width: 600px) {
+    .command-sender-header {
+        margin-bottom: var(--spacing-base);
+        font-size: var(--font-size-lg);
+    }
+
+    .tab-bar {
+        flex-direction: column;
+        border-radius: var(--border-radius-base);
+    }
+
+    .tab-button {
+        justify-content: flex-start;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border-primary);
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    .tab-button:last-child {
+        border-bottom: none;
+    }
+
+    .command-preflight__grid,
+    .command-monitor__metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .command-monitor-history__item,
+    .command-monitor-history__topline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
 @media (max-width: 480px) {
     .command-sender-container {
-        padding: var(--spacing-base);
+        padding: var(--spacing-xs);
     }
 
     .target-selection {

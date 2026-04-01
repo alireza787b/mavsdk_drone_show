@@ -38,7 +38,7 @@
     flex: 1;
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
-    min-width: 200px;
+    min-width: 0;
 }
 
 .sync-warning-action {
@@ -77,6 +77,12 @@
 
 .sync-warning-dismiss:hover {
     color: var(--color-text-primary);
+}
+
+@media (max-width: 768px) {
+    .sync-warning-content {
+        align-items: flex-start;
+    }
 }
 
 @media (max-width: 480px) {

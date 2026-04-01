@@ -10,8 +10,9 @@
  * For commercial licensing, contact: p30planets@gmail.com
  */
 
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { FaBars, FaTimes } from 'react-icons/fa';
 
 // Import theme system
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -50,9 +51,57 @@ const LogViewer = lazy(() => import('./pages/LogViewer'));
  * Clean routing with Mapbox-based trajectory planning
  * Now includes unified design system with dynamic sidebar
  */
+const MOBILE_BREAKPOINT = 768;
+
+const getIsMobileViewport = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+};
+
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(getIsMobileViewport);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(getIsMobileViewport);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobileViewport = getIsMobileViewport();
+      setIsMobile(mobileViewport);
+      if (!mobileViewport) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleSidebarToggle = (nextState) => {
+    if (isMobile) {
+      setMobileSidebarOpen(Boolean(nextState));
+      return;
+    }
+
+    setDesktopSidebarCollapsed(Boolean(nextState));
+  };
+
+  const handleSidebarNavigate = () => {
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
+  };
+
+  const sidebarCollapsed = isMobile ? false : desktopSidebarCollapsed;
+  const contentClassName = `content ${
+    isMobile
+      ? 'content-mobile'
+      : sidebarCollapsed
+        ? 'sidebar-collapsed'
+        : 'sidebar-expanded'
+  }`;
 
   return (
     <ThemeProvider>
@@ -65,12 +114,34 @@ const App = () => {
                 v7_relativeSplatPath: true,
               }}
             >
-              <div className="app-container">
+              <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
+                {isMobile && (
+                  <>
+                    <button
+                      className={`mobile-sidebar-toggle ${mobileSidebarOpen ? 'is-open' : ''}`}
+                      onClick={() => setMobileSidebarOpen((current) => !current)}
+                      aria-label={mobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                    >
+                      {mobileSidebarOpen ? <FaTimes /> : <FaBars />}
+                    </button>
+                    {mobileSidebarOpen && (
+                      <button
+                        className="sidebar-backdrop"
+                        type="button"
+                        aria-label="Close navigation overlay"
+                        onClick={() => setMobileSidebarOpen(false)}
+                      />
+                    )}
+                  </>
+                )}
                 <SidebarMenu
                   collapsed={sidebarCollapsed}
-                  onToggle={setSidebarCollapsed}
+                  mobile={isMobile}
+                  mobileOpen={mobileSidebarOpen}
+                  onNavigate={handleSidebarNavigate}
+                  onToggle={handleSidebarToggle}
                 />
-                <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+                <div className={contentClassName}>
                   <SyncWarningBanner />
                   <Suspense fallback={<div className="page-loading">Loading...</div>}>
                     <Routes>

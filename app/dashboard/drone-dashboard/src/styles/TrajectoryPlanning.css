@@ -10,7 +10,8 @@
 .trajectory-planning {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
   background: var(--color-bg-primary);
   font-family: var(--font-family-primary);
 }
@@ -1757,6 +1758,11 @@
 }
 
 @media (max-width: 768px) {
+  .trajectory-planning {
+    height: auto;
+    min-height: 100dvh;
+  }
+
   .trajectory-header {
     flex-direction: column;
     gap: var(--spacing-base);
@@ -1774,8 +1780,45 @@
     padding: var(--spacing-xs) var(--spacing-sm);
   }
 
-  .waypoint-panel {
-    width: 250px;
+  .trajectory-container {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .trajectory-main {
+    min-height: 0;
+  }
+
+  .trajectory-toolbar {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
+  .toolbar-group {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--spacing-xs);
+    scrollbar-width: thin;
+  }
+
+  .toolbar-group::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .trajectory-toolbar button,
+  .toolbar-btn {
+    flex: 0 0 auto;
+  }
+
+  .map-container {
+    min-height: 52vh;
+  }
+
+  .trajectory-planner-notice {
+    margin-left: var(--spacing-sm);
+    margin-right: var(--spacing-sm);
   }
 
   .waypoint-marker-container {
@@ -1853,18 +1896,14 @@
 }
 
 @media (max-width: 480px) {
-  .trajectory-container {
-    flex-direction: column;
-  }
-  
   .waypoint-panel {
     width: 100%;
-    max-height: 200px;
-    order: -1;
+    max-height: none;
+    order: 1;
   }
 
   .map-container {
-    min-height: 400px;
+    min-height: 48vh;
   }
 
   .trajectory-fallback-content {

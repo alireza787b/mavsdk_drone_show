@@ -1,12 +1,17 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 
 // Mock eagerly loaded components
 jest.mock('./pages/Overview', () => () => <div data-testid="overview" />);
 jest.mock('./pages/MissionConfig', () => () => <div data-testid="mission-config" />);
-jest.mock('./components/SidebarMenu', () => ({ collapsed, onToggle }) => (
-  <nav data-testid="sidebar" data-collapsed={collapsed} />
+jest.mock('./components/SidebarMenu', () => ({ collapsed, mobile, mobileOpen }) => (
+  <nav
+    data-testid="sidebar"
+    data-collapsed={String(collapsed)}
+    data-mobile={String(mobile)}
+    data-open={String(mobileOpen)}
+  />
 ));
 jest.mock('./components/SyncWarningBanner', () => () => null);
 jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>);
@@ -32,6 +37,12 @@ jest.mock('./services/logService', () => ({
 }));
 
 describe('App', () => {
+  const originalInnerWidth = window.innerWidth;
+
+  afterEach(() => {
+    window.innerWidth = originalInnerWidth;
+  });
+
   test('renders without crashing', () => {
     render(<App />);
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
@@ -45,5 +56,19 @@ describe('App', () => {
   test('renders default route (Overview)', () => {
     render(<App />);
     expect(screen.getByTestId('overview')).toBeInTheDocument();
+  });
+
+  test('uses overlay navigation on mobile viewports', () => {
+    window.innerWidth = 375;
+    render(<App />);
+
+    const sidebar = screen.getByTestId('sidebar');
+    expect(sidebar).toHaveAttribute('data-mobile', 'true');
+    expect(sidebar).toHaveAttribute('data-collapsed', 'false');
+    expect(sidebar).toHaveAttribute('data-open', 'false');
+
+    fireEvent.click(screen.getByLabelText('Open navigation menu'));
+    expect(screen.getByLabelText('Close navigation overlay')).toBeInTheDocument();
+    expect(sidebar).toHaveAttribute('data-open', 'true');
   });
 });

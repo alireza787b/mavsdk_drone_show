@@ -4,7 +4,7 @@
 .search-bar-container {
   position: relative;
   width: 100%;
-  max-width: 500px;
+  max-width: min(100%, 500px);
   /* CRITICAL FIX: Create new stacking context for search suggestions */
   z-index: 1070; /* Fallback for browsers without CSS variables */
   z-index: var(--z-tooltip);
@@ -128,27 +128,24 @@
 
 /* FIXED: Enhanced search suggestions with proper z-index hierarchy */
 .search-suggestions {
-  position: fixed;
-  /* CRITICAL FIX: Use fixed positioning to break out of container */
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  left: 0;
+  right: 0;
   background: var(--color-text-primary);
   border: 2px solid var(--color-primary-border);
   border-radius: var(--border-radius-md);
-  margin-top: var(--spacing-xs);
   max-height: 400px;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  /* CRITICAL FIX: Use highest z-index to ensure above toolbar */
   z-index: 1170; /* Fallback for browsers without CSS variables */
   z-index: calc(var(--z-tooltip) + 100);
   backdrop-filter: blur(8px);
-  /* ADDED: Force new stacking context */
   isolation: isolate;
-  /* ADDED: Ensure suggestions container is above everything */
   transform: translateZ(0);
-  /* CRITICAL FIX: Ensure suggestions are positioned correctly */
   width: 100%;
-  min-width: 400px;
-  max-width: 600px;
+  min-width: 0;
+  max-width: none;
 }
 
 .search-suggestions.loading {
@@ -236,14 +233,10 @@
   }
 
   .search-suggestions {
-    max-height: 200px;
-    /* MOBILE FIX: Even higher z-index on mobile */
+    max-height: min(240px, 50vh);
     z-index: 1270; /* Fallback for browsers without CSS variables */
     z-index: calc(var(--z-tooltip) + 200);
-    /* MOBILE FIX: Full width on mobile */
-    min-width: 100%;
-    left: 0 !important;
-    right: 0 !important;
+    min-width: 0;
   }
 }
 
@@ -253,22 +246,14 @@
   }
 }
 
-/* LEGACY COMPATIBILITY: Fallback search suggestions styling */
+/* Legacy compatibility block kept aligned with the modern dropdown contract. */
 .search-suggestions {
-  position: fixed;
-  /* CRITICAL LEGACY FIX: Use fixed positioning */
-  background-color: #2a2d3a;
-  border: 1px solid #3a3f4b;
-  border-radius: 8px;
-  margin-top: 0.5rem;
-  max-height: 300px;
-  overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  /* CRITICAL LEGACY FIX: Explicit high z-index */
-  z-index: 9999;
-  /* CRITICAL LEGACY FIX: Ensure suggestions are positioned correctly */
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  left: 0;
+  right: 0;
   width: 100%;
-  min-width: 400px;
+  min-width: 0;
 }
 
 .suggestion-item {
