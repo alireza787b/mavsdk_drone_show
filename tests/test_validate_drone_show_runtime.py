@@ -72,3 +72,62 @@ def test_check_deviation_signal_rejects_selected_launch_blockers():
 
     with pytest.raises(RuntimeError, match="launch-blocking placement errors"):
         validator.check_deviation_signal(_Client(), [1, 2, 3])
+
+
+def test_wait_for_show_launch_ready_checks_deviation_after_idle(monkeypatch):
+    validator = _load_validator()
+    events = []
+    baseline = {"1": {"position_alt": 10.0}}
+
+    def fake_wait_for_idle(client, ids, timeout=120):
+        events.append(("idle", list(ids), timeout))
+        return baseline
+
+    def fake_check_deviation_signal(client, ids):
+        events.append(("deviation", list(ids)))
+
+    monkeypatch.setattr(validator, "wait_for_idle", fake_wait_for_idle)
+    monkeypatch.setattr(validator, "check_deviation_signal", fake_check_deviation_signal)
+
+    result = validator.wait_for_show_launch_ready(object(), [1, 2, 3], timeout=77)
+
+    assert result == baseline
+    assert events == [("idle", [1, 2, 3], 77), ("deviation", [1, 2, 3])]
+
+
+def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
+    validator = _load_validator()
+    events = []
+
+    class _Client:
+        def submit_command(self, mission_type, ids, label, **kwargs):
+            events.append(("submit", mission_type, list(ids), label, kwargs))
+            return {"command_id": "cmd-1"}
+
+    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
+        events.append(("launch_ready", list(ids), timeout))
+        return {"1": {"position_alt": 10.0}}
+
+    def fake_wait_for_command(client, command_id, desired_phase=None, terminal=False, timeout=90):
+        events.append(("wait_for_command", command_id, desired_phase, terminal, timeout))
+        return {"outcome": "completed"}
+
+    def fake_wait_for_idle(client, ids, timeout=120):
+        events.append(("wait_for_idle", list(ids), timeout))
+        return {}
+
+    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+    monkeypatch.setattr(validator, "wait_for_command", fake_wait_for_command)
+    monkeypatch.setattr(validator, "wait_for_idle", fake_wait_for_idle)
+
+    validator.run_show_mode(
+        _Client(),
+        [1, 2, 3],
+        label="demo",
+        auto_global_origin=True,
+        use_global_setpoints=True,
+        show_timeout=180,
+    )
+
+    assert events[0] == ("launch_ready", [1, 2, 3], 120)
+    assert events[1][0] == "submit"

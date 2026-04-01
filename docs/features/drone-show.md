@@ -165,6 +165,8 @@ Validator note:
 
 - the acceptance validator can target a live subset with `--drone-ids`, so offline config slots outside that selected subset do not fail the run by themselves
 - that same validator still treats selected `status=error` deviation rows as launch blockers, matching the operator launch-readiness doctrine above
+- the validator now re-checks selected-drone launch geometry immediately before each show/custom-show dispatch, so an idle-but-displaced fleet fails fast instead of launching from a bad staging state
+- if you chain Smart Swarm or Swarm Trajectory drills before Drone Show validation on the same SITL fleet, recreate or otherwise restage the fleet on the show launch slots first
 - `--expected-show-count` still refers to the imported Drone Show package size, not the selected live validation subset
 
 That keeps the operator signal focused on actual launch blockers instead of generic page state.

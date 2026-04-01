@@ -320,6 +320,12 @@ def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
     )
 
 
+def wait_for_show_launch_ready(client: ApiClient, ids: list[int], timeout: int = 120) -> dict[str, dict]:
+    baseline = wait_for_idle(client, ids, timeout=timeout)
+    check_deviation_signal(client, ids)
+    return baseline
+
+
 def run_show_mode(
     client: ApiClient,
     ids: list[int],
@@ -330,6 +336,7 @@ def run_show_mode(
     show_timeout: int,
     trigger_delay: int = 0,
 ) -> CommandRun:
+    wait_for_show_launch_ready(client, ids, timeout=120)
     trigger_time = int(time.time()) + trigger_delay if trigger_delay > 0 else 0
     response = client.submit_command(
         SHOW_MISSION,
@@ -352,6 +359,7 @@ def run_show_mode(
 
 
 def run_custom_show_mode(client: ApiClient, ids: list[int], *, label: str, timeout: int) -> CommandRun:
+    wait_for_show_launch_ready(client, ids, timeout=120)
     response = client.submit_command(CUSTOM_SHOW_MISSION, ids, label, trigger_time=0)
     command_id = response["command_id"]
     wait_for_command(client, command_id, desired_phase="in_progress", timeout=90)
@@ -362,7 +370,7 @@ def run_custom_show_mode(client: ApiClient, ids: list[int], *, label: str, timeo
 
 
 def run_override_drill(client: ApiClient, ids: list[int], *, label: str) -> dict[str, Any]:
-    baseline = wait_for_idle(client, ids, timeout=120)
+    baseline = wait_for_show_launch_ready(client, ids, timeout=120)
     baseline_alt = float(baseline[str(ids[-1])]["position_alt"])
 
     response = client.submit_command(
@@ -455,8 +463,7 @@ def main() -> int:
     wait_api_ready(client)
     show_info = ensure_imported_show(client, args.import_source_dir, args.expected_show_count)
     custom_show = ensure_custom_show_ready(client)
-    check_deviation_signal(client, args.drone_ids)
-    wait_for_idle(client, args.drone_ids, timeout=120)
+    wait_for_show_launch_ready(client, args.drone_ids, timeout=120)
 
     results["show_info"] = show_info
     results["custom_show_info"] = custom_show

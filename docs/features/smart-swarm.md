@@ -48,8 +48,14 @@ For a clean first Smart Swarm demo in SITL:
    ```bash
    python3 tools/validate_smart_swarm_runtime.py
    ```
+9. if you plan to chain Drone Show or Swarm Trajectory validation immediately afterward on the same SITL fleet, recreate the containers or manually restage the aircraft onto the next mode's launch geometry before the next run
 
 The shipped 5-drone SITL demo layout currently contains two clusters and mixed `ned` / `body` offsets, so formation settle time is not instantaneous after takeoff.
+
+Validator note:
+
+- the Smart Swarm validator restores the selected saved swarm assignments after a successful reassignment drill, so a temporary runtime reassignment does not become the new saved SITL baseline
+- it does **not** magically put landed aircraft back onto Drone Show staging slots; cross-mode launch validation still needs a deliberate launch-geometry reset between mission families
 
 ## Operator Model
 

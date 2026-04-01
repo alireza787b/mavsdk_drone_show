@@ -285,6 +285,49 @@ def cluster_assignments(assignments: list[dict], ids: list[int]) -> list[dict]:
     return [entry for entry in assignments if int(entry["hw_id"]) in id_set]
 
 
+def canonical_assignment(entry: dict) -> dict:
+    return {
+        "follow": int(entry.get("follow", 0) or 0),
+        "offset_x": float(entry.get("offset_x", 0.0) or 0.0),
+        "offset_y": float(entry.get("offset_y", 0.0) or 0.0),
+        "offset_z": float(entry.get("offset_z", 0.0) or 0.0),
+        "frame": str(entry.get("frame", "body")).lower(),
+    }
+
+
+def assignment_snapshot(assignments: list[dict], ids) -> dict[int, dict]:
+    id_set = {int(idx) for idx in ids}
+    return {
+        int(entry["hw_id"]): canonical_assignment(entry)
+        for entry in assignments
+        if int(entry["hw_id"]) in id_set
+    }
+
+
+def restore_assignments(client: ApiClient, expected_assignments: dict[int, dict], timeout: int = 30) -> list[int]:
+    current_assignments = assignment_snapshot(client.get_swarm(), expected_assignments.keys())
+    changed_ids: list[int] = []
+
+    for hw_id, expected in expected_assignments.items():
+        if current_assignments.get(int(hw_id)) == expected:
+            continue
+        client.update_assignment(int(hw_id), **expected)
+        changed_ids.append(int(hw_id))
+
+    if not changed_ids:
+        return []
+
+    def _ready():
+        current = assignment_snapshot(client.get_swarm(), expected_assignments.keys())
+        for hw_id, expected in expected_assignments.items():
+            if current.get(int(hw_id)) != expected:
+                return False
+        return current
+
+    wait_for(_ready, label=f"swarm config restored for drones {changed_ids}", timeout=timeout, interval=1.0)
+    return changed_ids
+
+
 def measure_cluster(assignments: list[dict], telemetry: dict[str, dict]) -> tuple[dict[str, dict], float]:
     errors = {}
     max_horizontal_error = 0.0
@@ -486,6 +529,7 @@ def main() -> None:
     log(f"BASE ALTITUDES: {base_altitudes}")
 
     swarm = client.get_swarm()
+    original_assignments = assignment_snapshot(swarm, ids)
     clusters = build_clusters(swarm, set(ids))
     require(clusters, "No Smart Swarm clusters found for the selected drones.")
     log(f"SMART SWARM CLUSTERS: {clusters}")
@@ -559,7 +603,16 @@ def main() -> None:
     require_full_execution(status, len(land_targets), "Land")
 
     final_telemetry = wait_idle_reset(client, ids, timeout=240)
+    restored_ids = restore_assignments(client, original_assignments, timeout=30)
+    if restored_ids:
+        log(f"RESTORED SWARM ASSIGNMENTS: {restored_ids}")
+    final_assignments = assignment_snapshot(client.get_swarm(), ids)
+    require(
+        final_assignments == original_assignments,
+        f"Selected swarm assignments were not restored: {json.dumps(final_assignments, indent=2)}",
+    )
     log(f"FINAL TELEMETRY: {json.dumps(final_telemetry, indent=2)}")
+    log(f"FINAL SWARM ASSIGNMENTS: {json.dumps(final_assignments, indent=2, sort_keys=True)}")
     log("SMART SWARM VALIDATION PASSED")
 
 

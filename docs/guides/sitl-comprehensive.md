@@ -558,6 +558,12 @@ If you want the validated 5-drone Smart Swarm acceptance run from the command li
 python3 tools/validate_smart_swarm_runtime.py
 ```
 
+If you are chaining multiple mission-family validators on the same SITL fleet, reset the fleet back onto its intended launch geometry before the next Drone Show run. Smart Swarm and Swarm Trajectory can leave drones idle at non-show positions, which is operationally valid for those modes but should fail Drone Show launch readiness. On a clean demo stack, the simplest reset is to recreate the containers from the same repo/branch source:
+
+```bash
+bash multiple_sitl/create_dockers.sh 3
+```
+
 
 ## Additional Resources
 

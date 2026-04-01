@@ -10,6 +10,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Fixed
+- Smart Swarm runtime validation now restores the selected saved swarm assignments after the in-flight reassignment drill, so acceptance runs no longer leave the SITL follow chain mutated for later sessions; the Smart Swarm guide now also states explicitly that cross-mode Drone Show / Swarm Trajectory validation still requires a launch-geometry reset because those modes can end with aircraft landed away from the show pads
+- Drone Show runtime validation now re-checks selected-drone launch geometry immediately before each show/custom-show dispatch, so mixed-mode SITL drills fail fast when the fleet is idle but displaced off the show staging slots instead of attempting a bad launch
 - shared command tracking now sizes standalone `LAND` and `RETURN_RTL` timeouts from live target altitude when that telemetry/home-position truth is available, so high-altitude recoveries no longer flip to terminal timeout while the fleet is still descending normally
 - Drone Show runtime validation now treats `/get-position-deviations` as selected-fleet truth instead of full-config truth, so 3-drone acceptance runs no longer abort just because unlaunched config slots are intentionally offline while still failing selected drones that have launch-blocking geometry errors
 - command terminal states are now immutable once they reach `phase=terminal`; late ACK/execution callbacks are captured under `late_reports` for diagnostics instead of reviving timed-out/cancelled/failed commands into a newer status
