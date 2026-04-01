@@ -298,11 +298,17 @@ def wait_for_relative_altitude(client: ApiClient, target_id: int, baseline_alt: 
     )
 
 
-def check_deviation_signal(client: ApiClient, expected_count: int) -> None:
+def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
     payload = client.get_json("/get-position-deviations")
-    summary = payload.get("summary", {})
-    require(summary.get("online") == expected_count, f"Deviation summary missing live drones: {summary}")
-    require(summary.get("no_telemetry") == 0, f"Deviation endpoint still reports no telemetry: {summary}")
+    deviations = payload.get("deviations", {})
+    missing = []
+
+    for drone_id in ids:
+        row = deviations.get(str(drone_id)) or deviations.get(drone_id)
+        if not isinstance(row, dict) or row.get("status") == "no_telemetry" or row.get("current") is None:
+            missing.append(drone_id)
+
+    require(not missing, f"Deviation endpoint missing live telemetry for drones {missing}: {payload.get('summary', {})}")
 
 
 def run_show_mode(
@@ -435,7 +441,7 @@ def main() -> int:
     wait_api_ready(client)
     show_info = ensure_imported_show(client, args.import_source_dir, args.expected_show_count)
     custom_show = ensure_custom_show_ready(client)
-    check_deviation_signal(client, len(args.drone_ids))
+    check_deviation_signal(client, args.drone_ids)
     wait_for_idle(client, args.drone_ids, timeout=120)
 
     results["show_info"] = show_info
