@@ -5,7 +5,8 @@ End-to-end Drone Show runtime validation for SITL fleets.
 This validator exercises the operator-facing Drone Show workflow:
 
 1. Optional fresh import of the stock SkyBrush show package
-2. Readiness checks for show metadata, custom CSV metadata, and live deviations
+2. Readiness checks for show metadata, custom CSV metadata, and selected-fleet
+   launch geometry from `/get-position-deviations`
 3. Standard Drone Show in:
    - GLOBAL auto-origin mode
    - GLOBAL manual mode
@@ -302,13 +303,21 @@ def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
     payload = client.get_json("/get-position-deviations")
     deviations = payload.get("deviations", {})
     missing = []
+    blocked = []
 
     for drone_id in ids:
         row = deviations.get(str(drone_id)) or deviations.get(drone_id)
         if not isinstance(row, dict) or row.get("status") == "no_telemetry" or row.get("current") is None:
             missing.append(drone_id)
+            continue
+        if row.get("status") == "error":
+            blocked.append({"drone_id": drone_id, "message": row.get("message")})
 
     require(not missing, f"Deviation endpoint missing live telemetry for drones {missing}: {payload.get('summary', {})}")
+    require(
+        not blocked,
+        f"Deviation endpoint reports launch-blocking placement errors for selected drones: {blocked}",
+    )
 
 
 def run_show_mode(
@@ -421,7 +430,7 @@ def main() -> int:
         nargs="+",
         type=int,
         default=[1, 2, 3, 4, 5],
-        help="Drone IDs to include in the validation",
+        help="Selected live drone IDs to validate; unselected config slots may remain offline",
     )
     parser.add_argument(
         "--import-source-dir",
@@ -429,7 +438,12 @@ def main() -> int:
         default=None,
         help="Optional directory of SkyBrush Drone *.csv files to zip and import before validation",
     )
-    parser.add_argument("--expected-show-count", type=int, default=5, help="Expected drone count in the standard show metadata")
+    parser.add_argument(
+        "--expected-show-count",
+        type=int,
+        default=5,
+        help="Expected imported Drone Show metadata count; this remains the show package size, not the selected validation subset",
+    )
     args = parser.parse_args()
 
     client = ApiClient(args.base_url)
