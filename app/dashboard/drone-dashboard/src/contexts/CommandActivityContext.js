@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import PropTypes from 'prop-types';
@@ -13,6 +14,8 @@ import { buildLifecycleSnapshotFromStatus } from '../utilities/commandLifecycleF
 
 const CommandActivityContext = createContext(null);
 const MAX_COMMAND_MONITORS = 8;
+const ACTIVE_COMMAND_REFRESH_MS = 2000;
+const RECENT_COMMAND_REFRESH_MS = 15000;
 
 function sortCommandMonitors(monitors = []) {
   return [...monitors].sort((left, right) => {
@@ -63,10 +66,15 @@ export const useCommandActivity = () => {
 
 export const CommandActivityProvider = ({ children }) => {
   const [commandMonitors, setCommandMonitors] = useState([]);
+  const commandMonitorsRef = useRef(commandMonitors);
 
   const mergeCommandMonitors = useCallback((snapshots) => {
     setCommandMonitors((previous) => mergeSnapshots(previous, snapshots));
   }, []);
+
+  useEffect(() => {
+    commandMonitorsRef.current = commandMonitors;
+  }, [commandMonitors]);
 
   const dismissCommandMonitor = useCallback((commandId) => {
     if (!commandId) {
@@ -79,40 +87,96 @@ export const CommandActivityProvider = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
 
+    const statusListToSnapshots = (commands = []) => {
+      const seen = new Set();
+      return commands
+        .filter((status) => {
+          const commandId = status?.command_id;
+          if (!commandId || seen.has(commandId)) {
+            return false;
+          }
+          seen.add(commandId);
+          return true;
+        })
+        .map((status) => buildLifecycleSnapshotFromStatus(status))
+        .filter(Boolean);
+    };
+
+    const fetchActiveSnapshots = async () => {
+      const activeResponse = await getActiveCommands();
+      return statusListToSnapshots(activeResponse?.commands || []);
+    };
+
+    const fetchRecentSnapshots = async () => {
+      const recentResponse = await getRecentCommands({ limit: MAX_COMMAND_MONITORS });
+      return statusListToSnapshots(recentResponse?.commands || []);
+    };
+
+    const mergeIfLive = (snapshots) => {
+      if (cancelled || !Array.isArray(snapshots) || snapshots.length === 0) {
+        return;
+      }
+
+      mergeCommandMonitors(snapshots);
+    };
+
     const hydrateCommandMonitors = async () => {
       try {
-        const [activeResponse, recentResponse] = await Promise.all([
-          getActiveCommands(),
-          getRecentCommands({ limit: MAX_COMMAND_MONITORS }),
+        const [activeSnapshots, recentSnapshots] = await Promise.all([
+          fetchActiveSnapshots(),
+          fetchRecentSnapshots(),
         ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        const seen = new Set();
-        const hydratedSnapshots = [...(activeResponse?.commands || []), ...(recentResponse?.commands || [])]
-          .filter((status) => {
-            const commandId = status?.command_id;
-            if (!commandId || seen.has(commandId)) {
-              return false;
-            }
-            seen.add(commandId);
-            return true;
-          })
-          .map((status) => buildLifecycleSnapshotFromStatus(status))
-          .filter(Boolean);
-
-        mergeCommandMonitors(hydratedSnapshots);
+        mergeIfLive([...activeSnapshots, ...recentSnapshots]);
       } catch (error) {
         console.error('Failed to hydrate command monitors', error);
       }
     };
 
+    const refreshActiveCommandMonitors = async () => {
+      try {
+        const activeSnapshots = await fetchActiveSnapshots();
+        mergeIfLive(activeSnapshots);
+
+        if (cancelled) {
+          return;
+        }
+
+        const activeIds = new Set(activeSnapshots.map((snapshot) => snapshot.commandId));
+        const unresolvedMonitorIds = commandMonitorsRef.current
+          .filter((snapshot) => snapshot?.commandId && !snapshot.isTerminal && !snapshot.trackingIssue)
+          .map((snapshot) => snapshot.commandId);
+        const missingIds = unresolvedMonitorIds.filter((commandId) => !activeIds.has(commandId));
+
+        if (missingIds.length > 0) {
+          const recentSnapshots = await fetchRecentSnapshots();
+          mergeIfLive(recentSnapshots);
+        }
+      } catch (error) {
+        console.error('Failed to refresh active command monitors', error);
+      }
+    };
+
+    const refreshRecentCommandMonitors = async () => {
+      try {
+        const recentSnapshots = await fetchRecentSnapshots();
+        mergeIfLive(recentSnapshots);
+      } catch (error) {
+        console.error('Failed to refresh recent command monitors', error);
+      }
+    };
+
     hydrateCommandMonitors();
+    const activeInterval = setInterval(() => {
+      void refreshActiveCommandMonitors();
+    }, ACTIVE_COMMAND_REFRESH_MS);
+    const recentInterval = setInterval(() => {
+      void refreshRecentCommandMonitors();
+    }, RECENT_COMMAND_REFRESH_MS);
 
     return () => {
       cancelled = true;
+      clearInterval(activeInterval);
+      clearInterval(recentInterval);
     };
   }, [mergeCommandMonitors]);
 

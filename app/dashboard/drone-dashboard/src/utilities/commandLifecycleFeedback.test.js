@@ -193,6 +193,68 @@ describe('commandLifecycleFeedback', () => {
     );
   });
 
+  it('uses server time instead of raw browser time for the initial scheduled snapshot', async () => {
+    jest.setSystemTime(new Date('2026-04-01T12:00:10Z'));
+    sendDroneCommand.mockResolvedValue({
+      success: true,
+      command_id: 'cmd-server-time',
+      mission_name: 'SWARM_TRAJECTORY',
+      submitted_count: 1,
+      target_drones: ['1'],
+      ack_summary: {
+        accepted: 1,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      tracking_phase: 'pending_execution',
+      timestamp: Date.parse('2026-04-01T12:00:00Z'),
+    });
+    getCommandStatus.mockResolvedValue({
+      phase: 'terminal',
+      outcome: 'completed',
+      progress: {
+        stage: 'completed',
+        message: 'Completed successfully on 1/1 accepted drone(s).',
+      },
+      executions: {
+        expected: 1,
+        succeeded: 1,
+        failed: 0,
+      },
+      acks: {
+        expected: 1,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+    });
+
+    const onCommandAccepted = jest.fn();
+
+    await submitCommandWithLifecycleFeedback(
+      {
+        missionType: 4,
+        triggerTime: String(Math.floor(Date.parse('2026-04-01T12:00:05Z') / 1000)),
+        uiMeta: { operatorLabel: 'Swarm Trajectory' },
+      },
+      {
+        onCommandAccepted,
+        trackTimeoutMs: 10000,
+      },
+    );
+
+    expect(onCommandAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        progress: expect.objectContaining({
+          stage: 'scheduled',
+          message: expect.stringMatching(/Waiting for the scheduled trigger time/i),
+        }),
+      }),
+      expect.any(Object),
+    );
+  });
+
   it('emits lifecycle callbacks for submission, status updates, and terminal completion', async () => {
     sendDroneCommand.mockResolvedValue({
       success: true,

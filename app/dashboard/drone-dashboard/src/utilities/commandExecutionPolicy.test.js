@@ -3,6 +3,7 @@ import {
   getMissionExecutionPolicy,
   getMissionScheduleDoctrine,
   isSchedulableActionKey,
+  isStrictSyncActionKey,
   isStrictSyncMissionType,
 } from './commandExecutionPolicy';
 import { DRONE_MISSION_TYPES } from '../constants/droneConstants';
@@ -35,10 +36,17 @@ describe('commandExecutionPolicy', () => {
 
   test('describes immediate launch actions and non-schedulable maintenance actions consistently', () => {
     expect(isSchedulableActionKey('TAKE_OFF')).toBe(true);
+    expect(isStrictSyncActionKey('HOVER_TEST')).toBe(true);
     expect(isSchedulableActionKey('UPDATE_CODE')).toBe(false);
     expect(
       getActionExecutionPolicy({ actionKey: 'TAKE_OFF', isImmediate: true })
     ).toMatch(/retries PX4 armability briefly/i);
+    expect(
+      getActionExecutionPolicy({ actionKey: 'HOVER_TEST', isImmediate: false })
+    ).toMatch(/queue for the shared trigger/i);
+    expect(
+      getActionExecutionPolicy({ actionKey: 'HOVER_TEST', isImmediate: false })
+    ).toMatch(/abort instead of joining late/i);
     expect(
       getActionExecutionPolicy({ actionKey: 'UPDATE_CODE', isImmediate: false })
     ).toBe('Immediate only. This action is not queued behind a future trigger.');

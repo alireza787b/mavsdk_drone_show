@@ -75,9 +75,9 @@ function getAckSummary(response) {
   };
 }
 
-function isFutureTrigger(triggerTime) {
+function isFutureTrigger(triggerTime, referenceNowMs = Date.now()) {
   const trigger = Number(triggerTime);
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const nowSeconds = Math.floor(Number(referenceNowMs || Date.now()) / 1000);
   return Number.isFinite(trigger) && trigger > nowSeconds;
 }
 
@@ -107,6 +107,7 @@ function buildInitialProgress(commandData, response) {
   const acks = getAckSummary(response);
   const accepted = acks.accepted;
   const expected = acks.expected;
+  const referenceNowMs = Number(response?.timestamp || Date.now());
 
   if ((response?.tracking_phase || null) === 'awaiting_ack') {
     if (acks.received === 0) {
@@ -124,7 +125,7 @@ function buildInitialProgress(commandData, response) {
     };
   }
 
-  if (isFutureTrigger(commandData?.triggerTime)) {
+  if (isFutureTrigger(commandData?.triggerTime, referenceNowMs)) {
     return {
       stage: 'scheduled',
       label: DEFAULT_PROGRESS_LABELS.scheduled,
@@ -189,6 +190,14 @@ function buildLifecycleSnapshot({
   const phase = status?.phase || response?.tracking_phase || null;
   const outcome = status?.outcome || null;
   const isTerminal = phase === TERMINAL_PHASE;
+  const updatedAtMs = Number(
+    status?.updated_at
+      || status?.completed_at
+      || status?.execution_started_at
+      || status?.submitted_at
+      || response?.timestamp
+      || Date.now()
+  );
 
   return {
     commandId: response?.command_id || status?.command_id || null,
@@ -211,7 +220,7 @@ function buildLifecycleSnapshot({
     executions,
     triggerTime: Number(commandData?.triggerTime || 0),
     canCancelMission: missionType > 0 && missionType < 100,
-    updatedAtMs: Date.now(),
+    updatedAtMs,
   };
 }
 

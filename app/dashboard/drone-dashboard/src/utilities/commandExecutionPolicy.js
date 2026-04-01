@@ -6,6 +6,10 @@ export const STRICT_SYNC_MISSION_TYPES = new Set([
   DRONE_MISSION_TYPES.SWARM_TRAJECTORY,
 ]);
 
+export const STRICT_SYNC_ACTION_KEYS = new Set([
+  'HOVER_TEST',
+]);
+
 export const SCHEDULABLE_ACTION_KEYS = new Set([
   'TAKE_OFF',
   'HOVER_TEST',
@@ -17,6 +21,7 @@ export const SCHEDULABLE_ACTION_KEYS = new Set([
 ]);
 
 export const isStrictSyncMissionType = (missionType) => STRICT_SYNC_MISSION_TYPES.has(Number(missionType));
+export const isStrictSyncActionKey = (actionKey) => STRICT_SYNC_ACTION_KEYS.has(String(actionKey));
 
 export const isSchedulableActionKey = (actionKey) => SCHEDULABLE_ACTION_KEYS.has(String(actionKey));
 
@@ -43,9 +48,14 @@ export const getMissionExecutionPolicy = (missionType, { isImmediate = false } =
 };
 
 export const getActionExecutionPolicy = ({ actionKey, isImmediate = true }) => {
+  if (isStrictSyncActionKey(actionKey)) {
+    return isImmediate
+      ? 'Synchronized offboard rehearsal. Drones accept immediately, but any aircraft that misses the coordinated startup tolerance aborts instead of joining late.'
+      : 'Synchronized offboard rehearsal. Drones queue for the shared trigger; if dispatch or startup slips beyond the safe window, they abort instead of joining late.';
+  }
+
   switch (String(actionKey)) {
     case 'TAKE_OFF':
-    case 'HOVER_TEST':
       return isImmediate
         ? 'Launch begins on acceptance and retries PX4 armability briefly before failing.'
         : 'Launch waits for the trigger, then retries PX4 armability briefly before failing.';
@@ -64,5 +74,7 @@ export const getActionExecutionPolicy = ({ actionKey, isImmediate = true }) => {
 
 export const isLaunchStyleCommand = (missionType) => {
   const normalized = Number(missionType);
-  return normalized === DRONE_ACTION_TYPES.TAKE_OFF || isStrictSyncMissionType(normalized);
+  return normalized === DRONE_ACTION_TYPES.TAKE_OFF
+    || normalized === DRONE_ACTION_TYPES.HOVER_TEST
+    || isStrictSyncMissionType(normalized);
 };
