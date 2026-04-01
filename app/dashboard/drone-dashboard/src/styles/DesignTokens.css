@@ -218,20 +218,20 @@
     --color-primary-border: rgba(var(--color-primary-rgb), 0.2);
     --color-primary-text: #f8fbff;
 
-    --color-bg-canvas: #eef2f6;
+    --color-bg-canvas: #f3f6f9;
     --color-bg-primary: #ffffff;
-    --color-bg-secondary: #f8fafc;
-    --color-bg-tertiary: #f1f5f9;
-    --color-bg-quaternary: #e3ebf2;
+    --color-bg-secondary: #fbfcfe;
+    --color-bg-tertiary: #edf3f8;
+    --color-bg-quaternary: #dde7f0;
     --color-bg-overlay: rgba(15, 23, 36, 0.34);
-    --color-surface-raised: rgba(255, 255, 255, 0.98);
-    --color-surface-muted: rgba(250, 252, 253, 0.98);
-    --color-surface-inset: rgba(239, 244, 248, 0.98);
+    --color-surface-raised: rgba(255, 255, 255, 0.99);
+    --color-surface-muted: rgba(249, 251, 253, 0.98);
+    --color-surface-inset: rgba(238, 244, 248, 0.98);
 
-    --color-text-primary: #102033;
-    --color-text-secondary: #33485f;
-    --color-text-tertiary: #52657b;
-    --color-text-muted: #65788d;
+    --color-text-primary: #0f2136;
+    --color-text-secondary: #32485f;
+    --color-text-tertiary: #50657a;
+    --color-text-muted: #64798d;
     --color-text-inverse: #f8fbff;
 
     --color-border-primary: rgba(55, 71, 95, 0.16);

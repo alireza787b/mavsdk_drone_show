@@ -154,7 +154,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
         {/* Theme Toggle */}
         <div className="footer-item theme-toggle-container">
           <ThemeToggle
-            variant={isCollapsed ? "simple" : "dropdown"}
+            variant={isCollapsed ? "simple" : "segmented"}
             showLabel={!isCollapsed}
             className="sidebar-theme-toggle"
           />

@@ -1,788 +1,52 @@
 @import './DesignTokens.css';
 
-/* Professional Theme-Aware Drone Detail Component with Dynamic Width */
 .drone-detail {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-xl);
-    overflow: hidden;
-    font-family: var(--font-family-primary);
     width: 100%;
-    max-width: 1400px;
     margin: 0 auto;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 1px solid var(--color-border-primary);
-    backdrop-filter: blur(8px);
-    position: relative;
-}
-
-/* Dynamic Width Expansion for Accordion View with Enhanced Effect */
-.drone-detail.expanded-detail {
-    max-width: 95vw;
-    transform: scale(1.03);
-    box-shadow: var(--shadow-2xl);
-    border: 2px solid var(--color-primary-border);
-}
-
-@media (min-width: 1600px) {
-    .drone-detail.expanded-detail {
-        max-width: 90vw;
-    }
-}
-
-@media (min-width: 1920px) {
-    .drone-detail.expanded-detail {
-        max-width: 85vw;
-    }
-}
-
-@media (max-width: 768px) {
-    .drone-detail.expanded-detail {
-        max-width: 100%;
-        transform: scale(1);
-    }
-}
-
-.drone-detail::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    z-index: 1;
-}
-
-/* Removed overall hover effect - too annoying when expanded */
-
-/* Header Styles - Professional Theme-Aware */
-.detail-header {
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    color: var(--color-text-primary);
-    padding: var(--spacing-2xl) var(--spacing-2xl);
-    position: relative;
-    overflow: hidden;
-}
-
-.detail-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent, rgba(255, 255, 255, 0.05));
-    pointer-events: none;
-}
-
-.detail-header h1 {
-    margin: 0;
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: relative;
-    z-index: 2;
-}
-
-.detail-header h1 svg {
-    margin-right: var(--spacing-base);
-    color: rgba(255, 255, 255, 0.9);
-    font-size: var(--font-size-2xl);
-}
-
-.connection-indicator {
-    display: flex;
-    align-items: center;
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-medium);
-    background: rgba(255, 255, 255, 0.15);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--border-radius-full);
-    backdrop-filter: blur(8px);
-}
-
-.status-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: var(--spacing-sm);
-    animation: statusPulse 2s infinite;
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
-}
-
-.status-dot.online {
-    background: var(--color-success);
-    box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
-}
-
-.status-dot.offline {
-    background: var(--color-danger);
-    box-shadow: 0 0 0 0 rgba(245, 101, 101, 0.7);
-}
-
-.status-text {
-    font-weight: var(--font-weight-semibold);
-    color: rgba(255, 255, 255, 0.95);
-}
-
-@keyframes statusPulse {
-    0% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
-    }
-    70% {
-        transform: scale(1);
-        box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
-    }
-    100% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-    }
-}
-
-/* Tab Navigation - Enhanced Professional Design */
-.tab-navigation {
-    display: flex;
-    background: var(--color-bg-tertiary);
-    border-bottom: 2px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
-    padding: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    min-height: 52px;
-    align-items: stretch;
-    box-shadow: var(--shadow-sm);
-    gap: 1px;
-}
-
-.tab-navigation::-webkit-scrollbar {
-    display: none;
-}
-
-.tab-button {
-    background: none;
-    border: none;
-    padding: var(--spacing-lg) var(--spacing-xl);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-base);
-    transition: var(--transition-all);
-    border-bottom: 3px solid transparent;
-    min-height: 52px;
-    flex: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    position: relative;
-    white-space: nowrap;
-    font-family: var(--font-family-primary);
-    min-width: 120px;
-    height: 100%;
-}
-
-.tab-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--color-primary-light);
-    opacity: 0;
-    transition: var(--transition-base);
-}
-
-.tab-button:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-quaternary);
-}
-
-.tab-button:hover::before {
-    opacity: 0.1;
-}
-
-.tab-button.active {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
     background: var(--color-bg-primary);
-    font-weight: var(--font-weight-bold);
-}
-
-.tab-button svg {
-    font-size: var(--font-size-xl);
-    transition: var(--transition-all);
-    opacity: 0.8;
-}
-
-.tab-button:hover svg {
-    transform: scale(1.1);
-    opacity: 1;
-}
-
-.tab-button.active svg {
-    opacity: 1;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-}
-
-/* Content Area - Optimized Compact Layout */
-.detail-content {
-    padding: var(--spacing-base);
-    background: var(--color-bg-primary);
-    min-height: 300px;
-}
-
-/* Status Dashboard - Optimized Compact Grid */
-.status-dashboard {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--spacing-base);
-    margin-bottom: var(--spacing-lg);
-}
-
-/* Special handling for accordion view to maximize space */
-.expanded-detail .status-dashboard {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-base);
-}
-
-.status-card {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
     border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-    padding: var(--spacing-sm) var(--spacing-base);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    transition: var(--transition-all);
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(8px);
-    min-height: 60px;
-}
-
-.status-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    opacity: 0;
-    transition: var(--transition-base);
-}
-
-/* Removed status card hover effect - too annoying when expanded */
-
-.status-icon {
-    font-size: var(--font-size-xl);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    background: linear-gradient(135deg, var(--color-bg-quaternary), var(--color-bg-tertiary));
-    border-radius: var(--border-radius-base);
-    border: 1px solid var(--color-border-primary);
-    color: var(--color-primary);
-    flex-shrink: 0;
-    box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.status-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.status-label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: var(--spacing-xs);
-}
-
-.status-value {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
-    margin-bottom: var(--spacing-xs);
-    word-break: break-word;
-    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
-    padding: var(--spacing-sm) var(--spacing-base);
-    border-radius: var(--border-radius-base);
-    border: 2px solid var(--color-primary-border);
-    font-family: var(--font-family-mono);
-    box-shadow: inset 0 1px 3px var(--color-shadow-light), 0 2px 8px var(--color-shadow-base);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    transition: var(--transition-all);
-}
-
-.status-value.armed {
-    color: var(--color-danger);
-}
-
-.status-value.disarmed {
-    color: var(--color-success);
-}
-
-.status-sub {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    color: var(--color-text-tertiary);
-}
-
-/* Detail Sections - Compact Professional Layout */
-.detail-section {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
-    border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-    padding: var(--spacing-base);
-    margin-bottom: var(--spacing-base);
-    backdrop-filter: blur(8px);
-    position: relative;
-    overflow: hidden;
-}
-
-/* Enhanced spacing for accordion view */
-.expanded-detail .detail-section {
-    margin-bottom: var(--spacing-sm);
-    padding: var(--spacing-base) var(--spacing-lg);
-}
-
-.detail-section::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    opacity: 0.3;
-}
-
-.detail-section h3 {
-    margin: 0 0 var(--spacing-sm) 0;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--spacing-sm);
-    padding-bottom: var(--spacing-sm);
-    border-bottom: 1px solid var(--color-border-primary);
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-align: left !important;
-    direction: ltr;
-}
-
-/* Ensure all section headers are left-aligned */
-.drone-detail h3,
-.detail-section > h3 {
-    text-align: left !important;
-    justify-content: flex-start !important;
-}
-
-.detail-section h3 svg {
-    color: var(--color-primary);
-    font-size: var(--font-size-xl);
-    background: var(--color-primary);
-    -webkit-background-clip: initial;
-    -webkit-text-fill-color: initial;
-    background-clip: initial;
-}
-
-/* Detail Grid - Optimized for Full Content Display */
-.detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: var(--spacing-base);
-}
-
-/* Enhanced spacing for accordion view to prevent text cut-off */
-.expanded-detail .detail-grid {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: var(--spacing-lg);
-}
-
-.detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-base) var(--spacing-lg);
-    background: var(--color-bg-tertiary);
-    border-radius: var(--border-radius-base);
-    border: 1px solid var(--color-border-primary);
-    border-left: 3px solid var(--color-border-primary);
-    transition: var(--transition-all);
-    min-height: 52px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.detail-item:hover {
-    background: var(--color-bg-quaternary);
-    border-left-color: var(--color-primary);
-    transform: translateX(2px);
-    box-shadow: var(--shadow-sm);
-}
-
-.detail-item label {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-    margin: 0;
-    flex: 1;
-}
-
-.detail-item span {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-primary);
-    text-align: right;
-    font-family: var(--font-family-mono);
-    background: linear-gradient(135deg, var(--color-bg-primary), var(--color-bg-secondary));
-    padding: var(--spacing-sm) var(--spacing-base);
-    border-radius: var(--border-radius-base);
-    border: 2px solid var(--color-primary-border);
-    margin-left: var(--spacing-base);
-    min-width: 140px;
-    max-width: 250px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    white-space: normal;
-    flex-shrink: 0;
-    box-shadow: inset 0 1px 3px var(--color-shadow-light), 0 2px 8px var(--color-shadow-base);
-    transition: var(--transition-base);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.detail-item span:hover {
-    background: var(--color-bg-secondary);
-    border-color: var(--color-primary-border);
-    color: var(--color-primary);
-    box-shadow: 0 2px 8px var(--color-shadow-base);
-}
-
-/* Flight Mode Styling - Theme Aware */
-.flight-mode {
-    padding: var(--spacing-xs) var(--spacing-base);
-    border-radius: var(--border-radius-full);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: 1px solid transparent;
-    backdrop-filter: blur(4px);
-}
-
-.flight-mode.manual {
-    background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-tertiary));
-    color: var(--color-info);
-    border-color: var(--color-info-border);
-}
-
-.flight-mode.auto {
-    background: linear-gradient(135deg, var(--color-success-light), var(--color-bg-tertiary));
-    color: var(--color-success);
-    border-color: var(--color-success-border);
-}
-
-.flight-mode.offboard {
-    background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-tertiary));
-    color: var(--color-danger);
-    border-color: var(--color-danger-border);
-}
-
-.flight-mode.unknown {
-    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary));
-    color: var(--color-text-tertiary);
-    border-color: var(--color-border-primary);
-}
-
-/* Status Classes - Theme Aware */
-.good, .excellent {
-    color: var(--color-success) !important;
-    font-weight: var(--font-weight-bold);
-}
-
-.fair, .warning {
-    color: var(--color-warning) !important;
-    font-weight: var(--font-weight-bold);
-}
-
-.poor, .critical {
-    color: var(--color-danger) !important;
-    font-weight: var(--font-weight-bold);
-}
-
-/* Map Styles - Professional Theme-Aware */
-.map-controls {
-    margin-bottom: var(--spacing-lg);
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-base);
-}
-
-.tile-layer-select {
-    padding: var(--spacing-sm) var(--spacing-base);
-    border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-base);
-    font-family: var(--font-family-primary);
-    cursor: pointer;
-    transition: var(--transition-base);
-}
-
-.tile-layer-select:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-border);
-}
-
-.map-display {
-    height: 500px;
     border-radius: var(--border-radius-lg);
-    overflow: hidden;
-    border: 2px solid var(--color-border-primary);
     box-shadow: var(--shadow-base);
+    overflow: hidden;
 }
 
-/* Status Badge - Professional Styling */
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--spacing-xs) var(--spacing-base);
-    border-radius: var(--border-radius-full);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
-    margin-left: var(--spacing-sm);
-    font-size: var(--font-size-sm);
-    transition: var(--transition-all);
-    backdrop-filter: blur(4px);
+.drone-detail.expanded-detail {
+    max-width: none;
+    box-shadow: none;
+    border-color: var(--color-border-secondary);
 }
 
-.status-badge.armed {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-    box-shadow: 0 0 12px var(--color-danger-light);
-}
-
-.status-badge.disarmed, .status-badge.ready {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-    box-shadow: 0 0 12px var(--color-success-light);
-}
-
-.status-badge.not-ready {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-    box-shadow: 0 0 12px var(--color-danger-light);
-}
-
-/* Enhanced Responsive Design */
-@media (max-width: 1200px) {
-    .status-dashboard {
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: var(--spacing-base);
-    }
-
-    .detail-grid {
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-        gap: var(--spacing-base);
-    }
-}
-
-@media (max-width: 768px) {
-    .drone-detail {
-        margin: var(--spacing-base);
-        border-radius: var(--border-radius-base);
-    }
-
-    .detail-header {
-        padding: var(--spacing-lg) var(--spacing-xl);
-    }
-
-    .detail-header h1 {
-        font-size: var(--font-size-2xl);
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-base);
-    }
-
-    .tab-navigation {
-        padding: 0 var(--spacing-xl);
-        gap: var(--spacing-xs);
-    }
-
-    .tab-button {
-        padding: var(--spacing-base) var(--spacing-lg);
-        font-size: var(--font-size-sm);
-    }
-
-    .detail-content {
-        padding: var(--spacing-base);
-    }
-
-    .status-dashboard {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-base);
-    }
-
-    .detail-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-base);
-    }
-
-    .detail-item {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--spacing-sm);
-        min-height: auto;
-    }
-
-    .detail-item span {
-        text-align: left;
-        margin-left: 0;
-        min-width: auto;
-    }
-
-    .map-display {
-        height: 350px;
-    }
-
-    .connection-indicator {
-        font-size: var(--font-size-sm);
-        padding: var(--spacing-xs) var(--spacing-base);
-    }
-}
-
-@media (max-width: 480px) {
-    .detail-header {
-        padding: var(--spacing-base) var(--spacing-lg);
-    }
-
-    .detail-header h1 {
-        font-size: var(--font-size-xl);
-    }
-
-    .status-card {
-        padding: var(--spacing-lg);
-        flex-direction: column;
-        text-align: center;
-    }
-
-    .status-icon {
-        width: 50px;
-        height: 50px;
-        font-size: var(--font-size-xl);
-    }
-
-    .detail-section {
-        padding: var(--spacing-lg);
-    }
-
-    .detail-content {
-        padding: var(--spacing-lg);
-    }
-
-    .tab-navigation {
-        padding: 0 var(--spacing-lg);
-    }
-
-    .map-display {
-        height: 300px;
-    }
-}
-
-/* Scrollbar Styling - Theme Aware */
-.detail-content::-webkit-scrollbar {
-    width: 8px;
-}
-
-.detail-content::-webkit-scrollbar-track {
-    background: var(--color-bg-tertiary);
-    border-radius: var(--border-radius-base);
-}
-
-.detail-content::-webkit-scrollbar-thumb {
-    background: var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-}
-
-.detail-content::-webkit-scrollbar-thumb:hover {
-    background: var(--color-primary);
-}
-
-/* Animations */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.detail-section {
-    animation: fadeInUp 0.4s var(--ease-out-cubic);
-}
-
-.status-card {
-    animation: fadeInUp 0.4s var(--ease-out-cubic);
-}
-
-/* 2026 operator readability refresh */
 .drone-detail .detail-header {
-    background:
-        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.14), transparent 70%),
-        var(--color-bg-secondary);
-    color: var(--color-text-primary);
     padding: var(--spacing-lg) var(--spacing-xl);
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), transparent 65%),
+        var(--color-surface-inset);
     border-bottom: 1px solid var(--color-border-primary);
-}
-
-.drone-detail .detail-header::before {
-    display: none;
 }
 
 .drone-detail .detail-header h1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     gap: var(--spacing-base);
-    font-size: clamp(1.1rem, 1.8vw, 1.55rem);
+    margin: 0;
 }
 
 .drone-detail .detail-header__title {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-base);
-    min-width: 0;
 }
 
 .drone-detail .detail-header__title svg {
-    margin-right: 0;
+    margin-top: 0.15rem;
     color: var(--color-primary);
+    font-size: 1.1rem;
 }
 
 .drone-detail .detail-header__title span {
     display: grid;
     gap: 0.2rem;
-    min-width: 0;
 }
 
 .drone-detail .detail-header__title small {
@@ -792,11 +56,25 @@
 }
 
 .drone-detail .connection-indicator {
-    background: var(--color-surface-inset);
-    color: var(--color-text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--border-radius-full);
     border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    padding: 0.4rem 0.8rem;
+    background: var(--color-bg-primary);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+}
+
+.drone-detail .status-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.08);
 }
 
 .drone-detail .status-text {
@@ -804,30 +82,47 @@
 }
 
 .drone-detail .tab-navigation {
-    background: var(--color-bg-secondary);
-    border-bottom: 1px solid var(--color-border-primary);
-    box-shadow: none;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--spacing-xs);
     padding: var(--spacing-sm);
+    background: var(--color-surface-inset);
+    border-bottom: 1px solid var(--color-border-primary);
 }
 
 .drone-detail .tab-button {
-    color: var(--color-text-secondary);
-    background: var(--color-surface-inset);
-    border: 1px solid var(--color-border-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    min-height: 42px;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid transparent;
     border-radius: var(--border-radius-base);
-    min-width: 0;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-family: var(--font-family-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    transition: var(--transition-all);
+}
+
+.drone-detail .tab-button svg {
+    color: inherit;
+    opacity: 0.9;
 }
 
 .drone-detail .tab-button:hover {
+    background: rgba(var(--color-primary-rgb), 0.08);
     color: var(--color-text-primary);
-    background: var(--color-bg-tertiary);
 }
 
 .drone-detail .tab-button.active {
+    background: var(--color-bg-primary);
     color: var(--color-text-primary);
-    background: rgba(var(--color-primary-rgb), 0.1);
     border-color: var(--color-primary-border);
+    box-shadow: var(--shadow-sm);
 }
 
 .drone-detail .detail-content {
@@ -835,20 +130,35 @@
     background: var(--color-bg-primary);
 }
 
-.drone-detail .status-card {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    min-height: 0;
-    padding: var(--spacing-sm) var(--spacing-base);
+.drone-detail .status-dashboard {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-base);
+}
+
+.drone-detail .status-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    min-height: 88px;
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-muted);
 }
 
 .drone-detail .status-icon {
-    background: var(--color-surface-inset);
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
     border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    text-shadow: none;
+    background: var(--color-bg-primary);
+    color: var(--color-primary);
+    flex-shrink: 0;
 }
 
 .drone-detail .status-icon--good,
@@ -881,193 +191,206 @@
     color: var(--color-text-tertiary);
 }
 
+.drone-detail .status-info {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.drone-detail .status-label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 .drone-detail .status-value {
-    background: var(--color-surface-inset);
-    border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    text-shadow: none;
-    padding: 0.45rem 0.65rem;
-    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    word-break: break-word;
+}
+
+.drone-detail .status-value.armed {
+    color: var(--color-danger);
+}
+
+.drone-detail .status-value.disarmed {
+    color: var(--color-success);
+}
+
+.drone-detail .status-sub {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
 }
 
 .drone-detail .detail-section {
-    background: var(--color-bg-secondary);
+    margin-bottom: var(--spacing-base);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    backdrop-filter: none;
-    padding: var(--spacing-sm) var(--spacing-base);
+    background: var(--color-surface-muted);
+}
+
+.drone-detail .detail-section:last-child {
+    margin-bottom: 0;
 }
 
 .drone-detail .detail-section h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin: 0 0 var(--spacing-base);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--color-border-primary);
     color: var(--color-text-primary);
-    background: none;
-    -webkit-background-clip: initial;
-    -webkit-text-fill-color: currentColor;
-    background-clip: initial;
+    font-size: var(--font-size-base);
 }
 
 .drone-detail .detail-section h3 svg {
     color: var(--color-primary);
-    background: none;
-    -webkit-text-fill-color: currentColor;
+}
+
+.drone-detail .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-sm);
 }
 
 .drone-detail .detail-item {
-    background: var(--color-surface-inset);
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    padding: var(--spacing-sm) var(--spacing-base);
-    min-height: 0;
+    background: var(--color-bg-primary);
 }
 
 .drone-detail .detail-item:hover {
-    background: var(--color-bg-tertiary);
-    box-shadow: none;
+    border-color: var(--color-primary-border);
+}
+
+.drone-detail .detail-item label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .drone-detail .detail-item span {
-    background: var(--color-bg-primary);
-    border: 1px solid var(--color-border-primary);
-    box-shadow: none;
-    text-shadow: none;
-    min-width: 0;
+    color: var(--color-text-primary);
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-family-mono);
+    word-break: break-word;
+}
+
+.drone-detail .flight-mode {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    font-family: var(--font-family-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .drone-detail .flight-mode.manual {
     background: var(--color-info-light);
+    color: var(--color-info);
+    border-color: var(--color-info-border);
 }
 
 .drone-detail .flight-mode.auto {
     background: var(--color-success-light);
+    color: var(--color-success);
+    border-color: var(--color-success-border);
 }
 
 .drone-detail .flight-mode.offboard {
-    background: var(--color-danger-light);
-}
-
-.drone-detail .status-badge {
-    margin-left: 0;
-    box-shadow: none;
-    border: 1px solid var(--color-border-primary);
-}
-
-.drone-detail .status-badge.armed {
-    background: var(--color-danger-light);
-    color: var(--color-danger-text);
-}
-
-.drone-detail .status-badge.disarmed,
-.drone-detail .status-badge.ready {
-    background: var(--color-success-light);
-    color: var(--color-success-text);
-}
-
-.drone-detail .status-badge.not-ready {
     background: var(--color-warning-light);
     color: var(--color-warning-text);
+    border-color: var(--color-warning-border);
+}
+
+.drone-detail .flight-mode.unknown {
+    background: var(--color-surface-inset);
+    color: var(--color-text-secondary);
 }
 
 .drone-detail .good,
 .drone-detail .excellent {
-    color: var(--color-success) !important;
+    color: var(--color-success);
 }
 
 .drone-detail .fair,
 .drone-detail .warning {
-    color: var(--color-warning) !important;
+    color: var(--color-warning-text);
 }
 
 .drone-detail .poor,
 .drone-detail .critical {
-    color: var(--color-danger) !important;
+    color: var(--color-danger);
 }
 
 .drone-detail .map-display {
+    height: 380px;
+    border-radius: var(--border-radius-base);
+    overflow: hidden;
     border: 1px solid var(--color-border-primary);
-    box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 900px) {
+    .drone-detail .status-dashboard,
+    .drone-detail .detail-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
+    .drone-detail {
+        border-radius: var(--border-radius-base);
+    }
+
     .drone-detail .detail-header {
-        padding: var(--spacing-lg);
+        padding: var(--spacing-base);
     }
 
     .drone-detail .detail-header h1 {
+        flex-direction: column;
         align-items: stretch;
     }
 
-    .drone-detail .detail-header__title {
-        width: 100%;
-        align-items: flex-start;
-    }
-
     .drone-detail .connection-indicator {
-        align-self: flex-start;
+        width: fit-content;
     }
 
     .drone-detail .tab-navigation {
-        padding: var(--spacing-sm);
-        display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .drone-detail .tab-button {
-        min-width: 0;
-        padding: 0.8rem 0.5rem;
-        gap: var(--spacing-xs);
+        min-height: 40px;
+        padding: 0.65rem 0.55rem;
         font-size: var(--font-size-xs);
-        text-transform: none;
-        letter-spacing: normal;
+    }
+
+    .drone-detail .tab-button svg {
+        font-size: 0.95rem;
     }
 
     .drone-detail .detail-content {
-        padding: var(--spacing-base);
-    }
-
-    .status-dashboard {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--spacing-sm);
-    }
-
-    .drone-detail .status-card {
-        align-items: flex-start;
-    }
-
-    .drone-detail .status-icon {
-        width: 40px;
-        height: 40px;
-        font-size: var(--font-size-lg);
-    }
-
-    .drone-detail .status-label {
-        font-size: var(--font-size-xs);
-    }
-
-    .drone-detail .status-sub {
-        font-size: var(--font-size-xs);
-    }
-
-    .drone-detail .detail-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-sm);
-    }
-
-    .drone-detail .detail-item {
         padding: var(--spacing-sm);
-        gap: var(--spacing-xs);
     }
 }
 
 @media (max-width: 480px) {
-    .drone-detail {
-        margin: var(--spacing-sm);
-    }
-
-    .drone-detail .detail-header {
-        padding: var(--spacing-base);
-    }
-
     .drone-detail .detail-header__title {
         gap: var(--spacing-sm);
     }
@@ -1076,85 +399,22 @@
         font-size: var(--font-size-xs);
     }
 
-    .drone-detail .connection-indicator {
-        width: 100%;
-        justify-content: center;
+    .drone-detail .status-card {
+        min-height: auto;
     }
 
-    .status-dashboard {
-        grid-template-columns: 1fr;
+    .drone-detail .detail-section {
+        padding: 0.85rem;
     }
 
-    .drone-detail .tab-button svg {
-        font-size: var(--font-size-base);
-    }
-}
-
-/* Accessibility */
-@media (prefers-reduced-motion: reduce) {
-    .detail-item:hover {
-        transform: none;
-    }
-
-    .status-dot {
-        animation: none;
-    }
-
-    .detail-section,
-    .status-card {
-        animation: none;
-    }
-
-    * {
-        transition: none !important;
-    }
-}
-
-/* Focus states for accessibility */
-.tab-button:focus-visible,
-.tile-layer-select:focus-visible {
-    outline: 2px solid var(--color-primary) !important;
-    outline-offset: 2px !important;
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-    .drone-detail,
-    .status-card,
-    .detail-section,
-    .detail-item {
-        border-width: 2px;
-    }
-
-    .status-badge {
-        border: 1px solid var(--color-border-primary);
-    }
-}
-
-/* Print Styles */
-@media print {
-    .drone-detail {
-        box-shadow: none;
-        border: 2px solid var(--color-border-primary);
-        background: white;
-        color: black;
-    }
-
-    .tab-navigation {
-        display: none;
-    }
-
-    .detail-content {
-        padding: var(--spacing-lg);
-    }
-
-    .map-display {
+    .drone-detail .map-display {
         height: 300px;
-        border: 1px solid black;
     }
+}
 
-    .detail-header {
-        background: #f0f0f0 !important;
-        color: black !important;
+@media (prefers-reduced-motion: reduce) {
+    .drone-detail .tab-button,
+    .drone-detail .detail-item {
+        transition: none;
     }
 }

@@ -55,9 +55,7 @@ html {
 
 body {
   font-family: var(--font-family-primary);
-  background:
-    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
-    var(--color-bg-canvas);
+  background: var(--color-bg-canvas);
   color: var(--color-text-primary);
   margin: 0;
   padding: 0;
@@ -65,6 +63,20 @@ body {
   overflow-x: hidden;
   line-height: var(--line-height-normal);
   letter-spacing: 0.01em;
+}
+
+html[data-theme="dark"] body,
+html.theme-dark body {
+  background:
+    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
+    var(--color-bg-canvas);
+}
+
+html[data-theme="light"] body,
+html.theme-light body {
+  background:
+    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 32%),
+    linear-gradient(180deg, #fbfdff 0%, var(--color-bg-canvas) 44%, #edf3f8 100%);
 }
 
 h1, h2, h3, h4, h5, h6 {

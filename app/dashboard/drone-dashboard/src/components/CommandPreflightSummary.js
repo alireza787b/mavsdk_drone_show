@@ -180,8 +180,8 @@ const CommandPreflightSummary = ({
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div>
-          <h3>Target Snapshot</h3>
-          <p>Live link, readiness, and repo state for the current command scope.</p>
+          <h3>Dispatch Snapshot</h3>
+          <p>Live link, readiness, armed state, and repo sync for the current scope.</p>
         </div>
         <div className="command-preflight__clock">
           <span className="command-preflight__clock-label">Scheduler clock</span>
@@ -205,7 +205,7 @@ const CommandPreflightSummary = ({
 
       {summary.exceptions.length > 0 && (
         <details className="command-preflight__exceptions">
-          <summary>Show Exceptions Needing Review ({summary.exceptions.length})</summary>
+          <summary>Review exceptions ({summary.exceptions.length})</summary>
           <div className="command-preflight__exception-list">
             {summary.exceptions.map((exception) => (
               <div

@@ -79,6 +79,30 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
     );
   }
 
+  if (variant === 'segmented') {
+    return (
+      <div
+        className={`theme-toggle-segmented ${className}`}
+        role="group"
+        aria-label="Display theme selector"
+      >
+        {themeOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`theme-segment ${themePreference === option.value ? 'active' : ''}`}
+            onClick={() => handleThemeSelect(option.value)}
+            title={option.description}
+            aria-pressed={themePreference === option.value}
+          >
+            <FontAwesomeIcon icon={option.icon} className="theme-icon" />
+            {showLabel && <span className="theme-label">{option.label}</span>}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   // Cycle button variant (cycles through all themes)
   if (variant === 'cycle') {
     return (

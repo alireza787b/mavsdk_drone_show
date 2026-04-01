@@ -42,11 +42,11 @@
     cursor: pointer;
     transition: var(--transition-all);
     text-align: left;
-    box-shadow: var(--shadow-base);
+    box-shadow: var(--shadow-sm);
     position: relative;
     overflow: hidden;
     backdrop-filter: blur(12px);
-    min-height: 13.5rem;
+    min-height: 12rem;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -69,9 +69,8 @@
 }
 
 .mission-card:hover {
-    transform: translateY(-2px);
     border-color: var(--color-primary-border);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-base);
     background:
         linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), transparent 68%),
         var(--color-surface-raised);
@@ -176,6 +175,10 @@
     color: var(--color-text-secondary);
     line-height: var(--line-height-normal);
     font-size: var(--font-size-sm);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .mission-card .mission-note {
@@ -237,6 +240,10 @@
 
     .mission-card {
         padding: var(--spacing-lg);
+    }
+
+    .mission-card .mission-note {
+        display: none;
     }
 }
 

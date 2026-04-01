@@ -70,6 +70,51 @@
   white-space: nowrap;
 }
 
+.theme-toggle-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-xs);
+  width: 100%;
+  padding: var(--spacing-xs);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-surface-inset);
+}
+
+.theme-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  min-height: 40px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--border-radius-base) - 2px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  transition: var(--transition-all);
+}
+
+.theme-segment:hover {
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--color-text-primary);
+}
+
+.theme-segment.active {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-color: var(--color-primary-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-segment .theme-icon {
+  color: inherit;
+}
+
 /* Simple Variant */
 .theme-toggle-simple {
   width: 40px;
@@ -203,6 +248,10 @@
   width: 100%;
 }
 
+.sidebar-theme-toggle .theme-toggle-segmented {
+  width: 100%;
+}
+
 .sidebar-theme-toggle .theme-toggle-trigger,
 .sidebar-theme-toggle .theme-toggle-cycle,
 .sidebar-theme-toggle .theme-toggle-button {
@@ -227,6 +276,15 @@
 @media (max-width: 768px) {
   .theme-toggle-dropdown {
     position: static;
+  }
+
+  .theme-segment {
+    min-height: 38px;
+    padding: 0.45rem 0.35rem;
+  }
+
+  .theme-segment .theme-label {
+    font-size: var(--font-size-xs);
   }
 
   .theme-dropdown-menu {

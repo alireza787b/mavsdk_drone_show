@@ -355,28 +355,27 @@ const CommandSender = ({ drones }) => {
   };
 
   return (
-    <div className="command-sender-container">
-      <div className="command-sender-header-row">
-        <div>
-          <p className="command-sender-eyebrow">Mission dispatch</p>
-          <h2 className="command-sender-header">Command Control</h2>
-          <p className="command-sender-subheader">
-            Review target scope, readiness, and timing before dispatching a coordinated fleet command.
-          </p>
+      <div className="command-sender-container">
+        <div className="command-sender-header-row">
+          <div className="command-sender-header-copy">
+            <p className="command-sender-eyebrow">Mission dispatch</p>
+            <h2 className="command-sender-header">Command Control</h2>
+            <p className="command-sender-subheader">
+              Set the target scope, confirm launch readiness, then dispatch the mission or action.
+            </p>
+            <div className="command-sender-header-meta" aria-label="Current command scope">
+              <span className="command-sender-header-pill">{targetLabel}</span>
+              <span className="command-sender-header-note">{targetDescriptor}</span>
+            </div>
+          </div>
         </div>
-        <div className="command-sender-scope-card" aria-label="Current command scope">
-          <span className="command-sender-scope-card__label">Current scope</span>
-          <strong>{targetLabel}</strong>
-          <small>{targetDescriptor}</small>
-        </div>
-      </div>
 
       {/* Target Selection UI */}
       <div className="target-selection">
         <div className="target-selection__row">
           <div>
             <label htmlFor="targetMode" className="target-selection__label">Command target</label>
-            <p className="target-selection__hint">Choose whether this panel addresses the whole fleet or a controlled subset.</p>
+            <p className="target-selection__hint">Choose the whole fleet or a deliberate subset.</p>
           </div>
           <div className="target-selection__controls">
             <span className="target-selection__scope">{targetLabel}</span>
@@ -417,7 +416,7 @@ const CommandSender = ({ drones }) => {
                 <button
                   type="button"
                   key={drone[FIELD_NAMES.HW_ID]}
-                  className={`drone-item ${
+                  className={`command-drone-target ${
                     selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
                   }`}
                   onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
@@ -552,22 +551,22 @@ const CommandSender = ({ drones }) => {
       )}
 
       {/* Tab Navigation with Expert UI/UX Icons */}
-      <div className="tab-bar">
+      <div className="command-tabs">
         <button
-          className={`tab-button ${activeTab === 'missionTrigger' ? 'active' : ''}`}
+          className={`command-tab ${activeTab === 'missionTrigger' ? 'active' : ''}`}
           onClick={() => setActiveTab('missionTrigger')}
           title="Mission Trigger - Schedule and execute complex mission operations"
         >
-          <FontAwesomeIcon icon={faRocket} className="tab-icon" />
-          <span className="tab-text">Mission Trigger</span>
+          <FontAwesomeIcon icon={faRocket} className="command-tab__icon" />
+          <span className="command-tab__text">Mission Trigger</span>
         </button>
         <button
-          className={`tab-button ${activeTab === 'actions' ? 'active' : ''}`}
+          className={`command-tab ${activeTab === 'actions' ? 'active' : ''}`}
           onClick={() => setActiveTab('actions')}
           title="Actions - Execute immediate flight control and system commands"
         >
-          <FontAwesomeIcon icon={faCog} className="tab-icon" />
-          <span className="tab-text">Actions</span>
+          <FontAwesomeIcon icon={faCog} className="command-tab__icon" />
+          <span className="command-tab__text">Actions</span>
         </button>
       </div>
 

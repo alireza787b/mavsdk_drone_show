@@ -1,217 +1,164 @@
 @import './DesignTokens.css';
 
-/* Portal Backdrop */
 .expanded-drone-backdrop {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--color-overlay);
-    backdrop-filter: blur(4px);
+    inset: 0;
     z-index: 2000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: var(--spacing-lg);
-    animation: backdropFadeIn 0.2s ease-out;
+    background: var(--color-overlay);
+    backdrop-filter: blur(6px);
 }
 
-@keyframes backdropFadeIn {
-    from {
-        opacity: 0;
-        backdrop-filter: blur(0px);
-    }
-    to {
-        opacity: 1;
-        backdrop-filter: blur(4px);
-    }
-}
-
-/* Expanded Drone Container */
 .expanded-drone-container {
-    background: linear-gradient(135deg, var(--color-primary-light), var(--color-bg-tertiary));
-    border: 2px solid var(--color-primary);
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-xl), 0 0 0 4px var(--color-primary-light);
-    max-width: min(95vw, 1400px);
-    max-height: 90vh;
-    width: 100%;
-    overflow-y: auto;
     position: relative;
-    animation: expandIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    backdrop-filter: blur(8px);
+    width: 100%;
+    max-width: min(96vw, 1280px);
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border-secondary);
+    background: var(--color-bg-primary);
+    box-shadow: var(--shadow-xl);
 }
 
-@keyframes expandIn {
-    from {
-        opacity: 0;
-        transform: scale(0.8);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Close Button */
-.close-button {
+.expanded-drone-container .close-button {
     position: absolute;
     top: var(--spacing-base);
     right: var(--spacing-base);
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: var(--color-danger);
-    color: white;
-    border-radius: 50%;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    cursor: pointer;
-    display: flex;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition-all);
-    z-index: 10;
+    border: 1px solid var(--color-danger-border);
+    border-radius: 999px;
+    background: var(--color-bg-primary);
+    color: var(--color-danger);
+    cursor: pointer;
+    font-size: 1.15rem;
     line-height: 1;
+    transition: var(--transition-all);
 }
 
-.close-button:hover {
-    background: var(--color-danger-dark);
-    transform: scale(1.1);
-    box-shadow: var(--shadow-md);
+.expanded-drone-container .close-button:hover {
+    background: var(--color-danger-light);
 }
 
-/* Header */
 .expanded-drone-header {
-    padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-base);
+    padding: var(--spacing-lg) var(--spacing-xl) var(--spacing-base);
     border-bottom: 1px solid var(--color-border-primary);
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
-    margin-bottom: var(--spacing-lg);
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), transparent 70%),
+        var(--color-surface-inset);
 }
 
 .expanded-drone-header .drone-header {
     display: flex;
     align-items: center;
     gap: var(--spacing-base);
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-bold);
     color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
 }
 
 .expanded-drone-header .status-indicator {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
     flex-shrink: 0;
 }
 
 .expanded-drone-header .status-indicator.active {
     background: var(--color-success);
-    box-shadow: 0 0 8px var(--color-success-light);
 }
 
 .expanded-drone-header .status-indicator.degraded {
     background: var(--color-warning);
-    box-shadow: 0 0 8px var(--color-warning-light);
 }
 
 .expanded-drone-header .status-indicator.offline {
     background: var(--color-danger);
-    box-shadow: 0 0 8px var(--color-danger-light);
 }
 
 .expanded-drone-header .status-indicator.unknown {
     background: var(--color-text-tertiary);
-    box-shadow: 0 0 8px rgba(107, 114, 128, 0.2);
 }
 
-/* Critical Status */
-.critical-status {
+.expanded-drone-container .critical-status {
     display: flex;
-    gap: var(--spacing-base);
-    margin: 0 var(--spacing-xl) var(--spacing-lg);
     flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-xl) var(--spacing-base);
 }
 
-.status-badge {
-    padding: var(--spacing-sm) var(--spacing-base);
-    border-radius: var(--border-radius-base);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border: 1px solid transparent;
-    box-shadow: var(--shadow-sm);
-}
-
-.status-badge.armed {
-    background: var(--color-danger);
-    color: white;
-    border-color: var(--color-danger-border);
-}
-
-.status-badge.disarmed {
-    background: var(--color-success);
-    color: white;
-    border-color: var(--color-success-border);
-}
-
-.status-badge.ready {
-    background: var(--color-success);
-    color: white;
-    border-color: var(--color-success-border);
-}
-
-.status-badge.blocked {
-    background: var(--color-danger);
-    color: white;
-    border-color: var(--color-danger-border);
-}
-
-.status-badge.warning {
-    background: var(--color-warning);
+.expanded-drone-container .status-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
     color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.expanded-drone-container .status-badge.armed,
+.expanded-drone-container .status-badge.blocked {
+    background: var(--color-danger-light);
+    border-color: var(--color-danger-border);
+    color: var(--color-danger);
+}
+
+.expanded-drone-container .status-badge.disarmed,
+.expanded-drone-container .status-badge.ready {
+    background: var(--color-success-light);
+    border-color: var(--color-success-border);
+    color: var(--color-success);
+}
+
+.expanded-drone-container .status-badge.warning {
+    background: var(--color-warning-light);
     border-color: var(--color-warning-border);
+    color: var(--color-warning-text);
 }
 
-.status-badge.unknown {
-    background: var(--color-text-tertiary);
-    color: white;
-    border-color: var(--color-border-primary);
+.expanded-drone-container .status-badge.unknown {
+    color: var(--color-text-secondary);
 }
 
-/* Main Content Grid */
 .expanded-content-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-xl);
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: var(--spacing-lg);
     padding: 0 var(--spacing-xl) var(--spacing-xl);
-    min-height: 400px;
 }
 
-/* Data Column */
 .data-column {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-base);
 }
 
 .data-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-base);
-    align-items: start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-sm);
 }
 
 .data-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-base);
-    background: var(--color-bg-quaternary);
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.85rem 0.9rem;
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-muted);
 }
 
 .data-item.full-width {
@@ -219,194 +166,188 @@
 }
 
 .data-label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
     color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
 .data-value {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
-}
-
-/* Badges */
-.mode-badge,
-.mission-badge,
-.mission-state-badge {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius-base);
     font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-    text-align: center;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    font-weight: var(--font-weight-semibold);
 }
 
-.mode-badge.auto { background: var(--color-success); color: white; }
-.mode-badge.manual { background: var(--color-info); color: white; }
-.mode-badge.guided { background: var(--color-primary); color: white; }
-.mode-badge.stabilize { background: var(--color-warning); color: var(--color-text-primary); }
-.mode-badge.land { background: var(--color-danger); color: white; }
-.mode-badge.rtl { background: var(--color-info); color: white; }
-.mode-badge.hold { background: var(--color-primary); color: white; }
-
-.mission-badge.mission-none { background: #6b7280; color: white; }
-.mission-badge.mission-performance { background: #8b5cf6; color: white; }
-.mission-badge.mission-flight { background: #06b6d4; color: white; }
-.mission-badge.mission-test { background: #f59e0b; color: #1f2937; }
-.mission-badge.mission-system { background: #3b82f6; color: white; }
-.mission-badge.mission-emergency { background: #ef4444; color: white; }
-.mission-badge.mission-default { background: #10b981; color: white; }
-
-.mission-state-badge.executing { background: var(--color-success); color: white; }
-.mission-state-badge.ready { background: var(--color-info); color: white; }
-.mission-state-badge.idle { background: var(--color-text-secondary); color: white; }
-
-.battery-value.good { color: var(--color-success); }
-.battery-value.warning { color: var(--color-warning); }
-.battery-value.critical { color: var(--color-danger); }
-
-.ip-address {
-    font-family: var(--font-family-mono);
-    background: var(--color-bg-tertiary);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--color-border-primary);
-}
-
-/* Critical Commands Section */
-.critical-commands-section {
-    background: var(--color-bg-tertiary);
-    border-radius: var(--border-radius-base);
-    padding: var(--spacing-lg);
-    border: 1px solid var(--color-border-primary);
-    display: flex;
-    flex-direction: column;
+.expanded-drone-container .mode-badge,
+.expanded-drone-container .mission-badge,
+.expanded-drone-container .mission-state-badge {
+    display: inline-flex;
     align-items: center;
+    width: fit-content;
+    min-height: 1.9rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.expanded-drone-container .mode-badge.manual {
+    background: var(--color-info-light);
+    color: var(--color-info);
+    border-color: var(--color-info-border);
+}
+
+.expanded-drone-container .mode-badge.auto {
+    background: var(--color-success-light);
+    color: var(--color-success);
+    border-color: var(--color-success-border);
+}
+
+.expanded-drone-container .mode-badge.offboard,
+.expanded-drone-container .mode-badge.land {
+    background: var(--color-warning-light);
+    color: var(--color-warning-text);
+    border-color: var(--color-warning-border);
+}
+
+.expanded-drone-container .mode-badge.rtl,
+.expanded-drone-container .mode-badge.hold,
+.expanded-drone-container .mode-badge.guided {
+    background: rgba(var(--color-primary-rgb), 0.1);
+    color: var(--color-primary);
+    border-color: var(--color-primary-border);
+}
+
+.expanded-drone-container .mission-badge.mission-none,
+.expanded-drone-container .mission-state-badge.idle {
+    color: var(--color-text-secondary);
+}
+
+.expanded-drone-container .mission-badge.mission-performance,
+.expanded-drone-container .mission-badge.mission-flight,
+.expanded-drone-container .mission-badge.mission-system,
+.expanded-drone-container .mission-state-badge.ready {
+    background: rgba(var(--color-primary-rgb), 0.1);
+    color: var(--color-primary);
+    border-color: var(--color-primary-border);
+}
+
+.expanded-drone-container .mission-badge.mission-test {
+    background: var(--color-warning-light);
+    color: var(--color-warning-text);
+    border-color: var(--color-warning-border);
+}
+
+.expanded-drone-container .mission-badge.mission-emergency,
+.expanded-drone-container .mission-state-badge.executing {
+    background: var(--color-danger-light);
+    color: var(--color-danger);
+    border-color: var(--color-danger-border);
+}
+
+.expanded-drone-container .mission-badge.mission-default {
+    background: var(--color-success-light);
+    color: var(--color-success);
+    border-color: var(--color-success-border);
+}
+
+.expanded-drone-container .battery-value.good {
+    color: var(--color-success);
+}
+
+.expanded-drone-container .battery-value.warning {
+    color: var(--color-warning-text);
+}
+
+.expanded-drone-container .battery-value.critical {
+    color: var(--color-danger);
+}
+
+.expanded-drone-container .ip-address {
+    font-family: var(--font-family-mono);
+}
+
+.critical-commands-section,
+.detail-column {
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-surface-muted);
+}
+
+.critical-commands-section {
+    padding: var(--spacing-base);
 }
 
 .critical-commands-section h3 {
-    margin: 0 0 var(--spacing-base) 0;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
+    margin: 0 0 var(--spacing-sm);
     color: var(--color-text-primary);
-    text-align: center;
+    font-size: var(--font-size-base);
 }
 
-/* Center align the critical commands container */
 .critical-commands-section .critical-commands-container {
     display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
     justify-content: center;
-    align-items: center;
-    gap: var(--spacing-base);
-    width: 100%;
 }
 
-/* Detail Column */
 .detail-column {
-    background: var(--color-bg-tertiary);
-    border-radius: var(--border-radius-base);
-    border: 1px solid var(--color-border-primary);
-    overflow: hidden;
-    padding: var(--spacing-lg);
+    padding: var(--spacing-base);
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
+@media (max-width: 1100px) {
     .expanded-content-grid {
         grid-template-columns: 1fr;
-        gap: var(--spacing-lg);
-    }
-
-    .data-grid {
-        grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 768px) {
     .expanded-drone-backdrop {
-        padding: var(--spacing-base);
+        padding: var(--spacing-sm);
     }
 
-    .expanded-drone-container {
-        max-height: 95vh;
+    .expanded-drone-header {
+        padding: var(--spacing-base) var(--spacing-base) 0.85rem;
+    }
+
+    .expanded-drone-container .critical-status,
+    .expanded-content-grid {
+        padding-left: var(--spacing-base);
+        padding-right: var(--spacing-base);
+    }
+
+    .expanded-content-grid {
+        gap: var(--spacing-base);
+        padding-bottom: var(--spacing-base);
     }
 
     .data-grid {
         grid-template-columns: 1fr;
     }
-
-    .expanded-drone-header {
-        padding: var(--spacing-lg) var(--spacing-base) var(--spacing-base);
-    }
-
-    .expanded-content-grid {
-        padding: 0 var(--spacing-base) var(--spacing-base);
-    }
-
-    .detail-column {
-        padding: var(--spacing-base);
-    }
-
-    .critical-commands-section {
-        padding: var(--spacing-base);
-    }
 }
 
 @media (max-width: 480px) {
-    .expanded-drone-backdrop {
-        padding: var(--spacing-sm);
-    }
-
     .expanded-drone-container {
-        max-height: 98vh;
+        max-height: 96vh;
         border-radius: var(--border-radius-base);
     }
 
-    .critical-status {
-        margin: 0 var(--spacing-base) var(--spacing-base);
+    .expanded-drone-header .drone-header {
+        font-size: var(--font-size-base);
     }
 
-    .status-badge {
-        flex: 1;
-        text-align: center;
-        padding: var(--spacing-xs) var(--spacing-sm);
-        font-size: var(--font-size-xs);
-    }
-
-    .detail-column {
-        padding: var(--spacing-sm);
-    }
-
-    .critical-commands-section {
-        padding: var(--spacing-sm);
-    }
-
-    .data-item {
-        padding: var(--spacing-sm);
-    }
-
-    .expanded-drone-header {
-        padding: var(--spacing-base) var(--spacing-sm) var(--spacing-sm);
-    }
-
-    .expanded-content-grid {
-        padding: 0 var(--spacing-sm) var(--spacing-sm);
-        gap: var(--spacing-base);
+    .expanded-drone-container .status-badge {
+        flex: 1 1 auto;
+        justify-content: center;
     }
 }
 
-/* Animation for responsive design */
 @media (prefers-reduced-motion: reduce) {
-    .expanded-drone-container,
-    .expanded-drone-backdrop {
-        animation: none;
-    }
-
-    .close-button:hover {
-        transform: none;
+    .expanded-drone-container .close-button {
+        transition: none;
     }
 }
