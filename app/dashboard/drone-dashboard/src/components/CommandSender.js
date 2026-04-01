@@ -23,6 +23,8 @@ import {
   getFleetReferenceClock,
 } from '../utilities/commandScheduling';
 import {
+  DRONE_SEARCH_HELP_TEXT,
+  DRONE_SEARCH_PLACEHOLDER,
   getDroneDisplayIdentity,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
@@ -365,7 +367,6 @@ const CommandSender = ({ drones }) => {
             </p>
             <div className="command-sender-header-meta" aria-label="Current command scope">
               <span className="command-sender-header-pill">{targetLabel}</span>
-              <span className="command-sender-header-note">{targetDescriptor}</span>
             </div>
           </div>
         </div>
@@ -399,7 +400,7 @@ const CommandSender = ({ drones }) => {
                   type="search"
                   value={targetQuery}
                   onChange={(event) => setTargetQuery(event.target.value)}
-                  placeholder="Search Pos, HW, callsign"
+                  placeholder={DRONE_SEARCH_PLACEHOLDER}
                   aria-label="Search drone targets by position, hardware ID, or callsign"
                 />
               </label>
@@ -436,7 +437,7 @@ const CommandSender = ({ drones }) => {
               {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
             </div>
             <p className="drone-selection__note">
-              This search only changes what is visible in the picker. Command scope changes only when you explicitly select or deselect targets.
+              This search only changes what is visible in the picker. Command scope changes only when you explicitly select or deselect targets. Examples: {DRONE_SEARCH_HELP_TEXT}
             </p>
           </div>
         )}

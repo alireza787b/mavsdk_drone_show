@@ -599,35 +599,66 @@ const MissionConfig = () => {
   return (
     <div className="mission-config-container">
       <header className="mission-config-page-header">
-        <div>
+        <div className="mission-config-page-header__content">
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign physical drones to show slots, verify live identity telemetry, and maintain clean per-drone mission metadata for drone-show or cooperative mission execution.
+            Assign airframes to mission slots, verify live identity, and keep per-drone mission metadata clean.
           </p>
+          <div className="mission-config-header-chips" aria-label="Mission configuration focus areas">
+            <span className="mission-config-header-chip">Identity integrity</span>
+            <span className="mission-config-header-chip">Launch-slot accuracy</span>
+            <span className="mission-config-header-chip">Operator metadata</span>
+          </div>
         </div>
       </header>
 
       <section className="mission-identity-brief" aria-label="Hardware and position ID guidance">
-        <div className="identity-brief-card">
-          <span className="identity-brief-label">Hardware ID</span>
-          <strong>Physical drone identity</strong>
-          <p>Matches the labeled drone and the companion-computer identity used at runtime.</p>
+        <div className="mission-identity-brief__summary">
+          <div className="identity-brief-card">
+            <span className="identity-brief-label">Hardware ID</span>
+            <strong>Airframe identity</strong>
+            <p>Matches the labeled aircraft and the runtime companion identity.</p>
+          </div>
+          <div className="identity-brief-card">
+            <span className="identity-brief-label">Position ID</span>
+            <strong>Mission slot</strong>
+            <p>Selects the assigned show slot or trajectory package for that aircraft.</p>
+          </div>
+          <div className="identity-brief-card">
+            <span className="identity-brief-label">Role swaps</span>
+            <strong>Allowed, but explicit</strong>
+            <p>Use when a spare aircraft must take over another slot without breaking operator traceability.</p>
+          </div>
         </div>
-        <div className="identity-brief-card">
-          <span className="identity-brief-label">Position ID</span>
-          <strong>Show slot / trajectory slot</strong>
-          <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that drone will fly.</p>
-        </div>
-        <div className="identity-brief-card identity-brief-card-wide">
-          <span className="identity-brief-label">Operational rule</span>
-          <strong>Role swaps are valid. Swarm follow-links still use Hardware ID.</strong>
-          <p>Use a role swap when a spare drone must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
-        </div>
-        <div className="identity-brief-card">
-          <span className="identity-brief-label">Additional fields</span>
-          <strong>Optional metadata stays secondary</strong>
-          <p>Add clean JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
-        </div>
+
+        <details className="mission-identity-guide">
+          <summary>
+            <span>Identity field guide</span>
+            <small>Role swaps, slot ownership, and optional metadata</small>
+          </summary>
+          <div className="mission-identity-guide__grid">
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Hardware ID</span>
+              <strong>Physical drone identity</strong>
+              <p>Matches the labeled drone and the companion-computer identity used at runtime.</p>
+            </div>
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Position ID</span>
+              <strong>Show slot / trajectory slot</strong>
+              <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that drone will fly.</p>
+            </div>
+            <div className="identity-brief-card identity-brief-card-wide">
+              <span className="identity-brief-label">Operational rule</span>
+              <strong>Swarm follow-links still use Hardware ID.</strong>
+              <p>Use a role swap when a spare drone must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
+            </div>
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Additional fields</span>
+              <strong>Optional metadata stays secondary</strong>
+              <p>Add clean JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
+            </div>
+          </div>
+        </details>
       </section>
 
       {/* Top Control Buttons */}

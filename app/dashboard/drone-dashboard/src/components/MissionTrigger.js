@@ -31,32 +31,32 @@ const MISSION_PRESENTATIONS = {
   [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: {
     icon: FaBroadcastTower,
     category: 'Synchronized show',
-    summary: 'Launch the processed SkyBrush show package with shared fleet timing and launch correction options.',
-    note: 'Use after geometry and launch readiness are verified.',
+    summary: 'Launch the active SkyBrush package.',
+    note: 'Verify geometry and launch readiness first.',
   },
   [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: {
     icon: FaFileAlt,
     category: 'Custom protocol',
-    summary: 'Replay an operator-provided custom CSV relative to each aircraft launch point.',
-    note: 'Best for controlled protocol testing, not the normal show pipeline.',
+    summary: 'Replay a custom CSV from each launch point.',
+    note: 'Use for controlled protocol runs, not the normal show pipeline.',
   },
   [DRONE_MISSION_TYPES.SMART_SWARM]: {
     icon: FaProjectDiagram,
     category: 'Live formation',
-    summary: 'Start the published leader-follower topology and maintain formation with live in-flight control.',
-    note: 'Use after confirming roles, offsets, and override doctrine.',
+    summary: 'Start the published leader-follower topology.',
+    note: 'Confirm roles, offsets, and override doctrine first.',
   },
   [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: {
     icon: FaRoute,
     category: 'Route package',
-    summary: 'Dispatch the processed leader-path package with synchronized timing across the selected cluster.',
-    note: 'Use after route processing and launch-package review.',
+    summary: 'Dispatch the processed trajectory package.',
+    note: 'Use after route processing and launch review.',
   },
   [DRONE_MISSION_TYPES.NONE]: {
     icon: FaBan,
     category: 'Abort / recovery',
-    summary: 'Stop the active mission for the current target set immediately after aircraft acceptance.',
-    note: 'Use when the operator needs to interrupt the current mission flow.',
+    summary: 'Stop the active mission immediately.',
+    note: 'Use when the operator must interrupt the current mission flow.',
   },
 };
 

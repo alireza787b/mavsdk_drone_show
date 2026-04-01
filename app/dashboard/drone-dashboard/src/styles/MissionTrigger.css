@@ -33,9 +33,7 @@
 /* Individual Mission Card */
 .mission-card {
     appearance: none;
-    background:
-        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), transparent 68%),
-        var(--color-surface-raised);
+    background: var(--color-surface-raised);
     border: 1px solid var(--color-border-secondary);
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
@@ -71,22 +69,18 @@
 .mission-card:hover {
     border-color: var(--color-primary-border);
     box-shadow: var(--shadow-base);
-    background:
-        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), transparent 68%),
-        var(--color-surface-raised);
+    background: var(--color-surface-raised);
 }
 
 .mission-card:active {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
 }
 
 /* Cancel Mission Card Variant - Professional Distinctive Design */
 .cancel-mission-card {
     border: 1px solid var(--color-danger-border);
-    background:
-        linear-gradient(135deg, var(--color-danger-light), transparent 70%),
-        var(--color-surface-raised);
+    background: var(--color-surface-raised);
     position: relative;
     isolation: isolate;
     min-height: 12rem;
@@ -100,8 +94,8 @@
 
 .cancel-mission-card:hover {
     border-color: var(--color-danger-border);
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-base);
+    transform: translateY(0);
 }
 
 .cancel-mission-card:active {
@@ -210,14 +204,8 @@
 }
 
 /* Visual Hierarchy Improvements */
-.mission-cards .mission-card:nth-child(1),
-.mission-cards .mission-card:nth-child(2),
-.mission-cards .mission-card:nth-child(3) {
-    border-left: 4px solid var(--color-success);
-}
-
-.mission-cards .mission-card:nth-child(4) {
-    border-left: 4px solid var(--color-info);
+.mission-cards .mission-card {
+    border-left: 4px solid rgba(var(--color-primary-rgb), 0.18);
 }
 
 /* Responsive Design */

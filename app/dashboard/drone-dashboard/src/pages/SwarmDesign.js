@@ -31,6 +31,11 @@ import {
   toSwarmApiPayload,
 } from '../utilities/swarmDesignUtils';
 import { formatDroneLabel } from '../utilities/missionIdentityUtils';
+import {
+  DRONE_SEARCH_HELP_TEXT,
+  DRONE_SEARCH_PLACEHOLDER,
+  matchesDroneSearchQuery,
+} from '../utilities/dronePresentation';
 
 const CSV_HEADERS = ['hw_id', 'follow', 'offset_x', 'offset_y', 'offset_z', 'frame'];
 
@@ -40,21 +45,6 @@ function hasIncompleteNumericValue(value) {
   }
 
   return ['', '-', '.', '-.'].includes(value.trim());
-}
-
-function getSelectedSearchFields(drone) {
-  return [
-    drone.hw_id,
-    drone.pos_id,
-    drone.roleLabel,
-    drone.ip,
-    drone.follow,
-    drone.title,
-    drone.subtitle,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
 }
 
 function SwarmDesign() {
@@ -108,7 +98,14 @@ function SwarmDesign() {
       .map((cluster) => ({
         ...cluster,
         drones: cluster.drones.filter((drone) => (
-          searchValue.length === 0 || getSelectedSearchFields(drone).includes(searchValue)
+          searchValue.length === 0
+          || matchesDroneSearchQuery(drone, searchValue, [
+            drone.roleLabel,
+            drone.ip,
+            drone.follow,
+            drone.title,
+            drone.subtitle,
+          ])
         )),
       }))
       .filter((cluster) => cluster.drones.length > 0),
@@ -631,7 +628,7 @@ function SwarmDesign() {
               <FaSearch />
               <input
                 type="search"
-                placeholder="Search drone, show slot, leader, or IP"
+                placeholder={DRONE_SEARCH_PLACEHOLDER}
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
@@ -647,7 +644,7 @@ function SwarmDesign() {
             {filteredClusters.length === 0 && (
               <div className="swarm-empty-state">
                 <strong>No matching drones</strong>
-                <span>Try a different search term or clear the filter.</span>
+                <span>Try a different term or a scoped query like pos 1-5, hw 2,4, or a callsign. {DRONE_SEARCH_HELP_TEXT}</span>
               </div>
             )}
 

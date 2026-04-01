@@ -86,19 +86,19 @@
 
 /* Color coding for action groups */
 .action-group--routine::before {
-    background: linear-gradient(90deg, var(--color-success), #2e7d32);
+    background: var(--color-success);
 }
 
 .action-group--test::before {
-    background: linear-gradient(90deg, var(--color-info), #1976d2);
+    background: var(--color-info);
 }
 
 .action-group--maintenance::before {
-    background: linear-gradient(90deg, var(--color-warning), #f57c00);
+    background: var(--color-warning);
 }
 
 .action-group--danger::before {
-    background: linear-gradient(90deg, var(--color-danger), #c62828);
+    background: var(--color-danger);
 }
 
 .action-group:hover {
@@ -264,7 +264,7 @@
 
 .action-button {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: flex-start;
     gap: var(--spacing-sm);
     color: var(--color-text-primary);
@@ -296,7 +296,9 @@
 }
 
 .action-icon {
+    display: block;
     font-size: var(--font-size-lg);
+    line-height: 1;
     opacity: 1;
     color: inherit !important;
     text-shadow: none;
@@ -308,8 +310,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 2.25rem;
+    height: 2.25rem;
     border-radius: 10px;
     background: var(--color-surface-inset);
     border: 1px solid var(--color-border-primary);
@@ -325,6 +327,7 @@
 .action-button__title {
     color: inherit;
     font-weight: var(--font-weight-bold);
+    line-height: 1.25;
 }
 
 .action-button__summary {
@@ -335,7 +338,7 @@
 }
 
 .action-button--routine {
-    background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), var(--color-bg-primary));
+    background: var(--color-bg-primary);
     border-color: var(--color-primary-border);
 }
 
@@ -345,7 +348,7 @@
 }
 
 .action-button--test {
-    background: linear-gradient(135deg, var(--color-info-light), var(--color-bg-primary));
+    background: var(--color-bg-primary);
     border-color: var(--color-info-border);
 }
 
@@ -355,7 +358,7 @@
 }
 
 .action-button--maintenance {
-    background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-primary));
+    background: var(--color-bg-primary);
     border-color: var(--color-warning-border);
 }
 
@@ -365,7 +368,7 @@
 }
 
 .action-button--danger {
-    background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-primary));
+    background: var(--color-bg-primary);
     border-color: var(--color-danger-border);
 }
 
@@ -391,7 +394,7 @@
 /* Emergency Kill Button - Special Styling */
 
 .action-button--critical {
-    background: linear-gradient(135deg, rgba(239, 90, 90, 0.12), var(--color-bg-primary));
+    background: rgba(239, 90, 90, 0.08);
     color: var(--color-text-primary) !important;
     border: 1px solid var(--color-danger-border);
     position: relative;

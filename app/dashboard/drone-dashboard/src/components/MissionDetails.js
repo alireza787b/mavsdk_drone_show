@@ -446,6 +446,28 @@ const MissionDetails = ({
     : scheduleMode === COMMAND_SCHEDULE_MODES.DELAY
       ? `+${timeDelay}s delay`
       : 'Exact UTC';
+  const missionBriefItems = {
+    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: [
+      'Launches the active processed SkyBrush package with shared fleet timing.',
+      'Best used after launch slots, origin truth, and readiness checks are verified.',
+      'Choose LOCAL or GLOBAL deliberately. Do not rely on mode labels alone.',
+    ],
+    [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: [
+      'Replays the active custom CSV relative to each aircraft launch point.',
+      'Use for controlled protocol work, not the standard show workflow.',
+      'Confirm the active file and preview before dispatch.',
+    ],
+    [DRONE_MISSION_TYPES.SMART_SWARM]: [
+      'Starts the published leader-follower topology from Swarm Design.',
+      'Leaders, followers, and offsets must already be reviewed as an operator package.',
+      'Expect live intervention and override discipline during execution.',
+    ],
+    [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: [
+      'Dispatches the processed leader-route package across the current cluster scope.',
+      'Use after plots, timing, and cluster readiness are reviewed together.',
+      'Treat the generated package as a launch artifact, not a draft workspace.',
+    ],
+  }[missionType] || [];
 
   return (
     <div className="mission-details">
@@ -459,6 +481,20 @@ const MissionDetails = ({
           <span className="mission-meta-chip">{scheduleModeSummary}</span>
         </div>
       </div>
+
+      {missionBriefItems.length > 0 && (
+        <details className="mission-brief">
+          <summary>
+            <span>Mission brief</span>
+            <small>Open doctrine and operator notes</small>
+          </summary>
+          <ul>
+            {missionBriefItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {/* Display mission-specific image */}
       {missionImageSrc && (

@@ -14,7 +14,11 @@ import {
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
-import { matchesDroneSearchQuery } from '../utilities/dronePresentation';
+import {
+  DRONE_SEARCH_HELP_TEXT,
+  DRONE_SEARCH_PLACEHOLDER,
+  matchesDroneSearchQuery,
+} from '../utilities/dronePresentation';
 import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
@@ -247,7 +251,7 @@ const Overview = ({ setSelectedDrone }) => {
             type="search"
             value={droneQuery}
             onChange={(event) => setDroneQuery(event.target.value)}
-            placeholder="Search Pos, HW, callsign"
+            placeholder={DRONE_SEARCH_PLACEHOLDER}
             aria-label="Search fleet cards by position, hardware ID, or callsign"
           />
         </label>
@@ -270,7 +274,7 @@ const Overview = ({ setSelectedDrone }) => {
           ))}
         </div>
         <p className="overview-fleet-toolbar__note">
-          Visibility filters affect the card wall only. Command scope stays explicit inside Command Control.
+          Visibility filters affect the card wall only. Command scope stays explicit inside Command Control. Examples: {DRONE_SEARCH_HELP_TEXT}
         </p>
       </div>
 
@@ -287,7 +291,7 @@ const Overview = ({ setSelectedDrone }) => {
         {drones.length > 0 && filteredDrones.length === 0 && !error && (
           <div className="overview-empty-state">
             <strong>No drones match the current filters.</strong>
-            <span>Search supports position, hardware ID, and promoted callsign or alias fields.</span>
+            <span>Search supports free text and scoped queries like pos 1-5 or hw 2,4.</span>
           </div>
         )}
         {filteredDrones.map((drone) => (
