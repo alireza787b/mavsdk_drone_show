@@ -171,3 +171,42 @@ def test_api_client_get_json_retries_after_connection_reset(monkeypatch):
 
     assert client.get_json("/health") == {"status": "ok"}
     assert first.closed is True
+
+
+def test_reset_sitl_fleet_recreates_selected_contiguous_fleet(monkeypatch, tmp_path):
+    validator = _load_validator()
+    calls = []
+
+    def fake_run(cmd, cwd, check, capture_output, text, env):
+        calls.append(("run", cmd, cwd, check, capture_output, text, env is not None))
+
+        class _Completed:
+            stdout = "line-1\nline-2\nAll 3 instance(s) created and verified ready.\n"
+            stderr = ""
+
+        return _Completed()
+
+    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
+        calls.append(("wait", list(ids), timeout))
+        return {"1": {"position_alt": 10.0}}
+
+    monkeypatch.setattr(validator.subprocess, "run", fake_run)
+    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+
+    result = validator.reset_sitl_fleet(object(), tmp_path, [1, 2, 3], timeout=91)
+
+    assert result == {"1": {"position_alt": 10.0}}
+    assert calls[0][:4] == (
+        "run",
+        ["bash", "multiple_sitl/create_dockers.sh", "3"],
+        tmp_path,
+        True,
+    )
+    assert calls[1] == ("wait", [1, 2, 3], 91)
+
+
+def test_reset_sitl_fleet_rejects_non_contiguous_selection():
+    validator = _load_validator()
+
+    with pytest.raises(RuntimeError, match="contiguous drone IDs"):
+        validator.reset_sitl_fleet(object(), Path("/tmp/repo"), [1, 3], timeout=10)

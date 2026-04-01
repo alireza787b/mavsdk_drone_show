@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -347,6 +348,45 @@ def wait_for_show_launch_ready(client: ApiClient, ids: list[int], timeout: int =
     return baseline
 
 
+def reset_sitl_fleet(client: ApiClient, repo_root: Path, ids: list[int], timeout: int = 180) -> dict[str, dict]:
+    selected_ids = sorted({int(drone_id) for drone_id in ids})
+    require(selected_ids, "No drone IDs supplied for SITL reset.")
+
+    expected_ids = list(range(selected_ids[0], selected_ids[0] + len(selected_ids)))
+    require(
+        selected_ids == expected_ids,
+        f"SITL reset only supports contiguous drone IDs today, got {selected_ids}",
+    )
+
+    command = ["bash", "multiple_sitl/create_dockers.sh", str(len(selected_ids))]
+    if selected_ids[0] != 1:
+        command.extend(["--start-id", str(selected_ids[0]), "--start-ip", str(selected_ids[0] + 1)])
+
+    log(f"RESET SITL: {' '.join(command)} (cwd={repo_root})")
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy(),
+        )
+    except subprocess.CalledProcessError as exc:
+        stdout_tail = "\n".join((exc.stdout or "").splitlines()[-20:])
+        stderr_tail = "\n".join((exc.stderr or "").splitlines()[-20:])
+        raise RuntimeError(
+            "SITL fleet reset failed.\n"
+            f"stdout tail:\n{stdout_tail}\n"
+            f"stderr tail:\n{stderr_tail}"
+        ) from exc
+
+    stdout_tail = "\n".join((completed.stdout or "").splitlines()[-12:])
+    if stdout_tail:
+        log(f"RESET SITL OUTPUT:\n{stdout_tail}")
+    return wait_for_show_launch_ready(client, ids, timeout=timeout)
+
+
 def run_show_mode(
     client: ApiClient,
     ids: list[int],
@@ -473,6 +513,17 @@ def main() -> int:
         default=5,
         help="Expected imported Drone Show metadata count; this remains the show package size, not the selected validation subset",
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path(__file__).resolve().parents[1],
+        help="Repository root used for SITL container recreation between mode runs",
+    )
+    parser.add_argument(
+        "--skip-sitl-reset",
+        action="store_true",
+        help="Skip recreating SITL containers between internal validation runs",
+    )
     args = parser.parse_args()
 
     client = ApiClient(args.base_url)
@@ -503,6 +554,8 @@ def main() -> int:
             show_timeout=standard_timeout,
         ).status
     )
+    if not args.skip_sitl_reset:
+        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
     results["runs"]["global_manual"] = command_summary(
         run_show_mode(
             client,
@@ -513,6 +566,8 @@ def main() -> int:
             show_timeout=standard_timeout,
         ).status
     )
+    if not args.skip_sitl_reset:
+        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
     results["runs"]["local_delayed"] = command_summary(
         run_show_mode(
             client,
@@ -524,6 +579,8 @@ def main() -> int:
             trigger_delay=10,
         ).status
     )
+    if not args.skip_sitl_reset:
+        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
     results["runs"]["custom_csv"] = command_summary(
         run_custom_show_mode(
             client,
@@ -532,6 +589,8 @@ def main() -> int:
             timeout=custom_timeout,
         ).status
     )
+    if not args.skip_sitl_reset:
+        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
     results["runs"]["override_drill"] = run_override_drill(
         client,
         args.drone_ids,
