@@ -10,6 +10,9 @@ jest.mock('./components/SidebarMenu', () => ({ collapsed, onToggle }) => (
 ));
 jest.mock('./components/SyncWarningBanner', () => () => null);
 jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>);
+jest.mock('./contexts/CommandActivityContext', () => ({
+  CommandActivityProvider: ({ children }) => <>{children}</>,
+}));
 
 // Mock lazy-loaded pages — must return { default: Component } for React.lazy
 jest.mock('./pages/SwarmDesign', () => ({ __esModule: true, default: () => <div data-testid="swarm-design" /> }));

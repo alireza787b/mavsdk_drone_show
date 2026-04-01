@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-toastify';
 
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { formatDroneLabel } from '../utilities/missionIdentityUtils';
 import {
   buildSwarmRuntimeCommand,
@@ -87,6 +88,7 @@ const SwarmRuntimeControls = ({
 }) => {
   const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
   const [pendingActionKey, setPendingActionKey] = useState(null);
+  const { commandLifecycleCallbacks } = useCommandActivity();
 
   const {
     selectedDrone,
@@ -172,7 +174,14 @@ const SwarmRuntimeControls = ({
     setPendingActionKey(actionKey);
     try {
       const commandData = buildSwarmRuntimeCommand(actionKey, targetIds);
-      await submitCommandWithLifecycleFeedback(commandData);
+      commandData.uiMeta = {
+        operatorLabel: action.operatorLabel,
+        targetLabel: scopeLabel,
+        targetDescriptor: targetSummary,
+      };
+      await submitCommandWithLifecycleFeedback(commandData, {
+        ...commandLifecycleCallbacks,
+      });
     } catch (error) {
       console.error(`Failed to submit ${action.label}:`, error);
       toast.error(`Failed to submit ${action.label}.`);

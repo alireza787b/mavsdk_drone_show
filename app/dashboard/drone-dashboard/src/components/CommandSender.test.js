@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import CommandSender from './CommandSender';
+import { CommandActivityProvider } from '../contexts/CommandActivityContext';
 import {
   buildLifecycleSnapshotFromStatus,
   submitCommandWithLifecycleFeedback,
@@ -45,6 +46,12 @@ const drones = [
   { hw_id: '2', update_time: Date.now() },
   { hw_id: '3', update_time: Date.now() },
 ];
+
+const renderWithCommandActivity = (ui) => render(
+  <CommandActivityProvider>
+    {ui}
+  </CommandActivityProvider>
+);
 
 describe('CommandSender', () => {
   beforeEach(() => {
@@ -131,7 +138,7 @@ describe('CommandSender', () => {
       return { success: true, command_id: 'cmd-1' };
     });
 
-    render(<CommandSender drones={drones} />);
+    renderWithCommandActivity(<CommandSender drones={drones} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -228,7 +235,7 @@ describe('CommandSender', () => {
       return { success: true, command_id: commandData.missionType === '0' ? 'cmd-cancel' : 'cmd-1' };
     });
 
-    render(<CommandSender drones={drones} />);
+    renderWithCommandActivity(<CommandSender drones={drones} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -340,7 +347,7 @@ describe('CommandSender', () => {
       return { success: true, command_id: snapshot.commandId };
     });
 
-    render(<CommandSender drones={drones} />);
+    renderWithCommandActivity(<CommandSender drones={drones} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -442,7 +449,7 @@ describe('CommandSender', () => {
       ],
     });
 
-    render(<CommandSender drones={drones} />);
+    renderWithCommandActivity(<CommandSender drones={drones} />);
 
     await waitFor(() => {
       expect(getActiveCommands).toHaveBeenCalledTimes(1);

@@ -144,7 +144,7 @@ Operational guidance:
 - strict synchronized missions now expose the same fail-closed doctrine in-page and in the confirmation dialog: if dispatch or startup slips beyond the safe pre-trigger / late-start window, they abort instead of pretending the choreography stayed in sync
 - telemetry launch-readiness now treats `home_position_set` as actual PX4 HOME_POSITION truth, not just "a GPS position sample was seen once", so origin / takeoff readiness no longer gets falsely cleared by a fallback position cache
 - `Command Control` now keeps a persistent live command monitor showing the normalized lifecycle stages (`awaiting_ack`, `scheduled`, `pending_execution`, `executing`, `finishing`, terminal outcome), the current acceptance/error counts, a same-target `Cancel Mission` path when operators need to abort before trigger time or stop a live mission cleanly, and a recent-command strip so a newer dispatch does not silently erase the previous command snapshot from view
-- that command monitor now also rehydrates from the backend command history endpoints after a dashboard refresh/navigation event, so operators do not lose active mission context just because the browser page remounted
+- that command monitor now also rehydrates from the backend command history endpoints after a dashboard refresh/navigation event, and the same shared lifecycle stream now accepts updates from `Command Control`, per-drone airborne overrides, and `Smart Swarm Runtime`, so operators do not lose command context just because they changed route or used a different control surface
 
 ## Launch Readiness
 

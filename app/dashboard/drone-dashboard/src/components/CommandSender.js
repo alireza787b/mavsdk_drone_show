@@ -15,18 +15,14 @@ import {
   getCommandName,
 } from '../constants/droneConstants';
 import {
-  buildLifecycleSnapshotFromStatus,
   submitCommandWithLifecycleFeedback,
 } from '../utilities/commandLifecycleFeedback';
-import {
-  getActiveCommands,
-  getRecentCommands,
-} from '../services/droneApiService';
 import {
   formatClockOffsetLabel,
   formatCommandAbsoluteTime,
   getFleetReferenceClock,
 } from '../utilities/commandScheduling';
+import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
@@ -37,9 +33,14 @@ const CommandSender = ({ drones }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
-  const [commandMonitors, setCommandMonitors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
+  const {
+    primaryMonitor: commandMonitor,
+    recentCommandMonitors,
+    dismissCommandMonitor,
+    commandLifecycleCallbacks,
+  } = useCommandActivity();
 
   React.useEffect(() => {
     const interval = setInterval(forceClockTick, 1000);
@@ -63,89 +64,7 @@ const CommandSender = ({ drones }) => {
   const targetDescriptor = targetMode === 'selected'
     ? `Selected drones: ${selectedDrones.join(', ')}`
     : 'Target scope: all configured drones';
-  const sortedCommandMonitors = useMemo(() => {
-    return [...commandMonitors].sort((left, right) => {
-      const leftPriority = left?.isTerminal || left?.trackingIssue ? 1 : 0;
-      const rightPriority = right?.isTerminal || right?.trackingIssue ? 1 : 0;
-
-      if (leftPriority !== rightPriority) {
-        return leftPriority - rightPriority;
-      }
-
-      return Number(right?.updatedAtMs || 0) - Number(left?.updatedAtMs || 0);
-    });
-  }, [commandMonitors]);
-  const commandMonitor = sortedCommandMonitors[0] || null;
-  const recentCommandMonitors = sortedCommandMonitors.slice(1, 5);
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
-
-  const mergeCommandMonitors = React.useCallback((snapshots) => {
-    const normalizedSnapshots = (Array.isArray(snapshots) ? snapshots : [snapshots]).filter(
-      (snapshot) => snapshot?.commandId,
-    );
-    if (normalizedSnapshots.length === 0) {
-      return;
-    }
-
-    setCommandMonitors((previous) => {
-      let next = [...previous];
-
-      normalizedSnapshots.forEach((snapshot) => {
-        const existing = next.find((item) => item.commandId === snapshot.commandId);
-        const merged = existing ? { ...existing, ...snapshot } : snapshot;
-        next = [
-          merged,
-          ...next.filter((item) => item.commandId !== snapshot.commandId),
-        ];
-      });
-
-      return next.slice(0, 8);
-    });
-  }, []);
-
-  const upsertCommandMonitor = React.useCallback((snapshot) => {
-    mergeCommandMonitors(snapshot);
-  }, [mergeCommandMonitors]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const hydrateCommandMonitors = async () => {
-      try {
-        const [activeResponse, recentResponse] = await Promise.all([
-          getActiveCommands(),
-          getRecentCommands({ limit: 8 }),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        const seen = new Set();
-        const snapshots = [...(activeResponse?.commands || []), ...(recentResponse?.commands || [])]
-          .filter((status) => {
-            const commandId = status?.command_id;
-            if (!commandId || seen.has(commandId)) {
-              return false;
-            }
-            seen.add(commandId);
-            return true;
-          })
-          .map((status) => buildLifecycleSnapshotFromStatus(status))
-          .filter(Boolean);
-
-        mergeCommandMonitors(snapshots);
-      } catch (error) {
-        console.error('Failed to hydrate command monitors', error);
-      }
-    };
-
-    hydrateCommandMonitors();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mergeCommandMonitors]);
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
@@ -350,10 +269,7 @@ const CommandSender = ({ drones }) => {
         }
 
         await submitCommandWithLifecycleFeedback(commandDataToSend, {
-          onCommandAccepted: upsertCommandMonitor,
-          onStatusUpdate: upsertCommandMonitor,
-          onTrackingComplete: upsertCommandMonitor,
-          onTrackingUnavailable: upsertCommandMonitor,
+          ...commandLifecycleCallbacks,
         });
       } catch (error) {
         console.error('Error sending command:', error);
@@ -377,15 +293,11 @@ const CommandSender = ({ drones }) => {
       return;
     }
 
-    setCommandMonitors((previous) =>
-      previous.filter((item) => item.commandId !== commandMonitor.commandId)
-    );
+    dismissCommandMonitor(commandMonitor.commandId);
   };
 
   const handleDismissRecentMonitor = (commandId) => {
-    setCommandMonitors((previous) =>
-      previous.filter((item) => item.commandId !== commandId)
-    );
+    dismissCommandMonitor(commandId);
   };
 
   const handlePrepareMissionCancel = () => {

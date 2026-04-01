@@ -15,6 +15,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import theme system
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CommandActivityProvider } from './contexts/CommandActivityContext';
 import { MapProvider } from './contexts/MapContext';
 
 // Import design tokens first
@@ -56,68 +57,70 @@ const App = () => {
   return (
     <ThemeProvider>
       <ErrorBoundary>
-      <MapProvider>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-      <div className="app-container">
-        <SidebarMenu
-          collapsed={sidebarCollapsed}
-          onToggle={setSidebarCollapsed}
-        />
-        <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
-          <SyncWarningBanner />
-          <Suspense fallback={<div className="page-loading">Loading...</div>}>
-          <Routes>
-            {/* Main drone management routes */}
-            <Route path="/drone-show-design" element={<ManageDroneShow />} />
-            <Route path="/swarm-design" element={<SwarmDesign />} />
-            <Route path="/mission-config" element={<MissionConfig />} />
-            <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
-            <Route path="/manage-drone-show" element={<ManageDroneShow />} />
-            <Route path="/custom-show" element={<CustomShowPage />} />
-            <Route path="/globe-view" element={<GlobeView />} />
-            <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
-            
-            {/* Enhanced Trajectory Planning Route with unified design system */}
-            <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
+        <CommandActivityProvider>
+          <MapProvider>
+            <Router
+              future={{
+                v7_startTransition: true,
+                v7_relativeSplatPath: true,
+              }}
+            >
+              <div className="app-container">
+                <SidebarMenu
+                  collapsed={sidebarCollapsed}
+                  onToggle={setSidebarCollapsed}
+                />
+                <div className={`content ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+                  <SyncWarningBanner />
+                  <Suspense fallback={<div className="page-loading">Loading...</div>}>
+                    <Routes>
+                      {/* Main drone management routes */}
+                      <Route path="/drone-show-design" element={<ManageDroneShow />} />
+                      <Route path="/swarm-design" element={<SwarmDesign />} />
+                      <Route path="/mission-config" element={<MissionConfig />} />
+                      <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
+                      <Route path="/manage-drone-show" element={<ManageDroneShow />} />
+                      <Route path="/custom-show" element={<CustomShowPage />} />
+                      <Route path="/globe-view" element={<GlobeView />} />
+                      <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
 
-            {/* QuickScout SAR */}
-            <Route path="/quickscout" element={<QuickScoutPage />} />
+                      {/* Enhanced Trajectory Planning Route with unified design system */}
+                      <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
 
-            {/* System */}
-            <Route path="/logs" element={<LogViewer />} />
+                      {/* QuickScout SAR */}
+                      <Route path="/quickscout" element={<QuickScoutPage />} />
 
-            {/* Backward-compatible alias used by workflow guidance */}
-            <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />
-            
-            {/* Default route */}
-            <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
-          </Routes>
-          </Suspense>
-        </div>
-      </div>
-      <ToastContainer 
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        // Enhanced styling to match design system
-        className="toast-container"
-        toastClassName="toast-item"
-        bodyClassName="toast-body"
-        progressClassName="toast-progress"
-      />
-      </Router>
-      </MapProvider>
+                      {/* System */}
+                      <Route path="/logs" element={<LogViewer />} />
+
+                      {/* Backward-compatible alias used by workflow guidance */}
+                      <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />
+
+                      {/* Default route */}
+                      <Route path="/" element={<Overview setSelectedDrone={setSelectedDrone} />} />
+                    </Routes>
+                  </Suspense>
+                </div>
+              </div>
+              <ToastContainer
+                position="top-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                // Enhanced styling to match design system
+                className="toast-container"
+                toastClassName="toast-item"
+                bodyClassName="toast-body"
+                progressClassName="toast-progress"
+              />
+            </Router>
+          </MapProvider>
+        </CommandActivityProvider>
       </ErrorBoundary>
     </ThemeProvider>
   );

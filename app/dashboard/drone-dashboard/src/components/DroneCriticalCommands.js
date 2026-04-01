@@ -7,6 +7,7 @@ import ConfirmationModal from './ConfirmationModal';
 import { buildActionCommand } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/DroneCriticalCommands.css';
 
 const COMMAND_DEFINITIONS = [
@@ -75,6 +76,7 @@ function getPanelNote(isArmed, runtimeStatus) {
 const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const { commandLifecycleCallbacks } = useCommandActivity();
 
   const commands = useMemo(
     () => COMMAND_DEFINITIONS.map((command) => ({
@@ -108,9 +110,16 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
       [droneId],
       0,
     );
+    commandData.uiMeta = {
+      operatorLabel: pendingAction.label,
+      targetLabel: `Drone ${droneId}`,
+      targetDescriptor: `Per-drone override: drone ${droneId}`,
+    };
 
     try {
-      await submitCommandWithLifecycleFeedback(commandData);
+      await submitCommandWithLifecycleFeedback(commandData, {
+        ...commandLifecycleCallbacks,
+      });
     } catch (error) {
       console.error('Error sending command:', error);
       toast.error(`Failed to send "${pendingAction.label}" to drone ${droneId}.`);

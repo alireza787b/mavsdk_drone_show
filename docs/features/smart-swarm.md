@@ -90,6 +90,8 @@ Specific cluster selections in `Formation Analysis` also drive the cluster-scope
 
 This keeps swarm intent explicit instead of overloading the generic command sender with swarm-only controls, and it preserves mixed-mission operations when only part of the fleet is flying Smart Swarm.
 
+These runtime commands now publish into the same shared command lifecycle stream as `Command Control` and per-drone airborne overrides. That means the backend-backed live/recent command monitor can recover command context after refresh/navigation instead of keeping Smart Swarm runtime actions as toast-only events.
+
 ### Formation preview and live readiness
 
 The `Smart Swarm Runtime` panel intentionally separates:
