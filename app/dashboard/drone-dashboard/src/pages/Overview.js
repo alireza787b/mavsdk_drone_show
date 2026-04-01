@@ -3,8 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import axios from 'axios';
 import CommandSender from '../components/CommandSender';
+import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
+import useFetch from '../hooks/useFetch';
 import {
   FIELD_NAMES,
   attachDroneRuntimeClock,
@@ -19,6 +21,11 @@ import {
   DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
+import {
+  buildClusterScopeOptions,
+  buildSwarmViewModel,
+  filterClustersByScope,
+} from '../utilities/swarmDesignUtils';
 import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
@@ -28,10 +35,12 @@ const Overview = ({ setSelectedDrone }) => {
   const [expandedDrone, setExpandedDrone] = useState(null);
   const [droneQuery, setDroneQuery] = useState('');
   const [cardFilter, setCardFilter] = useState('all');
+  const [clusterScope, setClusterScope] = useState('all');
   const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
   const droneRefs = useRef({});
+  const { data: swarmDataFetched } = useFetch('/get-swarm-data');
 
   useEffect(() => {
     const backendURL = getBackendURL();
@@ -170,10 +179,37 @@ const Overview = ({ setSelectedDrone }) => {
     return summary;
   }, [drones]);
 
+  const swarmViewModel = React.useMemo(
+    () => (Array.isArray(swarmDataFetched) ? buildSwarmViewModel(swarmDataFetched, drones) : null),
+    [drones, swarmDataFetched]
+  );
+  const clusterScopeOptions = React.useMemo(
+    () => buildClusterScopeOptions(swarmViewModel?.clusters || [], drones.length),
+    [drones.length, swarmViewModel?.clusters]
+  );
+  const visibleClusters = React.useMemo(
+    () => filterClustersByScope(swarmViewModel?.clusters || [], clusterScope),
+    [clusterScope, swarmViewModel?.clusters]
+  );
+  const visibleClusterHwIds = React.useMemo(() => {
+    if (clusterScope === 'all') {
+      return null;
+    }
+
+    return new Set(
+      visibleClusters.flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
+    );
+  }, [clusterScope, visibleClusters]);
+
   const filteredDrones = React.useMemo(() => {
     const nowMs = Date.now();
 
     return drones.filter((drone) => {
+      const hwId = normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID);
+      if (visibleClusterHwIds && !visibleClusterHwIds.has(hwId)) {
+        return false;
+      }
+
       if (!matchesDroneSearchQuery(drone, droneQuery)) {
         return false;
       }
@@ -194,7 +230,7 @@ const Overview = ({ setSelectedDrone }) => {
           return true;
       }
     });
-  }, [cardFilter, droneQuery, drones]);
+  }, [cardFilter, droneQuery, drones, visibleClusterHwIds]);
 
   return (
     <div className="overview-container">
@@ -273,8 +309,17 @@ const Overview = ({ setSelectedDrone }) => {
             </button>
           ))}
         </div>
+        {clusterScopeOptions.length > 1 && (
+          <ClusterScopeBar
+            label="Cluster scope"
+            options={clusterScopeOptions}
+            selectedId={clusterScope}
+            onSelect={setClusterScope}
+            summary="Top-leader scopes keep large fleets readable. Card-wall filters never change command scope."
+          />
+        )}
         <p className="overview-fleet-toolbar__note">
-          Visibility filters affect the card wall only. Command scope stays explicit inside Command Control. Examples: {DRONE_SEARCH_HELP_TEXT}
+          Card-wall filters never change dispatch scope inside Command Control. Examples: {DRONE_SEARCH_HELP_TEXT}
         </p>
       </div>
 

@@ -180,7 +180,7 @@ const CommandPreflightSummary = ({
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div>
-          <h3>Dispatch Snapshot</h3>
+          <h3>Preflight Snapshot</h3>
           <p>Live link, readiness, armed state, and repo sync for the current scope.</p>
         </div>
         <div className="command-preflight__clock">

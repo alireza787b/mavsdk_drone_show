@@ -529,7 +529,7 @@ function SwarmDesign() {
           <h1>Operational Swarm Design</h1>
           <p>
             Hardware ID tracks the physical drone. Position ID tracks the assigned show slot.
-            Follow chains always target the drone hardware ID, even when a slot swap is active.
+            Follow chains always target the physical drone hardware ID, even when a slot swap is active.
           </p>
         </div>
 
@@ -585,7 +585,7 @@ function SwarmDesign() {
       <section className="swarm-status-strip">
         <div className="swarm-status-card identity">
           <strong>Identity model</strong>
-          <span>Slot swaps change show-slot assignment, not follow-chain targeting. Validate role swaps before flight.</span>
+          <span>Slot swaps change show-slot assignment, not follow-chain targeting.</span>
         </div>
 
         {hasPendingSync && (

@@ -31,30 +31,35 @@ const MISSION_PRESENTATIONS = {
   [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: {
     icon: FaBroadcastTower,
     category: 'Synchronized show',
+    cardLabel: 'Drone Show',
     summary: 'Launch the active SkyBrush package.',
-    note: 'Verify geometry and launch readiness first.',
+    note: 'Full mode: Drone Show from CSV. Verify geometry and launch readiness first.',
   },
   [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: {
     icon: FaFileAlt,
     category: 'Custom protocol',
-    summary: 'Replay a custom CSV from each launch point.',
-    note: 'Use for controlled protocol runs, not the normal show pipeline.',
+    cardLabel: 'Custom Show',
+    summary: 'Replay the imported custom CSV.',
+    note: 'Full mode: Custom CSV Drone Show. Use for controlled protocol runs, not the normal show pipeline.',
   },
   [DRONE_MISSION_TYPES.SMART_SWARM]: {
     icon: FaProjectDiagram,
     category: 'Live formation',
+    cardLabel: 'Smart Swarm',
     summary: 'Start the published leader-follower topology.',
     note: 'Confirm roles, offsets, and override doctrine first.',
   },
   [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: {
     icon: FaRoute,
     category: 'Route package',
-    summary: 'Dispatch the processed trajectory package.',
-    note: 'Use after route processing and launch review.',
+    cardLabel: 'Swarm Route',
+    summary: 'Dispatch the processed route package.',
+    note: 'Full mode: Swarm Trajectory. Use after route processing and launch review.',
   },
   [DRONE_MISSION_TYPES.NONE]: {
     icon: FaBan,
     category: 'Abort / recovery',
+    cardLabel: 'Abort Mission',
     summary: 'Stop the active mission immediately.',
     note: 'Use when the operator must interrupt the current mission flow.',
   },
@@ -203,7 +208,7 @@ const MissionTrigger = ({
                 category={presentation.category}
                 summary={presentation.summary}
                 note={presentation.note}
-                label={getCommandName(mission.value)}
+                label={presentation.cardLabel || getCommandName(mission.value)}
                 onClick={() => handleMissionSelect(mission.value)}
                 isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
               />

@@ -5,8 +5,8 @@
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#000000" />
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#09111c" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
     <meta
       name="description"
@@ -28,6 +28,40 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>Drone Swarm Dashboard</title>
+    <script>
+      (function () {
+        try {
+          var storageKey = 'drone-dashboard-theme';
+          var storedTheme = localStorage.getItem(storageKey) || 'auto';
+          var darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+          var lightQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+          var resolvedTheme = storedTheme;
+
+          if (storedTheme === 'auto') {
+            if (darkQuery && darkQuery.matches) {
+              resolvedTheme = 'dark';
+            } else if (lightQuery && lightQuery.matches) {
+              resolvedTheme = 'light';
+            } else {
+              resolvedTheme = 'dark';
+            }
+          }
+
+          var root = document.documentElement;
+          root.classList.remove('theme-light', 'theme-dark');
+          root.classList.add('theme-' + resolvedTheme);
+          root.setAttribute('data-theme', resolvedTheme);
+          root.style.colorScheme = resolvedTheme;
+
+          var themeMeta = document.querySelector('meta[name="theme-color"]');
+          if (themeMeta) {
+            themeMeta.setAttribute('content', resolvedTheme === 'light' ? '#f8fbfd' : '#09111c');
+          }
+        } catch (error) {
+          // Best-effort theme bootstrap only.
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

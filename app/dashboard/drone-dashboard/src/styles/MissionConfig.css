@@ -38,7 +38,7 @@
 
 .mission-config-subtitle {
     margin: 0;
-    max-width: 52rem;
+    max-width: 48rem;
     color: var(--color-text-secondary);
     font-size: var(--font-size-base);
     line-height: var(--line-height-normal);
@@ -97,7 +97,7 @@
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
+    line-height: 1.5;
 }
 
 .identity-brief-card code {
@@ -191,6 +191,7 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     line-height: var(--line-height-normal);
+    max-width: 54rem;
 }
 
 /* Origin Warning */

@@ -44,7 +44,7 @@
     position: relative;
     overflow: hidden;
     backdrop-filter: blur(12px);
-    min-height: 10.25rem;
+    min-height: 9.4rem;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -83,7 +83,7 @@
     background: var(--color-surface-raised);
     position: relative;
     isolation: isolate;
-    min-height: 12rem;
+    min-height: 10.75rem;
     padding: var(--spacing-xl);
     box-shadow: var(--shadow-base);
 }

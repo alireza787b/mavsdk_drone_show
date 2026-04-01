@@ -25,7 +25,7 @@ describe('MissionTrigger', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Custom CSV Drone Show'));
+    fireEvent.click(screen.getByText('Custom Show'));
     fireEvent.click(screen.getByText('send'));
 
     expect(onSendCommand).toHaveBeenCalledWith(
@@ -48,7 +48,7 @@ describe('MissionTrigger', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Swarm Trajectory'));
+    fireEvent.click(screen.getByText('Swarm Route'));
     fireEvent.click(screen.getByText('send'));
 
     expect(onSendCommand).toHaveBeenCalledWith(

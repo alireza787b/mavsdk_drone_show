@@ -845,3 +845,41 @@
     min-height: 420px;
   }
 }
+
+[data-theme="light"] .swarm-design-page,
+.theme-light .swarm-design-page {
+  background:
+    radial-gradient(circle at top right, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
+    radial-gradient(circle at top left, rgba(var(--color-primary-rgb), 0.05), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, var(--color-bg-canvas) 100%);
+}
+
+[data-theme="light"] .swarm-design-hero,
+[data-theme="light"] .swarm-panel,
+[data-theme="light"] .swarm-status-card,
+[data-theme="light"] .swarm-summary-card,
+[data-theme="light"] .swarm-cluster-section,
+.theme-light .swarm-design-hero,
+.theme-light .swarm-panel,
+.theme-light .swarm-status-card,
+.theme-light .swarm-summary-card,
+.theme-light .swarm-cluster-section {
+  background: linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.04), transparent 100%), var(--color-surface-raised);
+  box-shadow: var(--shadow-base);
+}
+
+[data-theme="light"] .swarm-summary-card__icon,
+.theme-light .swarm-summary-card__icon {
+  background: rgba(var(--color-primary-rgb), 0.08);
+}
+
+[data-theme="light"] .selection-warning.error,
+.theme-light .selection-warning.error {
+  background: rgba(196, 69, 69, 0.12);
+  color: #7b2f2f;
+}
+
+[data-theme="light"] .selection-warning.note,
+.theme-light .selection-warning.note {
+  color: #74480e;
+}

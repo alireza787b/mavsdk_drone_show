@@ -14,6 +14,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
 
 ### Fixed
+- dashboard theme selection now bootstraps before React mounts, so mobile Auto/Light mode applies on first paint instead of flashing the wrong palette
+- dashboard webfont loading now matches the design system (`IBM Plex Sans` / `IBM Plex Mono`) instead of falling back to older mismatched type choices
+- Dashboard Overview now reuses the same cluster-scope rail as Mission Config and Swarm Design, so large fleets can be narrowed by detected top-leader cluster without changing command scope
+- Command Control, mission cards, and action cards now use shorter operator-facing labels and less repeated copy while keeping the full command meaning in tooltips, confirmations, and detailed mission briefs
+- Drone Actions, Drone Detail, Mission Config, and Smart Swarm light-theme surfaces now align more closely with the primary shell, reducing contrast drift between dashboard sections during mobile review
 - dashboard theme auto mode now resolves against both dark/light media queries, falls back safely to dark when a mobile browser does not expose a clear preference, and advertises `color-scheme` in the document head so handheld browsers apply the operator palette more consistently
 - light mode now uses a materially brighter canvas, sidebar, and body gradient instead of a slightly softened dark shell, so explicit `Light` selection reads like a real daylight operator theme on phones and tablets
 - action override and mission selection cards now carry less always-visible copy: action buttons show the command label cleanly without stacked micro-descriptions, mission cards rely on shorter summaries plus native tooltips, and operator detail stays in the mission brief / confirmation flow instead of repeating on every card

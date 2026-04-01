@@ -145,7 +145,8 @@
     padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
-    background: var(--color-surface-muted);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
 }
 
 .drone-detail .status-icon {
@@ -264,7 +265,7 @@
     padding: 0.8rem 0.9rem;
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
-    background: var(--color-bg-primary);
+    background: var(--color-surface-raised);
 }
 
 .drone-detail .detail-item:hover {
@@ -391,6 +392,10 @@
 }
 
 @media (max-width: 480px) {
+    .drone-detail .tab-navigation {
+        grid-template-columns: 1fr;
+    }
+
     .drone-detail .detail-header__title {
         gap: var(--spacing-sm);
     }

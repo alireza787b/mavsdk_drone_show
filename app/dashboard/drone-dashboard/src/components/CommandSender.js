@@ -363,11 +363,8 @@ const CommandSender = ({ drones }) => {
             <p className="command-sender-eyebrow">Mission dispatch</p>
             <h2 className="command-sender-header">Command Control</h2>
             <p className="command-sender-subheader">
-              Set the target scope, confirm launch readiness, then dispatch the mission or action.
+              Set the target scope, confirm preflight status, then dispatch the mission or action.
             </p>
-            <div className="command-sender-header-meta" aria-label="Current command scope">
-              <span className="command-sender-header-pill">{targetLabel}</span>
-            </div>
           </div>
         </div>
 
@@ -437,7 +434,7 @@ const CommandSender = ({ drones }) => {
               {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
             </div>
             <p className="drone-selection__note">
-              This search only changes what is visible in the picker. Command scope changes only when you explicitly select or deselect targets. Examples: {DRONE_SEARCH_HELP_TEXT}
+              Search only changes what is visible in the picker. Scope changes only when you explicitly select or deselect targets. Examples: {DRONE_SEARCH_HELP_TEXT}
             </p>
           </div>
         )}

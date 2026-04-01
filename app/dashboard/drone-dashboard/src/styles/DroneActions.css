@@ -4,9 +4,9 @@
 .drone-actions-container {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
-    padding: var(--spacing-base);
-    background: var(--color-bg-primary);
+    gap: var(--spacing-xl);
+    padding: 0;
+    background: transparent;
     color: var(--color-text-primary);
     transition: var(--transition-all);
 }
@@ -18,8 +18,9 @@
     gap: var(--spacing-lg);
     padding: var(--spacing-base) var(--spacing-lg);
     border-radius: var(--border-radius-lg);
-    background: var(--color-surface-muted);
+    background: var(--color-surface-raised);
     border: 1px solid var(--color-border-primary);
+    box-shadow: var(--shadow-sm);
 }
 
 .action-parameter-bar h3 {
@@ -58,11 +59,11 @@
 
 /* Action Group Styles */
 .action-group {
-    background: var(--color-surface-muted);
+    background: var(--color-surface-raised);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-base);
-    box-shadow: none;
+    box-shadow: var(--shadow-sm);
     backdrop-filter: none;
     transition: var(--transition-all);
     position: relative;
@@ -138,7 +139,7 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-base);
-    background: var(--color-surface-inset);
+    background: var(--color-surface-muted);
     padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
@@ -146,7 +147,7 @@
 }
 
 .action-schedule {
-    background: var(--color-surface-inset);
+    background: var(--color-surface-muted);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
     padding: var(--spacing-base);
@@ -263,7 +264,8 @@
 }
 
 .action-button {
-    display: flex;
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
     align-items: center;
     justify-content: flex-start;
     gap: var(--spacing-sm);
@@ -281,6 +283,7 @@
     min-height: 58px;
     box-shadow: none;
     text-align: left;
+    isolation: isolate;
 }
 
 .action-button::before {
@@ -297,7 +300,9 @@
 
 .action-icon {
     display: block;
-    font-size: var(--font-size-lg);
+    width: 1rem;
+    height: 1rem;
+    font-size: 1rem;
     line-height: 1;
     opacity: 1;
     color: inherit !important;
@@ -316,18 +321,26 @@
     background: var(--color-surface-inset);
     border: 1px solid var(--color-border-primary);
     flex-shrink: 0;
+    align-self: center;
+    line-height: 0;
 }
 
 .action-button__content {
-    display: grid;
-    gap: 0.2rem;
+    display: flex;
+    align-items: center;
     min-width: 0;
+    min-height: 2.25rem;
+    flex: 1;
 }
 
 .action-button__title {
+    display: flex;
+    align-items: center;
+    width: 100%;
     color: inherit;
     font-weight: var(--font-weight-bold);
-    line-height: 1.25;
+    line-height: 1.15;
+    min-height: 1.4rem;
 }
 
 .action-button__summary {
@@ -523,6 +536,7 @@
 
     .action-button {
         width: 100%;
+        grid-template-columns: 2.1rem minmax(0, 1fr);
         padding: var(--spacing-base);
         font-size: var(--font-size-sm);
         min-height: 72px;

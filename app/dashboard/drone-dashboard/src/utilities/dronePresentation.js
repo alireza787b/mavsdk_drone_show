@@ -1,8 +1,9 @@
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getMissionConfigCustomFields, getPromotedMissionConfigField } from './missionConfigFields';
+import { formatCompactDroneIdentity } from './missionIdentityUtils';
 
-export const DRONE_SEARCH_PLACEHOLDER = 'Search or use pos 1-5 / hw 2,4';
-export const DRONE_SEARCH_HELP_TEXT = 'Try free text, pos 1-5, hw 2,4, or a callsign.';
+export const DRONE_SEARCH_PLACEHOLDER = 'Search, P1|H1, pos 1-5, or hw 2,4';
+export const DRONE_SEARCH_HELP_TEXT = 'Try P1|H1, pos 1-5, hw 2,4, free text, or a callsign.';
 
 function readField(drone, key, fallback = '') {
   if (!drone || typeof drone !== 'object') {
@@ -63,7 +64,9 @@ function buildDroneSearchSnapshot(drone, additionalTerms = []) {
 
   const haystackTerms = toSearchTermList([
     identity.primary,
+    identity.compact,
     identity.secondary,
+    identity.verbose,
     identity.alias?.label,
     identity.alias?.value,
     identity.posId,
@@ -183,11 +186,14 @@ export function getDroneDisplayIdentity(drone) {
   const posId = readField(drone, FIELD_NAMES.POS_ID);
   const hwId = readField(drone, FIELD_NAMES.HW_ID) || readField(drone, 'hw_ID');
   const alias = getDroneOperatorAlias(drone);
+  const compact = formatCompactDroneIdentity(posId, hwId, 'Unassigned drone');
 
   if (posId && hwId) {
     return {
-      primary: `Pos ${posId} · HW ${hwId}`,
-      secondary: alias ? `${alias.label}: ${alias.value}` : '',
+      primary: compact,
+      compact,
+      secondary: alias ? `${alias.label}: ${alias.value}` : `Position ${posId} · Hardware ${hwId}`,
+      verbose: `Position ${posId} · Hardware ${hwId}`,
       alias,
       posId,
       hwId,
@@ -196,8 +202,10 @@ export function getDroneDisplayIdentity(drone) {
 
   if (posId) {
     return {
-      primary: `Pos ${posId}`,
-      secondary: alias ? `${alias.label}: ${alias.value}` : '',
+      primary: compact,
+      compact,
+      secondary: alias ? `${alias.label}: ${alias.value}` : `Position ${posId}`,
+      verbose: `Position ${posId}`,
       alias,
       posId,
       hwId: '',
@@ -205,8 +213,10 @@ export function getDroneDisplayIdentity(drone) {
   }
 
   return {
-    primary: hwId ? `HW ${hwId}` : 'Unassigned drone',
-    secondary: alias ? `${alias.label}: ${alias.value}` : '',
+    primary: compact,
+    compact,
+    secondary: alias ? `${alias.label}: ${alias.value}` : (hwId ? `Hardware ${hwId}` : ''),
+    verbose: hwId ? `Hardware ${hwId}` : 'Unassigned drone',
     alias,
     posId: '',
     hwId,

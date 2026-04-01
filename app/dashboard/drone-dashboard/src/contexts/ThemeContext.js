@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
+const DARK_THEME_COLOR = '#09111c';
+const LIGHT_THEME_COLOR = '#f8fbfd';
+
 // Theme types
 export const THEMES = {
   LIGHT: 'light',
@@ -65,12 +68,13 @@ const applyTheme = (theme) => {
 
     // Set data attribute for CSS selectors
     root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
 
     // Update meta theme-color for mobile browsers
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content',
-        theme === THEMES.DARK ? '#09111c' : '#eef2f6'
+        theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR
       );
     }
   }

@@ -32,6 +32,25 @@ export function formatShowSlotLabel(value, fallback = 'Show Slot') {
   return normalized ? `Show Slot ${normalized}` : fallback;
 }
 
+export function formatCompactDroneIdentity(posValue, hwValue, fallback = 'Unassigned') {
+  const posId = normalizeComparableId(posValue);
+  const hwId = normalizeComparableId(hwValue);
+
+  if (posId && hwId) {
+    return `P${posId}|H${hwId}`;
+  }
+
+  if (posId) {
+    return `P${posId}`;
+  }
+
+  if (hwId) {
+    return `H${hwId}`;
+  }
+
+  return fallback;
+}
+
 export function normalizeRuntimeIp(value) {
   const normalized = toTrimmedString(value);
   if (!normalized) {

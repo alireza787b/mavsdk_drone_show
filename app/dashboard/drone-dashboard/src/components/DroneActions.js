@@ -37,28 +37,45 @@ const ACTION_SECTIONS = [
   {
     key: 'routine',
     title: 'Flight Control',
-    description: 'Normal flight overrides and rehearsals.',
+    description: 'Launch, hold, land, and return commands.',
     actions: ['TAKE_OFF', 'HOVER_TEST', 'HOLD', 'LAND', 'RETURN_RTL'],
   },
   {
     key: 'test',
     title: 'Checks',
-    description: 'Bench and visual verification steps.',
+    description: 'Bench and rehearsal verification.',
     actions: ['TEST', 'TEST_LED'],
   },
   {
     key: 'maintenance',
     title: 'Maintenance',
-    description: 'Repo, parameter, and restart tasks.',
+    description: 'Repo, identity, and restart tasks.',
     actions: ['UPDATE_CODE', 'INIT_SYSID', 'APPLY_COMMON_PARAMS', 'REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',
     title: 'Emergency',
-    description: 'Last-resort recovery and force-stop actions.',
+    description: 'Last-resort stop commands.',
     actions: ['DISARM', 'KILL_TERMINATE'],
   },
 ];
+
+const ACTION_SHORT_LABELS = {
+  TAKE_OFF: 'Take Off',
+  LAND: 'Land',
+  HOLD: 'Hold',
+  RETURN_RTL: 'RTL',
+  DISARM: 'Disarm',
+  KILL_TERMINATE: 'Kill',
+  TEST: 'Bench Test',
+  TEST_LED: 'LED Test',
+  HOVER_TEST: 'Hover',
+  REBOOT_FC: 'Reboot PX4',
+  REBOOT_SYS: 'Reboot System',
+  UPDATE_CODE: 'Update Repo',
+  INIT_SYSID: 'Init SysID',
+  APPLY_COMMON_PARAMS: 'Apply Params',
+};
 
 const ACTION_ICONS = {
   TAKE_OFF: FaPlaneDeparture,
@@ -165,7 +182,8 @@ const DroneActions = ({
   const renderActionButton = (actionKey, sectionKey) => {
     const Icon = ACTION_ICONS[actionKey];
     const actionTypeValue = actionTypes[actionKey];
-    const label = DRONE_ACTION_NAMES[actionTypeValue];
+    const label = ACTION_SHORT_LABELS[actionKey] || DRONE_ACTION_NAMES[actionTypeValue];
+    const fullLabel = DRONE_ACTION_NAMES[actionTypeValue];
     const isDanger = actionKey === 'KILL_TERMINATE' || actionKey === 'DISARM';
     const isCritical = actionKey === 'KILL_TERMINATE';
 
@@ -174,8 +192,8 @@ const DroneActions = ({
         key={actionKey}
         className={`action-button action-button--${sectionKey}${isDanger ? ' action-button--danger' : ''}${isCritical ? ' action-button--critical' : ''}`}
         onClick={() => handleActionClick(actionKey, actionKey === 'APPLY_COMMON_PARAMS' ? { reboot_after: true } : {})}
-        title={ACTION_DESCRIPTIONS[actionKey]}
-        aria-label={`${label}. ${ACTION_DESCRIPTIONS[actionKey]}`}
+        title={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
+        aria-label={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
       >
         <span className="action-button__icon"><Icon className="action-icon" /></span>
         <span className="action-button__content">

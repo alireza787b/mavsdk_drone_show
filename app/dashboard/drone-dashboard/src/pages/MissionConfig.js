@@ -647,12 +647,12 @@ const MissionConfig = () => {
         <div className="mission-config-page-header__content">
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign airframes to mission slots, verify live identity, and keep per-drone mission metadata clean.
+            Assign airframes to mission slots, verify live identity, and keep per-drone metadata clean.
           </p>
           <div className="mission-config-header-chips" aria-label="Mission configuration focus areas">
-            <span className="mission-config-header-chip">Identity integrity</span>
-            <span className="mission-config-header-chip">Launch-slot accuracy</span>
-            <span className="mission-config-header-chip">Operator metadata</span>
+            <span className="mission-config-header-chip">Identity</span>
+            <span className="mission-config-header-chip">Launch slot</span>
+            <span className="mission-config-header-chip">Metadata</span>
           </div>
         </div>
       </header>
@@ -662,17 +662,17 @@ const MissionConfig = () => {
           <div className="identity-brief-card">
             <span className="identity-brief-label">Hardware ID</span>
             <strong>Airframe identity</strong>
-            <p>Matches the labeled aircraft and the runtime companion identity.</p>
+            <p>Matches the labeled aircraft and runtime companion identity.</p>
           </div>
           <div className="identity-brief-card">
             <span className="identity-brief-label">Position ID</span>
             <strong>Mission slot</strong>
-            <p>Selects the assigned show slot or trajectory package for that aircraft.</p>
+            <p>Selects the assigned show slot or route package.</p>
           </div>
           <div className="identity-brief-card">
             <span className="identity-brief-label">Role swaps</span>
             <strong>Allowed, but explicit</strong>
-            <p>Use when a spare aircraft must take over another slot without breaking operator traceability.</p>
+            <p>Use when a spare aircraft must take over another slot without breaking traceability.</p>
           </div>
         </div>
 
@@ -694,13 +694,13 @@ const MissionConfig = () => {
             </div>
             <div className="identity-brief-card identity-brief-card-wide">
               <span className="identity-brief-label">Operational rule</span>
-              <strong>Swarm follow-links still use Hardware ID.</strong>
-              <p>Use a role swap when a spare drone must take over another slot. In Smart Swarm and cooperative follow-chains, leaders and followers are still referenced by Hardware ID.</p>
+              <strong>Follow-links still use Hardware ID.</strong>
+              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference the physical leader hardware ID.</p>
             </div>
             <div className="identity-brief-card">
               <span className="identity-brief-label">Additional fields</span>
               <strong>Optional metadata stays secondary</strong>
-              <p>Add clean JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
+              <p>Add JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
             </div>
           </div>
         </details>
@@ -869,7 +869,7 @@ const MissionConfig = () => {
           />
         </label>
         <p className="mission-config-ops-note">
-          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
+          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. Filters change the card wall only. {DRONE_SEARCH_HELP_TEXT}
         </p>
       </section>
 
