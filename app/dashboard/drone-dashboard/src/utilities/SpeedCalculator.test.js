@@ -207,6 +207,60 @@ describe('SpeedCalculator', () => {
     expect(suggestedTime).toBe(15);
   });
 
+  test('calculateWaypointSpeeds recomputes auto-speed waypoint arrival times sequentially from operator-owned speeds', () => {
+    const waypoints = [
+      {
+        id: 'wp-1',
+        latitude: 35.0,
+        longitude: 51.0,
+        altitude: 120,
+        timeFromStart: 12,
+        timingMode: TIMING_MODES.MANUAL_TIME,
+        headingMode: YAW_CONSTANTS.MANUAL,
+      },
+      {
+        id: 'wp-2',
+        latitude: 35.0008,
+        longitude: 51.0,
+        altitude: 150,
+        timeFromStart: 999,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        preferredSpeed: 8,
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+      {
+        id: 'wp-3',
+        latitude: 35.0012,
+        longitude: 51.0007,
+        altitude: 180,
+        timeFromStart: 999,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        preferredSpeed: 6,
+        headingMode: YAW_CONSTANTS.AUTO,
+      },
+    ];
+
+    const result = calculateWaypointSpeeds(waypoints);
+
+    const secondExpectedTime = suggestOptimalTime(
+      result[0],
+      waypoints[1],
+      8,
+      waypoints[1].altitude
+    );
+    const thirdExpectedTime = suggestOptimalTime(
+      { ...result[1], timeFromStart: secondExpectedTime },
+      waypoints[2],
+      6,
+      waypoints[2].altitude
+    );
+
+    expect(result[1].timeFromStart).toBe(secondExpectedTime);
+    expect(result[1].time).toBe(secondExpectedTime);
+    expect(result[2].timeFromStart).toBe(thirdExpectedTime);
+    expect(result[2].time).toBe(thirdExpectedTime);
+  });
+
   test('single-waypoint stats keep mission clock separate from route motion', () => {
     const waypoint = {
       latitude: 35.0,

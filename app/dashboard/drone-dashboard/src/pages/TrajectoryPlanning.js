@@ -20,6 +20,7 @@ import {
   buildTrajectorySegments,
   calculateTrajectoryStats, 
   calculateWaypointSpeeds,
+  getRetimedAutoSpeedWaypoints,
   getTrajectorySegmentColor,
   TIMING_MODES,
   YAW_CONSTANTS
@@ -391,6 +392,7 @@ const TrajectoryPlanning = () => {
     }
 
     let normalizedUpdates = { ...updates };
+    let issuedTerrainNotice = false;
     const hasCoordinateUpdate =
       Object.prototype.hasOwnProperty.call(updates, 'latitude') ||
       Object.prototype.hasOwnProperty.call(updates, 'longitude');
@@ -418,6 +420,7 @@ const TrajectoryPlanning = () => {
           `${currentWaypoint.name || 'Waypoint'} terrain context was refreshed with estimated elevation at the new coordinates. Review clearance before launch.`,
           'warning'
         );
+        issuedTerrainNotice = true;
       }
     }
 
@@ -427,6 +430,10 @@ const TrajectoryPlanning = () => {
     );
 
     const waypointsWithCorrectSpeeds = calculateWaypointSpeeds(updatedWaypoints);
+    const retimedWaypoints = getRetimedAutoSpeedWaypoints(
+      latestWaypoints,
+      waypointsWithCorrectSpeeds
+    );
 
     stateManagerRef.current.executeAction(
       ACTION_TYPES.UPDATE_WAYPOINT,
@@ -436,6 +443,20 @@ const TrajectoryPlanning = () => {
 
     setWaypoints(waypointsWithCorrectSpeeds);
     setSaveStatus({ saved: false, autoSaveTime: null });
+
+    if (!issuedTerrainNotice && retimedWaypoints.length > 0) {
+      const leadNames = retimedWaypoints
+        .slice(0, 2)
+        .map((waypoint) => waypoint.name)
+        .join(', ');
+      const remainingCount = Math.max(0, retimedWaypoints.length - 2);
+      const waypointLabel = retimedWaypoints.length === 1
+        ? `${leadNames} now uses the refreshed Speed-driven ETA.`
+        : `${retimedWaypoints.length} waypoints now use refreshed Speed-driven ETA timing (${leadNames}${remainingCount > 0 ? ` +${remainingCount} more` : ''}).`;
+
+      setOperationNotice(waypointLabel, 'info');
+    }
+
     return true;
   }, [
     advanceTerrainRefreshToken,
@@ -1076,6 +1097,7 @@ const TrajectoryPlanning = () => {
               onToggleTerrain={() => {}}
               sceneMode="2D"
               onSceneModeChange={() => {}}
+              terrainControlsAvailable={false}
               waypointCount={waypoints.length}
               canUndo={historyStatus.canUndo}
               canRedo={historyStatus.canRedo}
@@ -1254,6 +1276,7 @@ const TrajectoryPlanning = () => {
             onToggleTerrain={toggleTerrain}
             sceneMode={sceneMode}
             onSceneModeChange={handleSceneModeChange}
+            terrainControlsAvailable
             waypointCount={waypoints.length}
             canUndo={historyStatus.canUndo}
             canRedo={historyStatus.canRedo}

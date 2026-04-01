@@ -168,7 +168,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const storedAltitudeRow = screen.getAllByText(/stored altitude \(msl\):/i)[1].closest('.detail-row');
+    const storedAltitudeRow = screen.getByText(/stored altitude \(msl\):/i).closest('.detail-row');
     fireEvent.click(within(storedAltitudeRow).getByText('320.0m'));
 
     expect(screen.queryByPlaceholderText(/altitude msl \(m\)/i)).not.toBeInTheDocument();
@@ -251,7 +251,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const altitudeInputRow = screen.getAllByText(/altitude input:/i)[1].closest('.detail-row');
+    const altitudeInputRow = screen.getByText(/altitude input:/i).closest('.detail-row');
     fireEvent.click(within(altitudeInputRow).getByText(/msl input/i));
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: ALTITUDE_REFERENCE.AGL },
@@ -364,7 +364,7 @@ describe('WaypointPanel', () => {
       onUpdateWaypoint,
     });
 
-    const positionRow = screen.getAllByText(/position:/i)[1].closest('.detail-row');
+    const positionRow = screen.getByText(/position:/i).closest('.detail-row');
     fireEvent.click(within(positionRow).getByText(/35\.727000,\s*51\.272100/i));
     fireEvent.change(screen.getByPlaceholderText('Latitude'), {
       target: { value: '35.7300' },
@@ -382,5 +382,29 @@ describe('WaypointPanel', () => {
     await waitFor(() => {
       expect(screen.queryByText(/refreshing terrain and clearance at the new coordinates/i)).not.toBeInTheDocument();
     });
+  });
+
+  it('keeps non-selected waypoints in a compact review state until they are focused', () => {
+    const secondWaypoint = {
+      ...baseWaypoint,
+      id: 'wp-2',
+      name: 'Waypoint 2',
+      latitude: 35.727,
+      longitude: 51.2721,
+      altitude: 120,
+      timeFromStart: 24,
+      estimatedSpeed: 8,
+      timingMode: TIMING_MODES.AUTO_SPEED,
+      preferredSpeed: 8,
+    };
+
+    renderPanel({
+      waypoints: [baseWaypoint, secondWaypoint],
+      selectedWaypointId: baseWaypoint.id,
+    });
+
+    expect(screen.getByText(/select this waypoint to review or edit the full authoring details/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/waypoint 2 operator brief/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/stored 120.0m msl/i)).toBeInTheDocument();
   });
 });

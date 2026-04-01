@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import TrajectoryPlanning from './TrajectoryPlanning';
 import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
 import { getTerrainElevation } from '../services/ElevationService';
+import { suggestOptimalTime } from '../utilities/SpeedCalculator';
 
 let mockMapClickIndex = 0;
 const originalMapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
@@ -89,6 +90,9 @@ jest.mock('../components/trajectory/WaypointPanel', () => ({ waypoints, onUpdate
           altitudeReference: waypoint.altitudeReference,
           targetAgl: waypoint.targetAgl,
           altitude: waypoint.altitude,
+          timeFromStart: waypoint.timeFromStart,
+          timingMode: waypoint.timingMode,
+          preferredSpeed: waypoint.preferredSpeed,
           groundElevation: waypoint.groundElevation,
           terrainAccurate: waypoint.terrainAccurate,
         }))
@@ -268,12 +272,28 @@ describe('TrajectoryPlanning', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /refresh terrain on waypoint 2/i }));
 
+    const expectedArrivalTime = suggestOptimalTime(
+      {
+        latitude: 35.7262,
+        longitude: 51.2721,
+        altitude: 150,
+        timeFromStart: 12,
+      },
+      {
+        latitude: 35.73,
+        longitude: 51.28,
+      },
+      8,
+      205
+    );
+
     await waitFor(() => {
       expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"groundElevation":85');
     });
 
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitude":205');
+    expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent(`"timeFromStart":${expectedArrivalTime}`);
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"terrainAccurate":true');
   });
 

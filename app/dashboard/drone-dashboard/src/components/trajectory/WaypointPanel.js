@@ -523,6 +523,31 @@ const WaypointPanel = ({
     });
   };
 
+  const buildCompactWaypointSummary = (waypoint, index) => {
+    const summaryParts = [
+      index === 0
+        ? `Entry +${formatTime(waypoint.timeFromStart || waypoint.time || 0)}`
+        : `${getTrajectoryDisplayedTimeFieldLabel({
+          isMissionAnchor: false,
+          timingMode: getTimingMode(waypoint),
+        })} ${formatTime(waypoint.timeFromStart || waypoint.time || 0)}`,
+      `Stored ${waypoint.altitude.toFixed(1)}m MSL`,
+      `Clearance ${getTargetAgl(waypoint).toFixed(1)}m AGL`,
+      `${getTrajectoryDisplayedHeadingFieldLabel({
+        isMissionAnchor: index === 0,
+        headingMode: index === 0
+          ? YAW_CONSTANTS.MANUAL
+          : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
+      })} ${formatHeading(waypoint.heading || waypoint.yaw || 0)}`,
+    ];
+
+    if (index > 0) {
+      summaryParts.splice(2, 0, `${getTrajectoryDerivedSpeedLabel()} ${formatSpeed(waypoint.estimatedSpeed)}m/s`);
+    }
+
+    return summaryParts.join(' • ');
+  };
+
   const getWaypointAuthoringCards = (waypoint, index) =>
     buildTrajectoryWaypointAuthoringCards({
       altitudeReference: getAltitudeReference(waypoint),
@@ -726,6 +751,7 @@ const WaypointPanel = ({
           )}
           {waypoints.map((waypoint, index) => {
             const authoringCards = getWaypointAuthoringCards(waypoint, index);
+            const isFocusedWaypoint = selectedWaypointId === waypoint.id || editingWaypointId === waypoint.id;
 
             return (
           <div 
@@ -777,7 +803,17 @@ const WaypointPanel = ({
                 </span>
               ))}
             </div>
-            
+
+            {!isFocusedWaypoint ? (
+              <div className="waypoint-compact-summary">
+                <span className="waypoint-compact-summary__primary">
+                  {buildCompactWaypointSummary(waypoint, index)}
+                </span>
+                <span className="waypoint-compact-summary__hint">
+                  Select this waypoint to review or edit the full authoring details.
+                </span>
+              </div>
+            ) : (
             <div className="waypoint-details">
               <div className="detail-row">
                 <span className="detail-label">Position:</span>
@@ -1059,6 +1095,7 @@ const WaypointPanel = ({
                 ))}
               </div>
             </div>
+            )}
             
             {/* Speed warning for high-speed segments */}
             {index > 0 && waypoint.estimatedSpeed > 20 && (

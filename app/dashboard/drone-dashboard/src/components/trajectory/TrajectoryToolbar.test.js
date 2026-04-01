@@ -85,4 +85,12 @@ describe('TrajectoryToolbar', () => {
 
     expect(screen.queryByRole('dialog', { name: /planner shortcuts/i })).not.toBeInTheDocument();
   });
+
+  it('replaces dead terrain/view controls with a 2D fallback note when advanced map controls are unavailable', () => {
+    renderToolbar({ terrainControlsAvailable: false });
+
+    expect(screen.queryByRole('button', { name: /terrain/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText('2D fallback')).toBeInTheDocument();
+  });
 });

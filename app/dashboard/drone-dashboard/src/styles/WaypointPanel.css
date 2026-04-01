@@ -252,6 +252,24 @@
   padding: 0 0.75rem 0.75rem;
 }
 
+.waypoint-compact-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.75rem 0.9rem;
+  color: #d0d7e2;
+}
+
+.waypoint-compact-summary__primary {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.waypoint-compact-summary__hint {
+  font-size: 0.72rem;
+  color: #8ea4bf;
+}
+
 .waypoint-intent-tag {
   display: inline-flex;
   align-items: center;

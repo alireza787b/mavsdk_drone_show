@@ -5,6 +5,8 @@ import {
   TRAJECTORY_SPEED_POLICY,
   TRAJECTORY_TIMING_POLICY,
   TRAJECTORY_TERRAIN_POLICY,
+  clampPreferredLegSpeed,
+  getNominalPreferredLegSpeed,
 } from '../constants/trajectoryMissionPolicy';
 
 /**
@@ -340,6 +342,90 @@ const getStoredHeadingValue = (waypoint, fallback = YAW_CONSTANTS.DEFAULT_HEADIN
   return normalizeHeading(fallback);
 };
 
+const getStoredTimeFromStart = (waypoint = {}) => {
+  const directTime = waypoint.timeFromStart ?? waypoint.time ?? 0;
+  return Number.isFinite(Number(directTime)) ? Number(directTime) : 0;
+};
+
+const getStoredPreferredSpeed = (waypoint = {}) => {
+  if (Number.isFinite(waypoint.preferredSpeed) && waypoint.preferredSpeed > 0) {
+    return clampPreferredLegSpeed(waypoint.preferredSpeed);
+  }
+
+  if (Number.isFinite(waypoint.estimatedSpeed) && waypoint.estimatedSpeed > 0) {
+    return clampPreferredLegSpeed(waypoint.estimatedSpeed);
+  }
+
+  return getNominalPreferredLegSpeed(TRAJECTORY_SPEED_POLICY.DEFAULT_PREFERRED);
+};
+
+const normalizeWaypointTiming = (waypoints = []) =>
+  waypoints.reduce((normalized, waypoint, index) => {
+    const nextWaypoint = {
+      ...waypoint,
+      timeFromStart: getStoredTimeFromStart(waypoint),
+      time: getStoredTimeFromStart(waypoint),
+    };
+
+    if (index === 0) {
+      normalized.push(nextWaypoint);
+      return normalized;
+    }
+
+    const previousWaypoint = normalized[index - 1];
+    const timingMode = waypoint.timingMode || TIMING_MODES.MANUAL_TIME;
+
+    if (timingMode === TIMING_MODES.AUTO_SPEED) {
+      const preferredSpeed = getStoredPreferredSpeed(waypoint);
+      const derivedTime = suggestOptimalTime(
+        previousWaypoint,
+        waypoint,
+        preferredSpeed,
+        waypoint.altitude
+      );
+
+      normalized.push({
+        ...nextWaypoint,
+        preferredSpeed,
+        timeFromStart: derivedTime,
+        time: derivedTime,
+      });
+      return normalized;
+    }
+
+    normalized.push(nextWaypoint);
+    return normalized;
+  }, []);
+
+export const getRetimedAutoSpeedWaypoints = (previousWaypoints = [], nextWaypoints = []) => {
+  const previousById = new Map(
+    (Array.isArray(previousWaypoints) ? previousWaypoints : [])
+      .filter((waypoint) => waypoint?.id)
+      .map((waypoint) => [waypoint.id, waypoint])
+  );
+
+  return (Array.isArray(nextWaypoints) ? nextWaypoints : [])
+    .filter((waypoint) => {
+      if (!waypoint?.id || (waypoint.timingMode || TIMING_MODES.MANUAL_TIME) !== TIMING_MODES.AUTO_SPEED) {
+        return false;
+      }
+
+      const previousWaypoint = previousById.get(waypoint.id);
+      if (!previousWaypoint) {
+        return false;
+      }
+
+      return Math.abs(
+        getStoredTimeFromStart(previousWaypoint) - getStoredTimeFromStart(waypoint)
+      ) >= 0.05;
+    })
+    .map((waypoint) => ({
+      id: waypoint.id,
+      name: waypoint.name || waypoint.id,
+      timeFromStart: getStoredTimeFromStart(waypoint),
+    }));
+};
+
 /**
  * Calculate waypoint speeds and heading using the arrival leg as the authoritative segment.
  * - Waypoint 0 is the route-entry anchor, so it has no inbound leg speed
@@ -353,7 +439,9 @@ export const calculateWaypointSpeeds = (waypoints) => {
     return [];
   }
 
-  return waypoints.map((waypoint, index) => {
+  const normalizedWaypoints = normalizeWaypointTiming(waypoints);
+
+  return normalizedWaypoints.map((waypoint, index) => {
     if (index === 0) {
       const initialHeading = getStoredHeadingValue(waypoint);
       return {
@@ -369,7 +457,7 @@ export const calculateWaypointSpeeds = (waypoints) => {
       };
     }
 
-    const previousWaypoint = waypoints[index - 1];
+    const previousWaypoint = normalizedWaypoints[index - 1];
     const arrivalSpeed = calculateSpeed(previousWaypoint, waypoint);
     const speedStatus = validateSpeed(arrivalSpeed);
     const calculatedHeading = calculateHeading(previousWaypoint, waypoint);

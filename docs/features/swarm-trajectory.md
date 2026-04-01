@@ -311,6 +311,9 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - planner timing/speed/statistics now use the same 3D path-distance model, so climb/descent legs are reflected consistently instead of only horizontal map distance
 - frontend utility coverage now includes direct tests for waypoint speed, heading, timing validation, and 3D trajectory stats
 - save/load/export/undo now preserve planner timing intent (`timingMode`, preferred leg speed, terrain context) instead of collapsing everything back to a bare arrival-time number
+- `Speed-driven ETA` legs now stay truly derived after later edits:
+  - if upstream coordinates, altitude, or route-entry timing change, the planner recomputes downstream auto-speed waypoint arrival times from the operator-owned preferred leg speeds instead of leaving stale stored ETAs behind
+  - this keeps drag moves, panel edits, imports, and load/export round-trips aligned with the same operator-owned vs derived timing doctrine
 - modal and waypoint-panel labels now explicitly mark derived timing/speed values instead of showing them as peer inputs:
   - `Derived waypoint arrival time` appears when `Speed-driven ETA` owns the leg
   - `Derived required speed` stays visible as the planner check for the inbound leg

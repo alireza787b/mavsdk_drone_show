@@ -13,6 +13,7 @@ const TrajectoryToolbar = ({
   onToggleTerrain,
   sceneMode,
   onSceneModeChange,
+  terrainControlsAvailable = true,
   waypointCount,
   canUndo = false,
   canRedo = false,
@@ -151,28 +152,40 @@ const TrajectoryToolbar = ({
       </div>
       
       <div className="toolbar-group toolbar-view">
-        <button 
-          className={`toolbar-btn terrain-btn ${showTerrain ? 'active' : ''}`}
-          onClick={onToggleTerrain}
-          title="Toggle 3D Terrain"
-        >
-          <span className="btn-icon">🏔️</span>
-          <span className="btn-text">Terrain</span>
-        </button>
-        
-        <div className="view-mode-selector">
-          <label className="view-mode-label">View:</label>
-          <select 
-            value={sceneMode} 
-            onChange={(e) => onSceneModeChange(e.target.value)}
-            className="view-mode-select"
-            title="Change View Mode"
+        {terrainControlsAvailable ? (
+          <>
+            <button
+              className={`toolbar-btn terrain-btn ${showTerrain ? 'active' : ''}`}
+              onClick={onToggleTerrain}
+              title="Toggle 3D Terrain"
+            >
+              <span className="btn-icon">🏔️</span>
+              <span className="btn-text">Terrain</span>
+            </button>
+
+            <div className="view-mode-selector">
+              <label className="view-mode-label">View:</label>
+              <select
+                value={sceneMode}
+                onChange={(e) => onSceneModeChange(e.target.value)}
+                className="view-mode-select"
+                title="Change View Mode"
+              >
+                <option value="3D">3D</option>
+                <option value="2D">2D</option>
+                <option value="Columbus">Columbus</option>
+              </select>
+            </div>
+          </>
+        ) : (
+          <div
+            className="trajectory-map-fallback-note"
+            title="Mapbox 3D terrain controls are unavailable in the Leaflet fallback map. Authoring remains available in 2D."
           >
-            <option value="3D">3D</option>
-            <option value="2D">2D</option>
-            <option value="Columbus">Columbus</option>
-          </select>
-        </div>
+            <span className="trajectory-map-fallback-note__label">Map</span>
+            <strong className="trajectory-map-fallback-note__value">2D fallback</strong>
+          </div>
+        )}
       </div>
       
       <div className="toolbar-group toolbar-status">
@@ -269,6 +282,7 @@ TrajectoryToolbar.propTypes = {
   onToggleTerrain: PropTypes.func.isRequired,
   sceneMode: PropTypes.string.isRequired,
   onSceneModeChange: PropTypes.func.isRequired,
+  terrainControlsAvailable: PropTypes.bool,
   waypointCount: PropTypes.number.isRequired,
   
   canUndo: PropTypes.bool,
