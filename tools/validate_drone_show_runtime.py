@@ -343,9 +343,25 @@ def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
 
 
 def wait_for_show_launch_ready(client: ApiClient, ids: list[int], timeout: int = 120) -> dict[str, dict]:
-    baseline = wait_for_idle(client, ids, timeout=timeout)
-    check_deviation_signal(client, ids)
-    return baseline
+    deadline = time.time() + timeout
+    last_error: RuntimeError | None = None
+
+    while time.time() < deadline:
+        remaining = max(1, int(deadline - time.time()))
+        try:
+            baseline = wait_for_idle(client, ids, timeout=min(remaining, 15))
+            check_deviation_signal(client, ids)
+            log(f"WAIT OK: launch-ready geometry for drones {ids}")
+            return baseline
+        except RuntimeError as exc:
+            last_error = exc
+            if time.time() >= deadline:
+                break
+            time.sleep(2.0)
+
+    raise RuntimeError(
+        f"Timed out waiting for launch-ready geometry for drones {ids}. Last error: {last_error}"
+    )
 
 
 def reset_sitl_fleet(client: ApiClient, repo_root: Path, ids: list[int], timeout: int = 180) -> dict[str, dict]:

@@ -92,7 +92,38 @@ def test_wait_for_show_launch_ready_checks_deviation_after_idle(monkeypatch):
     result = validator.wait_for_show_launch_ready(object(), [1, 2, 3], timeout=77)
 
     assert result == baseline
-    assert events == [("idle", [1, 2, 3], 77), ("deviation", [1, 2, 3])]
+    assert events == [("idle", [1, 2, 3], 15), ("deviation", [1, 2, 3])]
+
+
+def test_wait_for_show_launch_ready_retries_transient_deviation_failure(monkeypatch):
+    validator = _load_validator()
+    events = []
+    baseline = {"1": {"position_alt": 10.0}}
+    attempts = {"count": 0}
+
+    def fake_wait_for_idle(client, ids, timeout=120):
+        events.append(("idle", list(ids), timeout))
+        return baseline
+
+    def fake_check_deviation_signal(client, ids):
+        attempts["count"] += 1
+        events.append(("deviation", list(ids), attempts["count"]))
+        if attempts["count"] == 1:
+            raise RuntimeError("stale deviation snapshot")
+
+    monkeypatch.setattr(validator, "wait_for_idle", fake_wait_for_idle)
+    monkeypatch.setattr(validator, "check_deviation_signal", fake_check_deviation_signal)
+    monkeypatch.setattr(validator.time, "sleep", lambda *_args, **_kwargs: None)
+
+    result = validator.wait_for_show_launch_ready(object(), [1, 2, 3], timeout=30)
+
+    assert result == baseline
+    assert events == [
+        ("idle", [1, 2, 3], 15),
+        ("deviation", [1, 2, 3], 1),
+        ("idle", [1, 2, 3], 15),
+        ("deviation", [1, 2, 3], 2),
+    ]
 
 
 def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
