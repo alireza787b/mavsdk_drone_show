@@ -30,7 +30,22 @@ def test_get_swarm_trajectory_folders_is_cwd_independent(monkeypatch, tmp_path):
     expected_root = Path(get_project_root())
 
     assert Path(folders['base']).is_absolute()
-    assert Path(folders['base']).parent == expected_root
+    assert Path(folders['base']).parent.parent == expected_root
+
+
+def test_get_swarm_trajectory_folders_prefers_shared_sitl_workspace(monkeypatch, tmp_path):
+    shared_dir = tmp_path / 'shared_swarm_trajectory'
+    monkeypatch.setattr(Params, 'sim_mode', True)
+    monkeypatch.setattr(Params, 'SWARM_TRAJECTORY_SHARED_DIR', str(shared_dir))
+
+    folders = get_swarm_trajectory_folders()
+
+    assert folders == {
+        'base': str(shared_dir.resolve()),
+        'raw': str((shared_dir / 'raw').resolve()),
+        'processed': str((shared_dir / 'processed').resolve()),
+        'plots': str((shared_dir / 'plots').resolve()),
+    }
 
 
 def test_fetch_swarm_data_prefers_local_config():

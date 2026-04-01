@@ -18,7 +18,7 @@ import {
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryDisplayedHeadingFieldDescription,
   getTrajectoryDisplayedHeadingFieldLabel,
-  getTrajectoryDerivedSpeedLabel,
+  getTrajectoryLegSpeedReviewLabel,
   getTrajectoryDisplayedTimeFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryPreferredSpeedLabel,
@@ -841,7 +841,7 @@ const WaypointModal = ({
                 <div className="speed-header">
                   <span className="speed-label">
                     {timingMode === TIMING_MODES.AUTO_SPEED
-                      ? getTrajectoryDerivedSpeedLabel()
+                      ? getTrajectoryLegSpeedReviewLabel()
                       : getTrajectoryRequiredSpeedLabel()}
                   </span>
                   <span className="speed-value">{estimatedSpeed.toFixed(1)} m/s</span>

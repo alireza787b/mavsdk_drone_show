@@ -33,6 +33,26 @@ def test_estimate_command_tracking_timeout_for_takeoff_uses_prefight_and_climb_b
     assert timeout_ms == (30 + 60 + 30) * 1000
 
 
+def test_estimate_command_tracking_timeout_for_land_scales_with_relative_altitude():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.LAND,
+        max_relative_altitude_m=120.0,
+        params=_MockParams,
+    )
+
+    assert timeout_ms == (45 + 80 + 30 + 30) * 1000
+
+
+def test_estimate_command_tracking_timeout_for_rtl_scales_with_relative_altitude():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.RETURN_RTL,
+        max_relative_altitude_m=300.0,
+        params=_MockParams,
+    )
+
+    assert timeout_ms == (45 + 200 + 30 + 120) * 1000
+
+
 def test_estimate_command_tracking_timeout_includes_future_trigger_delay(monkeypatch):
     fake_now = 1_700_000_000.0
     monkeypatch.setattr("command_timeout_policy.time.time", lambda: fake_now)

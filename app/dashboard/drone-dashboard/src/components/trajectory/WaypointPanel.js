@@ -19,12 +19,13 @@ import {
   getNominalPreferredLegSpeed,
 } from '../../constants/trajectoryMissionPolicy';
 import {
+  buildTrajectoryCompactWaypointSummary,
   buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeReferenceLabel,
   getTrajectoryAltitudeReferenceDescription,
   getTrajectoryDisplayedHeadingFieldDescription,
   getTrajectoryDisplayedHeadingFieldLabel,
-  getTrajectoryDerivedSpeedLabel,
+  getTrajectoryLegSpeedReviewLabel,
   getTrajectoryDisplayedTimeFieldLabel,
   getTrajectoryHeadingModeDescription,
   getTrajectoryHeadingModeLabel,
@@ -525,28 +526,22 @@ const WaypointPanel = ({
   };
 
   const buildCompactWaypointSummary = (waypoint, index) => {
-    const summaryParts = [
-      index === 0
-        ? `Entry +${formatTime(waypoint.timeFromStart || waypoint.time || 0)}`
-        : `${getTrajectoryDisplayedTimeFieldLabel({
-          isMissionAnchor: false,
-          timingMode: getTimingMode(waypoint),
-        })} ${formatTime(waypoint.timeFromStart || waypoint.time || 0)}`,
-      `Stored ${waypoint.altitude.toFixed(1)}m MSL`,
-      `Clearance ${getTargetAgl(waypoint).toFixed(1)}m AGL`,
-      `${getTrajectoryDisplayedHeadingFieldLabel({
-        isMissionAnchor: index === 0,
-        headingMode: index === 0
-          ? YAW_CONSTANTS.MANUAL
-          : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
-      })} ${formatHeading(waypoint.heading || waypoint.yaw || 0)}`,
-    ];
-
-    if (index > 0) {
-      summaryParts.splice(2, 0, `${getTrajectoryDerivedSpeedLabel()} ${formatSpeed(waypoint.estimatedSpeed)}m/s`);
-    }
-
-    return summaryParts.join(' • ');
+    return buildTrajectoryCompactWaypointSummary({
+      altitudeReference: getAltitudeReference(waypoint),
+      altitude: waypoint.altitude,
+      targetAgl: getTargetAgl(waypoint),
+      groundElevation: waypoint.groundElevation,
+      terrainAccurate: waypoint.terrainAccurate !== false,
+      isMissionAnchor: index === 0,
+      timingMode: getTimingMode(waypoint),
+      timeFromStart: waypoint.timeFromStart || waypoint.time || 0,
+      preferredSpeed: getPreferredSpeed(waypoint),
+      requiredSpeed: waypoint.estimatedSpeed || 0,
+      headingMode:
+        waypoint.headingMode || waypoint.yawMode || (index === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO),
+      heading: waypoint.heading || waypoint.yaw || 0,
+      calculatedHeading: waypoint.calculatedHeading || waypoint.heading || waypoint.yaw || 0,
+    });
   };
 
   const getWaypointAuthoringCards = (waypoint, index) =>
@@ -862,7 +857,7 @@ const WaypointPanel = ({
                   className="detail-label"
                   title={getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint))}
                 >
-                  Altitude Input:
+                  Altitude Entry:
                 </span>
                 {renderEditableField(
                   waypoint,
@@ -950,7 +945,7 @@ const WaypointPanel = ({
                     className="detail-label"
                     title={getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
                   >
-                    Timing Mode:
+                    Leg Planning:
                   </span>
                   <div className="timing-display">
                     {renderEditableField(
@@ -989,7 +984,7 @@ const WaypointPanel = ({
               
               {index > 0 && (
                 <div className="detail-row speed-row">
-                  <span className="detail-label">{`${getTrajectoryDerivedSpeedLabel()}:`}</span>
+                  <span className="detail-label">{`${getTrajectoryLegSpeedReviewLabel()}:`}</span>
                   <div className="speed-display">
                     <span className={`detail-value speed-value speed-${getSpeedStatus(waypoint.estimatedSpeed || 0)}`}>
                       {formatSpeed(waypoint.estimatedSpeed)}m/s

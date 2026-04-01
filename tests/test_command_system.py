@@ -291,6 +291,10 @@ class TestCommandTracker:
         assert status['phase'] == 'terminal'
         assert status['outcome'] == 'completed'
 
+        stats = await tracker.get_statistics()
+        assert stats['failed_commands'] == 0
+        assert stats['successful_commands'] == 1
+
     @pytest.mark.asyncio
     async def test_partial_success(self, tracker):
         """Test partial success scenario"""

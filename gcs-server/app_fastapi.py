@@ -423,6 +423,82 @@ def _get_telemetry_record_for_hw_id(
     return {}
 
 
+def _estimate_max_target_relative_altitude_m(
+    drones: List[Dict[str, Any]],
+    target_hw_ids: List[int],
+) -> Optional[float]:
+    """Best-effort relative altitude hint for LAND / RTL tracker timeout sizing."""
+    if not target_hw_ids:
+        return None
+
+    import requests
+
+    drone_by_hw_id: Dict[int, Dict[str, Any]] = {}
+    for drone in drones:
+        try:
+            drone_by_hw_id[int(drone.get("hw_id"))] = drone
+        except (TypeError, ValueError):
+            continue
+
+    with telemetry_lock:
+        telemetry_snapshot = {
+            key: (dict(value) if isinstance(value, dict) else value)
+            for key, value in telemetry_data_all_drones.items()
+        }
+
+    request_timeout = max(
+        0.2,
+        min(
+            float(getattr(Params, "GCS_TELEMETRY_REQUEST_TIMEOUT_SEC", 2.0)),
+            1.0,
+        ),
+    )
+    max_relative_altitude_m: Optional[float] = None
+
+    for target_hw_id in target_hw_ids:
+        telemetry = _get_telemetry_record_for_hw_id(telemetry_snapshot, target_hw_id)
+        try:
+            current_altitude_m = float(telemetry.get("position_alt"))
+        except (TypeError, ValueError):
+            continue
+
+        try:
+            telemetry_relative_altitude_m = float(telemetry.get("relative_altitude_m"))
+        except (TypeError, ValueError):
+            telemetry_relative_altitude_m = None
+
+        if telemetry_relative_altitude_m is not None:
+            relative_altitude_m = max(0.0, telemetry_relative_altitude_m)
+        else:
+            drone = drone_by_hw_id.get(int(target_hw_id))
+            if not drone:
+                continue
+
+            ip = drone.get("ip")
+            if not ip:
+                continue
+
+            try:
+                response = requests.get(
+                    f"http://{ip}:{Params.drone_api_port}/{Params.get_drone_home_URI}",
+                    timeout=request_timeout,
+                )
+                response.raise_for_status()
+                home_payload = response.json()
+                home_altitude_m = float(home_payload.get("altitude"))
+            except (requests.RequestException, TypeError, ValueError):
+                continue
+
+            relative_altitude_m = max(0.0, current_altitude_m - home_altitude_m)
+
+        if max_relative_altitude_m is None:
+            max_relative_altitude_m = relative_altitude_m
+        else:
+            max_relative_altitude_m = max(max_relative_altitude_m, relative_altitude_m)
+
+    return max_relative_altitude_m
+
+
 # ============================================================================
 # FastAPI Lifespan
 # ============================================================================
@@ -1099,10 +1175,18 @@ async def submit_command(request: Request):
             trajectory_folders = get_swarm_trajectory_folders()
             tracking_processed_dir = trajectory_folders.get("processed", processed_dir)
 
+        tracking_max_relative_altitude_m = None
+        if resolved_mission in {Mission.LAND, Mission.RETURN_RTL}:
+            tracking_max_relative_altitude_m = _estimate_max_target_relative_altitude_m(
+                drones,
+                target_hw_ids,
+            )
+
         tracking_timeout_ms = estimate_command_tracking_timeout_ms(
             resolved_mission,
             command_data=command_data,
             target_drone_ids=target_hw_ids,
+            max_relative_altitude_m=tracking_max_relative_altitude_m,
             skybrush_dir=tracking_skybrush_dir,
             processed_dir=tracking_processed_dir,
             shapes_dir=tracking_shapes_dir,

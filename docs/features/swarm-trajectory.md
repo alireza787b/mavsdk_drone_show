@@ -193,6 +193,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - `Trajectory Planning` is the authoring workspace
 - `Swarm Trajectory` is the processing / review / commit workspace
 - local Docker SITL now mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated shared runtime path, so processed leader/follower outputs stay live for same-host SITL execution without dirtying the container repo
+- when `MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR` is configured, the backend processing/review APIs now resolve that same shared workspace too, so same-host SITL execution, plots, and readiness review stay on one trajectory source of truth even if the GCS code is running from a different repo checkout
 - real hardware and remote drone repos still depend on the normal git commit / push / sync flow; the shared trajectory workspace is a SITL-only convenience path
 - direct planner-to-leader handoff now exists, but the full single-surface workflow is still being hardened
 - mission startup now waits for MAVSDK/PX4 armability before arming, so transient pre-arm denials are handled with a bounded startup gate instead of immediately failing the route
@@ -328,7 +329,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
   - this keeps drag moves, panel edits, imports, and load/export round-trips aligned with the same operator-owned vs derived timing doctrine
 - modal and waypoint-panel labels now explicitly mark derived timing/speed values instead of showing them as peer inputs:
   - `Derived waypoint arrival time` appears when `Speed-driven ETA` owns the leg
-  - `Derived required speed` stays visible as the planner check for the inbound leg
+  - `Leg speed check` stays visible as the planner check for the inbound leg
   - panel guidance now tells the operator that only owned inputs are editable, while derived planner checks remain locked
 - planner coordinate edits and dragged waypoint moves now refresh terrain truth at the new coordinates:
   - `Target AGL` waypoints preserve the operator's clearance intent and recompute the stored MSL altitude against the refreshed ground elevation

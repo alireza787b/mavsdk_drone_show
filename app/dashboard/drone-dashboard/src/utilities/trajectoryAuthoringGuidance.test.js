@@ -1,7 +1,9 @@
 import {
+  buildTrajectoryCompactWaypointSummary,
   buildTrajectoryWaypointAuthoringCards,
   getTrajectoryAltitudeIntentSummary,
   getTrajectoryHeadingPlanSummary,
+  getTrajectoryLegSpeedReviewLabel,
   getTrajectoryOperatorPolicyNotes,
   getSwarmTrajectoryExecutionDoctrine,
   getTrajectoryAltitudeReferenceLabel,
@@ -41,6 +43,7 @@ describe('trajectoryAuthoringGuidance', () => {
     expect(getTrajectoryTimingModeDescription(TIMING_MODES.MANUAL_TIME)).toMatch(/pins the waypoint arrival time/i);
     expect(getTrajectoryPreferredSpeedLabel()).toBe('Preferred leg speed');
     expect(getTrajectoryRequiredSpeedLabel()).toBe('Required leg speed');
+    expect(getTrajectoryLegSpeedReviewLabel()).toBe('Leg speed check');
     expect(getTrajectoryHeadingFieldLabel({ isMissionAnchor: true })).toBe('Entry heading');
     expect(getTrajectoryHeadingFieldLabel()).toBe('Arrival heading');
     expect(getTrajectoryDisplayedHeadingFieldLabel({ isMissionAnchor: true })).toBe('Entry heading');
@@ -135,6 +138,55 @@ describe('trajectoryAuthoringGuidance', () => {
         compact: 'Entry +12s',
       })
     );
+  });
+
+  test('builds compact waypoint summaries from the shared authoring doctrine', () => {
+    expect(
+      buildTrajectoryCompactWaypointSummary({
+        altitudeReference: ALTITUDE_REFERENCE.AGL,
+        altitude: 160,
+        targetAgl: 120,
+        groundElevation: 40,
+        terrainAccurate: true,
+        isMissionAnchor: false,
+        timingMode: TIMING_MODES.AUTO_SPEED,
+        timeFromStart: 30,
+        preferredSpeed: 8,
+        requiredSpeed: 8.1,
+        headingMode: YAW_CONSTANTS.AUTO,
+        calculatedHeading: 90,
+      })
+    ).toBe('8.0 m/s → 30s • Leg 8.1 m/s • 120.0m AGL → 160.0m MSL • Auto 090°');
+
+    expect(
+      buildTrajectoryCompactWaypointSummary({
+        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        altitude: 150,
+        targetAgl: 100,
+        groundElevation: 50,
+        terrainAccurate: true,
+        isMissionAnchor: true,
+        timeFromStart: 12,
+        headingMode: YAW_CONSTANTS.MANUAL,
+        heading: 45,
+      })
+    ).toBe('Entry +12s • 150.0m MSL → 100.0m AGL • Manual 045°');
+
+    expect(
+      buildTrajectoryCompactWaypointSummary({
+        altitudeReference: ALTITUDE_REFERENCE.MSL,
+        altitude: 150,
+        targetAgl: 100,
+        groundElevation: 50,
+        terrainAccurate: true,
+        isMissionAnchor: false,
+        timingMode: TIMING_MODES.MANUAL_TIME,
+        timeFromStart: 24,
+        requiredSpeed: 8.1,
+        headingMode: YAW_CONSTANTS.MANUAL,
+        heading: 45,
+      })
+    ).not.toContain('Leg 8.1 m/s');
   });
 
   test('builds shared waypoint authoring cards with consistent tones and labels', () => {

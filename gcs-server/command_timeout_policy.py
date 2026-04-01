@@ -171,6 +171,7 @@ def estimate_command_tracking_timeout_ms(
     *,
     command_data: Optional[Dict[str, Any]] = None,
     target_drone_ids: Optional[Iterable[Any]] = None,
+    max_relative_altitude_m: Optional[float] = None,
     skybrush_dir: Optional[str | Path] = None,
     processed_dir: Optional[str | Path] = None,
     shapes_dir: Optional[str | Path] = None,
@@ -196,11 +197,15 @@ def estimate_command_tracking_timeout_ms(
     if mission_enum == Mission.LAND:
         return max(
             default_ms,
-            trigger_delay_ms + ((calculate_land_disarm_timeout(None, params=params) + action_buffer_sec) * 1000),
+            trigger_delay_ms
+            + ((calculate_land_disarm_timeout(max_relative_altitude_m, params=params) + action_buffer_sec) * 1000),
         )
 
     if mission_enum == Mission.RETURN_RTL:
-        return max(default_ms, trigger_delay_ms + (calculate_rtl_completion_timeout(None, params=params) * 1000))
+        return max(
+            default_ms,
+            trigger_delay_ms + (calculate_rtl_completion_timeout(max_relative_altitude_m, params=params) * 1000),
+        )
 
     if mission_enum == Mission.HOVER_TEST:
         hover_timeout_sec = _safe_int(getattr(params, "COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC", 180), 180)

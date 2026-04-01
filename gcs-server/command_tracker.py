@@ -197,6 +197,42 @@ class CommandTracker:
         """Return True when the command has already reached a terminal lifecycle phase."""
         return command.phase == CommandPhase.TERMINAL
 
+    @staticmethod
+    def _can_recover_from_offline_terminal(command: TrackedCommand, hw_id: str) -> bool:
+        """Return True when execution evidence should reopen an all-offline terminal result.
+
+        A command can be marked terminal if every target was classified as offline during
+        ACK collection. In low-bandwidth environments a drone may still execute and later
+        report execution-start or a terminal result. That evidence is stronger than the
+        earlier offline classification and should reopen the command instead of being
+        treated as a non-mutating late report.
+        """
+        existing_ack = command.acks.get(hw_id)
+        return (
+            command.phase == CommandPhase.TERMINAL
+            and command.status == CommandStatus.FAILED
+            and command.outcome == CommandOutcome.FAILED
+            and command.acks_accepted == 0
+            and command.acks_rejected == 0
+            and command.acks_errors == 0
+            and command.acks_offline > 0
+            and command.executions_received == 0
+            and existing_ack is not None
+            and existing_ack.category == 'offline'
+        )
+
+    def _reopen_offline_terminal_locked(self, command: TrackedCommand, timestamp: int) -> None:
+        """Reopen a terminal all-offline command so stronger execution evidence can win."""
+        if command.status == CommandStatus.FAILED:
+            self._stats['failed_commands'] = max(0, self._stats['failed_commands'] - 1)
+
+        command.status = CommandStatus.EXECUTING
+        command.phase = CommandPhase.PENDING_EXECUTION
+        command.outcome = None
+        command.completed_at = None
+        command.error_summary = None
+        command.updated_at = timestamp
+
     def _get_mission_name(self, mission_type: int) -> str:
         """Get human-readable mission name"""
         if self.mission_enum:
@@ -579,14 +615,22 @@ class CommandTracker:
             command = self._commands[command_id]
             timestamp = int(time.time() * 1000)
             if self._is_terminal(command):
-                recorded_late_start = self._record_late_execution_start_locked(
-                    command,
-                    hw_id,
-                    timestamp,
-                )
-                is_new_start = False
+                if self._can_recover_from_offline_terminal(command, hw_id):
+                    self._reopen_offline_terminal_locked(command, timestamp)
+                    recorded_late_start = False
+                else:
+                    recorded_late_start = self._record_late_execution_start_locked(
+                        command,
+                        hw_id,
+                        timestamp,
+                    )
+                    is_new_start = False
             else:
                 recorded_late_start = False
+
+            if recorded_late_start:
+                is_new_start = False
+            else:
                 self._promote_execution_evidence_to_accepted_locked(
                     command,
                     hw_id,
@@ -639,17 +683,22 @@ class CommandTracker:
             timestamp = int(time.time() * 1000)
 
             if self._is_terminal(command):
-                recorded_late_execution = self._record_late_execution_locked(
-                    command,
-                    hw_id,
-                    timestamp,
-                    success=success,
-                    error_message=error_message,
-                    exit_code=exit_code,
-                    script_output=script_output,
-                    duration_ms=duration_ms,
-                )
-                duplicate_execution = not recorded_late_execution
+                if self._can_recover_from_offline_terminal(command, hw_id):
+                    self._reopen_offline_terminal_locked(command, timestamp)
+                    recorded_late_execution = False
+                    duplicate_execution = False
+                else:
+                    recorded_late_execution = self._record_late_execution_locked(
+                        command,
+                        hw_id,
+                        timestamp,
+                        success=success,
+                        error_message=error_message,
+                        exit_code=exit_code,
+                        script_output=script_output,
+                        duration_ms=duration_ms,
+                    )
+                    duplicate_execution = not recorded_late_execution
             else:
                 recorded_late_execution = False
                 duplicate_execution = False

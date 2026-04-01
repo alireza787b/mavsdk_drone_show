@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import WaypointModal from './WaypointModal';
 import { getTerrainElevation } from '../../services/ElevationService';
-import { ALTITUDE_REFERENCE, TIMING_MODES } from '../../utilities/SpeedCalculator';
+import { ALTITUDE_REFERENCE, TIMING_MODES, suggestOptimalTime } from '../../utilities/SpeedCalculator';
 
 jest.mock('../../services/ElevationService', () => ({
   getTerrainElevation: jest.fn(),
@@ -105,20 +105,22 @@ describe('WaypointModal', () => {
 
   it('derives waypoint arrival time from preferred leg speed in auto mode', async () => {
     const onConfirm = jest.fn();
+    const position = { latitude: 35.727, longitude: 51.272 };
+    const previousWaypoint = {
+      latitude: 35.726,
+      longitude: 51.272,
+      altitude: 350,
+      timeFromStart: 10,
+      estimatedSpeed: 8,
+    };
 
     render(
       <WaypointModal
         isOpen
         onClose={jest.fn()}
         onConfirm={onConfirm}
-        position={{ latitude: 35.727, longitude: 51.272 }}
-        previousWaypoint={{
-          latitude: 35.726,
-          longitude: 51.272,
-          altitude: 350,
-          timeFromStart: 10,
-          estimatedSpeed: 8,
-        }}
+        position={position}
+        previousWaypoint={previousWaypoint}
         waypointIndex={2}
       />
     );
@@ -128,17 +130,20 @@ describe('WaypointModal', () => {
     });
 
     const timeInput = screen.getByLabelText(/derived waypoint arrival time/i);
+    const expectedInitialTime = suggestOptimalTime(previousWaypoint, position, 8, previousWaypoint.altitude);
     expect(timeInput).toBeDisabled();
-    expect(Number(timeInput.value)).toBe(24);
+    expect(Number(timeInput.value)).toBe(expectedInitialTime);
     expect(screen.getByLabelText(/derived arrival heading/i)).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/preferred leg speed/i), {
       target: { value: '4' },
     });
 
+    const expectedAdjustedTime = suggestOptimalTime(previousWaypoint, position, 4, previousWaypoint.altitude);
     await waitFor(() => {
-      expect(Number(screen.getByLabelText(/waypoint arrival time/i).value)).toBe(38);
+      expect(Number(screen.getByLabelText(/waypoint arrival time/i).value)).toBe(expectedAdjustedTime);
     });
+    const expectedRoundedAdjustedTime = Math.round(expectedAdjustedTime);
 
     expect(screen.getByText(/leg planning/i)).toBeInTheDocument();
     expect(screen.getAllByText(/speed-driven eta/i).length).toBeGreaterThan(0);
@@ -149,7 +154,12 @@ describe('WaypointModal', () => {
       screen.getByText(/arrival stays derived in this mode\. switch to time-driven speed to pin the mission clock yourself\./i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/planner derives arrival at 38s and verifies the leg at 4\.0 m\/s\./i)
+      screen.getByText(
+        new RegExp(
+          `planner derives arrival at ${expectedRoundedAdjustedTime}s and verifies the leg at 4\\.0 m\\/s\\.`,
+          'i'
+        )
+      )
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
@@ -157,7 +167,7 @@ describe('WaypointModal', () => {
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
       timingMode: TIMING_MODES.AUTO_SPEED,
       preferredSpeed: 4,
-      timeFromStart: 38,
+      timeFromStart: expectedAdjustedTime,
     }));
   });
 

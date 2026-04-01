@@ -663,6 +663,8 @@ def processed_formation_expectations(
             "leader_track": leader_track,
             "start_t": start_t,
             "end_t": end_t,
+            "window_start_s": start_t,
+            "window_end_s": end_t,
         }
 
     return processed
@@ -939,6 +941,7 @@ def wait_for_formation(
 ) -> dict:
     last_diagnostics: list[dict] | None = None
     last_state_issues: list[dict] | None = None
+    consecutive_ok_samples = 0
     require(execution_started_at_ms > 0, "Missing execution_started_at_ms for formation validation")
 
     def _active_swarm_row(row: dict[str, Any] | None) -> bool:
@@ -949,7 +952,7 @@ def wait_for_formation(
         return mission == SWARM_TRAJECTORY and state == 2 and bool(row.get("is_armed"))
 
     def _formed():
-        nonlocal last_diagnostics, last_state_issues
+        nonlocal consecutive_ok_samples, last_diagnostics, last_state_issues
         telemetry = client.get_telemetry()
         state_issues: list[dict] = []
         mission_elapsed_s = max(0.0, ((time.time() * 1000.0) - float(execution_started_at_ms)) / 1000.0)
@@ -984,6 +987,7 @@ def wait_for_formation(
                 )
 
         if state_issues:
+            consecutive_ok_samples = 0
             last_state_issues = state_issues
             return False
 
@@ -997,10 +1001,14 @@ def wait_for_formation(
         )
         last_diagnostics = diagnostics
         if ok:
+            consecutive_ok_samples += 1
+            if consecutive_ok_samples < 2:
+                return False
             return {
                 "telemetry": telemetry,
                 "diagnostics": diagnostics,
             }
+        consecutive_ok_samples = 0
         return False
 
     try:

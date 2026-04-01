@@ -68,7 +68,7 @@ export const getTrajectoryPreferredSpeedLabel = () => 'Preferred leg speed';
 
 export const getTrajectoryRequiredSpeedLabel = () => 'Required leg speed';
 
-export const getTrajectoryDerivedSpeedLabel = () => 'Derived required speed';
+export const getTrajectoryLegSpeedReviewLabel = () => 'Leg speed check';
 
 export const getTrajectoryHeadingModeLabel = (mode = YAW_CONSTANTS.AUTO) =>
   mode === YAW_CONSTANTS.AUTO ? 'Auto heading' : 'Manual heading';
@@ -236,6 +236,54 @@ export const getTrajectoryHeadingIntentSummary = ({
     derived: `Current derived arrival heading: ${formatHeading(calculatedHeading)}.`,
     compact: `Auto ${formatHeading(calculatedHeading)}`,
   };
+};
+
+export const buildTrajectoryCompactWaypointSummary = ({
+  altitudeReference = ALTITUDE_REFERENCE.MSL,
+  altitude = 0,
+  targetAgl = 0,
+  groundElevation = 0,
+  terrainAccurate = true,
+  isMissionAnchor = false,
+  timingMode = TIMING_MODES.MANUAL_TIME,
+  timeFromStart = 0,
+  preferredSpeed = 0,
+  requiredSpeed = 0,
+  headingMode = YAW_CONSTANTS.AUTO,
+  heading = 0,
+  calculatedHeading = 0,
+} = {}) => {
+  const timingIntent = getTrajectoryTimingIntentSummary({
+    isMissionAnchor,
+    timingMode,
+    timeFromStart,
+    preferredSpeed,
+    requiredSpeed,
+  });
+  const altitudeIntent = getTrajectoryAltitudeIntentSummary({
+    altitudeReference,
+    altitude,
+    targetAgl,
+    groundElevation,
+    terrainAccurate,
+  });
+  const headingIntent = getTrajectoryHeadingIntentSummary({
+    isMissionAnchor,
+    headingMode,
+    heading,
+    calculatedHeading,
+  });
+
+  const summaryParts = [timingIntent.compact];
+
+  if (!isMissionAnchor && timingMode === TIMING_MODES.AUTO_SPEED) {
+    summaryParts.push(`Leg ${formatSpeed(requiredSpeed)}`);
+  }
+
+  summaryParts.push(altitudeIntent.compact);
+  summaryParts.push(headingIntent.compact);
+
+  return summaryParts.join(' • ');
 };
 
 const getTrajectoryTimingIntentTone = ({

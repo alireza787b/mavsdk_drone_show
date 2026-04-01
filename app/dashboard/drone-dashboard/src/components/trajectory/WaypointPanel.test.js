@@ -77,8 +77,8 @@ describe('WaypointPanel', () => {
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       timingMode: TIMING_MODES.AUTO_SPEED,
       preferredSpeed: 4,
-      timeFromStart: 23,
     }));
+    expect(props.onUpdateWaypoint.mock.calls[0][1].timeFromStart).toBeCloseTo(22.3, 1);
   });
 
   it('can switch a segment from auto speed planning to manual arrival time', () => {
@@ -100,7 +100,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const segmentPlanRow = screen.getByText(/timing mode:/i).closest('.detail-row');
+    const segmentPlanRow = screen.getByText(/leg planning:/i).closest('.detail-row');
     fireEvent.click(within(segmentPlanRow).getByText(/speed-driven eta/i));
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: TIMING_MODES.MANUAL_TIME },
@@ -134,7 +134,7 @@ describe('WaypointPanel', () => {
     });
 
     expect(screen.getByText('Derived waypoint arrival time:')).toBeInTheDocument();
-    expect(screen.getByText('Derived required speed:')).toBeInTheDocument();
+    expect(screen.getByText('Leg speed check:')).toBeInTheDocument();
     expect(screen.getByText('Clearance AGL:')).toBeInTheDocument();
     expect(screen.getByText('120.0m')).toBeInTheDocument();
     expect(screen.getAllByText('Target AGL').length).toBeGreaterThan(0);
@@ -251,7 +251,7 @@ describe('WaypointPanel', () => {
       selectedWaypointId: secondWaypoint.id,
     });
 
-    const altitudeInputRow = screen.getByText(/altitude input:/i).closest('.detail-row');
+    const altitudeInputRow = screen.getByText(/altitude entry:/i).closest('.detail-row');
     fireEvent.click(within(altitudeInputRow).getByText(/msl input/i));
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: ALTITUDE_REFERENCE.AGL },
@@ -405,6 +405,6 @@ describe('WaypointPanel', () => {
 
     expect(screen.getByText(/select this waypoint to review or edit the full authoring details/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/waypoint 2 operator brief/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/stored 120.0m msl/i)).toBeInTheDocument();
+    expect(screen.getByText(/8\.0 m\/s → 24s • Leg 8\.0 m\/s • 120\.0m MSL → 0\.0m AGL • Auto 000°/i)).toBeInTheDocument();
   });
 });
