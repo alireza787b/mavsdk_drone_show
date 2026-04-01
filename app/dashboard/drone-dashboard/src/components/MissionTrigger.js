@@ -1,5 +1,13 @@
 //app/dashboard/drone-dashboard/src/components/MissionTrigger.js
 import React, { useState, useEffect } from 'react';
+import {
+  FaBan,
+  FaBroadcastTower,
+  FaFileAlt,
+  FaProjectDiagram,
+  FaQuestionCircle,
+  FaRoute,
+} from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import MissionCard from './MissionCard';
 import MissionDetails from './MissionDetails';
@@ -18,6 +26,50 @@ import {
 } from '../utilities/commandScheduling';
 import { getMissionExecutionPolicy } from '../utilities/commandExecutionPolicy';
 import '../styles/MissionTrigger.css';
+
+const MISSION_PRESENTATIONS = {
+  [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: {
+    icon: FaBroadcastTower,
+    category: 'Synchronized show',
+    summary: 'Launch the processed SkyBrush show package with shared fleet timing and launch correction options.',
+    note: 'Use after geometry and launch readiness are verified.',
+  },
+  [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: {
+    icon: FaFileAlt,
+    category: 'Custom protocol',
+    summary: 'Replay an operator-provided custom CSV relative to each aircraft launch point.',
+    note: 'Best for controlled protocol testing, not the normal show pipeline.',
+  },
+  [DRONE_MISSION_TYPES.SMART_SWARM]: {
+    icon: FaProjectDiagram,
+    category: 'Live formation',
+    summary: 'Start the published leader-follower topology and maintain formation with live in-flight control.',
+    note: 'Use after confirming roles, offsets, and override doctrine.',
+  },
+  [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: {
+    icon: FaRoute,
+    category: 'Route package',
+    summary: 'Dispatch the processed leader-path package with synchronized timing across the selected cluster.',
+    note: 'Use after route processing and launch-package review.',
+  },
+  [DRONE_MISSION_TYPES.NONE]: {
+    icon: FaBan,
+    category: 'Abort / recovery',
+    summary: 'Stop the active mission for the current target set immediately after aircraft acceptance.',
+    note: 'Use when the operator needs to interrupt the current mission flow.',
+  },
+};
+
+const DEFAULT_MISSION_PRESENTATION = {
+  icon: FaQuestionCircle,
+  category: 'Mission',
+  summary: 'Review mission details before dispatch.',
+  note: '',
+};
+
+function getMissionPresentation(missionType) {
+  return MISSION_PRESENTATIONS[missionType] || DEFAULT_MISSION_PRESENTATION;
+}
 
 const MissionTrigger = ({
   missionTypes,
@@ -139,63 +191,59 @@ const MissionTrigger = ({
     <div className="mission-trigger-container">
       {!selectedMission && (
         <div className="mission-cards">
-          {DRONE_MISSION_DISPLAY_ORDER.map((mission) => (
-            <MissionCard
-              key={mission.value}
-              missionType={mission.value}
-              icon={
-                mission.value === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
-                  ? '🛸'
-                  : mission.value === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
-                  ? '🎯'
-                  : mission.value === DRONE_MISSION_TYPES.SMART_SWARM
-                  ? '🐝🐝🐝'
-                  : mission.value === DRONE_MISSION_TYPES.SWARM_TRAJECTORY
-                  ? '🚀🛸🚀'
-                  : '🚫'
-              }
-              label={getCommandName(mission.value)}
-              onClick={() => handleMissionSelect(mission.value)}
-              isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
-            />
-          ))}
+          {DRONE_MISSION_DISPLAY_ORDER.map((mission) => {
+            const presentation = getMissionPresentation(mission.value);
+            const MissionIcon = presentation.icon;
+
+            return (
+              <MissionCard
+                key={mission.value}
+                missionType={mission.value}
+                icon={<MissionIcon aria-hidden="true" />}
+                category={presentation.category}
+                summary={presentation.summary}
+                note={presentation.note}
+                label={getCommandName(mission.value)}
+                onClick={() => handleMissionSelect(mission.value)}
+                isCancel={mission.value === DRONE_MISSION_TYPES.NONE}
+              />
+            );
+          })}
         </div>
       )}
 
       {selectedMission && selectedMission !== DRONE_MISSION_TYPES.NONE && (
-        <MissionDetails
-          missionType={selectedMission}
-          icon={
-            selectedMission === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV
-              ? '🛸'
-              : selectedMission === DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW
-              ? '🎯'
-              : selectedMission === DRONE_MISSION_TYPES.SMART_SWARM
-              ? '🐝🐝🐝'
-              : selectedMission === DRONE_MISSION_TYPES.SWARM_TRAJECTORY
-              ? '🚀🛸🚀'
-              : '❓'
-          }
-          label={getCommandName(selectedMission)}
-          description={getMissionDescription(selectedMission)}
-          scheduleMode={scheduleMode}
-          timeDelay={timeDelay}
-          selectedDateTime={selectedDateTime}
-          onTimeDelayChange={setTimeDelay}
-          onTimePickerChange={setSelectedDateTime}
-          onScheduleModeChange={setScheduleMode}
-          autoGlobalOrigin={autoGlobalOrigin}
-          onAutoGlobalOriginChange={setAutoGlobalOrigin}
-          useGlobalSetpoints={useGlobalSetpoints}
-          onUseGlobalSetpointsChange={setUseGlobalSetpoints}
-          delayPresets={COMMAND_DELAY_PRESETS}
-          referenceNowMs={referenceNowMs}
-          clockOffsetLabel={clockOffsetLabel}
-          targetMode={targetMode}
-          selectedDrones={selectedDrones}
-          onSend={handleSend}
-          onBack={handleBack}
-        />
+        (() => {
+          const presentation = getMissionPresentation(selectedMission);
+          const MissionIcon = presentation.icon;
+
+          return (
+            <MissionDetails
+              missionType={selectedMission}
+              icon={<MissionIcon aria-hidden="true" />}
+              profile={presentation.category}
+              label={getCommandName(selectedMission)}
+              description={getMissionDescription(selectedMission)}
+              scheduleMode={scheduleMode}
+              timeDelay={timeDelay}
+              selectedDateTime={selectedDateTime}
+              onTimeDelayChange={setTimeDelay}
+              onTimePickerChange={setSelectedDateTime}
+              onScheduleModeChange={setScheduleMode}
+              autoGlobalOrigin={autoGlobalOrigin}
+              onAutoGlobalOriginChange={setAutoGlobalOrigin}
+              useGlobalSetpoints={useGlobalSetpoints}
+              onUseGlobalSetpointsChange={setUseGlobalSetpoints}
+              delayPresets={COMMAND_DELAY_PRESETS}
+              referenceNowMs={referenceNowMs}
+              clockOffsetLabel={clockOffsetLabel}
+              targetMode={targetMode}
+              selectedDrones={selectedDrones}
+              onSend={handleSend}
+              onBack={handleBack}
+            />
+          );
+        })()
       )}
     </div>
   );

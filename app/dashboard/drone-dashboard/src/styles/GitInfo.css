@@ -2,7 +2,7 @@
 
 /* Clean Minimal Git Info */
 .git-info-simple {
-  background: var(--color-bg-tertiary);
+  background: var(--color-surface-inset);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
   padding: var(--spacing-sm);
@@ -38,7 +38,7 @@
 .commit-hash {
   color: var(--color-text-tertiary);
   font-family: var(--font-family-mono);
-  font-size: 10px;
+  font-size: 11px;
   background: var(--color-bg-primary);
   padding: 1px var(--spacing-xs);
   border-radius: var(--border-radius-sm);
@@ -92,10 +92,11 @@
 }
 
 .changes-count {
-  background: var(--color-warning);
-  color: var(--color-text-primary);
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
   padding: 1px var(--spacing-xs);
   border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-warning-border);
   font-weight: var(--font-weight-bold);
   margin-right: var(--spacing-xs);
 }
@@ -107,7 +108,7 @@
   align-items: center;
   width: 32px;
   height: 32px;
-  background: var(--color-bg-tertiary);
+  background: var(--color-surface-inset);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
   cursor: pointer;

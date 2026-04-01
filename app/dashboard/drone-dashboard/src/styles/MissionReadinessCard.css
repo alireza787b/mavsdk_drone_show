@@ -714,7 +714,7 @@
 }
 
 .fix-link {
-  color: var(--color-text-primary);
+  color: var(--color-text-inverse);
   text-decoration: none;
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);

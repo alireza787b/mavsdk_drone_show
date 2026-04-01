@@ -1,6 +1,6 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   FaGlobe,
   FaTachometerAlt,
@@ -10,14 +10,15 @@ import {
   FaProjectDiagram,
   FaGithub,
   FaGem,
-  FaBars,
-  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
   FaLinkedin,
   FaClock,
   FaCodeBranch,
   FaSearchLocation,
   FaMagic,
-  FaClipboardList
+  FaClipboardList,
+  FaSatelliteDish
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -80,10 +81,11 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
       {/* Toggle Button */}
       <button
         className="sidebar-toggle"
+        type="button"
         onClick={() => handleToggle(!isCollapsed)}
-        aria-label="Toggle Sidebar"
+        aria-label={isCollapsed ? 'Expand navigation sidebar' : 'Collapse navigation sidebar'}
       >
-        {isCollapsed ? <FaBars /> : <FaTimes />}
+        {isCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
       </button>
 
       {/* Header Section */}
@@ -91,7 +93,9 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
         {!isCollapsed ? (
           <div className="header-expanded">
             <div className="brand">
-              <span className="brand-icon">🚁</span>
+              <span className="brand-icon" aria-hidden="true">
+                <FaSatelliteDish />
+              </span>
               <div className="brand-text">
                 <h3>Swarm Control</h3>
                 <span className="version">{VERSION_DISPLAY}</span>
@@ -100,7 +104,9 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
           </div>
         ) : (
           <div className="header-collapsed">
-            <span className="brand-icon-collapsed">🚁</span>
+            <span className="brand-icon-collapsed" aria-hidden="true">
+              <FaSatelliteDish />
+            </span>
           </div>
         )}
       </div>
@@ -116,10 +122,11 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
             {section.items.map((item) => {
               const IconComponent = item.icon;
               return (
-                <Link
+                <NavLink
                   key={item.to}
                   to={item.to}
-                  className={`nav-item ${isCollapsed ? 'collapsed' : ''}`}
+                  end={item.to === '/'}
+                  className={({ isActive }) => `nav-item ${isCollapsed ? 'collapsed' : ''} ${isActive ? 'active' : ''}`.trim()}
                   onClick={() => {
                     if (mobile && onNavigate) {
                       onNavigate();
@@ -135,7 +142,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
                   {isCollapsed && activeTooltip === item.label && (
                     <div className="nav-tooltip">{item.label}</div>
                   )}
-                </Link>
+                </NavLink>
               );
             })}
           </div>
@@ -147,7 +154,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
         {/* Theme Toggle */}
         <div className="footer-item theme-toggle-container">
           <ThemeToggle
-            variant={isCollapsed ? "simple" : "detailed"}
+            variant={isCollapsed ? "simple" : "dropdown"}
             showLabel={!isCollapsed}
             className="sidebar-theme-toggle"
           />

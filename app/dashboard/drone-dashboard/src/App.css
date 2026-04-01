@@ -48,21 +48,31 @@
 }
 
 /* Global Body Styles - Theme Aware */
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-family-primary);
-  background: var(--color-bg-primary);
+  background:
+    radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
+    var(--color-bg-canvas);
   color: var(--color-text-primary);
   margin: 0;
   padding: 0;
   transition: var(--transition-all);
   overflow-x: hidden;
+  line-height: var(--line-height-normal);
+  letter-spacing: 0.01em;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-family-primary);
+  font-family: var(--font-family-display);
   color: var(--color-text-primary);
   font-weight: var(--font-weight-bold);
   line-height: var(--line-height-tight);
+  letter-spacing: 0.01em;
 }
 
 /* Remove default margins that can cause layout issues */
@@ -72,7 +82,9 @@ h1, h2, h3, h4, h5, h6 {
 
 #root {
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: transparent;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* .content {
@@ -92,7 +104,7 @@ h1, h2, h3, h4, h5, h6 {
 .app-container {
   display: flex;
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  background: transparent;
   color: var(--color-text-primary);
   transition: var(--transition-all);
 }
@@ -105,7 +117,9 @@ h1, h2, h3, h4, h5, h6 {
   flex: 1;
   padding: var(--spacing-lg);
   min-height: 100vh;
-  background: var(--color-bg-primary);
+  min-width: 0;
+  width: 100%;
+  background: transparent;
   transition: var(--transition-all);
   overflow-x: hidden;
 }
@@ -113,6 +127,7 @@ h1, h2, h3, h4, h5, h6 {
 .content.content-mobile {
   margin-left: 0;
   padding: calc(4rem + var(--spacing-sm)) var(--spacing-sm) var(--spacing-sm);
+  max-width: 100vw;
 }
 
 /* Dynamic sidebar spacing - responsive to sidebar state */
@@ -156,7 +171,7 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: center;
   border: 1px solid var(--color-primary-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-bg-primary) 82%, transparent);
+  background: color-mix(in srgb, var(--color-bg-secondary) 84%, transparent);
   color: var(--color-primary);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(12px);
@@ -171,8 +186,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .mobile-sidebar-toggle.is-open {
-  background: var(--color-primary);
-  color: var(--color-primary-text);
+  background: rgba(var(--color-primary-rgb), 0.18);
+  color: var(--color-primary);
 }
 
 .mobile-sidebar-toggle svg {
@@ -184,8 +199,8 @@ h1, h2, h3, h4, h5, h6 {
   position: fixed;
   inset: 0;
   border: none;
-  background: rgba(9, 14, 24, 0.48);
-  backdrop-filter: blur(2px);
+  background: var(--color-overlay);
+  backdrop-filter: blur(4px);
   z-index: calc(var(--z-fixed) - 1);
   cursor: pointer;
 }
@@ -201,7 +216,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Text contrast */  
 .text {
-  color: #333;
+  color: var(--color-text-primary);
 }
 
 /* Toast Notification Enhancements - Add to App.css */

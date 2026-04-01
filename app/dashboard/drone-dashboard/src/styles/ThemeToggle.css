@@ -12,7 +12,7 @@
   padding: var(--spacing-sm);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
-  background: var(--color-bg-tertiary);
+  background: var(--color-surface-inset);
   color: var(--color-text-primary);
   cursor: pointer;
   font-family: var(--font-family-primary);
@@ -27,10 +27,10 @@
 .theme-toggle-cycle:hover,
 .theme-toggle-button:hover,
 .theme-toggle-trigger:hover {
-  background: var(--color-primary-light);
+  background: rgba(var(--color-primary-rgb), 0.1);
   border-color: var(--color-primary-border);
   transform: translateY(-1px);
-  box-shadow: var(--shadow-dark-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .theme-toggle-simple:active,
@@ -94,9 +94,11 @@
 .theme-toggle-dropdown {
   position: relative;
   display: inline-block;
+  width: 100%;
 }
 
 .theme-toggle-trigger {
+  width: 100%;
   min-width: 120px;
   padding: var(--spacing-sm) var(--spacing-base);
   justify-content: space-between;
@@ -121,6 +123,7 @@
   top: calc(100% + var(--spacing-xs));
   left: 0;
   right: 0;
+  min-width: 100%;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-md);
@@ -196,17 +199,28 @@
   border-radius: var(--border-radius-base);
 }
 
+.sidebar-theme-toggle .theme-toggle-dropdown {
+  width: 100%;
+}
+
+.sidebar-theme-toggle .theme-toggle-trigger,
 .sidebar-theme-toggle .theme-toggle-cycle,
 .sidebar-theme-toggle .theme-toggle-button {
   width: 100%;
-  justify-content: flex-start;
-  padding: var(--spacing-base);
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
   border-radius: var(--border-radius-base);
-  background: var(--color-bg-quaternary);
+  background: var(--color-surface-inset);
+  border-color: var(--color-border-primary);
 }
 
 .sidebar-theme-toggle .theme-icon {
   margin-right: var(--spacing-sm);
+}
+
+.sidebar-theme-toggle .theme-label {
+  flex: 1;
+  text-align: left;
 }
 
 /* Responsive Design */
@@ -230,10 +244,6 @@
     min-width: auto;
     flex: 1;
   }
-
-  .theme-label {
-    display: none;
-  }
 }
 
 /* Dark Theme Specific Adjustments */
@@ -248,13 +258,13 @@
 
 /* Light Theme Specific Adjustments */
 [data-theme="light"] .theme-dropdown-menu {
-  background: #ffffff;
-  border-color: #e0e0e0;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border-secondary);
+  box-shadow: var(--shadow-base);
 }
 
 [data-theme="light"] .theme-option:hover {
-  background: #f8f9fa;
+  background: var(--color-bg-tertiary);
 }
 
 /* Accessibility */

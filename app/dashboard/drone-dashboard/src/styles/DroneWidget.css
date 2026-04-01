@@ -2,27 +2,28 @@
 @import './DesignTokens.css';
 
 .drone-widget {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.04), transparent 72%),
+        var(--color-surface-raised);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow-base);
     padding: var(--spacing-base);
     margin: 0;
     min-height: 200px;
-    max-width: 380px;
+    max-width: none;
     width: 100%;
     position: relative;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(10px);
 }
 
 .drone-widget:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow: var(--shadow-lg);
     border-color: var(--color-primary-border);
-    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary));
 }
 
 /* Expert Readiness State Indicators with Professional Color Coding */
@@ -82,11 +83,9 @@
 @keyframes mission-pulse {
     0%, 100% {
         box-shadow: var(--shadow-base);
-        transform: scale(1);
     }
     50% {
         box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-info-light);
-        transform: scale(1.01);
     }
 }
 
@@ -98,10 +97,12 @@
 
 /* Simple expanded state for visual feedback only */
 .drone-widget.expanded {
-    background: linear-gradient(135deg, var(--color-primary-light), var(--color-bg-tertiary));
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), transparent 72%),
+        var(--color-surface-raised);
     border-color: var(--color-primary);
     box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-primary-light);
-    transform: scale(1.02);
+    transform: translateY(-1px);
     transition: var(--transition-all);
     z-index: 1;
 }
@@ -203,7 +204,7 @@
     padding: 0 10px;
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
-    background: var(--color-bg-tertiary);
+    background: var(--color-surface-inset);
     color: var(--color-text-secondary);
     cursor: pointer;
     transition: var(--transition-all);
@@ -315,26 +316,26 @@
 }
 
 .status-badge.armed {
-    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    background: rgba(var(--color-primary-rgb), 0.16);
     color: var(--color-text-primary);
     border-color: var(--color-primary-border);
 }
 
 .status-badge.disarmed {
-    background: linear-gradient(135deg, var(--color-text-tertiary), var(--color-text-muted));
+    background: var(--color-surface-inset);
     color: var(--color-text-primary);
     border-color: var(--color-border-primary);
 }
 
 .status-badge.ready {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-    color: var(--color-text-primary);
+    background: var(--color-success-light);
+    color: var(--color-success-text);
     border-color: var(--color-success-border);
 }
 
 .status-badge.blocked {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-    color: var(--color-text-primary);
+    background: var(--color-danger-light);
+    color: var(--color-danger-text);
     border-color: var(--color-danger-border);
     animation: pulse-critical 2s infinite;
 }
@@ -529,7 +530,7 @@
     border-radius: 10px;
     font-size: 0.7em;
     font-weight: 500;
-    color: white;
+    color: #f8fbff;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -537,33 +538,33 @@
 }
 
 .mission-badge.mission-none {
-    background: #6b7280;
+    background: var(--color-text-muted);
 }
 
 .mission-badge.mission-performance {
-    background: #8b5cf6;
+    background: var(--color-accent-purple);
 }
 
 .mission-badge.mission-flight {
-    background: #06b6d4;
+    background: var(--color-info);
 }
 
 .mission-badge.mission-test {
-    background: #f59e0b;
-    color: #1f2937;
+    background: var(--color-warning);
+    color: var(--color-text-inverse);
 }
 
 .mission-badge.mission-system {
-    background: #3b82f6;
+    background: var(--color-primary);
 }
 
 .mission-badge.mission-emergency {
-    background: #ef4444;
+    background: var(--color-danger);
     animation: pulse-emergency 1.5s infinite;
 }
 
 .mission-badge.mission-default {
-    background: #10b981;
+    background: var(--color-success);
 }
 
 @keyframes pulse-emergency {
@@ -576,21 +577,21 @@
     border-radius: 10px;
     font-size: 0.7em;
     font-weight: 500;
-    color: white;
+    color: #f8fbff;
     text-transform: capitalize;
 }
 
 .mission-state-badge.idle {
-    background: #6b7280;
+    background: var(--color-text-muted);
 }
 
 .mission-state-badge.ready {
-    background: #f59e0b;
+    background: var(--color-warning);
     animation: pulse-orange 2s infinite;
 }
 
 .mission-state-badge.executing {
-    background: #06b6d4;
+    background: var(--color-info);
     animation: pulse-teal 1.5s infinite;
 }
 
@@ -618,23 +619,23 @@
 }
 
 .gps-fix-indicator.no-fix {
-    background: #ef4444;
+    background: var(--color-danger);
 }
 
 .gps-fix-indicator.fix-2d {
-    background: #f59e0b;
+    background: var(--color-warning);
 }
 
 .gps-fix-indicator.fix-3d {
-    background: #10b981;
+    background: var(--color-success);
 }
 
 .gps-fix-indicator.dgps {
-    background: #06b6d4;
+    background: var(--color-info);
 }
 
 .gps-fix-indicator.rtk {
-    background: #8b5cf6;
+    background: var(--color-accent-purple);
     animation: rtk-pulse 1s infinite;
 }
 
@@ -646,10 +647,10 @@
 /* Last Update Indicator */
 .last-update {
     font-size: 0.65em;
-    color: #9ca3af;
+    color: var(--color-text-tertiary);
     margin-top: auto;
     padding-top: 6px;
-    border-top: 1px solid rgba(229, 231, 235, 0.5);
+    border-top: 1px solid var(--color-border-light);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -658,7 +659,7 @@
 
 .update-time {
     font-weight: 500;
-    color: #6b7280;
+    color: var(--color-text-muted);
 }
 
 .drone-ip {
@@ -679,7 +680,7 @@
 .drone-critical-commands-section {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--color-border-light);
     display: flex;
     justify-content: stretch;
 }
@@ -701,18 +702,18 @@
 
 /* Position ID Icons */
 .posid-warning-icon {
-    color: #f59e0b;
+    color: var(--color-warning);
     font-size: 1em;
     cursor: pointer;
 }
 
 .posid-match-icon {
-    color: #10b981;
+    color: var(--color-success);
     font-size: 1em;
 }
 
 .posid-info-icon {
-    color: #6b7280;
+    color: var(--color-text-muted);
     font-size: 1em;
 }
 

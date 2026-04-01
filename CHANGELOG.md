@@ -10,9 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
 
 ### Fixed
+- the dashboard overview/command shell now switches to the overlay sidebar earlier on tablets, stacks summary/command sections cleanly on phone widths, and keeps drone-card density usable instead of leaving the dashboard in a cropped desktop layout on handheld screens
+- dashboard theme control is now explicit instead of a confusing cycle-only control: expanded sidebar state shows a real light/dark/auto selector with the effective mode label, and operator-facing light/dark contrast is stronger across the dashboard shell, git info, command monitor, and mission readiness surfaces
 - the dashboard responsive shell now audits cleanly on live Hetzner mobile captures: the sidebar/nav overlay uses the mobile viewport state correctly, the content column no longer keeps the stale desktop gutter, and overview/command-control cards no longer overflow or clip on a 390px phone viewport
 - Trajectory Planning mobile authoring now uses a denser 2-column mission brief, a horizontally compact toolbar ribbon, and a mobile-first block order that pulls live authoring controls ahead of the longer review/policy sections while preserving the richer desktop layout in both light and dark themes
 - QuickScout mobile layout groundwork now stacks the top bar/search and the map-plus-sidebar flow vertically instead of forcing the desktop split-pane into a phone viewport, but final operator acceptance of QuickScout remains explicitly deferred to the next UI audit slice

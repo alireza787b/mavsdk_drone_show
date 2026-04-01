@@ -51,7 +51,7 @@ const LogViewer = lazy(() => import('./pages/LogViewer'));
  * Clean routing with Mapbox-based trajectory planning
  * Now includes unified design system with dynamic sidebar
  */
-const MOBILE_BREAKPOINT = 768;
+const MOBILE_BREAKPOINT = 960;
 
 const getIsMobileViewport = () => {
   if (typeof window === 'undefined') {

@@ -6,11 +6,14 @@ import CommandSender from '../components/CommandSender';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
 import {
+  FIELD_NAMES,
   attachDroneRuntimeClock,
   extractServerNowMs,
   normalizeTelemetryResponse,
 } from '../constants/fieldMappings';
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
+import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
 import '../styles/Overview.css';
 
@@ -126,22 +129,102 @@ const Overview = ({ setSelectedDrone }) => {
     setOriginRect(null);
   };
 
+  const fleetSummary = React.useMemo(() => {
+    const summary = {
+      total: drones.length,
+      online: 0,
+      degraded: 0,
+      unavailable: 0,
+      ready: 0,
+      armed: 0,
+    };
+
+    drones.forEach((drone) => {
+      const runtimeStatus = getDroneRuntimeStatus(drone, Date.now());
+      const readiness = getDroneReadinessModel(drone, runtimeStatus);
+
+      if (runtimeStatus.level === 'online') {
+        summary.online += 1;
+      } else if (runtimeStatus.level === 'degraded') {
+        summary.degraded += 1;
+      } else {
+        summary.unavailable += 1;
+      }
+
+      if (readiness.isReady) {
+        summary.ready += 1;
+      }
+
+      if (drone?.[FIELD_NAMES.IS_ARMED]) {
+        summary.armed += 1;
+      }
+    });
+
+    return summary;
+  }, [drones]);
+
   return (
     <div className="overview-container">
+      <header className="overview-header">
+        <div className="overview-header__copy">
+          <p className="overview-eyebrow">Operations dashboard</p>
+          <h1>Fleet Command Overview</h1>
+          <p className="overview-description">
+            Live aircraft status, command dispatch, and launch readiness for the active control session.
+          </p>
+        </div>
+        <div className="overview-summary-grid" role="list" aria-label="Fleet overview">
+          <article className="overview-summary-card" role="listitem">
+            <span className="overview-summary-card__label">Visible drones</span>
+            <strong>{fleetSummary.total}</strong>
+            <small>Telemetry-valid cards in view</small>
+          </article>
+          <article className="overview-summary-card" role="listitem">
+            <span className="overview-summary-card__label">Online link</span>
+            <strong>{fleetSummary.online}</strong>
+            <small>{fleetSummary.degraded} delayed, {fleetSummary.unavailable} unavailable</small>
+          </article>
+          <article className="overview-summary-card" role="listitem">
+            <span className="overview-summary-card__label">Ready status</span>
+            <strong>{fleetSummary.ready}</strong>
+            <small>{fleetSummary.total - fleetSummary.ready} need review or are blocked</small>
+          </article>
+          <article className="overview-summary-card" role="listitem">
+            <span className="overview-summary-card__label">Armed aircraft</span>
+            <strong>{fleetSummary.armed}</strong>
+            <small>{Math.max(fleetSummary.total - fleetSummary.armed, 0)} disarmed</small>
+          </article>
+        </div>
+      </header>
+
       <div className="mission-trigger-section">
         <CommandSender drones={drones} />
       </div>
 
-      <h2 className="connected-drones-header">Connected Drones</h2>
+      <div className="connected-drones-header">
+        <div>
+          <h2>Connected Drones</h2>
+          <p>Card density now adapts more cleanly from handheld review to wide-console fleet monitoring.</p>
+        </div>
+        <span className="connected-drones-count">
+          {fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
+        </span>
+      </div>
 
       {notification && <div className="notification">{notification}</div>}
       {error && <div className="error-message">{error}</div>}
 
       <div className="drone-list">
-        {drones.length === 0 && !error && <p>No valid drone data available.</p>}
+        {drones.length === 0 && !error && (
+          <div className="overview-empty-state">
+            <strong>No valid drone data is available.</strong>
+            <span>When telemetry resumes, aircraft cards will populate here automatically.</span>
+          </div>
+        )}
         {drones.map((drone) => (
           <div
             key={drone.hw_ID}
+            className="drone-list__item"
             ref={(el) => droneRefs.current[drone.hw_ID] = el}
           >
             <DroneWidget

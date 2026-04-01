@@ -1,5 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaGlobeAmericas,
+  FaInfoCircle,
+  FaLocationArrow,
+} from 'react-icons/fa';
 import '../styles/MissionDetails.css';
 import { DRONE_MISSION_IMAGES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import MissionReadinessCard from './MissionReadinessCard';
@@ -19,6 +26,7 @@ import {
 const MissionDetails = ({
   missionType,
   icon,
+  profile = '',
   label,
   description,
   targetMode = 'all',
@@ -175,11 +183,29 @@ const MissionDetails = ({
     const worst = deviationSummary.worst_deviation;
     
     if (worst <= thresholdWarning) {
-      return { status: 'excellent', color: '#4caf50', icon: '✅', text: 'Excellent' };
+      return {
+        status: 'excellent',
+        color: 'var(--color-success)',
+        surface: 'var(--color-success-light)',
+        icon: <FaCheckCircle aria-hidden="true" />,
+        text: 'Nominal'
+      };
     } else if (worst <= thresholdError) {
-      return { status: 'warning', color: '#ff9800', icon: '⚠️', text: 'Warning' };
+      return {
+        status: 'warning',
+        color: 'var(--color-warning)',
+        surface: 'var(--color-warning-light)',
+        icon: <FaExclamationTriangle aria-hidden="true" />,
+        text: 'Review'
+      };
     } else {
-      return { status: 'error', color: '#f44336', icon: '❌', text: 'Error' };
+      return {
+        status: 'error',
+        color: 'var(--color-danger)',
+        surface: 'var(--color-danger-light)',
+        icon: <FaExclamationTriangle aria-hidden="true" />,
+        text: 'Blocked'
+      };
     }
   };
   
@@ -304,6 +330,9 @@ const MissionDetails = ({
           ? swarmTrajectoryWarningsList
           : [];
   const canSendMission = missionBlockers.length === 0 && !schedulePreview.error;
+  const missionStatusIcon = canSendMission
+    ? <FaCheckCircle aria-hidden="true" />
+    : <FaExclamationTriangle aria-hidden="true" />;
   
   // Find drones with worst deviation (with tolerance for floating point comparison)
   const getWorstDeviationDrones = () => {
@@ -333,6 +362,7 @@ const MissionDetails = ({
   return (
     <div className="mission-details">
       <div className="selected-mission-card">
+        {profile && <div className="mission-profile-tag">{profile}</div>}
         <div className="mission-icon">{icon}</div>
         <div className="mission-name">{label}</div>
         <div className="mission-description">{description}</div>
@@ -360,7 +390,7 @@ const MissionDetails = ({
                 className="mode-radio"
               />
               <div className="mode-content">
-                <span className="mode-icon">🧭</span>
+                <span className="mode-icon" aria-hidden="true"><FaLocationArrow /></span>
                 <span className="mode-label">LOCAL Mode</span>
                 <span className="mode-description">Local NED feedforward with precise manual launch placement</span>
               </div>
@@ -374,7 +404,7 @@ const MissionDetails = ({
                 className="mode-radio"
               />
               <div className="mode-content">
-                <span className="mode-icon">🌍</span>
+                <span className="mode-icon" aria-hidden="true"><FaGlobeAmericas /></span>
                 <span className="mode-label">GLOBAL Mode</span>
                 <span className="mode-description">GPS-based positioning</span>
               </div>
@@ -387,7 +417,7 @@ const MissionDetails = ({
       {showModeHints && !useGlobalSetpoints && (
         <div className="mode-guidance-section">
           <div className="guidance-header">
-            <span className="guidance-icon">ℹ️</span>
+            <span className="guidance-icon" aria-hidden="true"><FaInfoCircle /></span>
             <strong>LOCAL Mode Guidelines</strong>
           </div>
           <div className="guidance-content">
@@ -405,7 +435,7 @@ const MissionDetails = ({
       {showModeHints && useGlobalSetpoints && !autoGlobalOrigin && (
         <div className="mode-guidance-section">
           <div className="guidance-header">
-            <span className="guidance-icon">ℹ️</span>
+            <span className="guidance-icon" aria-hidden="true"><FaInfoCircle /></span>
             <strong>GLOBAL Mode Guidelines</strong>
           </div>
           <div className="guidance-content">
@@ -432,14 +462,16 @@ const MissionDetails = ({
                 className="origin-checkbox"
               />
               <span className="checkbox-text">
-                🌍 Auto Global Launch Corrector
+                Auto Global Launch Corrector
               </span>
             </label>
           </div>
 
           {autoGlobalOrigin && (
             <div className={`origin-warning ${!isOriginSet ? 'origin-missing' : ''}`}>
-              <div className="warning-icon">{isOriginSet ? '✅' : '⚠️'}</div>
+              <div className="warning-icon" aria-hidden="true">
+                {isOriginSet ? <FaCheckCircle /> : <FaExclamationTriangle />}
+              </div>
               <div className="warning-content">
                 {!isOriginSet ? (
                   <>
@@ -470,7 +502,13 @@ const MissionDetails = ({
                           <>
                             {/* Placement Status - Most prominent */}
                             {placementStatus && (
-                              <div className="deviation-stat placement-status-header" style={{ borderLeft: `4px solid ${placementStatus.color}`, backgroundColor: `${placementStatus.color}15` }}>
+                              <div
+                                className="deviation-stat placement-status-header"
+                                style={{
+                                  borderLeft: `4px solid ${placementStatus.color}`,
+                                  backgroundColor: placementStatus.surface,
+                                }}
+                              >
                                 <span className="deviation-label">Placement Accuracy:</span>
                                 <span className="deviation-value placement-status-value" style={{ color: placementStatus.color, fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)' }}>
                                   {placementStatus.icon} {placementStatus.text}
@@ -507,7 +545,7 @@ const MissionDetails = ({
                                 {/* GPS Warnings (if any) */}
                                 {warningAnalysis.gpsWarnings > 0 && (
                                   <div className="deviation-stat gps-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
-                                    <span className="deviation-label">📡 GPS Quality:</span>
+                                    <span className="deviation-label">GPS Quality:</span>
                                     <span className="deviation-value gps-warning-value">
                                       {warningAnalysis.gpsWarnings} warning{warningAnalysis.gpsWarnings !== 1 ? 's' : ''}
                                       <span className="warning-info-note"> (not affecting placement)</span>
@@ -518,7 +556,7 @@ const MissionDetails = ({
                                 {/* Placement Warnings (only if deviation is actually bad) */}
                                 {warningAnalysis.placementWarnings > 0 && (
                                   <div className="deviation-stat placement-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
-                                    <span className="deviation-label">⚠️ Placement:</span>
+                                    <span className="deviation-label">Placement:</span>
                                     <span className="deviation-value placement-warning-value">
                                       {warningAnalysis.placementWarnings} drone{warningAnalysis.placementWarnings !== 1 ? 's' : ''} needs adjustment
                                     </span>
@@ -528,7 +566,7 @@ const MissionDetails = ({
                                 {/* Errors */}
                                 {deviationSummary.errors > 0 && (
                                   <div className="deviation-stat error-stat" title={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
-                                    <span className="deviation-label">❌ Critical:</span>
+                                    <span className="deviation-label">Critical:</span>
                                     <span className="deviation-value error-value">
                                       {deviationSummary.errors} error{deviationSummary.errors !== 1 ? 's' : ''} detected
                                     </span>
@@ -540,7 +578,7 @@ const MissionDetails = ({
                             {/* All Good Message */}
                             {warningAnalysis.gpsWarnings === 0 && warningAnalysis.placementWarnings === 0 && deviationSummary.errors === 0 && placementStatus?.status === 'excellent' && (
                               <div className="deviation-all-good">
-                                <span className="all-good-icon">✅</span>
+                                <span className="all-good-icon" aria-hidden="true"><FaCheckCircle /></span>
                                 <span className="all-good-text">All drones are properly positioned and ready for launch</span>
                               </div>
                             )}
@@ -586,8 +624,8 @@ const MissionDetails = ({
                       <li>Approximate placement acceptable (±10m tolerance)</li>
                       <li>Requires <strong>good GPS fix</strong> for accurate correction</li>
                       <li>Ensure drones have <strong>network connectivity</strong> to fetch origin from GCS</li>
-                      <li>⚠️ <strong>Safety:</strong> Place drones to avoid correction paths that cross or could cause collisions</li>
-                      <li>⚠️ Flight will abort if drone is &gt;20m from expected position</li>
+                      <li><strong>Safety:</strong> Place drones to avoid correction paths that cross or could cause collisions</li>
+                      <li>Flight will abort if a drone is more than 20 m from the expected position</li>
                     </ul>
                   </>
                 )}
@@ -610,7 +648,7 @@ const MissionDetails = ({
 
       {swarmTrajectoryHints && (
         <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
           <div className="warning-content">
             <strong>Swarm Trajectory Launch Snapshot</strong>
             <div className="origin-confirmation">
@@ -709,7 +747,7 @@ const MissionDetails = ({
 
       {smartSwarmHints && (
         <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
           <div className="warning-content">
             <strong>Smart Swarm Topology Snapshot</strong>
             <div className="origin-confirmation">
@@ -759,7 +797,7 @@ const MissionDetails = ({
 
       {showModeHints && (
         <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
           <div className="warning-content">
             <strong>Launch Readiness Snapshot</strong>
             <div className="origin-confirmation">
@@ -812,7 +850,7 @@ const MissionDetails = ({
 
       {customShowHints && (
         <div className={`origin-warning ${canSendMission ? '' : 'origin-missing'}`}>
-          <div className="warning-icon">{canSendMission ? '✅' : '⚠️'}</div>
+          <div className="warning-icon" aria-hidden="true">{missionStatusIcon}</div>
           <div className="warning-content">
             <strong>Custom CSV Readiness Snapshot</strong>
             <div className="origin-confirmation">

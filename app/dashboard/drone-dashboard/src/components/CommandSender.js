@@ -347,23 +347,39 @@ const CommandSender = ({ drones }) => {
 
   return (
     <div className="command-sender-container">
-      <h2 className="command-sender-header">Command Control</h2>
+      <div className="command-sender-header-row">
+        <div>
+          <p className="command-sender-eyebrow">Mission dispatch</p>
+          <h2 className="command-sender-header">Command Control</h2>
+          <p className="command-sender-subheader">
+            Review target scope, readiness, and timing before dispatching a coordinated fleet command.
+          </p>
+        </div>
+        <div className="command-sender-scope-card" aria-label="Current command scope">
+          <span className="command-sender-scope-card__label">Current scope</span>
+          <strong>{targetLabel}</strong>
+          <small>{targetDescriptor}</small>
+        </div>
+      </div>
 
       {/* Target Selection UI */}
       <div className="target-selection">
         <div className="target-selection__row">
           <div>
-            <label htmlFor="targetMode" style={{ marginRight: '10px' }}>Command Target</label>
+            <label htmlFor="targetMode" className="target-selection__label">Command target</label>
             <p className="target-selection__hint">Choose whether this panel addresses the whole fleet or a controlled subset.</p>
           </div>
-          <select
-            id="targetMode"
-            value={targetMode}
-            onChange={(e) => setTargetMode(e.target.value)}
-          >
-            <option value="all">All Drones</option>
-            <option value="selected">Select Drones</option>
-          </select>
+          <div className="target-selection__controls">
+            <span className="target-selection__scope">{targetLabel}</span>
+            <select
+              id="targetMode"
+              value={targetMode}
+              onChange={(e) => setTargetMode(e.target.value)}
+            >
+              <option value="all">All Drones</option>
+              <option value="selected">Select Drones</option>
+            </select>
+          </div>
         </div>
 
         {targetMode === 'selected' && (
