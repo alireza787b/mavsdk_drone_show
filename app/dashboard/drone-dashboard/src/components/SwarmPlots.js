@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { calculateClusterPlotData } from '../utilities/swarmDesignUtils';
-import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
+import { formatCompactDroneIdentity, formatDroneLabel } from '../utilities/missionIdentityUtils';
 import '../styles/SwarmPlots.css';
 
 const plotConfig = {
@@ -71,11 +71,12 @@ function getBaseLayout(colors, isThreeDimensional = false) {
 function buildHoverText(points) {
   return points.map((point) => {
     const clusterPrefix = point.clusterTitle ? `${point.clusterTitle} · ` : '';
+    const identity = formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id));
     if (point.follow === '0') {
-      return `${clusterPrefix}${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Top leader`;
+      return `${clusterPrefix}${identity} · Top leader`;
     }
 
-    return `${clusterPrefix}${formatDroneLabel(point.hw_id)} · ${formatShowSlotLabel(point.pos_id)} · Follows ${formatDroneLabel(point.follow)}`;
+    return `${clusterPrefix}${identity} · Follows ${formatDroneLabel(point.follow)}`;
   });
 }
 

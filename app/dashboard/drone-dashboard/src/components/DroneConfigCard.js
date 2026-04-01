@@ -19,6 +19,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import {
   buildKnownPositionIds,
+  formatCompactDroneIdentity,
   formatDroneLabel,
   formatShowSlotLabel,
   findDuplicatePositionAssignment,
@@ -346,6 +347,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
   const normalizedHwId = normalizeComparableId(drone.hw_id);
   const normalizedPosId = normalizeComparableId(drone.pos_id, normalizedHwId);
+  const compactIdentity = formatCompactDroneIdentity(normalizedPosId, normalizedHwId, 'Unassigned');
+  const compactHwId = normalizedHwId ? `H${normalizedHwId}` : 'H?';
+  const compactPosId = normalizedPosId ? `P${normalizedPosId}` : 'P?';
   const isRoleSwap = normalizedHwId !== normalizedPosId;
   const serialPortLabel = drone.serial_port ? drone.serial_port : 'SITL / none';
   const baudrateLabel = drone.baudrate === '0' || drone.baudrate === 0 ? '0 (SITL / no serial)' : (drone.baudrate || '57600');
@@ -368,7 +372,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       {/* Card Header */}
       <div className="drone-card-header">
         <div className="drone-id-section">
-          <div className="identity-kicker">Mission Assignment</div>
+          <div className="identity-kicker">Mission Assignment · {compactIdentity}</div>
           <div className="drone-title-row">
             <h3 className="drone-title">{formatDroneLabel(normalizedHwId)}</h3>
             <span className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}>
@@ -377,8 +381,8 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
           <p className="assignment-summary">
             {isRoleSwap
-              ? `Swapped to ${formatShowSlotLabel(normalizedPosId)}`
-              : `${formatShowSlotLabel(normalizedPosId)} (own slot)`}
+              ? `Assigned to ${compactPosId}`
+              : `${compactPosId} own slot`}
           </p>
           {promotedField && (
             <div className="promoted-field-chip">
@@ -401,12 +405,12 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <div className="identity-strip">
           <div className="identity-tile">
             <span className="identity-label">Hardware ID</span>
-            <span className="identity-value">{formatDroneLabel(normalizedHwId)}</span>
+            <span className="identity-value">{compactHwId}</span>
             <small>Physical drone and runtime identity</small>
           </div>
           <div className="identity-tile">
             <span className="identity-label">Position ID</span>
-            <span className="identity-value">{formatShowSlotLabel(normalizedPosId)}</span>
+            <span className="identity-value">{compactPosId}</span>
             <small>{`Trajectory source: Drone ${normalizedPosId}.csv`}</small>
           </div>
         </div>

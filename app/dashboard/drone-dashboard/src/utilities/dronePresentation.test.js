@@ -1,5 +1,6 @@
 import {
   DRONE_SEARCH_PLACEHOLDER,
+  getDroneDisplayIdentity,
   matchesDroneSearchQuery,
 } from './dronePresentation';
 
@@ -31,6 +32,11 @@ describe('matchesDroneSearchQuery', () => {
     expect(matchesDroneSearchQuery(drone, 'pos:3 bravo')).toBe(false);
   });
 
+  it('matches compact operator identity tokens', () => {
+    expect(matchesDroneSearchQuery(drone, 'p3|h5')).toBe(true);
+    expect(matchesDroneSearchQuery(drone, 'p9|h5')).toBe(false);
+  });
+
   it('matches additional page-specific search terms', () => {
     expect(matchesDroneSearchQuery(drone, 'leader bravo', ['leader bravo', '172.18.0.9'])).toBe(true);
     expect(matchesDroneSearchQuery(drone, '172.18.0.9', ['leader bravo', '172.18.0.9'])).toBe(true);
@@ -39,7 +45,18 @@ describe('matchesDroneSearchQuery', () => {
 
 describe('DRONE_SEARCH_PLACEHOLDER', () => {
   it('documents the scoped query format', () => {
+    expect(DRONE_SEARCH_PLACEHOLDER).toContain('P1|H1');
     expect(DRONE_SEARCH_PLACEHOLDER).toContain('pos 1-5');
     expect(DRONE_SEARCH_PLACEHOLDER).toContain('hw 2,4');
+  });
+});
+
+describe('getDroneDisplayIdentity', () => {
+  it('prefers the compact Pn|Hm operator identity in dense surfaces', () => {
+    expect(getDroneDisplayIdentity({ pos_id: 3, hw_id: 5 })).toMatchObject({
+      primary: 'P3|H5',
+      compact: 'P3|H5',
+      verbose: 'Position 3 · Hardware 5',
+    });
   });
 });

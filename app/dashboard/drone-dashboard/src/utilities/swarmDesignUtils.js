@@ -1,5 +1,5 @@
 import { getPromotedMissionConfigField } from './missionConfigFields';
-import { formatDroneLabel, formatShowSlotLabel } from './missionIdentityUtils';
+import { formatCompactDroneIdentity, formatDroneLabel, formatShowSlotLabel } from './missionIdentityUtils';
 
 export const TOP_LEADER_FOLLOW_VALUE = '0';
 
@@ -337,7 +337,7 @@ function buildFollowOptions(drones) {
     .sort(compareDrones)
     .map((drone) => ({
       value: drone.hw_id,
-      label: `${formatDroneLabel(drone.hw_id)} · ${formatShowSlotLabel(drone.pos_id)} · ${drone.roleLabel}`,
+      label: `${formatCompactDroneIdentity(drone.pos_id, drone.hw_id)} · ${drone.roleLabel}`,
     }));
 }
 
@@ -695,12 +695,15 @@ export function buildClusterScopeOptions(clusters = [], fallbackTotal = 0) {
 
   executableClusters.forEach((cluster) => {
     const leaderDrone = cluster.drones.find((drone) => drone.role === 'topLeader') || cluster.drones[0] || null;
+    const leaderIdentity = leaderDrone
+      ? formatCompactDroneIdentity(leaderDrone.pos_id, leaderDrone.hw_id, cluster.title)
+      : cluster.title;
     options.push({
       id: String(cluster.id),
-      label: leaderDrone
-        ? `${formatShowSlotLabel(leaderDrone.pos_id)} · ${formatDroneLabel(leaderDrone.hw_id)}`
-        : cluster.title,
-      description: cluster.subtitle,
+      label: leaderDrone ? `${leaderIdentity} cluster` : cluster.title,
+      description: leaderDrone
+        ? `Top-leader cluster rooted at ${leaderIdentity}. ${cluster.subtitle}`
+        : cluster.subtitle,
       count: cluster.counts?.total || cluster.drones.length,
     });
   });

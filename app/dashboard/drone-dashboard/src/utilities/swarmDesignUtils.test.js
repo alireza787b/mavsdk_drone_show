@@ -1,4 +1,5 @@
 import {
+  buildClusterScopeOptions,
   buildSwarmViewModel,
   buildWorkingSwarmAssignments,
   calculateClusterPlotData,
@@ -62,7 +63,7 @@ describe('swarmDesignUtils', () => {
     expect(viewModel.dronesById['2'].title).toBe('Drone 2');
     expect(viewModel.dronesById['2'].subtitle).toBe('Show Slot 9');
     expect(viewModel.dronesById['2'].alias).toBe('VIPER-2');
-    expect(viewModel.followOptions[0].label).toContain('Drone 1');
+    expect(viewModel.followOptions[0].label).toContain('P1|H1');
     expect(viewModel.dronesById['4'].warnings.map((warning) => warning.code)).toContain('missing-leader');
     expect(viewModel.dronesById['4'].warnings[0].message).toContain('Drone 99');
     expect(viewModel.dronesById['5'].warnings.map((warning) => warning.code)).toEqual(
@@ -134,6 +135,25 @@ describe('swarmDesignUtils', () => {
       y: -2,
       z: 1,
     });
+  });
+
+  test('buildClusterScopeOptions uses compact leader identities for cluster scopes', () => {
+    const viewModel = buildSwarmViewModel([
+      { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+      { hw_id: 2, follow: 1, offset_x: 3, offset_y: 1, offset_z: 0, frame: 'ned' },
+      { hw_id: 4, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+    ], [
+      { hw_id: 1, pos_id: 1 },
+      { hw_id: 2, pos_id: 2 },
+      { hw_id: 4, pos_id: 9 },
+    ]);
+
+    expect(buildClusterScopeOptions(viewModel.clusters, viewModel.summary.totalDrones)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: '1', label: 'P1|H1 cluster', count: 2 }),
+        expect.objectContaining({ id: '4', label: 'P9|H4 cluster', count: 1 }),
+      ])
+    );
   });
 
   test('getDirtyAssignmentIds compares normalized swarm assignments', () => {

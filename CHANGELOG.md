@@ -16,6 +16,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Fixed
 - dashboard theme selection now bootstraps before React mounts, so mobile Auto/Light mode applies on first paint instead of flashing the wrong palette
 - dashboard webfont loading now matches the design system (`IBM Plex Sans` / `IBM Plex Mono`) instead of falling back to older mismatched type choices
+- compact operator identity now standardizes on `Pn|Hm` for dense control surfaces where slot and hardware truth both matter, and that format now feeds cluster-scope labels, swarm follow-option labels, plot hover text, and dashboard search terms/tooltips instead of mixing longer ad hoc variants
+- Drone Actions command buttons now keep icon and label alignment consistent even for shorter labels like `Hold`, so the action grid reads as one clean operator control matrix instead of a set of uneven cards
+- Mission Config assignment cards now use tighter token-driven surfaces, less hard-coded accent styling, and denser identity/info/network layouts, reducing contrast drift and card clutter during the mobile operator audit
 - Dashboard Overview now reuses the same cluster-scope rail as Mission Config and Swarm Design, so large fleets can be narrowed by detected top-leader cluster without changing command scope
 - Command Control, mission cards, and action cards now use shorter operator-facing labels and less repeated copy while keeping the full command meaning in tooltips, confirmations, and detailed mission briefs
 - Drone Actions, Drone Detail, Mission Config, and Smart Swarm light-theme surfaces now align more closely with the primary shell, reducing contrast drift between dashboard sections during mobile review
