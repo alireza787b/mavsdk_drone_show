@@ -126,6 +126,63 @@ def test_wait_for_show_launch_ready_retries_transient_deviation_failure(monkeypa
     ]
 
 
+def test_wait_for_live_launch_probe_ready_polls_selected_drone_ips(monkeypatch):
+    validator = _load_validator()
+    events = []
+
+    class _Client:
+        def get_telemetry(self):
+            events.append(("telemetry",))
+            return {
+                "1": {"telemetry_available": True, "ip": "172.18.0.2"},
+                "2": {"telemetry_available": True, "ip": "172.18.0.3"},
+                "3": {"telemetry_available": True, "ip": "172.18.0.4"},
+            }
+
+        def probe_live_armability(self, drone_ip, require_global_position=True):
+            events.append(("probe", drone_ip, require_global_position))
+            return {"ready": True, "summary": "Ready for launch"}
+
+    result = validator.wait_for_live_launch_probe_ready(_Client(), [1, 2, 3], timeout=5)
+
+    assert result == {
+        "1": {"ready": True, "summary": "Ready for launch"},
+        "2": {"ready": True, "summary": "Ready for launch"},
+        "3": {"ready": True, "summary": "Ready for launch"},
+    }
+    assert events == [
+        ("telemetry",),
+        ("probe", "172.18.0.2", True),
+        ("probe", "172.18.0.3", True),
+        ("probe", "172.18.0.4", True),
+    ]
+
+
+def test_wait_for_dispatch_readiness_checks_geometry_then_live_probe(monkeypatch):
+    validator = _load_validator()
+    events = []
+    baseline = {"1": {"position_alt": 10.0}}
+
+    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
+        events.append(("show_launch_ready", list(ids), timeout))
+        return baseline
+
+    def fake_wait_for_live_launch_probe_ready(client, ids, timeout=120):
+        events.append(("live_probe_ready", list(ids), timeout))
+        return {"1": {"ready": True}}
+
+    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+    monkeypatch.setattr(validator, "wait_for_live_launch_probe_ready", fake_wait_for_live_launch_probe_ready)
+
+    result = validator.wait_for_dispatch_readiness(object(), [1, 2, 3], timeout=77)
+
+    assert result == baseline
+    assert events == [
+        ("show_launch_ready", [1, 2, 3], 77),
+        ("live_probe_ready", [1, 2, 3], 77),
+    ]
+
+
 def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
     validator = _load_validator()
     events = []
@@ -135,8 +192,8 @@ def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
             events.append(("submit", mission_type, list(ids), label, kwargs))
             return {"command_id": "cmd-1"}
 
-    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
-        events.append(("launch_ready", list(ids), timeout))
+    def fake_wait_for_dispatch_readiness(client, ids, timeout=120):
+        events.append(("dispatch_ready", list(ids), timeout))
         return {"1": {"position_alt": 10.0}}
 
     def fake_wait_for_command(client, command_id, desired_phase=None, terminal=False, timeout=90):
@@ -147,7 +204,7 @@ def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
         events.append(("wait_for_idle", list(ids), timeout))
         return {}
 
-    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+    monkeypatch.setattr(validator, "wait_for_dispatch_readiness", fake_wait_for_dispatch_readiness)
     monkeypatch.setattr(validator, "wait_for_command", fake_wait_for_command)
     monkeypatch.setattr(validator, "wait_for_idle", fake_wait_for_idle)
 
@@ -160,7 +217,7 @@ def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
         show_timeout=180,
     )
 
-    assert events[0] == ("launch_ready", [1, 2, 3], 120)
+    assert events[0] == ("dispatch_ready", [1, 2, 3], 120)
     assert events[1][0] == "submit"
 
 
@@ -255,15 +312,23 @@ def test_submit_show_command_with_retry_rechecks_launch_ready_after_http_400(mon
             self.calls += 1
             events.append(("submit", self.calls, mission_type, list(ids), label, kwargs))
             if self.calls == 1:
-                response = type("Response", (), {"status_code": 400, "text": "Live launch readiness probe failed"})()
+                response = type(
+                    "Response",
+                    (),
+                    {
+                        "status_code": 400,
+                        "text": '{"detail":"Live launch readiness probe failed. Drone 1: transient armability gate"}',
+                        "json": lambda self: {"detail": "Live launch readiness probe failed. Drone 1: transient armability gate"},
+                    },
+                )()
                 raise validator.requests.HTTPError("bad request", response=response)
             return {"command_id": "cmd-2"}
 
-    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
-        events.append(("launch_ready", list(ids), timeout))
+    def fake_wait_for_dispatch_readiness(client, ids, timeout=120):
+        events.append(("dispatch_ready", list(ids), timeout))
         return {"1": {"position_alt": 10.0}}
 
-    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+    monkeypatch.setattr(validator, "wait_for_dispatch_readiness", fake_wait_for_dispatch_readiness)
     monkeypatch.setattr(validator.time, "sleep", lambda *_args, **_kwargs: None)
 
     response = validator.submit_show_command_with_retry(
@@ -284,10 +349,41 @@ def test_submit_show_command_with_retry_rechecks_launch_ready_after_http_400(mon
             "auto_global_origin": False,
             "use_global_setpoints": False,
         }),
-        ("launch_ready", [1, 2, 3], 45),
+        ("dispatch_ready", [1, 2, 3], 45),
         ("submit", 2, validator.SHOW_MISSION, [1, 2, 3], "demo", {
             "trigger_time": 0,
             "auto_global_origin": False,
             "use_global_setpoints": False,
         }),
     ]
+
+
+def test_submit_show_command_with_retry_does_not_retry_unrelated_http_400(monkeypatch):
+    validator = _load_validator()
+
+    class _Client:
+        def submit_command(self, mission_type, ids, label, **kwargs):
+            response = type(
+                "Response",
+                (),
+                {
+                    "status_code": 400,
+                    "text": '{"detail":"Unsafe Swarm Trajectory target set"}',
+                    "json": lambda self: {"detail": "Unsafe Swarm Trajectory target set"},
+                },
+            )()
+            raise validator.requests.HTTPError("bad request", response=response)
+
+    monkeypatch.setattr(validator, "wait_for_dispatch_readiness", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not retry")))
+
+    with pytest.raises(validator.requests.HTTPError):
+        validator.submit_show_command_with_retry(
+            _Client(),
+            validator.SHOW_MISSION,
+            [1, 2, 3],
+            "demo",
+            trigger_time=0,
+            auto_global_origin=False,
+            use_global_setpoints=False,
+            readiness_timeout=45,
+        )

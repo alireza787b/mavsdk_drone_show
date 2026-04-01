@@ -40,6 +40,8 @@ import requests
 SHOW_MISSION = 1
 CUSTOM_SHOW_MISSION = 3
 LAND = 101
+DRONE_API_PORT = int(os.getenv("MDS_DRONE_API_PORT", "7070"))
+RETRYABLE_LAUNCH_PROBE_PREFIX = "Live launch readiness probe failed."
 
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout"}
 
@@ -126,6 +128,15 @@ class ApiClient:
         response = self.post_json("/submit_command", payload)
         log(f"COMMAND {operator_label}: {response['command_id']} accepted={response.get('submitted_count')}")
         return response
+
+    def probe_live_armability(self, drone_ip: str, *, require_global_position: bool = True) -> dict:
+        response = requests.get(
+            f"http://{drone_ip}:{DRONE_API_PORT}/api/live-armability",
+            params={"require_global_position": str(bool(require_global_position)).lower()},
+            timeout=20,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 def require(condition: bool, message: str) -> None:
@@ -364,6 +375,81 @@ def wait_for_show_launch_ready(client: ApiClient, ids: list[int], timeout: int =
     )
 
 
+def wait_for_live_launch_probe_ready(client: ApiClient, ids: list[int], timeout: int = 120) -> dict[str, dict]:
+    deadline = time.monotonic() + timeout
+    last_error: RuntimeError | None = None
+
+    while time.monotonic() < deadline:
+        telemetry = client.get_telemetry()
+        issues: list[str] = []
+        probe_results: dict[str, dict] = {}
+
+        for drone_id in ids:
+            key = str(drone_id)
+            drone = telemetry.get(key)
+            if drone is None:
+                issues.append(f"Drone {drone_id}: telemetry missing")
+                continue
+            if not drone.get("telemetry_available", True):
+                issues.append(f"Drone {drone_id}: telemetry unavailable")
+                continue
+
+            drone_ip = str(drone.get("ip") or "").strip()
+            if not drone_ip:
+                issues.append(f"Drone {drone_id}: IP unavailable")
+                continue
+
+            try:
+                probe = client.probe_live_armability(drone_ip, require_global_position=True)
+            except requests.RequestException as exc:
+                issues.append(f"Drone {drone_id}: live armability probe unreachable: {exc.__class__.__name__}")
+                continue
+
+            probe_results[key] = probe
+            if not bool(probe.get("ready")):
+                issues.append(f"Drone {drone_id}: {probe.get('summary') or 'not ready'}")
+
+        if not issues:
+            log(f"WAIT OK: live launch readiness probe for drones {ids}")
+            return probe_results
+
+        last_error = RuntimeError("Live launch readiness probe not yet ready: " + "; ".join(issues))
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(2.0)
+
+    raise last_error or RuntimeError(f"Live launch readiness probe did not clear within {timeout}s")
+
+
+def wait_for_dispatch_readiness(client: ApiClient, ids: list[int], timeout: int = 120) -> dict[str, dict]:
+    baseline = wait_for_show_launch_ready(client, ids, timeout=timeout)
+    wait_for_live_launch_probe_ready(client, ids, timeout=timeout)
+    return baseline
+
+
+def extract_http_error_detail(exc: requests.HTTPError) -> str:
+    response = exc.response
+    if response is None:
+        return ""
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+
+    if isinstance(payload, dict):
+        detail = payload.get("detail") or payload.get("message")
+        if isinstance(detail, str) and detail.strip():
+            return detail.strip()
+        if payload:
+            return json.dumps(payload, sort_keys=True)
+
+    try:
+        return response.text.strip()
+    except Exception:
+        return ""
+
+
 def reset_sitl_fleet(client: ApiClient, repo_root: Path, ids: list[int], timeout: int = 180) -> dict[str, dict]:
     selected_ids = sorted({int(drone_id) for drone_id in ids})
     require(selected_ids, "No drone IDs supplied for SITL reset.")
@@ -419,16 +505,12 @@ def submit_show_command_with_retry(
         except requests.HTTPError as exc:
             last_error = exc
             status_code = exc.response.status_code if exc.response is not None else None
-            detail = ""
-            if exc.response is not None:
-                try:
-                    detail = exc.response.text.strip()
-                except Exception:
-                    detail = ""
-            if status_code != 400 or attempt >= 1:
+            detail = extract_http_error_detail(exc)
+            retryable_probe_failure = detail.startswith(RETRYABLE_LAUNCH_PROBE_PREFIX)
+            if status_code != 400 or attempt >= 1 or not retryable_probe_failure:
                 raise
-            log(f"COMMAND {label}: retrying after HTTP 400{f' {detail}' if detail else ''}")
-            wait_for_show_launch_ready(client, ids, timeout=readiness_timeout)
+            log(f"COMMAND {label}: retrying after launch probe HTTP 400 {detail}")
+            wait_for_dispatch_readiness(client, ids, timeout=readiness_timeout)
             time.sleep(3.0)
     raise last_error or RuntimeError(f"Failed to submit show command for {label}")
 
@@ -443,7 +525,7 @@ def run_show_mode(
     show_timeout: int,
     trigger_delay: int = 0,
 ) -> CommandRun:
-    wait_for_show_launch_ready(client, ids, timeout=120)
+    wait_for_dispatch_readiness(client, ids, timeout=120)
     trigger_time = int(time.time()) + trigger_delay if trigger_delay > 0 else 0
     response = submit_show_command_with_retry(
         client,
@@ -468,7 +550,7 @@ def run_show_mode(
 
 
 def run_custom_show_mode(client: ApiClient, ids: list[int], *, label: str, timeout: int) -> CommandRun:
-    wait_for_show_launch_ready(client, ids, timeout=120)
+    wait_for_dispatch_readiness(client, ids, timeout=120)
     response = submit_show_command_with_retry(
         client,
         CUSTOM_SHOW_MISSION,
@@ -486,7 +568,7 @@ def run_custom_show_mode(client: ApiClient, ids: list[int], *, label: str, timeo
 
 
 def run_override_drill(client: ApiClient, ids: list[int], *, label: str) -> dict[str, Any]:
-    baseline = wait_for_show_launch_ready(client, ids, timeout=120)
+    baseline = wait_for_dispatch_readiness(client, ids, timeout=120)
     baseline_alt = float(baseline[str(ids[-1])]["position_alt"])
 
     response = submit_show_command_with_retry(
