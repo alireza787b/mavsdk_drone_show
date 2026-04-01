@@ -2313,6 +2313,37 @@ async def get_processing_status():
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
+@app.get("/api/swarm/trajectory/policy", tags=["Swarm Trajectories"])
+async def get_swarm_trajectory_policy():
+    """Return the operator-facing trajectory planning envelope sourced from Params."""
+    return JSONResponse(content={
+        "success": True,
+        "policy": {
+            "altitude": {
+                "default_msl": float(getattr(Params, "TRAJECTORY_PLANNER_DEFAULT_MSL", 100.0)),
+                "default_target_agl": float(getattr(Params, "TRAJECTORY_PLANNER_DEFAULT_TARGET_AGL", 100.0)),
+                "min_msl": float(getattr(Params, "TRAJECTORY_PLANNER_MIN_MSL", 1.0)),
+                "max_msl": float(getattr(Params, "TRAJECTORY_PLANNER_MAX_MSL", 10000.0)),
+            },
+            "speed": {
+                "default_preferred": float(getattr(Params, "TRAJECTORY_PLANNER_DEFAULT_PREFERRED_SPEED", 8.0)),
+                "min_preferred": float(getattr(Params, "TRAJECTORY_PLANNER_MIN_PREFERRED_SPEED", 0.5)),
+                "optimal_max": float(getattr(Params, "TRAJECTORY_PLANNER_OPTIMAL_MAX_SPEED", 12.0)),
+                "absolute_max": float(getattr(Params, "swarm_trajectory_max_speed", 20.0)),
+            },
+            "timing": {
+                "default_route_entry_delay_s": float(getattr(Params, "TRAJECTORY_PLANNER_ROUTE_ENTRY_DELAY_S", 10.0)),
+                "default_fallback_leg_duration_s": float(getattr(Params, "TRAJECTORY_PLANNER_FALLBACK_LEG_DURATION_S", 10.0)),
+                "derived_time_step_s": float(getattr(Params, "TRAJECTORY_PLANNER_DERIVED_TIME_STEP_S", 0.1)),
+            },
+            "terrain": {
+                "min_safe_clearance_m": float(getattr(Params, "TRAJECTORY_PLANNER_MIN_SAFE_CLEARANCE_M", 50.0)),
+                "default_safe_clearance_m": float(getattr(Params, "TRAJECTORY_PLANNER_DEFAULT_SAFE_CLEARANCE_M", 100.0)),
+            },
+        },
+    })
+
+
 @app.post("/api/swarm/trajectory/clear-processed", tags=["Swarm Trajectories"])
 async def clear_processed_trajectories():
     """Explicitly clear all processed data and plots"""

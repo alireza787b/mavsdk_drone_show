@@ -3,9 +3,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import TrajectoryPlanning from './TrajectoryPlanning';
-import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
+import {
+  getSwarmClusterStatus,
+  getSwarmTrajectoryPolicy,
+  uploadSwarmTrajectory,
+} from '../services/droneApiService';
 import { getTerrainElevation } from '../services/ElevationService';
 import { suggestOptimalTime } from '../utilities/SpeedCalculator';
+import {
+  resetTrajectoryMissionPolicy,
+  TRAJECTORY_SPEED_POLICY,
+} from '../constants/trajectoryMissionPolicy';
 
 let mockMapClickIndex = 0;
 const originalMapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN;
@@ -177,6 +185,7 @@ jest.mock('../components/trajectory/TrajectoryLibraryDialog', () => () => null);
 
 jest.mock('../services/droneApiService', () => ({
   getSwarmClusterStatus: jest.fn().mockResolvedValue({ clusters: [] }),
+  getSwarmTrajectoryPolicy: jest.fn().mockResolvedValue({ success: true, policy: {} }),
   uploadSwarmTrajectory: jest.fn().mockResolvedValue({ success: true, message: 'uploaded' }),
 }));
 
@@ -185,6 +194,7 @@ describe('TrajectoryPlanning', () => {
     mockMapClickIndex = 0;
     process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = 'test-mapbox-token';
     window.localStorage.clear();
+    resetTrajectoryMissionPolicy();
     getTerrainElevation.mockResolvedValue({ elevation: 0, source: 'backend' });
     getSwarmClusterStatus.mockResolvedValue({
       clusters: [
@@ -197,11 +207,13 @@ describe('TrajectoryPlanning', () => {
         },
       ],
     });
+    getSwarmTrajectoryPolicy.mockResolvedValue({ success: true, policy: {} });
     uploadSwarmTrajectory.mockResolvedValue({ success: true, message: 'uploaded' });
   });
 
   afterAll(() => {
     process.env.REACT_APP_MAPBOX_ACCESS_TOKEN = originalMapboxToken;
+    resetTrajectoryMissionPolicy();
   });
 
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {
@@ -248,6 +260,28 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('trajectory-segment-review')).toHaveTextContent('1');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"altitudeReference":"agl"');
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
+  });
+
+  it('hydrates planner policy from the backend runtime contract', async () => {
+    getSwarmTrajectoryPolicy.mockResolvedValue({
+      success: true,
+      policy: {
+        speed: {
+          optimal_max: 10,
+          absolute_max: 16,
+        },
+      },
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrajectoryPlanning />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
+    await waitFor(() => expect(TRAJECTORY_SPEED_POLICY.ABSOLUTE_MAX).toBe(16));
+    expect(TRAJECTORY_SPEED_POLICY.OPTIMAL_MAX).toBe(10);
   });
 
   it('refreshes terrain context when a waypoint is moved and preserves target AGL intent', async () => {

@@ -8,7 +8,7 @@ import pandas as pd
 from typing import Dict, Any, List
 
 from functions.file_management import ensure_directory_exists, clear_directory
-from functions.swarm_analyzer import analyze_swarm_structure, get_drone_config, find_ultimate_leader, fetch_swarm_data
+from functions.swarm_analyzer import analyze_swarm_structure, fetch_swarm_data
 from functions.swarm_global_calculator import calculate_follower_global_position, calculate_follower_yaw
 from functions.swarm_trajectory_smoother import smooth_trajectory_with_waypoints
 from functions.swarm_plotter import generate_swarm_plots
@@ -87,6 +87,81 @@ def calculate_follower_trajectory(leader_trajectory: pd.DataFrame, drone_config:
         follower_data.append(follower_point)
     
     return pd.DataFrame(follower_data)
+
+
+def _normalize_swarm_dataframe(swarm_data: List[Dict[str, Any]]) -> pd.DataFrame:
+    """Normalize swarm rows into a typed DataFrame used by processing helpers."""
+    swarm_df = pd.DataFrame(swarm_data)
+    if swarm_df.empty:
+        return swarm_df
+
+    swarm_df['hw_id'] = pd.to_numeric(swarm_df['hw_id'], errors='coerce')
+    swarm_df['follow'] = pd.to_numeric(swarm_df['follow'], errors='coerce')
+    swarm_df['offset_x'] = pd.to_numeric(swarm_df['offset_x'], errors='coerce')
+    swarm_df['offset_y'] = pd.to_numeric(swarm_df['offset_y'], errors='coerce')
+    swarm_df['offset_z'] = pd.to_numeric(swarm_df['offset_z'], errors='coerce')
+    swarm_df = swarm_df.dropna(subset=['hw_id', 'follow'])
+    swarm_df['hw_id'] = swarm_df['hw_id'].astype(int)
+    swarm_df['follow'] = swarm_df['follow'].astype(int)
+    return swarm_df
+
+
+def _resolve_drone_trajectory(
+    hw_id: int,
+    *,
+    row_by_hw_id: Dict[int, Dict[str, Any]],
+    leader_trajectories: Dict[int, pd.DataFrame],
+    all_trajectories: Dict[int, pd.DataFrame],
+    processing_stats: Dict[str, int],
+    processed_dir: str,
+    visiting: set[int] | None = None,
+) -> pd.DataFrame:
+    """Build a drone trajectory by resolving its direct parent chain recursively."""
+    if hw_id in all_trajectories:
+        return all_trajectories[hw_id]
+
+    if visiting is None:
+        visiting = set()
+    if hw_id in visiting:
+        raise ValueError(f"Circular follow chain detected while processing drone {hw_id}")
+
+    drone_config = row_by_hw_id.get(hw_id)
+    if drone_config is None:
+        raise ValueError(f"Drone {hw_id} not found in swarm configuration")
+
+    visiting.add(hw_id)
+    try:
+        follow_id = int(drone_config['follow'])
+        if follow_id == 0:
+            if hw_id not in leader_trajectories:
+                raise FileNotFoundError(f"Lead drone {hw_id} has no uploaded trajectory")
+
+            waypoints_df = leader_trajectories[hw_id]
+            trajectory = smooth_trajectory_with_waypoints(waypoints_df)
+            processing_stats['leaders'] += 1
+            logger.info(f"Processed lead drone {hw_id} with {len(trajectory)} trajectory points")
+        else:
+            if follow_id not in row_by_hw_id:
+                raise ValueError(f"Follower {hw_id} references missing leader {follow_id}")
+
+            parent_trajectory = _resolve_drone_trajectory(
+                follow_id,
+                row_by_hw_id=row_by_hw_id,
+                leader_trajectories=leader_trajectories,
+                all_trajectories=all_trajectories,
+                processing_stats=processing_stats,
+                processed_dir=processed_dir,
+                visiting=visiting,
+            )
+            trajectory = calculate_follower_trajectory(parent_trajectory, drone_config)
+            processing_stats['followers'] += 1
+            logger.info(f"Processed follower {hw_id} following direct leader {follow_id}")
+
+        save_drone_trajectory(hw_id, trajectory, processed_dir)
+        all_trajectories[hw_id] = trajectory
+        return trajectory
+    finally:
+        visiting.discard(hw_id)
 
 def save_drone_trajectory(hw_id: int, trajectory: pd.DataFrame, processed_dir: str):
     """Save individual drone trajectory to processed directory"""
@@ -300,60 +375,30 @@ def _execute_trajectory_processing(
 
         # Load swarm data from API for drone configurations
         swarm_data = fetch_swarm_data()
-        swarm_df = pd.DataFrame(swarm_data)
+        swarm_df = _normalize_swarm_dataframe(swarm_data)
+        row_by_hw_id = {
+            int(drone_row['hw_id']): drone_row.to_dict()
+            for _, drone_row in swarm_df.iterrows()
+        }
+        expected_drone_ids = sorted(row_by_hw_id.keys())
 
-        # Convert string values to appropriate types (same as in analyzer)
-        swarm_df['hw_id'] = pd.to_numeric(swarm_df['hw_id'], errors='coerce')
-        swarm_df['follow'] = pd.to_numeric(swarm_df['follow'], errors='coerce')
-        swarm_df['offset_x'] = pd.to_numeric(swarm_df['offset_x'], errors='coerce')
-        swarm_df['offset_y'] = pd.to_numeric(swarm_df['offset_y'], errors='coerce')
-        swarm_df['offset_z'] = pd.to_numeric(swarm_df['offset_z'], errors='coerce')
-
-        # Remove any rows with invalid data
-        swarm_df = swarm_df.dropna(subset=['hw_id', 'follow'])
-
-        for _, drone_row in swarm_df.iterrows():
-            hw_id = int(drone_row['hw_id'])  # Ensure integer type
-
+        for hw_id in expected_drone_ids:
             try:
-                if hw_id in swarm_structure['top_leaders']:
-                    # Lead drone: smooth uploaded trajectory
-                    if hw_id in leader_trajectories:
-                        waypoints_df = leader_trajectories[hw_id]
-                        trajectory = smooth_trajectory_with_waypoints(waypoints_df)
-                        processing_stats['leaders'] += 1
-                        logger.info(f"Processed lead drone {hw_id} with {len(trajectory)} trajectory points")
-                    else:
-                        logger.warning(f"Skipping lead drone {hw_id} - no trajectory uploaded")
-                        continue
-
-                else:
-                    # Follower: calculate from leader
-                    ultimate_leader_id = find_ultimate_leader(hw_id, swarm_df)
-
-                    if ultimate_leader_id not in all_trajectories:
-                        logger.warning(f"Skipping follower {hw_id} - leader {ultimate_leader_id} not processed")
-                        continue
-
-                    leader_trajectory = all_trajectories[ultimate_leader_id]
-                    drone_config = drone_row.to_dict()
-
-                    trajectory = calculate_follower_trajectory(
-                        leader_trajectory, drone_config
-                    )
-                    processing_stats['followers'] += 1
-                    logger.info(f"Processed follower {hw_id} following leader {ultimate_leader_id}")
-
-                # Save trajectory
-                save_drone_trajectory(hw_id, trajectory, folders['processed'])
-                all_trajectories[hw_id] = trajectory
-
+                _resolve_drone_trajectory(
+                    hw_id,
+                    row_by_hw_id=row_by_hw_id,
+                    leader_trajectories=leader_trajectories,
+                    all_trajectories=all_trajectories,
+                    processing_stats=processing_stats,
+                    processed_dir=folders['processed'],
+                )
+            except FileNotFoundError as e:
+                logger.warning(f"Skipping drone {hw_id} - {e}")
+                continue
             except Exception as e:
                 logger.error(f"Failed to process drone {hw_id}: {e}")
                 processing_stats['errors'] += 1
                 continue
-
-        expected_drone_ids = sorted(int(drone_row["hw_id"]) for _, drone_row in swarm_df.iterrows())
 
         # Step 5: Generate plots
         logger.info("Generating visualization plots...")

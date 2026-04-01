@@ -447,6 +447,18 @@ class Params:
     # Basic Trajectory Settings
     swarm_trajectory_dt = 0.05              # Trajectory interpolation timestep (seconds)
     swarm_trajectory_max_speed = 20.0       # Maximum allowed speed (m/s) - for safety
+    TRAJECTORY_PLANNER_DEFAULT_MSL = 100.0  # Default altitude entry for authored leader waypoints (m MSL)
+    TRAJECTORY_PLANNER_DEFAULT_TARGET_AGL = 100.0  # Default terrain clearance when authoring in AGL mode (m)
+    TRAJECTORY_PLANNER_MIN_MSL = 1.0        # Minimum authored altitude accepted by the planner (m MSL)
+    TRAJECTORY_PLANNER_MAX_MSL = 10000.0    # Maximum authored altitude accepted by the planner (m MSL)
+    TRAJECTORY_PLANNER_DEFAULT_PREFERRED_SPEED = 8.0  # Default preferred inbound leg speed (m/s)
+    TRAJECTORY_PLANNER_MIN_PREFERRED_SPEED = 0.5      # Minimum preferred inbound leg speed (m/s)
+    TRAJECTORY_PLANNER_OPTIMAL_MAX_SPEED = 12.0       # Nominal operator planning band upper bound (m/s)
+    TRAJECTORY_PLANNER_ROUTE_ENTRY_DELAY_S = 10.0     # Default delay from mission start to route entry (s)
+    TRAJECTORY_PLANNER_FALLBACK_LEG_DURATION_S = 10.0 # Fallback leg duration when no better timing data exists (s)
+    TRAJECTORY_PLANNER_DERIVED_TIME_STEP_S = 0.1      # Time quantization step for derived ETA values (s)
+    TRAJECTORY_PLANNER_MIN_SAFE_CLEARANCE_M = 50.0    # Minimum terrain clearance before planner warns (m)
+    TRAJECTORY_PLANNER_DEFAULT_SAFE_CLEARANCE_M = 100.0  # Suggested safe terrain clearance for one-click fixes (m)
 
     # WAYPOINT ACCEPTANCE RADIUS (most important setting)
     # How close to waypoint before considering "reached" and starting turn

@@ -73,6 +73,7 @@ The **Swarm Trajectory Feature** enables coordinated drone swarm missions where 
   # Formation maintains geographic orientation regardless of heading
   ```
 - follower offsets are now applied around each leader waypoint's instantaneous global position, not a fixed formation centroid, so long routes do not accumulate avoidable geometry distortion
+- nested followers are generated through their **direct parent chain**, so sub-leader offsets compound correctly instead of being flattened back to the top leader
 - `offset_z` follows the Swarm Design convention `Up = positive`; it is converted into the appropriate NED down sign only inside the math layer
 
 **Final Output**: All drones receive global lat/lon/alt trajectories for mission execution.
@@ -124,6 +125,8 @@ Important:
 - start in **Swarm Design** first so the current top leaders and follower clusters are correct
 - only **top leaders** are authored/uploaded in this mode
 - follower paths are **generated later** from the current swarm hierarchy and offsets
+- invalid swarm follow graphs now fail fast during analysis/processing; circular chains or missing parent references must be corrected in **Swarm Design** before outputs are trusted
+- planner altitude / speed / timing / terrain defaults now come from the backend runtime policy sourced from `src/params.py`, so the frontend envelope stays aligned with the active deployment instead of drifting into a separate hardcoded planner contract
 - this mode is **not** live Smart Swarm at runtime; every drone flies a processed per-drone file
 - mission altitude is still stored and executed in **MSL**
 - planner altitude entry now supports:

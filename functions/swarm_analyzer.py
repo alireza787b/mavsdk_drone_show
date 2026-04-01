@@ -10,6 +10,28 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
+def _validate_follow_chains(swarm_df):
+    """Reject follow graphs with cycles or missing parent references."""
+    follow_map = {
+        int(row['hw_id']): int(row['follow'])
+        for _, row in swarm_df.iterrows()
+    }
+
+    for hw_id in follow_map:
+        current_id = hw_id
+        visited = set()
+
+        while current_id != 0:
+            if current_id in visited:
+                raise ValueError(f"Circular dependency detected involving drone {current_id}")
+            visited.add(current_id)
+
+            if current_id not in follow_map:
+                raise ValueError(f"Drone {hw_id} references missing leader {current_id}")
+
+            current_id = follow_map[current_id]
+
 def get_backend_url():
     """Get backend URL, defaulting to localhost"""
     return os.getenv('BACKEND_URL', 'http://localhost:5000')
@@ -71,6 +93,10 @@ def analyze_swarm_structure(swarm_data=None):
         
         # Remove any rows with invalid data
         swarm_df = swarm_df.dropna(subset=['hw_id', 'follow'])
+        swarm_df['hw_id'] = swarm_df['hw_id'].astype(int)
+        swarm_df['follow'] = swarm_df['follow'].astype(int)
+
+        _validate_follow_chains(swarm_df)
         
         logger.info(f"Loaded swarm configuration with {len(swarm_df)} drones")
         
@@ -95,16 +121,21 @@ def analyze_swarm_structure(swarm_data=None):
         logger.error(f"Failed to analyze swarm structure: {e}")
         raise
 
-def get_all_followers(leader_id, swarm_df):
-    """Get all followers for a specific leader (recursive)"""
+def get_all_followers(leader_id, swarm_df, lineage=None):
+    """Get all followers for a specific leader while rejecting circular chains."""
+    lineage = set() if lineage is None else set(lineage)
+    if leader_id in lineage:
+        raise ValueError(f"Circular dependency detected involving drone {leader_id}")
+
+    lineage.add(leader_id)
     direct_followers = swarm_df[swarm_df['follow'] == leader_id]['hw_id'].tolist()
     all_followers = direct_followers.copy()
-    
-    # Recursively get sub-followers
+
+    # Recursively get sub-followers while preserving the current ancestry path.
     for follower in direct_followers:
-        sub_followers = get_all_followers(follower, swarm_df)
+        sub_followers = get_all_followers(follower, swarm_df, lineage)
         all_followers.extend(sub_followers)
-    
+
     return all_followers
 
 def get_drone_config(hw_id, swarm_config):

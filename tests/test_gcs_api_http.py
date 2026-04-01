@@ -232,6 +232,20 @@ class TestHealthEndpoints:
         assert 'timestamp' in data
 
 
+class TestSwarmTrajectoryPolicyEndpoint:
+    """Test Swarm Trajectory runtime policy endpoint."""
+
+    def test_returns_runtime_policy_from_params(self, test_client):
+        response = test_client.get("/api/swarm/trajectory/policy")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["success"] is True
+        assert payload["policy"]["speed"]["absolute_max"] == pytest.approx(20.0)
+        assert payload["policy"]["timing"]["derived_time_step_s"] == pytest.approx(0.1)
+        assert payload["policy"]["terrain"]["default_safe_clearance_m"] >= payload["policy"]["terrain"]["min_safe_clearance_m"]
+
+
 class TestBackgroundTelemetryHelpers:
     """Test live telemetry shaping used by the FastAPI background poller."""
 

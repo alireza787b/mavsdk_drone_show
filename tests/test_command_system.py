@@ -603,6 +603,26 @@ class TestGcsCommandDistribution:
         assert 'Missed synchronized dispatch window' in error
         mock_post.assert_not_called()
 
+    def test_send_command_to_drone_applies_sync_window_to_hover_test(self):
+        """HOVER_TEST must follow the same strict synchronized queue window as other offboard rehearsal modes."""
+        from command import send_command_to_drone
+        from src.enums import Mission
+
+        drone = {'hw_id': 1, 'ip': '172.18.0.2'}
+        command_data = {
+            'missionType': str(Mission.HOVER_TEST.value),
+            'triggerTime': '205',
+        }
+
+        with patch('command.time.time', return_value=201.0):
+            with patch('command.requests.post') as mock_post:
+                success, error, category = send_command_to_drone(drone, command_data, timeout=5, retries=3)
+
+        assert success is False
+        assert category == 'error'
+        assert 'Missed synchronized dispatch window' in error
+        mock_post.assert_not_called()
+
     def test_send_command_to_drone_does_not_apply_sync_window_to_takeoff(self):
         """Standalone TAKEOFF should still dispatch even if the trigger timestamp is already near/past the strict-sync window."""
         from command import send_command_to_drone

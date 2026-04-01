@@ -79,6 +79,15 @@ export const getSwarmTrajectoryStatus = async () => {
   }
 };
 
+export const getSwarmTrajectoryPolicy = async () => {
+  try {
+    const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/policy`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const uploadSwarmTrajectory = async (leaderId, file, filename = null) => {
   const formData = new FormData();
 

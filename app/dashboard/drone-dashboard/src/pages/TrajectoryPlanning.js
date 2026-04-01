@@ -27,9 +27,14 @@ import {
 } from '../utilities/SpeedCalculator';
 import { TrajectoryStateManager, ACTION_TYPES } from '../utilities/TrajectoryStateManager';
 import { TrajectoryStorage } from '../utilities/TrajectoryStorage';
-import { getSwarmClusterStatus, uploadSwarmTrajectory } from '../services/droneApiService';
+import {
+  getSwarmClusterStatus,
+  getSwarmTrajectoryPolicy,
+  uploadSwarmTrajectory,
+} from '../services/droneApiService';
 import { buildTrajectoryMissionReadiness } from '../utilities/trajectoryMissionReadiness';
 import {
+  applyTrajectoryMissionPolicy,
   formatTrajectoryAltitudeEnvelope,
   formatTrajectorySpeedEnvelope,
   formatTrajectorySpeedEnvelopeDetail,
@@ -125,6 +130,7 @@ const TrajectoryPlanning = () => {
   const [showSwarmTransferDialog, setShowSwarmTransferDialog] = useState(false);
   const [availableTrajectories, setAvailableTrajectories] = useState([]);
   const [plannerNotice, setPlannerNotice] = useState(null);
+  const [, setPolicyRevision] = useState(0);
   const [swarmTransferState, setSwarmTransferState] = useState({
     loading: false,
     submitting: false,
@@ -233,6 +239,30 @@ const TrajectoryPlanning = () => {
 
   const clearOperationNotice = useCallback(() => {
     setPlannerNotice(null);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTrajectoryPolicy = async () => {
+      try {
+        const response = await getSwarmTrajectoryPolicy();
+        if (cancelled || !response?.success || !response?.policy) {
+          return;
+        }
+
+        applyTrajectoryMissionPolicy(response.policy);
+        setPolicyRevision((value) => value + 1);
+      } catch {
+        // Keep planner defaults if the runtime policy endpoint is unavailable.
+      }
+    };
+
+    loadTrajectoryPolicy();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const advanceTerrainRefreshToken = useCallback((waypointId) => {
