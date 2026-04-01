@@ -744,6 +744,41 @@ Get current processing status and file counts.
 }
 ```
 
+#### `GET /api/swarm/trajectory/policy`
+Get the operator-facing trajectory planner envelope sourced from backend `Params`.
+
+**Response:**
+```json
+{
+  "success": true,
+  "policy": {
+    "altitude": {
+      "default_msl": 100.0,
+      "default_target_agl": 100.0,
+      "min_msl": 1.0,
+      "max_msl": 10000.0
+    },
+    "speed": {
+      "default_preferred": 8.0,
+      "min_preferred": 0.5,
+      "optimal_max": 12.0,
+      "absolute_max": 20.0
+    },
+    "timing": {
+      "default_route_entry_delay_s": 10.0,
+      "default_fallback_leg_duration_s": 10.0,
+      "derived_time_step_s": 0.1
+    },
+    "terrain": {
+      "min_safe_clearance_m": 50.0,
+      "default_safe_clearance_m": 100.0
+    }
+  }
+}
+```
+
+Use this endpoint as the frontend source of truth for Swarm Trajectory planner defaults and operator envelopes instead of maintaining a separate hardcoded policy table.
+
 Additional active Swarm Trajectory endpoints:
 
 - `GET /api/swarm/trajectory/recommendation`
