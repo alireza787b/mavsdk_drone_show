@@ -57,13 +57,34 @@ class CommandRun:
 class ApiClient:
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url.rstrip("/")
-        self.session = requests.Session()
-        self.session.headers.update({"Accept": "application/json"})
+        self.session = self._build_session()
+
+    def _build_session(self) -> requests.Session:
+        session = requests.Session()
+        session.headers.update({"Accept": "application/json"})
+        return session
+
+    def _reset_session(self) -> None:
+        try:
+            self.session.close()
+        except Exception:
+            pass
+        self.session = self._build_session()
 
     def get_json(self, path: str) -> dict:
-        response = self.session.get(f"{self.base_url}{path}", timeout=20)
-        response.raise_for_status()
-        return response.json()
+        last_error: requests.RequestException | None = None
+        for attempt in range(2):
+            try:
+                response = self.session.get(f"{self.base_url}{path}", timeout=20)
+                response.raise_for_status()
+                return response.json()
+            except requests.RequestException as exc:
+                last_error = exc
+                if attempt >= 1:
+                    raise
+                log(f"API GET retry for {path} after transport error: {exc}")
+                self._reset_session()
+        raise last_error or RuntimeError(f"GET failed for {path}")
 
     def post_json(self, path: str, payload: dict) -> dict:
         response = self.session.post(f"{self.base_url}{path}", json=payload, timeout=45)

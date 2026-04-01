@@ -131,3 +131,43 @@ def test_run_show_mode_requires_launch_ready_before_dispatch(monkeypatch):
 
     assert events[0] == ("launch_ready", [1, 2, 3], 120)
     assert events[1][0] == "submit"
+
+
+def test_api_client_get_json_retries_after_connection_reset(monkeypatch):
+    validator = _load_validator()
+
+    class _Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    class _Session:
+        def __init__(self, responses):
+            self.responses = list(responses)
+            self.headers = {}
+            self.closed = False
+
+        def get(self, url, timeout):
+            outcome = self.responses.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        def close(self):
+            self.closed = True
+
+    first = _Session([validator.requests.ConnectionError("connection reset by peer")])
+    second = _Session([_Response({"status": "ok"})])
+    sessions = [first, second]
+
+    monkeypatch.setattr(validator.requests, "Session", lambda: sessions.pop(0))
+
+    client = validator.ApiClient("http://example.test")
+
+    assert client.get_json("/health") == {"status": "ok"}
+    assert first.closed is True
