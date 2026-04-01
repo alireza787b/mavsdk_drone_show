@@ -12,18 +12,18 @@
     {
       "hw_id": 2,
       "follow": 1,
-      "offset_x": 10.0,
-      "offset_y": 0.0,
-      "offset_z": 0.0,
+      "offset_x": 5.0,
+      "offset_y": 50.0,
+      "offset_z": 5.0,
       "frame": "ned"
     },
     {
       "hw_id": 3,
-      "follow": 2,
-      "offset_x": 5.0,
+      "follow": 1,
+      "offset_x": 25.0,
       "offset_y": 0.0,
-      "offset_z": 0.0,
-      "frame": "ned"
+      "offset_z": 15.0,
+      "frame": "body"
     },
     {
       "hw_id": 4,
