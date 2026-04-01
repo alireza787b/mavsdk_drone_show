@@ -241,3 +241,53 @@ def test_reset_sitl_fleet_rejects_non_contiguous_selection():
 
     with pytest.raises(RuntimeError, match="contiguous drone IDs"):
         validator.reset_sitl_fleet(object(), Path("/tmp/repo"), [1, 3], timeout=10)
+
+
+def test_submit_show_command_with_retry_rechecks_launch_ready_after_http_400(monkeypatch):
+    validator = _load_validator()
+    events = []
+
+    class _Client:
+        def __init__(self):
+            self.calls = 0
+
+        def submit_command(self, mission_type, ids, label, **kwargs):
+            self.calls += 1
+            events.append(("submit", self.calls, mission_type, list(ids), label, kwargs))
+            if self.calls == 1:
+                response = type("Response", (), {"status_code": 400, "text": "Live launch readiness probe failed"})()
+                raise validator.requests.HTTPError("bad request", response=response)
+            return {"command_id": "cmd-2"}
+
+    def fake_wait_for_show_launch_ready(client, ids, timeout=120):
+        events.append(("launch_ready", list(ids), timeout))
+        return {"1": {"position_alt": 10.0}}
+
+    monkeypatch.setattr(validator, "wait_for_show_launch_ready", fake_wait_for_show_launch_ready)
+    monkeypatch.setattr(validator.time, "sleep", lambda *_args, **_kwargs: None)
+
+    response = validator.submit_show_command_with_retry(
+        _Client(),
+        validator.SHOW_MISSION,
+        [1, 2, 3],
+        "demo",
+        trigger_time=0,
+        auto_global_origin=False,
+        use_global_setpoints=False,
+        readiness_timeout=45,
+    )
+
+    assert response == {"command_id": "cmd-2"}
+    assert events == [
+        ("submit", 1, validator.SHOW_MISSION, [1, 2, 3], "demo", {
+            "trigger_time": 0,
+            "auto_global_origin": False,
+            "use_global_setpoints": False,
+        }),
+        ("launch_ready", [1, 2, 3], 45),
+        ("submit", 2, validator.SHOW_MISSION, [1, 2, 3], "demo", {
+            "trigger_time": 0,
+            "auto_global_origin": False,
+            "use_global_setpoints": False,
+        }),
+    ]

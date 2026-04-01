@@ -403,6 +403,36 @@ def reset_sitl_fleet(client: ApiClient, repo_root: Path, ids: list[int], timeout
     return wait_for_show_launch_ready(client, ids, timeout=timeout)
 
 
+def submit_show_command_with_retry(
+    client: ApiClient,
+    mission_type: int,
+    ids: list[int],
+    label: str,
+    *,
+    readiness_timeout: int = 60,
+    **kwargs: Any,
+) -> dict:
+    last_error: requests.HTTPError | None = None
+    for attempt in range(2):
+        try:
+            return client.submit_command(mission_type, ids, label, **kwargs)
+        except requests.HTTPError as exc:
+            last_error = exc
+            status_code = exc.response.status_code if exc.response is not None else None
+            detail = ""
+            if exc.response is not None:
+                try:
+                    detail = exc.response.text.strip()
+                except Exception:
+                    detail = ""
+            if status_code != 400 or attempt >= 1:
+                raise
+            log(f"COMMAND {label}: retrying after HTTP 400{f' {detail}' if detail else ''}")
+            wait_for_show_launch_ready(client, ids, timeout=readiness_timeout)
+            time.sleep(3.0)
+    raise last_error or RuntimeError(f"Failed to submit show command for {label}")
+
+
 def run_show_mode(
     client: ApiClient,
     ids: list[int],
@@ -415,11 +445,13 @@ def run_show_mode(
 ) -> CommandRun:
     wait_for_show_launch_ready(client, ids, timeout=120)
     trigger_time = int(time.time()) + trigger_delay if trigger_delay > 0 else 0
-    response = client.submit_command(
+    response = submit_show_command_with_retry(
+        client,
         SHOW_MISSION,
         ids,
         label,
         trigger_time=trigger_time,
+        readiness_timeout=90,
         auto_global_origin=auto_global_origin,
         use_global_setpoints=use_global_setpoints,
     )
@@ -437,7 +469,14 @@ def run_show_mode(
 
 def run_custom_show_mode(client: ApiClient, ids: list[int], *, label: str, timeout: int) -> CommandRun:
     wait_for_show_launch_ready(client, ids, timeout=120)
-    response = client.submit_command(CUSTOM_SHOW_MISSION, ids, label, trigger_time=0)
+    response = submit_show_command_with_retry(
+        client,
+        CUSTOM_SHOW_MISSION,
+        ids,
+        label,
+        trigger_time=0,
+        readiness_timeout=90,
+    )
     command_id = response["command_id"]
     wait_for_command(client, command_id, desired_phase="in_progress", timeout=90)
     status = wait_for_command(client, command_id, terminal=True, timeout=timeout)
@@ -450,11 +489,13 @@ def run_override_drill(client: ApiClient, ids: list[int], *, label: str) -> dict
     baseline = wait_for_show_launch_ready(client, ids, timeout=120)
     baseline_alt = float(baseline[str(ids[-1])]["position_alt"])
 
-    response = client.submit_command(
+    response = submit_show_command_with_retry(
+        client,
         SHOW_MISSION,
         ids,
         label,
         trigger_time=0,
+        readiness_timeout=90,
         auto_global_origin=False,
         use_global_setpoints=False,
     )
