@@ -130,8 +130,46 @@
 @media (max-width: 768px) {
   .trajectory-brief {
     width: 100%;
+    gap: 0.6rem;
   }
 
+  .trajectory-brief__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .trajectory-brief__metric {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .trajectory-brief__value {
+    font-size: 0.92rem;
+  }
+
+  .trajectory-brief__detail {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .trajectory-brief__signals {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: thin;
+  }
+
+  .trajectory-brief__signal {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .trajectory-brief__detail {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
   .trajectory-brief__metrics {
     grid-template-columns: 1fr;
   }

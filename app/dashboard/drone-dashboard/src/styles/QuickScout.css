@@ -4,7 +4,8 @@
 .quickscout-page {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 60px);
+    min-height: calc(100dvh - 60px);
+    height: calc(100dvh - 60px);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
     overflow: hidden;
@@ -102,6 +103,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .qs-page-title {
@@ -123,6 +127,11 @@
 }
 
 .qs-map-container .mapboxgl-map {
+    width: 100%;
+    height: 100%;
+}
+
+.qs-map-container .leaflet-container {
     width: 100%;
     height: 100%;
 }
@@ -610,11 +619,12 @@
 
 /* === SearchBar Wrapper (QuickScout top bar) === */
 .qs-search-wrapper {
-    flex: 0 1 340px;
-    min-width: 180px;
+    flex: 1 1 340px;
+    min-width: 220px;
 }
 
 .qs-search-wrapper .search-bar-container {
+    width: 100%;
     max-width: 100%;
 }
 
@@ -631,12 +641,100 @@
 
 /* === Responsive === */
 @media (max-width: 768px) {
+    .quickscout-page {
+        min-height: 100dvh;
+        height: auto;
+        overflow: visible;
+    }
+
+    .qs-top-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .qs-top-bar-left {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .qs-search-wrapper {
+        width: 100%;
+        min-width: 0;
+        flex-basis: auto;
+    }
+
+    .qs-search-wrapper .search-button {
+        min-width: 44px;
+    }
+
+    .qs-top-bar > .qs-btn {
+        width: 100%;
+    }
+
+    .qs-main-layout {
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    .qs-map-container {
+        height: 42vh;
+        min-height: 42vh;
+    }
+
+    .qs-map-container .mapboxgl-map,
+    .qs-map-container .leaflet-container {
+        width: 100%;
+        height: 100%;
+    }
+
     .qs-sidebar {
-        width: 260px;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--color-border-primary);
+        max-height: none;
     }
 
     .qs-stats-bar {
         flex-wrap: wrap;
         gap: 8px;
+    }
+
+    .qs-action-bar {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        transform: none;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .qs-action-btn {
+        width: auto;
+        height: 44px;
+        flex: 1 1 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .qs-page-title {
+        font-size: 18px;
+    }
+
+    .qs-map-container {
+        height: 36vh;
+        min-height: 36vh;
+    }
+
+    .qs-config-row {
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .qs-config-input {
+        width: 72px;
     }
 }

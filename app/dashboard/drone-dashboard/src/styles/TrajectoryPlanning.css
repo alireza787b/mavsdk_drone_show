@@ -1764,20 +1764,58 @@
   }
 
   .trajectory-header {
+    order: 1;
+  }
+
+  .trajectory-container {
+    order: 2;
+  }
+
+  .trajectory-segment-review {
+    order: 3;
+  }
+
+  .trajectory-workflow-brief {
+    order: 4;
+  }
+
+  .trajectory-header {
     flex-direction: column;
+    align-items: stretch;
     gap: var(--spacing-base);
     padding: var(--spacing-base);
   }
 
+  .header-left {
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .header-left h1 {
+    width: 100%;
+  }
+
+  .header-left .search-bar-container {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
   .trajectory-stats {
+    width: 100%;
     gap: var(--spacing-sm);
-    overflow-x: auto;
-    padding-bottom: var(--spacing-xs);
+    overflow: visible;
+    padding-bottom: 0;
   }
 
   .trajectory-stats .stat-item {
     min-width: 80px;
     padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .trajectory-segment-review {
+    margin: 0 var(--spacing-base);
+    padding: 0.9rem 1rem;
   }
 
   .trajectory-container {
@@ -1813,7 +1851,14 @@
   }
 
   .map-container {
+    height: 52vh;
     min-height: 52vh;
+  }
+
+  .map-container .mapboxgl-map,
+  .map-container .leaflet-container {
+    width: 100%;
+    height: 100%;
   }
 
   .trajectory-planner-notice {
@@ -1896,6 +1941,14 @@
 }
 
 @media (max-width: 480px) {
+  .trajectory-header {
+    padding: var(--spacing-sm);
+  }
+
+  .trajectory-segment-review {
+    margin: 0 var(--spacing-sm);
+  }
+
   .waypoint-panel {
     width: 100%;
     max-height: none;
@@ -1903,6 +1956,7 @@
   }
 
   .map-container {
+    height: 48vh;
     min-height: 48vh;
   }
 

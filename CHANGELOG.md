@@ -9,7 +9,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Added
+- a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
+
 ### Fixed
+- the dashboard responsive shell now audits cleanly on live Hetzner mobile captures: the sidebar/nav overlay uses the mobile viewport state correctly, the content column no longer keeps the stale desktop gutter, and overview/command-control cards no longer overflow or clip on a 390px phone viewport
+- Trajectory Planning mobile authoring now uses a denser 2-column mission brief, a horizontally compact toolbar ribbon, and a mobile-first block order that pulls live authoring controls ahead of the longer review/policy sections while preserving the richer desktop layout in both light and dark themes
+- QuickScout mobile layout groundwork now stacks the top bar/search and the map-plus-sidebar flow vertically instead of forcing the desktop split-pane into a phone viewport, but final operator acceptance of QuickScout remains explicitly deferred to the next UI audit slice
 - Drone Show runtime validation now rebuilds and retries its safe GET polling after transient transport resets, recreates the selected SITL fleet between internal mode runs, waits on the same live per-drone launch-readiness probe that the backend enforces before dispatch, and only retries the specific transient launch-probe `HTTP 400` path after rechecking readiness, so long multi-mode validation no longer flakes out on stale transport, bad landed geometry, or short re-stage timing races
 - Smart Swarm runtime validation now restores the selected saved swarm assignments after the in-flight reassignment drill, so acceptance runs no longer leave the SITL follow chain mutated for later sessions; the Smart Swarm guide now also states explicitly that cross-mode Drone Show / Swarm Trajectory validation still requires a launch-geometry reset because those modes can end with aircraft landed away from the show pads
 - Drone Show runtime validation now re-checks selected-drone launch geometry immediately before each show/custom-show dispatch, so mixed-mode SITL drills fail fast when the fleet is idle but displaced off the show staging slots instead of attempting a bad launch
