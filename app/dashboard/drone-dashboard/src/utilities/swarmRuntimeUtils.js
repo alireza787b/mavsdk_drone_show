@@ -55,6 +55,10 @@ function formatRuntimeTargetList(targetIds = []) {
   return labels.join(', ');
 }
 
+function formatScopeCountLabel(label, count) {
+  return `${label} · ${count} drone${count === 1 ? '' : 's'}`;
+}
+
 export function resolveSwarmRuntimeTargets(
   viewModel,
   scope = SWARM_RUNTIME_SCOPE.DRONE,
@@ -82,7 +86,7 @@ export function resolveSwarmRuntimeTargets(
       selectedDrone,
       cluster: null,
       targetIds: [selectedDrone.hw_id],
-      scopeLabel: `${selectedDrone.title} (1 drone)`,
+      scopeLabel: formatScopeCountLabel(selectedDrone.title, 1),
       targetSummary: 'Targets only the selected drone. Other swarm drones continue until they receive their own command, failover event, or follow-chain update.',
     };
   }
@@ -102,7 +106,7 @@ export function resolveSwarmRuntimeTargets(
     cluster: selectedCluster,
     targetIds,
     scopeLabel: selectedCluster
-      ? `${selectedCluster.title} (${count} drone${count === 1 ? '' : 's'})`
+      ? formatScopeCountLabel(selectedCluster.title, count)
       : `${selectedDrone?.title || 'Selected drone'} has no valid executable cluster`,
     targetSummary: selectedCluster
       ? `${selectedCluster.subtitle} · ${count} target drone${count === 1 ? '' : 's'}`

@@ -26,7 +26,7 @@ describe('swarmRuntimeUtils', () => {
 
     expect(resolveSwarmRuntimeTargets(viewModel, SWARM_RUNTIME_SCOPE.DRONE, '3')).toMatchObject({
       targetIds: ['3'],
-      scopeLabel: 'Drone 3 (1 drone)',
+      scopeLabel: 'Drone 3 · 1 drone',
     });
   });
 
@@ -35,7 +35,7 @@ describe('swarmRuntimeUtils', () => {
 
     expect(resolveSwarmRuntimeTargets(viewModel, SWARM_RUNTIME_SCOPE.CLUSTER, '3')).toMatchObject({
       targetIds: ['1', '2', '3'],
-      scopeLabel: 'Leader Drone 1 (3 drones)',
+      scopeLabel: 'P1|H1 cluster · 3 drones',
     });
   });
 
@@ -57,7 +57,7 @@ describe('swarmRuntimeUtils', () => {
 
     expect(resolveSwarmRuntimeTargets(multiClusterViewModel, SWARM_RUNTIME_SCOPE.CLUSTER, '2', '3')).toMatchObject({
       targetIds: ['3', '4'],
-      scopeLabel: 'Leader Drone 3 (2 drones)',
+      scopeLabel: 'P3|H3 cluster · 2 drones',
     });
   });
 
