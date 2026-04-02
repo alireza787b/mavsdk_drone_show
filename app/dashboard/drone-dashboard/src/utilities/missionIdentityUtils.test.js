@@ -1,6 +1,7 @@
 import {
   areGitRevisionsEquivalent,
   buildSuggestedHwIds,
+  formatCompactDroneIdentity,
   formatDroneLabel,
   formatShowSlotLabel,
   getDuplicateAssignments,
@@ -36,6 +37,12 @@ describe('missionIdentityUtils', () => {
     expect(formatShowSlotLabel(3)).toBe('Show Slot 3');
     expect(formatDroneLabel(null)).toBe('Drone');
     expect(formatShowSlotLabel(undefined)).toBe('Show Slot');
+  });
+
+  test('formatCompactDroneIdentity exposes the standard Pn|Hm shorthand', () => {
+    expect(formatCompactDroneIdentity('03', '7')).toBe('P3|H7');
+    expect(formatCompactDroneIdentity('03', null)).toBe('P3');
+    expect(formatCompactDroneIdentity(null, '7')).toBe('H7');
   });
 
   test('normalizeRuntimeIp filters placeholder heartbeat IP values', () => {

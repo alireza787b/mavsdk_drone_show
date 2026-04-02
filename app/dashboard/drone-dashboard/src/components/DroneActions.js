@@ -36,26 +36,26 @@ import '../styles/DroneActions.css';
 const ACTION_SECTIONS = [
   {
     key: 'routine',
-    title: 'Flight Control',
-    description: 'Launch, hold, land, and return commands.',
+    title: 'Flight',
+    description: 'Launch, hold, land, recover.',
     actions: ['TAKE_OFF', 'HOVER_TEST', 'HOLD', 'LAND', 'RETURN_RTL'],
   },
   {
     key: 'test',
     title: 'Checks',
-    description: 'Bench and rehearsal verification.',
+    description: 'Bench and rehearsal checks.',
     actions: ['TEST', 'TEST_LED'],
   },
   {
     key: 'maintenance',
-    title: 'Maintenance',
-    description: 'Repo, identity, and restart tasks.',
+    title: 'Service',
+    description: 'Repo, identity, restart.',
     actions: ['UPDATE_CODE', 'INIT_SYSID', 'APPLY_COMMON_PARAMS', 'REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',
     title: 'Emergency',
-    description: 'Last-resort stop commands.',
+    description: 'Last-resort stop.',
     actions: ['DISARM', 'KILL_TERMINATE'],
   },
 ];
@@ -209,7 +209,7 @@ const DroneActions = ({
       <div className="action-parameter-bar">
         <div>
           <h3>Action Overrides</h3>
-          <p>Direct flight, test, maintenance, and recovery commands.</p>
+          <p>Direct flight, service, and recovery commands.</p>
         </div>
         <div className="action-parameter-bar__meta">
           <span>{targetCount} targeted drone{targetCount === 1 ? '' : 's'}</span>

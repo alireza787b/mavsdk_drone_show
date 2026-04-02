@@ -109,6 +109,9 @@ The dashboard supports both JSON (primary) and CSV (legacy) import/export:
 - Additional JSON fields appear under **Additional Fields**
 - `callsign` is promoted as a secondary alias when present
 - Editing a drone preserves unknown JSON fields; they are not dropped when saving
+- Dense operator surfaces use the compact shorthand `Pn|Hm`
+- Example: `P1|H7` means `Position ID 1 | Hardware ID 7`
+- Compact shorthand is for dashboards, scopes, clusters, and plots only; edit forms keep the explicit labels `Position ID` and `Hardware ID`
 
 ## Validation
 

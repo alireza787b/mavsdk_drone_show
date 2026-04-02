@@ -280,7 +280,7 @@
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
-    min-height: 58px;
+    min-height: 56px;
     box-shadow: none;
     text-align: left;
     isolation: isolate;
@@ -329,7 +329,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    min-height: 2.25rem;
+    min-height: 0;
     flex: 1;
 }
 
@@ -339,8 +339,8 @@
     width: 100%;
     color: inherit;
     font-weight: var(--font-weight-bold);
-    line-height: 1.15;
-    min-height: 1.4rem;
+    line-height: 1.2;
+    min-height: 0;
 }
 
 .action-button__summary {
@@ -437,7 +437,7 @@
 }
 
 .modal-content {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+    background: var(--color-surface-raised);
     color: var(--color-text-primary);
     padding: var(--spacing-2xl);
     border-radius: var(--border-radius-lg);
@@ -470,8 +470,8 @@
 }
 
 .confirm-button {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-    color: var(--color-text-primary);
+    background: var(--color-success);
+    color: var(--color-success-text);
     border: none;
     padding: var(--spacing-base) var(--spacing-lg);
     border-radius: var(--border-radius-base);
@@ -482,14 +482,14 @@
 }
 
 .confirm-button:hover {
-    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+    background: var(--color-success-hover);
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
 
 .cancel-button {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-    color: var(--color-text-primary);
+    background: var(--color-danger);
+    color: var(--color-danger-text);
     border: none;
     padding: var(--spacing-base) var(--spacing-lg);
     border-radius: var(--border-radius-base);
@@ -500,7 +500,7 @@
 }
 
 .cancel-button:hover {
-    background: linear-gradient(135deg, #c62828, var(--color-danger));
+    background: var(--color-danger-hover);
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
@@ -539,7 +539,7 @@
         grid-template-columns: 2.1rem minmax(0, 1fr);
         padding: var(--spacing-base);
         font-size: var(--font-size-sm);
-        min-height: 72px;
+        min-height: 60px;
     }
 
     .action-icon {
@@ -601,7 +601,7 @@
     }
 
     .action-button {
-        min-height: 64px;
+        min-height: 58px;
     }
 }
 

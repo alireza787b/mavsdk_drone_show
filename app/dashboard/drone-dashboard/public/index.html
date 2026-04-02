@@ -52,10 +52,16 @@
           root.classList.add('theme-' + resolvedTheme);
           root.setAttribute('data-theme', resolvedTheme);
           root.style.colorScheme = resolvedTheme;
+          root.style.backgroundColor = resolvedTheme === 'light' ? '#f8fbfd' : '#09111c';
 
           var themeMeta = document.querySelector('meta[name="theme-color"]');
           if (themeMeta) {
             themeMeta.setAttribute('content', resolvedTheme === 'light' ? '#f8fbfd' : '#09111c');
+          }
+
+          var colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+          if (colorSchemeMeta) {
+            colorSchemeMeta.setAttribute('content', resolvedTheme === 'light' ? 'light' : 'dark');
           }
         } catch (error) {
           // Best-effort theme bootstrap only.

@@ -521,15 +521,22 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
         relayLeaders: sortedDrones.filter((drone) => drone.role === 'relayLeader').length,
         followers: sortedDrones.filter((drone) => drone.role === 'follower').length,
       };
+      const leaderIdentity = leaderDrone
+        ? formatCompactDroneIdentity(
+            leaderDrone.pos_id,
+            leaderDrone.hw_id,
+            formatDroneLabel(leaderDrone?.hw_id || cluster.leaderId, 'Leader')
+          )
+        : formatDroneLabel(cluster.leaderId, 'Leader');
 
       return {
         ...cluster,
         drones: sortedDrones,
         title: cluster.type === 'cluster'
-          ? `Leader ${formatDroneLabel(leaderDrone?.hw_id || cluster.leaderId, 'Drone')}`
-          : 'Attention Required',
+          ? `${leaderIdentity} cluster`
+          : 'Needs review',
         subtitle: cluster.type === 'cluster'
-          ? `${formatShowSlotLabel(leaderDrone?.pos_id || cluster.leaderId, 'Show Slot')} cluster`
+          ? `Top-leader cluster · ${counts.total} drone${counts.total === 1 ? '' : 's'}`
           : 'Assignments that cannot be executed safely until corrected',
         counts,
       };

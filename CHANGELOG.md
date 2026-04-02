@@ -12,8 +12,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Added
 - a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
+- explicit operator documentation for compact identity shorthand `Pn|Hm` across the frontend field naming standard and config/identity guides, so recovered checkpoints and new operators can read dashboard scope labels without guessing
 
 ### Fixed
+- mobile theme application now updates the document root, body, `theme-color`, and `color-scheme` together, so Auto/Light mode reads more consistently on handheld browsers instead of inheriting a stale dark-biased frame state
+- Mission Config and Drone Detail light-theme surfaces now use brighter, token-driven shadows and status chips, remove several dark-only hardcoded accents, and tighten the top identity summary cards for handheld audits
 - dashboard theme selection now bootstraps before React mounts, so mobile Auto/Light mode applies on first paint instead of flashing the wrong palette
 - dashboard webfont loading now matches the design system (`IBM Plex Sans` / `IBM Plex Mono`) instead of falling back to older mismatched type choices
 - compact operator identity now standardizes on `Pn|Hm` for dense control surfaces where slot and hardware truth both matter, and that format now feeds cluster-scope labels, swarm follow-option labels, plot hover text, and dashboard search terms/tooltips instead of mixing longer ad hoc variants

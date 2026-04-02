@@ -79,6 +79,7 @@
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
   background: var(--color-surface-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border-light);
 }
 
 .theme-segment {
@@ -105,13 +106,18 @@
 }
 
 .theme-segment.active {
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   border-color: var(--color-primary-border);
   box-shadow: var(--shadow-sm);
 }
 
 .theme-segment .theme-icon {
+  color: inherit;
+}
+
+.theme-segment.active .theme-label,
+.theme-segment.active .theme-icon {
   color: inherit;
 }
 

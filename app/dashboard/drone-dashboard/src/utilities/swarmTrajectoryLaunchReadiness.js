@@ -157,6 +157,7 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   error = null,
   targetMode = 'all',
   selectedDrones = [],
+  targetDroneIds = [],
 } = {}) => {
   const blockers = [];
   const warnings = [];
@@ -194,16 +195,19 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
   const packageStats = clusterStatus?.package_stats?.available
     ? normalizePackageStats(clusterStatus.package_stats)
     : aggregatePackageStats(Object.values(clusterStatus?.package_drone_stats || {}));
-  const isSelectedScope = targetMode === 'selected' && selectedDrones.length > 0;
-  const selectionScope = buildSelectionScope(clusterStatus, selectedDrones);
-  const scopeClusterCount = isSelectedScope ? selectionScope.targetedClusters.length : clusterCount;
-  const scopeReadyClusterCount = isSelectedScope
+  const scopedTargetIds = Array.isArray(targetDroneIds) && targetDroneIds.length > 0
+    ? targetDroneIds
+    : selectedDrones;
+  const isScopedTarget = targetMode !== 'all' && scopedTargetIds.length > 0;
+  const selectionScope = buildSelectionScope(clusterStatus, scopedTargetIds);
+  const scopeClusterCount = isScopedTarget ? selectionScope.targetedClusters.length : clusterCount;
+  const scopeReadyClusterCount = isScopedTarget
     ? selectionScope.scopeReadyClusterCount
     : readyClusterCount;
-  const scopedProcessedDroneCount = isSelectedScope
+  const scopedProcessedDroneCount = isScopedTarget
     ? Array.from(selectionScope.selectedSet).filter((droneId) => selectionScope.processedSet.has(droneId)).length
     : processedDroneCount;
-  const scopePackageStats = isSelectedScope
+  const scopePackageStats = isScopedTarget
     ? aggregatePackageStats(
         Array.from(selectionScope.selectedSet)
           .map((droneId) => getPackageDroneStat(clusterStatus?.package_drone_stats, droneId))
@@ -245,7 +249,7 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
       }
     }
 
-    if (isSelectedScope) {
+    if (isScopedTarget) {
       const outOfScopeIncompleteClusters = selectionScope.untargetedClusters.filter(
         (cluster) => !cluster.ready || (cluster.issues?.length || 0) > 0,
       ).length;
@@ -327,15 +331,15 @@ export const buildSwarmTrajectoryLaunchReadiness = ({
       scopePackageStats,
       session,
       overallState: summary.overall_state || 'unknown',
-      scopeMode: isSelectedScope ? 'selected' : 'all',
+      scopeMode: isScopedTarget ? targetMode : 'all',
       scopeClusterCount,
       scopeReadyClusterCount,
-      scopeTargetDroneCount: isSelectedScope ? selectionScope.selectedSet.size : expectedDroneCount,
+      scopeTargetDroneCount: isScopedTarget ? selectionScope.selectedSet.size : expectedDroneCount,
       scopeProcessedDroneCount: scopedProcessedDroneCount,
-      outOfScopeIncompleteClusterCount: isSelectedScope
+      outOfScopeIncompleteClusterCount: isScopedTarget
         ? selectionScope.untargetedClusters.filter((cluster) => !cluster.ready || (cluster.issues?.length || 0) > 0).length
         : 0,
-      scopeSelectionIssueCount: isSelectedScope ? selectionScope.selectionIssues.length : 0,
+      scopeSelectionIssueCount: isScopedTarget ? selectionScope.selectionIssues.length : 0,
     },
   };
 };

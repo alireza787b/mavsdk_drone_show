@@ -66,7 +66,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: var(--spacing-base) var(--spacing-base) var(--spacing-base) calc(var(--spacing-base) + 4px);
+  padding: 0.85rem 0.95rem 0.8rem calc(0.95rem + 4px);
   background: var(--header-bg-color, var(--color-surface-muted));
   border-bottom: 1px solid var(--color-border-secondary);
   position: relative;
@@ -92,17 +92,17 @@
 .drone-id-section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: 0.2rem;
   min-width: 0;
   flex: 1;
 }
 
 .drone-title {
-  font-size: var(--font-size-xl);
+  font-size: clamp(1.05rem, 2.1vw, 1.2rem);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
-  font-family: var(--font-family-primary);
-  margin: 0 0 var(--spacing-xs) 0;
+  font-family: var(--font-family-mono);
+  margin: 0;
   line-height: var(--line-height-tight);
   text-shadow: none;
   position: relative;
@@ -111,13 +111,13 @@
 .drone-title::after {
   content: '';
   position: absolute;
-  bottom: -2px;
+  bottom: -1px;
   left: 0;
-  width: 26px;
+  width: 22px;
   height: 2px;
   background: var(--card-accent-color, var(--color-primary));
   border-radius: 1px;
-  opacity: 0.6;
+  opacity: 0.45;
 }
 
 .identity-kicker {
@@ -160,7 +160,7 @@
 .assignment-summary {
   margin: 0;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
 }
 
@@ -200,17 +200,17 @@
   font-weight: var(--font-weight-semibold);
   padding: 2px 6px;
   border-radius: 3px;
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #92400e;
-  border: 1px solid #f59e0b;
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
   cursor: help;
   transition: all 0.2s;
   vertical-align: middle;
 }
 
 .role-swap-badge:hover {
-  background: linear-gradient(135deg, #fde68a, #fcd34d);
-  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--color-warning-light) 72%, var(--color-bg-primary));
+  box-shadow: var(--shadow-sm);
 }
 
 /* Status Badge - Right aligned */
@@ -226,12 +226,12 @@
   gap: var(--spacing-xs);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  padding: var(--spacing-sm) var(--spacing-base);
+  padding: 0.4rem 0.7rem;
   border-radius: var(--border-radius-base);
   text-transform: none;
   letter-spacing: 0.2px;
   white-space: nowrap;
-  min-height: 32px;
+  min-height: 30px;
 }
 
 .status-text {
@@ -271,18 +271,18 @@
 /* Main Content - Left-aligned Grid */
 .drone-content {
   display: grid;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-base) var(--spacing-base) var(--spacing-base) calc(var(--spacing-base) + 4px);
+  gap: var(--spacing-sm);
+  padding: 0.8rem 0.95rem 0.9rem calc(0.95rem + 4px);
 }
 
 .identity-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
 }
 
 .identity-tile {
-  padding: var(--spacing-sm);
+  padding: 0.6rem 0.7rem;
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-secondary));
@@ -301,15 +301,15 @@
 .identity-value {
   display: block;
   color: var(--color-text-primary);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
 }
 
 .identity-tile small {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--color-text-secondary);
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
 }
 
 .custom-field-section {
@@ -764,9 +764,9 @@
 }
 
 .suggestion-chip.active {
-  background: rgba(59, 130, 246, 0.16);
-  color: #bfdbfe;
-  border-color: rgba(59, 130, 246, 0.45);
+  background: var(--color-primary-light);
+  color: var(--color-text-primary);
+  border-color: var(--color-primary-border);
 }
 
 .custom-field-editor-list {
@@ -775,9 +775,9 @@
 }
 
 .custom-field-editor-card {
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
-  background: rgba(15, 23, 42, 0.28);
+  background: var(--color-surface-inset);
   padding: var(--spacing-sm);
   min-width: 0;
 }
@@ -801,18 +801,18 @@
   align-self: end;
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  border: 1px solid var(--color-danger-border);
   border-radius: var(--border-radius-sm);
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
   cursor: pointer;
   transition: var(--transition-base);
   flex-shrink: 0;
 }
 
 .custom-field-remove-button:hover {
-  background: rgba(239, 68, 68, 0.18);
-  color: #fee2e2;
+  background: color-mix(in srgb, var(--color-danger-light) 72%, var(--color-bg-primary));
+  color: var(--color-text-primary);
 }
 
 .custom-field-empty-state {
@@ -821,7 +821,7 @@
   padding: var(--spacing-base);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  background: rgba(15, 23, 42, 0.22);
+  background: var(--color-surface-inset);
 }
 
 .assignment-status-callout {
@@ -832,21 +832,21 @@
 }
 
 .assignment-status-callout.default {
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #86efac;
+  background: var(--color-success-light);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success-text);
 }
 
 .assignment-status-callout.role-swap {
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #bfdbfe;
+  background: var(--color-info-light);
+  border: 1px solid var(--color-info-border);
+  color: var(--color-info-text);
 }
 
 .assignment-status-callout.attention {
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fde68a;
+  background: var(--color-warning-light);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
 }
 
 .input-with-icon {
@@ -905,7 +905,6 @@
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   overflow: hidden;
-  margin-top: var(--spacing-sm);
   background: var(--color-surface-raised);
 }
 
@@ -925,9 +924,9 @@
 
 .network-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm);
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: var(--spacing-xs);
+  padding: 0.7rem;
   background: var(--color-surface-raised);
 }
 
@@ -936,7 +935,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  padding: 0.75rem;
+  padding: 0.65rem 0.7rem;
   font-size: var(--font-size-sm);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
@@ -979,6 +978,12 @@
   background: var(--color-danger-light);
   color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
+}
+
+.network-status.simulated {
+  background: var(--color-info-light);
+  color: var(--color-info-text);
+  border: 1px solid var(--color-info-border);
 }
 
 .network-status.unknown {
@@ -1272,7 +1277,7 @@ input:checked + .slider:before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;

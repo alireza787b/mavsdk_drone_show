@@ -31,6 +31,8 @@ const MissionDetails = ({
   description,
   targetMode = 'all',
   selectedDrones = [],
+  targetDroneIds = [],
+  targetSummaryLabel = 'All targeted drones',
   scheduleMode,
   timeDelay,
   selectedDateTime,
@@ -99,6 +101,7 @@ const MissionDetails = ({
     error: swarmTrajectoryStatusError,
     targetMode,
     selectedDrones,
+    targetDroneIds,
   });
   const swarmTrajectoryBlockers = swarmTrajectoryReadiness.blockers;
   const swarmTrajectoryWarnings = swarmTrajectoryReadiness.warnings;
@@ -438,9 +441,13 @@ const MissionDetails = ({
     );
   };
 
-  const targetScopeSummary = targetMode === 'selected'
-    ? `${selectedDrones.length} selected drone${selectedDrones.length === 1 ? '' : 's'}`
-    : 'All targeted drones';
+  const targetScopeSummary = targetSummaryLabel || (
+    targetMode === 'selected'
+      ? `${selectedDrones.length} selected drone${selectedDrones.length === 1 ? '' : 's'}`
+      : targetMode === 'cluster'
+        ? `${targetDroneIds.length} clustered drone${targetDroneIds.length === 1 ? '' : 's'}`
+        : 'All targeted drones'
+  );
   const scheduleModeSummary = scheduleMode === COMMAND_SCHEDULE_MODES.NOW
     ? 'Immediate'
     : scheduleMode === COMMAND_SCHEDULE_MODES.DELAY
@@ -448,24 +455,20 @@ const MissionDetails = ({
       : 'Exact UTC';
   const missionBriefItems = {
     [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: [
-      'Launches the active processed SkyBrush package with shared fleet timing.',
-      'Best used after launch slots, origin truth, and readiness checks are verified.',
-      'Choose LOCAL or GLOBAL deliberately. Do not rely on mode labels alone.',
+      'Runs the active processed SkyBrush package with shared fleet timing.',
+      'Verify launch slots, origin truth, and control mode before dispatch.',
     ],
     [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: [
       'Replays the active custom CSV relative to each aircraft launch point.',
-      'Use for controlled protocol work, not the standard show workflow.',
       'Confirm the active file and preview before dispatch.',
     ],
     [DRONE_MISSION_TYPES.SMART_SWARM]: [
       'Starts the published leader-follower topology from Swarm Design.',
-      'Leaders, followers, and offsets must already be reviewed as an operator package.',
-      'Expect live intervention and override discipline during execution.',
+      'Review leaders, followers, and override doctrine before launch.',
     ],
     [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: [
       'Dispatches the processed leader-route package across the current cluster scope.',
-      'Use after plots, timing, and cluster readiness are reviewed together.',
-      'Treat the generated package as a launch artifact, not a draft workspace.',
+      'Review plots, timing, and cluster readiness before launch.',
     ],
   }[missionType] || [];
 

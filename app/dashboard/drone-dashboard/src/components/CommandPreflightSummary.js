@@ -16,20 +16,22 @@ function normalizeId(value) {
 const CommandPreflightSummary = ({
   drones = [],
   targetMode = 'all',
-  selectedDrones = [],
+  targetDroneIds = [],
+  targetSummaryLabel = '',
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
 }) => {
   const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry('/git-status', 15000);
 
   const summary = useMemo(() => {
-    const selectedLookup = new Set(selectedDrones.map((value) => normalizeId(value)).filter(Boolean));
-    const targetDrones = targetMode === 'selected'
-      ? drones.filter((drone) => selectedLookup.has(normalizeId(drone?.[FIELD_NAMES.HW_ID])))
+    const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));
+    const isScopedTarget = targetMode !== 'all';
+    const targetDrones = isScopedTarget
+      ? drones.filter((drone) => scopedLookup.has(normalizeId(drone?.[FIELD_NAMES.HW_ID])))
       : drones;
 
     const counts = {
-      configured: targetMode === 'selected' ? selectedLookup.size : drones.length,
+      configured: isScopedTarget ? scopedLookup.size : drones.length,
       online: 0,
       degraded: 0,
       unavailable: 0,
@@ -130,7 +132,7 @@ const CommandPreflightSummary = ({
       exceptions: exceptions.slice(0, 8),
       gcsBranch: gcsGitStatus?.branch || gcsGitStatus?.current_branch || '',
     };
-  }, [drones, gitStatusResponse, referenceNowMs, selectedDrones, targetMode]);
+  }, [drones, gitStatusResponse, referenceNowMs, targetDroneIds, targetMode]);
 
   const gitReadyCount = summary.counts.configured - summary.git.unknown;
   const gitStatusLabel = !gitStatusResponse
@@ -181,7 +183,7 @@ const CommandPreflightSummary = ({
       <div className="command-preflight__header">
         <div>
           <h3>Preflight Snapshot</h3>
-          <p>Live link, readiness, armed state, and repo sync for the current scope.</p>
+          <p>Live link, readiness, armed state, and repo sync for {targetSummaryLabel || 'the current scope'}.</p>
         </div>
         <div className="command-preflight__clock">
           <span className="command-preflight__clock-label">Scheduler clock</span>
@@ -225,8 +227,9 @@ const CommandPreflightSummary = ({
 
 CommandPreflightSummary.propTypes = {
   drones: PropTypes.array,
-  targetMode: PropTypes.oneOf(['all', 'selected']),
-  selectedDrones: PropTypes.array,
+  targetMode: PropTypes.oneOf(['all', 'selected', 'cluster']),
+  targetDroneIds: PropTypes.array,
+  targetSummaryLabel: PropTypes.string,
   referenceNowMs: PropTypes.number,
   clockOffsetLabel: PropTypes.string,
 };

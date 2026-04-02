@@ -25,9 +25,9 @@
 .selected-mission-card {
     text-align: left;
     margin-bottom: var(--spacing-base);
-    padding: var(--spacing-base);
+    padding: var(--spacing-base) var(--spacing-lg);
     display: grid;
-    gap: var(--spacing-sm);
+    gap: 0.65rem;
     background: var(--color-bg-primary);
     border-radius: var(--border-radius-md);
     border: 1px solid var(--color-border-secondary);
@@ -93,9 +93,9 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     margin-bottom: 0;
-    line-height: var(--line-height-normal);
+    line-height: 1.55;
     font-family: var(--font-family-primary);
-    max-width: 48rem;
+    max-width: 44rem;
 }
 
 .mission-brief,
@@ -136,7 +136,7 @@
     padding-left: 1.1rem;
     color: var(--color-text-secondary);
     display: grid;
-    gap: var(--spacing-sm);
+    gap: 0.45rem;
 }
 
 .mission-image {

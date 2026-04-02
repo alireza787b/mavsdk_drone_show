@@ -78,12 +78,22 @@
     gap: var(--spacing-base);
 }
 
+.mission-identity-brief__summary {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
 .identity-brief-card {
     background: var(--color-surface-raised);
     border: 1px solid var(--color-border-secondary);
     border-radius: var(--border-radius-md);
     padding: var(--spacing-base);
     box-shadow: var(--shadow-sm);
+}
+
+.mission-identity-brief__summary .identity-brief-card {
+    padding: 0.85rem 1rem;
+    display: grid;
+    gap: 0.3rem;
 }
 
 .identity-brief-card strong {
@@ -93,11 +103,21 @@
     font-size: var(--font-size-base);
 }
 
+.mission-identity-brief__summary .identity-brief-card strong {
+    margin-bottom: 0;
+    font-size: var(--font-size-sm);
+}
+
 .identity-brief-card p {
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     line-height: 1.5;
+}
+
+.mission-identity-brief__summary .identity-brief-card p {
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
 }
 
 .identity-brief-card code {
@@ -121,6 +141,10 @@
     font-weight: var(--font-weight-semibold);
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.mission-identity-brief__summary .identity-brief-label {
+    margin-bottom: 0;
 }
 
 .mission-identity-guide {
@@ -402,7 +426,7 @@
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-xl);
-    box-shadow: var(--shadow-dark-lg);
+    box-shadow: var(--shadow-base);
     /* Removed overflow-y and max-height for better UX */
 }
 
@@ -414,7 +438,7 @@
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
-    box-shadow: var(--shadow-dark-lg);
+    box-shadow: var(--shadow-base);
     display: flex;
     flex-direction: column;
     gap: var(--spacing-base);
@@ -633,7 +657,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--color-overlay);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -648,7 +672,7 @@
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
-    box-shadow: var(--shadow-dark-lg);
+    box-shadow: var(--shadow-lg);
     border: 1px solid var(--color-border-primary);
 }
 
@@ -681,13 +705,13 @@
 }
 
 .role-swap-modal tr:hover {
-    background: var(--color-bg-hover);
+    background: var(--color-bg-secondary);
 }
 
 .role-swap-modal button {
     padding: var(--spacing-sm) var(--spacing-lg);
     background: var(--color-info);
-    color: white;
+    color: var(--color-info-text);
     border: none;
     border-radius: var(--border-radius-base);
     cursor: pointer;
@@ -696,7 +720,7 @@
 }
 
 .role-swap-modal button:hover {
-    background: var(--color-info-hover, #2563eb);
+    background: var(--color-info-hover);
 }
 
 /* Print Styles */

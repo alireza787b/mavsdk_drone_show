@@ -267,7 +267,7 @@ const Overview = ({ setSelectedDrone }) => {
       </header>
 
       <div className="mission-trigger-section">
-        <CommandSender drones={drones} />
+        <CommandSender drones={drones} swarmData={swarmDataFetched} />
       </div>
 
       <div className="connected-drones-header">

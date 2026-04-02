@@ -647,7 +647,7 @@ const MissionConfig = () => {
         <div className="mission-config-page-header__content">
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign airframes to mission slots, verify live identity, and keep per-drone metadata clean.
+            Assign airframes to slots and keep operator identity current.
           </p>
           <div className="mission-config-header-chips" aria-label="Mission configuration focus areas">
             <span className="mission-config-header-chip">Identity</span>
@@ -662,24 +662,24 @@ const MissionConfig = () => {
           <div className="identity-brief-card">
             <span className="identity-brief-label">Hardware ID</span>
             <strong>Airframe identity</strong>
-            <p>Matches the labeled aircraft and runtime companion identity.</p>
+            <p>Labeled airframe and runtime identity.</p>
           </div>
           <div className="identity-brief-card">
             <span className="identity-brief-label">Position ID</span>
             <strong>Mission slot</strong>
-            <p>Selects the assigned show slot or route package.</p>
+            <p>Assigned show or route slot.</p>
           </div>
           <div className="identity-brief-card">
             <span className="identity-brief-label">Role swaps</span>
             <strong>Allowed, but explicit</strong>
-            <p>Use when a spare aircraft must take over another slot without breaking traceability.</p>
+            <p>Use only for deliberate spare takeover.</p>
           </div>
         </div>
 
         <details className="mission-identity-guide">
           <summary>
-            <span>Identity field guide</span>
-            <small>Role swaps, slot ownership, and optional metadata</small>
+            <span>Identity guide</span>
+            <small>Slot ownership, role swaps, optional metadata</small>
           </summary>
           <div className="mission-identity-guide__grid">
             <div className="identity-brief-card">
@@ -690,12 +690,12 @@ const MissionConfig = () => {
             <div className="identity-brief-card">
               <span className="identity-brief-label">Position ID</span>
               <strong>Show slot / trajectory slot</strong>
-              <p>Selects which <code>Drone {'{pos_id}'}.csv</code> trajectory that drone will fly.</p>
+              <p>Selects which <code>Drone {'{pos_id}'}.csv</code> path that airframe will fly.</p>
             </div>
             <div className="identity-brief-card identity-brief-card-wide">
               <span className="identity-brief-label">Operational rule</span>
               <strong>Follow-links still use Hardware ID.</strong>
-              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference the physical leader hardware ID.</p>
+              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference physical leader hardware IDs.</p>
             </div>
             <div className="identity-brief-card">
               <span className="identity-brief-label">Additional fields</span>
@@ -869,7 +869,7 @@ const MissionConfig = () => {
           />
         </label>
         <p className="mission-config-ops-note">
-          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. Filters change the card wall only. {DRONE_SEARCH_HELP_TEXT}
+          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
         </p>
       </section>
 
@@ -879,7 +879,7 @@ const MissionConfig = () => {
           options={clusterScopeOptions}
           selectedId={clusterScope}
           onSelect={setClusterScope}
-          summary="Detected from the current swarm topology. Scope changes the card wall only."
+          summary="Detected from the current saved swarm topology."
         />
       )}
 

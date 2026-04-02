@@ -33,6 +33,9 @@ The MDS project uses a **two-layer identity model**:
 - `hw_id` = "which physical drone" (like a serial number)
 - `pos_id` = "what role/trajectory this drone flies" (like a jersey number)
 - Decoupling allows **hot-swap**: spare drone hw_id=10 can replace failed hw_id=3 by assigning pos_id=3
+- Dense operator-facing dashboard surfaces use the compact shorthand `Pn|Hm`
+- Example: `P3|H10` means `Position ID 3 | Hardware ID 10`
+- The shorthand is for high-density cards, cluster scopes, and plots; configuration forms remain explicit with `Position ID` and `Hardware ID`
 
 This is the **correct architectural pattern** used by all major commercial drone show platforms (Verge Aero, Skybrush/CollMot). However, the MDS implementation has **significant bugs, inconsistencies, and code duplication** that must be fixed.
 

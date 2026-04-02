@@ -30,28 +30,28 @@ import '../styles/MissionTrigger.css';
 const MISSION_PRESENTATIONS = {
   [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: {
     icon: FaBroadcastTower,
-    category: 'Synchronized show',
+    category: 'Show',
     cardLabel: 'Drone Show',
-    summary: 'Launch the active SkyBrush package.',
+    summary: 'Run the active SkyBrush package.',
     note: 'Full mode: Drone Show from CSV. Verify geometry and launch readiness first.',
   },
   [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: {
     icon: FaFileAlt,
-    category: 'Custom protocol',
+    category: 'Custom',
     cardLabel: 'Custom Show',
-    summary: 'Replay the imported custom CSV.',
+    summary: 'Run the imported custom CSV.',
     note: 'Full mode: Custom CSV Drone Show. Use for controlled protocol runs, not the normal show pipeline.',
   },
   [DRONE_MISSION_TYPES.SMART_SWARM]: {
     icon: FaProjectDiagram,
-    category: 'Live formation',
+    category: 'Swarm',
     cardLabel: 'Smart Swarm',
-    summary: 'Start the published leader-follower topology.',
+    summary: 'Start the saved swarm topology.',
     note: 'Confirm roles, offsets, and override doctrine first.',
   },
   [DRONE_MISSION_TYPES.SWARM_TRAJECTORY]: {
     icon: FaRoute,
-    category: 'Route package',
+    category: 'Route',
     cardLabel: 'Swarm Route',
     summary: 'Dispatch the processed route package.',
     note: 'Full mode: Swarm Trajectory. Use after route processing and launch review.',
@@ -83,6 +83,8 @@ const MissionTrigger = ({
   clockOffsetLabel = null,
   targetMode = 'all',
   selectedDrones = [],
+  targetDroneIds = [],
+  targetSummaryLabel = 'All targeted drones',
 }) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
@@ -244,6 +246,8 @@ const MissionTrigger = ({
               clockOffsetLabel={clockOffsetLabel}
               targetMode={targetMode}
               selectedDrones={selectedDrones}
+              targetDroneIds={targetDroneIds}
+              targetSummaryLabel={targetSummaryLabel}
               onSend={handleSend}
               onBack={handleBack}
             />

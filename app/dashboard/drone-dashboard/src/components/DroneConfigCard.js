@@ -360,6 +360,20 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     : customFieldEntries;
   const visibleCustomFieldEntries = secondaryCustomFieldEntries.slice(0, 3);
   const hiddenCustomFieldCount = Math.max(secondaryCustomFieldEntries.length - visibleCustomFieldEntries.length, 0);
+  const normalizedHeartbeatIp = normalizeRuntimeIp(heartbeatIP);
+  const wifiSsid = typeof networkInfo?.wifi?.ssid === 'string' ? networkInfo.wifi.ssid.trim() : '';
+  const ethernetInterface = typeof networkInfo?.ethernet?.interface === 'string'
+    ? networkInfo.ethernet.interface.trim()
+    : '';
+  const wifiSignalStrength = Number(networkInfo?.wifi?.signal_strength_percent);
+  const hasWifiSignal = Number.isFinite(wifiSignalStrength);
+  const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || hasWifiSignal);
+  const isSitlProfile = !drone.serial_port && ['', '0'].includes(String(drone.baudrate ?? '0'));
+  const showSimulatedNetworkFallback = isSitlProfile && !hasRuntimeConnectivity;
+  const assignmentSummary = isRoleSwap ? `Assigned slot ${compactPosId}` : `Own slot ${compactPosId}`;
+  const trajectorySourceLabel = normalizedPosId
+    ? `Trajectory source: Drone ${normalizedPosId}.csv`
+    : 'Trajectory slot not assigned yet';
 
   return (
     <>
@@ -372,18 +386,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       {/* Card Header */}
       <div className="drone-card-header">
         <div className="drone-id-section">
-          <div className="identity-kicker">Mission Assignment · {compactIdentity}</div>
+          <div className="identity-kicker">{formatDroneLabel(normalizedHwId)}</div>
           <div className="drone-title-row">
-            <h3 className="drone-title">{formatDroneLabel(normalizedHwId)}</h3>
+            <h3 className="drone-title">{compactIdentity}</h3>
             <span className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}>
               {isRoleSwap ? 'Slot swap' : 'Own slot'}
             </span>
           </div>
-          <p className="assignment-summary">
-            {isRoleSwap
-              ? `Assigned to ${compactPosId}`
-              : `${compactPosId} own slot`}
-          </p>
+          <p className="assignment-summary">{assignmentSummary}</p>
           {promotedField && (
             <div className="promoted-field-chip">
               <span className="promoted-field-label">{promotedField.label}</span>
@@ -404,14 +414,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       <div className="drone-content">
         <div className="identity-strip">
           <div className="identity-tile">
-            <span className="identity-label">Hardware ID</span>
+            <span className="identity-label">Hardware / runtime</span>
             <span className="identity-value">{compactHwId}</span>
             <small>Physical drone and runtime identity</small>
           </div>
           <div className="identity-tile">
-            <span className="identity-label">Position ID</span>
+            <span className="identity-label">Mission slot</span>
             <span className="identity-value">{compactPosId}</span>
-            <small>{`Trajectory source: Drone ${normalizedPosId}.csv`}</small>
+            <small>{trajectorySourceLabel}</small>
           </div>
         </div>
 
@@ -486,13 +496,31 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       <div className="network-section">
         <div className="network-header">
           <FontAwesomeIcon icon={faSignal} />
-          Network Information
+          Runtime Connectivity
         </div>
         <div className="network-content">
-          {networkInfo ? (
+          {showSimulatedNetworkFallback ? (
             <>
               <div className="network-row">
-                <span className="network-label">Wi-Fi Network:</span>
+                <span className="network-label">Runtime mode</span>
+                <span className="network-value">
+                  SITL / simulated
+                  <span className="network-status simulated">Expected</span>
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Telemetry path</span>
+                <span className="network-value">{normalizedHeartbeatIp || drone.ip || 'Mission-config runtime path'}</span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Physical links</span>
+                <span className="network-value">Wi-Fi and Ethernet telemetry are not reported in SITL.</span>
+              </div>
+            </>
+          ) : networkInfo ? (
+            <>
+              <div className="network-row">
+                <span className="network-label">Wi-Fi network</span>
                 <span className="network-value">
                   {networkInfo?.wifi?.ssid || 'N/A'}
                   <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
@@ -501,14 +529,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
                 </span>
               </div>
               <div className="network-row">
-                <span className="network-label">Signal:</span>
+                <span className="network-label">Signal</span>
                 <span className="network-value">
                   {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
                   {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
                 </span>
               </div>
               <div className="network-row">
-                <span className="network-label">Ethernet:</span>
+                <span className="network-label">Ethernet</span>
                 <span className="network-value">
                   {networkInfo?.ethernet?.interface || 'N/A'}
                   <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
@@ -519,10 +547,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             </>
           ) : (
             <div className="network-row">
-              <span className="network-label">Status:</span>
+              <span className="network-label">Status</span>
               <span className="network-value">
-                Network data unavailable
-                <span className="network-status unknown">Offline</span>
+                Runtime network telemetry unavailable
+                <span className="network-status unknown">Unknown</span>
               </span>
             </div>
           )}

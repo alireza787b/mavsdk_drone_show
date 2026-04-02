@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import CommandPreflightSummary from './CommandPreflightSummary';
+import ClusterScopeBar from './ClusterScopeBar';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRocket, faCog } from '@fortawesome/free-solid-svg-icons';
@@ -28,15 +29,21 @@ import {
   getDroneDisplayIdentity,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
+import {
+  buildClusterScopeOptions,
+  buildSwarmViewModel,
+  filterClustersByScope,
+} from '../utilities/swarmDesignUtils';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
-const CommandSender = ({ drones }) => {
+const CommandSender = ({ drones, swarmData = null }) => {
   const [activeTab, setActiveTab] = useState('missionTrigger');
-  const [targetMode, setTargetMode] = useState('all'); // 'all' or 'selected'
+  const [targetMode, setTargetMode] = useState('all'); // 'all', 'cluster', or 'selected'
   const [selectedDrones, setSelectedDrones] = useState([]);
   const [targetQuery, setTargetQuery] = useState('');
+  const [selectedClusterScope, setSelectedClusterScope] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
@@ -64,24 +71,90 @@ const CommandSender = ({ drones }) => {
     () => new Set(selectedDrones.map((value) => String(value))),
     [selectedDrones],
   );
-  const targetCount = targetMode === 'selected' ? selectedLookup.size : drones.length;
-  const targetLabel = targetMode === 'selected'
-    ? `${selectedDrones.length} selected drone${selectedDrones.length === 1 ? '' : 's'}`
-    : `all ${drones.length} drone${drones.length === 1 ? '' : 's'}`;
-  const targetDescriptor = targetMode === 'selected'
-    ? `Selected drones: ${selectedDrones.join(', ')}`
-    : 'Target scope: all configured drones';
-  const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
   const visibleSelectionDrones = useMemo(
     () => drones.filter((drone) => matchesDroneSearchQuery(drone, targetQuery)),
     [drones, targetQuery],
   );
+  const swarmViewModel = useMemo(
+    () => (Array.isArray(swarmData) ? buildSwarmViewModel(swarmData, drones) : null),
+    [drones, swarmData],
+  );
+  const clusterTargetOptions = useMemo(
+    () => buildClusterScopeOptions(swarmViewModel?.clusters || [], drones.length)
+      .filter((option) => option.id !== 'all' && option.id !== 'attention'),
+    [drones.length, swarmViewModel?.clusters],
+  );
+  const activeClusterTarget = useMemo(
+    () => clusterTargetOptions.find((option) => String(option.id) === String(selectedClusterScope)) || null,
+    [clusterTargetOptions, selectedClusterScope],
+  );
+  const clusterTargetIds = useMemo(() => {
+    if (!swarmViewModel || !selectedClusterScope) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        filterClustersByScope(swarmViewModel.clusters, selectedClusterScope)
+          .flatMap((cluster) => cluster.drones.map((drone) => String(drone.hw_id))),
+      ),
+    );
+  }, [selectedClusterScope, swarmViewModel]);
+
+  React.useEffect(() => {
+    if (clusterTargetOptions.length === 0) {
+      if (targetMode === 'cluster') {
+        setTargetMode('all');
+      }
+      if (selectedClusterScope) {
+        setSelectedClusterScope('');
+      }
+      return;
+    }
+
+    if (!clusterTargetOptions.some((option) => String(option.id) === String(selectedClusterScope))) {
+      setSelectedClusterScope(String(clusterTargetOptions[0].id));
+    }
+  }, [clusterTargetOptions, selectedClusterScope, targetMode]);
+
+  const scopedTargetIds = useMemo(() => {
+    if (targetMode === 'selected') {
+      return selectedDrones.map((value) => String(value));
+    }
+
+    if (targetMode === 'cluster') {
+      return clusterTargetIds;
+    }
+
+    return [];
+  }, [clusterTargetIds, selectedDrones, targetMode]);
+
+  const targetCount = targetMode === 'selected'
+    ? selectedLookup.size
+    : targetMode === 'cluster'
+      ? clusterTargetIds.length
+      : drones.length;
+  const targetLabel = targetMode === 'selected'
+    ? `${selectedDrones.length} selected drone${selectedDrones.length === 1 ? '' : 's'}`
+    : targetMode === 'cluster'
+      ? `${activeClusterTarget?.label || 'Cluster'} · ${clusterTargetIds.length} drone${clusterTargetIds.length === 1 ? '' : 's'}`
+      : `all ${drones.length} drone${drones.length === 1 ? '' : 's'}`;
+  const targetDescriptor = targetMode === 'selected'
+    ? `Selected drones: ${selectedDrones.join(', ')}`
+    : targetMode === 'cluster'
+      ? (activeClusterTarget?.description || 'Cluster scope follows the current saved Smart Swarm topology.')
+      : 'Target scope: all configured drones';
+  const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
       ? commandData.target_drones.map((value) => String(value))
       : null;
-    const scopedTargets = targetMode === 'selected' ? selectedDrones.map((value) => String(value)) : [];
+    const scopedTargets = targetMode === 'selected'
+      ? selectedDrones.map((value) => String(value))
+      : targetMode === 'cluster'
+        ? clusterTargetIds
+        : [];
     const effectiveTargets = explicitTargets || scopedTargets;
     const effectiveMode = explicitTargets ? 'selected' : targetMode;
 
@@ -89,9 +162,13 @@ const CommandSender = ({ drones }) => {
       effectiveTargets,
       targetLabel: effectiveMode === 'selected'
         ? `${effectiveTargets.length} selected drone${effectiveTargets.length === 1 ? '' : 's'}`
+        : effectiveMode === 'cluster'
+          ? `${activeClusterTarget?.label || 'Cluster'} · ${effectiveTargets.length} drone${effectiveTargets.length === 1 ? '' : 's'}`
         : `all ${drones.length} drone${drones.length === 1 ? '' : 's'}`,
       targetDescriptor: effectiveMode === 'selected'
         ? `Selected drones: ${effectiveTargets.join(', ')}`
+        : effectiveMode === 'cluster'
+          ? (activeClusterTarget?.description || 'Cluster scope follows the current saved Smart Swarm topology.')
         : 'Target scope: all configured drones',
     };
   };
@@ -246,6 +323,10 @@ const CommandSender = ({ drones }) => {
         toast.error('No drones selected. Please select at least one drone.');
         return;
       }
+      if (targetMode === 'cluster' && targetContext.effectiveTargets.length === 0) {
+        toast.error('No executable cluster is selected. Choose a valid cluster target first.');
+        return;
+      }
     }
 
     const missionName = getCommandName(commandData.missionType);
@@ -276,6 +357,8 @@ const CommandSender = ({ drones }) => {
         if (!Array.isArray(commandDataToSend.target_drones) || commandDataToSend.target_drones.length === 0) {
           if (targetMode === 'selected') {
             commandDataToSend.target_drones = selectedDrones.map((value) => String(value));
+          } else if (targetMode === 'cluster') {
+            commandDataToSend.target_drones = clusterTargetIds;
           }
         }
 
@@ -363,7 +446,7 @@ const CommandSender = ({ drones }) => {
             <p className="command-sender-eyebrow">Mission dispatch</p>
             <h2 className="command-sender-header">Command Control</h2>
             <p className="command-sender-subheader">
-              Set the target scope, confirm preflight status, then dispatch the mission or action.
+              Set scope, verify readiness, dispatch.
             </p>
           </div>
         </div>
@@ -373,7 +456,7 @@ const CommandSender = ({ drones }) => {
         <div className="target-selection__row">
           <div>
             <label htmlFor="targetMode" className="target-selection__label">Command target</label>
-            <p className="target-selection__hint">Choose the whole fleet or a deliberate subset.</p>
+            <p className="target-selection__hint">Whole fleet, one saved cluster, or a manual subset.</p>
           </div>
           <div className="target-selection__controls">
             <span className="target-selection__scope">{targetLabel}</span>
@@ -383,10 +466,30 @@ const CommandSender = ({ drones }) => {
               onChange={(e) => setTargetMode(e.target.value)}
             >
               <option value="all">All Drones</option>
+              {clusterTargetOptions.length > 0 && (
+                <option value="cluster">Cluster</option>
+              )}
               <option value="selected">Select Drones</option>
             </select>
           </div>
         </div>
+
+        {targetMode === 'cluster' && (
+          <div className="drone-selection drone-selection--cluster">
+            <ClusterScopeBar
+              label="Cluster target"
+              options={clusterTargetOptions}
+              selectedId={selectedClusterScope}
+              onSelect={setSelectedClusterScope}
+              summary="Uses the current saved Smart Swarm topology."
+            />
+            <div className="selected-count">
+              {activeClusterTarget
+                ? `${activeClusterTarget.label} · ${clusterTargetIds.length} target drone${clusterTargetIds.length === 1 ? '' : 's'}`
+                : 'No executable clusters are available yet.'}
+            </div>
+          </div>
+        )}
 
         {targetMode === 'selected' && (
             <div className="drone-selection">
@@ -402,8 +505,8 @@ const CommandSender = ({ drones }) => {
                 />
               </label>
               <div className="selection-buttons">
-              <button type="button" onClick={selectVisibleDrones}>Select Visible</button>
-              <button type="button" onClick={deselectAllDrones}>Deselect All</button>
+              <button type="button" onClick={selectVisibleDrones}>Select visible</button>
+              <button type="button" onClick={deselectAllDrones}>Clear</button>
               </div>
             </div>
             <div className="drone-grid">
@@ -426,16 +529,17 @@ const CommandSender = ({ drones }) => {
             </div>
             {visibleSelectionDrones.length === 0 && (
               <div className="drone-selection__empty">
-                No drones match the current search. Search supports position, hardware ID, and promoted callsign/alias fields.
+                No drones match the current search.
               </div>
             )}
             <div className="selected-count">
-              Selected Drones: {selectedDrones.length}
+              Selected: {selectedDrones.length}
               {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
             </div>
-            <p className="drone-selection__note">
-              Search only changes what is visible in the picker. Scope changes only when you explicitly select or deselect targets. Examples: {DRONE_SEARCH_HELP_TEXT}
-            </p>
+            <details className="command-inline-help">
+              <summary>Search help</summary>
+              <p>{DRONE_SEARCH_HELP_TEXT}</p>
+            </details>
           </div>
         )}
       </div>
@@ -443,7 +547,8 @@ const CommandSender = ({ drones }) => {
       <CommandPreflightSummary
         drones={drones}
         targetMode={targetMode}
-        selectedDrones={selectedDrones}
+        targetDroneIds={scopedTargetIds}
+        targetSummaryLabel={targetLabel}
         referenceNowMs={fleetClock.referenceNowMs}
         clockOffsetLabel={clockOffsetLabel}
       />
@@ -578,6 +683,8 @@ const CommandSender = ({ drones }) => {
             clockOffsetLabel={clockOffsetLabel}
             targetMode={targetMode}
             selectedDrones={selectedDrones}
+            targetDroneIds={scopedTargetIds}
+            targetSummaryLabel={targetLabel}
           />
         )}
         {activeTab === 'actions' && (
@@ -594,7 +701,7 @@ const CommandSender = ({ drones }) => {
       {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
       {modalOpen && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={handleCancelSendCommand}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(event) => event.stopPropagation()}>
             <h3>Confirm Command</h3>
             <p>{confirmationMessage}</p>
             <p className="command-confirmation-target-note">
@@ -615,7 +722,7 @@ const CommandSender = ({ drones }) => {
             </div>
           </div>
         </div>,
-        document.body
+        document.body,
       )}
 
       {/* Loading Spinner */}
@@ -630,6 +737,7 @@ const CommandSender = ({ drones }) => {
 
 CommandSender.propTypes = {
   drones: PropTypes.array.isRequired,
+  swarmData: PropTypes.array,
 };
 
 export default CommandSender;

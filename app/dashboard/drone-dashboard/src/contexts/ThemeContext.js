@@ -59,6 +59,7 @@ const setStoredTheme = (theme) => {
 const applyTheme = (theme) => {
   if (typeof document !== 'undefined') {
     const root = document.documentElement;
+    const body = document.body;
 
     // Remove existing theme classes
     root.classList.remove('theme-light', 'theme-dark');
@@ -69,6 +70,15 @@ const applyTheme = (theme) => {
     // Set data attribute for CSS selectors
     root.setAttribute('data-theme', theme);
     root.style.colorScheme = theme;
+    root.style.backgroundColor = theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+
+    if (body) {
+      body.classList.remove('theme-light', 'theme-dark');
+      body.classList.add(`theme-${theme}`);
+      body.setAttribute('data-theme', theme);
+      body.style.colorScheme = theme;
+      body.style.backgroundColor = theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+    }
 
     // Update meta theme-color for mobile browsers
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -76,6 +86,11 @@ const applyTheme = (theme) => {
       metaThemeColor.setAttribute('content',
         theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR
       );
+    }
+
+    const metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+    if (metaColorScheme) {
+      metaColorScheme.setAttribute('content', theme === THEMES.DARK ? 'dark' : 'light');
     }
   }
 };
