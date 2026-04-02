@@ -205,6 +205,27 @@ Typical release flow:
 4. remove obsolete release artifacts you no longer want to keep
 5. update the public docs link only after the new upload is confirmed
 
+The repo now includes a helper for the publish step:
+
+```bash
+bash tools/publish_sitl_release_to_mega.sh \
+  --artifact-dir /path/to/release-dir \
+  --mega-target /Root/mavsdk-drone-show-sitl \
+  --replace-existing \
+  --json
+```
+
+Recommended auth order:
+
+1. reuse an existing MEGAcmd session
+2. or log in with a reusable session string via `mega-session`
+3. only use raw email/password stdin fallback when session reuse is unavailable
+
+Why:
+- the official `mega-login` command accepts `email password` or `session`
+- session reuse avoids putting raw account credentials into the scripted workflow
+- the helper keeps release metadata configurable (`repo`, `branch`, `version`, `commit`, target folder, archive basename) so both operators and AI agents can run the same flow without hardcoded account-specific values
+
 If you maintain your own customer distribution, document:
 - which tag is the approved release
 - which archive file is the public download

@@ -13,11 +13,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
 - explicit operator documentation for compact identity shorthand `Pn|Hm` across the frontend field naming standard and config/identity guides, so recovered checkpoints and new operators can read dashboard scope labels without guessing
+- a 2026-04-02 UI compact checkpoint note covering the Mission Config slot-state compaction, cluster count badge cleanup, explicit graph direction guidance, Hetzner validation results, and the deferred next-phase backlog
+- `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
 - cluster-scope rails now render drone counts as discrete badges instead of parenthetical suffixes, keeping Dashboard, Mission Config, Swarm Design, and Command Control scope chips denser and easier to scan on mobile
 - Mission Config show-slot status now collapses verbose config/heartbeat/auto prose into one compact verified/pending/review state with short source chips, explicit mismatch accept actions, and simulator-aware wording instead of noisy repeated slot sentences
 - Swarm Design follow-chain guidance now states the graph direction explicitly as leader to follower, so operators do not misread the topology while reviewing cluster propagation
+- the official SITL download guide now points to the refreshed MEGA release archive built from `main-candidate` commit `4cfbae9`, so docs, published image tags, and the packaged artifact no longer drift
 - mobile theme application now updates the document root, body, `theme-color`, and `color-scheme` together, so Auto/Light mode reads more consistently on handheld browsers instead of inheriting a stale dark-biased frame state
 - Mission Config and Drone Detail light-theme surfaces now use brighter, token-driven shadows and status chips, remove several dark-only hardcoded accents, and tighten the top identity summary cards for handheld audits
 - dashboard theme selection now bootstraps before React mounts, so mobile Auto/Light mode applies on first paint instead of flashing the wrong palette
