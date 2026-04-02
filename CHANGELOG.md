@@ -15,6 +15,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - explicit operator documentation for compact identity shorthand `Pn|Hm` across the frontend field naming standard and config/identity guides, so recovered checkpoints and new operators can read dashboard scope labels without guessing
 
 ### Fixed
+- cluster-scope rails now render drone counts as discrete badges instead of parenthetical suffixes, keeping Dashboard, Mission Config, Swarm Design, and Command Control scope chips denser and easier to scan on mobile
+- Mission Config show-slot status now collapses verbose config/heartbeat/auto prose into one compact verified/pending/review state with short source chips, explicit mismatch accept actions, and simulator-aware wording instead of noisy repeated slot sentences
+- Swarm Design follow-chain guidance now states the graph direction explicitly as leader to follower, so operators do not misread the topology while reviewing cluster propagation
 - mobile theme application now updates the document root, body, `theme-color`, and `color-scheme` together, so Auto/Light mode reads more consistently on handheld browsers instead of inheriting a stale dark-biased frame state
 - Mission Config and Drone Detail light-theme surfaces now use brighter, token-driven shadows and status chips, remove several dark-only hardcoded accents, and tighten the top identity summary cards for handheld audits
 - dashboard theme selection now bootstraps before React mounts, so mobile Auto/Light mode applies on first paint instead of flashing the wrong palette

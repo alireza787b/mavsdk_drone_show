@@ -725,7 +725,7 @@ function SwarmDesign() {
           <div className="swarm-panel__header">
             <div>
               <h2>Follow Chain Graph</h2>
-              <p>Click any node to select the matching assignment card and inspect its upstream and downstream chain.</p>
+              <p>Arrows flow leader to follower. Click any node to inspect its upstream and downstream chain.</p>
             </div>
           </div>
 
@@ -742,6 +742,7 @@ function SwarmDesign() {
               <span className="legend-item leader">Top leader</span>
               <span className="legend-item relay">Relay leader</span>
               <span className="legend-item follower">Follower</span>
+              <span className="legend-item arrow-flow">Leader to follower</span>
               <span className="legend-item line-solid">Geographic offset</span>
               <span className="legend-item line-dashed">Body-relative offset</span>
             </div>

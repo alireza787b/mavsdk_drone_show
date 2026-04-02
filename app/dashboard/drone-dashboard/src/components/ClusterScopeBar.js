@@ -31,15 +31,17 @@ const ClusterScopeBar = ({
             onClick={() => onSelect(option.id)}
             title={[
               option.label,
-              option.count !== undefined ? `(${option.count})` : '',
+              option.count !== undefined ? `${option.count} drones` : '',
               option.description || '',
             ].filter(Boolean).join(' ')}
             aria-pressed={String(selectedId) === String(option.id)}
           >
-            <span className="cluster-scope-bar__chip-label">
-              {option.label}
-              {option.count !== undefined ? ` (${option.count})` : ''}
-            </span>
+            <span className="cluster-scope-bar__chip-label">{option.label}</span>
+            {option.count !== undefined && (
+              <span className="cluster-scope-bar__chip-count" aria-label={`${option.count} drones`}>
+                {option.count}
+              </span>
+            )}
           </button>
         ))}
       </div>

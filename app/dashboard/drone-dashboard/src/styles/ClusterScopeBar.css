@@ -38,6 +38,7 @@
 .cluster-scope-bar__chip {
   display: inline-flex;
   align-items: center;
+  gap: 0.45rem;
   min-height: 2.3rem;
   padding: 0.45rem 0.8rem;
   border-radius: var(--border-radius-full);
@@ -66,4 +67,26 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.01em;
+}
+
+.cluster-scope-bar__chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45rem;
+  min-height: 1.45rem;
+  padding: 0 0.35rem;
+  border-radius: var(--border-radius-full);
+  background: var(--color-surface-inset);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.cluster-scope-bar__chip.active .cluster-scope-bar__chip-count,
+.cluster-scope-bar__chip:hover .cluster-scope-bar__chip-count {
+  background: rgba(var(--color-primary-rgb), 0.12);
+  border-color: var(--color-primary-border);
 }

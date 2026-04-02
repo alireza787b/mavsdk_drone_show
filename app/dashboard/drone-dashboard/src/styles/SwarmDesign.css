@@ -654,6 +654,16 @@
   border-top-color: #ff9f43;
 }
 
+.legend-item.arrow-flow::before {
+  content: '→';
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  color: #8abfff;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 .swarm-selection-panel {
   display: grid;
   gap: var(--spacing-base);

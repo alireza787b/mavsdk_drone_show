@@ -42,6 +42,7 @@ import {
   serializeMissionConfigFormState,
   validateMissionCustomFields,
 } from '../utilities/missionConfigFields';
+import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
 import '../styles/DroneConfigCard.css';
 
 const SERIAL_PORT_OPTIONS = [
@@ -58,51 +59,6 @@ const BAUDRATE_OPTIONS = [
   { value: '115200', label: '115200 (High Speed)' },
   { value: '921600', label: '921600 (Very High Speed)' },
 ];
-
-/**
- * Compare config, assigned, and auto-detected pos_ids to decide how to display them.
- */
-function determinePositionIdStatus(configPosId, assignedPosId, autoPosId) {
-  const configStr = normalizeComparableId(configPosId);
-  const assignedStr = normalizeComparableId(assignedPosId);
-  const autoStr = normalizeComparableId(autoPosId);
-
-  // Flag if auto is "0" => effectively no auto detection
-  const noAutoDetection = autoStr === '0' || !autoStr;
-
-  // Drone has no heartbeat if there's no assigned pos_id AND no auto pos_id
-  // (i.e. both assignedStr and autoStr are empty).
-  const noHeartbeatData = !assignedStr && !autoStr;
-
-  // Check if all three match
-  const allMatch =
-    configStr &&
-    assignedStr &&
-    configStr === assignedStr &&
-    assignedStr === autoStr;
-
-  // 2 match (config=assigned), but auto detection not available or zero
-  const configAssignedMatchNoAuto =
-    configStr && assignedStr && configStr === assignedStr && noAutoDetection;
-
-  // Any mismatch
-  const anyMismatch =
-    !allMatch &&
-    !configAssignedMatchNoAuto &&
-    !noHeartbeatData &&
-    (configStr !== assignedStr || configStr !== autoStr || assignedStr !== autoStr);
-
-  return {
-    configStr,
-    assignedStr,
-    autoStr,
-    noAutoDetection,
-    noHeartbeatData,
-    allMatch,
-    configAssignedMatchNoAuto,
-    anyMismatch,
-  };
-}
 
 function getCustomFieldValuePreview(field) {
   if (!field) {
@@ -134,17 +90,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   onAcceptConfigFromAuto,
   onAcceptConfigFromHb,
 }) {
-  // Decide how to interpret the various pos_id values
-  const {
-    configStr,
-    assignedStr,
-    autoStr,
-    noAutoDetection,
-    noHeartbeatData,
-    allMatch,
-    configAssignedMatchNoAuto,
-    anyMismatch,
-  } = determinePositionIdStatus(configPosId, assignedPosId, autoPosId);
+  const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
 
   /**
    * Returns the correct heartbeat status icon based on `heartbeatStatus`.
@@ -239,108 +185,67 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
    * Render the show-slot section with logic for no heartbeat, mismatch, etc.
    */
   const renderPositionIdInfo = () => {
-    // 0) If there's no heartbeat data at all => just show config pos_id in a neutral status
-    if (noHeartbeatData) {
-      return (
-        <div className="position-status match">
-          <div className="position-values">
-            <div className="position-value">Configured Slot: {configStr || 'N/A'}</div>
+    return (
+      <div className={`position-status ${slotPresentation.tone}`}>
+        <div className="position-summary">
+          <div>
+            <div className="position-headline">{slotPresentation.headline}</div>
+            <p className="position-detail">{slotPresentation.detail}</p>
           </div>
-          <small>No heartbeat data available yet</small>
+          {slotPresentation.tone === 'verified' && (
+            <FontAwesomeIcon
+              icon={faCheckCircle}
+              className="status-icon all-good"
+              title="Mission slot sources are aligned"
+            />
+          )}
         </div>
-      );
-    }
 
-    // 1) ALL MATCH => single line, green check
-    if (allMatch) {
-      return (
-        <div className="position-status match">
-          <span>All Show Slot Sources Match: {configStr}</span>
-          <FontAwesomeIcon
-            icon={faCheckCircle}
-            className="status-icon all-good"
-            title="Configured, heartbeat-assigned, and auto-detected show slots all agree"
-          />
-          <div className="position-values">
-            <div className="position-value">Configured Slot: {configStr}</div>
-            <div className="position-value">Heartbeat Slot: {assignedStr}</div>
-            <div className="position-value">Auto-detected Slot: {autoStr}</div>
-          </div>
+        <div className="position-source-list">
+          {slotPresentation.chips.map((chip) => (
+            <div
+              key={`${chip.label}-${chip.rawValue || 'missing'}`}
+              className={`position-source-chip ${chip.tone}`}
+              title={`${chip.label === 'Cfg' ? 'Configured slot' : chip.label === 'HB' ? 'Heartbeat slot' : 'Auto-detected slot'}: ${chip.value}`}
+            >
+              <span className="position-source-chip-label">{chip.label}</span>
+              <span className="position-source-chip-value">{chip.value}</span>
+            </div>
+          ))}
         </div>
-      );
-    }
 
-    // 2) config=assigned, but no auto detection => single line, with a yellow icon
-    if (configAssignedMatchNoAuto) {
-      return (
-        <div className="position-status match">
-          <span>Configured Slot Confirmed: {configStr}</span>
-          <FontAwesomeIcon
-            icon={faCheckCircle}
-            className="status-icon all-good"
-            title="Configured and heartbeat-assigned show slots match."
-          />
-          <div className="position-values">
-            <div className="position-value">Configured Slot: {configStr}</div>
-            <div className="position-value">Heartbeat Slot: {assignedStr}</div>
-          </div>
-          <small>Auto-detection unavailable</small>
-        </div>
-      );
-    }
-
-    // 3) ANY mismatch => show each ID, highlight differences, show accept buttons
-    if (anyMismatch) {
-      return (
-        <div className="position-status mismatch">
-          <span>Show Slot Mismatch Detected</span>
-          <small>Review the configured, heartbeat, and detected slot values before flight.</small>
-          <div className="position-values">
-            <div className="position-value">Configured Slot: {configStr || 'N/A'}</div>
-            <div className="position-value">Heartbeat Slot: {assignedStr || 'N/A'}</div>
-            <div className="position-value">Auto-detected Slot: {autoStr || 'N/A'}</div>
-          </div>
-
+        {(slotPresentation.actions.acceptAutoValue || slotPresentation.actions.acceptAssignedValue) && (
           <div className="accept-buttons">
-            {/* If auto != config, show Accept from Auto */}
-            {autoStr && autoStr !== '0' && autoStr !== configStr && (
+            {slotPresentation.actions.acceptAutoValue && (
               <button
                 type="button"
                 className="accept-button"
-                onClick={() => onAcceptConfigFromAuto?.(autoStr)}
+                onClick={() => onAcceptConfigFromAuto?.(slotPresentation.actions.acceptAutoValue)}
                 title="Accept auto-detected show slot"
                 aria-label="Accept auto-detected show slot"
               >
                 <FontAwesomeIcon icon={faCheckCircle} />
-                Accept Auto ({autoStr})
+                Use Auto {`P${slotPresentation.actions.acceptAutoValue}`}
               </button>
             )}
-            {/* If assigned != config, show Accept from HB assigned */}
-            {assignedStr && assignedStr !== configStr && (
+            {slotPresentation.actions.acceptAssignedValue && (
               <button
                 type="button"
                 className="accept-button accept-assigned-btn"
-                onClick={() => onAcceptConfigFromHb?.(assignedStr)}
+                onClick={() => onAcceptConfigFromHb?.(slotPresentation.actions.acceptAssignedValue)}
                 title="Accept heartbeat-assigned show slot"
                 aria-label="Accept heartbeat-assigned show slot"
               >
                 <FontAwesomeIcon icon={faCheckCircle} />
-                Accept Assigned ({assignedStr})
+                Use HB {`P${slotPresentation.actions.acceptAssignedValue}`}
               </button>
             )}
           </div>
+        )}
 
-          {noAutoDetection && (
-            <small>Auto-detection is not available</small>
-          )}
-        </div>
-      );
-    }
-
-    // Fallback: show config if none of the above scenarios match
-    return (
-      <div className="position-status match">
-        <span>Show Slot: {configStr || 'N/A'}</span>
+        {slotPresentation.footnote && (
+          <small className="position-footnote">{slotPresentation.footnote}</small>
+        )}
       </div>
     );
   };
@@ -370,10 +275,12 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || hasWifiSignal);
   const isSitlProfile = !drone.serial_port && ['', '0'].includes(String(drone.baudrate ?? '0'));
   const showSimulatedNetworkFallback = isSitlProfile && !hasRuntimeConnectivity;
-  const assignmentSummary = isRoleSwap ? `Assigned slot ${compactPosId}` : `Own slot ${compactPosId}`;
+  const assignmentSummary = isRoleSwap
+    ? `Mapped to ${compactPosId}`
+    : 'Native slot alignment';
   const trajectorySourceLabel = normalizedPosId
-    ? `Trajectory source: Drone ${normalizedPosId}.csv`
-    : 'Trajectory slot not assigned yet';
+    ? `Source Drone ${normalizedPosId}.csv`
+    : 'Source file pending';
 
   return (
     <>
