@@ -222,7 +222,7 @@ Examples of the intended migration direction:
 - `/command/execution-start` -> `POST /api/v1/command-reports/execution-start`
 - `/command/execution-result` -> `POST /api/v1/command-reports/execution-result`
 - `/git-status` -> `GET /api/v1/git/status`
-- `/sync-repos` -> `POST /api/v1/git/sync-jobs`
+- `/sync-repos` -> `POST /api/v1/git/sync-operations`
 - `/get-origin` and `/set-origin` -> `GET/PUT /api/v1/origin`
 - `/get-origin-for-drone` -> `GET /api/v1/origin/bootstrap`
 - `/elevation` -> `GET /api/v1/origin/elevation`

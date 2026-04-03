@@ -104,11 +104,13 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
 def create_git_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    @router.get("/api/v1/git/status", response_model=GitStatusResponse, tags=["Git"])
     @router.get("/git-status", response_model=GitStatusResponse, tags=["Git"])
     async def get_git_status():
         """Get git status from all drones."""
         return _build_git_status_response(deps)
 
+    @router.post("/api/v1/git/sync-operations", response_model=SyncReposResponse, tags=["Git"])
     @router.post("/sync-repos", response_model=SyncReposResponse, tags=["Git"])
     async def sync_repos(sync_request: SyncReposRequest):
         """Sync git repositories on target drones by dispatching UPDATE_CODE."""

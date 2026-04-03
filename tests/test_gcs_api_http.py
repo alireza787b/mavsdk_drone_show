@@ -1051,6 +1051,26 @@ class TestGitStatusEndpoints:
         assert data['needs_sync_count'] == 0
 
     @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []},
+        '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
+    })
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_get_git_status_v1(self, mock_load_config, mock_gcs_git_report, test_client):
+        """Test GET /api/v1/git/status"""
+        mock_load_config.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+        mock_gcs_git_report.return_value = {'branch': 'main', 'commit': 'abc12345'}
+
+        response = test_client.get("/api/v1/git/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data['git_status']['1']['commit'] == 'abc12345'
+        assert data['gcs_status']['branch'] == 'main'
+
+    @patch('app_fastapi.git_status_data_all_drones', {
         '1': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []},
         '2': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []}
     })
@@ -1115,6 +1135,44 @@ class TestGitStatusEndpoints:
         mock_verify_targets.return_value = ([1], [2])
 
         response = test_client.post('/sync-repos', json={})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is False
+        assert data['synced_drones'] == [1]
+        assert data['failed_drones'] == [2]
+        assert 'partially verified' in data['message']
+
+    @patch('app_fastapi._verify_sync_targets')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_sync_repos_v1_verifies_actual_convergence(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        mock_send_commands,
+        mock_verify_targets,
+        test_client,
+    ):
+        """POST /api/v1/git/sync-operations should verify actual repo convergence."""
+        mock_load_config.return_value = [
+            {'hw_id': '1', 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': '2', 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+        mock_gcs_git_report.return_value = {
+            'branch': 'main-candidate',
+            'commit': 'abc123def456',
+        }
+        mock_send_commands.return_value = {
+            'results': {
+                '1': {'category': 'accepted'},
+                '2': {'category': 'accepted'},
+            }
+        }
+        mock_verify_targets.return_value = ([1], [2])
+
+        response = test_client.post('/api/v1/git/sync-operations', json={})
 
         assert response.status_code == 200
         data = response.json()
@@ -1653,6 +1711,8 @@ class TestAPIV1Aliases:
             "/api/v1/origin/deviations",
             "/api/v1/origin/compute",
             "/api/v1/origin/launch-positions",
+            "/api/v1/git/status",
+            "/api/v1/git/sync-operations",
             "/api/v1/commands",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",

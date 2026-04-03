@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
+import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
@@ -21,7 +22,7 @@ const CommandPreflightSummary = ({
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
 }) => {
-  const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry('/git-status', 15000);
+  const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 15000);
 
   const summary = useMemo(() => {
     const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));

@@ -362,7 +362,7 @@ class DroneGitStatus(BaseModel):
 
 
 class GitStatusResponse(BaseModel):
-    """Response for GET /git-status"""
+    """Response for the unified GCS git-status resource."""
     git_status: Dict[str, DroneGitStatus] = Field(..., description="Git status by pos_id")
     total_drones: int = Field(..., ge=0, description="Total drones")
     synced_count: int = Field(..., ge=0, description="Drones fully synced")
@@ -373,13 +373,13 @@ class GitStatusResponse(BaseModel):
 
 
 class SyncReposRequest(BaseModel):
-    """Request for POST /sync-repos"""
+    """Request for triggering a GCS-managed git sync operation."""
     pos_ids: Optional[List[int]] = Field(None, description="Specific drone IDs to sync (all if empty)")
     force_pull: bool = Field(False, description="Force pull from origin")
 
 
 class SyncReposResponse(BaseModel):
-    """Response for POST /sync-repos"""
+    """Response for a GCS-managed git sync operation."""
     success: bool = Field(..., description="Sync operation status")
     message: str = Field(..., description="Status message")
     synced_drones: List[int] = Field(..., description="Successfully synced drone IDs")

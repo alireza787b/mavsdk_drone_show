@@ -38,7 +38,9 @@ def test_git_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
+    assert "/api/v1/git/status" in routes
     assert "/git-status" in routes
+    assert "/api/v1/git/sync-operations" in routes
     assert "/sync-repos" in routes
     assert "/ws/git-status" in routes
     assert "/get-gcs-git-status" in routes
@@ -56,7 +58,7 @@ def test_git_router_uses_live_verify_dependency_after_router_creation():
     deps._verify_sync_targets = replacement_verify
 
     with TestClient(app) as client:
-        response = client.post("/sync-repos", json={})
+        response = client.post("/api/v1/git/sync-operations", json={})
 
     assert response.status_code == 200
     initial_verify.assert_not_called()
@@ -72,8 +74,8 @@ def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     deps.get_gcs_git_report = replacement_report
 
     with TestClient(app) as client:
-        response = client.get("/get-gcs-git-status")
+        response = client.get("/api/v1/git/status")
 
     assert response.status_code == 200
     replacement_report.assert_called_once()
-    assert response.json()["branch"] == "release"
+    assert response.json()["gcs_status"]["branch"] == "release"

@@ -12,6 +12,7 @@ import {
   getRecentCommandsResponse,
   saveFleetConfigResponse,
   setOriginResponse,
+  syncReposResponse,
   resolveGcsRoute,
   resolveGcsRouteKey,
   saveSwarmConfigResponse,
@@ -53,6 +54,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
     expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
     expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
+    expect(resolveGcsRouteKey('/api/v1/git/status')).toBe(GCS_ROUTE_KEYS.gitStatus);
     expect(resolveGcsRouteKey('/api/v1/origin')).toBe(GCS_ROUTE_KEYS.origin);
     expect(resolveGcsRouteKey('/api/v1/origin/bootstrap')).toBe(GCS_ROUTE_KEYS.originForDrone);
     expect(resolveGcsRouteKey('/api/v1/origin/deviations')).toBe(GCS_ROUTE_KEYS.positionDeviations);
@@ -101,6 +103,18 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/commands/cmd%2Fleader%201',
       {}
+    );
+  });
+
+  it('dispatches git sync through the canonical git sync operation route', async () => {
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await syncReposResponse({ pos_ids: [1, 2] }, { timeout: 3000 });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/git/sync-operations',
+      { pos_ids: [1, 2] },
+      { timeout: 3000 }
     );
   });
 

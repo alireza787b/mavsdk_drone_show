@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical git v1 checkpoint note documenting the fifth Phase 4 GCS route-migration slice, the new `/api/v1/git/status` and `/api/v1/git/sync-operations` routes, the request-log classification cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical origin v1 checkpoint note documenting the fourth Phase 4 GCS route-migration slice, the new `/api/v1/origin*` routes, the bootstrap-resource naming cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical swarm-config v1 checkpoint note documenting the third Phase 4 GCS route-migration slice, the new `/api/v1/config/swarm` and `/api/v1/config/swarm/assignments/{hw_id}` routes, the internal caller migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical fleet-config v1 checkpoint note documenting the second Phase 4 GCS route-migration slice, the new `/api/v1/config/fleet*` aliases, the trajectory-start position contract cleanup, the frontend service migration, and the paired local/Hetzner validation results
@@ -32,6 +33,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the fifth Phase 4 GCS route-migration slice now introduces canonical git routes: `GET /api/v1/git/status` and `POST /api/v1/git/sync-operations`
+- the shared frontend GCS service layer and the remaining active hardcoded dashboard git-status poll now use the canonical git routes instead of reinforcing `/git-status` directly
+- canonical git-sync naming now reflects the real contract: the API performs dispatch plus convergence verification synchronously, so the canonical path is `sync-operations` instead of the earlier provisional `sync-jobs` wording
+- successful canonical git-status polls are now classified as routine `DEBUG` request noise the same way legacy `/git-status` polls were, preventing log-volume regressions during caller migration
+- route inventory, HTTP regressions, router coverage, and dashboard service tests now cover the canonical git surface so later cleanup cannot silently drift from the mounted routes
 - the fourth Phase 4 GCS route-migration slice now introduces canonical origin routes: `GET /api/v1/origin`, `PUT /api/v1/origin`, `GET /api/v1/origin/bootstrap`, `GET /api/v1/navigation/global-origin`, `GET /api/v1/origin/elevation`, `GET /api/v1/origin/deviations`, `POST /api/v1/origin/compute`, and `GET /api/v1/origin/launch-positions`
 - the shared frontend GCS service layer and the Drone Show runtime/validation tooling touched in this slice now use the canonical origin paths instead of reinforcing the older compatibility URLs
 - the canonical origin write contract no longer falsely requires altitude when the dashboard treats it as optional; `PUT /api/v1/origin` now defaults omitted altitude to `0.0` MSL and preserves the explicit `source` field in the typed origin response

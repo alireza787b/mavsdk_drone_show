@@ -290,6 +290,18 @@ Phase 4 third checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is origin canonicalization, followed by the remaining git/show-management cleanup and later legacy-route removal once all active callers have been migrated.
 
+Phase 4 fifth checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the Git surface:
+  - `GET /api/v1/git/status`
+  - `POST /api/v1/git/sync-operations`
+- migrated the shared frontend GCS service layer and the remaining active hardcoded git-status dashboard caller onto the canonical git routes, leaving one current git contract path for UI polling and sync operations
+- deliberately chose `sync-operations` instead of the earlier provisional `sync-jobs` wording, because the live route performs dispatch plus convergence verification synchronously and does not expose a durable background-job resource
+- extended route-inventory, HTTP, router, dashboard-service, and request-log classification coverage to the canonical git surface, and kept the deprecated one-off GCS/drone git endpoints explicitly outside the canonical path
+- revalidated this slice locally and on Hetzner with the focused backend batch, the shared frontend GCS service Jest slice, and the production dashboard build
+
+After this checkpoint, the next clean Phase 4 boundary is show-management canonicalization. That keeps the remaining compatibility cleanup scoped to one domain before we start deliberate legacy-route retirement.
+
 Phase 4 fourth checkpoint on 2026-04-03:
 
 - introduced canonical v1 routes for the Origin surface:

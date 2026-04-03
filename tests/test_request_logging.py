@@ -10,6 +10,7 @@ from request_logging import get_request_log_level, is_routine_success_path
 
 
 def test_routine_success_paths_are_classified_as_debug():
+    assert is_routine_success_path("/api/v1/git/status") is True
     assert is_routine_success_path("/get-origin") is True
     assert is_routine_success_path("/drone-heartbeat") is True
     assert is_routine_success_path("/command/123e4567-e89b-12d3-a456-426614174000") is True
@@ -20,6 +21,7 @@ def test_routine_success_paths_are_classified_as_debug():
     assert is_routine_success_path("/api/logs/stream") is True
     assert is_routine_success_path("/api/logs/drone/1/stream") is True
     assert get_request_log_level("/get-origin", 200) == "DEBUG"
+    assert get_request_log_level("/api/v1/git/status", 200) == "DEBUG"
     assert get_request_log_level("/command/123e4567-e89b-12d3-a456-426614174000", 200) == "DEBUG"
     assert get_request_log_level("/command/execution-result", 200) == "DEBUG"
     assert get_request_log_level("/api/v1/commands/cmd-123", 200) == "DEBUG"

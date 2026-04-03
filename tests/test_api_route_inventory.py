@@ -53,6 +53,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/fleet/trajectory-start-positions",
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
         "/api/v1/config/swarm",
+        "/api/v1/git/status",
         "/api/v1/origin",
         "/api/v1/navigation/global-origin",
         "/api/v1/origin/elevation",
@@ -120,6 +121,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/{command_id}/cancel",
         "/api/v1/command-reports/execution-result",
         "/api/v1/command-reports/execution-start",
+        "/api/v1/git/sync-operations",
         "/api/v1/origin/compute",
         "/save-config-data",
         "/validate-config",
@@ -320,6 +322,8 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("POST", "/api/v1/commands/{command_id}/cancel")].endpoint is route_index[("POST", "/command/{command_id}/cancel")].endpoint
     assert route_index[("POST", "/api/v1/command-reports/execution-start")].endpoint is route_index[("POST", "/command/execution-start")].endpoint
     assert route_index[("POST", "/api/v1/command-reports/execution-result")].endpoint is route_index[("POST", "/command/execution-result")].endpoint
+    assert route_index[("GET", "/api/v1/git/status")].endpoint is route_index[("GET", "/git-status")].endpoint
+    assert route_index[("POST", "/api/v1/git/sync-operations")].endpoint is route_index[("POST", "/sync-repos")].endpoint
     assert route_index[("GET", "/api/v1/config/fleet/trajectory-start-positions/{pos_id}")].endpoint is not route_index[("GET", "/get-trajectory-first-row")].endpoint
     assert route_index[("GET", "/api/v1/config/swarm")].endpoint is not route_index[("GET", "/get-swarm-data")].endpoint
     assert route_index[("PUT", "/api/v1/config/swarm")].endpoint is not route_index[("POST", "/save-swarm-data")].endpoint

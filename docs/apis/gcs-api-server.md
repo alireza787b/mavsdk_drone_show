@@ -1133,7 +1133,14 @@ Use this endpoint to rehydrate command monitors after a dashboard refresh/naviga
 
 ### Git Operations
 
-#### `GET /git-status`
+Canonical git routes are exposed under `/api/v1/...`. Legacy compatibility routes remain mounted during the migration:
+
+- `GET /git-status`
+- `POST /sync-repos`
+- `GET /get-gcs-git-status` *(deprecated)*
+- `GET /get-drone-git-status/{drone_id}` *(deprecated)*
+
+#### `GET /api/v1/git/status`
 Get git status from all drones.
 
 **Response:**
@@ -1141,21 +1148,34 @@ Get git status from all drones.
 {
   "git_status": {
     "1": {
-      "pos_id": 0,
+      "pos_id": 1,
+      "hw_id": "1",
+      "ip": "10.0.0.1",
       "status": "synced",
-      "current_branch": "main",
-      "latest_commit": "abc123"
+      "branch": "main-candidate",
+      "commit": "abc12345",
+      "commit_message": "Phase 4 git cleanup",
+      "in_sync_with_gcs": true,
+      "commits_ahead": 0,
+      "commits_behind": 0,
+      "last_check": 1700000000000
     }
   },
   "total_drones": 10,
   "synced_count": 8,
   "needs_sync_count": 2,
+  "gcs_status": {
+    "branch": "main-candidate",
+    "commit": "abc12345",
+    "status": "clean"
+  },
+  "sync_in_progress": false,
   "timestamp": 1700000000000
 }
 ```
 
 #### `GET /get-gcs-git-status` *(Deprecated)*
-> **Deprecated:** Use `GET /git-status` instead — the `gcs_status` field in the unified response contains the same data.
+> **Deprecated:** Use `GET /api/v1/git/status` instead — the `gcs_status` field in the unified response contains the same data.
 
 **Response:**
 ```json
@@ -1167,7 +1187,7 @@ Get git status from all drones.
 ```
 
 #### `GET /get-drone-git-status/{drone_id}` *(Deprecated)*
-> **Deprecated:** Use `GET /git-status` instead — the `git_status` dict contains all drone statuses keyed by `hw_id`.
+> **Deprecated:** Use `GET /api/v1/git/status` instead — the `git_status` dict contains all drone statuses keyed by `hw_id`.
 
 **Parameters:**
 - `drone_id`: Drone ID
@@ -1181,7 +1201,7 @@ Get git status from all drones.
 }
 ```
 
-#### `POST /sync-repos`
+#### `POST /api/v1/git/sync-operations`
 Sync git repositories on target drones.
 
 **Request:**
@@ -1195,13 +1215,15 @@ Sync git repositories on target drones.
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Sync operation initiated",
-  "synced_drones": [0, 1, 2],
-  "failed_drones": [],
+  "success": false,
+  "message": "Sync partially verified: 2 of 3 drones updated; 1 failed or timed out",
+  "synced_drones": [1, 2],
+  "failed_drones": [3],
   "total_attempted": 3
 }
 ```
+
+This route is synchronous from the API caller perspective: it dispatches the repo update, verifies convergence, and then returns the verified result. That is why the canonical path is modeled as a sync operation, not a background job resource.
 
 ---
 
@@ -1280,6 +1302,8 @@ ws.onmessage = (event) => {
 
 ### `WS /ws/git-status`
 Real-time git status streaming (0.2 Hz).
+
+The WebSocket compatibility path remains `/ws/git-status` in this phase. Canonical HTTP reads are available at `GET /api/v1/git/status`.
 
 **Connection:**
 ```javascript

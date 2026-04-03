@@ -4,6 +4,7 @@ from __future__ import annotations
 
 _ROUTINE_SUCCESS_PATHS = {
     "/api/logs/sources",
+    "/api/v1/git/status",
     "/api/telemetry",
     "/api/v1/commands/active",
     "/api/v1/commands/recent",
