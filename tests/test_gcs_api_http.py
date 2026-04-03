@@ -497,6 +497,35 @@ class TestOriginEndpoints:
         assert data['lat'] == 35.123456
         assert data['source'] == 'manual'
 
+    @patch('app_fastapi.save_origin')
+    @patch('app_fastapi.compute_origin_from_drone')
+    @patch('app_fastapi.get_expected_position_from_trajectory')
+    def test_compute_origin(
+        self,
+        mock_get_expected_position,
+        mock_compute_origin,
+        mock_save_origin,
+        test_client,
+    ):
+        """Test POST /compute-origin"""
+        mock_get_expected_position.return_value = (10.0, 5.0)
+        mock_compute_origin.return_value = (35.555, -120.777)
+
+        response = test_client.post('/compute-origin', json={
+            'current_lat': 35.123456,
+            'current_lon': -120.654321,
+            'pos_id': 1,
+        })
+
+        assert response.status_code == 200
+        assert response.json() == {
+            'status': 'success',
+            'lat': 35.555,
+            'lon': -120.777,
+        }
+        mock_compute_origin.assert_called_once_with(35.123456, -120.654321, 10.0, 5.0)
+        mock_save_origin.assert_not_called()
+
 
 # ============================================================================
 # Show Management Tests
@@ -1089,6 +1118,53 @@ class TestCommandEndpoints:
         assert 'submitted_count' in data
         assert data['tracking_phase'] == 'pending_execution'
         assert data['tracking_timeout_ms'] > 0
+
+    @patch('app_fastapi.load_origin')
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.load_config')
+    def test_submit_command_preserves_valid_zero_origin_coordinates(
+        self,
+        mock_load,
+        mock_send,
+        mock_probe,
+        mock_load_origin,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+        mock_load_origin.return_value = {
+            'lat': 0.0,
+            'lon': 0.0,
+            'alt': 4.5,
+            'timestamp': '2026-04-03T00:00:00',
+            'alt_source': 'manual',
+        }
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
+        mock_send.return_value = {
+            'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '2 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'},
+                '2': {'success': True, 'category': 'accepted'}
+            }
+        }
+
+        response = test_client.post("/submit_command", json={
+            'missionType': 10,
+            'triggerTime': 0,
+            'auto_global_origin': True,
+        })
+
+        assert response.status_code == 200
+        sent_payload = mock_send.call_args[0][1]
+        assert sent_payload['origin']['lat'] == 0.0
+        assert sent_payload['origin']['lon'] == 0.0
+        assert sent_payload['origin']['alt'] == 4.5
 
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_selected')

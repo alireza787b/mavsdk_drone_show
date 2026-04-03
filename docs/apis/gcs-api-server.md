@@ -412,13 +412,14 @@ Get elevation data for coordinates.
 #### `POST /compute-origin`
 Compute origin from drone's current position.
 
+This endpoint is compute-only. It returns the candidate origin and does not persist it. Use `POST /set-origin` to save the result explicitly.
+
 **Request:**
 ```json
 {
   "current_lat": 35.123456,
   "current_lon": -120.654321,
-  "intended_north": 0.0,
-  "intended_east": 0.0
+  "pos_id": 1
 }
 ```
 
@@ -468,6 +469,8 @@ Calculate GPS coordinates for each drone's desired launch position.
 - `heading` (optional): Formation heading (0-359 degrees, default: 0)
 - `format` (optional): Output format (json, csv, kml, default: json)
 
+`heading` is applied before GPS projection. JSON returns the rotated `north` / `east` offsets plus the original trajectory offsets for auditability. `format=csv` and `format=kml` return downloadable attachments.
+
 **Response:**
 ```json
 {
@@ -479,10 +482,13 @@ Calculate GPS coordinates for each drone's desired launch position.
       "latitude": 35.123456,
       "longitude": -120.654321,
       "north": 0.0,
-      "east": 0.0
+      "east": 0.0,
+      "trajectory_north": 0.0,
+      "trajectory_east": 0.0
     }
   ],
-  "total_drones": 10
+  "total_drones": 10,
+  "heading": 0.0
 }
 ```
 

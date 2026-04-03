@@ -213,6 +213,22 @@ def _collect_ws_routes(app):
     }
 
 
+def _find_duplicate_http_method_paths(app):
+    seen = set()
+    duplicates = set()
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        if route.path in DOC_PATHS:
+            continue
+        for method in sorted((route.methods or set()) & HTTP_METHODS):
+            key = (method, route.path)
+            if key in seen:
+                duplicates.add(key)
+            seen.add(key)
+    return duplicates
+
+
 @pytest.fixture
 def gcs_app():
     with patch("app_fastapi.BackgroundServices") as mock_services:
@@ -251,6 +267,10 @@ def test_gcs_business_route_inventory(gcs_app):
 
     assert actual_http == GCS_EXPECTED_HTTP
     assert actual_ws == GCS_EXPECTED_WS
+
+
+def test_gcs_business_route_inventory_has_no_duplicate_method_paths(gcs_app):
+    assert _find_duplicate_http_method_paths(gcs_app) == set()
 
 
 def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):

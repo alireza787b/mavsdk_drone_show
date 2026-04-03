@@ -236,34 +236,33 @@ intended_east: parseFloat(drone.y) || 0,   // ✅ y is East
 
 **Method:** GET
 
+**Notes:**
+- `heading` rotates the formation before GPS projection
+- `format=json|csv|kml` is supported
+- JSON includes both rotated offsets (`north`, `east`) and the unrotated trajectory offsets (`trajectory_north`, `trajectory_east`)
+
 **Response Structure:**
 ```json
 {
-  "success": true,
   "origin": {
     "lat": 37.7749,
     "lon": -122.4194,
-    "alt": 45.5,
-    "source": "drone_telemetry"
+    "alt": 45.5
   },
   "positions": [
     {
       "hw_id": "1",
       "pos_id": "1",
-      "config_north": 10.5,
-      "config_east": 5.2,
-      "desired_lat": 37.774995,
-      "desired_lon": -122.419334,
-      "desired_alt": 45.5
+      "latitude": 37.774995,
+      "longitude": -122.419334,
+      "altitude": 45.5,
+      "north": 9.1,
+      "east": 6.4,
+      "trajectory_north": 10.5,
+      "trajectory_east": 5.2
     }
   ],
-  "formation_stats": {
-    "total_drones": 10,
-    "extent_north_south": 25.3,
-    "extent_east_west": 18.7,
-    "max_distance_from_origin": 31.2,
-    "formation_diameter": 62.4
-  },
+  "total_drones": 10,
   "heading": 0
 }
 ```
@@ -1404,35 +1403,30 @@ Calculate GPS coordinates for all drone launch positions.
 
 **Query Parameters:**
 - `heading` (optional): Formation rotation in degrees (0-359)
+- `format` (optional): `json`, `csv`, or `kml`
 
 **Response:**
 ```json
 {
-  "success": true,
   "origin": {
     "lat": 37.7749,
     "lon": -122.4194,
-    "alt": 45.5,
-    "source": "drone_telemetry"
+    "alt": 45.5
   },
   "positions": [
     {
       "hw_id": "1",
       "pos_id": "1",
-      "config_north": 10.5,
-      "config_east": 5.2,
-      "desired_lat": 37.774995,
-      "desired_lon": -122.419334,
-      "desired_alt": 45.5
+      "latitude": 37.774995,
+      "longitude": -122.419334,
+      "altitude": 45.5,
+      "north": 9.1,
+      "east": 6.4,
+      "trajectory_north": 10.5,
+      "trajectory_east": 5.2
     }
   ],
-  "formation_stats": {
-    "total_drones": 10,
-    "extent_north_south": 25.3,
-    "extent_east_west": 18.7,
-    "max_distance_from_origin": 31.2,
-    "formation_diameter": 62.4
-  },
+  "total_drones": 10,
   "heading": 0
 }
 ```

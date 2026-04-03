@@ -73,8 +73,11 @@ from params import Params
 from enums import Mission
 from get_elevation import get_elevation
 from origin import (
-    compute_origin_from_drone, save_origin, load_origin,
-    calculate_position_deviations
+    build_desired_launch_positions_report,
+    build_position_deviation_report,
+    compute_origin_from_drone,
+    load_origin,
+    save_origin,
 )
 from coordinate_utils import get_expected_position_from_trajectory
 from heartbeat import (
@@ -93,6 +96,7 @@ from sar.routes import router as sar_router
 from api_routes.configuration import create_configuration_router
 from api_routes.core import create_core_router
 from api_routes.git_status import create_git_router
+from api_routes.origin import create_origin_router
 from api_routes.swarm import create_swarm_router
 
 # Import swarm trajectory functions
@@ -572,6 +576,7 @@ app.include_router(sar_router)
 app.include_router(create_core_router(sys.modules[__name__]))
 app.include_router(create_configuration_router(sys.modules[__name__]))
 app.include_router(create_git_router(sys.modules[__name__]))
+app.include_router(create_origin_router(sys.modules[__name__]))
 app.include_router(create_swarm_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
@@ -641,7 +646,11 @@ async def submit_command(request: Request):
         if auto_global_origin:
             try:
                 origin = load_origin()
-                if origin and origin.get('lat') and origin.get('lon'):
+                if (
+                    origin
+                    and origin.get('lat') not in ('', None)
+                    and origin.get('lon') not in ('', None)
+                ):
                     command_data['origin'] = {
                         'lat': float(origin['lat']),
                         'lon': float(origin['lon']),
@@ -1186,82 +1195,6 @@ async def _verify_sync_targets(
     verified_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) in verified_hw_ids)
     failed_pos_ids = sorted(int(d['pos_id']) for d in target_drones if str(d['hw_id']) not in verified_hw_ids)
     return verified_pos_ids, failed_pos_ids
-
-
-# ============================================================================
-# Origin & GPS Endpoints
-# ============================================================================
-
-@app.get("/get-origin", response_model=OriginResponse, tags=["Origin"])
-async def get_origin():
-    """Get current origin coordinates"""
-    try:
-        origin = load_origin()
-        if not origin or not origin.get('lat') or not origin.get('lon'):
-            raise HTTPException(status_code=404, detail="Origin not set")
-
-        # Convert timestamp from ISO string to Unix ms if it exists
-        timestamp_ms = None
-        if origin.get('timestamp'):
-            try:
-                dt = datetime.fromisoformat(origin['timestamp'])
-                timestamp_ms = int(dt.timestamp() * 1000)
-            except (ValueError, TypeError):
-                timestamp_ms = int(time.time() * 1000)
-
-        return OriginResponse(
-            lat=float(origin.get('lat', 0)),
-            lon=float(origin.get('lon', 0)),
-            alt=float(origin.get('alt', 0)),
-            timestamp=timestamp_ms
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_system_error(f"Error in get-origin: {e}", "origin")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/set-origin", response_model=OriginResponse, tags=["Origin"])
-async def set_origin(origin_req: OriginRequest):
-    """Set origin coordinates manually"""
-    try:
-        origin_data = {
-            'lat': origin_req.lat,
-            'lon': origin_req.lon,
-            'alt': origin_req.alt,
-            'alt_source': origin_req.alt_source,
-            'timestamp': datetime.now().isoformat(),
-            'version': 2
-        }
-        save_origin(origin_data)
-
-        return OriginResponse(
-            lat=origin_req.lat,
-            lon=origin_req.lon,
-            alt=origin_req.alt,
-            timestamp=int(time.time() * 1000)
-        )
-    except Exception as e:
-        log_system_error(f"Error setting origin: {e}", "origin")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-gps-global-origin", response_model=GPSGlobalOriginResponse, tags=["Origin"])
-async def get_gps_global_origin():
-    """Get GPS global origin"""
-    try:
-        origin = load_origin()
-        has_origin = bool(origin and origin.get('lat') and origin.get('lon'))
-
-        return GPSGlobalOriginResponse(
-            latitude=float(origin.get('lat', 0)) if origin else 0,
-            longitude=float(origin.get('lon', 0)) if origin else 0,
-            altitude=float(origin.get('alt', 0)) if origin else 0,
-            has_origin=has_origin
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
@@ -2242,352 +2175,6 @@ async def get_custom_show_image():
             return FileResponse(image_path, media_type='image/png')
         else:
             raise HTTPException(status_code=404, detail=f'Custom show image not found at {image_path}')
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# Elevation & Advanced Origin Endpoints
-# ============================================================================
-
-@app.get("/elevation", tags=["Origin"])
-async def get_elevation_endpoint(
-    lat: float = Query(..., description="Latitude"),
-    lon: float = Query(..., description="Longitude")
-):
-    """Get elevation data for coordinates"""
-    try:
-        elevation_data = get_elevation(lat, lon)
-        if elevation_data:
-            return JSONResponse(content=elevation_data)
-        else:
-            raise HTTPException(status_code=500, detail="Failed to fetch elevation data")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-origin-for-drone", tags=["Origin"])
-async def get_origin_for_drone():
-    """
-    Lightweight endpoint for drones to fetch origin before flight.
-    Optimized for drone pre-flight origin fetching.
-    """
-    try:
-        origin = load_origin()
-
-        if not origin or 'lat' not in origin or 'lon' not in origin:
-            raise HTTPException(
-                status_code=404,
-                detail="Origin not set. Use dashboard to set origin."
-            )
-
-        if not origin['lat'] or not origin['lon']:
-            raise HTTPException(
-                status_code=404,
-                detail="Origin coordinates are empty. Please reconfigure origin."
-            )
-
-        return JSONResponse(content={
-            'lat': float(origin['lat']),
-            'lon': float(origin['lon']),
-            'alt': float(origin.get('alt', 0)),
-            'timestamp': origin.get('timestamp', ''),
-            'source': origin.get('alt_source', 'unknown')
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve origin: {str(e)}")
-
-
-@app.get("/get-position-deviations", tags=["Origin"])
-async def get_position_deviations():
-    """
-    Calculate position deviations for all drones.
-    Compares expected positions (from trajectory + origin) with current GPS positions.
-    """
-    try:
-        import math
-        import pymap3d as pm
-
-        # Load origin
-        origin = load_origin()
-        if not origin or 'lat' not in origin or 'lon' not in origin or not origin['lat'] or not origin['lon']:
-            raise HTTPException(status_code=400, detail="Origin coordinates not set on GCS")
-
-        origin_lat = float(origin['lat'])
-        origin_lon = float(origin['lon'])
-        origin_alt = float(origin.get('alt', 0))
-
-        # Load drone config
-        drones_config = load_config()
-        if not drones_config:
-            raise HTTPException(status_code=500, detail="No drones configuration found")
-
-        # Get telemetry data (thread-safe)
-        with telemetry_lock:
-            telemetry_data_copy = telemetry_data_all_drones.copy()
-
-        deviations = {}
-        summary_stats = {
-            'total_drones': len(drones_config),
-            'online': 0,
-            'within_threshold': 0,
-            'warnings': 0,
-            'errors': 0,
-            'no_telemetry': 0,
-            'best_deviation': float('inf'),
-            'worst_deviation': 0,
-            'total_deviation_sum': 0
-        }
-
-        threshold_warning = Params.acceptable_deviation  # e.g., 2.0m
-        threshold_error = threshold_warning * 2.5
-
-        for drone in drones_config:
-            hw_id = drone.get('hw_id')
-            pos_id = drone.get('pos_id', hw_id)
-
-            if not hw_id:
-                continue
-
-            # Get expected position from trajectory CSV
-            sim_mode = getattr(Params, 'sim_mode', False)
-            expected_north, expected_east = get_expected_position_from_trajectory(pos_id, sim_mode)
-
-            if expected_north is None or expected_east is None:
-                deviations[hw_id] = {
-                    "hw_id": hw_id,
-                    "pos_id": pos_id,
-                    "status": "error",
-                    "message": f"Could not read trajectory file for pos_id={pos_id}"
-                }
-                summary_stats['errors'] += 1
-                continue
-
-            # Calculate expected GPS position
-            try:
-                expected_lat, expected_lon, expected_alt = pm.ned2geodetic(
-                    expected_north, expected_east, 0,
-                    origin_lat, origin_lon, origin_alt
-                )
-            except Exception as e:
-                deviations[hw_id] = {
-                    "status": "error",
-                    "message": f"Coordinate conversion error: {str(e)}"
-                }
-                summary_stats['errors'] += 1
-                continue
-
-            # Get current position from telemetry
-            drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_copy, hw_id)
-            current_lat = drone_telemetry.get('position_lat')
-            current_lon = drone_telemetry.get('position_long')
-
-            if current_lat is None or current_lon is None:
-                deviations[hw_id] = {
-                    "hw_id": hw_id,
-                    "pos_id": pos_id,
-                    "expected": {
-                        "lat": expected_lat,
-                        "lon": expected_lon,
-                        "north": expected_north,
-                        "east": expected_east
-                    },
-                    "current": None,
-                    "deviation": None,
-                    "status": "no_telemetry",
-                    "message": "No GPS data available"
-                }
-                summary_stats['no_telemetry'] += 1
-                continue
-
-            try:
-                current_lat = float(current_lat)
-                current_lon = float(current_lon)
-            except (TypeError, ValueError):
-                summary_stats['errors'] += 1
-                continue
-
-            # Convert current GPS to NED
-            current_north, current_east, current_down = pm.geodetic2ned(
-                current_lat, current_lon, origin_alt,
-                origin_lat, origin_lon, origin_alt
-            )
-
-            # Calculate deviations
-            deviation_north = current_north - expected_north
-            deviation_east = current_east - expected_east
-            deviation_horizontal = math.sqrt(deviation_north**2 + deviation_east**2)
-
-            # Determine status
-            if deviation_horizontal > threshold_error:
-                status = 'error'
-                message = f"Deviation exceeds error threshold ({deviation_horizontal:.2f}m > {threshold_error}m)"
-                summary_stats['errors'] += 1
-            elif deviation_horizontal > threshold_warning:
-                status = 'warning'
-                message = f"Deviation exceeds warning threshold ({deviation_horizontal:.2f}m > {threshold_warning}m)"
-                summary_stats['warnings'] += 1
-            else:
-                status = 'ok'
-                message = "Position within acceptable range"
-                summary_stats['within_threshold'] += 1
-
-            summary_stats['online'] += 1
-            summary_stats['total_deviation_sum'] += deviation_horizontal
-            summary_stats['best_deviation'] = min(summary_stats['best_deviation'], deviation_horizontal)
-            summary_stats['worst_deviation'] = max(summary_stats['worst_deviation'], deviation_horizontal)
-
-            deviations[hw_id] = {
-                "hw_id": hw_id,
-                "pos_id": pos_id,
-                "expected": {
-                    "lat": expected_lat,
-                    "lon": expected_lon,
-                    "north": expected_north,
-                    "east": expected_east
-                },
-                "current": {
-                    "lat": current_lat,
-                    "lon": current_lon,
-                    "north": current_north,
-                    "east": current_east
-                },
-                "deviation": {
-                    "north": deviation_north,
-                    "east": deviation_east,
-                    "horizontal": deviation_horizontal,
-                    "within_threshold": deviation_horizontal <= threshold_warning
-                },
-                "status": status,
-                "message": message
-            }
-
-        # Calculate average
-        if summary_stats['online'] > 0:
-            summary_stats['average_deviation'] = summary_stats['total_deviation_sum'] / summary_stats['online']
-        else:
-            summary_stats['average_deviation'] = 0
-
-        if summary_stats['best_deviation'] == float('inf'):
-            summary_stats['best_deviation'] = 0
-
-        del summary_stats['total_deviation_sum']
-
-        return JSONResponse(content={
-            "status": "success",
-            "origin": {
-                "lat": origin_lat,
-                "lon": origin_lon,
-                "alt": origin_alt
-            },
-            "deviations": deviations,
-            "summary": summary_stats
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/compute-origin", tags=["Origin"])
-async def compute_origin_endpoint(request: Request):
-    """Compute origin coordinates from drone's current position and pos_id (trajectory CSV)"""
-    try:
-        import pymap3d as pm
-
-        data = await request.json()
-
-        required_fields = ['current_lat', 'current_lon', 'pos_id']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            raise HTTPException(status_code=400, detail=f"Missing required field(s): {', '.join(missing_fields)}")
-
-        try:
-            current_lat = float(data.get('current_lat'))
-            current_lon = float(data.get('current_lon'))
-            pos_id = data.get('pos_id')
-        except (TypeError, ValueError) as e:
-            raise HTTPException(status_code=400, detail=f"Invalid input data types: {e}")
-
-        # Get intended position from trajectory CSV (single source of truth)
-        sim_mode = getattr(Params, 'sim_mode', False)
-        intended_north, intended_east = get_expected_position_from_trajectory(pos_id, sim_mode)
-
-        if intended_north is None or intended_east is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Could not read trajectory file for pos_id={pos_id}. Ensure trajectory CSV exists."
-            )
-
-        # Compute origin
-        origin_lat, origin_lon = compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east)
-
-        # Save origin
-        save_origin({'lat': origin_lat, 'lon': origin_lon})
-
-        return JSONResponse(content={'status': 'success', 'lat': origin_lat, 'lon': origin_lon})
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-desired-launch-positions", tags=["Origin"])
-async def get_desired_launch_positions(
-    heading: float = Query(0, ge=0, lt=360, description="Formation heading (degrees)"),
-    format: str = Query("json", description="Output format (json/csv/kml)")
-):
-    """Calculate GPS coordinates for each drone's desired launch position"""
-    try:
-        import pymap3d as pm
-
-        origin_data = load_origin()
-        if not origin_data.get('lat') or not origin_data.get('lon'):
-            raise HTTPException(status_code=400, detail="Origin not set")
-
-        origin_lat = float(origin_data['lat'])
-        origin_lon = float(origin_data['lon'])
-        origin_alt = float(origin_data.get('alt', 0))
-
-        drones = load_config()
-        if not drones:
-            raise HTTPException(status_code=404, detail="No drones configured")
-
-        positions = []
-        for drone in drones:
-            pos_id = drone.get('pos_id', drone.get('hw_id'))
-            sim_mode = getattr(Params, 'sim_mode', False)
-
-            north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
-            if north is None or east is None:
-                continue
-
-            lat, lon, alt = pm.ned2geodetic(north, east, 0, origin_lat, origin_lon, origin_alt)
-
-            positions.append({
-                'pos_id': pos_id,
-                'hw_id': drone.get('hw_id'),
-                'latitude': lat,
-                'longitude': lon,
-                'altitude': alt,
-                'north': north,
-                'east': east
-            })
-
-        return JSONResponse(content={
-            'origin': {'lat': origin_lat, 'lon': origin_lon, 'alt': origin_alt},
-            'positions': positions,
-            'total_drones': len(positions),
-            'heading': heading
-        })
-
     except HTTPException:
         raise
     except Exception as e:

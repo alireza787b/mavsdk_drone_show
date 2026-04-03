@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from params import Params
+from pyproj import Proj, Transformer
 from scipy.optimize import minimize
 from coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
 from mds_logging import get_logger
@@ -263,6 +264,271 @@ def calculate_position_deviations(telemetry_data_all_drones, drones_config, orig
         }
 
     return deviations
+
+
+def rotate_north_east(north: float, east: float, heading_deg: float) -> tuple[float, float]:
+    """Rotate formation offsets clockwise by the requested heading."""
+    heading_rad = math.radians(float(heading_deg) % 360.0)
+    rotated_north = (float(north) * math.cos(heading_rad)) - (float(east) * math.sin(heading_rad))
+    rotated_east = (float(north) * math.sin(heading_rad)) + (float(east) * math.cos(heading_rad))
+    return rotated_north, rotated_east
+
+
+def build_position_deviation_report(
+    telemetry_data_all_drones,
+    drones_config,
+    origin_lat: float,
+    origin_lon: float,
+    origin_alt: float = 0.0,
+    trajectory_resolver=None,
+):
+    """Build the richer deviation payload exposed by the GCS API."""
+    import pymap3d as pm
+
+    deviations = {}
+    summary_stats = {
+        'total_drones': len(drones_config),
+        'online': 0,
+        'within_threshold': 0,
+        'warnings': 0,
+        'errors': 0,
+        'no_telemetry': 0,
+        'best_deviation': float('inf'),
+        'worst_deviation': 0,
+        'total_deviation_sum': 0,
+    }
+
+    threshold_warning = Params.acceptable_deviation
+    threshold_error = threshold_warning * 2.5
+    sim_mode = getattr(Params, 'sim_mode', False)
+    resolve_trajectory = trajectory_resolver or (
+        lambda pos_id, current_sim_mode: get_expected_position_from_trajectory(
+            pos_id,
+            current_sim_mode,
+            base_dir=BASE_DIR,
+        )
+    )
+
+    for drone in drones_config:
+        hw_id = drone.get('hw_id')
+        pos_id = drone.get('pos_id', hw_id)
+
+        if not hw_id:
+            continue
+
+        expected_north, expected_east = resolve_trajectory(pos_id, sim_mode)
+
+        if expected_north is None or expected_east is None:
+            deviations[hw_id] = {
+                'hw_id': hw_id,
+                'pos_id': pos_id,
+                'status': 'error',
+                'message': f'Could not read trajectory file for pos_id={pos_id}',
+            }
+            summary_stats['errors'] += 1
+            continue
+
+        try:
+            expected_lat, expected_lon, expected_alt = pm.ned2geodetic(
+                expected_north,
+                expected_east,
+                0,
+                origin_lat,
+                origin_lon,
+                origin_alt,
+            )
+        except Exception as exc:
+            deviations[hw_id] = {
+                'hw_id': hw_id,
+                'pos_id': pos_id,
+                'status': 'error',
+                'message': f'Coordinate conversion error: {exc}',
+            }
+            summary_stats['errors'] += 1
+            continue
+
+        drone_telemetry = _get_telemetry_record_for_hw_id(telemetry_data_all_drones, hw_id)
+        current_lat = drone_telemetry.get('position_lat')
+        current_lon = drone_telemetry.get('position_long')
+
+        if current_lat is None or current_lon is None:
+            deviations[hw_id] = {
+                'hw_id': hw_id,
+                'pos_id': pos_id,
+                'expected': {
+                    'lat': expected_lat,
+                    'lon': expected_lon,
+                    'north': expected_north,
+                    'east': expected_east,
+                },
+                'current': None,
+                'deviation': None,
+                'status': 'no_telemetry',
+                'message': 'No GPS data available',
+            }
+            summary_stats['no_telemetry'] += 1
+            continue
+
+        try:
+            current_lat = float(current_lat)
+            current_lon = float(current_lon)
+        except (TypeError, ValueError):
+            deviations[hw_id] = {
+                'hw_id': hw_id,
+                'pos_id': pos_id,
+                'status': 'error',
+                'message': 'Invalid current position data',
+            }
+            summary_stats['errors'] += 1
+            continue
+
+        current_north, current_east, _current_down = pm.geodetic2ned(
+            current_lat,
+            current_lon,
+            origin_alt,
+            origin_lat,
+            origin_lon,
+            origin_alt,
+        )
+
+        deviation_north = current_north - expected_north
+        deviation_east = current_east - expected_east
+        deviation_horizontal = math.sqrt(deviation_north ** 2 + deviation_east ** 2)
+
+        if deviation_horizontal > threshold_error:
+            status = 'error'
+            message = (
+                f'Deviation exceeds error threshold ({deviation_horizontal:.2f}m > {threshold_error}m)'
+            )
+            summary_stats['errors'] += 1
+        elif deviation_horizontal > threshold_warning:
+            status = 'warning'
+            message = (
+                f'Deviation exceeds warning threshold ({deviation_horizontal:.2f}m > {threshold_warning}m)'
+            )
+            summary_stats['warnings'] += 1
+        else:
+            status = 'ok'
+            message = 'Position within acceptable range'
+            summary_stats['within_threshold'] += 1
+
+        summary_stats['online'] += 1
+        summary_stats['total_deviation_sum'] += deviation_horizontal
+        summary_stats['best_deviation'] = min(summary_stats['best_deviation'], deviation_horizontal)
+        summary_stats['worst_deviation'] = max(summary_stats['worst_deviation'], deviation_horizontal)
+
+        deviations[hw_id] = {
+            'hw_id': hw_id,
+            'pos_id': pos_id,
+            'expected': {
+                'lat': expected_lat,
+                'lon': expected_lon,
+                'north': expected_north,
+                'east': expected_east,
+            },
+            'current': {
+                'lat': current_lat,
+                'lon': current_lon,
+                'north': current_north,
+                'east': current_east,
+            },
+            'deviation': {
+                'north': deviation_north,
+                'east': deviation_east,
+                'horizontal': deviation_horizontal,
+                'within_threshold': deviation_horizontal <= threshold_warning,
+            },
+            'status': status,
+            'message': message,
+        }
+
+    if summary_stats['online'] > 0:
+        summary_stats['average_deviation'] = (
+            summary_stats['total_deviation_sum'] / summary_stats['online']
+        )
+    else:
+        summary_stats['average_deviation'] = 0
+
+    if summary_stats['best_deviation'] == float('inf'):
+        summary_stats['best_deviation'] = 0
+
+    del summary_stats['total_deviation_sum']
+
+    return {
+        'status': 'success',
+        'origin': {
+            'lat': origin_lat,
+            'lon': origin_lon,
+            'alt': origin_alt,
+        },
+        'deviations': deviations,
+        'summary': summary_stats,
+    }
+
+
+def build_desired_launch_positions_report(
+    drones_config,
+    origin_lat: float,
+    origin_lon: float,
+    origin_alt: float = 0.0,
+    heading_deg: float = 0.0,
+    sim_mode: Optional[bool] = None,
+    trajectory_resolver=None,
+):
+    """Build desired launch positions with heading rotation applied."""
+    import pymap3d as pm
+
+    effective_sim_mode = getattr(Params, 'sim_mode', False) if sim_mode is None else bool(sim_mode)
+    normalized_heading = float(heading_deg) % 360.0
+    resolve_trajectory = trajectory_resolver or (
+        lambda pos_id, current_sim_mode: get_expected_position_from_trajectory(
+            pos_id,
+            current_sim_mode,
+            base_dir=BASE_DIR,
+        )
+    )
+    positions = []
+
+    for drone in drones_config:
+        pos_id = drone.get('pos_id', drone.get('hw_id'))
+        raw_north, raw_east = resolve_trajectory(pos_id, effective_sim_mode)
+        if raw_north is None or raw_east is None:
+            continue
+
+        rotated_north, rotated_east = rotate_north_east(raw_north, raw_east, normalized_heading)
+        lat, lon, alt = pm.ned2geodetic(
+            rotated_north,
+            rotated_east,
+            0,
+            origin_lat,
+            origin_lon,
+            origin_alt,
+        )
+
+        positions.append({
+            'pos_id': pos_id,
+            'hw_id': drone.get('hw_id'),
+            'latitude': lat,
+            'longitude': lon,
+            'altitude': alt,
+            'north': rotated_north,
+            'east': rotated_east,
+            'trajectory_north': float(raw_north),
+            'trajectory_east': float(raw_east),
+        })
+
+    positions.sort(key=lambda item: (str(item.get('pos_id')), str(item.get('hw_id'))))
+
+    return {
+        'origin': {
+            'lat': origin_lat,
+            'lon': origin_lon,
+            'alt': origin_alt,
+        },
+        'positions': positions,
+        'total_drones': len(positions),
+        'heading': normalized_heading,
+    }
 
 def compute_origin_from_drone(current_lat, current_lon, intended_north, intended_east):
     """

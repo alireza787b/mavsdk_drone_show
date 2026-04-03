@@ -174,6 +174,17 @@ Phase 3 third checkpoint on 2026-04-03:
 - added focused router-level coverage in `tests/test_gcs_git_routes.py`
 - revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_git_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, `test_gcs_api_http.py`, and `test_gcs_api_websocket.py`
 
+Phase 3 fourth checkpoint on 2026-04-03:
+
+- extracted the Origin domain into `gcs-server/api_routes/origin.py`
+- moved `/get-origin`, `/set-origin`, `/get-gps-global-origin`, `/elevation`, `/get-origin-for-drone`, `/get-position-deviations`, `/compute-origin`, and `/get-desired-launch-positions` behind `create_origin_router(...)`
+- moved the richer origin-domain geometry/report builders into `gcs-server/origin.py`, including the reusable launch-position export payload and deviation-report helpers instead of keeping those calculations embedded in `app_fastapi.py`
+- fixed a latent backend bug in `compute_origin_from_drone(...)` by restoring the missing `pyproj` imports, which previously left the compute-origin path vulnerable to runtime failure when exercised outside mocks
+- corrected the origin contract so `POST /compute-origin` is now a dry-run compute surface that returns the candidate origin without mutating shared origin state; `POST /set-origin` remains the explicit write path
+- corrected the command `auto_global_origin` path so valid `0.0` latitude/longitude origins are preserved instead of being dropped by truthiness checks
+- added focused router-level coverage in `tests/test_gcs_origin_routes.py`, added a broad HTTP test for `/compute-origin`, and added a duplicate-method/path guard to `tests/test_api_route_inventory.py`
+- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_origin_routes.py`, `test_gcs_git_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, `test_gcs_api_http.py`, `test_gcs_api_websocket.py`, and `test_api_route_inventory.py`
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes

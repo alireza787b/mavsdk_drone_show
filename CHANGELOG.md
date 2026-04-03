@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 Origin router extraction checkpoint note documenting the fourth Phase 3 backend route-domain split, the extracted origin/elevation surface, the compute-origin contract cleanup, the launch-position export behavior, and the combined local/Hetzner validation results
 - a 2026-04-03 Git router extraction checkpoint note documenting the third Phase 3 backend route-domain split, the extracted Git REST/WebSocket surface, the preserved sync-helper seam in `app_fastapi.py`, and the combined local/Hetzner validation results
 - a 2026-04-03 Configuration and Swarm router extraction checkpoint note documenting the second Phase 3 backend route-domain split, the modular config/swarm route move, the shared swarm-cycle validation move, the configuration error-status cleanup, and the combined local/Hetzner validation results across the extracted router suites
 - a 2026-04-03 GCS core router extraction checkpoint note documenting the first Phase 3 backend route-domain split, the preserved `app_fastapi` patch seams, and the paired local/Hetzner backend validation results
@@ -23,6 +24,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the fourth Phase 3 backend extraction now moves the full Origin domain into `gcs-server/api_routes/origin.py`, so `app_fastapi.py` no longer owns `/get-origin`, `/set-origin`, `/get-gps-global-origin`, `/elevation`, `/get-origin-for-drone`, `/get-position-deviations`, `/compute-origin`, or `/get-desired-launch-positions`
+- origin geometry/reporting helpers now live in `gcs-server/origin.py` instead of being duplicated inside route handlers, including the richer deviation report and desired-launch-position export payload used by the extracted router
+- `POST /compute-origin` now behaves like the frontend/operator workflow already expects: it computes and returns a candidate origin without silently overwriting shared origin state; `POST /set-origin` remains the only explicit write path for origin persistence
+- `compute_origin_from_drone(...)` now imports the `pyproj` primitives it already depends on, fixing a latent runtime failure path that could raise `NameError` when the origin-compute flow was exercised outside mocks
+- `GET /get-desired-launch-positions` now actually honors its documented `heading` and `format` parameters: heading rotates formation offsets before GPS projection, `format=csv` returns a CSV attachment, and `format=kml` returns a KML attachment instead of those parameters being silently ignored
+- command submission now preserves valid `auto_global_origin` coordinates at latitude/longitude `0.0`, replacing the old truthiness check that incorrectly treated equator/prime-meridian origins as missing
+- route inventory coverage now includes a duplicate method/path guard for the GCS API so future route extractions cannot accidentally double-register a public surface without failing tests
 - the third Phase 3 backend extraction now moves the Git routes into `gcs-server/api_routes/git_status.py`, so `app_fastapi.py` no longer owns `/git-status`, `/sync-repos`, `/ws/git-status`, `/get-gcs-git-status`, or `/get-drone-git-status/{drone_id}`
 - Git route coverage now has focused router-level tests for route registration, live dependency lookup, and sync verification hook usage, closing the gap where Git extraction risk was previously covered only by the broader integration suite
 - the extracted Git websocket now builds its payload from the same shared response builder used by the REST endpoint, keeping the live contract aligned between `/git-status` and `/ws/git-status`
