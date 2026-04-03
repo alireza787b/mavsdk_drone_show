@@ -147,6 +147,14 @@ Phase 2 completion checkpoint on 2026-04-03:
 - extract drone route domains out of `drone_api_server.py`
 - move shared route logic behind service functions instead of handler-local behavior
 
+Phase 3 first checkpoint on 2026-04-03:
+
+- extracted the first coherent GCS route domain into `gcs-server/api_routes/core.py`
+- moved health, telemetry, heartbeat, and heartbeat-derived network-status routes behind `create_core_router(...)` while preserving the existing HTTP/WebSocket surface
+- kept backend compatibility/patch seams stable by having the extracted router read attributes from the live `app_fastapi` module object at request time instead of capturing handler references during import
+- added focused router-level coverage in `tests/test_gcs_core_routes.py`
+- revalidated the extracted surface locally and on Hetzner with the combined `test_gcs_core_routes.py` and `test_gcs_api_http.py` batch
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes

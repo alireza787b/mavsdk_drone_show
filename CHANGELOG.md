@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 GCS core router extraction checkpoint note documenting the first Phase 3 backend route-domain split, the preserved `app_fastapi` patch seams, and the paired local/Hetzner backend validation results
 - a 2026-04-03 API modernization phase 2 completion note documenting the remaining frontend caller migration, dead legacy frontend removal, auth/MCP readiness rules, Hetzner validation results, and the build hardening required for Node 22 on Hetzner
 - a 2026-04-03 API modernization phase 2 checkpoint note documenting the core frontend caller migration onto the centralized GCS service layer, the focused Hetzner validation batch, the production build result, and the remaining route domains for the next slice
 - a 2026-04-03 API contract audit phase 1 note documenting the live GCS/drone route inventory, the main naming and identity inconsistencies, the `/api/v1` migration target, and the staged MCP-ready API cleanup plan
@@ -20,6 +21,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the first Phase 3 backend extraction now moves GCS health, telemetry, heartbeat, and network-status routes into `gcs-server/api_routes/core.py` and mounts them through `create_core_router(...)`, reducing `app_fastapi.py` surface area without changing the live HTTP/WebSocket contract
+- the extracted core router reads dependency attributes from the live `app_fastapi` module object at request time instead of capturing handler references at import time, so existing patch-driven backend tests and future auth/MCP layers keep one stable hook surface during modularization
+- `GET /get-network-info` now returns the live heartbeat-derived network snapshot directly after the core route extraction, removing its stale dependency on the deleted private helper and keeping the legacy compatibility alias working
 - the remaining active Drone Show, Swarm Trajectory, QuickScout, mission-detail, log, and SAR frontend consumers now use the shared GCS route/service layer instead of page-owned backend URLs, so uploads, downloads, static plot URLs, telemetry/config reads, and route-key polling all flow through one contract surface
 - added a shared `apiError` helper and moved upload/import flows onto it, so blob-backed and JSON-backed API failures now resolve through one consistent operator-facing error path instead of each page re-parsing responses differently
 - `buildGcsUrl()` now preserves absolute URLs instead of prefixing them twice, fixing a real service-layer bug exposed by the Swarm Trajectory migration where helper-built absolute URLs could otherwise become invalid request targets

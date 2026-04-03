@@ -90,6 +90,7 @@ from src import __version__ as MDS_VERSION
 
 # Import SAR router
 from sar.routes import router as sar_router
+from api_routes.core import create_core_router
 
 # Import swarm trajectory functions
 from functions import swarm_trajectory_service
@@ -565,6 +566,7 @@ app.add_middleware(
 
 # Register SAR router
 app.include_router(sar_router)
+app.include_router(create_core_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
 from log_background import BackgroundLogPuller
@@ -594,246 +596,6 @@ async def log_requests(request: Request, call_next):
     )
 
     return response
-
-
-# ============================================================================
-# Health & System Endpoints
-# ============================================================================
-
-def _build_health_check_response() -> HealthCheckResponse:
-    """Build the canonical health payload shared by legacy and v1 routes."""
-    return HealthCheckResponse(
-        status="ok",
-        timestamp=int(time.time() * 1000),
-        version=MDS_VERSION
-    )
-
-
-def _build_typed_telemetry_response(response: Optional[Response] = None) -> TelemetryResponse:
-    """Build the typed telemetry payload used by canonical API responses."""
-    online_count = len([
-        d for d in telemetry_data_all_drones.values()
-        if d and d.get("telemetry_available", True)
-    ])
-    if response is not None:
-        response.headers["X-MDS-Server-Time"] = str(int(time.time() * 1000))
-
-    return TelemetryResponse(
-        telemetry=telemetry_data_all_drones,
-        total_drones=len(telemetry_data_all_drones),
-        online_drones=online_count,
-        timestamp=int(time.time() * 1000)
-    )
-
-
-def _build_heartbeat_response() -> HeartbeatResponse:
-    """Build the typed heartbeat payload shared by legacy and v1 routes."""
-    heartbeats_dict = get_all_heartbeats()  # Returns dict {hw_id: {...}}
-
-    # Load drone config to get IP addresses
-    drones_config = load_config()
-    config_lookup = {str(d['hw_id']): d for d in drones_config}
-
-    current_time = time.time()
-    heartbeat_timeout = Params.TELEMETRY_POLLING_TIMEOUT  # Default 10 seconds
-
-    # Transform dict to list of HeartbeatData objects
-    heartbeats_list = []
-    for hw_id, hb_data in heartbeats_dict.items():
-        # Calculate online status based on timestamp
-        last_timestamp = hb_data.get('timestamp', 0)
-        if last_timestamp:
-            # Timestamp is in milliseconds, convert to seconds
-            time_diff = current_time - (last_timestamp / 1000.0)
-            is_online = time_diff < heartbeat_timeout
-        else:
-            is_online = False
-
-        # Calculate latency from network_info if available
-        network_info = hb_data.get('network_info', {})
-        latency_ms = network_info.get('latency_ms') if network_info else None
-
-        # Get IP from heartbeat data, fallback to config, then 'unknown'
-        ip_value = hb_data.get('ip')
-        if ip_value is not None:
-            ip_value = str(ip_value).strip()
-        if ip_value in {"", "unknown", "n/a", "none", None}:
-            # Try to get from config
-            ip_value = config_lookup.get(hw_id, {}).get('ip', 'unknown')
-
-        # Ensure ip is always a string (Pydantic validation requirement)
-        ip_str = str(ip_value) if ip_value else 'unknown'
-
-        # Create HeartbeatData object
-        heartbeat_obj = HeartbeatData(
-            hw_id=str(hw_id),
-            pos_id=int(hb_data.get('pos_id', 0)),
-            ip=ip_str,
-            detected_pos_id=hb_data.get('detected_pos_id'),
-            last_heartbeat=last_timestamp,
-            online=is_online,
-            latency_ms=latency_ms
-        )
-        heartbeats_list.append(heartbeat_obj)
-
-    online_count = len([h for h in heartbeats_list if h.online])
-
-    return HeartbeatResponse(
-        heartbeats=heartbeats_list,
-        total_drones=len(heartbeats_list),
-        online_count=online_count,
-        timestamp=int(time.time() * 1000)
-    )
-
-
-def _build_network_status_response() -> NetworkStatusResponse:
-    """Build the typed network-status payload shared by legacy and v1 routes."""
-    network_info = get_network_info_from_heartbeats()
-    if not isinstance(network_info, dict):
-        network_info = {}
-    reachable_count = len([n for n in network_info.values() if n.get('reachable', False)])
-
-    return NetworkStatusResponse(
-        network_status=network_info,
-        total_drones=len(network_info),
-        reachable_count=reachable_count,
-        timestamp=int(time.time() * 1000)
-    )
-
-
-def _build_network_info_snapshot() -> Dict[str, Any]:
-    """Build the raw per-drone network snapshot for legacy compatibility routes."""
-    return get_network_info_from_heartbeats()
-
-
-def _accept_heartbeat(heartbeat: HeartbeatRequest, request: Request) -> HeartbeatPostResponse:
-    """Handle a heartbeat POST for both legacy and canonical routes."""
-    client_ip = request.client.host if request.client else None
-    heartbeat_ip = heartbeat.ip.strip() if heartbeat.ip else None
-    if heartbeat_ip in {"", "unknown", "n/a", "none"}:
-        heartbeat_ip = None
-
-    handle_heartbeat_post(
-        pos_id=heartbeat.pos_id,
-        hw_id=heartbeat.hw_id,
-        detected_pos_id=heartbeat.detected_pos_id,
-        ip=heartbeat_ip or client_ip,
-        timestamp=heartbeat.timestamp,
-        network_info=heartbeat.network_info,
-    )
-    return HeartbeatPostResponse(
-        success=True,
-        message="Heartbeat received",
-        server_time=int(time.time() * 1000)
-    )
-
-
-@app.get("/api/v1/system/health", response_model=HealthCheckResponse, tags=["System"])
-@app.get("/ping", response_model=HealthCheckResponse, tags=["System"])
-@app.get("/health", response_model=HealthCheckResponse, tags=["System"])
-async def health_check():
-    """Health check endpoint"""
-    return _build_health_check_response()
-
-
-# ============================================================================
-# Telemetry Endpoints
-# ============================================================================
-
-@app.get("/telemetry", tags=["Telemetry"])
-async def get_telemetry():
-    """Get telemetry from all drones (legacy endpoint - returns raw dict)"""
-    return JSONResponse(
-        content=telemetry_data_all_drones,
-        headers={"X-MDS-Server-Time": str(int(time.time() * 1000))},
-    )
-
-
-@app.get("/api/v1/fleet/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
-@app.get("/api/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
-async def get_telemetry_typed(response: Response):
-    """Get telemetry from all drones with typed response"""
-    return _build_typed_telemetry_response(response=response)
-
-
-@app.websocket("/ws/telemetry")
-async def websocket_telemetry(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time telemetry streaming.
-
-    Streams telemetry data at 1 Hz to all connected clients.
-    Much more efficient than HTTP polling (95% less overhead).
-    """
-    await websocket.accept()
-    log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
-
-    try:
-        while True:
-            # Stream current telemetry data
-            message = TelemetryStreamMessage(
-                type="telemetry",
-                timestamp=int(time.time() * 1000),
-                data=telemetry_data_all_drones
-            )
-            await websocket.send_json(message.model_dump())
-            await asyncio.sleep(1.0)  # 1 Hz
-
-    except WebSocketDisconnect:
-        log_system_event("Telemetry WebSocket client disconnected", "INFO", "websocket")
-    except Exception as e:
-        log_system_error(f"Telemetry WebSocket error: {e}", "websocket")
-
-
-# ============================================================================
-# Heartbeat Endpoints
-# ============================================================================
-
-@app.post("/api/v1/fleet/heartbeats", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-@app.post("/heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-@app.post("/drone-heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-async def post_heartbeat(heartbeat: HeartbeatRequest, request: Request):
-    """Receive heartbeat from drone (fire-and-forget)"""
-    try:
-        return _accept_heartbeat(heartbeat, request)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/v1/fleet/heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
-@app.get("/get-heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
-async def get_heartbeats():
-    """Get heartbeat status for all drones"""
-    return _build_heartbeat_response()
-
-
-@app.get("/api/v1/fleet/network-status", response_model=NetworkStatusResponse, tags=["Heartbeat"])
-@app.get("/get-network-status", response_model=NetworkStatusResponse, tags=["Heartbeat"])
-async def get_network_status():
-    """Get network connectivity status for all drones"""
-    return _build_network_status_response()
-
-
-@app.websocket("/ws/heartbeats")
-async def websocket_heartbeats(websocket: WebSocket):
-    """WebSocket endpoint for real-time heartbeat monitoring"""
-    await websocket.accept()
-    log_system_event("Heartbeat WebSocket client connected", "INFO", "websocket")
-
-    try:
-        while True:
-            heartbeats = get_all_heartbeats()
-            message = HeartbeatStreamMessage(
-                type="heartbeat",
-                timestamp=int(time.time() * 1000),
-                data=heartbeats
-            )
-            await websocket.send_json(message.model_dump())
-            await asyncio.sleep(2.0)  # 0.5 Hz
-
-    except WebSocketDisconnect:
-        log_system_event("Heartbeat WebSocket client disconnected", "INFO", "websocket")
-    except Exception as e:
-        log_system_error(f"Heartbeat WebSocket error: {e}", "websocket")
 
 
 # ============================================================================
@@ -3395,7 +3157,7 @@ async def get_drone_git_status(drone_id: int):
 async def get_network_info():
     """Get network connectivity information"""
     try:
-        return JSONResponse(content=_build_network_info_snapshot())
+        return JSONResponse(content=get_network_info_from_heartbeats())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
