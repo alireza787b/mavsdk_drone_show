@@ -261,6 +261,21 @@ Phase 4 first checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is the configuration family: fleet config first, then swarm config/assignment, then origin. That ordering keeps the migration on already-extracted routers with centralized frontend consumers before touching the riskier origin/runtime surfaces, and it sets up cleaner identity semantics (`hw_id` vs `pos_id`) for later MCP-facing configuration tooling.
 
+Phase 4 second checkpoint on 2026-04-03:
+
+- introduced canonical v1 aliases for the fleet configuration surface:
+  - `GET /api/v1/config/fleet`
+  - `PUT /api/v1/config/fleet`
+  - `POST /api/v1/config/fleet/validation`
+  - `GET /api/v1/config/fleet/trajectory-start-positions`
+  - `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
+- migrated the shared frontend GCS service layer onto those canonical fleet-config routes, including `PUT` for config saves and the path-parameter form for per-slot trajectory-start lookups
+- deliberately cleaned the canonical per-position trajectory-start payload to `x` / `y` so it matches the fleet trajectory-position collection and stops mixing `x/y` with `north/east` for the same config-derived concept; the legacy query-string route stays intact with its older field names during rollout
+- extended route-inventory and alias coverage to the canonical fleet-config surface and added focused router coverage for the canonical path-form trajectory-start route
+- revalidated this slice locally with focused configuration/backend/inventory tests and on Hetzner with the same backend batch plus the shared frontend GCS service Jest slice and production build
+
+After this checkpoint, the next clean Phase 4 boundary is swarm configuration and assignment canonicalization, followed by origin once the config-family semantics are stable.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

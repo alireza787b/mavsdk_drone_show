@@ -99,8 +99,10 @@ Same as `/ping`.
 
 ### Configuration Management
 
-#### `GET /get-config-data`
+#### `GET /api/v1/config/fleet`
 Get current drone configuration from config.json.
+
+Legacy compatibility route: `GET /get-config-data`
 
 **Response:**
 ```json
@@ -116,8 +118,10 @@ Get current drone configuration from config.json.
 ]
 ```
 
-#### `POST /save-config-data`
+#### `PUT /api/v1/config/fleet`
 Save drone configuration to config.json.
+
+Legacy compatibility route: `POST /save-config-data`
 
 **Request:**
 ```json
@@ -142,10 +146,12 @@ Save drone configuration to config.json.
 }
 ```
 
-#### `POST /validate-config`
+#### `POST /api/v1/config/fleet/validation`
 Validate configuration without saving.
 
-**Request:** Same as `/save-config-data`
+Legacy compatibility route: `POST /validate-config`
+
+**Request:** Same as `PUT /api/v1/config/fleet`
 
 **Response:**
 ```json
@@ -159,8 +165,10 @@ Validate configuration without saving.
 }
 ```
 
-#### `GET /get-drone-positions`
+#### `GET /api/v1/config/fleet/trajectory-start-positions`
 Get initial positions for all drones from trajectory CSV files.
+
+Legacy compatibility route: `GET /get-drone-positions`
 
 **Response:**
 ```json
@@ -168,27 +176,27 @@ Get initial positions for all drones from trajectory CSV files.
   {
     "hw_id": 1,
     "pos_id": 0,
-    "north": 0.0,
-    "east": 0.0
+    "x": 0.0,
+    "y": 0.0
   }
 ]
 ```
 
-#### `GET /get-trajectory-first-row?pos_id={id}`
-Get expected position from trajectory CSV file.
-
-**Parameters:**
-- `pos_id` (required): Position ID
+#### `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
+Get expected position from a single trajectory CSV file using canonical `x` / `y` naming.
 
 **Response:**
 ```json
 {
   "pos_id": 0,
-  "north": 0.0,
-  "east": 0.0,
+  "x": 0.0,
+  "y": 0.0,
   "source": "Drone 0.csv (first waypoint)"
 }
 ```
+
+Legacy compatibility route: `GET /get-trajectory-first-row?pos_id={id}`
+Legacy compatibility payload keeps `north` / `east`.
 
 ---
 

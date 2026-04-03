@@ -273,13 +273,13 @@ const MissionConfig = () => {
         try {
           const response = await getTrajectoryFirstRowResponse(posId);
 
-          const north = Number(response.data?.north);
-          const east = Number(response.data?.east);
-          if (!Number.isFinite(north) || !Number.isFinite(east)) {
+          const x = Number(response.data?.x ?? response.data?.north);
+          const y = Number(response.data?.y ?? response.data?.east);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) {
             return [posId, null];
           }
 
-          return [posId, { pos_id: posId, x: north, y: east }];
+          return [posId, { pos_id: posId, x, y }];
         } catch (error) {
           return [posId, null];
         }

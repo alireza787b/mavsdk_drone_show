@@ -58,11 +58,11 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.fleetTelemetry]: '/api/v1/fleet/telemetry',
   [GCS_ROUTE_KEYS.fleetHeartbeats]: '/api/v1/fleet/heartbeats',
   [GCS_ROUTE_KEYS.fleetNetworkStatus]: '/api/v1/fleet/network-status',
-  [GCS_ROUTE_KEYS.fleetConfig]: '/get-config-data',
-  [GCS_ROUTE_KEYS.saveFleetConfig]: '/save-config-data',
-  [GCS_ROUTE_KEYS.validateFleetConfig]: '/validate-config',
-  [GCS_ROUTE_KEYS.dronePositions]: '/get-drone-positions',
-  [GCS_ROUTE_KEYS.trajectoryFirstRow]: '/get-trajectory-first-row',
+  [GCS_ROUTE_KEYS.fleetConfig]: '/api/v1/config/fleet',
+  [GCS_ROUTE_KEYS.saveFleetConfig]: '/api/v1/config/fleet',
+  [GCS_ROUTE_KEYS.validateFleetConfig]: '/api/v1/config/fleet/validation',
+  [GCS_ROUTE_KEYS.dronePositions]: '/api/v1/config/fleet/trajectory-start-positions',
+  [GCS_ROUTE_KEYS.trajectoryFirstRow]: '/api/v1/config/fleet/trajectory-start-positions',
   [GCS_ROUTE_KEYS.swarmConfig]: '/get-swarm-data',
   [GCS_ROUTE_KEYS.saveSwarmConfig]: '/save-swarm-data',
   [GCS_ROUTE_KEYS.commandSubmit]: '/api/v1/commands',
@@ -121,6 +121,9 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/validate-config': GCS_ROUTE_KEYS.validateFleetConfig,
   '/get-drone-positions': GCS_ROUTE_KEYS.dronePositions,
   '/get-trajectory-first-row': GCS_ROUTE_KEYS.trajectoryFirstRow,
+  '/api/v1/config/fleet': GCS_ROUTE_KEYS.fleetConfig,
+  '/api/v1/config/fleet/validation': GCS_ROUTE_KEYS.validateFleetConfig,
+  '/api/v1/config/fleet/trajectory-start-positions': GCS_ROUTE_KEYS.dronePositions,
   '/get-swarm-data': GCS_ROUTE_KEYS.swarmConfig,
   '/save-swarm-data': GCS_ROUTE_KEYS.saveSwarmConfig,
   '/submit_command': GCS_ROUTE_KEYS.commandSubmit,
@@ -285,7 +288,7 @@ export async function getFleetHeartbeatsResponse(config = {}) {
 }
 
 export async function saveFleetConfigResponse(payload, config = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.saveFleetConfig, payload, config);
+  return putGcsResource(GCS_ROUTE_KEYS.saveFleetConfig, payload, config);
 }
 
 export async function validateFleetConfigResponse(payload, config = {}) {
@@ -402,13 +405,10 @@ export async function importCustomShowResponse(payload, config = {}) {
 }
 
 export async function getTrajectoryFirstRowResponse(posId, config = {}) {
-  return fetchGcsResource(GCS_ROUTE_KEYS.trajectoryFirstRow, {
-    ...config,
-    params: {
-      ...(config.params || {}),
-      pos_id: posId,
-    },
-  });
+  return fetchGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.trajectoryFirstRow]}/${encodeURIComponent(posId)}`,
+    config,
+  );
 }
 
 export async function getSwarmTrajectoryStatusResponse(config = {}) {

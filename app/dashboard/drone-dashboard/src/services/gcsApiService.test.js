@@ -7,8 +7,10 @@ import {
   buildSarUrl,
   GCS_ROUTE_KEYS,
   getCommandStatusResponse,
+  getTrajectoryFirstRowResponse,
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
+  saveFleetConfigResponse,
   resolveGcsRoute,
   resolveGcsRouteKey,
   saveSwarmConfigResponse,
@@ -47,6 +49,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
+    expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
     expect(resolveGcsRouteKey('/submit_command')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
@@ -107,6 +110,29 @@ describe('gcsApiService', () => {
           mission_type: 4,
         },
       }
+    );
+  });
+
+  it('saves fleet config through the canonical config resource with PUT', async () => {
+    axios.put.mockResolvedValue({ data: { success: true } });
+
+    await saveFleetConfigResponse([{ hw_id: '1' }], { timeout: 2500 });
+
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/config/fleet',
+      [{ hw_id: '1' }],
+      { timeout: 2500 }
+    );
+  });
+
+  it('builds per-position trajectory-start requests with the canonical path parameter form', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+
+    await getTrajectoryFirstRowResponse('7');
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/config/fleet/trajectory-start-positions/7',
+      {}
     );
   });
 

@@ -1497,6 +1497,10 @@ class TestAPIV1Aliases:
             "/get-heartbeats",
             "/get-network-status",
             "/api/v1/fleet/network-status",
+            "/api/v1/config/fleet",
+            "/api/v1/config/fleet/validation",
+            "/api/v1/config/fleet/trajectory-start-positions",
+            "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
             "/api/v1/commands",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",
@@ -1644,6 +1648,38 @@ class TestAPIV1Aliases:
         assert "network_status" in data
         assert "reachable_count" in data
         assert "timestamp" in data
+
+    def test_v1_fleet_config_alias(self, test_client):
+        response = test_client.get("/api/v1/config/fleet")
+
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
+
+    @patch('app_fastapi.save_config')
+    @patch('app_fastapi.validate_and_process_config')
+    def test_v1_fleet_config_put_alias(self, mock_validate, mock_save, test_client, mock_config):
+        del mock_save
+        mock_validate.return_value = {'updated_config': mock_config}
+
+        response = test_client.request("PUT", "/api/v1/config/fleet", json=mock_config)
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+    @patch('app_fastapi.validate_and_process_config')
+    def test_v1_fleet_config_validation_alias(self, mock_validate, test_client, mock_config):
+        mock_validate.return_value = {'updated_config': mock_config, 'summary': {}}
+
+        response = test_client.post("/api/v1/config/fleet/validation", json=mock_config)
+
+        assert response.status_code == 200
+        assert "summary" in response.json()
+
+    def test_v1_fleet_trajectory_start_positions_alias(self, test_client):
+        response = test_client.get("/api/v1/config/fleet/trajectory-start-positions")
+
+        assert response.status_code == 200
+        assert isinstance(response.json(), list)
 
 
 if __name__ == "__main__":

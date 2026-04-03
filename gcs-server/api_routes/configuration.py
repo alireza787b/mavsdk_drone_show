@@ -3,15 +3,31 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query, Request
 from fastapi.responses import JSONResponse
 
 from schemas import ConfigUpdateResponse
 
 
+def _get_trajectory_start_position_payload(deps: Any, pos_id: int) -> dict[str, Any]:
+    sim_mode = getattr(deps.Params, "sim_mode", False)
+    north, east = deps.get_expected_position_from_trajectory(pos_id, sim_mode)
+
+    if north is None or east is None:
+        raise HTTPException(status_code=404, detail=f"Trajectory file not found for pos_id={pos_id}")
+
+    return {
+        "pos_id": pos_id,
+        "x": north,
+        "y": east,
+        "source": f"Drone {pos_id}.csv (first waypoint)",
+    }
+
+
 def create_configuration_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    @router.get("/api/v1/config/fleet", tags=["Configuration"])
     @router.get("/get-config-data", tags=["Configuration"])
     async def get_config():
         """Get current drone configuration."""
@@ -20,6 +36,7 @@ def create_configuration_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Error loading configuration: {exc}") from exc
 
+    @router.put("/api/v1/config/fleet", response_model=ConfigUpdateResponse, tags=["Configuration"])
     @router.post("/save-config-data", response_model=ConfigUpdateResponse, tags=["Configuration"])
     async def save_config_route(request: Request):
         """Validate and save drone configuration."""
@@ -63,6 +80,7 @@ def create_configuration_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Error saving configuration: {exc}", "config")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.post("/api/v1/config/fleet/validation", tags=["Configuration"])
     @router.post("/validate-config", tags=["Configuration"])
     async def validate_config_route(request: Request):
         """Validate configuration without saving it."""
@@ -80,6 +98,7 @@ def create_configuration_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.get("/api/v1/config/fleet/trajectory-start-positions", tags=["Configuration"])
     @router.get("/get-drone-positions", tags=["Configuration"])
     async def get_drone_positions():
         """Get initial positions for all drones from trajectory CSV files."""
@@ -88,21 +107,30 @@ def create_configuration_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.get("/api/v1/config/fleet/trajectory-start-positions/{pos_id}", tags=["Configuration"])
+    async def get_trajectory_start_position(
+        pos_id: int = PathParam(..., description="Position ID"),
+    ):
+        """Get the first expected position from a trajectory CSV file using canonical x/y naming."""
+        try:
+            return JSONResponse(content=_get_trajectory_start_position_payload(deps, pos_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @router.get("/get-trajectory-first-row", tags=["Configuration"])
     async def get_trajectory_first_row(pos_id: int = Query(..., description="Position ID")):
         """Get the first expected position from a trajectory CSV file."""
         try:
-            sim_mode = getattr(deps.Params, "sim_mode", False)
-            north, east = deps.get_expected_position_from_trajectory(pos_id, sim_mode)
-
-            if north is None or east is None:
-                raise HTTPException(status_code=404, detail=f"Trajectory file not found for pos_id={pos_id}")
-
+            payload = _get_trajectory_start_position_payload(deps, pos_id)
             return JSONResponse(content={
-                "pos_id": pos_id,
-                "north": north,
-                "east": east,
-                "source": f"Drone {pos_id}.csv (first waypoint)",
+                "pos_id": payload["pos_id"],
+                "north": payload["x"],
+                "east": payload["y"],
+                "source": payload["source"],
             })
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

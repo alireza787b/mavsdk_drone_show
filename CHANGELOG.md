@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical fleet-config v1 checkpoint note documenting the second Phase 4 GCS route-migration slice, the new `/api/v1/config/fleet*` aliases, the trajectory-start position contract cleanup, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical command v1 checkpoint note documenting the first Phase 4 GCS route-migration slice, the new `/api/v1/commands` and `/api/v1/command-reports/*` aliases, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 Commands router extraction checkpoint note documenting the eighth Phase 3 backend route-domain split, the extracted Commands compatibility surface, the `submit_command` validation hardening, the `app_fastapi.py` monolith-route removal milestone, and the paired local/Hetzner validation results
 - a 2026-04-03 Swarm Trajectory router extraction checkpoint note documenting the seventh Phase 3 backend route-domain split, the extracted trajectory-management compatibility surface, the malformed-JSON contract fix, the stale Flask duplicate removal, and the paired local/Hetzner validation results
@@ -29,6 +30,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the second Phase 4 GCS route-migration slice now introduces canonical fleet-config aliases: `GET /api/v1/config/fleet`, `PUT /api/v1/config/fleet`, `POST /api/v1/config/fleet/validation`, `GET /api/v1/config/fleet/trajectory-start-positions`, and `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
+- the shared frontend GCS service layer now uses the canonical fleet-config resource paths, including `PUT /api/v1/config/fleet` for save and the path-parameter form for per-slot trajectory-start lookups
+- the canonical per-position trajectory-start route now returns `x`/`y` to match the existing fleet trajectory-position collection, while the legacy `/get-trajectory-first-row?pos_id=...` path keeps its older `north`/`east` compatibility payload
+- Mission Config trajectory-position hydration now accepts canonical `x`/`y` and legacy `north`/`east`, so the frontend can move to the cleaned config contract without breaking compatibility during rollout
+- configuration route inventory and alias guardrails now cover the canonical fleet-config surface in addition to the legacy compatibility paths, preventing silent drift between the mounted FastAPI routes and the migration blueprint
 - the first Phase 4 GCS route-migration slice now introduces canonical v1 command aliases: `POST /api/v1/commands`, `GET /api/v1/commands/{command_id}`, `GET /api/v1/commands/recent`, `GET /api/v1/commands/active`, `GET /api/v1/commands/statistics`, `POST /api/v1/commands/{command_id}/cancel`, `POST /api/v1/command-reports/execution-start`, and `POST /api/v1/command-reports/execution-result`
 - the shared frontend GCS service layer now uses the canonical v1 command endpoints for submit/status/recent/active command flows instead of the legacy compatibility paths, so the operator UI and future MCP-facing consumers move onto one current command contract
 - command-route inventory and alias guardrails now cover the canonical v1 command surface in addition to the legacy compatibility paths, preventing later drift between documented aliases and the mounted FastAPI routes
