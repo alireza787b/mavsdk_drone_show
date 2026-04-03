@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 logging-domain hardening checkpoint note documenting the second Phase 5 API-modernization slice, the shared session-path validation, typed log-route models, the stable-root policy for `/api/logs/*` and `/api/sar/*`, and the paired local/Hetzner validation results
 - a 2026-04-03 SAR router normalization checkpoint note documenting the first Phase 5 API-modernization slice, the QuickScout router-factory cleanup, the removal of the old `sys.path` import hack, and the paired local/Hetzner validation results
 - a 2026-04-03 operational HTTP alias retirement checkpoint note documenting the sixteenth Phase 4 API-modernization slice, the removal of the last versionless heartbeat/network/git HTTP aliases, the runtime default-route cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 Swarm Trajectory v1-retirement checkpoint note documenting the fifteenth Phase 4 API-modernization slice, the retirement of the versionless Swarm Trajectory routes, the runtime-tool/frontend/doc cleanup, and the paired local/Hetzner validation results
@@ -46,6 +47,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the second Phase 5 API-modernization slice now hardens the shared logging session layer so session IDs must resolve inside the configured log directory, which closes the path-traversal risk for both GCS and drone-side `/api/logs/*` session access and export flows
+- GCS log routes now use typed request/response models for frontend reports, export requests, config toggles, and session payloads instead of relying on untyped dictionaries, bringing the logging domain in line with the broader contract-cleanup standard without renaming the stable `/api/logs/*` namespace
+- the API modernization policy now treats `/api/logs/*` and `/api/sar/*` as intentional stable subsystem roots rather than unfinished alias debt, so the remaining open contract question is concentrated on the GCS WebSocket stream surface instead of churn for already-namespaced domains
 - the first Phase 5 API-modernization slice now normalizes the QuickScout SAR backend onto the same dependency-injected router-factory pattern as the rest of the cleaned GCS API, replacing the old module-global router and `sys.path` mutation in `gcs-server/sar/routes.py` without changing the live `/api/sar/*` contract
 - QuickScout route handlers now read `load_config`, telemetry state, and command-dispatch dependencies from the live `app_fastapi` module object at request time, so tests and future auth/MCP wrapping no longer depend on import-time state capture inside the SAR route module
 - the sixteenth Phase 4 API-modernization slice now retires the remaining versionless operational HTTP aliases `POST /heartbeat`, `POST /drone-heartbeat`, `GET /get-heartbeats`, `GET /get-network-status`, `GET /git-status`, and `POST /sync-repos`, leaving the canonical `/api/v1/fleet/heartbeats`, `/api/v1/fleet/network-status`, `/api/v1/git/status`, and `/api/v1/git/sync-operations` routes as the only supported GCS HTTP contract for those operational reads and mutations

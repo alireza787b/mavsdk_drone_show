@@ -20,8 +20,17 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from mds_logging.api_schemas import (
+    FrontendLogReportRequest,
+    LogConfigUpdateRequest,
+    LogExportRequest,
+    LogSessionContentResponse,
+    LogSessionsResponse,
+    LogSourcesResponse,
+    LogStatusResponse,
+)
 from mds_logging.registry import get_registry
-from mds_logging.session import list_sessions, read_session_lines
+from mds_logging.session import get_session_filepath, list_sessions, read_session_lines
 from mds_logging.watcher import get_watcher, LogWatcher
 from mds_logging.constants import get_log_dir
 from mds_logging import get_logger
@@ -42,18 +51,27 @@ def create_log_router(
 
     router = APIRouter(prefix="/api/logs", tags=["Logs"])
 
-    @router.get("/sources")
+    def _resolve_existing_session_file(session_id: str) -> str:
+        try:
+            filepath = get_session_filepath(_log_dir, session_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found") from exc
+        if not os.path.isfile(filepath):
+            raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+        return filepath
+
+    @router.get("/sources", response_model=LogSourcesResponse)
     async def get_sources():
         """List all registered log source components."""
         return {"components": get_registry()}
 
-    @router.get("/sessions")
+    @router.get("/sessions", response_model=LogSessionsResponse)
     async def get_sessions():
         """List GCS log sessions, newest first."""
         sessions = list_sessions(_log_dir)
         return {"sessions": sessions}
 
-    @router.get("/sessions/{session_id}")
+    @router.get("/sessions/{session_id}", response_model=LogSessionContentResponse)
     async def get_session(
         session_id: str,
         level: Optional[str] = None,
@@ -92,15 +110,15 @@ def create_log_router(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    @router.post("/frontend")
-    async def receive_frontend_report(report: dict):
+    @router.post("/frontend", response_model=LogStatusResponse)
+    async def receive_frontend_report(report: FrontendLogReportRequest):
         """Receive error/log reports from the React frontend."""
-        level = report.get("level", "ERROR").upper()
+        level = report.level.upper()
         if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
             raise HTTPException(status_code=400, detail=f"Invalid log level: '{level}'")
-        component = report.get("component", "frontend")
-        msg = report.get("msg", "")
-        extra = report.get("extra")
+        component = report.component or "frontend"
+        msg = report.msg
+        extra = report.extra
         fe_logger = get_logger(component)
         log_level = getattr(logging, level)
         fe_logger.log(log_level, msg, extra={"mds_extra": extra})
@@ -109,32 +127,27 @@ def create_log_router(
     # --- Export endpoint ---
 
     @router.post("/export")
-    async def export_sessions(request: dict):
+    async def export_sessions(request: LogExportRequest):
         """Export one or more sessions as JSONL or ZIP."""
         import io
         import zipfile
         from fastapi.responses import Response
 
-        session_ids = request.get("session_ids", [])
-        fmt = request.get("format", "jsonl")
+        session_ids = request.session_ids
+        fmt = request.format
 
         if not session_ids:
             raise HTTPException(status_code=400, detail="session_ids required")
 
-        if fmt not in ("jsonl", "zip"):
-            raise HTTPException(status_code=400, detail="format must be 'jsonl' or 'zip'")
-
         # Verify all sessions exist
         for sid in session_ids:
-            filepath = os.path.join(_log_dir, f"{sid}.jsonl")
-            if not os.path.isfile(filepath):
-                raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
+            _resolve_existing_session_file(sid)
 
         if fmt == "zip" or len(session_ids) > 1:
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
                 for sid in session_ids:
-                    filepath = os.path.join(_log_dir, f"{sid}.jsonl")
+                    filepath = _resolve_existing_session_file(sid)
                     zf.write(filepath, f"{sid}.jsonl")
             buf.seek(0)
             return Response(
@@ -143,7 +156,7 @@ def create_log_router(
                 headers={"Content-Disposition": "attachment; filename=mds_logs_export.zip"},
             )
         else:
-            filepath = os.path.join(_log_dir, f"{session_ids[0]}.jsonl")
+            filepath = _resolve_existing_session_file(session_ids[0])
             with open(filepath, "r") as f:
                 content = f.read()
             return Response(
@@ -155,7 +168,7 @@ def create_log_router(
     # --- Drone proxy endpoints ---
 
     @router.post("/drone/{drone_id}/export")
-    async def export_drone_sessions(drone_id: int, request: dict):
+    async def export_drone_sessions(drone_id: int, request: LogExportRequest):
         """Export one or more sessions from a specific drone as JSONL or ZIP."""
         import io
         import zipfile
@@ -163,14 +176,11 @@ def create_log_router(
 
         from log_proxy import resolve_drone_ip, fetch_drone_session_content
 
-        session_ids = request.get("session_ids", [])
-        fmt = request.get("format", "jsonl")
+        session_ids = request.session_ids
+        fmt = request.format
 
         if not session_ids:
             raise HTTPException(status_code=400, detail="session_ids required")
-
-        if fmt not in ("jsonl", "zip"):
-            raise HTTPException(status_code=400, detail="format must be 'jsonl' or 'zip'")
 
         ip = resolve_drone_ip(drone_id)
         if ip is None:
@@ -207,7 +217,7 @@ def create_log_router(
             headers={"Content-Disposition": f"attachment; filename={sid}.jsonl"},
         )
 
-    @router.get("/drone/{drone_id}/sessions")
+    @router.get("/drone/{drone_id}/sessions", response_model=LogSessionsResponse)
     async def get_drone_sessions(drone_id: int):
         """List log sessions on a specific drone (proxied)."""
         from log_proxy import resolve_drone_ip, fetch_drone_sessions
@@ -219,7 +229,7 @@ def create_log_router(
             raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable")
         return result
 
-    @router.get("/drone/{drone_id}/sessions/{session_id}")
+    @router.get("/drone/{drone_id}/sessions/{session_id}", response_model=LogSessionContentResponse)
     async def get_drone_session(
         drone_id: int,
         session_id: str,
@@ -262,11 +272,11 @@ def create_log_router(
 
     # --- Runtime config toggle ---
 
-    @router.post("/config")
-    async def update_log_config(config: dict):
+    @router.post("/config", response_model=LogStatusResponse)
+    async def update_log_config(config: LogConfigUpdateRequest):
         """Update runtime log configuration (e.g., background pull toggle)."""
-        if _puller is not None and "background_pull" in config:
-            _puller.set_enabled(config["background_pull"])
+        if _puller is not None and config.background_pull is not None:
+            _puller.set_enabled(config.background_pull)
         return {"status": "updated"}
 
     return router

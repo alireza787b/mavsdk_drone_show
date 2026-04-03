@@ -8,7 +8,25 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
+from pathlib import Path
+
+
+_SESSION_ID_RE = re.compile(r"^s_[A-Za-z0-9_]+$")
+
+
+def _resolve_session_filepath(log_dir: str, session_id: str) -> Path | None:
+    """Resolve a session path only if it stays inside log_dir."""
+    if not _SESSION_ID_RE.fullmatch(session_id):
+        return None
+    base = Path(log_dir).resolve()
+    filepath = (base / f"{session_id}.jsonl").resolve()
+    try:
+        filepath.relative_to(base)
+    except ValueError:
+        return None
+    return filepath
 
 
 def create_session(log_dir: str) -> str:
@@ -32,7 +50,10 @@ def get_session_id() -> str:
 
 def get_session_filepath(log_dir: str, session_id: str) -> str:
     """Get the full file path for a session."""
-    return os.path.join(log_dir, f"{session_id}.jsonl")
+    filepath = _resolve_session_filepath(log_dir, session_id)
+    if filepath is None:
+        raise ValueError(f"Invalid session id: {session_id}")
+    return str(filepath)
 
 
 def list_sessions(log_dir: str) -> list[dict]:
@@ -74,8 +95,8 @@ def read_session_lines(
     Silently skips malformed lines.
     ``since`` filters by ISO 8601 timestamp string comparison (lexicographic).
     """
-    filepath = os.path.join(log_dir, f"{session_id}.jsonl")
-    if not os.path.isfile(filepath):
+    filepath = _resolve_session_filepath(log_dir, session_id)
+    if filepath is None or not filepath.is_file():
         return None
 
     min_level = _LEVEL_ORDER.get(level, 0) if level else 0

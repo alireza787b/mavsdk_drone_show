@@ -585,6 +585,16 @@ Phase 5 first checkpoint on 2026-04-03:
 
 After this checkpoint, the remaining Phase 5 decisions are contract-shape decisions, not structural cleanup debt inside SAR. The remaining open API-design boundary is the still-unversioned GCS stream surface plus the explicit decision on whether `/api/logs/*` and `/api/sar/*` remain stable subsystem roots or receive canonical `/api/v1/...` aliases later.
 
+Phase 5 second checkpoint on 2026-04-03:
+
+- hardened the logging subsystem at the shared session layer by validating session IDs and resolving session file paths only inside the configured log directory, closing the path-traversal risk for both GCS and drone-side `/api/logs/*` session access
+- introduced typed GCS log-route request/response models for frontend reports, export requests, config toggles, and session payloads instead of continuing to accept untyped ad hoc dictionaries
+- deliberately kept `/api/logs/*` as a stable subsystem root in this slice instead of forcing `/api/v1/logs/*` aliases, because the logging surface is already namespaced, documented separately, shared by GCS and drone APIs, and transport-coupled to SSE stream behavior
+- clarified the same stable-root policy for `/api/sar/*`: QuickScout remains a named mission subsystem root rather than alias debt, so route-quality improvements happen without churning the mission namespace
+- extended logging tests with traversal regressions and route-level validation coverage while leaving the public route inventory unchanged
+
+After this checkpoint, the remaining Phase 5 design boundary is narrower: the unresolved question is the long-term canonical treatment of the still-unversioned GCS WebSocket stream surface (`/ws/telemetry`, `/ws/heartbeats`, `/ws/git-status`), not whether Logs or QuickScout are “unfinished” API roots.
+
 ### Phase 6
 
 - remove the remaining deferred or high-risk non-canonical surfaces only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated

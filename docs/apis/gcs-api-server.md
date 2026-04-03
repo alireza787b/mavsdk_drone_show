@@ -1213,6 +1213,17 @@ The current implementation is an explicit stub acknowledgement. It validates the
 
 ---
 
+### Stable Subsystem Roots
+
+Not every current GCS API domain needs to move under `/api/v1/...`.
+
+- `/api/logs/*` is an intentional stable logging subsystem root shared with drone-side log access and SSE streaming semantics.
+- `/api/sar/*` is an intentional QuickScout mission-subsystem root.
+
+The versioning work after the main Phase 4 cleanup is therefore focused on stream-contract policy and route quality, not on renaming these already namespaced subsystem domains for the sake of uniformity alone.
+
+---
+
 ### Swarm Trajectory Static Assets
 
 #### `GET /api/v1/swarm-trajectories/plots/{filename}`

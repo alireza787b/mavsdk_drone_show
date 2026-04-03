@@ -142,3 +142,15 @@ class TestReadSessionLines:
         lines = read_session_lines(tmp_log_dir, "s_20260319_100000", since="2026-03-19T10:00:01.000Z")
         assert len(lines) == 1
         assert lines[0]["msg"] == "new"
+
+    def test_get_session_filepath_rejects_invalid_session_id(self, tmp_log_dir):
+        with pytest.raises(ValueError):
+            get_session_filepath(tmp_log_dir, "../escape")
+
+    def test_read_session_lines_rejects_path_traversal_session_id(self, tmp_log_dir):
+        outside = os.path.join(os.path.dirname(tmp_log_dir), "escape.jsonl")
+        with open(outside, "w") as f:
+            f.write(json.dumps({"level": "INFO", "msg": "outside"}) + "\n")
+
+        result = read_session_lines(tmp_log_dir, "../escape")
+        assert result is None

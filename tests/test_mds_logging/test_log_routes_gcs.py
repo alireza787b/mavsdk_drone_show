@@ -165,6 +165,16 @@ class TestExport:
         })
         assert resp.status_code == 404
 
+    def test_export_rejects_path_traversal_session_id(self, tmp_path):
+        log_dir = str(tmp_path / "sessions")
+        os.makedirs(log_dir)
+        client = TestClient(_make_gcs_app(log_dir))
+        resp = client.post("/api/logs/export", json={
+            "session_ids": ["../escape"],
+            "format": "jsonl",
+        })
+        assert resp.status_code == 404
+
     def test_export_empty_session_ids(self, tmp_path):
         log_dir = str(tmp_path / "sessions")
         os.makedirs(log_dir)
@@ -183,8 +193,7 @@ class TestExport:
             "session_ids": ["s_20260319_100000"],
             "format": "csv",
         })
-        assert resp.status_code == 400
-        assert "jsonl" in resp.json()["detail"]
+        assert resp.status_code == 422
 
     def test_export_drone_session_jsonl(self, tmp_path, monkeypatch):
         log_dir = str(tmp_path / "sessions")
