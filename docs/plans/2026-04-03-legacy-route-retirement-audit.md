@@ -1,6 +1,7 @@
 # 2026-04-03 Legacy Route Retirement Audit
 
 Update later on 2026-04-03: the deferred versionless Swarm Trajectory family was closed in the Phase 4 fifteenth checkpoint after canonicalization to `/api/v1/swarm-trajectories/*`.
+Update later on 2026-04-03: the previously retained operational HTTP aliases were closed in the Phase 4 sixteenth checkpoint after the remaining runtime/default caller moved to the canonical `/api/v1/fleet/*` and `/api/v1/git/*` routes.
 
 ## Goal
 
@@ -25,84 +26,26 @@ Classify the remaining public GCS legacy route families after Phase 4I so retire
 
 ## Keep Temporarily
 
-- core fleet aliases
-  - `GET /get-heartbeats`
-  - `GET /get-network-status`
-  - `POST /heartbeat`
-  - `POST /drone-heartbeat`
-  - reason:
-    - still foundational operator/debug surfaces
-    - broader telemetry/event-stream decisions are still open for Phase 5
-- git operator aliases
-  - `GET /git-status`
-  - `POST /sync-repos`
+- WebSocket operational streams
+  - `WS /ws/telemetry`
+  - `WS /ws/heartbeats`
   - `WS /ws/git-status`
   - reason:
-    - still explicitly documented operator-facing surfaces
-    - current retirement work only removed the deprecated one-off detail endpoints
+    - these are stream-contract decisions, not leftover versionless HTTP business aliases
+    - Phase 5 still needs to decide whether the canonical future shape stays WebSocket-first, gains `/api/v1/...` stream names, or adopts a different event contract for MCP-facing tooling
 
 ## Defer With Reason
 
-- configuration/swarm legacy family
-  - `/get-config-data`
-  - `/save-config-data`
-  - `/validate-config`
-  - `/get-drone-positions`
-  - `/get-trajectory-first-row`
-  - `/get-swarm-data`
-  - `/save-swarm-data`
-  - `/request-new-leader`
+- namespaced logs domain
+  - `/api/logs/*`
   - reason:
-    - canonical replacements exist, but this is a broad business family and needs one cohesive retirement pass with caller/doc review
-- origin legacy family
-  - `/get-origin`
-  - `/set-origin`
-  - `/get-origin-for-drone`
-  - `/get-gps-global-origin`
-  - `/elevation`
-  - `/get-position-deviations`
-  - `/compute-origin`
-  - `/get-desired-launch-positions`
+    - this family is already namespaced and stable, but it still needs an explicit decision on whether it remains a dedicated subsystem root or moves under `/api/v1/...`
+- namespaced SAR / QuickScout domain
+  - `/api/sar/*`
   - reason:
-    - active operator docs still refer to these workflows heavily
-    - origin handling is safety-sensitive and should be retired as one deliberate slice
-- show-management legacy family
-  - `/import-show`
-  - `/download-raw-show`
-  - `/download-processed-show`
-  - `/get-show-info`
-  - `/get-custom-show-info`
-  - `/import-custom-show`
-  - `/get-comprehensive-metrics`
-  - `/get-safety-report`
-  - `/validate-trajectory`
-  - `/deploy-show`
-  - `/get-show-plots`
-  - `/get-show-plots/{filename}`
-  - `/get-custom-show-image`
-  - reason:
-    - operator docs and import/export workflows still describe both names
-    - needs a coordinated documentation and SITL validation pass
-- command legacy family
-  - `/submit_command`
-  - `/command/{command_id}`
-  - `/commands/recent`
-  - `/commands/active`
-  - `/commands/statistics`
-  - `/command/{command_id}/cancel`
-  - `/command/execution-start`
-  - `/command/execution-result`
-  - reason:
-    - high operational risk
-    - must be retired only after another explicit runtime/tooling verification pass
-- versionless Swarm Trajectory family
-  - `/api/swarm/leaders`
-  - `/api/swarm/trajectory/*`
-  - reason:
-    - this family has not been moved to `/api/v1/swarm-trajectories/*` yet
-    - retire-after-canonicalization, not before
+    - this family is already namespaced and stable, but it still needs an explicit decision on whether it remains a dedicated subsystem root or moves under `/api/v1/...`
 
 ## Notes
 
-- This audit intentionally separates “safe to remove now” from “looks old but still needs a domain retirement plan”.
-- The next clean slice after the management/static retirement is likely the configuration/swarm family, because its canonical replacements already exist and its remaining debt is mostly route-surface duplication rather than missing API design.
+- This audit intentionally separates “safe to remove now” from “needs an explicit stream/domain contract decision”.
+- After Phase 4P, the versionless HTTP alias cleanup is effectively closed. The remaining decisions are stream canonicalization and whether logs/SAR keep their current namespaced roots or move under `/api/v1/...`.

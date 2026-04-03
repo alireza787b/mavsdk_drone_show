@@ -104,13 +104,11 @@ def create_git_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/v1/git/status", response_model=GitStatusResponse, tags=["Git"])
-    @router.get("/git-status", response_model=GitStatusResponse, tags=["Git"])
     async def get_git_status():
         """Get git status from all drones."""
         return _build_git_status_response(deps)
 
     @router.post("/api/v1/git/sync-operations", response_model=SyncReposResponse, tags=["Git"])
-    @router.post("/sync-repos", response_model=SyncReposResponse, tags=["Git"])
     async def sync_repos(sync_request: SyncReposRequest):
         """Sync git repositories on target drones by dispatching UPDATE_CODE."""
         async with deps._sync_lock:
@@ -233,7 +231,7 @@ def create_git_router(deps: Any) -> APIRouter:
 
     @router.websocket("/ws/git-status")
     async def websocket_git_status(websocket: WebSocket):
-        """Stream the same git-status payload shape exposed by GET /git-status."""
+        """Stream the same git-status payload shape exposed by GET /api/v1/git/status."""
         await websocket.accept()
         deps.log_system_event("Git status WebSocket client connected", "INFO", "websocket")
 

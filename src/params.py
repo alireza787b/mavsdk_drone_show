@@ -6,6 +6,7 @@ from enum import Enum
 from pathlib import Path
 
 from mds_logging import get_logger
+from src.gcs_api_routes import GCS_FLEET_HEARTBEATS_ROUTE
 
 logger = get_logger("params")
 
@@ -326,7 +327,7 @@ class Params:
     heartbeat_interval = 10  
 
     # The API endpoint path for receiving drone heartbeats on GCS
-    gcs_heartbeat_endpoint = "/drone-heartbeat"
+    gcs_heartbeat_endpoint = GCS_FLEET_HEARTBEATS_ROUTE
 
     netbird_ip_prefix = "100."
 

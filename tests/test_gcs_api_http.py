@@ -403,7 +403,7 @@ class TestHeartbeatEndpoints:
 
     @patch('app_fastapi.handle_heartbeat_post')
     def test_post_heartbeat(self, mock_handle, test_client):
-        """Test POST /heartbeat"""
+        """Test POST /api/v1/fleet/heartbeats"""
         heartbeat_data = {
             'pos_id': 0,
             'hw_id': '1',
@@ -413,7 +413,7 @@ class TestHeartbeatEndpoints:
             'timestamp': 1700000000000
         }
 
-        response = test_client.post("/heartbeat", json=heartbeat_data)
+        response = test_client.post("/api/v1/fleet/heartbeats", json=heartbeat_data)
         assert response.status_code == 200
         data = response.json()
         assert data['success'] == True
@@ -425,14 +425,14 @@ class TestHeartbeatEndpoints:
 
     @patch('app_fastapi.get_all_heartbeats')
     def test_get_heartbeats(self, mock_get_heartbeats, test_client):
-        """Test GET /get-heartbeats"""
+        """Test GET /api/v1/fleet/heartbeats"""
         # get_all_heartbeats returns a dict keyed by hw_id
         mock_get_heartbeats.return_value = {
             '1': {'pos_id': 0, 'hw_id': '1', 'detected_pos_id': 1, 'ip': 'unknown', 'timestamp': 1700000000000},
             '2': {'pos_id': 1, 'hw_id': '2', 'detected_pos_id': 2, 'ip': '172.18.0.22', 'timestamp': 1700000000000}
         }
 
-        response = test_client.get("/get-heartbeats")
+        response = test_client.get("/api/v1/fleet/heartbeats")
         assert response.status_code == 200
         data = response.json()
         assert 'heartbeats' in data
@@ -1185,13 +1185,13 @@ class TestGitStatusEndpoints:
     @patch('app_fastapi.get_gcs_git_report')
     @patch('app_fastapi.load_config')
     def test_get_git_status(self, mock_load_config, mock_gcs_git_report, test_client):
-        """Test GET /git-status"""
+        """Test GET /api/v1/git/status"""
         mock_load_config.return_value = [
             {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
         ]
         mock_gcs_git_report.return_value = {'branch': 'main', 'commit': 'abc12345'}
-        response = test_client.get("/git-status")
+        response = test_client.get("/api/v1/git/status")
         assert response.status_code == 200
         data = response.json()
         assert 'git_status' in data
@@ -1233,14 +1233,14 @@ class TestGitStatusEndpoints:
         mock_gcs_git_report,
         test_client,
     ):
-        """GET /git-status should flag clean-but-behind drones as out of sync with GCS."""
+        """GET /api/v1/git/status should flag clean-but-behind drones as out of sync with GCS."""
         mock_load_config.return_value = [
             {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
         ]
         mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
 
-        response = test_client.get("/git-status")
+        response = test_client.get("/api/v1/git/status")
 
         assert response.status_code == 200
         data = response.json()
@@ -1260,7 +1260,7 @@ class TestGitStatusEndpoints:
         mock_verify_targets,
         test_client,
     ):
-        """POST /sync-repos should only report success after repo convergence is verified."""
+        """POST /api/v1/git/sync-operations should only report success after repo convergence is verified."""
         mock_load_config.return_value = [
             {'hw_id': '1', 'pos_id': 1, 'ip': '10.0.0.1'},
             {'hw_id': '2', 'pos_id': 2, 'ip': '10.0.0.2'},
@@ -1277,7 +1277,7 @@ class TestGitStatusEndpoints:
         }
         mock_verify_targets.return_value = ([1], [2])
 
-        response = test_client.post('/sync-repos', json={})
+        response = test_client.post('/api/v1/git/sync-operations', json={})
 
         assert response.status_code == 200
         data = response.json()
@@ -1848,11 +1848,7 @@ class TestAPIV1Aliases:
             "/telemetry",
             "/api/telemetry",
             "/api/v1/fleet/telemetry",
-            "/heartbeat",
-            "/drone-heartbeat",
             "/api/v1/fleet/heartbeats",
-            "/get-heartbeats",
-            "/get-network-status",
             "/api/v1/fleet/network-status",
             "/api/v1/config/fleet",
             "/api/v1/config/fleet/validation",
@@ -1890,8 +1886,6 @@ class TestAPIV1Aliases:
             "/api/v1/commands/{command_id}/cancel",
             "/api/v1/command-reports/execution-start",
             "/api/v1/command-reports/execution-result",
-            "/git-status",
-            "/sync-repos",
             "/api/v1/swarm-trajectories/leaders",
             "/api/v1/swarm-trajectories/upload/{leader_id}",
             "/api/v1/swarm-trajectories/process",

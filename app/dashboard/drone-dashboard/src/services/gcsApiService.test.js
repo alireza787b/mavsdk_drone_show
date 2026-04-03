@@ -57,7 +57,7 @@ describe('gcsApiService', () => {
   it('maps active canonical and retained compatibility paths back to route keys', () => {
     expect(resolveGcsRouteKey('/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
-    expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
+    expect(resolveGcsRouteKey('/api/v1/fleet/heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
     expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
     expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
     expect(resolveGcsRouteKey('/api/v1/git/status')).toBe(GCS_ROUTE_KEYS.gitStatus);
@@ -79,6 +79,12 @@ describe('gcsApiService', () => {
   });
 
   it('does not keep retired management/static/config/swarm/show/command/origin legacy paths alive in the shared route resolver', () => {
+    expect(resolveGcsRouteKey('/heartbeat')).toBeNull();
+    expect(resolveGcsRouteKey('/drone-heartbeat')).toBeNull();
+    expect(resolveGcsRouteKey('/get-heartbeats')).toBeNull();
+    expect(resolveGcsRouteKey('/get-network-status')).toBeNull();
+    expect(resolveGcsRouteKey('/git-status')).toBeNull();
+    expect(resolveGcsRouteKey('/sync-repos')).toBeNull();
     expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/get-network-info')).toBeNull();

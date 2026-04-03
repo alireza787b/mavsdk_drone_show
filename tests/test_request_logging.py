@@ -12,7 +12,7 @@ from request_logging import get_request_log_level, is_routine_success_path
 def test_routine_success_paths_are_classified_as_debug():
     assert is_routine_success_path("/api/v1/git/status") is True
     assert is_routine_success_path("/api/v1/origin") is True
-    assert is_routine_success_path("/drone-heartbeat") is True
+    assert is_routine_success_path("/api/v1/fleet/heartbeats") is True
     assert is_routine_success_path("/api/v1/commands/recent") is True
     assert is_routine_success_path("/api/v1/commands/cmd-123") is True
     assert is_routine_success_path("/api/v1/command-reports/execution-result") is True
@@ -34,4 +34,4 @@ def test_non_routine_success_paths_remain_info():
 
 def test_failures_override_routine_classification():
     assert get_request_log_level("/api/v1/origin", 404) == "WARNING"
-    assert get_request_log_level("/drone-heartbeat", 500) == "ERROR"
+    assert get_request_log_level("/api/v1/fleet/heartbeats", 500) == "ERROR"

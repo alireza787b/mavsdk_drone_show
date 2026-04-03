@@ -38,9 +38,7 @@ def test_git_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/git/status" in routes
-    assert "/git-status" in routes
     assert "/api/v1/git/sync-operations" in routes
-    assert "/sync-repos" in routes
     assert "/ws/git-status" in routes
 
 

@@ -275,7 +275,7 @@ class HeartbeatData(BaseModel):
 
 
 class HeartbeatResponse(BaseModel):
-    """Response for GET /get-heartbeats"""
+    """Response for GET /api/v1/fleet/heartbeats"""
     heartbeats: List[HeartbeatData] = Field(..., description="Heartbeat data for all drones")
     total_drones: int = Field(..., ge=0, description="Total drones")
     online_count: int = Field(..., ge=0, description="Online drones")
@@ -283,7 +283,7 @@ class HeartbeatResponse(BaseModel):
 
 
 class HeartbeatRequest(BaseModel):
-    """Request for POST /heartbeat"""
+    """Request for POST /api/v1/fleet/heartbeats"""
     pos_id: int = Field(..., ge=0, description="Position ID")
     hw_id: str = Field(..., description="Hardware ID")
     detected_pos_id: Optional[int] = Field(None, ge=0, description="Auto-detected position ID")
@@ -321,7 +321,7 @@ class HeartbeatRequest(BaseModel):
 
 
 class HeartbeatPostResponse(BaseModel):
-    """Response for POST /heartbeat"""
+    """Response for POST /api/v1/fleet/heartbeats"""
     success: bool = Field(..., description="Heartbeat received status")
     message: str = Field(..., description="Status message")
     server_time: int = Field(..., description="Server timestamp (Unix ms)")
@@ -545,7 +545,7 @@ class NetworkStatus(BaseModel):
 
 
 class NetworkStatusResponse(BaseModel):
-    """Response for GET /get-network-status"""
+    """Response for GET /api/v1/fleet/network-status"""
     network_status: Dict[str, NetworkStatus] = Field(..., description="Network status by pos_id")
     total_drones: int = Field(..., ge=0, description="Total drones")
     reachable_count: int = Field(..., ge=0, description="Reachable drones")

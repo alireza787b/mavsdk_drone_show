@@ -548,14 +548,37 @@ Phase 4 fifteenth checkpoint on 2026-04-03:
 
 After this checkpoint, no GCS business route family remains in the earlier “canonicalize next” bucket. The remaining API debt is now limited to explicitly retained operational aliases (`/get-heartbeats`, `/get-network-status`, `/heartbeat`, `/drone-heartbeat`, `/git-status`, `/sync-repos`) plus the separately namespaced `/api/logs/*` and `/api/sar/*` domains.
 
+Phase 4 sixteenth checkpoint on 2026-04-03:
+
+- retired the remaining versionless operational HTTP aliases:
+  - removed `POST /heartbeat`
+  - removed `POST /drone-heartbeat`
+  - removed `GET /get-heartbeats`
+  - removed `GET /get-network-status`
+  - removed `GET /git-status`
+  - removed `POST /sync-repos`
+- kept the canonical operational HTTP surface:
+  - `POST /api/v1/fleet/heartbeats`
+  - `GET /api/v1/fleet/heartbeats`
+  - `GET /api/v1/fleet/network-status`
+  - `GET /api/v1/git/status`
+  - `POST /api/v1/git/sync-operations`
+- deliberately retired this cluster only after moving the remaining real runtime caller onto canonical routes by changing the drone heartbeat sender default from `/drone-heartbeat` to `src.gcs_api_routes.GCS_FLEET_HEARTBEATS_ROUTE`
+- kept the WebSocket streams mounted at `/ws/heartbeats` and `/ws/git-status` for now, because that is an event-stream contract decision rather than a stray versionless-HTTP alias problem
+- updated request-log classification, route-inventory guardrails, frontend route-resolution tests, and operator/developer docs so the removed operational aliases do not linger as pseudo-compatibility
+- revalidated the slice locally and on Hetzner with focused backend coverage, the shared frontend GCS service Jest slice, and the production dashboard build
+
+After this checkpoint, the remaining GCS API debt is no longer legacy business HTTP aliases. It is limited to the still-unversioned WebSocket stream surface (`/ws/telemetry`, `/ws/heartbeats`, `/ws/git-status`) plus the separately namespaced `/api/logs/*` and `/api/sar/*` domains that still need an explicit versioning decision.
+
 ### Phase 5
 
-- define canonical event-stream contracts for telemetry, command state, git sync, and logs
-- align them with future MCP exposure
+- define canonical event-stream contracts for telemetry, heartbeats, and git status
+- decide whether `/api/logs/*` and `/api/sar/*` stay stable as namespaced subsystem roots or move under `/api/v1/...`
+- align the stream/domain choices with future MCP exposure
 
 ### Phase 6
 
-- remove the remaining deferred or high-risk legacy routes only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
+- remove the remaining deferred or high-risk non-canonical surfaces only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
 
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 

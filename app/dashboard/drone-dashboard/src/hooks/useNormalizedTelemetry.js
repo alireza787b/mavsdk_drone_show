@@ -21,7 +21,7 @@ import {
 /**
  * Fetch and normalize telemetry data from GCS server
  *
- * @param {string} endpoint - API endpoint (e.g., '/telemetry', '/get-heartbeats')
+ * @param {string} endpoint - API endpoint (e.g., '/telemetry', '/api/v1/fleet/heartbeats')
  * @param {number|null} interval - Polling interval in ms (null = fetch once)
  * @param {boolean} normalize - Whether to normalize field names (default: true)
  * @returns {object} { data, error, loading }

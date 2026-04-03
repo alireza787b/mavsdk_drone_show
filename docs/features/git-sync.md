@@ -32,7 +32,7 @@ Drones / SITL (pull latest configured branch)
 | Trigger | When | What Happens |
 |---------|------|-------------|
 | Boot service | Drone startup | `update_repo_ssh.sh` runs via systemd service |
-| UI "Sync Drones" button | Operator-initiated | `POST /sync-repos` sends `UPDATE_CODE` (Mission 103) to drones |
+| UI "Sync Drones" button | Operator-initiated | `POST /api/v1/git/sync-operations` sends `UPDATE_CODE` (Mission 103) to drones |
 | UI "Save & Commit" button | Config/swarm save | `git_operations()` commits + pushes on GCS |
 | UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
@@ -59,11 +59,11 @@ When `MDS_GIT_AUTO_PUSH=false`, the dedicated Swarm Trajectory commit endpoint s
 1. GCS polls each drone's `/get-git-status` endpoint (via `BackgroundServices._poll_git_status()` async task in `app_fastapi.py`)
 2. Results are aggregated and transformed into `DroneGitStatus` objects
 3. Available via:
-   - REST: `GET /git-status` (includes `gcs_status` field for GCS repo status)
+   - REST: `GET /api/v1/git/status` (includes `gcs_status` field for GCS repo status)
    - WebSocket: `/ws/git-status` (same transformed structure, 5-second interval)
 4. Frontend shows:
    - Per-drone sync status in `DroneGitStatus` component
-   - GCS repo info in `GitInfo` component (uses unified `/git-status` endpoint)
+   - GCS repo info in `GitInfo` component (uses `GET /api/v1/git/status`)
    - Warning banner (`SyncWarningBanner`) on all pages when drones are out of sync
 
 ## Sync Warning Banner
@@ -77,7 +77,7 @@ An amber warning banner appears on all dashboard pages when any drones are out o
 - Auto-dismisses when all drones sync
 - Re-appears if new drones go out of sync
 - Operator can manually dismiss (non-blocking)
-- "Sync Now" button triggers `POST /sync-repos`
+- "Sync Now" button triggers `POST /api/v1/git/sync-operations`
 - the backend now waits for real repo convergence before reporting success, so a green toast means the drone repos actually matched the GCS revision instead of only accepting the command
 - when no explicit target list is provided, the sync path prefers drones with recent heartbeats so an active SITL session does not get polluted by offline config entries from other slots
 
@@ -108,8 +108,8 @@ This is parsed by `actions.py` for logging and status tracking.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/git-status` | GET | Aggregated drone git status + GCS status |
-| `/sync-repos` | POST | Trigger UPDATE_CODE on drones |
+| `/api/v1/git/status` | GET | Aggregated drone git status + GCS status |
+| `/api/v1/git/sync-operations` | POST | Trigger UPDATE_CODE on drones |
 | `/ws/git-status` | WebSocket | Real-time git status stream |
 
 ## Files
@@ -117,9 +117,9 @@ This is parsed by `actions.py` for logging and status tracking.
 ### GCS Server
 - `gcs-server/utils.py` - `git_operations()`: commit, rebase, push with timeout
 - `gcs-server/git_status.py` - Shared data store (`git_status_data_all_drones`), `check_git_sync_status()`
-- `gcs-server/app_fastapi.py` - REST/WebSocket endpoints, `/sync-repos`, async git polling (`BackgroundServices`)
+- `gcs-server/app_fastapi.py` - REST/WebSocket endpoints, canonical git sync route, async git polling (`BackgroundServices`)
 - `gcs-server/schemas.py` - Pydantic models for git status data
-- `gcs-server/config.py` - `get_gcs_git_report()`: returns GCS repo branch/commit/status (used by `/git-status`)
+- `gcs-server/config.py` - `get_gcs_git_report()`: returns GCS repo branch/commit/status (used by `GET /api/v1/git/status`)
 - `functions/git_manager.py` - `get_local_git_report()`, `get_remote_git_status()`
 
 ### Drone Side
@@ -152,7 +152,7 @@ For custom forks, org repos, or private customer repos, the following override c
 | GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env` |
 | Drone boot sync and `UPDATE_CODE` action | `update_repo_ssh.sh` | Set `MDS_REPO_URL`/`MDS_BRANCH` in `/etc/mds/local.env` |
 | SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
-| `/sync-repos` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
+| `/api/v1/git/sync-operations` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
 The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dashboard-triggered `UPDATE_CODE` both load `/etc/mds/local.env`, so hardware repo/branch selection stays aligned across boot-time and operator-triggered sync.
 

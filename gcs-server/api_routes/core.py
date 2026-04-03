@@ -170,8 +170,6 @@ def create_core_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Telemetry WebSocket error: {exc}", "websocket")
 
     @router.post("/api/v1/fleet/heartbeats", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-    @router.post("/heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
-    @router.post("/drone-heartbeat", response_model=HeartbeatPostResponse, tags=["Heartbeat"])
     async def post_heartbeat(heartbeat: HeartbeatRequest, request: Request):
         try:
             return _accept_heartbeat(deps, heartbeat, request)
@@ -179,12 +177,10 @@ def create_core_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/fleet/heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
-    @router.get("/get-heartbeats", response_model=HeartbeatResponse, tags=["Heartbeat"])
     async def get_heartbeats():
         return _build_heartbeat_response(deps)
 
     @router.get("/api/v1/fleet/network-status", response_model=NetworkStatusResponse, tags=["Heartbeat"])
-    @router.get("/get-network-status", response_model=NetworkStatusResponse, tags=["Heartbeat"])
     async def get_network_status():
         return _build_network_status_response(deps)
 

@@ -20,7 +20,7 @@ export const getConfiguredDrones = async () => {
   return resp.data;
 };
 
-/** GET /get-heartbeats — online/offline drone status */
+/** GET /api/v1/fleet/heartbeats — online/offline drone status */
 export const getHeartbeats = async () => {
   const resp = await getFleetHeartbeatsResponse();
   return resp.data;

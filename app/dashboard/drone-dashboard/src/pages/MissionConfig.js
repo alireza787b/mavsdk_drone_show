@@ -196,7 +196,7 @@ const MissionConfig = () => {
       if (gitStatusDataFetched.git_status) {
         setGitStatusData(gitStatusDataFetched.git_status);
       }
-      // GCS status is included in the unified /git-status response
+      // GCS status is included in the canonical /api/v1/git/status response
       if (gitStatusDataFetched.gcs_status) {
         setGcsGitStatus(gitStatusDataFetched.gcs_status);
       }

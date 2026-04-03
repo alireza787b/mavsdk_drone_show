@@ -1,5 +1,9 @@
 """Shared canonical GCS route constants for runtime and tooling callers."""
 
+GCS_FLEET_HEARTBEATS_ROUTE = "/api/v1/fleet/heartbeats"
+GCS_FLEET_NETWORK_STATUS_ROUTE = "/api/v1/fleet/network-status"
+GCS_GIT_STATUS_ROUTE = "/api/v1/git/status"
+GCS_GIT_SYNC_OPERATIONS_ROUTE = "/api/v1/git/sync-operations"
 GCS_COMMAND_REPORT_EXECUTION_START_ROUTE = "/api/v1/command-reports/execution-start"
 GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE = "/api/v1/command-reports/execution-result"
 GCS_ORIGIN_BOOTSTRAP_ROUTE = "/api/v1/origin/bootstrap"

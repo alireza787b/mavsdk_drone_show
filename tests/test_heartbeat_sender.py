@@ -145,7 +145,7 @@ class TestHeartbeatSending:
             mock_params.heartbeat_interval = 10
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5000
-            mock_params.gcs_heartbeat_endpoint = '/api/heartbeat'
+            mock_params.gcs_heartbeat_endpoint = '/api/v1/fleet/heartbeats'
             mock_params.netbird_ip_prefix = '100.'
 
             sender = HeartbeatSender(mock_config)
@@ -161,7 +161,7 @@ class TestHeartbeatSending:
 
                         mock_post.assert_called_once()
                         call_args = mock_post.call_args
-                        assert call_args[0][0] == 'http://192.168.1.1:5000/api/heartbeat'
+                        assert call_args[0][0] == 'http://192.168.1.1:5000/api/v1/fleet/heartbeats'
                         assert call_args[1]['json']['hw_id'] == '1'
                         assert call_args[1]['json']['pos_id'] == 1
                         assert call_args[1]['json']['ip'] == '100.64.0.1'
@@ -178,7 +178,7 @@ class TestHeartbeatSending:
             mock_params.heartbeat_interval = 10
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5000
-            mock_params.gcs_heartbeat_endpoint = '/api/heartbeat'
+            mock_params.gcs_heartbeat_endpoint = '/api/v1/fleet/heartbeats'
             mock_params.netbird_ip_prefix = '100.'
 
             sender = HeartbeatSender(mock_config)
@@ -206,7 +206,7 @@ class TestHeartbeatSending:
             mock_params.heartbeat_interval = 10
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5000
-            mock_params.gcs_heartbeat_endpoint = '/api/heartbeat'
+            mock_params.gcs_heartbeat_endpoint = '/api/v1/fleet/heartbeats'
             mock_params.netbird_ip_prefix = '100.'
 
             sender = HeartbeatSender(mock_config)

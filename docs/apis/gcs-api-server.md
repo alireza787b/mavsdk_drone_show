@@ -278,7 +278,7 @@ Get telemetry with the same live payload shape used by the React dashboard.
 
 ### Heartbeat
 
-#### `POST /heartbeat`
+#### `POST /api/v1/fleet/heartbeats`
 Receive heartbeat from drone (fire-and-forget).
 
 **Request:**
@@ -299,7 +299,7 @@ Receive heartbeat from drone (fire-and-forget).
 }
 ```
 
-#### `GET /get-heartbeats`
+#### `GET /api/v1/fleet/heartbeats`
 Get heartbeat status for all drones.
 
 **Response:**
@@ -319,7 +319,7 @@ Get heartbeat status for all drones.
 }
 ```
 
-#### `GET /get-network-status`
+#### `GET /api/v1/fleet/network-status`
 Get network connectivity status for all drones.
 
 **Response:**
@@ -1109,10 +1109,7 @@ Use this endpoint to rehydrate command monitors after a dashboard refresh/naviga
 
 ### Git Operations
 
-Canonical git routes are exposed under `/api/v1/...`. Legacy compatibility routes remain mounted during the migration:
-
-- `GET /git-status`
-- `POST /sync-repos`
+Canonical git routes are exposed under `/api/v1/...`. The old versionless HTTP aliases are retired.
 
 #### `GET /api/v1/git/status`
 Get git status from all drones.

@@ -15,7 +15,7 @@ network_info_lock = Lock()
 
 def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestamp=None, network_info=None):
     """
-    Handler for POST /drone-heartbeat
+    Handler for POST /api/v1/fleet/heartbeats
     Backend-agnostic function that accepts heartbeat data as parameters.
 
     Args:
@@ -85,7 +85,7 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
 
 def get_all_heartbeats():
     """
-    Handler for GET /get-heartbeats
+    Handler for GET /api/v1/fleet/heartbeats
     Returns the latest heartbeat data for all drones.
     Backend-agnostic function that returns dict data.
     """

@@ -76,9 +76,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/statistics",
         "/api/v1/commands/{command_id}",
         "/api/v1/system/gcs-config",
-        "/get-heartbeats",
-        "/get-network-status",
-        "/git-status",
         "/api/v1/swarm-trajectories/leaders",
         "/api/v1/swarm-trajectories/recommendation",
         "/api/v1/swarm-trajectories/status",
@@ -98,8 +95,6 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/poi",
     },
     "POST": {
-        "/heartbeat",
-        "/drone-heartbeat",
         "/api/v1/fleet/heartbeats",
         "/api/v1/config/fleet/validation",
         "/api/v1/commands",
@@ -111,7 +106,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/skybrush/import",
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
-        "/sync-repos",
         "/api/v1/swarm-trajectories/upload/{leader_id}",
         "/api/v1/swarm-trajectories/process",
         "/api/v1/swarm-trajectories/clear-processed",
@@ -280,12 +274,12 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/system/health")].endpoint is route_index[("GET", "/health")].endpoint
     assert route_index[("GET", "/ping")].endpoint is route_index[("GET", "/health")].endpoint
     assert route_index[("GET", "/api/v1/fleet/telemetry")].endpoint is route_index[("GET", "/api/telemetry")].endpoint
-    assert route_index[("GET", "/api/v1/fleet/heartbeats")].endpoint is route_index[("GET", "/get-heartbeats")].endpoint
-    assert route_index[("GET", "/api/v1/fleet/network-status")].endpoint is route_index[("GET", "/get-network-status")].endpoint
-    assert route_index[("POST", "/api/v1/fleet/heartbeats")].endpoint is route_index[("POST", "/heartbeat")].endpoint
-    assert route_index[("POST", "/heartbeat")].endpoint is route_index[("POST", "/drone-heartbeat")].endpoint
-    assert route_index[("GET", "/api/v1/git/status")].endpoint is route_index[("GET", "/git-status")].endpoint
-    assert route_index[("POST", "/api/v1/git/sync-operations")].endpoint is route_index[("POST", "/sync-repos")].endpoint
+    assert ("GET", "/get-heartbeats") not in route_index
+    assert ("GET", "/get-network-status") not in route_index
+    assert ("POST", "/heartbeat") not in route_index
+    assert ("POST", "/drone-heartbeat") not in route_index
+    assert ("GET", "/git-status") not in route_index
+    assert ("POST", "/sync-repos") not in route_index
     assert ("GET", "/get-gcs-git-status") not in route_index
     assert ("GET", "/get-drone-git-status/{drone_id}") not in route_index
     assert ("GET", "/get-gcs-config") not in route_index
