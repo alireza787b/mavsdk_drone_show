@@ -357,6 +357,12 @@ class TestConfigurationEndpoints:
         data = response.json()
         assert 'summary' in data
 
+    def test_save_config_rejects_invalid_format(self, test_client):
+        """Test POST /save-config-data preserves 400 for invalid client payload shape."""
+        response = test_client.post("/save-config-data", json={"not": "a-list"})
+        assert response.status_code == 400
+        assert response.json()['detail'] == "Invalid configuration data format"
+
 
 # ============================================================================
 # Telemetry Tests

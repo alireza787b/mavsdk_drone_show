@@ -90,8 +90,8 @@ from src import __version__ as MDS_VERSION
 
 # Import SAR router
 from sar.routes import router as sar_router
+from api_routes.configuration import create_configuration_router
 from api_routes.core import create_core_router
-from api_routes.swarm import create_swarm_router
 from api_routes.swarm import create_swarm_router
 
 # Import swarm trajectory functions
@@ -569,7 +569,7 @@ app.add_middleware(
 # Register SAR router
 app.include_router(sar_router)
 app.include_router(create_core_router(sys.modules[__name__]))
-app.include_router(create_swarm_router(sys.modules[__name__]))
+app.include_router(create_configuration_router(sys.modules[__name__]))
 app.include_router(create_swarm_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
@@ -600,119 +600,6 @@ async def log_requests(request: Request, call_next):
     )
 
     return response
-
-
-# ============================================================================
-# Configuration Endpoints
-# ============================================================================
-
-@app.get("/get-config-data", tags=["Configuration"])
-async def get_config():
-    """Get current drone configuration"""
-    try:
-        config = load_config()
-        return JSONResponse(content=config)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error loading configuration: {e}")
-
-
-@app.post("/save-config-data", response_model=ConfigUpdateResponse, tags=["Configuration"])
-async def save_config_route(request: Request):
-    """Save drone configuration to config.json"""
-    try:
-        config_data = await request.json()
-
-        if not config_data:
-            raise HTTPException(status_code=400, detail="No configuration data provided")
-
-        log_system_event("💾 Configuration update received", "INFO", "config")
-
-        # Validate config_data
-        if not isinstance(config_data, list):
-            raise HTTPException(status_code=400, detail="Invalid configuration data format")
-
-        # Validate and process config
-        sim_mode = getattr(Params, 'sim_mode', False)
-        report = validate_and_process_config(config_data, sim_mode)
-
-        # Save configuration
-        save_config(report['updated_config'])
-        log_system_event("✅ Configuration saved successfully", "INFO", "config")
-
-        # Git operations if enabled (run in executor to avoid blocking event loop)
-        git_result = None
-        if Params.GIT_AUTO_PUSH:
-            drone_count = len(report['updated_config'])
-            loop = asyncio.get_event_loop()
-            git_result = await loop.run_in_executor(
-                None, git_operations, BASE_DIR,
-                f"config: update config.json via dashboard ({drone_count} drones updated)"
-            )
-
-        return ConfigUpdateResponse(
-            success=True,
-            message="Configuration saved successfully",
-            updated_count=len(report['updated_config']),
-            git_result=git_result
-        )
-
-    except Exception as e:
-        log_system_error(f"Error saving configuration: {e}", "config")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/validate-config", tags=["Configuration"])
-async def validate_config_route(request: Request):
-    """Validate configuration without saving"""
-    try:
-        config_data = await request.json()
-
-        if not config_data:
-            raise HTTPException(status_code=400, detail="No configuration data provided")
-
-        sim_mode = getattr(Params, 'sim_mode', False)
-        report = validate_and_process_config(config_data, sim_mode)
-
-        return JSONResponse(content=report)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-drone-positions", tags=["Configuration"])
-async def get_drone_positions():
-    """Get initial positions for all drones from trajectory CSV files"""
-    try:
-        positions = get_all_drone_positions()
-        return JSONResponse(content=positions)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-trajectory-first-row", tags=["Configuration"])
-async def get_trajectory_first_row(pos_id: int = Query(..., description="Position ID")):
-    """Get expected position from trajectory CSV file"""
-    try:
-        sim_mode = getattr(Params, 'sim_mode', False)
-        north, east = get_expected_position_from_trajectory(pos_id, sim_mode)
-
-        if north is None or east is None:
-            raise HTTPException(status_code=404, detail=f"Trajectory file not found for pos_id={pos_id}")
-
-        return JSONResponse(content={
-            "pos_id": pos_id,
-            "north": north,
-            "east": east,
-            "source": f"Drone {pos_id}.csv (first waypoint)"
-        })
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # Command Endpoints

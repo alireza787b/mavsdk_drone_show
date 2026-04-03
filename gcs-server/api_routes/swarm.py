@@ -110,7 +110,7 @@ def create_swarm_router(deps: Any) -> APIRouter:
             git_result = None
 
             if should_commit:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 git_result = await loop.run_in_executor(
                     None, deps.git_operations, deps.BASE_DIR, "config: update swarm.json via dashboard"
                 )
