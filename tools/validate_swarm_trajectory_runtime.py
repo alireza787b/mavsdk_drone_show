@@ -47,6 +47,7 @@ try:
     )
     from src.live_armability_utils import calculate_live_armability_request_timeout
     from src.params import Params
+    from tools.runtime_validation_support import write_json_report
 except Exception:  # pragma: no cover - validator fallback only
     USING_FALLBACK_TIMEOUT_PARAMS = True
 
@@ -105,6 +106,9 @@ except Exception:  # pragma: no cover - validator fallback only
 
     GCS_SWARM_TRAJECTORY_STATUS_ROUTE = "/api/v1/swarm-trajectories/status"
     GCS_SWARM_TRAJECTORY_PROCESS_ROUTE = "/api/v1/swarm-trajectories/process"
+
+    def write_json_report(path, payload):  # pragma: no cover - fallback only
+        return None
 
 
 SWARM_TRAJECTORY = 4
@@ -1177,6 +1181,12 @@ def main() -> int:
         default=10.0,
         help="Per-leg duration in seconds for generated short validation waypoints",
     )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        help="Optional path to write the final validation summary JSON",
+    )
     args = parser.parse_args()
 
     client = ApiClient(args.base_url)
@@ -1320,11 +1330,13 @@ def main() -> int:
         wait_for_idle(client, args.drone_ids, timeout=240)
         results["result"] = "PASS"
 
+        write_json_report(args.json_output, results)
         print(json.dumps(results, indent=2))
         return 0
     except Exception as exc:
         results["result"] = "FAIL"
         results["error"] = str(exc)
+        write_json_report(args.json_output, results)
         print(json.dumps(results, indent=2))
         try:
             cleanup_land(client, args.drone_ids, "Swarm Trajectory Validation Cleanup Land", baselines if "baselines" in locals() else None)

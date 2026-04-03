@@ -564,6 +564,29 @@ If you are chaining multiple mission-family validators on the same SITL fleet, r
 bash multiple_sitl/create_dockers.sh 3
 ```
 
+If you want one reusable acceptance command that runs Drone Show, Smart Swarm,
+and Swarm Trajectory in sequence and writes per-mode JSON reports, use:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --base-url http://127.0.0.1:5000 \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+If the validator tooling is being executed from a temporary checkout but the
+live GCS and SITL runtime are using a different repo path, pass both roots
+explicitly so Swarm Trajectory profile generation and processing hit the same
+runtime tree:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root /tmp/mds_sitl_suite_validation \
+  --repo-root /root/mavsdk_drone_show_main_candidate_runtime_https \
+  --drone-ids 1 2 3
+```
+
 
 ## Additional Resources
 

@@ -1,11 +1,13 @@
 import copy
 import time
+import argparse
 
 from tools.validate_smart_swarm_runtime import (
     _is_idle_baseline_row,
     _is_idle_reset_row,
     _telemetry_has_ids,
     assignment_snapshot,
+    resolve_selected_ids,
     restore_assignments,
 )
 
@@ -157,3 +159,13 @@ def test_restore_assignments_updates_only_changed_rows():
         )
     ]
     assert assignment_snapshot(client.get_swarm(), [1, 2, 3]) == original
+
+
+def test_resolve_selected_ids_prefers_space_separated_drone_ids():
+    args = argparse.Namespace(drone_ids=[3, 2, 2, 1], drones="9,8,7")
+    assert resolve_selected_ids(args) == [1, 2, 3]
+
+
+def test_resolve_selected_ids_falls_back_to_csv_argument():
+    args = argparse.Namespace(drone_ids=None, drones="3, 1,2")
+    assert resolve_selected_ids(args) == [1, 2, 3]

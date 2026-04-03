@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 SITL suite runtime-root fix checkpoint note documenting the reusable multi-mode validator, the stale live gunicorn restart on Hetzner, the validator-root/runtime-root split, and the corrected end-to-end live 3-drone suite pass across Drone Show, Smart Swarm, and Swarm Trajectory
 - a 2026-04-03 stream-surface codification checkpoint note documenting the third Phase 5 API-modernization slice, the explicit WebSocket transport-root policy, the shared GCS WebSocket route builders/constants, and the Hetzner Jest/build validation results
 - a 2026-04-03 logging-domain hardening checkpoint note documenting the second Phase 5 API-modernization slice, the shared session-path validation, typed log-route models, the stable-root policy for `/api/logs/*` and `/api/sar/*`, and the paired local/Hetzner validation results
 - a 2026-04-03 SAR router normalization checkpoint note documenting the first Phase 5 API-modernization slice, the QuickScout router-factory cleanup, the removal of the old `sys.path` import hack, and the paired local/Hetzner validation results
@@ -112,6 +113,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - command-route inventory and alias guardrails now cover the canonical v1 command surface in addition to the legacy compatibility paths, preventing later drift between documented aliases and the mounted FastAPI routes
 - request-log noise classification now recognizes canonical command poll/callback paths (`/api/v1/commands/...`, `/api/v1/command-reports/...`) so successful v1 command monitoring traffic stays at `DEBUG` while submit/cancel/operator actions remain visible at `INFO`
 - the public GCS API documentation now presents the command control surface under canonical v1 routes first while still calling out the legacy compatibility paths explicitly
+- `tools/run_sitl_validation_suite.py` now separates `--validator-root` from `--repo-root`, so temporary validation checkouts can execute the newest tooling while all reset steps and repo-backed runtime data operations target the same checkout that the live GCS actually serves from
+- the reusable SITL validation workflow is now validated locally and on Hetzner with `371 passed, 8 skipped`, and the corrected live 3-drone suite passed end to end with the runtime-root-aware invocation
 - the eighth Phase 3 backend extraction now moves the remaining Commands REST surface into `gcs-server/api_routes/commands.py`, so `app_fastapi.py` no longer owns `/submit_command`, `/command/{command_id}`, `/commands/recent`, `/commands/active`, `/commands/statistics`, `/command/{command_id}/cancel`, `/command/execution-result`, or `/command/execution-start`
 - command-route coverage now has focused router-level tests for route registration, live dependency lookup, request-body validation, target-resolution failure handling, and the intentionally fail-closed cancel path, closing the last major gap in the extracted GCS route suite
 - `POST /submit_command` now rejects malformed JSON, non-object JSON bodies, invalid `target_drones` shapes, and explicit target selections that match no configured drones with `400` instead of creating ambiguous zero-target command records or surfacing generic server errors

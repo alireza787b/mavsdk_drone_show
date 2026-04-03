@@ -36,11 +36,16 @@ from typing import Any, Dict, Iterable, List
 
 import requests
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from src.gcs_api_routes import (
     GCS_CUSTOM_SHOW_INFO_ROUTE,
     GCS_SHOW_IMPORT_ROUTE,
     GCS_SHOW_INFO_ROUTE,
 )
+from tools.runtime_validation_support import build_sitl_reset_command, write_json_report
 
 
 SHOW_MISSION = 1
@@ -457,18 +462,7 @@ def extract_http_error_detail(exc: requests.HTTPError) -> str:
 
 
 def reset_sitl_fleet(client: ApiClient, repo_root: Path, ids: list[int], timeout: int = 180) -> dict[str, dict]:
-    selected_ids = sorted({int(drone_id) for drone_id in ids})
-    require(selected_ids, "No drone IDs supplied for SITL reset.")
-
-    expected_ids = list(range(selected_ids[0], selected_ids[0] + len(selected_ids)))
-    require(
-        selected_ids == expected_ids,
-        f"SITL reset only supports contiguous drone IDs today, got {selected_ids}",
-    )
-
-    command = ["bash", "multiple_sitl/create_dockers.sh", str(len(selected_ids))]
-    if selected_ids[0] != 1:
-        command.extend(["--start-id", str(selected_ids[0]), "--start-ip", str(selected_ids[0] + 1)])
+    command = build_sitl_reset_command(ids)
 
     log(f"RESET SITL: {' '.join(command)} (cwd={repo_root})")
     try:
@@ -669,6 +663,12 @@ def main() -> int:
         action="store_true",
         help="Skip recreating SITL containers between internal validation runs",
     )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        default=None,
+        help="Optional path to write the final validation summary JSON",
+    )
     args = parser.parse_args()
 
     client = ApiClient(args.base_url)
@@ -743,6 +743,7 @@ def main() -> int:
     )
 
     log("VALIDATION COMPLETE")
+    write_json_report(args.json_output, results)
     print(json.dumps(results, indent=2, sort_keys=True))
     return 0
 

@@ -23,11 +23,18 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from src.params import Params
 except Exception:
     Params = None
+
+from tools.runtime_validation_support import parse_csv_drone_ids, write_json_report
 
 
 TAKEOFF = 10
@@ -517,7 +524,8 @@ def require_full_execution(status: dict, expected_targets: int, label: str) -> N
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Smart Swarm runtime on a live GCS/SITL stack.")
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
-    parser.add_argument("--drones", default="1,2,3,4,5", help="Comma-separated drone hardware IDs to validate")
+    parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to validate")
+    parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to validate")
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after takeoff")
     parser.add_argument("--horizontal-tolerance", type=float, default=5.0, help="Formation horizontal error tolerance in meters")
     parser.add_argument("--altitude-tolerance", type=float, default=1.5, help="Formation altitude error tolerance in meters")
@@ -525,31 +533,51 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-smart-swarm-velocity", type=float, default=3.0, help="Expected Smart Swarm max velocity used for timeout sizing")
     parser.add_argument("--stability-samples", type=int, default=3, help="Consecutive in-tolerance samples required before a cluster is considered settled")
     parser.add_argument("--skip-reassign", action="store_true", help="Skip the in-flight follower reassignment check")
+    parser.add_argument("--json-output", type=Path, default=None, help="Optional path to write the final validation summary JSON")
     return parser.parse_args()
 
 
-def main() -> None:
+def resolve_selected_ids(args: argparse.Namespace) -> list[int]:
+    if args.drone_ids:
+        return sorted({int(drone_id) for drone_id in args.drone_ids})
+    if args.drones:
+        return parse_csv_drone_ids(args.drones)
+    return parse_csv_drone_ids("1,2,3,4,5")
+
+
+def main() -> int:
     args = parse_args()
     client = ApiClient(args.base_url)
-    ids = [int(part.strip()) for part in args.drones.split(",") if part.strip()]
+    ids = resolve_selected_ids(args)
     require(ids, "No drone IDs supplied.")
+    results: dict[str, object] = {
+        "base_url": args.base_url,
+        "drone_ids": ids,
+        "skip_reassign": bool(args.skip_reassign),
+    }
 
-    wait_api_ready(client, timeout=60)
+    results["health"] = wait_api_ready(client, timeout=60)
     telemetry = wait_fleet_ready(client, ids, timeout=120)
+    results["baseline_telemetry"] = telemetry
     base_altitudes = {str(idx): telemetry[str(idx)]["position_alt"] for idx in ids}
     log(f"BASE ALTITUDES: {base_altitudes}")
+    results["base_altitudes"] = base_altitudes
 
     swarm = client.get_swarm()
     original_assignments = assignment_snapshot(swarm, ids)
+    results["original_assignments"] = original_assignments
     clusters = build_clusters(swarm, set(ids))
     require(clusters, "No Smart Swarm clusters found for the selected drones.")
     log(f"SMART SWARM CLUSTERS: {clusters}")
+    results["clusters"] = clusters
+    results["cluster_runs"] = []
 
     command_id, _ = client.submit_command(TAKEOFF, ids, "Smart Swarm Validation Takeoff")
     status = wait_for_command(client, command_id, terminal=True, timeout=150)
     require(status["status"] == "completed", f"Takeoff command failed: {command_summary(status)}")
     require_full_acceptance(status, len(ids), "Takeoff")
     require_full_execution(status, len(ids), "Takeoff")
+    results["takeoff"] = command_summary(status)
     wait_altitude(client, ids, base_altitudes, args.takeoff_min_gain)
 
     for cluster in clusters:
@@ -569,8 +597,18 @@ def main() -> None:
             max_velocity=args.max_smart_swarm_velocity,
         )
         log(f"FORMATION CLUSTER {cluster}: {json.dumps(errors, indent=2)}")
+        results["cluster_runs"].append(
+            {
+                "cluster": cluster,
+                "command": command_summary(status),
+                "formation_errors": errors,
+            }
+        )
 
     leader_rtl_triggered = False
+    results["reassignment"] = None
+    results["leader_rtl"] = None
+    results["follower_hold"] = None
 
     if not args.skip_reassign and all(drone_id in ids for drone_id in (1, 2, 3)):
         client.update_assignment(3, follow=2, offset_x=8.0, offset_y=6.0, offset_z=0.0, frame="body")
@@ -588,23 +626,32 @@ def main() -> None:
             max_velocity=args.max_smart_swarm_velocity,
         )
         log(f"FORMATION AFTER DRONE-3 REASSIGN: {json.dumps(errors, indent=2)}")
+        results["reassignment"] = {
+            "hw_id": 3,
+            "new_follow": 2,
+            "frame": "body",
+            "formation_errors": errors,
+        }
 
         command_id, _ = client.submit_command(RTL, [1], "Leader 1 RTL override")
         status = wait_for_command(client, command_id, terminal=True, timeout=120)
         require_full_acceptance(status, 1, "Leader-only RTL")
         require_full_execution(status, 1, "Leader-only RTL")
         leader_rtl_triggered = True
+        results["leader_rtl"] = command_summary(status)
         time.sleep(10.0)
         telemetry = snapshot(client, [1, 2, 3])
         require(telemetry["2"]["mission"] == SMART_SWARM, f"Drone 2 left Smart Swarm unexpectedly: {telemetry['2']}")
         require(telemetry["3"]["mission"] == SMART_SWARM, f"Drone 3 left Smart Swarm unexpectedly: {telemetry['3']}")
         log(f"POST-RTL TELEMETRY CLUSTER [1, 2, 3]: {json.dumps(telemetry, indent=2)}")
+        results["post_rtl_cluster_telemetry"] = telemetry
 
         command_id, _ = client.submit_command(HOLD, [2, 3], "Stop Smart Swarm Followers Hold")
         status = wait_for_command(client, command_id, terminal=True, timeout=120)
         require(status["status"] == "completed", f"Hold command failed: {command_summary(status)}")
         require_full_acceptance(status, 2, "Hold")
         require_full_execution(status, 2, "Hold")
+        results["follower_hold"] = command_summary(status)
 
     land_targets = [idx for idx in ids if idx != 1] if leader_rtl_triggered else list(ids)
     command_id, _ = client.submit_command(LAND, land_targets, "Land Remaining Smart Swarm Drones")
@@ -612,24 +659,31 @@ def main() -> None:
     require(status["status"] == "completed", f"Land command failed: {command_summary(status)}")
     require_full_acceptance(status, len(land_targets), "Land")
     require_full_execution(status, len(land_targets), "Land")
+    results["land"] = command_summary(status)
 
     final_telemetry = wait_idle_reset(client, ids, timeout=240)
     restored_ids = restore_assignments(client, original_assignments, timeout=30)
     if restored_ids:
         log(f"RESTORED SWARM ASSIGNMENTS: {restored_ids}")
+    results["restored_assignment_ids"] = restored_ids
     final_assignments = assignment_snapshot(client.get_swarm(), ids)
     require(
         final_assignments == original_assignments,
         f"Selected swarm assignments were not restored: {json.dumps(final_assignments, indent=2)}",
     )
+    results["final_telemetry"] = final_telemetry
+    results["final_assignments"] = final_assignments
     log(f"FINAL TELEMETRY: {json.dumps(final_telemetry, indent=2)}")
     log(f"FINAL SWARM ASSIGNMENTS: {json.dumps(final_assignments, indent=2, sort_keys=True)}")
     log("SMART SWARM VALIDATION PASSED")
+    write_json_report(args.json_output, results)
+    print(json.dumps(results, indent=2, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         print(f"HTTP ERROR {exc.code}: {body}", file=sys.stderr)
