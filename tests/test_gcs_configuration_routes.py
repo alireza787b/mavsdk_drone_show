@@ -33,11 +33,11 @@ def test_configuration_router_registers_expected_routes():
     assert "/api/v1/config/fleet/validation" in routes
     assert "/api/v1/config/fleet/trajectory-start-positions" in routes
     assert "/api/v1/config/fleet/trajectory-start-positions/{pos_id}" in routes
-    assert "/get-config-data" in routes
-    assert "/save-config-data" in routes
-    assert "/validate-config" in routes
-    assert "/get-drone-positions" in routes
-    assert "/get-trajectory-first-row" in routes
+    assert "/get-config-data" not in routes
+    assert "/save-config-data" not in routes
+    assert "/validate-config" not in routes
+    assert "/get-drone-positions" not in routes
+    assert "/get-trajectory-first-row" not in routes
 
 
 def test_configuration_router_uses_live_dependency_attributes_after_router_creation():

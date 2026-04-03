@@ -399,6 +399,31 @@ Phase 4 tenth checkpoint on 2026-04-03:
 
 After this checkpoint, the remaining compatibility-retirement work is centered on the larger business alias families: configuration/swarm, origin, show-management, command control, and the versionless Swarm Trajectory surface.
 
+Phase 4 eleventh checkpoint on 2026-04-03:
+
+- retired the GCS configuration/swarm legacy routes:
+  - removed `GET /get-config-data`
+  - removed `POST /save-config-data`
+  - removed `POST /validate-config`
+  - removed `GET /get-drone-positions`
+  - removed `GET /get-trajectory-first-row`
+  - removed `GET /get-swarm-data`
+  - removed `POST /save-swarm-data`
+  - removed `POST /request-new-leader`
+- deliberately treated that family as a safe retirement target because there were no remaining live dashboard, runtime-tooling, or validation-script callers; only compatibility mounts, route-resolver leftovers, request-log noise classification, and docs/tests still referenced the old surface
+- kept the canonical configuration/swarm surface:
+  - `GET /api/v1/config/fleet`
+  - `PUT /api/v1/config/fleet`
+  - `POST /api/v1/config/fleet/validation`
+  - `GET /api/v1/config/fleet/trajectory-start-positions`
+  - `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
+  - `GET /api/v1/config/swarm`
+  - `PUT /api/v1/config/swarm`
+  - `PATCH /api/v1/config/swarm/assignments/{hw_id}`
+- updated the shared frontend route resolver, request-log classification, and active operator/developer docs so the retired config/swarm aliases no longer linger as pseudo-compatibility
+
+After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin, show-management, command-control, and versionless Swarm Trajectory legacy families.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs
@@ -406,7 +431,7 @@ After this checkpoint, the remaining compatibility-retirement work is centered o
 
 ### Phase 6
 
-- remove deprecated legacy routes only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
+- remove the remaining deferred or high-risk legacy routes only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
 
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 

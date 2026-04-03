@@ -28,11 +28,11 @@ def test_swarm_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
-    assert "/get-swarm-data" in routes
     assert "/api/v1/config/swarm" in routes
-    assert "/save-swarm-data" in routes
-    assert "/request-new-leader" in routes
     assert "/api/v1/config/swarm/assignments/{hw_id}" in routes
+    assert "/get-swarm-data" not in routes
+    assert "/save-swarm-data" not in routes
+    assert "/request-new-leader" not in routes
 
 
 def test_swarm_router_uses_live_dependency_attributes_after_router_creation():

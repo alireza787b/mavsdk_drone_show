@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 config/swarm legacy-retirement checkpoint note documenting the eleventh Phase 4 API-modernization slice, the removal of the GCS configuration/swarm verb-style aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 legacy-route retirement audit note documenting the remaining GCS compatibility buckets as remove-now, keep-temporarily, and defer-with-reason so the remaining API cleanup can proceed deliberately
 - a 2026-04-03 management/static legacy-retirement checkpoint note documenting the tenth Phase 4 API-modernization slice, the removal of the old GCS config/network/static plot aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 git legacy-retirement checkpoint note documenting the ninth Phase 4 API-modernization slice, the removal of the deprecated one-off git detail endpoints, the route-inventory cleanup, and the paired local/Hetzner validation results
@@ -374,6 +375,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- retired the public GCS configuration/swarm legacy routes `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader`, leaving the canonical `/api/v1/config/fleet*` and `/api/v1/config/swarm*` surfaces as the only supported GCS contract for those domains
 - `Show Design` / `Custom Show` operator guidance, Mission Details, and the Drone Show guide now reflect the current split between the normal SkyBrush import pipeline and the expert-only Custom CSV override
 - Bootstrap installers now propagate custom repo/branch selections all the way into `mds_gcs_init.sh` / `mds_init.sh`, including explicit `--repo-url` support and correct persistence of custom branch settings in later config/state
 - Root `README.md` and `docs/README.md` now use a cleaner "start here" / role-based navigation model so testers, operators, deployers, and maintainers can reach the right guide with less duplication and less scrolling

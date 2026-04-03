@@ -78,10 +78,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/system/gcs-config",
         "/get-heartbeats",
         "/get-network-status",
-        "/get-config-data",
-        "/get-drone-positions",
-        "/get-trajectory-first-row",
-        "/get-swarm-data",
         "/command/{command_id}",
         "/commands/recent",
         "/commands/active",
@@ -134,9 +130,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/skybrush/import",
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
-        "/save-config-data",
-        "/validate-config",
-        "/save-swarm-data",
         "/submit_command",
         "/command/{command_id}/cancel",
         "/command/execution-result",
@@ -155,7 +148,6 @@ GCS_EXPECTED_HTTP = {
         "/validate-trajectory",
         "/deploy-show",
         "/compute-origin",
-        "/request-new-leader",
         "/api/logs/frontend",
         "/api/logs/export",
         "/api/logs/drone/{drone_id}/export",
@@ -321,10 +313,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/fleet/network-status")].endpoint is route_index[("GET", "/get-network-status")].endpoint
     assert route_index[("POST", "/api/v1/fleet/heartbeats")].endpoint is route_index[("POST", "/heartbeat")].endpoint
     assert route_index[("POST", "/heartbeat")].endpoint is route_index[("POST", "/drone-heartbeat")].endpoint
-    assert route_index[("GET", "/api/v1/config/fleet")].endpoint is route_index[("GET", "/get-config-data")].endpoint
-    assert route_index[("PUT", "/api/v1/config/fleet")].endpoint is route_index[("POST", "/save-config-data")].endpoint
-    assert route_index[("POST", "/api/v1/config/fleet/validation")].endpoint is route_index[("POST", "/validate-config")].endpoint
-    assert route_index[("GET", "/api/v1/config/fleet/trajectory-start-positions")].endpoint is route_index[("GET", "/get-drone-positions")].endpoint
     assert route_index[("POST", "/api/v1/commands")].endpoint is route_index[("POST", "/submit_command")].endpoint
     assert route_index[("GET", "/api/v1/commands/{command_id}")].endpoint is route_index[("GET", "/command/{command_id}")].endpoint
     assert route_index[("GET", "/api/v1/commands/recent")].endpoint is route_index[("GET", "/commands/recent")].endpoint
@@ -335,10 +323,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("POST", "/api/v1/command-reports/execution-result")].endpoint is route_index[("POST", "/command/execution-result")].endpoint
     assert route_index[("GET", "/api/v1/git/status")].endpoint is route_index[("GET", "/git-status")].endpoint
     assert route_index[("POST", "/api/v1/git/sync-operations")].endpoint is route_index[("POST", "/sync-repos")].endpoint
-    assert route_index[("GET", "/api/v1/config/fleet/trajectory-start-positions/{pos_id}")].endpoint is not route_index[("GET", "/get-trajectory-first-row")].endpoint
-    assert route_index[("GET", "/api/v1/config/swarm")].endpoint is not route_index[("GET", "/get-swarm-data")].endpoint
-    assert route_index[("PUT", "/api/v1/config/swarm")].endpoint is not route_index[("POST", "/save-swarm-data")].endpoint
-    assert route_index[("PATCH", "/api/v1/config/swarm/assignments/{hw_id}")].endpoint is not route_index[("POST", "/request-new-leader")].endpoint
     assert route_index[("GET", "/api/v1/origin")].endpoint is route_index[("GET", "/get-origin")].endpoint
     assert route_index[("PUT", "/api/v1/origin")].endpoint is route_index[("POST", "/set-origin")].endpoint
     assert route_index[("GET", "/api/v1/navigation/global-origin")].endpoint is route_index[("GET", "/get-gps-global-origin")].endpoint
@@ -365,6 +349,14 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("POST", "/save-gcs-config") not in route_index
     assert ("GET", "/get-network-info") not in route_index
     assert ("GET", "/static/plots/{filename}") not in route_index
+    assert ("GET", "/get-config-data") not in route_index
+    assert ("POST", "/save-config-data") not in route_index
+    assert ("POST", "/validate-config") not in route_index
+    assert ("GET", "/get-drone-positions") not in route_index
+    assert ("GET", "/get-trajectory-first-row") not in route_index
+    assert ("GET", "/get-swarm-data") not in route_index
+    assert ("POST", "/save-swarm-data") not in route_index
+    assert ("POST", "/request-new-leader") not in route_index
 
 
 def test_drone_business_route_inventory(drone_app):

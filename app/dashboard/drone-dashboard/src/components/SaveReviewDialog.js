@@ -21,7 +21,7 @@ import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdent
  *
  * Props:
  * - isOpen (bool): Controls visibility
- * - validationReport (object): Report from /validate-config endpoint
+ * - validationReport (object): Report from the canonical fleet-config validation endpoint
  * - onConfirm (func): Handler for confirmed save
  * - onCancel (func): Handler for cancel
  */

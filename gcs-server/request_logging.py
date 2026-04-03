@@ -12,7 +12,7 @@ _ROUTINE_SUCCESS_PATHS = {
     "/api/v1/command-reports/execution-start",
     "/commands/recent",
     "/drone-heartbeat",
-    "/get-config-data",
+    "/api/v1/config/fleet",
     "/get-heartbeats",
     "/get-origin",
     "/git-status",

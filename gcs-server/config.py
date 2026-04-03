@@ -97,7 +97,7 @@ def validate_and_process_config(config_data, sim_mode=None):
 
     NOTE: x,y positions are NOT stored in config. They are always fetched
     from trajectory CSV files (single source of truth). Use get_all_drone_positions()
-    or /get-drone-positions API to retrieve positions.
+    or GET /api/v1/config/fleet/trajectory-start-positions to retrieve positions.
 
     Args:
         config_data (list): List of drone config dictionaries

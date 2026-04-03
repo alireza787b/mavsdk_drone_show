@@ -167,47 +167,10 @@ def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -
 def create_swarm_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/get-swarm-data", tags=["Swarm"])
-    async def get_swarm():
-        try:
-            return JSONResponse(content=deps.load_swarm())
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
     @router.get("/api/v1/config/swarm", tags=["Swarm"])
     async def get_swarm_config():
         try:
             return JSONResponse(content=_build_swarm_config_resource(deps.load_swarm()))
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post("/save-swarm-data", tags=["Swarm"])
-    async def save_swarm_route(request: Request, commit: Optional[bool] = Query(None)):
-        try:
-            swarm_data = _parse_swarm_config_payload(await request.json())
-            _validate_swarm_cycle_constraints(swarm_data)
-
-            deps.log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
-            deps.save_swarm(swarm_data)
-            deps.log_system_event("✅ Swarm configuration saved successfully", "INFO", "swarm")
-
-            should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
-            git_result = None
-
-            if should_commit:
-                loop = asyncio.get_running_loop()
-                git_result = await loop.run_in_executor(
-                    None, deps.git_operations, deps.BASE_DIR, "config: update swarm.json via dashboard"
-                )
-
-            return JSONResponse(content={
-                "status": "success",
-                "message": "Swarm data saved successfully",
-                "git_result": git_result,
-            })
-
-        except HTTPException:
-            raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -237,36 +200,6 @@ def create_swarm_router(deps: Any) -> APIRouter:
                 "git_result": git_result,
             })
 
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.post("/request-new-leader", tags=["Swarm"])
-    async def request_new_leader(request: Request):
-        try:
-            data = await request.json()
-
-            if not isinstance(data, dict):
-                raise HTTPException(status_code=400, detail="Leader update payload must be a JSON object")
-
-            if not data:
-                raise HTTPException(status_code=400, detail="No leader update data provided")
-
-            try:
-                hw_id = int(data.get("hw_id"))
-            except (TypeError, ValueError) as exc:
-                raise HTTPException(status_code=400, detail="hw_id and follow must be integers") from exc
-
-            if hw_id <= 0:
-                raise HTTPException(status_code=400, detail="hw_id must be a positive integer")
-            updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, data)
-
-            return JSONResponse(content={
-                "status": "success",
-                "message": "Leader request processed",
-                "assignment": updated_assignment,
-            })
         except HTTPException:
             raise
         except Exception as exc:

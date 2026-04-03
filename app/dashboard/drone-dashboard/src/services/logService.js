@@ -14,7 +14,7 @@ export const getSources = async () => {
   return resp.data;
 };
 
-/** GET /get-config-data — configured drone inventory */
+/** GET /api/v1/config/fleet — configured drone inventory */
 export const getConfiguredDrones = async () => {
   const resp = await getFleetConfigResponse();
   return resp.data;

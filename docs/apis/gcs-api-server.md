@@ -99,10 +99,10 @@ Same as `/ping`.
 
 ### Configuration Management
 
+The older verb-style GCS configuration aliases were retired on 2026-04-03. Use the canonical `/api/v1/config/fleet*` routes below.
+
 #### `GET /api/v1/config/fleet`
 Get current drone configuration from config.json.
-
-Legacy compatibility route: `GET /get-config-data`
 
 **Response:**
 ```json
@@ -120,8 +120,6 @@ Legacy compatibility route: `GET /get-config-data`
 
 #### `PUT /api/v1/config/fleet`
 Save drone configuration to config.json.
-
-Legacy compatibility route: `POST /save-config-data`
 
 **Request:**
 ```json
@@ -149,8 +147,6 @@ Legacy compatibility route: `POST /save-config-data`
 #### `POST /api/v1/config/fleet/validation`
 Validate configuration without saving.
 
-Legacy compatibility route: `POST /validate-config`
-
 **Request:** Same as `PUT /api/v1/config/fleet`
 
 **Response:**
@@ -167,8 +163,6 @@ Legacy compatibility route: `POST /validate-config`
 
 #### `GET /api/v1/config/fleet/trajectory-start-positions`
 Get initial positions for all drones from trajectory CSV files.
-
-Legacy compatibility route: `GET /get-drone-positions`
 
 **Response:**
 ```json
@@ -195,8 +189,7 @@ Get expected position from a single trajectory CSV file using canonical `x` / `y
 }
 ```
 
-Legacy compatibility route: `GET /get-trajectory-first-row?pos_id={id}`
-Legacy compatibility payload keeps `north` / `east`.
+The older query-string compatibility route was retired. Use the path-parameter form above.
 
 ---
 
@@ -737,6 +730,8 @@ Legacy compatibility route: `POST /deploy-show`
 
 ### Swarm Management
 
+The older verb-style GCS swarm configuration aliases were retired on 2026-04-03. Use the canonical `/api/v1/config/swarm*` routes below.
+
 #### `GET /api/v1/config/swarm`
 Get the canonical swarm configuration resource.
 
@@ -756,9 +751,6 @@ Get the canonical swarm configuration resource.
   ]
 }
 ```
-
-Legacy compatibility:
-- `GET /get-swarm-data` still returns the older raw assignment list during rollout.
 
 #### `PUT /api/v1/config/swarm?commit={true|false}`
 Save the canonical swarm configuration resource.
@@ -795,9 +787,6 @@ Save the canonical swarm configuration resource.
 }
 ```
 
-Legacy compatibility:
-- `POST /save-swarm-data?commit={true|false}` still accepts the older raw assignment-list payload during rollout.
-
 #### `PATCH /api/v1/config/swarm/assignments/{hw_id}`
 Patch a saved swarm assignment for one hardware drone.
 
@@ -831,9 +820,6 @@ together for a single saved assignment.
   }
 }
 ```
-
-Legacy compatibility:
-- `POST /request-new-leader` still exists during rollout, but the canonical path is the assignment patch route above.
 
 #### `GET /api/swarm/leaders`
 Get list of top leaders from swarm configuration.

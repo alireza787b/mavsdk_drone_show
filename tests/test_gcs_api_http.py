@@ -319,8 +319,8 @@ class TestConfigurationEndpoints:
     """Test drone configuration endpoints"""
 
     def test_get_config(self, test_client, mock_config):
-        """Test GET /get-config-data"""
-        response = test_client.get("/get-config-data")
+        """Test GET /api/v1/config/fleet"""
+        response = test_client.get("/api/v1/config/fleet")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
@@ -331,10 +331,10 @@ class TestConfigurationEndpoints:
     @patch('app_fastapi.save_config')
     @patch('app_fastapi.validate_and_process_config')
     def test_save_config(self, mock_validate, mock_save, test_client, mock_config):
-        """Test POST /save-config-data"""
+        """Test PUT /api/v1/config/fleet"""
         mock_validate.return_value = {'updated_config': mock_config}
 
-        response = test_client.post("/save-config-data", json=mock_config)
+        response = test_client.request("PUT", "/api/v1/config/fleet", json=mock_config)
         assert response.status_code == 200
         data = response.json()
         assert data['success'] == True
@@ -342,7 +342,7 @@ class TestConfigurationEndpoints:
 
     @patch('app_fastapi.validate_and_process_config')
     def test_validate_config(self, mock_validate, test_client, mock_config):
-        """Test POST /validate-config"""
+        """Test POST /api/v1/config/fleet/validation"""
         mock_validate.return_value = {
             'updated_config': mock_config,
             'summary': {
@@ -352,14 +352,14 @@ class TestConfigurationEndpoints:
             }
         }
 
-        response = test_client.post("/validate-config", json=mock_config)
+        response = test_client.post("/api/v1/config/fleet/validation", json=mock_config)
         assert response.status_code == 200
         data = response.json()
         assert 'summary' in data
 
     def test_save_config_rejects_invalid_format(self, test_client):
-        """Test POST /save-config-data preserves 400 for invalid client payload shape."""
-        response = test_client.post("/save-config-data", json={"not": "a-list"})
+        """Test PUT /api/v1/config/fleet preserves 400 for invalid client payload shape."""
+        response = test_client.request("PUT", "/api/v1/config/fleet", json={"not": "a-list"})
         assert response.status_code == 400
         assert response.json()['detail'] == "Invalid configuration data format"
 
@@ -1334,11 +1334,15 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.load_swarm')
     def test_get_swarm_data(self, mock_load, test_client):
-        """Test GET /get-swarm-data"""
-        mock_load.return_value = {'hierarchies': {}}
+        """Test GET /api/v1/config/swarm"""
+        mock_load.return_value = [{'hw_id': 1, 'follow': 0}]
 
-        response = test_client.get("/get-swarm-data")
+        response = test_client.get("/api/v1/config/swarm")
         assert response.status_code == 200
+        assert response.json() == {
+            'version': 1,
+            'assignments': [{'hw_id': 1, 'follow': 0}],
+        }
 
     @patch('app_fastapi.load_swarm')
     def test_get_swarm_config_v1_returns_envelope(self, mock_load, test_client):
@@ -1355,10 +1359,10 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data(self, mock_save, test_client):
-        """Test POST /save-swarm-data"""
-        swarm_data = [{'hw_id': 1, 'follow': 0}]
+        """Test PUT /api/v1/config/swarm"""
+        swarm_data = {'version': 1, 'assignments': [{'hw_id': 1, 'follow': 0}]}
 
-        response = test_client.post("/save-swarm-data?commit=false", json=swarm_data)
+        response = test_client.request("PUT", "/api/v1/config/swarm?commit=false", json=swarm_data)
         assert response.status_code == 200
 
     @patch('app_fastapi.save_swarm')
@@ -1374,13 +1378,16 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data_rejects_cycles(self, mock_save, test_client):
-        """Test POST /save-swarm-data rejects cyclic follow chains."""
-        swarm_data = [
-            {'hw_id': 1, 'follow': 2, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
-            {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
-        ]
+        """Test PUT /api/v1/config/swarm rejects cyclic follow chains."""
+        swarm_data = {
+            'version': 1,
+            'assignments': [
+                {'hw_id': 1, 'follow': 2, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+                {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            ],
+        }
 
-        response = test_client.post("/save-swarm-data", json=swarm_data)
+        response = test_client.request("PUT", "/api/v1/config/swarm", json=swarm_data)
 
         assert response.status_code == 400
         assert 'cycle' in response.json()['detail']
@@ -1389,15 +1396,16 @@ class TestSwarmEndpoints:
     @patch('app_fastapi.save_swarm')
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_updates_swarm_assignment(self, mock_load, mock_save, test_client):
-        """Test POST /request-new-leader persists a single drone assignment update."""
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} persists a single assignment update."""
         mock_load.return_value = [
             {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
             {'hw_id': 2, 'follow': 1, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
         ]
 
-        response = test_client.post(
-            "/request-new-leader",
-            json={'hw_id': 2, 'follow': 0, 'offset_x': 7, 'offset_y': 1, 'offset_z': 2, 'frame': 'ned'},
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/2",
+            json={'follow': 0, 'offset_x': 7, 'offset_y': 1, 'offset_z': 2, 'frame': 'ned'},
         )
 
         assert response.status_code == 200
@@ -1438,15 +1446,16 @@ class TestSwarmEndpoints:
     @patch('app_fastapi.save_swarm')
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_partial_update_preserves_offsets(self, mock_load, mock_save, test_client):
-        """Test POST /request-new-leader keeps existing offsets/frame when only follow changes."""
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} keeps existing offsets/frame when only follow changes."""
         mock_load.return_value = [
             {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
             {'hw_id': 2, 'follow': 1, 'offset_x': 5, 'offset_y': 2, 'offset_z': 3, 'frame': 'body'},
         ]
 
-        response = test_client.post(
-            "/request-new-leader",
-            json={'hw_id': 2, 'follow': 0},
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/2",
+            json={'follow': 0},
         )
 
         assert response.status_code == 200
@@ -1460,14 +1469,15 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_rejects_self_follow(self, mock_load, test_client):
-        """Test POST /request-new-leader rejects invalid self-follow changes."""
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} rejects invalid self-follow changes."""
         mock_load.return_value = [
             {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
         ]
 
-        response = test_client.post(
-            "/request-new-leader",
-            json={'hw_id': 1, 'follow': 1},
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/1",
+            json={'follow': 1},
         )
 
         assert response.status_code == 400
@@ -1475,16 +1485,17 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_rejects_cycle_creation(self, mock_load, test_client):
-        """Test POST /request-new-leader rejects updates that would create a follow loop."""
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} rejects updates that would create a follow loop."""
         mock_load.return_value = [
             {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
             {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
             {'hw_id': 3, 'follow': 2, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
         ]
 
-        response = test_client.post(
-            "/request-new-leader",
-            json={'hw_id': 1, 'follow': 3},
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/1",
+            json={'follow': 3},
         )
 
         assert response.status_code == 400
@@ -1492,15 +1503,16 @@ class TestSwarmEndpoints:
 
     @patch('app_fastapi.load_swarm')
     def test_request_new_leader_rejects_cycle(self, mock_load, test_client):
-        """Test POST /request-new-leader rejects updates that introduce a cycle."""
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} rejects updates that introduce a cycle."""
         mock_load.return_value = [
             {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
             {'hw_id': 2, 'follow': 1, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
         ]
 
-        response = test_client.post(
-            "/request-new-leader",
-            json={'hw_id': 1, 'follow': 2},
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/1",
+            json={'follow': 2},
         )
 
         assert response.status_code == 400
@@ -1814,8 +1826,9 @@ class TestErrorHandling:
 
     def test_invalid_json(self, test_client):
         """Test handling of invalid JSON in POST request"""
-        response = test_client.post(
-            "/save-config-data",
+        response = test_client.request(
+            "PUT",
+            "/api/v1/config/fleet",
             data="invalid json",
             headers={"Content-Type": "application/json"}
         )
@@ -1825,7 +1838,7 @@ class TestErrorHandling:
 class TestAPIV1Aliases:
     """Test canonical v1 aliases for the current GCS API surface."""
 
-    def test_route_inventory_includes_legacy_and_v1_core_surfaces(self, test_client):
+    def test_route_inventory_includes_current_core_surfaces(self, test_client):
         routes = {route.path for route in test_client.app.routes}
 
         expected_routes = {
@@ -1877,13 +1890,6 @@ class TestAPIV1Aliases:
             "/api/v1/commands/{command_id}/cancel",
             "/api/v1/command-reports/execution-start",
             "/api/v1/command-reports/execution-result",
-            "/get-config-data",
-            "/save-config-data",
-            "/validate-config",
-            "/get-drone-positions",
-            "/get-trajectory-first-row",
-            "/get-swarm-data",
-            "/save-swarm-data",
             "/submit_command",
             "/command/{command_id}",
             "/commands/recent",
@@ -1915,7 +1921,6 @@ class TestAPIV1Aliases:
             "/get-show-plots/{filename}",
             "/get-show-plots",
             "/get-custom-show-image",
-            "/request-new-leader",
             "/api/swarm/leaders",
             "/api/swarm/trajectory/upload/{leader_id}",
             "/api/swarm/trajectory/process",

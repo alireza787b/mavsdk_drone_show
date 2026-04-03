@@ -69,11 +69,19 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
-  it('does not keep retired management/static legacy paths alive in the shared route resolver', () => {
+  it('does not keep retired management/static/config/swarm legacy paths alive in the shared route resolver', () => {
     expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/get-network-info')).toBeNull();
     expect(resolveGcsRouteKey('/static/plots')).toBeNull();
+    expect(resolveGcsRouteKey('/get-config-data')).toBeNull();
+    expect(resolveGcsRouteKey('/save-config-data')).toBeNull();
+    expect(resolveGcsRouteKey('/validate-config')).toBeNull();
+    expect(resolveGcsRouteKey('/get-drone-positions')).toBeNull();
+    expect(resolveGcsRouteKey('/get-trajectory-first-row')).toBeNull();
+    expect(resolveGcsRouteKey('/get-swarm-data')).toBeNull();
+    expect(resolveGcsRouteKey('/save-swarm-data')).toBeNull();
+    expect(resolveGcsRouteKey('/request-new-leader')).toBeNull();
   });
 
   it('resolves keyed routes that include query strings', () => {

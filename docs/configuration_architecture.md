@@ -67,7 +67,7 @@ shapes/swarm/processed/Drone 1.csv (first row: px, py)
 
 **Backend API**:
 ```python
-GET /get-drone-positions
+GET /api/v1/config/fleet/trajectory-start-positions
 Returns: [{"hw_id": 1, "pos_id": 1, "x": -5.0, "y": 2.5}, ...]
 ```
 
@@ -98,7 +98,7 @@ Returns: [{"hw_id": 1, "pos_id": 1, "x": -5.0, "y": 2.5}, ...]
 
 ## API Endpoints
 
-### GET /get-config-data
+### GET /api/v1/config/fleet
 Returns drone configuration (NO x,y fields).
 
 ```json
@@ -114,7 +114,7 @@ Returns drone configuration (NO x,y fields).
 ]
 ```
 
-### GET /get-drone-positions
+### GET /api/v1/config/fleet/trajectory-start-positions
 Returns positions for all drones from trajectory CSV files.
 
 ```json
@@ -128,7 +128,7 @@ Returns positions for all drones from trajectory CSV files.
 ]
 ```
 
-### POST /save-config-data
+### PUT /api/v1/config/fleet
 Saves configuration (x,y automatically stripped if present).
 
 **Request**:
@@ -145,7 +145,7 @@ Saves configuration (x,y automatically stripped if present).
 ]
 ```
 
-### POST /validate-config
+### POST /api/v1/config/fleet/validation
 Validates configuration before saving. Checks:
 - Duplicate pos_id values (collision risk)
 - Missing trajectory files
@@ -153,14 +153,14 @@ Validates configuration before saving. Checks:
 
 **Returns validation report** for review dialog.
 
-### GET /get-trajectory-first-row?pos_id={id}
-Gets position for single pos_id (used for individual updates).
+### GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}
+Gets position for a single pos_id (used for individual updates).
 
 ```json
 {
   "pos_id": 1,
-  "north": -5.0,
-  "east": 2.5,
+  "x": -5.0,
+  "y": 2.5,
   "source": "Drone 1.csv (first waypoint)"
 }
 ```
@@ -172,8 +172,8 @@ Gets position for single pos_id (used for individual updates).
 ### Configuration Page (MissionConfig.js)
 
 **On Page Load**:
-- Fetches config from `/get-config-data` (no x,y)
-- Can optionally fetch positions from `/get-drone-positions` for display
+- Fetches config from `GET /api/v1/config/fleet` (no x,y)
+- Can optionally fetch positions from `GET /api/v1/config/fleet/trajectory-start-positions` for display
 
 **Editing Drones**:
 - DroneConfigCard shows hw_id, pos_id, ip, etc.
@@ -184,9 +184,9 @@ Gets position for single pos_id (used for individual updates).
 
 **Saving Changes**:
 1. User clicks "Save & Commit to Git"
-2. `/validate-config` called → returns report
+2. `POST /api/v1/config/fleet/validation` called → returns report
 3. SaveReviewDialog shows changes/warnings
-4. User confirms → `/save-config-data` called
+4. User confirms → `PUT /api/v1/config/fleet` called
 5. Success toast reminds: **"Reboot drones to apply changes"**
 
 ### UI Features
@@ -215,10 +215,12 @@ Gets position for single pos_id (used for individual updates).
   - `get_all_drone_positions()`
   - `validate_and_process_config()`
 
-- `gcs-server/app_fastapi.py`:
-  - `/get-drone-positions` endpoint
-  - `/save-config-data` endpoint
-  - `/validate-config` endpoint
+- `gcs-server/api_routes/configuration.py`:
+  - `GET /api/v1/config/fleet`
+  - `PUT /api/v1/config/fleet`
+  - `POST /api/v1/config/fleet/validation`
+  - `GET /api/v1/config/fleet/trajectory-start-positions`
+  - `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
 
 - `src/coordinate_utils.py`:
   - `get_expected_position_from_trajectory()`
@@ -264,7 +266,7 @@ Gets position for single pos_id (used for individual updates).
 python3 -c "import json; print(json.load(open('config.json'))['drones'][0])"
 
 # Test API
-curl http://localhost:5002/get-drone-positions
+curl http://localhost:5002/api/v1/config/fleet/trajectory-start-positions
 # Should return positions from trajectory files
 ```
 
@@ -291,7 +293,7 @@ curl http://localhost:5002/get-drone-positions
 ### Debugging Position Issues
 1. Check trajectory file exists: `ls shapes/swarm/processed/Drone {pos_id}.csv`
 2. Check first row: `head -2 shapes/swarm/processed/Drone {pos_id}.csv`
-3. Call API: `curl http://localhost:5002/get-drone-positions`
+3. Call API: `curl http://localhost:5002/api/v1/config/fleet/trajectory-start-positions`
 4. Compare with expected values
 
 ---
@@ -329,5 +331,5 @@ A: Not recommended. The old x,y fields caused bugs. Use trajectory CSV as source
 
 ---
 
-**Last Updated**: 2026-03-05
-**Version**: 4.0 (JSON config format, positions from trajectory CSV only, hw_id is int)
+**Last Updated**: 2026-04-03
+**Version**: 4.1 (canonical config routes, positions from trajectory CSV only, hw_id is int)
