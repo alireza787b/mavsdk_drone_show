@@ -157,20 +157,14 @@ Phase 3 first checkpoint on 2026-04-03:
 
 Phase 3 second checkpoint on 2026-04-03:
 
+- extracted the configuration routes into `gcs-server/api_routes/configuration.py`
 - extracted the Swarm configuration and Smart Swarm reassignment routes into `gcs-server/api_routes/swarm.py`
 - moved swarm-cycle validation into that router module instead of leaving it as file-local logic inside `app_fastapi.py`
-- preserved the existing live `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader` routes while keeping the same patchable dependency seam through the live `app_fastapi` module object
-- updated the async swarm-save git path to use `asyncio.get_running_loop()`
-- added focused router-level coverage in `tests/test_gcs_swarm_routes.py`
-- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_core_routes.py`, `test_gcs_swarm_routes.py`, and `test_gcs_api_http.py`
-
-Phase 3 third checkpoint on 2026-04-03:
-
-- extracted the configuration routes into `gcs-server/api_routes/configuration.py`
-- preserved the existing live `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, and `/get-trajectory-first-row` contract
-- kept the same live dependency seam through the `app_fastapi` module object so patch-driven backend tests remain valid while the monolith shrinks
-- added focused router-level coverage in `tests/test_gcs_configuration_routes.py`, including helper-route behavior and invalid client payload preservation
-- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_core_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, and `test_gcs_api_http.py`
+- preserved the existing live `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader` routes while keeping the same patchable dependency seam through the live `app_fastapi` module object
+- preserved `400` for invalid configuration payload shape instead of flattening that specific contract error into a generic `500`
+- updated the extracted mutable-router git paths to use `asyncio.get_running_loop()`
+- added focused router-level coverage in `tests/test_gcs_configuration_routes.py` and `tests/test_gcs_swarm_routes.py`
+- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, and `test_gcs_api_http.py`
 
 ### Phase 4
 
