@@ -319,9 +319,9 @@ When clicking "Add New Drone", the system automatically sets:
    - Module for safe programmatic editing of `src/params.py`
    - IP validation and Python syntax checking
 
-3. **gcs-server/routes.py** (Lines 1373-1489)
-   - Added `/get-gcs-config` endpoint
-   - Added `/save-gcs-config` endpoint with git commit support
+3. **gcs-server/routes.py** (Historical)
+   - Added the early GCS config HTTP surface used during the CSV migration phase
+   - That route shape was later replaced by the canonical `/api/v1/system/gcs-config` resource and the old endpoints were retired during the 2026-04 API modernization stream
 
 4. **src/params.py** (Lines 64-80)
    - Added comprehensive GCS IP configuration section

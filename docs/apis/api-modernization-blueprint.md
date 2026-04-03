@@ -382,6 +382,23 @@ Phase 4 ninth checkpoint on 2026-04-03:
 
 After this checkpoint, the remaining compatibility-retirement work is the still-mounted business alias families that have not yet been explicitly removed. Those need domain-by-domain decisions with caller, SITL, and documentation checks before retirement.
 
+Phase 4 tenth checkpoint on 2026-04-03:
+
+- retired the public management/static legacy routes:
+  - removed `GET /get-gcs-config`
+  - removed `POST /save-gcs-config`
+  - removed `GET /get-network-info`
+  - removed `GET /static/plots/{filename}`
+- deliberately treated that cluster as a safe retirement target because there were no remaining live dashboard, runtime-tooling, or validation-script callers; only compatibility mounts, route-resolver leftovers, and docs/tests remained
+- kept the canonical management/static surface:
+  - `GET /api/v1/system/gcs-config`
+  - `PUT /api/v1/system/gcs-config`
+  - `GET /api/v1/fleet/network-details`
+  - `GET /api/v1/swarm-trajectories/plots/{filename}`
+- updated the shared frontend route resolver to stop recognizing the retired management/static legacy paths, preventing removed backend routes from lingering as frontend pseudo-compatibility
+
+After this checkpoint, the remaining compatibility-retirement work is centered on the larger business alias families: configuration/swarm, origin, show-management, command control, and the versionless Swarm Trajectory surface.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

@@ -24,7 +24,6 @@ def test_static_assets_router_registers_expected_routes():
         routes = {route.path for route in app.routes}
 
         assert "/api/v1/swarm-trajectories/plots/{filename}" in routes
-        assert "/static/plots/{filename}" in routes
 
 
 def test_static_assets_router_serves_existing_plot():

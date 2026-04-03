@@ -349,8 +349,6 @@ Get network connectivity status for all drones.
 #### `GET /api/v1/fleet/network-details`
 Get detailed heartbeat-derived per-drone network metadata.
 
-Legacy compatibility route: `GET /get-network-info`
-
 This route is distinct from `GET /api/v1/fleet/network-status`: it exposes detailed interface metadata gathered from live heartbeats instead of only the higher-level reachability summary.
 
 ---
@@ -1236,8 +1234,6 @@ This route is synchronous from the API caller perspective: it dispatches the rep
 #### `GET /api/v1/system/gcs-config`
 Get the GCS runtime configuration resource.
 
-Legacy compatibility route: `GET /get-gcs-config`
-
 **Response:**
 ```json
 {
@@ -1250,8 +1246,6 @@ Legacy compatibility route: `GET /get-gcs-config`
 
 #### `PUT /api/v1/system/gcs-config`
 Update the GCS runtime configuration resource.
-
-Legacy compatibility route: `POST /save-gcs-config`
 
 The current implementation is an explicit stub acknowledgement. It validates the payload shape and returns a truthful non-persisted acknowledgement while the full persistence path remains deferred.
 
@@ -1281,8 +1275,6 @@ The current implementation is an explicit stub acknowledgement. It validates the
 
 #### `GET /api/v1/swarm-trajectories/plots/{filename}`
 Serve generated Swarm Trajectory plot images.
-
-Legacy compatibility route: `GET /static/plots/{filename}`
 
 ---
 

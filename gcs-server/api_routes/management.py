@@ -21,7 +21,6 @@ def create_management_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/v1/system/gcs-config", response_model=GCSConfigResponse, tags=["GCS Management"])
-    @router.get("/get-gcs-config", response_model=GCSConfigResponse, tags=["GCS Management"])
     async def get_gcs_config():
         """Get the current GCS runtime configuration surface exposed to the UI."""
         try:
@@ -30,11 +29,10 @@ def create_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.put("/api/v1/system/gcs-config", response_model=GCSConfigSaveResponse, tags=["GCS Management"])
-    @router.post("/save-gcs-config", response_model=GCSConfigSaveResponse, tags=["GCS Management"])
     async def save_gcs_config(request: Request):
-        """Compatibility stub for GCS config updates.
+        """Stub acknowledgement for GCS config updates.
 
-        The legacy UI expects an ACK surface here, but the FastAPI runtime does not
+        The current UI expects an ACK surface here, but the FastAPI runtime does not
         persist Params mutations yet. Return an explicit compatibility response
         instead of pretending a durable save occurred.
         """
@@ -49,7 +47,7 @@ def create_management_router(deps: Any) -> APIRouter:
                 message="GCS configuration received, but persistence is not implemented in this runtime",
                 persisted=False,
                 warnings=[
-                    "No server-side config file was changed. This endpoint is a compatibility stub until persisted GCS config support is implemented.",
+                    "No server-side config file was changed. This endpoint remains a non-persisted stub until dedicated GCS config persistence is implemented.",
                 ],
             )
         except HTTPException:
@@ -58,7 +56,6 @@ def create_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/fleet/network-details", tags=["Network"])
-    @router.get("/get-network-info", tags=["Network"])
     async def get_network_info():
         """Get per-drone network metadata gathered from heartbeats."""
         try:

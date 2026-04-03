@@ -27,10 +27,7 @@ def test_management_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/system/gcs-config" in routes
-    assert "/get-gcs-config" in routes
     assert "/api/v1/fleet/network-details" in routes
-    assert "/save-gcs-config" in routes
-    assert "/get-network-info" in routes
 
 
 def test_management_router_get_gcs_config_uses_live_params_after_router_creation():

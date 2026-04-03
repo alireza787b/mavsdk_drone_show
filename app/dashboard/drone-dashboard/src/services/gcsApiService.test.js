@@ -69,6 +69,13 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
+  it('does not keep retired management/static legacy paths alive in the shared route resolver', () => {
+    expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
+    expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
+    expect(resolveGcsRouteKey('/get-network-info')).toBeNull();
+    expect(resolveGcsRouteKey('/static/plots')).toBeNull();
+  });
+
   it('resolves keyed routes that include query strings', () => {
     expect(resolveGcsRoute(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=7`)).toBe('/api/v1/shows/custom?refresh=7');
   });

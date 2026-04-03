@@ -109,10 +109,7 @@ GCS_EXPECTED_HTTP = {
         "/get-origin-for-drone",
         "/get-position-deviations",
         "/get-desired-launch-positions",
-        "/get-gcs-config",
-        "/get-network-info",
         "/api/v1/swarm-trajectories/plots/{filename}",
-        "/static/plots/{filename}",
         "/api/logs/sources",
         "/api/logs/sessions",
         "/api/logs/sessions/{session_id}",
@@ -158,7 +155,6 @@ GCS_EXPECTED_HTTP = {
         "/validate-trajectory",
         "/deploy-show",
         "/compute-origin",
-        "/save-gcs-config",
         "/request-new-leader",
         "/api/logs/frontend",
         "/api/logs/export",
@@ -363,13 +359,12 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/shows/skybrush/plots")].endpoint is route_index[("GET", "/get-show-plots")].endpoint
     assert route_index[("GET", "/api/v1/shows/skybrush/plots/{filename}")].endpoint is route_index[("GET", "/get-show-plots/{filename}")].endpoint
     assert route_index[("GET", "/api/v1/shows/custom/preview")].endpoint is route_index[("GET", "/get-custom-show-image")].endpoint
-    assert route_index[("GET", "/api/v1/system/gcs-config")].endpoint is route_index[("GET", "/get-gcs-config")].endpoint
-    assert route_index[("PUT", "/api/v1/system/gcs-config")].endpoint is route_index[("POST", "/save-gcs-config")].endpoint
-    assert route_index[("GET", "/api/v1/fleet/network-details")].endpoint is route_index[("GET", "/get-network-info")].endpoint
-    assert route_index[("GET", "/api/v1/swarm-trajectories/plots/{filename}")].endpoint is route_index[("GET", "/static/plots/{filename}")].endpoint
-
     assert ("GET", "/get-gcs-git-status") not in route_index
     assert ("GET", "/get-drone-git-status/{drone_id}") not in route_index
+    assert ("GET", "/get-gcs-config") not in route_index
+    assert ("POST", "/save-gcs-config") not in route_index
+    assert ("GET", "/get-network-info") not in route_index
+    assert ("GET", "/static/plots/{filename}") not in route_index
 
 
 def test_drone_business_route_inventory(drone_app):

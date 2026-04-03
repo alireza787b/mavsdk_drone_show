@@ -23,7 +23,6 @@ def create_static_assets_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/v1/swarm-trajectories/plots/{filename}", tags=["Static Files"])
-    @router.get("/static/plots/{filename}", tags=["Static Files"])
     async def serve_plot(filename: str):
         """Serve generated plot images used by the dashboard."""
         try:
