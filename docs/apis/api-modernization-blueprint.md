@@ -155,6 +155,15 @@ Phase 3 first checkpoint on 2026-04-03:
 - added focused router-level coverage in `tests/test_gcs_core_routes.py`
 - revalidated the extracted surface locally and on Hetzner with the combined `test_gcs_core_routes.py` and `test_gcs_api_http.py` batch
 
+Phase 3 second checkpoint on 2026-04-03:
+
+- extracted the Swarm configuration and Smart Swarm reassignment routes into `gcs-server/api_routes/swarm.py`
+- moved swarm-cycle validation into that router module instead of leaving it as file-local logic inside `app_fastapi.py`
+- preserved the existing live `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader` routes while keeping the same patchable dependency seam through the live `app_fastapi` module object
+- updated the async swarm-save git path to use `asyncio.get_running_loop()`
+- added focused router-level coverage in `tests/test_gcs_swarm_routes.py`
+- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_core_routes.py`, `test_gcs_swarm_routes.py`, and `test_gcs_api_http.py`
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes

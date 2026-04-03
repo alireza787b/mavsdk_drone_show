@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 Swarm router extraction checkpoint note documenting the second Phase 3 backend route-domain split, the shared swarm-cycle validation move, the async git-path cleanup, and the combined local/Hetzner backend validation results
 - a 2026-04-03 GCS core router extraction checkpoint note documenting the first Phase 3 backend route-domain split, the preserved `app_fastapi` patch seams, and the paired local/Hetzner backend validation results
 - a 2026-04-03 API modernization phase 2 completion note documenting the remaining frontend caller migration, dead legacy frontend removal, auth/MCP readiness rules, Hetzner validation results, and the build hardening required for Node 22 on Hetzner
 - a 2026-04-03 API modernization phase 2 checkpoint note documenting the core frontend caller migration onto the centralized GCS service layer, the focused Hetzner validation batch, the production build result, and the remaining route domains for the next slice
@@ -21,6 +22,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the second Phase 3 backend extraction now moves swarm configuration persistence and Smart Swarm reassignment routes into `gcs-server/api_routes/swarm.py`, reducing `app_fastapi.py` further while preserving the existing `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader` contract
+- swarm cycle validation now lives with the swarm router instead of as file-local helpers in `app_fastapi.py`, so the swarm domain keeps one cohesive validation surface instead of reaching back into the monolith for follow-chain rules
+- the async swarm save path now uses `asyncio.get_running_loop()` instead of the older event-loop accessor, aligning that route with current async best practice while keeping the same git side-effect behavior
 - the first Phase 3 backend extraction now moves GCS health, telemetry, heartbeat, and network-status routes into `gcs-server/api_routes/core.py` and mounts them through `create_core_router(...)`, reducing `app_fastapi.py` surface area without changing the live HTTP/WebSocket contract
 - the extracted core router reads dependency attributes from the live `app_fastapi` module object at request time instead of capturing handler references at import time, so existing patch-driven backend tests and future auth/MCP layers keep one stable hook surface during modularization
 - `GET /get-network-info` now returns the live heartbeat-derived network snapshot directly after the core route extraction, removing its stale dependency on the deleted private helper and keeping the legacy compatibility alias working
