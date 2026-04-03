@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 Git router extraction checkpoint note documenting the third Phase 3 backend route-domain split, the extracted Git REST/WebSocket surface, the preserved sync-helper seam in `app_fastapi.py`, and the combined local/Hetzner validation results
 - a 2026-04-03 Configuration and Swarm router extraction checkpoint note documenting the second Phase 3 backend route-domain split, the modular config/swarm route move, the shared swarm-cycle validation move, the configuration error-status cleanup, and the combined local/Hetzner validation results across the extracted router suites
 - a 2026-04-03 GCS core router extraction checkpoint note documenting the first Phase 3 backend route-domain split, the preserved `app_fastapi` patch seams, and the paired local/Hetzner backend validation results
 - a 2026-04-03 API modernization phase 2 completion note documenting the remaining frontend caller migration, dead legacy frontend removal, auth/MCP readiness rules, Hetzner validation results, and the build hardening required for Node 22 on Hetzner
@@ -22,6 +23,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the third Phase 3 backend extraction now moves the Git routes into `gcs-server/api_routes/git_status.py`, so `app_fastapi.py` no longer owns `/git-status`, `/sync-repos`, `/ws/git-status`, `/get-gcs-git-status`, or `/get-drone-git-status/{drone_id}`
+- Git route coverage now has focused router-level tests for route registration, live dependency lookup, and sync verification hook usage, closing the gap where Git extraction risk was previously covered only by the broader integration suite
+- the extracted Git websocket now builds its payload from the same shared response builder used by the REST endpoint, keeping the live contract aligned between `/git-status` and `/ws/git-status`
 - the second Phase 3 backend extraction now moves the configuration routes into `gcs-server/api_routes/configuration.py` and swarm configuration / Smart Swarm reassignment routes into `gcs-server/api_routes/swarm.py`, so `app_fastapi.py` no longer owns `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, or `/request-new-leader`
 - configuration helper routes now have focused router-level coverage for route registration, live dependency lookup, invalid client payload preservation, and helper-path behavior, which closes the previous gap where only the broader API suite covered the domain partially
 - invalid configuration payload shape now preserves `400` instead of being flattened into a generic `500`, while leaving the existing malformed raw JSON behavior unchanged for this slice

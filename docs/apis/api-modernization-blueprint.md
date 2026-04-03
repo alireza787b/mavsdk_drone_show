@@ -166,6 +166,14 @@ Phase 3 second checkpoint on 2026-04-03:
 - added focused router-level coverage in `tests/test_gcs_configuration_routes.py` and `tests/test_gcs_swarm_routes.py`
 - revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, and `test_gcs_api_http.py`
 
+Phase 3 third checkpoint on 2026-04-03:
+
+- extracted the Git routes into `gcs-server/api_routes/git_status.py`
+- moved `/git-status`, `/sync-repos`, `/ws/git-status`, `/get-gcs-git-status`, and `/get-drone-git-status/{drone_id}` behind `create_git_router(...)`
+- kept the sync helper functions and state in `app_fastapi.py` for this slice so the existing patch-driven backend tests can keep the same hook surface while the route layer leaves the monolith
+- added focused router-level coverage in `tests/test_gcs_git_routes.py`
+- revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_git_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, `test_gcs_api_http.py`, and `test_gcs_api_websocket.py`
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes
