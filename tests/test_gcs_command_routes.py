@@ -109,13 +109,21 @@ def test_command_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
+    assert "/api/v1/commands" in routes
     assert "/submit_command" in routes
+    assert "/api/v1/commands/{command_id}" in routes
     assert "/command/{command_id}" in routes
+    assert "/api/v1/commands/recent" in routes
     assert "/commands/recent" in routes
+    assert "/api/v1/commands/active" in routes
     assert "/commands/active" in routes
+    assert "/api/v1/commands/statistics" in routes
     assert "/commands/statistics" in routes
+    assert "/api/v1/commands/{command_id}/cancel" in routes
     assert "/command/{command_id}/cancel" in routes
+    assert "/api/v1/command-reports/execution-result" in routes
     assert "/command/execution-result" in routes
+    assert "/api/v1/command-reports/execution-start" in routes
     assert "/command/execution-start" in routes
 
 
@@ -139,7 +147,7 @@ def test_command_router_statistics_uses_live_tracker_after_router_creation():
     )
 
     with TestClient(app) as client:
-        response = client.get("/commands/statistics")
+        response = client.get("/api/v1/commands/statistics")
 
     assert response.status_code == 200
     assert response.json()["total_commands"] == 7
@@ -210,7 +218,8 @@ def test_command_router_cancel_endpoint_stays_fail_closed():
     app.include_router(create_command_router(deps))
 
     with TestClient(app) as client:
-        response = client.post("/command/test-command-id/cancel")
+        response = client.post("/api/v1/commands/test-command-id/cancel")
 
     assert response.status_code == 409
     assert "missionType=0" in response.json()["detail"]
+    assert "/api/v1/commands" in response.json()["detail"]

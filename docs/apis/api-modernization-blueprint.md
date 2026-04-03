@@ -239,8 +239,27 @@ After this checkpoint, `gcs-server/app_fastapi.py` no longer contains any busine
 
 ### Phase 4
 
-- migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes
+- migrate commands, configuration, origin, swarm, git, and show-management domains to canonical v1 routes
 - keep legacy compatibility adapters during rollout
+
+Phase 4 first checkpoint on 2026-04-03:
+
+- introduced canonical v1 aliases for the extracted Commands domain:
+  - `POST /api/v1/commands`
+  - `GET /api/v1/commands/{command_id}`
+  - `GET /api/v1/commands/recent`
+  - `GET /api/v1/commands/active`
+  - `GET /api/v1/commands/statistics`
+  - `POST /api/v1/commands/{command_id}/cancel`
+  - `POST /api/v1/command-reports/execution-start`
+  - `POST /api/v1/command-reports/execution-result`
+- deliberately kept `GET /api/v1/commands/recent` as the canonical list surface for this slice instead of overloading `GET /api/v1/commands`, because the current route-key service layer and request-log classification are path-oriented; this preserves one stable semantic path per frontend service key while still giving command submission the cleaner `POST /api/v1/commands` resource entry point
+- migrated the shared frontend GCS service layer onto the canonical v1 command submit/status/recent/active paths, so current operator UI flows stop reinforcing the legacy command URLs
+- extended route-inventory and alias guardrails to cover the canonical v1 command surface and updated request-log classification so v1 command polling/callback traffic stays operationally quiet at `DEBUG`
+- refreshed the public GCS API doc to present the canonical command routes first while keeping the legacy compatibility paths explicit during rollout
+- revalidated this slice locally with focused backend/logging tests and on Hetzner with the same backend batch plus the frontend service Jest slice and production build
+
+After this checkpoint, the next clean Phase 4 boundary is the configuration family: fleet config first, then swarm config/assignment, then origin. That ordering keeps the migration on already-extracted routers with centralized frontend consumers before touching the riskier origin/runtime surfaces, and it sets up cleaner identity semantics (`hw_id` vs `pos_id`) for later MCP-facing configuration tooling.
 
 ### Phase 5
 

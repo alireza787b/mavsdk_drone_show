@@ -47,6 +47,8 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
+    expect(resolveGcsRouteKey('/submit_command')).toBe(GCS_ROUTE_KEYS.commandSubmit);
+    expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
@@ -82,7 +84,7 @@ describe('gcsApiService', () => {
     await getCommandStatusResponse('cmd/leader 1');
 
     expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5000/command/cmd%2Fleader%201',
+      'http://gcs.test:5000/api/v1/commands/cmd%2Fleader%201',
       {}
     );
   });
@@ -97,7 +99,7 @@ describe('gcsApiService', () => {
     });
 
     expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5000/commands/recent',
+      'http://gcs.test:5000/api/v1/commands/recent',
       {
         params: {
           limit: 12,

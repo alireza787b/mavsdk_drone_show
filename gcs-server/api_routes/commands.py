@@ -220,6 +220,7 @@ async def _record_command_acknowledgements(tracker: Any, command_id: str, result
 def create_command_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    @router.post("/api/v1/commands", response_model=SubmitCommandResponse, tags=["Commands"])
     @router.post("/submit_command", response_model=SubmitCommandResponse, tags=["Commands"])
     async def submit_command(request: Request):
         """
@@ -437,17 +438,7 @@ def create_command_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"submit_command failed: {exc}\n{traceback.format_exc()}", "command")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @router.get("/command/{command_id}", response_model=CommandStatusResponse, tags=["Commands"])
-    async def get_command_status(command_id: str = PathParam(..., description="Command UUID")):
-        """Get detailed status of a specific command."""
-        tracker = deps.get_command_tracker()
-        status = await tracker.get_status(command_id)
-
-        if not status:
-            raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
-
-        return status
-
+    @router.get("/api/v1/commands/recent", response_model=CommandListResponse, tags=["Commands"])
     @router.get("/commands/recent", response_model=CommandListResponse, tags=["Commands"])
     async def get_recent_commands(
         limit: int = Query(50, ge=1, le=200, description="Maximum commands to return"),
@@ -478,6 +469,7 @@ def create_command_router(deps: Any) -> APIRouter:
             timestamp=int(time.time() * 1000),
         )
 
+    @router.get("/api/v1/commands/active", response_model=CommandListResponse, tags=["Commands"])
     @router.get("/commands/active", response_model=CommandListResponse, tags=["Commands"])
     async def get_active_commands():
         """Get all currently active (non-terminal) commands."""
@@ -490,6 +482,7 @@ def create_command_router(deps: Any) -> APIRouter:
             timestamp=int(time.time() * 1000),
         )
 
+    @router.get("/api/v1/commands/statistics", response_model=CommandStatisticsResponse, tags=["Commands"])
     @router.get("/commands/statistics", response_model=CommandStatisticsResponse, tags=["Commands"])
     async def get_command_statistics():
         """Get command execution statistics."""
@@ -501,6 +494,19 @@ def create_command_router(deps: Any) -> APIRouter:
             timestamp=int(time.time() * 1000),
         )
 
+    @router.get("/api/v1/commands/{command_id}", response_model=CommandStatusResponse, tags=["Commands"])
+    @router.get("/command/{command_id}", response_model=CommandStatusResponse, tags=["Commands"])
+    async def get_command_status(command_id: str = PathParam(..., description="Command UUID")):
+        """Get detailed status of a specific command."""
+        tracker = deps.get_command_tracker()
+        status = await tracker.get_status(command_id)
+
+        if not status:
+            raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
+
+        return status
+
+    @router.post("/api/v1/commands/{command_id}/cancel", tags=["Commands"])
     @router.post("/command/{command_id}/cancel", tags=["Commands"])
     async def cancel_command(
         command_id: str = PathParam(..., description="Command UUID"),
@@ -517,11 +523,12 @@ def create_command_router(deps: Any) -> APIRouter:
         raise HTTPException(
             status_code=409,
             detail=(
-                f"/command/{command_id}/cancel is disabled because it does not dispatch to drones. "
-                "Use POST /submit_command with missionType=0 to cancel live mission execution safely."
+                f"Command cancel endpoint /api/v1/commands/{command_id}/cancel is disabled because it does not dispatch to drones. "
+                "Use POST /api/v1/commands (legacy /submit_command) with missionType=0 to cancel live mission execution safely."
             ),
         )
 
+    @router.post("/api/v1/command-reports/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])
     @router.post("/command/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])
     async def report_execution_result(report: ExecutionReportRequest):
         """Endpoint for drones to report command execution results."""
@@ -554,6 +561,7 @@ def create_command_router(deps: Any) -> APIRouter:
             timestamp=int(time.time() * 1000),
         )
 
+    @router.post("/api/v1/command-reports/execution-start", response_model=ExecutionStartResponse, tags=["Commands"])
     @router.post("/command/execution-start", response_model=ExecutionStartResponse, tags=["Commands"])
     async def report_execution_start(report: ExecutionStartRequest):
         """Endpoint for drones to report that command execution has actually started."""

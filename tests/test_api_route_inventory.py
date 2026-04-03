@@ -49,6 +49,10 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/telemetry",
         "/api/v1/fleet/heartbeats",
         "/api/v1/fleet/network-status",
+        "/api/v1/commands/recent",
+        "/api/v1/commands/active",
+        "/api/v1/commands/statistics",
+        "/api/v1/commands/{command_id}",
         "/get-heartbeats",
         "/get-network-status",
         "/get-config-data",
@@ -101,6 +105,10 @@ GCS_EXPECTED_HTTP = {
         "/heartbeat",
         "/drone-heartbeat",
         "/api/v1/fleet/heartbeats",
+        "/api/v1/commands",
+        "/api/v1/commands/{command_id}/cancel",
+        "/api/v1/command-reports/execution-result",
+        "/api/v1/command-reports/execution-start",
         "/save-config-data",
         "/validate-config",
         "/save-swarm-data",
@@ -283,6 +291,14 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/fleet/network-status")].endpoint is route_index[("GET", "/get-network-status")].endpoint
     assert route_index[("POST", "/api/v1/fleet/heartbeats")].endpoint is route_index[("POST", "/heartbeat")].endpoint
     assert route_index[("POST", "/heartbeat")].endpoint is route_index[("POST", "/drone-heartbeat")].endpoint
+    assert route_index[("POST", "/api/v1/commands")].endpoint is route_index[("POST", "/submit_command")].endpoint
+    assert route_index[("GET", "/api/v1/commands/{command_id}")].endpoint is route_index[("GET", "/command/{command_id}")].endpoint
+    assert route_index[("GET", "/api/v1/commands/recent")].endpoint is route_index[("GET", "/commands/recent")].endpoint
+    assert route_index[("GET", "/api/v1/commands/active")].endpoint is route_index[("GET", "/commands/active")].endpoint
+    assert route_index[("GET", "/api/v1/commands/statistics")].endpoint is route_index[("GET", "/commands/statistics")].endpoint
+    assert route_index[("POST", "/api/v1/commands/{command_id}/cancel")].endpoint is route_index[("POST", "/command/{command_id}/cancel")].endpoint
+    assert route_index[("POST", "/api/v1/command-reports/execution-start")].endpoint is route_index[("POST", "/command/execution-start")].endpoint
+    assert route_index[("POST", "/api/v1/command-reports/execution-result")].endpoint is route_index[("POST", "/command/execution-result")].endpoint
 
     assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
     assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True

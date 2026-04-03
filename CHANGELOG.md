@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical command v1 checkpoint note documenting the first Phase 4 GCS route-migration slice, the new `/api/v1/commands` and `/api/v1/command-reports/*` aliases, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 Commands router extraction checkpoint note documenting the eighth Phase 3 backend route-domain split, the extracted Commands compatibility surface, the `submit_command` validation hardening, the `app_fastapi.py` monolith-route removal milestone, and the paired local/Hetzner validation results
 - a 2026-04-03 Swarm Trajectory router extraction checkpoint note documenting the seventh Phase 3 backend route-domain split, the extracted trajectory-management compatibility surface, the malformed-JSON contract fix, the stale Flask duplicate removal, and the paired local/Hetzner validation results
 - a 2026-04-03 Show Management router extraction checkpoint note documenting the sixth Phase 3 backend route-domain split, the extracted Drone Show / Custom Show compatibility surface, the helper move into `gcs-server/show_management.py`, the show-specific contract fixes, and the paired local/Hetzner validation results
@@ -28,6 +29,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the first Phase 4 GCS route-migration slice now introduces canonical v1 command aliases: `POST /api/v1/commands`, `GET /api/v1/commands/{command_id}`, `GET /api/v1/commands/recent`, `GET /api/v1/commands/active`, `GET /api/v1/commands/statistics`, `POST /api/v1/commands/{command_id}/cancel`, `POST /api/v1/command-reports/execution-start`, and `POST /api/v1/command-reports/execution-result`
+- the shared frontend GCS service layer now uses the canonical v1 command endpoints for submit/status/recent/active command flows instead of the legacy compatibility paths, so the operator UI and future MCP-facing consumers move onto one current command contract
+- command-route inventory and alias guardrails now cover the canonical v1 command surface in addition to the legacy compatibility paths, preventing later drift between documented aliases and the mounted FastAPI routes
+- request-log noise classification now recognizes canonical command poll/callback paths (`/api/v1/commands/...`, `/api/v1/command-reports/...`) so successful v1 command monitoring traffic stays at `DEBUG` while submit/cancel/operator actions remain visible at `INFO`
+- the public GCS API documentation now presents the command control surface under canonical v1 routes first while still calling out the legacy compatibility paths explicitly
 - the eighth Phase 3 backend extraction now moves the remaining Commands REST surface into `gcs-server/api_routes/commands.py`, so `app_fastapi.py` no longer owns `/submit_command`, `/command/{command_id}`, `/commands/recent`, `/commands/active`, `/commands/statistics`, `/command/{command_id}/cancel`, `/command/execution-result`, or `/command/execution-start`
 - command-route coverage now has focused router-level tests for route registration, live dependency lookup, request-body validation, target-resolution failure handling, and the intentionally fail-closed cancel path, closing the last major gap in the extracted GCS route suite
 - `POST /submit_command` now rejects malformed JSON, non-object JSON bodies, invalid `target_drones` shapes, and explicit target selections that match no configured drones with `400` instead of creating ambiguous zero-target command records or surfacing generic server errors

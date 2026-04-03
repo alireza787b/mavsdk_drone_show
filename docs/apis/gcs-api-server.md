@@ -880,8 +880,10 @@ Explicitly clear all processed data and plots.
 
 ### Command Execution
 
-#### `POST /submit_command`
+#### `POST /api/v1/commands`
 Submit a command to drones and immediately return ACK tracking information.
+
+Legacy compatibility route: `POST /submit_command`
 
 **Request:**
 ```json
@@ -923,16 +925,18 @@ Important semantics:
 - `target_drones` may contain hardware IDs or position IDs. The response always normalizes `target_drones` to hardware IDs after the target set is resolved.
 - malformed JSON, non-object JSON bodies, invalid `target_drones` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
 - `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
-- Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /command/{command_id}` rather than treated as finished at submission time.
+- Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /api/v1/commands/{command_id}` rather than treated as finished at submission time.
 - `tracking_timeout_ms` is the mission-aware lifecycle timeout selected by the backend for this command. It already includes any future trigger delay plus the expected execution/cleanup window, and frontend/background polling should reuse it instead of guessing with a flat client-side timeout.
 - tracker timeout budgets are mission-aware instead of one flat timeout: short actions use action-specific budgets, while Drone Show, Custom CSV, and Swarm Trajectory derive longer tracking windows from the active mission assets plus cleanup buffers.
 - if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
-- `POST /command/{command_id}/cancel` is intentionally fail-closed for now; use `POST /submit_command` with `missionType=0` for live cancellation because that path actually dispatches to drones.
+- `POST /api/v1/commands/{command_id}/cancel` is intentionally fail-closed for now; use `POST /api/v1/commands` (legacy `POST /submit_command`) with `missionType=0` for live cancellation because that path actually dispatches to drones.
 
-#### `GET /command/{command_id}`
+#### `GET /api/v1/commands/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.
+
+Legacy compatibility route: `GET /command/{command_id}`
 
 **Response:**
 ```json
@@ -1016,8 +1020,10 @@ Important semantics:
 - strict synchronized offboard missions (`DRONE_SHOW_FROM_CSV`, `CUSTOM_CSV_DRONE_SHOW`, `SWARM_TRAJECTORY`, `HOVER_TEST`) stop GCS-side retries once the safe queue window before `triggerTime - trigger_sooner_seconds - COMMAND_SYNC_DISPATCH_GUARD_SEC` has passed, and the drone runtime aborts if actual mission start slips beyond `SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC`.
 - standalone actions such as `TAKEOFF` are not treated as strict synchronized choreography. Once accepted, they still use bounded drone-local startup retries, but they do not keep rejoining a missed synchronized timeline after the safe window has passed.
 
-#### `GET /commands/recent`
+#### `GET /api/v1/commands/recent`
 Retrieve recent tracked commands for persistent operator monitoring surfaces.
+
+Legacy compatibility route: `GET /commands/recent`
 
 **Query parameters:**
 - `limit` (optional): max commands to return, default `50`
@@ -1026,8 +1032,10 @@ Retrieve recent tracked commands for persistent operator monitoring surfaces.
 
 Use this endpoint for recent command history panels instead of keeping frontend-only command monitor state.
 
-#### `GET /commands/active`
+#### `GET /api/v1/commands/active`
 Retrieve currently active non-terminal commands.
+
+Legacy compatibility route: `GET /commands/active`
 
 Use this endpoint to rehydrate command monitors after a dashboard refresh/navigation event so operators do not lose in-flight command context when the page remounts.
 
