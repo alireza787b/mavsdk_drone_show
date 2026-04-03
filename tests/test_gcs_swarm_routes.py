@@ -29,8 +29,10 @@ def test_swarm_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/get-swarm-data" in routes
+    assert "/api/v1/config/swarm" in routes
     assert "/save-swarm-data" in routes
     assert "/request-new-leader" in routes
+    assert "/api/v1/config/swarm/assignments/{hw_id}" in routes
 
 
 def test_swarm_router_uses_live_dependency_attributes_after_router_creation():
@@ -47,7 +49,7 @@ def test_swarm_router_uses_live_dependency_attributes_after_router_creation():
     deps.save_swarm = replacement_save
 
     with TestClient(app) as client:
-        response = client.post("/request-new-leader", json={"hw_id": 2, "follow": 1})
+        response = client.patch("/api/v1/config/swarm/assignments/2", json={"follow": 1})
 
     assert response.status_code == 200
     replacement_load.assert_called_once()
@@ -61,11 +63,30 @@ def test_swarm_router_save_swarm_commit_false_skips_git_operations():
     app.include_router(create_swarm_router(deps))
 
     with TestClient(app) as client:
-        response = client.post(
-            "/save-swarm-data?commit=false",
-            json=[{"hw_id": 1, "follow": 0}, {"hw_id": 2, "follow": 1}],
+        response = client.put(
+            "/api/v1/config/swarm?commit=false",
+            json={"version": 1, "assignments": [{"hw_id": 1, "follow": 0}, {"hw_id": 2, "follow": 1}]},
         )
 
     assert response.status_code == 200
     deps.save_swarm.assert_called_once()
     deps.git_operations.assert_not_called()
+    assert response.json()["config"]["assignments"][1]["follow"] == 1
+
+
+def test_swarm_router_canonical_get_returns_enveloped_assignments():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_swarm_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/config/swarm")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "version": 1,
+        "assignments": [
+            {"hw_id": 1, "follow": 0, "offset_x": 0.0, "offset_y": 0.0, "offset_z": 0.0, "frame": "ned"},
+            {"hw_id": 2, "follow": 1, "offset_x": 1.0, "offset_y": 0.0, "offset_z": 0.0, "frame": "ned"},
+        ],
+    }

@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical swarm-config v1 checkpoint note documenting the third Phase 4 GCS route-migration slice, the new `/api/v1/config/swarm` and `/api/v1/config/swarm/assignments/{hw_id}` routes, the internal caller migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical fleet-config v1 checkpoint note documenting the second Phase 4 GCS route-migration slice, the new `/api/v1/config/fleet*` aliases, the trajectory-start position contract cleanup, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical command v1 checkpoint note documenting the first Phase 4 GCS route-migration slice, the new `/api/v1/commands` and `/api/v1/command-reports/*` aliases, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 Commands router extraction checkpoint note documenting the eighth Phase 3 backend route-domain split, the extracted Commands compatibility surface, the `submit_command` validation hardening, the `app_fastapi.py` monolith-route removal milestone, and the paired local/Hetzner validation results
@@ -30,6 +31,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the third Phase 4 GCS route-migration slice now introduces canonical swarm-config routes: `GET /api/v1/config/swarm`, `PUT /api/v1/config/swarm`, and `PATCH /api/v1/config/swarm/assignments/{hw_id}`
+- the canonical swarm-config `GET` route now returns the persisted typed resource shape `{version, assignments}` instead of the older raw-list compatibility payload, while the legacy `/get-swarm-data` route remains available during rollout
+- the shared frontend GCS service layer now uses the canonical swarm-config resource path, saves swarm assignments through `PUT /api/v1/config/swarm`, and unwraps canonical swarm envelopes centrally so `Overview`, `Mission Config`, and `Swarm Design` stay aligned on one config contract
+- the misleading leader-only reassignment contract now has a canonical partial-update route at `PATCH /api/v1/config/swarm/assignments/{hw_id}`, matching the live behavior that can update `follow`, offsets, and frame together instead of pretending the route only changes leaders
+- Smart Swarm runtime refresh/failover reporting, swarm analysis fallback, and the reusable validation scripts now call the canonical swarm-config routes; the reusable validation clients touched in this slice also use the canonical command submit/status paths so internal tooling stops reinforcing stale GCS URLs
+- swarm route inventory and HTTP regression guardrails now cover the canonical swarm-config surface in addition to the legacy compatibility routes, including the enveloped canonical read contract and the partial assignment patch behavior
 - the second Phase 4 GCS route-migration slice now introduces canonical fleet-config aliases: `GET /api/v1/config/fleet`, `PUT /api/v1/config/fleet`, `POST /api/v1/config/fleet/validation`, `GET /api/v1/config/fleet/trajectory-start-positions`, and `GET /api/v1/config/fleet/trajectory-start-positions/{pos_id}`
 - the shared frontend GCS service layer now uses the canonical fleet-config resource paths, including `PUT /api/v1/config/fleet` for save and the path-parameter form for per-slot trajectory-start lookups
 - the canonical per-position trajectory-start route now returns `x`/`y` to match the existing fleet trajectory-position collection, while the legacy `/get-trajectory-first-row?pos_id=...` path keeps its older `north`/`east` compatibility payload

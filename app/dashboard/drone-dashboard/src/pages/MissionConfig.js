@@ -58,6 +58,7 @@ import {
   getTrajectoryFirstRowResponse,
   saveGcsConfigResponse,
   setOriginResponse,
+  unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 
 // Icons
@@ -150,7 +151,7 @@ const MissionConfig = () => {
   const { duplicateHwIds, duplicatePosIds } = getDuplicateAssignments(configData);
   const onlineDroneCount = getOnlineDroneCount(heartbeats);
   const swarmViewModel = useMemo(
-    () => (Array.isArray(swarmDataFetched) ? buildSwarmViewModel(swarmDataFetched, configData) : null),
+    () => buildSwarmViewModel(unwrapSwarmConfigPayload(swarmDataFetched), configData),
     [configData, swarmDataFetched]
   );
   const clusterScopeOptions = useMemo(

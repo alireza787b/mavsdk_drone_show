@@ -276,6 +276,20 @@ Phase 4 second checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is swarm configuration and assignment canonicalization, followed by origin once the config-family semantics are stable.
 
+Phase 4 third checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the swarm configuration surface:
+  - `GET /api/v1/config/swarm`
+  - `PUT /api/v1/config/swarm`
+  - `PATCH /api/v1/config/swarm/assignments/{hw_id}`
+- deliberately made the canonical swarm-config `GET` route return the typed persisted resource shape `{version, assignments}` instead of repeating the older raw-list legacy payload; the legacy `/get-swarm-data` compatibility route stays in place during rollout
+- migrated the shared frontend GCS service layer onto the canonical swarm-config resource, including `PUT` saves and centralized list-vs-envelope unwrapping for `Overview`, `Mission Config`, and `Swarm Design`
+- migrated active non-frontend callers touched in this boundary onto the canonical swarm-config routes as well, including Smart Swarm runtime refresh/failover reporting, swarm analysis fallback, and the reusable validation scripts
+- deliberately chose `PATCH /api/v1/config/swarm/assignments/{hw_id}` instead of a leader-only route name, because the live contract updates the full saved assignment surface (`follow`, offsets, and frame) rather than only the upstream leader reference
+- extended route-inventory, router, HTTP, and tooling regression coverage to the canonical swarm-config surface and revalidated the slice locally plus on Hetzner with the focused backend batch, shared frontend GCS service Jest slice, and production build
+
+After this checkpoint, the next clean Phase 4 boundary is origin canonicalization, followed by the remaining git/show-management cleanup and later legacy-route removal once all active callers have been migrated.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

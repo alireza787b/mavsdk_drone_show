@@ -30,6 +30,7 @@ import {
   getFleetConfigResponse,
   getFleetTelemetryResponse,
   unwrapFleetTelemetryPayload,
+  unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import '../styles/Overview.css';
 
@@ -198,9 +199,14 @@ const Overview = ({ setSelectedDrone }) => {
     return summary;
   }, [drones]);
 
+  const swarmAssignments = React.useMemo(
+    () => unwrapSwarmConfigPayload(swarmDataFetched),
+    [swarmDataFetched]
+  );
+
   const swarmViewModel = React.useMemo(
-    () => (Array.isArray(swarmDataFetched) ? buildSwarmViewModel(swarmDataFetched, drones) : null),
-    [drones, swarmDataFetched]
+    () => buildSwarmViewModel(swarmAssignments, drones),
+    [drones, swarmAssignments]
   );
   const clusterScopeOptions = React.useMemo(
     () => buildClusterScopeOptions(swarmViewModel?.clusters || [], drones.length),
@@ -286,7 +292,7 @@ const Overview = ({ setSelectedDrone }) => {
       </header>
 
       <div className="mission-trigger-section">
-        <CommandSender drones={drones} swarmData={swarmDataFetched} />
+        <CommandSender drones={drones} swarmData={swarmAssignments} />
       </div>
 
       <div className="connected-drones-header">

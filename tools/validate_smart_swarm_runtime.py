@@ -66,13 +66,24 @@ class ApiClient:
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.load(response)
 
+    def patch_json(self, path: str, payload):
+        body = json.dumps(payload).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self.base_url}{path}",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="PATCH",
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+
     def get_telemetry(self):
         payload = self.get_json("/api/telemetry")
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
     def get_swarm(self):
-        payload = self.get_json("/get-swarm-data")
+        payload = self.get_json("/api/v1/config/swarm")
         if isinstance(payload, dict) and "assignments" in payload:
             payload = payload["assignments"]
         return payload
@@ -84,17 +95,17 @@ class ApiClient:
             "target_drones": [str(target_id) for target_id in target_ids],
             "operatorLabel": operator_label,
         }
-        response = self.post_json("/submit_command", payload)
+        response = self.post_json("/api/v1/commands", payload)
         command_id = response["command_id"]
         log(f"COMMAND {operator_label}: id={command_id} targets={target_ids}")
         return command_id, response
 
     def update_assignment(self, hw_id: int, **kwargs):
-        payload = {"hw_id": int(hw_id)}
+        payload = {}
         for key in ("follow", "offset_x", "offset_y", "offset_z", "frame"):
             if key in kwargs and kwargs[key] is not None:
                 payload[key] = kwargs[key]
-        response = self.post_json("/request-new-leader", payload)
+        response = self.patch_json(f"/api/v1/config/swarm/assignments/{int(hw_id)}", payload)
         log(f"SWARM UPDATE hw_id={hw_id}: {response['assignment']}")
         return response["assignment"]
 
@@ -149,7 +160,7 @@ def wait_for_command(client: ApiClient, command_id: str, *, desired_phase: str |
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        status = client.get_json(f"/command/{command_id}")
+        status = client.get_json(f"/api/v1/commands/{command_id}")
         last = status
         state = status.get("status")
         phase = status.get("phase")

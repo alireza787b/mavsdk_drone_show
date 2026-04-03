@@ -125,7 +125,7 @@ class ApiClient:
             "operatorLabel": operator_label,
             **extra,
         }
-        response = self.post_json("/submit_command", payload)
+        response = self.post_json("/api/v1/commands", payload)
         log(f"COMMAND {operator_label}: {response['command_id']} accepted={response.get('submitted_count')}")
         return response
 
@@ -203,7 +203,7 @@ def wait_for_command(
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        status = client.get_json(f"/command/{command_id}")
+        status = client.get_json(f"/api/v1/commands/{command_id}")
         last = status
         phase = status.get("phase")
         state = status.get("status")

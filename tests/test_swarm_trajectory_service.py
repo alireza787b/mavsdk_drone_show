@@ -60,6 +60,23 @@ def test_fetch_swarm_data_prefers_local_config():
     mock_get.assert_not_called()
 
 
+def test_fetch_swarm_data_falls_back_to_canonical_swarm_config_api():
+    """API fallback should use the canonical v1 swarm config envelope."""
+    api_swarm = [{'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0}]
+
+    with patch('config.load_swarm', side_effect=RuntimeError('local load failed')):
+        with patch('requests.get') as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                'version': 1,
+                'assignments': api_swarm,
+            }
+            result = fetch_swarm_data()
+
+    assert result == api_swarm
+    mock_get.assert_called_once_with('http://localhost:5000/api/v1/config/swarm', timeout=10)
+
+
 def test_clear_individual_drone_rejects_cluster_leader():
     """Leaders must be cleared at cluster scope to avoid inconsistent outputs."""
     swarm_data = [

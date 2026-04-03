@@ -26,6 +26,7 @@ import {
   getFleetConfigResponse,
   getSwarmConfigResponse,
   saveSwarmConfigResponse,
+  unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import {
   buildClusterScopeOptions,
@@ -153,7 +154,7 @@ function SwarmDesign() {
         const normalizedConfig = configResponse.data
           .map((entry) => normalizeConfigDrone(entry))
           .filter(Boolean);
-        const normalizedSwarm = swarmResponse.data
+        const normalizedSwarm = unwrapSwarmConfigPayload(swarmResponse.data)
           .map((entry) => normalizeSwarmAssignment(entry))
           .filter(Boolean);
         const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);
@@ -273,7 +274,7 @@ function SwarmDesign() {
     const normalizedConfig = configResponse.data
       .map((entry) => normalizeConfigDrone(entry))
       .filter(Boolean);
-    const normalizedSwarm = swarmResponse.data
+    const normalizedSwarm = unwrapSwarmConfigPayload(swarmResponse.data)
       .map((entry) => normalizeSwarmAssignment(entry))
       .filter(Boolean);
     const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);

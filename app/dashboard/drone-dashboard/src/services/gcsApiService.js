@@ -63,8 +63,8 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.validateFleetConfig]: '/api/v1/config/fleet/validation',
   [GCS_ROUTE_KEYS.dronePositions]: '/api/v1/config/fleet/trajectory-start-positions',
   [GCS_ROUTE_KEYS.trajectoryFirstRow]: '/api/v1/config/fleet/trajectory-start-positions',
-  [GCS_ROUTE_KEYS.swarmConfig]: '/get-swarm-data',
-  [GCS_ROUTE_KEYS.saveSwarmConfig]: '/save-swarm-data',
+  [GCS_ROUTE_KEYS.swarmConfig]: '/api/v1/config/swarm',
+  [GCS_ROUTE_KEYS.saveSwarmConfig]: '/api/v1/config/swarm',
   [GCS_ROUTE_KEYS.commandSubmit]: '/api/v1/commands',
   [GCS_ROUTE_KEYS.commandStatus]: '/api/v1/commands',
   [GCS_ROUTE_KEYS.recentCommands]: '/api/v1/commands/recent',
@@ -124,6 +124,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/config/fleet': GCS_ROUTE_KEYS.fleetConfig,
   '/api/v1/config/fleet/validation': GCS_ROUTE_KEYS.validateFleetConfig,
   '/api/v1/config/fleet/trajectory-start-positions': GCS_ROUTE_KEYS.dronePositions,
+  '/api/v1/config/swarm': GCS_ROUTE_KEYS.swarmConfig,
   '/get-swarm-data': GCS_ROUTE_KEYS.swarmConfig,
   '/save-swarm-data': GCS_ROUTE_KEYS.saveSwarmConfig,
   '/submit_command': GCS_ROUTE_KEYS.commandSubmit,
@@ -248,6 +249,16 @@ export function unwrapFleetTelemetryPayload(payload) {
   return payload || {};
 }
 
+export function unwrapSwarmConfigPayload(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (payload && typeof payload === 'object' && Array.isArray(payload.assignments)) {
+    return payload.assignments;
+  }
+  return [];
+}
+
 export async function fetchGcsResource(routeOrPath, config = {}) {
   return axios.get(buildGcsUrl(routeOrPath), config);
 }
@@ -300,7 +311,10 @@ export async function getSwarmConfigResponse(config = {}) {
 }
 
 export async function saveSwarmConfigResponse(payload, { commit = false, ...config } = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.saveSwarmConfig, payload, {
+  return putGcsResource(GCS_ROUTE_KEYS.saveSwarmConfig, {
+    version: 1,
+    assignments: payload,
+  }, {
     ...config,
     params: {
       ...(config.params || {}),

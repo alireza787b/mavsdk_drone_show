@@ -241,7 +241,7 @@ Available policy values in [params.py](/opt/mavsdk_drone_show/src/params.py):
 Cycle protection is enforced in two places:
 
 - dashboard assignment validation before save
-- GCS backend validation for `save-swarm-data` and `request-new-leader`
+- GCS backend validation for canonical `PUT /api/v1/config/swarm` and `PATCH /api/v1/config/swarm/assignments/{hw_id}` updates
 
 That prevents live leader changes from silently introducing a loop into the follow chain.
 
@@ -266,10 +266,10 @@ That prevents live leader changes from silently introducing a loop into the foll
 
 ### GCS persistence and live updates
 
-- [app_fastapi.py](../../gcs-server/app_fastapi.py)
-  - `GET /get-swarm-data`
-  - `POST /save-swarm-data`
-  - `POST /request-new-leader`
+- [swarm.py](../../gcs-server/api_routes/swarm.py)
+  - `GET /api/v1/config/swarm`
+  - `PUT /api/v1/config/swarm`
+  - `PATCH /api/v1/config/swarm/assignments/{hw_id}`
 
 ### Frontend control surfaces
 

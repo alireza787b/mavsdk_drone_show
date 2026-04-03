@@ -52,6 +52,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/fleet",
         "/api/v1/config/fleet/trajectory-start-positions",
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
+        "/api/v1/config/swarm",
         "/api/v1/commands/recent",
         "/api/v1/commands/active",
         "/api/v1/commands/statistics",
@@ -150,6 +151,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/elevation/batch",
     },
     "PATCH": {
+        "/api/v1/config/swarm/assignments/{hw_id}",
         "/api/sar/poi/{poi_id}",
     },
     "DELETE": {
@@ -158,6 +160,7 @@ GCS_EXPECTED_HTTP = {
     },
     "PUT": {
         "/api/v1/config/fleet",
+        "/api/v1/config/swarm",
     },
 }
 
@@ -310,6 +313,9 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("POST", "/api/v1/command-reports/execution-start")].endpoint is route_index[("POST", "/command/execution-start")].endpoint
     assert route_index[("POST", "/api/v1/command-reports/execution-result")].endpoint is route_index[("POST", "/command/execution-result")].endpoint
     assert route_index[("GET", "/api/v1/config/fleet/trajectory-start-positions/{pos_id}")].endpoint is not route_index[("GET", "/get-trajectory-first-row")].endpoint
+    assert route_index[("GET", "/api/v1/config/swarm")].endpoint is not route_index[("GET", "/get-swarm-data")].endpoint
+    assert route_index[("PUT", "/api/v1/config/swarm")].endpoint is not route_index[("POST", "/save-swarm-data")].endpoint
+    assert route_index[("PATCH", "/api/v1/config/swarm/assignments/{hw_id}")].endpoint is not route_index[("POST", "/request-new-leader")].endpoint
 
     assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
     assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True

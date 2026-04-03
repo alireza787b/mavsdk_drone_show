@@ -216,11 +216,11 @@ Examples of the intended migration direction:
 - `/validate-config` -> `POST /api/v1/config/fleet/validation`
 - `/get-swarm-data` -> `GET /api/v1/config/swarm`
 - `/save-swarm-data` -> `PUT /api/v1/config/swarm`
-- `/request-new-leader` -> `POST /api/v1/config/swarm/assignments/{hw_id}/leader`
+- `/request-new-leader` -> `PATCH /api/v1/config/swarm/assignments/{hw_id}`
 - `/submit_command` -> `POST /api/v1/commands`
 - `/command/{command_id}` -> `GET /api/v1/commands/{command_id}`
-- `/command/execution-start` -> `POST /api/v1/commands/{command_id}/execution-start`
-- `/command/execution-result` -> `POST /api/v1/commands/{command_id}/execution-result`
+- `/command/execution-start` -> `POST /api/v1/command-reports/execution-start`
+- `/command/execution-result` -> `POST /api/v1/command-reports/execution-result`
 - `/git-status` -> `GET /api/v1/git/status`
 - `/sync-repos` -> `POST /api/v1/git/sync-jobs`
 - `/get-origin` and `/set-origin` -> `GET/PUT /api/v1/origin`

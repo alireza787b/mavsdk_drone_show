@@ -691,18 +691,31 @@ Deploy show changes to git repository for drone fleet.
 
 ### Swarm Management
 
-#### `GET /get-swarm-data`
-Get swarm configuration.
+#### `GET /api/v1/config/swarm`
+Get the canonical swarm configuration resource.
 
 **Response:**
 ```json
 {
-  "hierarchies": {...}
+  "version": 1,
+  "assignments": [
+    {
+      "hw_id": 1,
+      "follow": 0,
+      "offset_x": 0,
+      "offset_y": 0,
+      "offset_z": 0,
+      "frame": "ned"
+    }
+  ]
 }
 ```
 
-#### `POST /save-swarm-data?commit={true|false}`
-Save swarm configuration.
+Legacy compatibility:
+- `GET /get-swarm-data` still returns the older raw assignment list during rollout.
+
+#### `PUT /api/v1/config/swarm?commit={true|false}`
+Save the canonical swarm configuration resource.
 
 **Parameters:**
 - `commit` (optional): Whether to commit to git
@@ -710,7 +723,17 @@ Save swarm configuration.
 **Request:**
 ```json
 {
-  "hierarchies": {...}
+  "version": 1,
+  "assignments": [
+    {
+      "hw_id": 1,
+      "follow": 0,
+      "offset_x": 0,
+      "offset_y": 0,
+      "offset_z": 0,
+      "frame": "ned"
+    }
+  ]
 }
 ```
 
@@ -718,9 +741,53 @@ Save swarm configuration.
 ```json
 {
   "status": "success",
-  "message": "Swarm data saved successfully"
+  "message": "Swarm configuration saved successfully",
+  "config": {
+    "version": 1,
+    "assignments": []
+  }
 }
 ```
+
+Legacy compatibility:
+- `POST /save-swarm-data?commit={true|false}` still accepts the older raw assignment-list payload during rollout.
+
+#### `PATCH /api/v1/config/swarm/assignments/{hw_id}`
+Patch a saved swarm assignment for one hardware drone.
+
+This is the canonical replacement for the older leader-only naming. The live
+contract can update `follow`, `offset_x`, `offset_y`, `offset_z`, and `frame`
+together for a single saved assignment.
+
+**Request:**
+```json
+{
+  "follow": 1,
+  "offset_x": 2.5,
+  "offset_y": 0.0,
+  "offset_z": 0.0,
+  "frame": "body"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Swarm assignment updated",
+  "assignment": {
+    "hw_id": 2,
+    "follow": 1,
+    "offset_x": 2.5,
+    "offset_y": 0.0,
+    "offset_z": 0.0,
+    "frame": "body"
+  }
+}
+```
+
+Legacy compatibility:
+- `POST /request-new-leader` still exists during rollout, but the canonical path is the assignment patch route above.
 
 #### `GET /api/swarm/leaders`
 Get list of top leaders from swarm configuration.

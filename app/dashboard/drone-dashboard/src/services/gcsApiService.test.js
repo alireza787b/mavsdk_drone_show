@@ -15,6 +15,7 @@ import {
   resolveGcsRouteKey,
   saveSwarmConfigResponse,
   unwrapFleetTelemetryPayload,
+  unwrapSwarmConfigPayload,
 } from './gcsApiService';
 
 const mockGetBackendURL = jest.fn(() => 'http://gcs.test:5000');
@@ -50,6 +51,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
     expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
+    expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
     expect(resolveGcsRouteKey('/submit_command')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
@@ -68,6 +70,12 @@ describe('gcsApiService', () => {
     const envelope = { telemetry: { 1: { position_lat: 1 } }, total_drones: 1 };
     expect(unwrapFleetTelemetryPayload(envelope)).toEqual({ 1: { position_lat: 1 } });
     expect(unwrapFleetTelemetryPayload({ 2: { position_lat: 2 } })).toEqual({ 2: { position_lat: 2 } });
+  });
+
+  it('unwraps swarm config envelopes while preserving legacy list payloads', () => {
+    expect(unwrapSwarmConfigPayload({ version: 1, assignments: [{ hw_id: 1 }] })).toEqual([{ hw_id: 1 }]);
+    expect(unwrapSwarmConfigPayload([{ hw_id: 2 }])).toEqual([{ hw_id: 2 }]);
+    expect(unwrapSwarmConfigPayload({ invalid: true })).toEqual([]);
   });
 
   it('fetches fleet telemetry from the canonical v1 endpoint', async () => {
@@ -137,13 +145,16 @@ describe('gcsApiService', () => {
   });
 
   it('preserves commit intent when saving swarm config', async () => {
-    axios.post.mockResolvedValue({ data: { success: true } });
+    axios.put.mockResolvedValue({ data: { success: true } });
 
     await saveSwarmConfigResponse([{ hw_id: '1' }], { commit: true, timeout: 3000 });
 
-    expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5000/save-swarm-data',
-      [{ hw_id: '1' }],
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/config/swarm',
+      {
+        version: 1,
+        assignments: [{ hw_id: '1' }],
+      },
       {
         timeout: 3000,
         params: {

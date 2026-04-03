@@ -1045,13 +1045,37 @@ class TestSwarmEndpoints:
         response = test_client.get("/get-swarm-data")
         assert response.status_code == 200
 
+    @patch('app_fastapi.load_swarm')
+    def test_get_swarm_config_v1_returns_envelope(self, mock_load, test_client):
+        """Test GET /api/v1/config/swarm"""
+        mock_load.return_value = [{'hw_id': 1, 'follow': 0}]
+
+        response = test_client.get("/api/v1/config/swarm")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            'version': 1,
+            'assignments': [{'hw_id': 1, 'follow': 0}],
+        }
+
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data(self, mock_save, test_client):
         """Test POST /save-swarm-data"""
-        swarm_data = {'hierarchies': {}}
+        swarm_data = [{'hw_id': 1, 'follow': 0}]
 
         response = test_client.post("/save-swarm-data?commit=false", json=swarm_data)
         assert response.status_code == 200
+
+    @patch('app_fastapi.save_swarm')
+    def test_put_swarm_config_v1(self, mock_save, test_client):
+        """Test PUT /api/v1/config/swarm"""
+        swarm_data = {'version': 1, 'assignments': [{'hw_id': 1, 'follow': 0}]}
+
+        response = test_client.request("PUT", "/api/v1/config/swarm?commit=false", json=swarm_data)
+
+        assert response.status_code == 200
+        assert response.json()['status'] == 'success'
+        assert response.json()['config'] == swarm_data
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data_rejects_cycles(self, mock_save, test_client):
@@ -1079,6 +1103,31 @@ class TestSwarmEndpoints:
         response = test_client.post(
             "/request-new-leader",
             json={'hw_id': 2, 'follow': 0, 'offset_x': 7, 'offset_y': 1, 'offset_z': 2, 'frame': 'ned'},
+        )
+
+        assert response.status_code == 200
+        assert response.json()['status'] == 'success'
+        saved_swarm = mock_save.call_args[0][0]
+        assert saved_swarm[1]['hw_id'] == 2
+        assert saved_swarm[1]['follow'] == 0
+        assert saved_swarm[1]['offset_x'] == 7.0
+        assert saved_swarm[1]['offset_y'] == 1.0
+        assert saved_swarm[1]['offset_z'] == 2.0
+        assert saved_swarm[1]['frame'] == 'ned'
+
+    @patch('app_fastapi.save_swarm')
+    @patch('app_fastapi.load_swarm')
+    def test_patch_swarm_assignment_v1_updates_swarm_assignment(self, mock_load, mock_save, test_client):
+        """Test PATCH /api/v1/config/swarm/assignments/{hw_id} persists a single assignment update."""
+        mock_load.return_value = [
+            {'hw_id': 1, 'follow': 0, 'offset_x': 0, 'offset_y': 0, 'offset_z': 0, 'frame': 'ned'},
+            {'hw_id': 2, 'follow': 1, 'offset_x': 5, 'offset_y': 0, 'offset_z': 0, 'frame': 'body'},
+        ]
+
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/config/swarm/assignments/2",
+            json={'follow': 0, 'offset_x': 7, 'offset_y': 1, 'offset_z': 2, 'frame': 'ned'},
         )
 
         assert response.status_code == 200
@@ -1501,6 +1550,8 @@ class TestAPIV1Aliases:
             "/api/v1/config/fleet/validation",
             "/api/v1/config/fleet/trajectory-start-positions",
             "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
+            "/api/v1/config/swarm",
+            "/api/v1/config/swarm/assignments/{hw_id}",
             "/api/v1/commands",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",

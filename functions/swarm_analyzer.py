@@ -50,10 +50,12 @@ def fetch_swarm_data():
 
     try:
         backend_url = get_backend_url()
-        response = requests.get(f"{backend_url}/get-swarm-data", timeout=10)
+        response = requests.get(f"{backend_url}/api/v1/config/swarm", timeout=10)
         
         if response.status_code == 200:
             swarm_data = response.json()
+            if isinstance(swarm_data, dict) and isinstance(swarm_data.get("assignments"), list):
+                swarm_data = swarm_data["assignments"]
             logger.info(f"Fetched swarm data from API: {len(swarm_data)} drones")
             return swarm_data
         else:
