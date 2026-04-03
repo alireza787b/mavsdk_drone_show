@@ -1,5 +1,8 @@
 """Shared canonical GCS route constants for runtime and tooling callers."""
 
+GCS_WS_TELEMETRY_ROUTE = "/ws/telemetry"
+GCS_WS_HEARTBEATS_ROUTE = "/ws/heartbeats"
+GCS_WS_GIT_STATUS_ROUTE = "/ws/git-status"
 GCS_FLEET_HEARTBEATS_ROUTE = "/api/v1/fleet/heartbeats"
 GCS_FLEET_NETWORK_STATUS_ROUTE = "/api/v1/fleet/network-status"
 GCS_GIT_STATUS_ROUTE = "/api/v1/git/status"

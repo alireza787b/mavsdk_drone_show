@@ -595,6 +595,27 @@ Phase 5 second checkpoint on 2026-04-03:
 
 After this checkpoint, the remaining Phase 5 design boundary is narrower: the unresolved question is the long-term canonical treatment of the still-unversioned GCS WebSocket stream surface (`/ws/telemetry`, `/ws/heartbeats`, `/ws/git-status`), not whether Logs or QuickScout are “unfinished” API roots.
 
+Phase 5 third checkpoint on 2026-04-03:
+
+- codified the GCS WebSocket stream surface as intentional canonical transport roots instead of leaving the `/ws/*` endpoints as implied compatibility residue:
+  - `WS /ws/telemetry`
+  - `WS /ws/heartbeats`
+  - `WS /ws/git-status`
+- introduced shared transport-route constants in `src/gcs_api_routes.py` so runtime and tooling callers do not grow new hardcoded WebSocket paths
+- introduced shared frontend WebSocket URL builders in `app/dashboard/drone-dashboard/src/services/gcsApiService.js`, including protocol-aware `ws://` / `wss://` derivation from the configured backend base URL and explicit pass-through for already-absolute WebSocket URLs
+- extended focused dashboard service coverage for the canonical stream builders and revalidated the slice on Hetzner with the frontend service Jest batch plus the production dashboard build
+
+After this checkpoint, the GCS API contract surface is explicitly classified end to end:
+
+- canonical resource and mutation HTTP routes live under `/api/v1/...`
+- `/api/logs/*` and `/api/sar/*` are intentional stable subsystem roots
+- `/ws/telemetry`, `/ws/heartbeats`, and `/ws/git-status` are intentional canonical transport roots
+
+That means the public GCS API-surface cleanup stream is effectively closed. Remaining work is no longer route-shape ambiguity. It is:
+
+- broader SITL and API regression workflow hardening on top of the cleaned contract
+- any later drone-side router extraction as an internal maintainability track, not unresolved public-route debt
+
 ### Phase 6
 
 - remove the remaining deferred or high-risk non-canonical surfaces only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated

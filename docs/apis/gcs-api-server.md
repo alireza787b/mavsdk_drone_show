@@ -1222,6 +1222,16 @@ Not every current GCS API domain needs to move under `/api/v1/...`.
 
 The versioning work after the main Phase 4 cleanup is therefore focused on stream-contract policy and route quality, not on renaming these already namespaced subsystem domains for the sake of uniformity alone.
 
+### Stable Transport Roots
+
+The GCS WebSocket surface is also intentional and canonical.
+
+- `/ws/telemetry` is the canonical real-time fleet telemetry stream.
+- `/ws/heartbeats` is the canonical real-time heartbeat stream.
+- `/ws/git-status` is the canonical real-time git-status stream.
+
+These transport roots stay versionless on purpose. They are long-lived event channels, not leftover HTTP compatibility aliases.
+
 ---
 
 ### Swarm Trajectory Static Assets
@@ -1234,6 +1244,8 @@ Serve generated Swarm Trajectory plot images.
 ## WebSocket Endpoints
 
 WebSocket endpoints provide real-time streaming for high-frequency data.
+
+The three current GCS WebSocket endpoints are intentional canonical transport roots, not temporary compatibility aliases.
 
 ### `WS /ws/telemetry`
 Real-time telemetry streaming (1 Hz).
@@ -1271,7 +1283,7 @@ ws.onmessage = (event) => {
 ### `WS /ws/git-status`
 Real-time git status streaming (0.2 Hz).
 
-The WebSocket compatibility path remains `/ws/git-status` in this phase. Canonical HTTP reads are available at `GET /api/v1/git/status`.
+Canonical HTTP snapshot reads for the same domain remain available at `GET /api/v1/git/status`.
 
 **Connection:**
 ```javascript

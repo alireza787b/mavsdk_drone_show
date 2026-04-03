@@ -1,12 +1,17 @@
 import axios from 'axios';
 import {
+  buildGitStatusWebSocketUrl,
   buildGcsUrl,
+  buildGcsWebSocketUrl,
+  buildHeartbeatWebSocketUrl,
   buildLogsUrl,
   buildShowDownloadUrl,
   buildShowPlotUrl,
   buildStaticPlotUrl,
   buildSarUrl,
+  buildTelemetryWebSocketUrl,
   GCS_ROUTE_KEYS,
+  GCS_WS_ROUTES,
   getGcsConfigResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
@@ -52,6 +57,23 @@ describe('gcsApiService', () => {
 
   it('preserves absolute URLs instead of prefixing them twice', () => {
     expect(buildGcsUrl('https://example.test/api/v1/health')).toBe('https://example.test/api/v1/health');
+  });
+
+  it('builds canonical websocket URLs from the backend base URL', () => {
+    expect(buildGcsWebSocketUrl(GCS_WS_ROUTES.telemetry)).toBe('ws://gcs.test:5000/ws/telemetry');
+    expect(buildTelemetryWebSocketUrl()).toBe('ws://gcs.test:5000/ws/telemetry');
+    expect(buildHeartbeatWebSocketUrl()).toBe('ws://gcs.test:5000/ws/heartbeats');
+    expect(buildGitStatusWebSocketUrl()).toBe('ws://gcs.test:5000/ws/git-status');
+  });
+
+  it('upgrades websocket URLs to wss when the backend base uses https', () => {
+    mockGetBackendURL.mockReturnValue('https://gcs.example.test');
+
+    expect(buildGcsWebSocketUrl(GCS_WS_ROUTES.gitStatus)).toBe('wss://gcs.example.test/ws/git-status');
+  });
+
+  it('preserves absolute websocket URLs instead of rebuilding them', () => {
+    expect(buildGcsWebSocketUrl('wss://stream.example.test/ws/telemetry')).toBe('wss://stream.example.test/ws/telemetry');
   });
 
   it('maps active canonical and retained compatibility paths back to route keys', () => {

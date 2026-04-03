@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 stream-surface codification checkpoint note documenting the third Phase 5 API-modernization slice, the explicit WebSocket transport-root policy, the shared GCS WebSocket route builders/constants, and the Hetzner Jest/build validation results
 - a 2026-04-03 logging-domain hardening checkpoint note documenting the second Phase 5 API-modernization slice, the shared session-path validation, typed log-route models, the stable-root policy for `/api/logs/*` and `/api/sar/*`, and the paired local/Hetzner validation results
 - a 2026-04-03 SAR router normalization checkpoint note documenting the first Phase 5 API-modernization slice, the QuickScout router-factory cleanup, the removal of the old `sys.path` import hack, and the paired local/Hetzner validation results
 - a 2026-04-03 operational HTTP alias retirement checkpoint note documenting the sixteenth Phase 4 API-modernization slice, the removal of the last versionless heartbeat/network/git HTTP aliases, the runtime default-route cleanup, and the paired local/Hetzner validation results
@@ -47,6 +48,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the third Phase 5 API-modernization slice now treats `/ws/telemetry`, `/ws/heartbeats`, and `/ws/git-status` as intentional canonical transport roots instead of leaving them as undocumented versionless leftovers, closing the last open GCS route-shape policy gap after the Phase 4 HTTP retirement work
+- shared GCS frontend route helpers now build WebSocket URLs from the configured backend base URL with correct `http`→`ws` and `https`→`wss` protocol mapping while preserving already-absolute WebSocket URLs, so future stream consumers do not reintroduce hardcoded or incorrectly prefixed socket endpoints
 - the second Phase 5 API-modernization slice now hardens the shared logging session layer so session IDs must resolve inside the configured log directory, which closes the path-traversal risk for both GCS and drone-side `/api/logs/*` session access and export flows
 - GCS log routes now use typed request/response models for frontend reports, export requests, config toggles, and session payloads instead of relying on untyped dictionaries, bringing the logging domain in line with the broader contract-cleanup standard without renaming the stable `/api/logs/*` namespace
 - the API modernization policy now treats `/api/logs/*` and `/api/sar/*` as intentional stable subsystem roots rather than unfinished alias debt, so the remaining open contract question is concentrated on the GCS WebSocket stream surface instead of churn for already-namespaced domains

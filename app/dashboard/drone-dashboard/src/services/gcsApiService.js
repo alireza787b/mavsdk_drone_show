@@ -2,6 +2,7 @@ import axios from 'axios';
 import { getBackendURL } from '../config/apiConfig';
 
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:\/\//i;
+const ABSOLUTE_WS_URL_PATTERN = /^wss?:\/\//i;
 
 export const GCS_ROUTE_KEYS = Object.freeze({
   systemHealth: 'systemHealth',
@@ -103,6 +104,12 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.sarBase]: '/api/sar',
 });
 
+export const GCS_WS_ROUTES = Object.freeze({
+  telemetry: '/ws/telemetry',
+  heartbeats: '/ws/heartbeats',
+  gitStatus: '/ws/git-status',
+});
+
 const ROUTE_KEY_BY_PATH = Object.freeze({
   '/ping': GCS_ROUTE_KEYS.systemHealth,
   '/health': GCS_ROUTE_KEYS.systemHealth,
@@ -190,6 +197,31 @@ export function buildGcsUrl(routeOrPath) {
     return path;
   }
   return `${getBackendURL()}${path}`;
+}
+
+export function buildGcsWebSocketUrl(path) {
+  if (typeof path === 'string' && ABSOLUTE_WS_URL_PATTERN.test(path)) {
+    return path;
+  }
+
+  const base = new URL(getBackendURL());
+  base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+  base.pathname = path.startsWith('/') ? path : `/${path}`;
+  base.search = '';
+  base.hash = '';
+  return base.toString();
+}
+
+export function buildTelemetryWebSocketUrl() {
+  return buildGcsWebSocketUrl(GCS_WS_ROUTES.telemetry);
+}
+
+export function buildHeartbeatWebSocketUrl() {
+  return buildGcsWebSocketUrl(GCS_WS_ROUTES.heartbeats);
+}
+
+export function buildGitStatusWebSocketUrl() {
+  return buildGcsWebSocketUrl(GCS_WS_ROUTES.gitStatus);
 }
 
 export function buildLogsUrl(suffix = '') {
