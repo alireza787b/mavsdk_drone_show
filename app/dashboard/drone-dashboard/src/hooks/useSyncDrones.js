@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'react-toastify';
-import { getSyncReposURL } from '../utilities/utilities';
+import { syncReposResponse } from '../services/gcsApiService';
 
 /**
  * Shared hook for triggering drone sync operations.
@@ -12,16 +12,8 @@ export function useSyncDrones() {
   const syncDrones = useCallback(async () => {
     setSyncing(true);
     try {
-      const response = await fetch(getSyncReposURL(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) {
-        toast.error(`Sync failed: server returned ${response.status}`);
-        return null;
-      }
-      const data = await response.json();
+      const response = await syncReposResponse({});
+      const data = response.data;
       if (data.success) {
         toast.success(data.message || `Sync verified: ${data.synced_drones?.length || 0} drones updated`);
       } else {

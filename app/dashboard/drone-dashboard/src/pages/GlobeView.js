@@ -4,10 +4,9 @@ import Globe from '../components/Globe';
 import GlobeMapView from '../components/GlobeMapView';
 import ViewModeToggle, { VIEW_MODES } from '../components/map/ViewModeToggle';
 import '../styles/GlobeView.css';
-import axios from 'axios';
 
-import { getTelemetryURL } from '../utilities/utilities';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
 
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
@@ -17,13 +16,11 @@ const GlobeView = () => {
   const [viewMode, setViewMode] = useState(VIEW_MODES.SCENE_3D);
 
   const fetchDrones = useCallback(async () => {
-    const url = getTelemetryURL();
-
     try {
       if (isFirstLoad) setIsLoading(true);
 
-      const response = await axios.get(url);
-      const dronesData = Object.entries(response.data)
+      const response = await getFleetTelemetryResponse();
+      const dronesData = Object.entries(unwrapFleetTelemetryPayload(response.data))
         .filter(([id, drone]) => Object.keys(drone).length > 0)
         .map(([id, drone]) => ({
           hw_id: id,

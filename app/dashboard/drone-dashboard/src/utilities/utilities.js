@@ -2,17 +2,21 @@
 
 // Import centralized API config with auto-detection
 import { getBackendURL } from '../config/apiConfig';
+import {
+  buildGcsUrl,
+  GCS_ROUTE_KEYS,
+} from '../services/gcsApiService';
 
 // Re-export for backward compatibility
 export { getBackendURL };
 
 // Usage-specific functions to return complete URLs for specific services
 export function getTelemetryURL() {
-    return `${getBackendURL()}/telemetry`;
+    return buildGcsUrl(GCS_ROUTE_KEYS.fleetTelemetry);
 }
 
 export function getElevationURL(lat, lon) {
-    return `${getBackendURL()}/elevation?lat=${lat}&lon=${lon}`;
+    return `${buildGcsUrl(GCS_ROUTE_KEYS.elevation)}?lat=${lat}&lon=${lon}`;
 }
 
 // DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes gcs_status field
@@ -20,13 +24,13 @@ export function getGitStatusURL() {
     return `${getBackendURL()}/get-gcs-git-status`;
 }
 
-export const getUnifiedGitStatusURL = () => `${getBackendURL()}/git-status`;
+export const getUnifiedGitStatusURL = () => buildGcsUrl(GCS_ROUTE_KEYS.gitStatus);
 
-export const getSyncReposURL = () => `${getBackendURL()}/sync-repos`;
+export const getSyncReposURL = () => buildGcsUrl(GCS_ROUTE_KEYS.syncRepos);
 
 
 export function getCustomShowImageURL() {
-    return `${getBackendURL()}/get-custom-show-image`;
+    return buildGcsUrl(GCS_ROUTE_KEYS.customShowImage);
 }
 // DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes all drone statuses
 export function getDroneGitStatusURLById(droneID) {
@@ -119,4 +123,3 @@ export const llaToLocal = (lat, lon, alt, reference) => {
   };
   
   
-

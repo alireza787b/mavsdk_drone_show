@@ -1,8 +1,7 @@
 // src/hooks/useComputeOrigin.js
 
 import { useState } from 'react';
-import axios from 'axios';
-import { getBackendURL } from '../utilities/utilities';
+import { computeOriginResponse } from '../services/gcsApiService';
 
 /**
  * Custom hook to compute origin based on drone's current position and intended N-E positions.
@@ -32,10 +31,9 @@ const useComputeOrigin = () => {
     }
 
     setLoading(true);
-    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 
     try {
-      const response = await axios.post(`${backendURL}/compute-origin`, {
+      const response = await computeOriginResponse({
         current_lat,
         current_lon,
         pos_id,

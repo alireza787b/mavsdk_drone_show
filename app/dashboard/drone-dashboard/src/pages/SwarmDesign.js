@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
 import Papa from 'papaparse';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -22,7 +21,12 @@ import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
-import { getBackendURL } from '../utilities/utilities';
+import {
+  GCS_ROUTE_KEYS,
+  getFleetConfigResponse,
+  getSwarmConfigResponse,
+  saveSwarmConfigResponse,
+} from '../services/gcsApiService';
 import {
   buildClusterScopeOptions,
   buildSwarmViewModel,
@@ -53,7 +57,6 @@ function hasIncompleteNumericValue(value) {
 function SwarmDesign() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const backendURL = getBackendURL();
   const cardRefs = useRef({});
   const handledRouteDroneRef = useRef('');
 
@@ -69,7 +72,7 @@ function SwarmDesign() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
-  const { data: telemetryById = {} } = useNormalizedTelemetry('/telemetry', 2000);
+  const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
 
   const viewModel = useMemo(
     () => buildSwarmViewModel(workingAssignments, configData),
@@ -139,8 +142,8 @@ function SwarmDesign() {
     async function loadSwarmDesignData() {
       try {
         const [swarmResponse, configResponse] = await Promise.all([
-          axios.get(`${backendURL}/get-swarm-data`),
-          axios.get(`${backendURL}/get-config-data`),
+          getSwarmConfigResponse(),
+          getFleetConfigResponse(),
         ]);
 
         if (!isActive) {
@@ -173,7 +176,7 @@ function SwarmDesign() {
     return () => {
       isActive = false;
     };
-  }, [backendURL]);
+  }, []);
 
   useEffect(() => {
     if (viewModel.drones.length === 0) {
@@ -263,8 +266,8 @@ function SwarmDesign() {
 
   const refreshFromServer = async () => {
     const [swarmResponse, configResponse] = await Promise.all([
-      axios.get(`${backendURL}/get-swarm-data`),
-      axios.get(`${backendURL}/get-config-data`),
+      getSwarmConfigResponse(),
+      getFleetConfigResponse(),
     ]);
 
     const normalizedConfig = configResponse.data
@@ -440,9 +443,9 @@ function SwarmDesign() {
     setSaving(true);
 
     try {
-      const response = await axios.post(
-        `${backendURL}/save-swarm-data?commit=${withCommit ? 'true' : 'false'}`,
-        toSwarmApiPayload(workingAssignments)
+      const response = await saveSwarmConfigResponse(
+        toSwarmApiPayload(workingAssignments),
+        { commit: withCommit }
       );
 
       toast.success(response.data.message || 'Smart Swarm configuration saved successfully.');

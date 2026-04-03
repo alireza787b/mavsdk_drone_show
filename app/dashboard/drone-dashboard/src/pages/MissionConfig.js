@@ -15,7 +15,6 @@ import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ReplaceDroneWizard from '../components/ReplaceDroneWizard';
 import ClusterScopeBar from '../components/ClusterScopeBar';
-import axios from 'axios';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
@@ -53,7 +52,13 @@ import {
   filterClustersByScope,
 } from '../utilities/swarmDesignUtils';
 import { toast } from 'react-toastify';
-import { getBackendURL } from '../utilities/utilities';
+import {
+  GCS_ROUTE_KEYS,
+  getPositionDeviationsResponse,
+  getTrajectoryFirstRowResponse,
+  saveGcsConfigResponse,
+  setOriginResponse,
+} from '../services/gcsApiService';
 
 // Icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -122,16 +127,19 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   // Data Fetching using custom hooks
   // -----------------------------------------------------
-  const { data: configDataFetched } = useFetch('/get-config-data');
-  const { data: originDataFetched } = useFetch('/get-origin');
-  const { data: gcsConfigFetched } = useFetch('/get-gcs-config', null);
-  const { data: deviationDataFetched } = useFetch('/get-position-deviations', originAvailable ? 5000 : null);
-  const { data: telemetryDataFetched } = useFetch('/telemetry', 2000);
-  const { data: gitStatusDataFetched } = useNormalizedTelemetry('/git-status', 20000);
-  const { data: networkInfoFetched } = useFetch('/get-network-info', 10000);
-  const { data: heartbeatsFetched } = useFetch('/get-heartbeats', 5000);
-  const { data: savedDronePositionsFetched } = useFetch('/get-drone-positions', 10000);
-  const { data: swarmDataFetched } = useFetch('/get-swarm-data');
+  const { data: configDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetConfig);
+  const { data: originDataFetched } = useFetch(GCS_ROUTE_KEYS.origin);
+  const { data: gcsConfigFetched } = useFetch(GCS_ROUTE_KEYS.gcsConfig, null);
+  const { data: deviationDataFetched } = useFetch(
+    GCS_ROUTE_KEYS.positionDeviations,
+    originAvailable ? 5000 : null
+  );
+  const { data: telemetryDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
+  const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
+  const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
+  const { data: heartbeatsFetched } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
+  const { data: savedDronePositionsFetched } = useFetch(GCS_ROUTE_KEYS.dronePositions, 10000);
+  const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   // -----------------------------------------------------
   // Derived Data & Helpers
@@ -260,14 +268,10 @@ const MissionConfig = () => {
     }
 
     let cancelled = false;
-    const backendURL = getBackendURL();
-
     Promise.all(
       missingPosIds.map(async (posId) => {
         try {
-          const response = await axios.get(`${backendURL}/get-trajectory-first-row`, {
-            params: { pos_id: posId },
-          });
+          const response = await getTrajectoryFirstRowResponse(posId);
 
           const north = Number(response.data?.north);
           const east = Number(response.data?.east);
@@ -424,9 +428,7 @@ const MissionConfig = () => {
     setOriginAvailable(true);
     toast.success('Origin set successfully.');
 
-    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
-    axios
-      .post(`${backendURL}/set-origin`, newOrigin)
+    setOriginResponse(newOrigin)
       .then(() => {
         toast.success('Origin saved to server.');
       })
@@ -440,10 +442,8 @@ const MissionConfig = () => {
   // GCS Configuration Modal submission
   // -----------------------------------------------------
   const handleGcsConfigSubmit = async (newGcsConfig) => {
-    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
-
     try {
-      const response = await axios.post(`${backendURL}/save-gcs-config`, newGcsConfig);
+      const response = await saveGcsConfigResponse(newGcsConfig);
 
       if (response.data.success) {
         setGcsConfig(newGcsConfig);
@@ -492,9 +492,7 @@ const MissionConfig = () => {
       return;
     }
 
-    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
-    axios
-      .get(`${backendURL}/get-position-deviations`)
+    getPositionDeviationsResponse()
       .then((response) => {
         setDeviationData(response.data);
       })

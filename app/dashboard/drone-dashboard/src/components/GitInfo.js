@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/GitInfo.css';
-import { getUnifiedGitStatusURL } from '../utilities/utilities';
+import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
 
 const GitInfo = ({ collapsed = false }) => {
   const [gitInfo, setGitInfo] = useState({});
@@ -9,9 +9,8 @@ const GitInfo = ({ collapsed = false }) => {
   useEffect(() => {
     async function fetchGitInfo() {
       try {
-        const response = await fetch(getUnifiedGitStatusURL());
-        if (!response.ok) return;
-        const data = await response.json();
+        const response = await getUnifiedGitStatusResponse();
+        const data = response.data;
         // Use gcs_status from the unified response if available
         if (data.gcs_status) {
           setGitInfo(data.gcs_status);

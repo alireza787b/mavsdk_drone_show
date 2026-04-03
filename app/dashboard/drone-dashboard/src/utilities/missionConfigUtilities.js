@@ -1,10 +1,13 @@
 //app/dashboard/drone-dashboard/src/utilities/missionConfigUtilities.js
-import axios from 'axios';
-import { getBackendURL } from './utilities';
 import { convertToLatLon } from './geoutilities'; // Importing the convertToLatLon function
 import { normalizeDroneConfigData, toBackendConfigDrone } from './missionIdentityUtils';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import {
+    getFleetConfigResponse,
+    saveFleetConfigResponse,
+    validateFleetConfigResponse,
+} from '../services/gcsApiService';
 
 // Core required fields — must always be present on every drone
 const CORE_FIELDS = ['hw_id', 'pos_id', 'ip', 'mavlink_port', 'serial_port', 'baudrate'];
@@ -41,13 +44,11 @@ export const validateConfigWithBackend = async (configData, setLoading) => {
     // Clean and transform the configData (preserves all fields, ensures core fields exist)
     const cleanedConfigData = configData.map(cleanDroneForBackend);
 
-    const backendURL = getBackendURL();
-
     try {
         setLoading(true);
         toast.info('Validating configuration...', { autoClose: 2000 });
 
-        const response = await axios.post(`${backendURL}/validate-config`, cleanedConfigData);
+        const response = await validateFleetConfigResponse(cleanedConfigData);
         return response.data; // Returns validation report
 
     } catch (error) {
@@ -89,18 +90,16 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         toast.warn(`Missing Drone IDs: ${missingIds.join(', ')}. Please check before saving.`);
     }
 
-    const backendURL = getBackendURL();
-
     try {
         setLoading(true); // Set loading state to true
 
         // Show initiating toast
         toast.info('Saving configuration...', { autoClose: 2000 });
 
-        const response = await axios.post(`${backendURL}/save-config-data`, cleanedConfigData);
+        const response = await saveFleetConfigResponse(cleanedConfigData);
 
         // Reload config from server to get latest saved state
-        const refreshResponse = await axios.get(`${backendURL}/get-config-data`);
+        const refreshResponse = await getFleetConfigResponse();
         setConfigData(refreshResponse.data);
 
         // Success toast with git info
@@ -152,9 +151,8 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
 
 export const handleRevertChanges = async(setConfigData) => {
     if (window.confirm("Are you sure you want to reload and lose all current settings?")) {
-        const backendURL = getBackendURL();
         try {
-            const response = await axios.get(`${backendURL}/get-config-data`);
+            const response = await getFleetConfigResponse();
             setConfigData(response.data);
         } catch (error) {
             console.error("Error fetching original config data:", error);

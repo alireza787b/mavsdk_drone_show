@@ -1,9 +1,8 @@
 // src/hooks/useFetch.js
 
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getBackendURL } from '../utilities/utilities';
 import { extractServerNowMs } from '../constants/fieldMappings';
+import { fetchGcsResource } from '../services/gcsApiService';
 
 /**
  * Custom hook for fetching data from a given endpoint.
@@ -27,12 +26,11 @@ const useFetch = (endpoint, interval = null) => {
     }
 
     let isMounted = true; // To prevent state updates after unmount
-    const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
 
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`${backendURL}${endpoint}`);
+        const response = await fetchGcsResource(endpoint);
         if (isMounted) {
           const receivedAtMs = Date.now();
           setData(response.data);

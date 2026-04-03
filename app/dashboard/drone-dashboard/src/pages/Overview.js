@@ -1,16 +1,15 @@
 // src/pages/Overview.js
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import axios from 'axios';
 import CommandSender from '../components/CommandSender';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
 import useFetch from '../hooks/useFetch';
 import {
+  DRONE_RUNTIME_CLOCK_PROP,
   FIELD_NAMES,
   attachDroneRuntimeClock,
-  extractServerNowMs,
   normalizeTelemetryResponse,
 } from '../constants/fieldMappings';
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
@@ -26,7 +25,12 @@ import {
   buildSwarmViewModel,
   filterClustersByScope,
 } from '../utilities/swarmDesignUtils';
-import { getBackendURL, getTelemetryURL } from '../utilities/utilities';
+import {
+  GCS_ROUTE_KEYS,
+  getFleetConfigResponse,
+  getFleetTelemetryResponse,
+  unwrapFleetTelemetryPayload,
+} from '../services/gcsApiService';
 import '../styles/Overview.css';
 
 const Overview = ({ setSelectedDrone }) => {
@@ -40,15 +44,14 @@ const Overview = ({ setSelectedDrone }) => {
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
   const droneRefs = useRef({});
-  const { data: swarmDataFetched } = useFetch('/get-swarm-data');
+  const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   useEffect(() => {
-    const backendURL = getBackendURL();
     let active = true;
 
     const loadConfig = async () => {
       try {
-        const response = await axios.get(`${backendURL}/get-config-data`);
+        const response = await getFleetConfigResponse();
         if (!active || !Array.isArray(response.data)) {
           return;
         }
@@ -77,20 +80,36 @@ const Overview = ({ setSelectedDrone }) => {
   }, []);
 
   useEffect(() => {
-    const url = getTelemetryURL();
     const fetchData = async () => {
       try {
-        const response = await axios.get(url);
+        const response = await getFleetTelemetryResponse();
         const clockMeta = {
           receivedAtMs: Date.now(),
-          serverNowMs: extractServerNowMs(response.headers),
+          serverNowMs: response.headers?.['x-mds-server-time'] ?? response.headers?.date ?? null,
         };
-        const normalizedTelemetry = normalizeTelemetryResponse(response.data || {}, clockMeta);
-        const dronesArray = Object.keys(normalizedTelemetry).map((hw_ID) => attachDroneRuntimeClock({
-          ...(configByHwId[normalizeComparableId(hw_ID)] || {}),
-          hw_ID,
-          ...normalizedTelemetry[hw_ID],
-        }, clockMeta));
+        const normalizedTelemetry = normalizeTelemetryResponse(
+          unwrapFleetTelemetryPayload(response.data),
+          clockMeta
+        );
+        const dronesArray = Object.keys(normalizedTelemetry).map((hw_ID) => {
+          const mergedDrone = {
+            ...(configByHwId[normalizeComparableId(hw_ID)] || {}),
+            hw_ID,
+            [FIELD_NAMES.HW_ID]: hw_ID,
+            ...normalizedTelemetry[hw_ID],
+          };
+          const runtimeClock = normalizedTelemetry[hw_ID]?.[DRONE_RUNTIME_CLOCK_PROP];
+          if (runtimeClock) {
+            Object.defineProperty(mergedDrone, DRONE_RUNTIME_CLOCK_PROP, {
+              value: runtimeClock,
+              configurable: true,
+              writable: true,
+              enumerable: false,
+            });
+            return mergedDrone;
+          }
+          return attachDroneRuntimeClock(mergedDrone, clockMeta);
+        });
 
         const validDrones = dronesArray.filter(
           (drone) =>

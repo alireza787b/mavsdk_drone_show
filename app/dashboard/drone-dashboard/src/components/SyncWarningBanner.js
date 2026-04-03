@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import '../styles/SyncWarningBanner.css';
-import { getUnifiedGitStatusURL } from '../utilities/utilities';
 import { useSyncDrones } from '../hooks/useSyncDrones';
+import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
 
 /**
  * SyncWarningBanner
@@ -19,9 +19,8 @@ const SyncWarningBanner = () => {
 
   const fetchGitStatus = useCallback(async () => {
     try {
-      const response = await fetch(getUnifiedGitStatusURL());
-      if (!response.ok) return;
-      const data = await response.json();
+      const response = await getUnifiedGitStatusResponse();
+      const data = response.data;
       setSyncData(data);
 
       const newCount = data.needs_sync_count || 0;

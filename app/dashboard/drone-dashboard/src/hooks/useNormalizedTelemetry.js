@@ -12,6 +12,11 @@
 import { useMemo } from 'react';
 import useFetch from './useFetch';
 import { normalizeTelemetryResponse, normalizeDroneData } from '../constants/fieldMappings';
+import {
+  GCS_ROUTE_KEYS,
+  resolveGcsRouteKey,
+  unwrapFleetTelemetryPayload,
+} from '../services/gcsApiService';
 
 /**
  * Fetch and normalize telemetry data from GCS server
@@ -31,6 +36,7 @@ import { normalizeTelemetryResponse, normalizeDroneData } from '../constants/fie
  */
 export function useNormalizedTelemetry(endpoint, interval = null, normalize = true) {
   const { data, meta, error, loading } = useFetch(endpoint, interval);
+  const routeKey = resolveGcsRouteKey(endpoint);
 
   // Memoize normalized data to avoid re-computation on every render
   const normalizedData = useMemo(() => {
@@ -39,10 +45,9 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
     }
 
     // Handle different endpoint response formats
-    if (endpoint === '/telemetry') {
-      // Telemetry endpoint returns: { "1": {...}, "2": {...} }
-      return normalizeTelemetryResponse(data, meta);
-    } else if (endpoint === '/get-heartbeats') {
+    if (routeKey === GCS_ROUTE_KEYS.fleetTelemetry) {
+      return normalizeTelemetryResponse(unwrapFleetTelemetryPayload(data), meta);
+    } else if (routeKey === GCS_ROUTE_KEYS.fleetHeartbeats) {
       // Heartbeat endpoint returns: { heartbeats: [...], total_drones: N }
       if (data.heartbeats && Array.isArray(data.heartbeats)) {
         return {
@@ -51,7 +56,7 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
         };
       }
       return data;
-    } else if (endpoint === '/git-status') {
+    } else if (routeKey === GCS_ROUTE_KEYS.gitStatus) {
       // Git status endpoint returns: { git_status: { "1": {...} } }
       // Need to transform FastAPI Pydantic field names to match drone API format
       if (data.git_status) {
@@ -79,7 +84,7 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
       // Generic normalization for other endpoints
       return normalizeDroneData(data);
     }
-  }, [data, endpoint, meta, normalize]);
+  }, [data, meta, normalize, routeKey]);
 
   return {
     data: normalizedData,
@@ -100,7 +105,7 @@ export function useNormalizedTelemetry(endpoint, interval = null, normalize = tr
  * console.log(drone.position_lat); // snake_case access
  */
 export function useDroneTelemetry(droneId, interval = 1000) {
-  const { data, error, loading } = useNormalizedTelemetry('/telemetry', interval);
+  const { data, error, loading } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, interval);
 
   const drone = useMemo(() => {
     if (!data || !droneId) return null;

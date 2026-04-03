@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Marker } from 'react-leaflet';
 import { FaMapMarkerAlt, FaWifi, FaClock, FaBatteryFull, FaCompass, FaSatellite, FaPlane, FaCog, FaNetworkWired } from 'react-icons/fa';
 import 'leaflet/dist/leaflet.css';
@@ -7,7 +6,6 @@ import L from 'leaflet';
 import LeafletMapBase from './map/LeafletMapBase';
 import DroneReadinessReport from './DroneReadinessReport';
 import '../styles/DroneDetail.css';
-import { getBackendURL } from '../utilities/utilities';
 import { getFlightModeTitle, getSystemStatusTitle, getFlightModeCategory } from '../utilities/flightModeUtils';
 import { getDroneShowStateName } from '../constants/droneStates';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
@@ -20,6 +18,7 @@ import {
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { getDroneDisplayIdentity } from '../utilities/dronePresentation';
+import { getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
 
 const POLLING_RATE_HZ = 2;
 
@@ -38,11 +37,10 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const droneId = drone[FIELD_NAMES.HW_ID];
 
   useEffect(() => {
-    const backendURL = getBackendURL();
-    const url = `${backendURL}/telemetry`;
     const fetchData = () => {
-      axios.get(url).then((response) => {
-        const droneData = response.data[droneId];
+      getFleetTelemetryResponse().then((response) => {
+        const telemetry = unwrapFleetTelemetryPayload(response.data);
+        const droneData = telemetry[droneId];
         if (droneData) {
           const clockMeta = {
             receivedAtMs: Date.now(),

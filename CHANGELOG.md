@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 API modernization phase 2 checkpoint note documenting the core frontend caller migration onto the centralized GCS service layer, the focused Hetzner validation batch, the production build result, and the remaining route domains for the next slice
 - a 2026-04-03 API contract audit phase 1 note documenting the live GCS/drone route inventory, the main naming and identity inconsistencies, the `/api/v1` migration target, and the staged MCP-ready API cleanup plan
 - a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
@@ -18,6 +19,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the API modernization phase 2 slice now centralizes the highest-traffic frontend GCS callers behind `src/services/gcsApiService.js`, so Dashboard Overview, Mission Config, Swarm Design, Globe View, Drone Detail, git/sync widgets, origin helpers, mission-config save/validate flows, and command-service reads no longer hardcode backend route strings across pages and hooks
+- added focused dashboard service coverage for the new route layer (`gcsApiService.test.js`) and the migrated command/swarm helpers (`droneApiService.test.js`), giving the API cleanup stream an explicit frontend contract gate instead of relying only on end-to-end browser checks
+- `getSwarmClusterStatus()` now tolerates both raw axios responses and already-unwrapped status payloads, fixing a mixed response-shape bug that could hide processed-cluster state depending on which helper path supplied the data
 - the first API modernization slice now exposes canonical `/api/v1/...` aliases for core GCS health/telemetry/heartbeat/network routes and core drone health/state/command/preflight/navigation/network routes while preserving legacy compatibility paths, giving docs/tests/automation a stable migration target before deeper route extraction and caller migration
 - added machine-enforced route inventory coverage for the full current GCS and drone business API surfaces, including the active HTTP/WebSocket sets, heartbeat/health aliases, and deprecated git compatibility endpoints, so the API cleanup program can proceed against a frozen baseline instead of rediscovering the live contract by hand
 - cluster-scope rails now render drone counts as discrete badges instead of parenthetical suffixes, keeping Dashboard, Mission Config, Swarm Design, and Command Control scope chips denser and easier to scan on mobile

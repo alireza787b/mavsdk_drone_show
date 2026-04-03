@@ -110,6 +110,13 @@ This work should make it straightforward to expose a later MCP layer without inv
 - remove direct page-level ad hoc endpoint usage where practical
 - classify stale consumers and dead routes
 
+Phase 2 core checkpoint on 2026-04-03:
+
+- introduced a shared semantic route/service layer in `app/dashboard/drone-dashboard/src/services/gcsApiService.js`
+- migrated the highest-traffic dashboard/config/origin/command consumers onto that layer
+- added focused frontend service tests and Hetzner-backed production-build validation
+- left dynamic swarm-trajectory management routes, logs/SAR shared services, and show-management/download/static-asset URL builders for the next slice
+
 ### Phase 3
 
 - extract GCS route domains out of `app_fastapi.py`

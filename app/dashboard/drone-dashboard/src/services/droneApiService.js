@@ -1,7 +1,18 @@
 // app/dashboard/drone-dashboard/src/services/droneApiService.js
 
 import axios from 'axios';
-import { getBackendURL } from '../utilities/utilities';
+import {
+  buildGcsUrl,
+  clearProcessedSwarmTrajectoriesResponse,
+  getActiveCommandsResponse,
+  getCommandStatusResponse,
+  getRecentCommandsResponse,
+  getSwarmLeadersResponse,
+  getSwarmTrajectoryPolicyResponse,
+  getSwarmTrajectoryStatusResponse,
+  processSwarmTrajectoriesResponse,
+  submitCommandResponse,
+} from './gcsApiService';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 
 /**
@@ -21,10 +32,8 @@ export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) =
 };
 
 export const sendDroneCommand = async (commandData) => {
-  const requestURI = `${getBackendURL()}/submit_command`;
-
   try {
-    const response = await axios.post(requestURI, commandData);
+    const response = await submitCommandResponse(commandData);
     return response.data;
   } catch (error) {
     throw error;
@@ -32,10 +41,8 @@ export const sendDroneCommand = async (commandData) => {
 };
 
 export const getCommandStatus = async (commandId) => {
-  const requestURI = `${getBackendURL()}/command/${commandId}`;
-
   try {
-    const response = await axios.get(requestURI);
+    const response = await getCommandStatusResponse(commandId);
     return response.data;
   } catch (error) {
     throw error;
@@ -43,16 +50,8 @@ export const getCommandStatus = async (commandId) => {
 };
 
 export const getRecentCommands = async ({ limit = 8, status = null, missionType = null } = {}) => {
-  const requestURI = `${getBackendURL()}/commands/recent`;
-
   try {
-    const response = await axios.get(requestURI, {
-      params: {
-        limit,
-        ...(status ? { status } : {}),
-        ...(missionType !== null && missionType !== undefined ? { mission_type: missionType } : {}),
-      },
-    });
+    const response = await getRecentCommandsResponse({ limit, status, missionType });
     return response.data;
   } catch (error) {
     throw error;
@@ -60,10 +59,8 @@ export const getRecentCommands = async ({ limit = 8, status = null, missionType 
 };
 
 export const getActiveCommands = async () => {
-  const requestURI = `${getBackendURL()}/commands/active`;
-
   try {
-    const response = await axios.get(requestURI);
+    const response = await getActiveCommandsResponse();
     return response.data;
   } catch (error) {
     throw error;
@@ -72,7 +69,7 @@ export const getActiveCommands = async () => {
 
 export const getSwarmTrajectoryStatus = async () => {
   try {
-    const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/status`);
+    const response = await getSwarmTrajectoryStatusResponse();
     return response.data;
   } catch (error) {
     throw error;
@@ -81,7 +78,7 @@ export const getSwarmTrajectoryStatus = async () => {
 
 export const getSwarmTrajectoryPolicy = async () => {
   try {
-    const response = await axios.get(`${getBackendURL()}/api/swarm/trajectory/policy`);
+    const response = await getSwarmTrajectoryPolicyResponse();
     return response.data;
   } catch (error) {
     throw error;
@@ -99,7 +96,7 @@ export const uploadSwarmTrajectory = async (leaderId, file, filename = null) => 
 
   try {
     const response = await axios.post(
-      `${getBackendURL()}/api/swarm/trajectory/upload/${leaderId}`,
+      buildGcsUrl(`/api/swarm/trajectory/upload/${leaderId}`),
       formData
     );
     return response.data;
@@ -112,12 +109,12 @@ export const getSwarmClusterStatus = async () => {
   try {
     // Get swarm leaders and status information
     const [leadersResponse, statusResponse] = await Promise.all([
-      axios.get(`${getBackendURL()}/api/swarm/leaders`),
+      getSwarmLeadersResponse(),
       getSwarmTrajectoryStatus()
     ]);
 
-    const leadersData = leadersResponse.data;
-    const statusData = statusResponse.data;
+    const leadersData = leadersResponse?.data ?? leadersResponse;
+    const statusData = statusResponse?.data ?? statusResponse;
 
     if (!leadersData.success || !statusData.success) {
       throw new Error('Failed to fetch cluster information');
@@ -193,10 +190,8 @@ export const getSwarmClusterStatus = async () => {
 };
 
 export const processTrajectories = async (options = {}) => {
-  const requestURI = `${getBackendURL()}/api/swarm/trajectory/process`;
-
   try {
-    const response = await axios.post(requestURI, {
+    const response = await processSwarmTrajectoriesResponse({
       force_clear: options.force_clear || false,
       auto_reload: options.auto_reload !== false // default true
     });
@@ -207,10 +202,8 @@ export const processTrajectories = async (options = {}) => {
 };
 
 export const clearProcessedData = async () => {
-  const requestURI = `${getBackendURL()}/api/swarm/trajectory/clear-processed`;
-
   try {
-    const response = await axios.post(requestURI);
+    const response = await clearProcessedSwarmTrajectoriesResponse();
     return response.data;
   } catch (error) {
     throw error;
